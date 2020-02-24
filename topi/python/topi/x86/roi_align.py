@@ -20,7 +20,6 @@ import math
 import tvm
 
 from tvm import hybrid
-from ..vision.rcnn import roi_align_nchw
 from ..tensor import full
 from ..util import get_const_tuple
 
@@ -185,8 +184,7 @@ def roi_align_nchw_ir(data, rois, w_pc, pos_pc, pooled_size, spatial_scale, samp
     return output
 
 
-@roi_align_nchw.register("cpu")
-def roi_align_nchw_cpu(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
+def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     """ROI align operator in NCHW layout.
 
     Parameters

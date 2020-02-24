@@ -19,7 +19,6 @@
 import tvm
 from ...util import get_const_tuple
 
-@tvm.target.generic_func
 def roi_pool_nchw(data, rois, pooled_size, spatial_scale):
     """ROI pool operator in NCHW layout.
 

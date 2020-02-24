@@ -32,12 +32,8 @@ def is_packed_layout(layout):
         return True
     return False
 
-@autotvm.register_topi_compute(topi.nn.dense, 'vta', 'direct')
-def _declaration_dense(cfg,
-                       data,
-                       weight,
-                       bias=None,
-                       out_dtype=None):
+@autotvm.register_topi_compute("dense_packed.vta")
+def dense_packed(cfg, data, weight, bias=None, out_dtype=None):
     """Dense function declaration."""
 
     # Make sure that the dense operator is packed
@@ -67,8 +63,8 @@ def _declaration_dense(cfg,
 
     return res
 
-@autotvm.register_topi_schedule(topi.generic.schedule_dense, 'vta', 'direct')
-def _schedule_dense(cfg, outs):
+@autotvm.register_topi_schedule("dense_packed.vta")
+def schedule_dense_packed(cfg, outs):
     """Packed dense schedule."""
 
     assert len(outs) == 1

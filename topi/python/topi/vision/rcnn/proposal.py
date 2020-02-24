@@ -317,7 +317,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     body = ib.get()
     return body
 
-@tvm.target.generic_func
+
 def proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, threshold,
              rpn_pre_nms_top_n, rpn_post_nms_top_n, rpn_min_size, iou_loss):
     """Proposal operator.

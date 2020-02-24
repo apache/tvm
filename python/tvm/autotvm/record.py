@@ -28,14 +28,16 @@ import time
 import os
 import itertools
 from collections import OrderedDict
+import numpy as np
 
 from .. import build, lower, target as _target
-
+from .. import __version__
 from . import task
 from .task import ConfigEntity, ApplyHistoryBest
 from .measure import MeasureInput, MeasureResult
 
-AUTOTVM_LOG_VERSION = 0.1
+AUTOTVM_LOG_VERSION = 0.2
+_old_version_warning = True
 logger = logging.getLogger('autotvm')
 
 try:  # convert unicode to str for python2
@@ -88,27 +90,30 @@ def encode(inp, result, protocol='json'):
 
     if protocol == 'json':
         json_dict = {
-            "i": (str(inp.target),
-                  inp.task.name, inp.task.args, inp.task.kwargs,
-                  inp.task.workload,
-                  inp.config.to_json_dict()),
+            "input": (str(inp.target),
+                      inp.task.name, inp.task.args, inp.task.kwargs),
 
-            "r": (result.costs if result.error_no == 0 else (1e9,),
-                  result.error_no,
-                  result.all_cost,
-                  result.timestamp),
+            "config": inp.config.to_json_dict(),
 
-            "v": AUTOTVM_LOG_VERSION
+            "result": (result.costs if result.error_no == 0 else (1e9,),
+                       result.error_no,
+                       result.all_cost,
+                       result.timestamp),
+
+            "version": AUTOTVM_LOG_VERSION,
+
+            "tvm_version": __version__
         }
         return json.dumps(json_dict)
     if protocol == 'pickle':
         row = (str(inp.target),
                str(base64.b64encode(pickle.dumps([inp.task.name,
                                                   inp.task.args,
-                                                  inp.task.kwargs,
-                                                  inp.task.workload])).decode()),
+                                                  inp.task.kwargs])).decode()),
                str(base64.b64encode(pickle.dumps(inp.config)).decode()),
-               str(base64.b64encode(pickle.dumps(tuple(result))).decode()))
+               str(base64.b64encode(pickle.dumps(tuple(result))).decode()),
+               str(AUTOTVM_LOG_VERSION),
+               str(__version__))
         return '\t'.join(row)
 
     raise RuntimeError("Invalid log protocol: " + protocol)
@@ -119,20 +124,29 @@ def decode(row, protocol='json'):
 
     Parameters
     ----------
-    row: str
+    row : str
         a row in the logger file
-    protocol: str
+
+    protocol : str
         log protocol, json or pickle
 
     Returns
     -------
-    input: autotvm.tuner.MeasureInput
-    result: autotvm.tuner.MeasureResult
+    ret : tuple(autotvm.tuner.MeasureInput, autotvm.tuner.MeasureResult), or None
+        The tuple of input and result, or None if input uses old version log format.
     """
     # pylint: disable=unused-variable
+    global _old_version_warning
+
     if protocol == 'json':
         row = json.loads(row)
-        tgt, task_name, task_args, task_kwargs, workload, config = row['i']
+        if 'v' in row and row['v'] == 0.1:
+            if _old_version_warning:
+                logger.warning("AutoTVM log version 0.1 is no longer supported.")
+                _old_version_warning = False
+            return None
+
+        tgt, task_name, task_args, task_kwargs = row["input"]
         tgt = _target.create(str(tgt))
 
         def clean_json_to_python(x):
@@ -148,22 +162,27 @@ def decode(row, protocol='json'):
             return x
 
         tsk = task.Task(clean_json_to_python(task_name), clean_json_to_python(task_args))
-        tsk.workload = clean_json_to_python(workload)
-        config = ConfigEntity.from_json_dict(config)
+        config = ConfigEntity.from_json_dict(row["config"])
         inp = MeasureInput(tgt, tsk, config)
-        result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
+        result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["result"]])
+        config.cost = np.mean(result.costs)
 
         return inp, result
     if protocol == 'pickle':
         items = row.split("\t")
+        if len(items) == 4:
+            if _old_version_warning:
+                logger.warning("AutoTVM log version 0.1 is no longer supported.")
+                _old_version_warning = False
+            return None
         tgt = _target.create(items[0])
         task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
         config = pickle.loads(base64.b64decode(items[2].encode()))
-        result = pickle.loads(base64.b64decode(items[3].encode()))
+        result = MeasureResult(*pickle.loads(base64.b64decode(items[3].encode())))
+        config.cost = np.mean(result.costs)
 
         tsk = task.Task(task_tuple[0], task_tuple[1])
-        tsk.workload = task_tuple[3]
-        return MeasureInput(tgt, tsk, config), MeasureResult(*result)
+        return MeasureInput(tgt, tsk, config), result
 
     raise RuntimeError("Invalid log protocol: " + protocol)
 
@@ -183,7 +202,10 @@ def load_from_file(filename):
     """
     for row in open(filename):
         if row and not row.startswith('#'):
-            inp, res = decode(row)
+            ret = decode(row)
+            if ret is None:
+                continue
+            inp, res = ret
             # Avoid loading the record with an empty config. The TOPI schedule with no entities
             # will result in an empty entity map (e.g., depthwise_conv2d_nchw on x86).
             # Using an empty config will cause problems when applying alter op like NCHW to NCHWc.
@@ -208,7 +230,7 @@ def split_workload(in_file, clean=True):
 
     logger.info("start converting...")
     pool = multiprocessing.Pool()
-    lines = pool.map(decode, lines)
+    lines = [rec for rec in pool.map(decode, lines) if rec is not None]
     logger.info("map done %.2f", time.time() - tic)
 
     wkl_dict = OrderedDict()

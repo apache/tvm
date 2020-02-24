@@ -153,7 +153,10 @@ def get_flatten_name(fea):
         from .record import decode
         # flatten line to feature
         line = fea
-        inp, _ = decode(line)
+        ret = decode(line)
+        if ret is None:
+            raise ValueError("Unsupported AutoTVM log format")
+        inp, _ = ret
         target = _target.create(inp.target)
         with target:
             s, args = inp.template.instantiate(inp.config)

@@ -21,52 +21,74 @@ import tvm
 import topi
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
-from ._reduce import _schedule_reduce
+from . import strategy
 from .op import OpPattern
 from ...hybrid import script
 from ...api import convert
 
-schedule_injective = _reg.schedule_injective
-schedule_broadcast = _reg.schedule_injective
-schedule_concatenate = _reg.schedule_concatenate
+_reg.register_broadcast_schedule("broadcast_to")
+_reg.register_broadcast_schedule("broadcast_to_like")
+_reg.register_broadcast_schedule("expand_dims")
+_reg.register_broadcast_schedule("repeat")
+_reg.register_broadcast_schedule("tile")
+_reg.register_broadcast_schedule("where")
+_reg.register_injective_schedule("squeeze")
+_reg.register_injective_schedule("reshape")
+_reg.register_injective_schedule("reshape_like")
+_reg.register_injective_schedule("full")
+_reg.register_injective_schedule("full_like")
+_reg.register_injective_schedule("arange")
+_reg.register_injective_schedule("reverse")
+_reg.register_injective_schedule("cast")
+_reg.register_injective_schedule("cast_like")
+_reg.register_injective_schedule("reinterpret")
+_reg.register_injective_schedule("strided_slice")
+_reg.register_injective_schedule("slice_like")
+_reg.register_injective_schedule("split")
+_reg.register_injective_schedule("take")
+_reg.register_injective_schedule("transpose")
+_reg.register_injective_schedule("stack")
+_reg.register_injective_schedule("_contrib_reverse_reshape")
+_reg.register_injective_schedule("gather_nd")
+_reg.register_injective_schedule("sequence_mask")
+_reg.register_injective_schedule("one_hot")
+_reg.register_reduce_schedule("collapse_sum_like")
 
+# concatenate
+_reg.register_schedule("concatenate", strategy.schedule_concatenate)
 
-_reg.register_schedule("collapse_sum_like", _schedule_reduce)
-_reg.register_schedule("broadcast_to", schedule_broadcast)
-_reg.register_schedule("broadcast_to_like", schedule_broadcast)
-_reg.register_schedule("expand_dims", schedule_broadcast)
-_reg.register_schedule("squeeze", schedule_injective)
-_reg.register_schedule("reshape", schedule_injective)
-_reg.register_schedule("reshape_like", schedule_injective)
-_reg.register_schedule("full", schedule_injective)
-_reg.register_schedule("full_like", schedule_injective)
-_reg.register_schedule("arange", schedule_injective)
-_reg.register_schedule("reverse", schedule_injective)
-_reg.register_schedule("repeat", schedule_broadcast)
-_reg.register_schedule("tile", schedule_broadcast)
-_reg.register_schedule("cast", schedule_injective)
-_reg.register_schedule("cast_like", schedule_injective)
-_reg.register_schedule("reinterpret", schedule_injective)
-_reg.register_schedule("strided_slice", schedule_injective)
-_reg.register_schedule("strided_set", schedule_injective)
-_reg.register_schedule("slice_like", schedule_injective)
-_reg.register_schedule("split", schedule_injective)
-_reg.register_schedule("take", schedule_injective)
-_reg.register_schedule("transpose", schedule_injective)
-_reg.register_schedule("where", schedule_broadcast)
-_reg.register_schedule("stack", schedule_injective)
-_reg.register_schedule("concatenate", schedule_concatenate)
-_reg.register_schedule("_contrib_reverse_reshape", schedule_injective)
-_reg.register_schedule("gather_nd", schedule_injective)
-_reg.register_schedule("sequence_mask", schedule_injective)
-_reg.register_schedule("one_hot", schedule_injective)
+# strided_set
+@_reg.register_compute("strided_set")
+def compute_strided_set(attrs, inputs, output_type):
+    """Compute definition of strided_set"""
+    return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
 
+_reg.register_injective_schedule("strided_set")
 
 # layout_transform
-_reg.register_schedule("layout_transform", schedule_injective)
+_reg.register_injective_schedule("layout_transform")
 _reg.register_pattern("layout_transform", OpPattern.INJECTIVE)
 
-# shape func
+# argwhere
+@_reg.register_compute("argwhere")
+def compute_argwhere(attrs, inputs, output_type):
+    """Compute definition of argwhere"""
+    output_shape = []
+    for s in output_type.shape:
+        if hasattr(s, "value"):
+            output_shape.append(s)
+        else:
+            # see Any, replace it with a var
+            output_shape.append(tvm.var("any_dim", "int32"))
+    new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
+    return [topi.argwhere(new_output_type, inputs[0])]
+
+_reg.register_schedule("argwhere", strategy.schedule_argwhere)
+
+#####################
+#  Shape functions  #
+#####################
+
 @script
 def _arange_shape_func(start, stop, step):
     out = output_tensor((1,), "int64")
@@ -283,31 +305,6 @@ def argwhere_shape_func(attrs, inputs, out_ndims):
     if len(inputs[0].shape) == 5:
         return [_argwhere_shape_func_5d(inputs[0])]
     return ValueError("Does not support rank higher than 5 in argwhere")
-
-@_reg.register_schedule("argwhere")
-def schedule_argwhere(_, outs, target):
-    """Schedule definition of argwhere"""
-    with target:
-        return topi.generic.schedule_argwhere(outs)
-
-
-@_reg.register_compute("argwhere")
-def compute_argwhere(attrs, inputs, output_type, _):
-    """Compute definition of argwhere"""
-    output_shape = []
-    for s in output_type.shape:
-        if hasattr(s, "value"):
-            output_shape.append(s)
-        else:
-            # see Any, replace it with a var
-            output_shape.append(tvm.var("any_dim", "int32"))
-    new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
-    return [topi.argwhere(new_output_type, inputs[0])]
-
-@_reg.register_compute("strided_set")
-def compute_strided_set(attrs, inputs, output_type, _):
-    """Compute definition of strided_set"""
-    return [topi.strided_set(inputs[0], inputs[1], inputs[2], inputs[3], inputs[4])]
 
 @script
 def _layout_transform_shape_func(data_shape,

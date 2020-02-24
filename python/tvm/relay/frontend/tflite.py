@@ -1156,7 +1156,7 @@ class OperatorConverter(object):
 
         if is_depthwise_conv:
             params['channels'] = int(in_channels)
-            params['groups'] = int(in_channels)
+            params['groups'] = int(input_c)
             params['kernel_layout'] = 'HWOI'
         else:
             params['channels'] = int(output_channels)

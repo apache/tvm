@@ -39,9 +39,9 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     with tvm.target.create(device):
         A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name='A')
         W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name='W')
-        B = topi.nn.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,
-                                          pack_dtype='uint8', out_dtype='int16', unipolar=unipolar)
-        s = topi.generic.schedule_bitserial_conv2d_nhwc([B])
+        B = topi.arm_cpu.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,
+                                               'uint8', out_dtype, unipolar)
+        s = topi.arm_cpu.schedule_bitserial_conv2d_nhwc([B])
 
     func = tvm.build(s, [A, W, B], device)
 

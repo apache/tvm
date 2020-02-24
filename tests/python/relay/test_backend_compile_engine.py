@@ -14,11 +14,136 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import numpy as np
 import tvm
 import tvm.testing
-import numpy as np
 from tvm import relay
+from tvm import autotvm
+import topi
+from tvm.relay.testing import run_infer_type
+from tvm.relay.testing.temp_op_attr import TempOpAttr
 
+
+@autotvm.register_topi_compute("test/conv2d_1")
+def _compute_conv2d_1(cfg, input, filter, strides, padding, dilation, out_dtype):
+    return topi.nn.conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
+
+@autotvm.register_topi_schedule("test/conv2d_1")
+def _schedule_conv2d_1(cfg, outs):
+    return topi.generic.schedule_conv2d_nchw(outs)
+
+@autotvm.register_topi_compute("test/conv2d_2")
+def _compute_conv2d_2(cfg, input, filter, strides, padding, dilation, out_dtype):
+    return topi.nn.conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
+
+@autotvm.register_topi_schedule("test/conv2d_2")
+def _schedule_conv2d_2(cfg, outs):
+    return topi.generic.schedule_conv2d_nchw(outs)
+
+def _compute_conv2d_3(input, filter, strides, padding, dilation, out_dtype):
+    return topi.nn.conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
+
+def _schedule_conv2d_3(outs):
+    return topi.generic.schedule_conv2d_nchw(outs)
+
+@tvm.target.override_native_generic_func("test_conv2d_strategy")
+def _tmp_strategy(attrs, inputs, out_type, target):
+    strategy = relay.op.OpStrategy()
+    strategy.add_implementation(
+        relay.op.strategy.wrap_compute_conv2d(_compute_conv2d_1),
+        relay.op.strategy.wrap_topi_schedule(_schedule_conv2d_1),
+        name="conv2d_1",
+        plevel=10)
+    strategy.add_implementation(
+        relay.op.strategy.wrap_compute_conv2d(_compute_conv2d_2),
+        relay.op.strategy.wrap_topi_schedule(_schedule_conv2d_2),
+        name="conv2d_2",
+        plevel=15)
+    ic = inputs[0].shape[1]
+    with tvm.te.SpecializedCondition(ic >= 16):
+        strategy.add_implementation(
+            relay.op.strategy.wrap_compute_conv2d(_compute_conv2d_3),
+            relay.op.strategy.wrap_topi_schedule(_schedule_conv2d_3),
+            name="conv2d_3",
+            plevel=20)
+    return strategy
+
+def _create_record(task_name, dshape, wshape, target, cost):
+    args = [tvm.placeholder(dshape), tvm.placeholder(wshape), (1, 1), (1, 1, 1, 1),
+            (1, 1), 'float32']
+    task = autotvm.task.create(task_name, args, target)
+    cfg = autotvm.ConfigEntity(0, None, {}, [])
+    cfg.cost = cost
+    inp = autotvm.MeasureInput(target=target, task=task, config=cfg)
+    result = autotvm.MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
+    return (inp, result)
+
+def test_get_valid_implementations():
+    target = tvm.target.create("llvm")
+
+    def _get_impls(dshape, wshape):
+        data = relay.var("data", shape=dshape)
+        weight = relay.var("wshape", shape=wshape)
+        out = relay.nn.conv2d(data, weight, padding=(1, 1))
+        out = run_infer_type(out)
+        return relay.backend.compile_engine.get_valid_implementations(
+            relay.op.get("nn.conv2d"),
+            out.attrs,
+            [tvm.placeholder(dshape), tvm.placeholder(wshape)],
+            out.checked_type,
+            target)
+
+    with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
+        impls = _get_impls((1, 8, 7, 7), (32, 8, 3, 3))
+        assert len(impls) == 2
+        impls = _get_impls((1, 16, 7, 7), (32, 16, 3, 3))
+        assert len(impls) == 3
+
+def test_select_implementation():
+    target = tvm.target.create("llvm")
+
+    def _select_impl(dshape, wshape, use_autotvm=False):
+        data = relay.var("data", shape=dshape)
+        weight = relay.var("wshape", shape=wshape)
+        out = relay.nn.conv2d(data, weight, padding=(1, 1))
+        out = run_infer_type(out)
+        return relay.backend.compile_engine.select_implementation(
+            relay.op.get("nn.conv2d"),
+            out.attrs,
+            [tvm.placeholder(dshape), tvm.placeholder(wshape)],
+            out.checked_type,
+            target,
+            use_autotvm)
+
+    with TempOpAttr("nn.conv2d", "FTVMStrategy", _tmp_strategy):
+        impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3))
+        assert impl.name == "conv2d_2"
+        impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
+        assert impl.name == "conv2d_2"
+        impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3))
+        assert impl.name == "conv2d_3"
+        impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
+        assert impl.name == "conv2d_3"
+
+        # add autotvm record
+        records = []
+        records.append(_create_record("test/conv2d_1", (1, 8, 7, 7), (32, 8, 3, 3), target, 0.5))
+        records.append(_create_record("test/conv2d_1", (1, 16, 7, 7), (32, 16, 3, 3), target, 1.0))
+        with target:
+            with autotvm.apply_history_best(records):
+                impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
+                assert impl.name == "conv2d_1"
+                impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
+                assert impl.name == "conv2d_1"
+
+        records.append(_create_record("test/conv2d_2", (1, 8, 7, 7), (32, 8, 3, 3), target, 0.2))
+        records.append(_create_record("test/conv2d_1", (1, 16, 7, 7), (32, 16, 3, 3), target, 1.2))
+        with target:
+            with autotvm.apply_history_best(records):
+                impl, _ = _select_impl((1, 8, 7, 7), (32, 8, 3, 3), True)
+                assert impl.name == "conv2d_2"
+                impl, _ = _select_impl((1, 16, 7, 7), (32, 16, 3, 3), True)
+                assert impl.name == "conv2d_1"
 
 def test_compile_engine():
     engine = relay.backend.compile_engine.get()
@@ -109,6 +234,8 @@ def test_compile_nhwc_pack():
 
 
 if __name__ == "__main__":
+    test_get_valid_implementations()
+    test_select_implementation()
     test_compile_engine()
     test_compile_placeholder_bypass()
     test_compile_injective_with_tuple()

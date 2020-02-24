@@ -82,13 +82,13 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
 
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.nn.conv2d(A, W, (stride, stride), padding, (dilation, dilation),
-                               layout='NCHW', out_dtype=dtype)
+            C = topi.cuda.conv2d_NCHWc_int8(A, W, (stride, stride), padding, (dilation, dilation),
+                                            'NCHW', dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv2d_nchw([C])
+            s = topi.cuda.schedule_conv2d_NCHWc_int8([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

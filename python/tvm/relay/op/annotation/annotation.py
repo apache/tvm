@@ -19,7 +19,7 @@ from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
-from ..op import register_schedule, schedule_injective
+from .. import op as reg
 
 
 def on_device(data, device):
@@ -79,7 +79,7 @@ def checkpoint(data):
     """
     return _make.checkpoint(data)
 
-register_schedule("annotation.checkpoint", schedule_injective)
+reg.register_injective_schedule("annotation.checkpoint")
 
 
 def compiler_begin(data, compiler):

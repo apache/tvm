@@ -18,6 +18,7 @@
 import numpy as np
 import tvm
 import topi
+import topi.testing
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
@@ -43,7 +44,7 @@ def verify_clip(N, a_min, a_max, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
 
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)

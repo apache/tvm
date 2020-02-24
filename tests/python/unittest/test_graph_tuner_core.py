@@ -31,7 +31,6 @@ from tvm import relay
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner, PBQPTuner
-from test_graph_tuner_utils import create_workload
 
 
 def _create_data(target, dshape, dtype, layout):
@@ -48,68 +47,53 @@ def _create_data(target, dshape, dtype, layout):
     tasks = autotvm.task.extract_from_program(mod["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
-    wkl_list = [
-        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-    ]
+                                              ops=(relay.op.get("nn.conv2d"),))
     costs = [0.04, 0.012, 0.03]
     config_list = []
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [3, 1]],
-                      ["tile_oc", "sp", [4, 4]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [3, 1]],
+                           ["tile_oc", "sp", [4, 4]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [2, 8]],
-                      ["tile_oc", "sp", [1, 32]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [2, 8]],
+                           ["tile_oc", "sp", [1, 32]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [8, 4]],
-                      ["tile_oc", "sp", [4, 8]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [8, 4]],
+                           ["tile_oc", "sp", [4, 8]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
-    for wkl, cost, config, task in zip(wkl_list, costs, config_list, tasks):
-        task.workload = wkl
+    for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
     ltf_records = []
     ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
-    ltf_task = copy.deepcopy(tasks[0])
-    ltf_task.workload = ltf_wkl
+    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
 
     ltf_keys = []
     ltf_arg = [tvm.placeholder((1, 4, 8, 8, 4), dtype=dtype), "NCHW4c", "NCHW8c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
+    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
     ltf_keys.append(ltf_wkl)
     ltf_arg = [tvm.placeholder((1, 1, 8, 8, 32), dtype=dtype), "NCHW32c", "NCHW4c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
+    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
     ltf_keys.append(ltf_wkl)
     ltf_arg = [tvm.placeholder((1, 4, 8, 8, 8), dtype=dtype), "NCHW8c", "NCHW32c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
+    ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
     ltf_keys.append(ltf_wkl)
 
     return net, records, ltf_records, ltf_keys, tasks
@@ -121,7 +105,8 @@ def test_graph_tuner_layout_transform():
     dshape = (1, 3, 8, 8)
     dtype = "float32"
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
     executor = DPTuner(g, {"data": dshape}, records, target_ops, target=target, log_file=log_file)
@@ -156,36 +141,34 @@ def test_DPTuner_run():
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     mod = tvm.IRModule()
     mod["main"] = g
     costs = [0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 3]],
-                      ["tile_oc", "sp", [2, 8]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 3]],
+                           ["tile_oc", "sp", [2, 8]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [4, 4]],
-                      ["tile_oc", "sp", [2, 16]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [4, 4]],
+                           ["tile_oc", "sp", [2, 16]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [16, 2]],
-                      ["tile_oc", "sp", [8, 4]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [16, 2]],
+                           ["tile_oc", "sp", [8, 4]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
@@ -207,34 +190,32 @@ def test_PBQPTuner_run():
     dtype = "float32"
     layout = "NCHW"
     dshape = (1, 3, 8, 8)
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     g, records, ltf_records, ltf_keys, tasks = _create_data(target, dshape, dtype, layout)
     costs = [0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 3]],
-                      ["tile_oc", "sp", [2, 8]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 3]],
+                           ["tile_oc", "sp", [2, 8]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [4, 4]],
-                      ["tile_oc", "sp", [2, 16]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [4, 4]],
+                           ["tile_oc", "sp", [2, 16]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [16, 2]],
-                      ["tile_oc", "sp", [8, 4]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [16, 2]],
+                           ["tile_oc", "sp", [8, 4]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
     for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
@@ -255,7 +236,8 @@ def test_many_sub_graphs():
     dtype = "float32"
     dshape = (1, 8, 8, 3)
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     data = relay.var("data", shape=dshape, dtype=dtype)
     t0 = relay.transpose(data, (0, 3, 1, 2))
@@ -277,79 +259,63 @@ def test_many_sub_graphs():
     tasks = autotvm.task.extract_from_program(net["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
-    wkl_list = [
-        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-    ]
+                                              ops=(conv2d,))
     costs = [0.04, 0.012, 0.03, 0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [3, 1]],
-                      ["tile_oc", "sp", [4, 4]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [3, 1]],
+                           ["tile_oc", "sp", [4, 4]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [2, 8]],
-                      ["tile_oc", "sp", [1, 32]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [2, 8]],
+                           ["tile_oc", "sp", [1, 32]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [8, 4]],
-                      ["tile_oc", "sp", [4, 8]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [8, 4]],
+                           ["tile_oc", "sp", [4, 8]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 3]],
-                      ["tile_oc", "sp", [2, 8]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 3]],
+                           ["tile_oc", "sp", [2, 8]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [4, 4]],
-                      ["tile_oc", "sp", [2, 16]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [4, 4]],
+                           ["tile_oc", "sp", [2, 16]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [16, 2]],
-                      ["tile_oc", "sp", [8, 4]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [16, 2]],
+                           ["tile_oc", "sp", [8, 4]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
 
-    wkl_list = wkl_list + wkl_list
     tasks = tasks + tasks
-    for wkl, cost, config, task in zip(wkl_list, costs, config_list, tasks):
-        task.workload = wkl
+    for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
     ltf_records = []
     ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
-    ltf_task = copy.deepcopy(tasks[0])
-    ltf_task.workload = ltf_wkl
+    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
@@ -376,7 +342,8 @@ def test_tuple():
     dtype = "float32"
     dshape = (1, 5, 32, 32)
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     data = relay.var("data", shape=dshape, dtype=dtype)
     w0 = relay.var("w0_weight")
@@ -390,62 +357,48 @@ def test_tuple():
     tasks = autotvm.task.extract_from_program(net["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
-    wkl_list = [
-        create_workload((1, 5, 32, 32), (2, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 5, 32, 32), (3, 5, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-    ]
+                                              ops=(conv2d,))
     costs = [0.01, 0.012, 0.03, 0.04]
     config_list = []
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 5]],
-                      ["tile_oc", "sp", [1, 2]],
-                      ["tile_ow", "sp", [4, 8]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 5]],
+                           ["tile_oc", "sp", [1, 2]],
+                           ["tile_ow", "sp", [4, 8]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 5]],
-                      ["tile_oc", "sp", [1, 3]],
-                      ["tile_ow", "sp", [2, 16]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 5]],
+                           ["tile_oc", "sp", [1, 3]],
+                           ["tile_ow", "sp", [2, 16]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 5]],
-                      ["tile_oc", "sp", [2, 1]],
-                      ["tile_ow", "sp", [4, 8]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 5]],
+                           ["tile_oc", "sp", [2, 1]],
+                           ["tile_ow", "sp", [4, 8]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 5]],
-                      ["tile_oc", "sp", [3, 1]],
-                      ["tile_ow", "sp", [2, 16]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 5]],
+                           ["tile_oc", "sp", [3, 1]],
+                           ["tile_ow", "sp", [2, 16]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
-
-    wkl_list = wkl_list + wkl_list
     tasks = tasks + tasks
-    for wkl, cost, config, task in zip(wkl_list, costs, config_list, tasks):
-        task.workload = wkl
+    for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
     ltf_records = []
     ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
-    ltf_task = copy.deepcopy(tasks[0])
-    ltf_task.workload = ltf_wkl
+    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
@@ -472,7 +425,8 @@ def test_triangle_block():
     dtype = "float32"
     dshape = (1, 3, 8, 8)
     layout = "NCHW"
-    target_ops = [relay.nn.conv2d]
+    conv2d = relay.op.get("nn.conv2d")
+    target_ops = [conv2d]
 
     data = relay.var("data", shape=dshape, dtype=dtype)
     w0 = relay.var("w0_weight")
@@ -488,79 +442,63 @@ def test_triangle_block():
     tasks = autotvm.task.extract_from_program(net["main"],
                                               target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
-    wkl_list = [
-        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0, 0, 0), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 3, 8, 8), (32, 3, 3, 3), (1, 1), (1, 1, 1, 1), (1, 1), layout, layout, dtype, dtype),
-    ]
+                                              ops=(conv2d,))
     costs = [0.04, 0.012, 0.03, 0.02, 0.02, 0.045]
     config_list = []
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [3, 1]],
-                      ["tile_oc", "sp", [4, 4]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [3, 1]],
+                           ["tile_oc", "sp", [4, 4]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [2, 8]],
-                      ["tile_oc", "sp", [1, 32]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [2, 8]],
+                           ["tile_oc", "sp", [1, 32]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [8, 4]],
-                      ["tile_oc", "sp", [4, 8]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [8, 4]],
+                           ["tile_oc", "sp", [4, 8]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [1, 3]],
-                      ["tile_oc", "sp", [2, 8]],
-                      ["tile_ow", "sp", [4, 2]],
-                      ["unroll_kw", "ot", True]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [1, 3]],
+                           ["tile_oc", "sp", [2, 8]],
+                           ["tile_ow", "sp", [4, 2]],
+                           ["unroll_kw", "ot", True]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [4, 4]],
-                      ["tile_oc", "sp", [2, 16]],
-                      ["tile_oh", "ot", 1],
-                      ["tile_ow", "sp", [4, 2]]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [4, 4]],
+                           ["tile_oc", "sp", [2, 16]],
+                           ["tile_oh", "ot", 1],
+                           ["tile_ow", "sp", [4, 2]]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [16, 2]],
-                      ["tile_oc", "sp", [8, 4]],
-                      ["tile_ow", "sp", [2, 4]],
-                      ["unroll_kw", "ot", False]],
-                "t": ""}
+    cfg_dict = {"index": -1,
+                "code_hash": None,
+                "entity": [["tile_ic", "sp", [16, 2]],
+                           ["tile_oc", "sp", [8, 4]],
+                           ["tile_ow", "sp", [2, 4]],
+                           ["unroll_kw", "ot", False]]}
     config_list.append(ConfigEntity.from_json_dict(cfg_dict))
 
     records = []
 
-    wkl_list = wkl_list + wkl_list
     tasks = tasks + tasks
-    for wkl, cost, config, task in zip(wkl_list, costs, config_list, tasks):
-        task.workload = wkl
+    for cost, config, task in zip(costs, config_list, tasks):
         ms_input = MeasureInput(target=target, task=task, config=config)
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
     ltf_records = []
     ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
-    ltf_arg = autotvm.task.topi_integration.serialize_args(ltf_arg)
-    ltf_wkl = ('layout_transform',) + autotvm.task.args_to_workload(ltf_arg)
-    ltf_task = copy.deepcopy(tasks[0])
-    ltf_task.workload = ltf_wkl
+    ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))

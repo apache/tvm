@@ -18,13 +18,12 @@
 """sparse_dense schedule on x86"""
 import tvm
 
-from .. import generic
 from ..util import traverse_inline, get_const_int
 from .util import get_fp32_len
 
 
-@generic.schedule_sparse_dense.register(["cpu"])
-def _schedule_sparse_dense(outs):
+def schedule_sparse_dense(outs):
+    """Create schedule for sparse dense"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):

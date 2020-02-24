@@ -25,6 +25,11 @@ from topi.util import get_const_tuple
 from common import get_all_backend
 
 
+_deformable_conv2d_implement = {
+    "generic": (topi.nn.deformable_conv2d_nchw, topi.generic.schedule_deformable_conv2d_nchw),
+    "cuda": (topi.cuda.deformable_conv2d_nchw, topi.cuda.schedule_deformable_conv2d_nchw),
+}
+
 def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, deformable_groups=1, groups=1):
     print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size,
             num_filter, kernel, stride, padding, dilation, deformable_groups, groups))
@@ -60,10 +65,11 @@ def verify_deformable_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+        fcompute, fschedule = topi.testing.dispatch(device, _deformable_conv2d_implement)
         with tvm.target.create(device):
-            C = topi.nn.deformable_conv2d_nchw(A, Offset, W, stride, padding, dilation,
-                    deformable_groups, groups, out_dtype=dtype)
-            s = topi.generic.schedule_deformable_conv2d_nchw([C])
+            C = fcompute(A, Offset, W, stride, padding, dilation,
+                         deformable_groups, groups, dtype)
+            s = fschedule([C])
 
             a = tvm.nd.array(a_np, ctx)
             offset = tvm.nd.array(offset_np, ctx)

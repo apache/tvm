@@ -17,10 +17,8 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
-from .. import generic, util
-from ..util import is_empty_shape
+from .. import util
 
-@generic.schedule_injective_from_existing.register(["cuda", "gpu"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -67,7 +65,6 @@ def schedule_injective_from_existing(sch, out):
 
     return sch
 
-@generic.schedule_injective.register(["cuda", "gpu"])
 def schedule_injective(outs):
     """Schedule for injective op.
 
@@ -87,7 +84,7 @@ def schedule_injective(outs):
 
     tvm.schedule.AutoInlineInjective(s)
     for out in outs:
-        if not is_empty_shape(out.shape):
+        if not util.is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)
     return s
 

@@ -23,7 +23,6 @@ from ..util import simplify
 from .util import get_pad_tuple1d
 
 
-@tvm.target.generic_func
 def conv1d(data,
            kernel,
            strides=1,
@@ -101,6 +100,13 @@ def conv1d_ncw(data,
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
+    if out_dtype is None:
+        out_dtype = data.dtype
+    if isinstance(strides, (tuple, list)):
+        strides = strides[0]
+    if isinstance(dilation, (tuple, list)):
+        dilation = dilation[0]
+
     batch, in_channels, data_width = data.shape
     out_channels, _, kernel_size = kernel.shape
 
@@ -158,6 +164,13 @@ def conv1d_nwc(data,
     out_dtype : str
         The output data type. If None then output is same type as input.
     """
+    if out_dtype is None:
+        out_dtype = data.dtype
+    if isinstance(strides, (tuple, list)):
+        strides = strides[0]
+    if isinstance(dilation, (tuple, list)):
+        dilation = dilation[0]
+
     batch, data_width, in_channels = data.shape
     kernel_size, _, out_channels = kernel.shape
 

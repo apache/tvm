@@ -94,7 +94,7 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
 #
 # We use AutoTVM to search for best configurations in this schedule.
 
-@autotvm.template
+@autotvm.register_customized_task("tutorial/test_gemm")
 def test_gemm(N, L, M, dtype, layout):
     if (layout == "NN"):
       shape_a = (N, L)
@@ -264,7 +264,8 @@ elif dtype == 'int4' or dtype == 'int1':
   assert(major == 7 and minor == 5 and layout == 'TN')
 
 def tune_and_evaluate(M, N, L, dtype, layout):
-  task = autotvm.task.create(test_gemm, args=(N, L, M, dtype, layout), target='cuda')
+  task = autotvm.task.create("tutorial/test_gemm", args=(N, L, M, dtype, layout),
+                             target='cuda')
   print(task.config_space)
 
   logging.getLogger('autotvm').setLevel(logging.DEBUG)

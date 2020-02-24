@@ -18,11 +18,8 @@
 """scheduler functions for cuda backend"""
 from __future__ import absolute_import as _abs
 
-import tvm
-from .. import generic
 from .. import cpp
 
-@generic.schedule_lrn.register(["cuda"])
 def schedule_lrn(outs):
     """Schedule for LRN
 
@@ -37,6 +34,4 @@ def schedule_lrn(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    target = tvm.target.Target.current(allow_none=False)
-    cpp_target = cpp.TEST_create_target(target.target_name)
-    return cpp.cuda.schedule_lrn(cpp_target, outs)
+    return cpp.cuda.schedule_lrn(outs)

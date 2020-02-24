@@ -18,8 +18,6 @@
 """API for graph traversing."""
 import threading
 
-import topi
-
 import tvm
 from tvm import relay, autotvm
 from tvm.relay import transform
@@ -28,13 +26,6 @@ from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
 
 from .utils import has_multiple_inputs, is_boundary_node, is_skipped_node
-
-
-# Setup relay op base name -> topi compute functions
-# NOTE: To add more ops, change the following dictionary.
-OP2COMPUTE = {
-    "conv2d" : [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw],
-}
 
 
 def expr2graph(expr, target_ops, node_dict, node_list):
@@ -46,8 +37,8 @@ def expr2graph(expr, target_ops, node_dict, node_list):
     expr : tvm.relay.Expr.Function
         Input relay function expression.
 
-    target_ops: List of str
-        List of target relay base op name
+    target_ops: List of relay.op.Op
+        List of target relay ops
 
     node_dict : dictionary from tvm.relay.Expr to int
         Dictionary to record node index
@@ -58,14 +49,11 @@ def expr2graph(expr, target_ops, node_dict, node_list):
         {"op": str, "node": tvm.relay.expr, "inputs": [int], "types": [tvm.relay.Type],
          "name": str, "workloads": [tuple], "topi_op": [function]}
     """
+    # TODO(@kevinthesun, @icemelon9): Currently graph tuning pass relies on the fact
+    #   that # autotvm tasks == # ops. But this won't be true after having relay op
+    #   strategy. We need to find a solution to fix this.
     env = TaskExtractEnv.get(allow_duplicate=True)
-    topi_funcs = []
-    for op_name in target_ops:
-        if op_name not in OP2COMPUTE:
-            raise RuntimeError("Not supported relay op in graph tuner: %s"
-                               % op_name)
-        topi_funcs += OP2COMPUTE[op_name]
-    env.reset(topi_funcs)
+    env.reset(target_ops)
     # pylint: disable=not-context-manager
     with env:
         _expr2graph_impl(expr, target_ops, node_dict, node_list)
@@ -75,8 +63,7 @@ def expr2graph(expr, target_ops, node_dict, node_list):
                 task_name, args = env.task_collection[task_pos]
                 task = autotvm.task.create(task_name, args,
                                            target="llvm",
-                                           target_host=None,
-                                           template_key='direct')
+                                           target_host=None)
                 node_entry["workloads"] = [task.workload]
                 node_entry["topi_op"] = [task_name]
                 task_pos += 1
@@ -98,11 +85,11 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
             return
         node_index = len(node_list)
         node_entry = {"node": node, "inputs": [], "types": [],
-                      "op": "null", "name": None}
+                      "op": None, "name": None}
 
         if isinstance(node, Call):
-            op_name = node.op.name.split(".")[-1]
-            node_entry["op"] = op_name
+            op = node.op
+            node_entry["op"] = node.op
             for arg in node.args:
                 in_node_idx = node_dict[arg]
                 if isinstance(arg, (Tuple, TupleGetItem)):
@@ -118,12 +105,12 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                     node_entry["types"].append(tupe_type)
             else:
                 raise RuntimeError("Unsupported output type %s in operator %s"
-                                   % (type(out_type), op_name))
+                                   % (type(out_type), op.name))
 
             # Utilize tracing target to fetch workload with topo-order.
             # Since we only need workload, dummy target can be used to
             # create task.
-            if op_name in target_ops:
+            if op in target_ops:
                 params = []
                 for i, input_idx in enumerate(node_entry["inputs"]):
                     input_node_entry = node_list[input_idx[0]]
@@ -133,7 +120,7 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                                            "operators with input node of type "
                                            "relay.expr.Var/Constant/Call. Now "
                                            "find a target op %s with input type %s"
-                                           % (op_name, str(type(input_node_entry["node"]))))
+                                           % (op, str(type(input_node_entry["node"]))))
                     free_var = relay.Var("var_%d" % i, input_type)
                     params.append(free_var)
                 call = relay.Call(node.op, params, node.attrs)
@@ -155,11 +142,9 @@ def _expr2graph_impl(expr, target_ops, node_dict, node_list):
                 _expr2graph_impl(node, target_ops, node_dict, node_list)
             return
         elif isinstance(node, TupleGetItem):
-            node_entry["op"] = "TupleGetItem"
             in_node_idx = node_dict[node.tuple_value]
             node_entry["inputs"].append([in_node_idx, node.index, 0])
         elif isinstance(node, Tuple):
-            node_entry["op"] = "Tuple"
             for tuple_item in node:
                 in_node_idx = node_dict[tuple_item]
                 if isinstance(tuple_item, TupleGetItem):

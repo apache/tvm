@@ -20,12 +20,12 @@
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from .. import nn, generic
+from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
 
-@autotvm.task.register_topi_compute(nn.conv2d_transpose_nchw, ['cuda', 'gpu'], "direct")
-def conv2d_transpose_nchw_cuda(cfg, data, kernel, stride, padding, out_dtype):
+@autotvm.register_topi_compute("conv2d_transpose_nchw.cuda")
+def conv2d_transpose_nchw(cfg, data, kernel, stride, padding, out_dtype):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -101,9 +101,8 @@ def conv2d_transpose_nchw_cuda(cfg, data, kernel, stride, padding, out_dtype):
 
     return data_out
 
-@autotvm.task.register_topi_schedule(generic.schedule_conv2d_transpose_nchw,
-                                     ['cuda', 'gpu'], 'direct')
-def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_transpose_nchw.cuda")
+def schedule_conv2d_transpose_nchw(cfg, outs):
     """TOPI Schedule callback for conv2d transpose operator.
 
     Parameters

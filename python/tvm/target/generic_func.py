@@ -184,6 +184,7 @@ def override_native_generic_func(func_name):
         fresult = decorate(fdefault, dispatch_func)
         fresult.fdefault = fdefault
         fresult.register = register
+        fresult.generic_func_node = generic_func_node
         return fresult
     return fdecorate
 
@@ -268,4 +269,5 @@ def generic_func(fdefault):
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
     fdecorate.fdefault = fdefault
+    fdecorate.dispatch_dict = dispatch_dict
     return fdecorate

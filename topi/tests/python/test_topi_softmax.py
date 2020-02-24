@@ -25,6 +25,14 @@ from topi.util import get_const_tuple
 
 from common import get_all_backend
 
+_softmax_schedule = {
+    "generic": topi.generic.schedule_softmax,
+    "cpu": topi.x86.schedule_softmax,
+    "gpu": topi.cuda.schedule_softmax,
+    "hls": topi.hls.schedule_softmax,
+    "opengl": topi.opengl.schedule_softmax,
+}
+
 def check_device(A, B, a_np, b_np, device, name):
     ctx = tvm.context(device, 0)
     if not ctx.exist:
@@ -32,11 +40,12 @@ def check_device(A, B, a_np, b_np, device, name):
         return
     print("Running on target: %s" % device)
     with tvm.target.create(device):
-        s = topi.generic.schedule_softmax(B)
+        s_func = topi.testing.dispatch(device, _softmax_schedule)
+        s = s_func(B)
 
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
-    f = tvm.build(s, [A, B], device, name="softmax")
+    f = tvm.build(s, [A, B], device, name=name)
     f(a, b)
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
@@ -50,7 +59,7 @@ def verify_softmax(m, n, dtype="float32"):
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = topi.testing.softmax_python(a_np)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(A, B, a_np, b_np, device, "softmax")
 
 def verify_softmax_4d(shape, dtype="float32"):
@@ -62,7 +71,7 @@ def verify_softmax_4d(shape, dtype="float32"):
     b_np = topi.testing.softmax_python(a_np.transpose(0, 2, 3, 1).reshape(h*w, c))
     b_np = b_np.reshape(1, h, w, c).transpose(0, 3, 1, 2)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(A, B, a_np, b_np, device, "softmax")
 
 def test_softmax():

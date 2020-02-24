@@ -21,7 +21,6 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import cpp
 
-@tvm.target.generic_func
 def schedule_extern(outs):
     """Schedule for an extern op followed by injective operations.
 

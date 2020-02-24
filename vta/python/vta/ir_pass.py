@@ -662,8 +662,12 @@ def inject_conv2d_transpose_skip(stmt_in):
                                          0, 0,
                                          0, 0, 0))
                 inner = irb.get()
-                args = op.body.body.args
-                res_tensor = op.body.body.func.output(0)
+                # TODO(@tmoreau89): This is only a temporary fix, please take a look.
+                body = op.body.body
+                while isinstance(body, tvm.stmt.IfThenElse):
+                    body = body.then_case
+                args = body.args
+                res_tensor = body.func.output(0)
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                 inner = tvm.tir.AttrStmt(
                     [dout, res_tensor], 'buffer_bind_scope',

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-variable
+# pylint: disable=unused-variable,not-callable
 """Definition of task function.
 
 Task can be constructed from tuple of func, args, and kwargs.
@@ -24,16 +24,80 @@ registers the standard task.
 
 import numpy as np
 
-from ... import tensor, expr, container, target as _target
+from ... import tensor, expr, container, placeholder, target as _target
 
-from ..util import get_const_int, get_const_tuple, get_func_name
-from .dispatcher import DispatchContext, ApplyConfig, dispatcher
+from ..util import get_const_int, get_const_tuple
+from .dispatcher import DispatchContext, ApplyConfig
 from .space import ConfigSpace
 
 def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
     raise RuntimeError("The function of this task is not found. Possibly the function "
                        "of this task is registered in another python file "
                        "which is not imported in this run")
+
+
+def serialize_args(args):
+    """serialize arguments of a topi function to a hashable tuple.
+
+    Parameters
+    ----------
+    args: list of hashable or Tensor
+    """
+    def _encode(x):
+        if isinstance(x, tensor.Tensor):
+            return ('TENSOR', get_const_tuple(x.shape), x.dtype)
+        if isinstance(x, (tuple, list, container.Array)):
+            return tuple([_encode(a) for a in x])
+        if isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
+            return x
+        if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+            return x.value
+        if x is None:
+            return None
+        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
+                           'primitive types or tvm.tir.Var only' % type(x))
+    ret = []
+    for t in args:
+        ret.append(_encode(t))
+    return tuple(ret)
+
+
+def deserialize_args(args):
+    """The inverse function of :code:`serialize_args`.
+
+    Parameters
+    ----------
+    args: list of hashable or Tensor
+    """
+    ret = []
+    for t in args:
+        if isinstance(t, tuple) and t[0] == 'TENSOR':
+            ret.append(placeholder(shape=t[1], dtype=t[2]))
+        else:
+            ret.append(t)
+    return ret
+
+
+def args_to_workload(args, task_name=None):
+    """Convert argument list to hashable workload tuple.
+    This function will convert list to tuple, tvm node to python value and
+    flatten tvm.tensor.Tensor to a tuple
+
+    Parameters
+    ----------
+    task_name : str
+        The AutoTVM task name
+
+    args : list of args
+        The arguments to the function
+
+    Returns
+    -------
+    ret: hashable
+        The hashable value
+    """
+    return (task_name,) + serialize_args(args) if task_name is not None else serialize_args(args)
+
 
 class Task(object):
     """A Tunable Task
@@ -55,10 +119,13 @@ class Task(object):
         self.func = TASK_TABLE.get(name, _raise_error)
 
         # auxiliary info, available after `init_space` is called
-        self.workload = None
         self.flop = None
         self.target = None
         self.target_host = None
+
+    @property
+    def workload(self):
+        return (self.name,) + serialize_args(self.args)
 
     def instantiate(self, config):
         """Instantiate this task function (template) with a config.
@@ -94,7 +161,6 @@ class Task(object):
             "args": self.args,
             "kwargs": self.kwargs,
             "config_space": self.config_space,
-            "workload": self.workload,
             "flop": self.flop,
             "target": self.target,
             "target_host": self.target_host
@@ -106,7 +172,6 @@ class Task(object):
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
         self.func = TASK_TABLE.get(state["name"], _raise_error)
-        self.workload = state["workload"]
         self.flop = state["flop"]
         self.target = state["target"]
         self.target_host = state["target_host"]
@@ -116,135 +181,119 @@ class Task(object):
             self.name, self.args, self.kwargs, self.workload
         )
 
-TASK_TABLE = {
-}
+TASK_TABLE = {}
 
-def register(name, func=None, override=False):
-    """Register a task function.
+class TopiTemplate(object):
+    """Topi template that holds the topi compute and schedule function"""
+    def __init__(self):
+        self.compute = None
+        self.schedule = None
+        self.customized_func = None
+
+    def __call__(self, *args, **kwargs):
+        args = deserialize_args(args)
+        if self.customized_func is None:
+            return self._default_func(*args, **kwargs)
+        assert callable(self.customized_func)
+        return self.customized_func(*args, **kwargs)
+
+    def _default_func(self, *args, **kwargs):
+        assert callable(self.compute) and callable(self.schedule)
+        out = self.compute(*args, **kwargs)
+        arg_bufs = [out] + self.get_inputs(out)
+        s = self.schedule([out])
+        return s, arg_bufs
+
+    def get_inputs(self, out):
+        inputs = []
+        queue = [out]
+        while queue:
+            t = queue.pop(0)
+            if isinstance(t.op, tensor.PlaceholderOp):
+                inputs.append(t)
+            else:
+                queue.extend(t.op.input_tensors)
+        return inputs
+
+def register_task_compute(name, func=None):
+    """Register compute function to autotvm task
 
     Parameters
     ----------
-    name : str
-        The name to identify the task.
-    func : callable
-        The function to be registered.
-    override : bool
-        Whether override existing registration.
+    name: str
+        The task name
+
+    func: None or callable
+        If it is None, return a decorator.
+        If is callable, decorate this function.
 
     Returns
     -------
-    func: callable
-        The registered function
+    decorator: callable
+        A decorator
     """
-    def _do_reg(myf):
-        if name in TASK_TABLE and not override:
-            raise ValueError(
-                "Key %s is already registered" % name)
-        TASK_TABLE[name] = myf
-        return myf
+    def _do_reg(f):
+        if name not in TASK_TABLE:
+            TASK_TABLE[name] = TopiTemplate()
+        tmpl = TASK_TABLE[name]
+        if tmpl.compute is not None:
+            raise ValueError("Compute is already registered in autoTVM task %s" % name)
+        tmpl.compute = f
+        return f
     if func:
         return _do_reg(func)
     return _do_reg
 
-def create(func_name, args, target, target_host=None, template_key=None):
-    """Create a tuning task and initialize its search space
+def register_task_schedule(name, func=None):
+    """Register schedule function to autotvm task
 
     Parameters
     ----------
-    func_name : str or callable
-        The task function
-    args : List
-        Positional arguments
-    target : Target
-        The compilation target
-    target_host: Target, optional
-        The compilation target for host side
+    name: str
+        The task name
+
+    func: None or callable
+        If it is None, return a decorator.
+        If is callable, decorate this function.
 
     Returns
     -------
-    tsk: Task
-        a task object
+    decorator: callable
+        A decorator
     """
-    if callable(func_name):
-        # register this function if it is not registered before
-        func = func_name
-        func_name = func.func_name if hasattr(func, 'func_name') else func.__name__
-        if func_name in TASK_TABLE:
-            assert func == TASK_TABLE[func_name], "Find name conflict in task registration. " \
-                                                  "Consider to choose another name for this task"
-        else:
-            register(func_name, func=func)
+    def _do_reg(f):
+        if name not in TASK_TABLE:
+            TASK_TABLE[name] = TopiTemplate()
+        tmpl = TASK_TABLE[name]
+        if tmpl.schedule is not None:
+            raise ValueError("Schedule is already registered in autoTVM task %s" % name)
+        tmpl.schedule = f
+        return f
+    if func:
+        return _do_reg(func)
+    return _do_reg
 
-    func = TASK_TABLE[func_name]
-    ret = Task(func_name, args)
+def register_customized_task(name, func=None):
+    """Register a customized function to AutoTVM task.
 
-    if isinstance(target, str):
-        target = _target.create(target)
-
-    # init config space
-    ret.config_space = ConfigSpace()
-    ret.config_space.template_key = template_key or ""
-
-    ctx = ApplyConfig(ret.config_space)
-    with ctx:
-        with target:
-            sch, _ = func(*args)
-            ret.config_space.code_hash = getattr(sch, 'code_hash', None)
-
-    ret.workload = ctx.workload
-    ret.flop = ret.config_space.flop or compute_flop(sch)
-    ret.target = target
-    ret.target_host = target_host
-
-    return ret
-
-def args_to_workload(x, topi_compute_func=None):
-    """Convert argument list to hashable workload tuple.
-    This function will convert list to tuple, tvm node to python value and
-    flatten tvm.tensor.Tensor to a tuple
+    In most cases, you can just use register_topi_compute and register_topi_schedule
+    with the same task name to define an AutoTVM task. However, you can also
+    create a customized AutoTVM task that defines a tunable template or performs
+    extra layout transform before invoking compute/schedule function.
 
     Parameters
     ----------
-    x: primitive hashable types or tensor.Tensor
-        The original value
-    topi_compute_func: topi compute function
-        The function name will be added as first element of the workload tuple
+    name: str
+        The task name
+
+    func: None or callable
+        If it is None, return a decorator.
+        If is callable, decorate this function.
 
     Returns
     -------
-    ret: hashable
-        The hashable value
-    """
-    if isinstance(x, tensor.Tensor):
-        workload = get_const_tuple(x.shape) + (x.dtype, )
-    elif isinstance(x, (tuple, list, container.Array)):
-        workload = tuple([args_to_workload(a) for a in x])
-    elif isinstance(x, (str, int, float, np.int, np.float, expr.Var)):
-        workload = x
-    elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
-        workload = x.value
-    elif x is None:
-        workload = 0
-    else:
-        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
-                           'primitive types or tvm.tir.Var only' % type(x))
-    return (get_func_name(topi_compute_func), ) + workload  if topi_compute_func else workload
-
-def template(func):
-    """
-    Decorate a function as a tunable schedule template
-
-    Parameters
-    ----------
-    func: callable
-        A callable template function.
-        Its argument should be hashable values.
-        Its return value should be a Tuple(Schedule, Array of Tensor)
-
-    Returns
-    -------
-    func: callable
-        The decorated function
+    decorator: callable
+        A decorator
 
     Examples
     --------
@@ -252,7 +301,7 @@ def template(func):
 
     .. code-block:: python
 
-        @autotvm.template
+        @autotvm.register_customized_task("matmul")
         def matmul(N, L, M, dtype):
             A = tvm.placeholder((N, L), name='A', dtype=dtype)
             B = tvm.placeholder((L, M), name='B', dtype=dtype)
@@ -279,24 +328,57 @@ def template(func):
 
             return s, [A, B, C]
     """
-    # pylint: disable=unused-variable
+    def _do_reg(f):
+        if name not in TASK_TABLE:
+            TASK_TABLE[name] = TopiTemplate()
+        tmpl = TASK_TABLE[name]
+        if tmpl.customized_func is not None:
+            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
+        tmpl.customized_func = f
+        return f
+    if func:
+        return _do_reg(func)
+    return _do_reg
 
-    fname = get_func_name(func)
+def create(task_name, args, target, target_host=None):
+    """Create a tuning task and initialize its search space
 
-    @register(fname)
-    @dispatcher
-    def config_dispatcher(*args, **kwargs):
-        assert not kwargs, "Do not support kwargs in template function call"
-        return (fname, ) + args_to_workload(args)
+    Parameters
+    ----------
+    task_name : str
+        The AutoTVM task name
+    args : List
+        Positional arguments
+    target : Target
+        The compilation target
+    target_host: Target, optional
+        The compilation target for host side
 
-    @config_dispatcher.register("")
-    def template_call(cfg, *args, **kwargs):
-        assert not kwargs, "Do not support kwargs in template function call"
-        with ApplyConfig(cfg):
-            return func(*args, **kwargs)
+    Returns
+    -------
+    tsk: Task
+        a task object
+    """
+    args = serialize_args(args)
+    ret = Task(task_name, args)
 
-    config_dispatcher.func_name = fname
-    return config_dispatcher
+    if isinstance(target, str):
+        target = _target.create(target)
+
+    # init config space
+    ret.config_space = ConfigSpace()
+
+    ctx = ApplyConfig(ret.config_space)
+    with ctx:
+        with target:
+            sch, _ = ret.func(*args)
+            ret.config_space.code_hash = getattr(sch, 'code_hash', None)
+
+    ret.flop = ret.config_space.flop or compute_flop(sch)
+    ret.target = target
+    ret.target_host = target_host
+
+    return ret
 
 def get_config():
     """Get current config object
@@ -306,7 +388,8 @@ def get_config():
     cfg: ConfigSpace or ConfigEntity
         The current config
     """
-    return DispatchContext.current.query(None, None)
+    tgt = _target.Target.current(allow_none=True)
+    return DispatchContext.current.query(tgt, None)
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""

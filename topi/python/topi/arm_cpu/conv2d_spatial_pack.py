@@ -78,10 +78,12 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
     # fallback support
     if cfg.is_fallback:
         if num_tile == 2:     # arm cpu
-            ref_log = autotvm.tophub.load_reference_log('arm_cpu', 'rk3399', 'conv2d', 'direct')
+            ref_log = autotvm.tophub.load_reference_log(
+                'arm_cpu', 'rk3399', 'conv2d_nchw_spatial_pack.arm_cpu')
             cfg.fallback_with_reference_log(ref_log)
         elif num_tile == 3:  # mali gpu
-            ref_log = autotvm.tophub.load_reference_log('mali', 'rk3399', 'conv2d', 'direct')
+            ref_log = autotvm.tophub.load_reference_log(
+                'mali', 'rk3399', 'conv2d_nchw_spatial_pack.mali')
             cfg.fallback_with_reference_log(ref_log)
     # ====================================================================
 

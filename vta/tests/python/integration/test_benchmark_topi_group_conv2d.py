@@ -20,10 +20,12 @@
 import json
 import os
 
+import pytest
 import numpy as np
 from collections import namedtuple
 
 import tvm
+from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
 import topi
@@ -75,9 +77,13 @@ def run_group_conv2d(env, remote, wl, target,
     if "arm_cpu" in target.keys:
         data_pack = False
         layout = "NCHW"
+        fcompute = topi.nn.group_conv2d_nchw
+        fschedule = topi.generic.schedule_group_conv2d_nchw
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
+        fcompute = vta.top.group_conv2d_packed
+        fschedule = vta.top.schedule_group_conv2d_packed
 
     # Derive shapes depending upon packing
     CI_G = wl.in_filter // wl.groups
@@ -98,17 +104,19 @@ def run_group_conv2d(env, remote, wl, target,
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
     bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
+    padding = relay.nn.get_pad_tuple2d((wl.hpad, wl.wpad))
+
     # Define base computation schedule
     with target:
-        res = topi.nn.group_conv2d_nchw(
-            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
+        res = fcompute(
+            data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
             wl.groups, env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
         # Derive base schedule
-        s = topi.generic.schedule_group_conv2d_nchw([res])
+        s = fschedule([res])
         if print_ir:
             print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
 
@@ -219,7 +227,8 @@ def run_group_conv2d(env, remote, wl, target,
 
     return correct, cost, stats
 
-def test_conv2d(device="vta"):
+@pytest.mark.parametrize("device", ["vta", "arm_cpu"])
+def test_conv2d(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target

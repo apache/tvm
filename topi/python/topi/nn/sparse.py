@@ -22,7 +22,6 @@ import tvm
 from ..util import get_const_tuple
 
 
-@tvm.target.generic_func
 def sparse_dense(data, weight_data, weight_indices, weight_indptr):
     """
     Computes sparse-dense matrix multiplication of `data` and
@@ -105,7 +104,7 @@ def _sparse_dense_bsrmm(data, weight_data, weight_indices, weight_indptr):
         lambda m, n: bsrmm_block[m, idxd(n, bs_r), idxm(n, bs_r)],
         tag="sparse_dense_bsrmm")
 
-@tvm.target.generic_func
+
 def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
     """
     Transpose a square sparse matrix,
@@ -148,14 +147,15 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
         shape=output_shape,
         inputs=[sparse_data, sparse_indices, sparse_indptr],
         fcompute=lambda ins, outs:
-        csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
+        _csr_transpose_ir(ins[0], ins[1], ins[2], outs[0], outs[1], outs[2]),
         tag="sparse_transpose_csr",
         dtype=['float32', 'int32', 'int32'],
         name='out')
 
     return [output_data, output_indices, output_indptr]
 
-def csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
+
+def _csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     """define ir for csr_transpose"""
     irb = tvm.ir_builder.create()
 

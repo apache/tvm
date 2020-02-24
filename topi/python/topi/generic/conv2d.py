@@ -19,6 +19,7 @@
 """Generic convolution schedules"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 from ..util import get_const_tuple
 
@@ -109,7 +110,8 @@ def fallback_schedule_cpu_1x1_int8(cfg, wkl, int32_lanes, num_int8_elements):
     raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
 
 
-def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last, int32_lanes=16, intrin=None):
+def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data_vec, kernel_vec, conv_out,
+                                        last, int32_lanes=16, intrin=None):
     """
     Defines the schedule for INT8 for Intel and ARM machines
     Uses the Intel/ARM intrinsics to use INT8 operations
@@ -117,14 +119,39 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last, int32_lane
     lower-numerical-precision-deep-learning-inference-and-training
     """
     reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
-    _, _, _, _, ic_bn = get_const_tuple(data.shape)
+    _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 
-    A = data
-    if isinstance(s[A].op, tvm.tensor.ComputeOp):
-        batch, ic_chunk, ih, iw, _ = s[A].op.axis
-        parallel_axis = s[A].fuse(batch, ic_chunk, ih)
-        s[A].parallel(parallel_axis)
+    # schedule pad
+    if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
+            and "pad" in data_vec.op.tag:
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
+        parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
+        s[data_vec].parallel(parallel_axis)
+        data_vec = data_vec.op.input_tensors[0]
+
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        # only in autotuning, input data of conv2d_NCHWc will be 4-D.
+        # skip this part during tuning to make records accurate.
+        # this part will be folded during Relay fold_constant pass.
+        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+    elif isinstance(kernel_vec.op, tvm.tensor.ComputeOp) and \
+            kernel_vec.name == 'kernel_vec':
+        # data and kernel are not pre-computed, schedule layout transform here.
+        # this should only be used by x86 conv2d_nchw, which is for
+        # testing purpose.
+        batch, ic_chunk, ih, ic_block, iw = s[data_vec].op.axis
+        parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
+        s[data_vec].parallel(parallel_axis)
+
+        oc_chunk, ic_chunk, oh, ow, ic_block, oc_block = s[kernel_vec].op.axis
+        s[kernel_vec].reorder(oc_chunk, oh, ic_chunk, ow, ic_block, oc_block)
+        oc_bn = cfg["tile_oc"].size[-1]
+        if oc_bn > 1:
+            s[kernel_vec].vectorize(oc_block)
+        parallel_axis = s[kernel_vec].fuse(oc_chunk, oh)
+        s[kernel_vec].parallel(parallel_axis)
 
     # schedule 5-D NCHW[x]c conv
     C, O = conv_out, last
@@ -173,7 +200,8 @@ def schedule_conv_NCHWc_cpu_common_int8(s, cfg, data, conv_out, last, int32_lane
 
     return s
 
-def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data, conv_out, last, int32_lanes=16, intrin=None):
+def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data_vec, kernel_vec, conv_out,
+                                     last, int32_lanes=16, intrin=None):
     """
     Defines the 1x1 conv schedule for INT8 for Intel and ARM machines
     Uses the Intel/ARM intrinsics to use INT8 operations
@@ -181,15 +209,39 @@ def schedule_conv_NCHWc_cpu_1x1_int8(s, cfg, data, conv_out, last, int32_lanes=1
     lower-numerical-precision-deep-learning-inference-and-training
     """
     oh_factor, ow_factor = cfg["tile_oh"].val, cfg["tile_ow"].size[-1]
-    _, _, _, _, ic_bn = get_const_tuple(data.shape)
+    _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
     _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 
-    # schedule data
-    A = data
-    if isinstance(s[A].op, tvm.tensor.ComputeOp):
-        batch, ic_chunk, ih, iw, ic_block = s[A].op.axis
-        parallel_axis = s[A].fuse(batch, ic_chunk, ih)
-        s[A].parallel(parallel_axis)
+    # schedule pad
+    if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
+            and "pad" in data_vec.op.tag:
+        batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
+        parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
+        s[data_vec].parallel(parallel_axis)
+        data_vec = data_vec.op.input_tensors[0]
+
+    if autotvm.GLOBAL_SCOPE.in_tuning:
+        # only in autotuning, input data of conv2d_NCHWc will be 4-D.
+        # skip this part during tuning to make records accurate.
+        # this part will be folded during Relay fold_constant pass.
+        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
+        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
+    elif isinstance(kernel_vec.op, tvm.tensor.ComputeOp) and \
+            kernel_vec.name == 'kernel_vec':
+        # data and kernel are not pre-computed, schedule layout transform here.
+        # this should only be used by x86 conv2d_nchw, which is for
+        # testing purpose.
+        batch, ic_chunk, ih, ic_block, iw = s[data_vec].op.axis
+        parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
+        s[data_vec].parallel(parallel_axis)
+
+        oc_chunk, ic_chunk, oh, ow, ic_block, oc_block = s[kernel_vec].op.axis
+        s[kernel_vec].reorder(oc_chunk, oh, ic_chunk, ow, ic_block, oc_block)
+        oc_bn = cfg["tile_oc"].size[-1]
+        if oc_bn > 1:
+            s[kernel_vec].vectorize(oc_block)
+        parallel_axis = s[kernel_vec].fuse(oc_chunk, oh)
+        s[kernel_vec].parallel(parallel_axis)
 
     C, O = conv_out, last
     CC = s.cache_write(C, 'global')
