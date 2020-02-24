@@ -421,10 +421,20 @@ def test_forward_conv():
         def forward(self, *args):
             return self.softmax(self.conv(args[0]))
 
+    class Conv2D3(Module):
+        def __init__(self):
+            super(Conv2D3, self).__init__()
+            self.conv = torch.nn.Conv2d(3, 6, 7, groups=3, bias=False)
+            self.softmax = torch.nn.Softmax()
+
+        def forward(self, *args):
+            return self.softmax(self.conv(args[0]))
+
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
         verify_model(Conv2D1().float().eval(), input_data=input_data)
         verify_model(Conv2D2().float().eval(), input_data=input_data)
+        verify_model(Conv2D3().float().eval(), input_data=input_data)
 
 def test_forward_threshold():
     torch.set_grad_enabled(False)

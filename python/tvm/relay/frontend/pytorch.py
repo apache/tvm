@@ -209,6 +209,14 @@ def _convolution():
 
         # TODO: Add reshape when channel multiplier > 1. Pending PR #4644
         channels = weight_shape[0]
+        groups = int(inputs[8])
+
+        if groups > 1:
+            # in torch, groups == in_channels for depth wise conv
+            channel_multiplier = channels // groups
+            new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
+            weight = _op.transform.reshape(weight, new_weight_shape)
+
         kernel_size = weight_shape[2:]
         use_bias = isinstance(bias, _expr.Expr)
 
@@ -220,8 +228,6 @@ def _convolution():
 
         if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
-
-        groups = int(inputs[8])
 
         if use_transpose:
             conv_out = _op.nn.conv2d_transpose(data,
