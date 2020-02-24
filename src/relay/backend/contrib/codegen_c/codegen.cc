@@ -202,10 +202,6 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
       LOG(FATAL) << "The input ref is expected to be a Relay function or module"
                  << "\n";
     }
-    
-    std::ofstream out("tmp.txt");
-    out << code_stream_.str() << std::endl;
-    out.close();
 
     // Create a CSourceModule
     const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
