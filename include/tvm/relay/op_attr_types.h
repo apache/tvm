@@ -185,15 +185,13 @@ using FTVMLegalize = runtime::TypedPackedFunc<
  *
  * \param attrs The attribute of the original expr.
  * \param args The arguments of the original expr.
- * \param compiler The compiler that is used to compile the op.
  *
  * \return true if this op should be registered to invoke a specific compiler
  * for codegen, otherwise, false.
  */
 using FTVMExternalCompiler = runtime::TypedPackedFunc<
   bool(const Attrs& attrs,  // NOLINT(*)
-       const Array<Expr>& args,
-       const std::string& compiler)>;
+       const Array<Expr>& args)>;
 
 /*!
  * \brief Forward rewriting rule for a specific op.

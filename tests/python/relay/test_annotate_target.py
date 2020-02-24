@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Unit tests for graph partitioning."""
+"""Unit tests for annotating external targets."""
 import os
 import sys
 import numpy as np
@@ -104,7 +104,7 @@ def test_extern_dnnl():
     f = relay.Function([data, weight1], out)
 
     mod = tvm.IRModule.from_expr(f)
-    mod = transform.AnnotateCompiler("dnnl")(mod)
+    mod = transform.AnnotateTarget("dnnl")(mod)
     mod = transform.PartitionGraph()(mod)
 
     ref_mod = tvm.IRModule()
@@ -113,8 +113,11 @@ def test_extern_dnnl():
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
+    print('generating reference')
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
     ref_res = ref_ex.evaluate()(i_data, w1_data)
+    print('finished reference generation')
+
     check_result(mod, {"data": i_data, "weight1": w1_data},
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
@@ -129,14 +132,16 @@ def test_extern_dnnl_mobilenet():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
-    mod = transform.AnnotateCompiler("dnnl")(mod)
+    mod = transform.AnnotateTarget("dnnl")(mod)
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
+    print('generating reference')
     ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
                                                            dtype='float32')
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
     ref_res = ref_ex.evaluate()(i_data, **params)
+    print('finished reference generation')
 
     check_result(mod, {"data": i_data},
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)

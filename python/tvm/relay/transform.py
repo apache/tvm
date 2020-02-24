@@ -540,14 +540,14 @@ def PartitionGraph():
     return _transform.PartitionGraph()
 
 
-def AnnotateCompiler(compiler):
+def AnnotateTarget(target):
     """Annotate ops in an experession with a provied compiler and then use it
     for codegen.
 
     Parameters
     ----------
-    compiler : str
-        The compiler used for codegen.
+    target : str
+        The target compiler used for codegen.
 
     Returns
     -------
@@ -555,7 +555,7 @@ def AnnotateCompiler(compiler):
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
-    return _transform.AnnotateCompiler(compiler)
+    return _transform.AnnotateTarget(target)
 
 
 def gradient(expr, mod=None, mode='higher_order'):
