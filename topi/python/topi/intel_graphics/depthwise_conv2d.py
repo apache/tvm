@@ -20,16 +20,17 @@ import tvm
 from tvm import autotvm
 from ..util import traverse_inline
 from .. import tag
-from .. import generic, nn
+from .. import nn
 from ..nn.depthwise_conv2d import depthwise_conv2d_infer_layout
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.register_topi_compute(nn.depthwise_conv2d_nchw, ['intel_graphics'], 'direct',
-                              nn.depthwise_conv2d_nchw.fdefault)
+@autotvm.register_topi_compute("depthwise_conv2d_nchw.intel_graphics")
+def depthwise_conv2d_nchw(_, data, kernel, strides, padding, dilation, out_dtype):
+    return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
-@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw, \
-        ['intel_graphics'], 'direct')
-def schedule_depthwise_conv2d_nchw_intel_graphics(cfg, outs):
+
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw.intel_graphics")
+def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule for depthwise_conv2d nchw forward.
 
     Parameters
@@ -68,7 +69,7 @@ def schedule_depthwise_conv2d_nchw_intel_graphics(cfg, outs):
             # fallback support
             if cfg.is_fallback:
                 ref_log = autotvm.tophub.load_reference_log(
-                    target.target_name, target.model, 'depthwise_conv2d_nchw', 'direct')
+                    target.target_name, target.model, 'depthwise_conv2d_nchw.intel_graphics')
                 cfg.fallback_with_reference_log(ref_log)
                 cfg['unroll_explicit'].val = 0
             ##### space definition end #####
@@ -132,7 +133,7 @@ def schedule_depthwise_conv2d_nchw_intel_graphics(cfg, outs):
     traverse_inline(s, outs[0].op, _callback)
     return s
 
-@generic.schedule_depthwise_conv2d_nhwc.register(["intel_graphics"])
+
 def schedule_depthwise_conv2d_nhwc(outs):
     """Schedule for depthwise_conv2d nhwc forward.
 
@@ -331,8 +332,8 @@ def _depthwise_conv2d_infer_layout(workload, _):
         Input shapes and layouts, and output shapes and layouts
     """
     _, data, kernel, strides, padding, _, _ = workload
-    batch_size, in_channel, in_height, in_width = data[:-1]
-    filter_channel, channel_multiplier, k_height, k_width = kernel[:-1]
+    batch_size, in_channel, in_height, in_width = data[1]
+    filter_channel, channel_multiplier, k_height, k_width = kernel[1]
     out_channel = filter_channel * channel_multiplier
     out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
     out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1

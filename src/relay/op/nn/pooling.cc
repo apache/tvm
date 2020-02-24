@@ -164,9 +164,8 @@ bool Pool2DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -331,9 +330,8 @@ bool GlobalPool2DRel(const Array<Type>& types,
 
 template<topi::nn::PoolType mode>
 Array<te::Tensor> GlobalPool2DCompute(const Attrs& attrs,
-                                  const Array<te::Tensor>& inputs,
-                                  const Type& out_type,
-                                  const Target& target) {
+                                      const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
@@ -465,9 +463,8 @@ bool AdaptivePool2DRel(const Array<Type>& types,
 
 template<topi::nn::PoolType mode>
 Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
-                                    const Array<te::Tensor>& inputs,
-                                    const Type& out_type,
-                                    const Target& target) {
+                                        const Array<te::Tensor>& inputs,
+                                        const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
@@ -593,8 +590,9 @@ bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType, topi::nn::PoolType mode>
-Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                const Type& out_type, const Target& target) {
+Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs,
+                                    const Array<te::Tensor>& inputs,
+                                    const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -793,9 +791,8 @@ bool Pool1DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCW("NCW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -985,9 +982,8 @@ bool Pool3DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCDHW("NCDHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);

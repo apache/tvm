@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
+
 import tvm
 from tvm import relay
 from tvm.relay import testing
@@ -55,7 +57,8 @@ def get_calibration_dataset(input_name):
     return dataset
 
 
-def test_calibrate_target(create_target=False):
+@pytest.mark.parametrize("create_target", [True, False])
+def test_calibrate_target(create_target):
     mod, params = testing.resnet.get_workload(num_layers=18)
     dataset = get_calibration_dataset("data")
     with relay.quantize.qconfig(calibrate_mode="kl_divergence"):

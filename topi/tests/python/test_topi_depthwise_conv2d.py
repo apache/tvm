@@ -25,6 +25,24 @@ from tvm.contrib.pickle_memoize import memoize
 
 from common import get_all_backend
 
+_depthwise_conv2d_nchw_implement = {
+    "generic": [(topi.nn.depthwise_conv2d_nchw, topi.generic.schedule_depthwise_conv2d_nchw)],
+    "arm_cpu": [(topi.arm_cpu.depthwise_conv2d_nchw, topi.arm_cpu.schedule_depthwise_conv2d_nchw),
+                (topi.arm_cpu.depthwise_conv2d_nchw_spatial_pack,
+                 topi.arm_cpu.schedule_depthwise_conv2d_nchw_spatial_pack)],
+    "gpu": [(topi.cuda.depthwise_conv2d_nchw, topi.cuda.schedule_depthwise_conv2d_nchw)],
+    "mali": [(topi.mali.depthwise_conv2d_nchw, topi.mali.schedule_depthwise_conv2d_nchw)],
+    "bifrost": [(topi.nn.depthwise_conv2d_nchw, topi.bifrost.schedule_depthwise_conv2d_nchw)],
+    "intel_graphics": [(topi.intel_graphics.depthwise_conv2d_nchw,
+                        topi.intel_graphics.schedule_depthwise_conv2d_nchw)],
+}
+
+_depthwise_conv2d_nhwc_implement = {
+    "generic": (topi.nn.depthwise_conv2d_nhwc, topi.generic.schedule_depthwise_conv2d_nhwc),
+    "gpu": (topi.nn.depthwise_conv2d_nhwc, topi.cuda.schedule_depthwise_conv2d_nhwc),
+}
+
+
 def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1):
     in_width = in_height
     filter_channel = in_channel
@@ -53,68 +71,75 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            # declare
-            DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter,
-                (stride_h, stride_w), padding_args, dilation, dtype)
-            ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
-            Relu = topi.nn.relu(ScaleShift)
-            # schedule
-            s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
-            s2 = topi.generic.schedule_depthwise_conv2d_nchw(ScaleShift)
-            s3 = topi.generic.schedule_depthwise_conv2d_nchw(Relu)
-        # build the kernels
-        f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
-        f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
-        f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
 
-        # Prepare pod type for test data closure
-        input_shape = get_const_tuple(Input.shape)
-        filter_shape = get_const_tuple(Filter.shape)
-        scale_shape = get_const_tuple(Scale.shape)
-        shift_shape = get_const_tuple(Shift.shape)
-        scale_shift_shape = get_const_tuple(ScaleShift.shape)
+        impl_list = topi.testing.dispatch(device, _depthwise_conv2d_nchw_implement)[:]
+        if device == "llvm" and channel_multiplier == 1 and dilation == 1:
+            impl_list.append((topi.x86.depthwise_conv2d_nchw, topi.x86.schedule_depthwise_conv2d_nchw))
 
-        # Use memoize, pickle the test data for next time use.
-        @memoize("topi.tests.test_topi_depthwise_conv2d.nchw")
-        def get_ref_data():
-            input_np = np.random.uniform(size=input_shape).astype(dtype)
-            filter_np = np.random.uniform(size=filter_shape).astype(dtype)
-            dilated_filter_np = topi.testing.dilate_python(filter_np, (1, 1, dilation, dilation))
-            scale_np = np.random.uniform(size=scale_shape).astype(dtype)
-            shift_np = np.random.uniform(size=shift_shape).astype(dtype)
-            # correctness with scipy
-            depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(
-                input_np, dilated_filter_np, stride, padding)
-            scale_shift_scipy = np.zeros(shape=scale_shift_shape)
-            for c in range(in_channel * channel_multiplier):
-                scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
-                relu_scipy = np.maximum(scale_shift_scipy, 0)
-            return (input_np, filter_np, scale_np, shift_np,
-                    depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy)
-        # Get the test data
-        (input_np, filter_np, scale_np, shift_np,
-         depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy) = get_ref_data()
+        for fcompute, fschedule in impl_list:
+            with tvm.target.create(device):
+                # declare
+                DepthwiseConv2d = fcompute(Input, Filter, (stride_h, stride_w),
+                                           padding_args, dilation, dtype)
+                ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
+                Relu = topi.nn.relu(ScaleShift)
+                # schedule
+                s1 = fschedule(DepthwiseConv2d)
+                s2 = fschedule(ScaleShift)
+                s3 = fschedule(Relu)
+            # build the kernels
+            f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
+            f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
+            f3 = tvm.build(s3, [Input, Filter, Scale, Shift, Relu], device)
 
-        input_tvm = tvm.nd.array(input_np, ctx)
-        filter_tvm = tvm.nd.array(filter_np, ctx)
-        scale_tvm = tvm.nd.array(scale_np, ctx)
-        shift_tvm = tvm.nd.array(shift_np, ctx)
-        depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx)
-        scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
-        relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
-        # launch kernel 1 (depthwise_conv2d)
-        timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1)
-        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm).mean
-        # launch kernel 2 (depthwise_conv2d + scale_shift)
-        timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=1)
-        tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm).mean
-        # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
-        timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
-        tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
-        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
-        tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+            # Prepare pod type for test data closure
+            input_shape = get_const_tuple(Input.shape)
+            filter_shape = get_const_tuple(Filter.shape)
+            scale_shape = get_const_tuple(Scale.shape)
+            shift_shape = get_const_tuple(Shift.shape)
+            scale_shift_shape = get_const_tuple(ScaleShift.shape)
+
+            # Use memoize, pickle the test data for next time use.
+            @memoize("topi.tests.test_topi_depthwise_conv2d.nchw")
+            def get_ref_data():
+                input_np = np.random.uniform(size=input_shape).astype(dtype)
+                filter_np = np.random.uniform(size=filter_shape).astype(dtype)
+                dilated_filter_np = topi.testing.dilate_python(filter_np, (1, 1, dilation, dilation))
+                scale_np = np.random.uniform(size=scale_shape).astype(dtype)
+                shift_np = np.random.uniform(size=shift_shape).astype(dtype)
+                # correctness with scipy
+                depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(
+                    input_np, dilated_filter_np, stride, padding)
+                scale_shift_scipy = np.zeros(shape=scale_shift_shape)
+                for c in range(in_channel * channel_multiplier):
+                    scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
+                    relu_scipy = np.maximum(scale_shift_scipy, 0)
+                return (input_np, filter_np, scale_np, shift_np,
+                        depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy)
+
+            # Get the test data
+            (input_np, filter_np, scale_np, shift_np,
+             depthwise_conv2d_scipy, scale_shift_scipy, relu_scipy) = get_ref_data()
+
+            input_tvm = tvm.nd.array(input_np, ctx)
+            filter_tvm = tvm.nd.array(filter_np, ctx)
+            scale_tvm = tvm.nd.array(scale_np, ctx)
+            shift_tvm = tvm.nd.array(shift_np, ctx)
+            depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape), dtype=DepthwiseConv2d.dtype), ctx)
+            scale_shift_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(ScaleShift.shape), dtype=ScaleShift.dtype), ctx)
+            relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
+            # launch kernel 1 (depthwise_conv2d)
+            timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1)
+            tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm).mean
+            # launch kernel 2 (depthwise_conv2d + scale_shift)
+            timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=1)
+            tcost_2 = timer_2(input_tvm, filter_tvm, scale_tvm, shift_tvm, scale_shift_tvm).mean
+            # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
+            timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
+            tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
+            tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+            tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
+            tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
     for device in get_all_backend():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
@@ -150,16 +175,17 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
             return
         print("Running on target: %s" % device)
 
+        fcompute, fschedule = topi.testing.dispatch(device, _depthwise_conv2d_nhwc_implement)
         with tvm.target.create(device):
             # declare
-            DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter,
+            DepthwiseConv2d = fcompute(Input, Filter,
                 (stride_h, stride_w), padding_args, dilation, dtype)
             ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
             Relu = topi.nn.relu(ScaleShift)
             # schedule
-            s1 = topi.generic.schedule_depthwise_conv2d_nhwc(DepthwiseConv2d)
-            s2 = topi.generic.schedule_depthwise_conv2d_nhwc(ScaleShift)
-            s3 = topi.generic.schedule_depthwise_conv2d_nhwc(Relu)
+            s1 = fschedule(DepthwiseConv2d)
+            s2 = fschedule(ScaleShift)
+            s3 = fschedule(Relu)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
@@ -242,6 +268,7 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
     stride_h = stride_w = stride
 
     assert dilation == 1, "depthwise_conv2d_NCHWc currently does not support dilation."
+    assert channel_multiplier == 1, "depthwise_conv2d_NCHWc currently does not support channel multiplier > 1."
     pad_h, pad_w, _, _ = get_pad_tuple(padding, (filter_height, filter_width))
     padding_args = (pad_h, pad_w)
 
@@ -276,17 +303,17 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             # declare
-            DepthwiseConv2d = topi.nn.depthwise_conv2d_NCHWc(Input, Filter,
-                                                             (stride_h, stride_w),
-                                                             padding_args,
-                                                             (dilation, dilation),
-                                                             in_layout,
-                                                             out_layout, dtype)
+            DepthwiseConv2d = topi.x86.depthwise_conv2d_NCHWc(Input, Filter,
+                                                              (stride_h, stride_w),
+                                                              padding_args,
+                                                              (dilation, dilation),
+                                                              in_layout,
+                                                              out_layout, dtype)
             # TODO: add scale_shift implement for NCHWc and add test here
             Relu = topi.nn.relu(DepthwiseConv2d)
             # schedule
-            s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
-            s2 = topi.generic.schedule_depthwise_conv2d_nchw(Relu)
+            s1 = topi.x86.schedule_depthwise_conv2d_NCHWc(DepthwiseConv2d)
+            s2 = topi.x86.schedule_depthwise_conv2d_NCHWc(Relu)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Relu], device)
@@ -319,7 +346,6 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
                                                      dtype=DepthwiseConv2d.dtype), ctx)
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # launch kernel 1 (depthwise_conv2d)
-        print(filter_tvm.shape)
         f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
         # launch kernel 2 (depthwise_conv2d + relu)
         f2(input_tvm, filter_tvm, relu_tvm)
@@ -363,9 +389,7 @@ def test_depthwise_conv2d():
 
     # NCHW[x]c
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME")
-    depthwise_conv2d_with_workload_NCHWc(4, 256, 64, 2, 5, 2, "SAME")
     depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "VALID")
-    depthwise_conv2d_with_workload_NCHWc(4, 256, 64, 2, 5, 2, "VALID")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,12 @@ from tvm.contrib.pickle_memoize import memoize
 
 from common import get_all_backend
 
+_batch_matmul_implement = {
+    "generic": (topi.nn.batch_matmul, topi.generic.schedule_batch_matmul),
+    "cpu": (topi.x86.batch_matmul, topi.x86.schedule_batch_matmul),
+    "gpu": (topi.nn.batch_matmul, topi.cuda.schedule_batch_matmul),
+}
+
 def verify_batch_matmul(batch, M, N, K):
     x = tvm.placeholder((batch, M, K), name='x')
     y = tvm.placeholder((batch, N, K), name='y')
@@ -46,8 +52,9 @@ def verify_batch_matmul(batch, M, N, K):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.nn.batch_matmul(x, y)
-            s = topi.generic.schedule_batch_matmul([out])
+            fcompute, fschedule = topi.testing.dispatch(device, _batch_matmul_implement)
+            out = fcompute(x, y)
+            s = fschedule([out])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=dtype), ctx)

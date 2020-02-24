@@ -20,7 +20,7 @@
 /*!
  * \file tvm/tir/stmt.cc
  */
-
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/ir_pass.h>
 #include "../pass/ir_util.h"
@@ -40,6 +40,9 @@ Stmt LetStmtNode::make(Var var, PrimExpr value, Stmt body) {
   return Stmt(node);
 }
 
+TVM_REGISTER_GLOBAL("tir.LetStmt")
+.set_body_typed(LetStmtNode::make);
+
 Stmt AttrStmtNode::make(ObjectRef node,
                     std::string attr_key,
                     PrimExpr value,
@@ -51,6 +54,10 @@ Stmt AttrStmtNode::make(ObjectRef node,
   n->body = std::move(body);
   return Stmt(n);
 }
+
+TVM_REGISTER_GLOBAL("tir.AttrStmt")
+.set_body_typed(AttrStmtNode::make);
+
 
 Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
   CHECK(condition.defined());
@@ -66,6 +73,10 @@ Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
   return Stmt(node);
 }
 
+TVM_REGISTER_GLOBAL("tir.AssertStmt")
+.set_body_typed(AssertStmtNode::make);
+
+
 Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
   CHECK(body.defined());
 
@@ -75,6 +86,10 @@ Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
   node->body = std::move(body);
   return Stmt(node);
 }
+
+TVM_REGISTER_GLOBAL("tir.ProducerConsumer")
+.set_body_typed(ProducerConsumerNode::make);
+
 
 Stmt ForNode::make(Var loop_var,
                PrimExpr min,
@@ -99,6 +114,19 @@ Stmt ForNode::make(Var loop_var,
   return Stmt(node);
 }
 
+TVM_REGISTER_GLOBAL("tir.For")
+.set_body_typed([](
+  Var loop_var, PrimExpr min, PrimExpr extent,
+  int for_type, int device_api, Stmt body) {
+  return ForNode::make(loop_var,
+                   min,
+                   extent,
+                   static_cast<ForType>(for_type),
+                   static_cast<DeviceAPI>(device_api),
+                   body);
+});
+
+
 Stmt StoreNode::make(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr predicate) {
   CHECK(value.defined());
   CHECK(index.defined());
@@ -113,6 +141,18 @@ Stmt StoreNode::make(Var buffer_var, PrimExpr value, PrimExpr index, PrimExpr pr
   node->predicate = std::move(predicate);
   return Stmt(node);
 }
+
+
+TVM_REGISTER_GLOBAL("tir.Store")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    PrimExpr value = args[1];
+    if (args.size() == 3) {
+      *ret = StoreNode::make(args[0], value, args[2], const_true(value.dtype().lanes()));
+    } else {
+      *ret = StoreNode::make(args[0], value, args[2], args[3]);
+    }
+  });
+
 
 Stmt ProvideNode::make(FunctionRef func, int value_index, PrimExpr value, Array<PrimExpr> args) {
   CHECK(value_index >=0 && value_index < func->num_outputs())
@@ -130,6 +170,10 @@ Stmt ProvideNode::make(FunctionRef func, int value_index, PrimExpr value, Array<
   node->args = std::move(args);
   return Stmt(node);
 }
+
+TVM_REGISTER_GLOBAL("tir.Provide")
+.set_body_typed(ProvideNode::make);
+
 
 Stmt AllocateNode::make(Var buffer_var,
                     DataType dtype,
@@ -157,6 +201,15 @@ Stmt AllocateNode::make(Var buffer_var,
     return Stmt(node);
 }
 
+// overloaded, needs special handling
+// has default args
+TVM_REGISTER_GLOBAL("tir.Allocate")
+.set_body_typed([](
+    Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition, Stmt body
+                   ){
+  return AllocateNode::make(buffer_var, type, extents, condition, body);
+});
+
 int32_t AllocateNode::constant_allocation_size(const Array<PrimExpr>& extents) {
   int64_t result = 1;
   for (size_t i = 0; i < extents.size(); ++i) {
@@ -178,12 +231,16 @@ Stmt FreeNode::make(Var buffer_var) {
   return Stmt(node);
 }
 
+TVM_REGISTER_GLOBAL("tir.Free")
+.set_body_typed(FreeNode::make);
+
+
 Stmt RealizeNode::make(FunctionRef func,
-                   int value_index,
-                   DataType dtype,
-                   Region bounds,
-                   PrimExpr condition,
-                   Stmt body) {
+                       int value_index,
+                       DataType dtype,
+                       Region bounds,
+                       PrimExpr condition,
+                       Stmt body) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
     CHECK(bounds[i]->extent.defined());
@@ -204,6 +261,11 @@ Stmt RealizeNode::make(FunctionRef func,
   return Stmt(node);
 }
 
+
+TVM_REGISTER_GLOBAL("tir.Realize")
+.set_body_typed(RealizeNode::make);
+
+
 Stmt PrefetchNode::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
   for (size_t i = 0; i < bounds.size(); ++i) {
     CHECK(bounds[i]->min.defined());
@@ -220,11 +282,20 @@ Stmt PrefetchNode::make(FunctionRef func, int value_index, DataType dtype, Regio
   return Stmt(node);
 }
 
+TVM_REGISTER_GLOBAL("tir.Prefetch")
+.set_body_typed(PrefetchNode::make);
+
+
 SeqStmt::SeqStmt(Array<Stmt> seq) {
   auto node = make_object<SeqStmtNode>();
   node->seq = std::move(seq);
   data_ = std::move(node);
 }
+
+TVM_REGISTER_GLOBAL("tir.SeqStmt")
+.set_body_typed([](Array<Stmt> seq) {
+  return SeqStmt(std::move(seq));
+});
 
 Stmt IfThenElseNode::make(PrimExpr condition, Stmt then_case, Stmt else_case) {
   CHECK(condition.defined());
@@ -238,6 +309,10 @@ Stmt IfThenElseNode::make(PrimExpr condition, Stmt then_case, Stmt else_case) {
   return Stmt(node);
 }
 
+TVM_REGISTER_GLOBAL("tir.IfThenElse")
+.set_body_typed(IfThenElseNode::make);
+
+
 Stmt EvaluateNode::make(PrimExpr value) {
   CHECK(value.defined());
 
@@ -245,6 +320,9 @@ Stmt EvaluateNode::make(PrimExpr value) {
   node->value = std::move(value);
   return Stmt(node);
 }
+
+TVM_REGISTER_GLOBAL("tir.Evaluate")
+.set_body_typed(EvaluateNode::make);
 
 // Printers
 

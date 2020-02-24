@@ -847,6 +847,7 @@ def clip(a, a_min, a_max):
     Examples
     --------
     .. code:: python
+
       x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
       relay.clip(x, 1., 4.)
       # [1, 1, 4, 3, 4, 2]

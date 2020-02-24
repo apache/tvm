@@ -49,9 +49,9 @@ sys.path.insert(0, os.path.join(curr_path, '../vta/python'))
 
 # General information about the project.
 project = u'tvm'
-author = u'%s developers' % project
-copyright = u'2018, %s' % author
-github_doc_root = 'https://github.com/tqchen/tvm/tree/master/docs/'
+author = u'Apache Software Foundation'
+copyright = u'2019, %s' % author
+github_doc_root = 'https://github.com/apache/incubator-tvm/tree/master/docs/'
 
 # add markdown parser
 CommonMarkParser.github_doc_root = github_doc_root
@@ -73,6 +73,7 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinx.ext.mathjax',
     'sphinx_gallery.gen_gallery',
+    'autodocsumm'
 ]
 
 breathe_projects = {'tvm' : 'doxygen/xml/'}
@@ -139,9 +140,6 @@ pygments_style = 'sphinx'
 # If true, `todo` and `todoList` produce output, else they produce nothing.
 todo_include_todos = False
 
-# sort autodoc order by the source file.
-autodoc_member_order = 'bysource'
-
 # -- Options for HTML output ----------------------------------------------
 
 # The theme is set by the make target
@@ -199,9 +197,9 @@ def run_doxygen(folder):
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/{.major}'.format(sys.version_info), None),
-    'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
-    'matplotlib': ('http://matplotlib.org/', None),
+    'numpy': ('https://docs.scipy.org/doc/numpy/', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy/reference', None),
+    'matplotlib': ('https://matplotlib.org/', None),
 }
 
 from sphinx_gallery.sorting import ExplicitOrder
@@ -242,12 +240,16 @@ sphinx_gallery_conf = {
     'doc_module': ('tvm', 'numpy'),
 'reference_url': {
     'tvm': None,
-    'matplotlib': 'http://matplotlib.org',
-    'numpy': 'http://docs.scipy.org/doc/numpy-1.9.1'},
+    'matplotlib': 'https://matplotlib.org/',
+    'numpy': 'https://docs.scipy.org/doc/numpy/'},
     'examples_dirs': examples_dirs,
     'gallery_dirs': gallery_dirs,
     'subsection_order': subsection_order,
     'filename_pattern': os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", ".py"),
     'find_mayavi_figures': False,
     'expected_failing_examples': []
+}
+
+autodoc_default_options = {
+    'member-order': 'bysource',
 }

@@ -24,6 +24,11 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from common import get_all_backend
 
+_conv1d_transpose_ncw_implement = {
+    "generic": (topi.nn.conv1d_transpose_ncw, topi.generic.schedule_conv1d_transpose_ncw),
+    "gpu": (topi.cuda.conv1d_transpose_ncw, topi.cuda.schedule_conv1d_transpose_ncw)
+}
+
 def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_width = in_size
     A = tvm.placeholder((batch, in_channel, in_width), name='A')
@@ -49,10 +54,11 @@ def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, 
             print("Skip because %s is not enabled" % device)
             return
         with tvm.target.create(device):
-            B = topi.nn.conv1d_transpose_ncw(A, W, stride, padding, A.dtype)
+            fcompute, fschedule = topi.testing.dispatch(device, _conv1d_transpose_ncw_implement)
+            B = fcompute(A, W, stride, padding, A.dtype)
             C = topi.nn.relu(B)
-            s1 = topi.generic.schedule_conv1d_transpose_ncw([B])
-            s2 = topi.generic.schedule_conv1d_transpose_ncw([C])
+            s1 = fschedule([B])
+            s2 = fschedule([C])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for broadcasting operators."""
-from common import get_all_backend
 import numpy as np
 import tvm
 import topi
+import topi.testing
+from common import get_all_backend
 
 
 def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
@@ -33,7 +34,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(B)
+            s = topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="broadcast_to")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = np.broadcast_to(data_npy, out_shape)
@@ -81,7 +82,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(C)
+            s = topi.testing.get_broadcast_schedule(device)(C)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + ftopi.__name__)
 
         lhs_npy, lhs_nd = gen_operand(lhs_shape, lhs_min, lhs_max, ctx)
@@ -252,7 +253,7 @@ def test_logical_single_ele():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_broadcast(B)
+                s = topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
             data_npy = indata.astype(A.dtype)
@@ -293,7 +294,7 @@ def test_bitwise_not():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_broadcast(B)
+                s = topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
             data_npy = np.random.uniform(size=shape).astype(A.dtype)
@@ -335,7 +336,7 @@ def test_logical_binary_ele():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_broadcast(C)
+                s = topi.testing.get_broadcast_schedule(device)(C)
             foo = tvm.build(s, [A, B, C], device, name=name)
 
             lhs_nd = tvm.nd.array(lhs, ctx)

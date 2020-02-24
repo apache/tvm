@@ -19,10 +19,15 @@ tvm.runtime
 -----------
 
 .. automodule:: tvm.runtime
+   :members:
+   :imported-members:
+   :exclude-members: NDArray
+   :autosummary:
+
 
 .. autoclass:: tvm.runtime.PackedFunc
    :members:
-   :inheritated-members:
+   :inherited-members:
 
 .. autofunction:: tvm.register_func
 

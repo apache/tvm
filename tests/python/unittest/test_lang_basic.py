@@ -178,11 +178,32 @@ def test_bitwise():
     assert str(10 & x) == 'bitwise_and(10, x)'
     assert str(10 | x) == 'bitwise_or(10, x)'
     assert str(10 ^ x) == 'bitwise_xor(10, x)'
+    assert str(10 >> x) == 'shift_right(10, x)'
+    assert str(10 << x) == 'shift_left(10, x)'
+    assert str(10 % x) == 'floormod(10, x)'
     assert str(~x) == 'bitwise_not(x)'
     assert(tvm.const(1, "int8x2") >> 1).dtype == "int8x2"
     assert(x >> tvm.const(1, "int32x2")).dtype == "int32x2"
     assert(tvm.var("z", "int8x2") << tvm.const(1, "int8x2")).dtype == "int8x2"
 
+def test_float_bitwise():
+    t = tvm.const(1.5,dtype='float32')
+    for test in [lambda lhs, rhs : lhs << rhs,
+                    lambda lhs, rhs : lhs >> rhs,
+                    lambda lhs, rhs : lhs | rhs,
+                    lambda lhs, rhs : lhs ^ rhs,
+                    lambda lhs, rhs : lhs & rhs
+                ]:
+        try:
+            test(t,10.0)
+            assert False
+        except tvm.TVMError:
+            pass
+    try:
+        ~t
+        assert False
+    except RuntimeError:
+        pass
 
 def test_isnan():
     x = tvm.var('x', 'float32')
@@ -227,6 +248,7 @@ if __name__ == "__main__":
     test_any()
     test_all()
     test_bitwise()
+    test_float_bitwise()
     test_isnan()
     test_equality()
     test_equality_string_imm()

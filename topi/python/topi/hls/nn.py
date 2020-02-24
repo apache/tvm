@@ -19,7 +19,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
-from .. import generic
 
 
 def _schedule_conv2d(outs):
@@ -52,7 +51,6 @@ def _schedule_conv2d(outs):
     return s
 
 
-@generic.schedule_conv2d_nchw.register(["hls"])
 def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw
 
@@ -70,7 +68,6 @@ def schedule_conv2d_nchw(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_conv2d_nhwc.register(["hls"])
 def schedule_conv2d_nhwc(outs):
     """Schedule for conv2d_nhwc
 
@@ -88,7 +85,6 @@ def schedule_conv2d_nhwc(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_conv2d_NCHWc.register(["hls"])
 def schedule_conv2d_NCHWc(outs):
     """Schedule for conv2d_NCHW[x]c
 
@@ -106,7 +102,6 @@ def schedule_conv2d_NCHWc(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_conv2d_transpose_nchw.register(["hls"])
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 
@@ -124,7 +119,6 @@ def schedule_conv2d_transpose_nchw(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_depthwise_conv2d_nchw.register(["hls"])
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d_nchw
 
@@ -142,7 +136,6 @@ def schedule_depthwise_conv2d_nchw(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_depthwise_conv2d_nhwc.register(["hls"])
 def schedule_depthwise_conv2d_nhwc(outs):
     """Schedule for depthwise_conv2d_nhwc
     Parameters
@@ -158,7 +151,6 @@ def schedule_depthwise_conv2d_nhwc(outs):
     """
     return _schedule_conv2d(outs)
 
-@generic.schedule_bitserial_conv2d_nchw.register(["hls"])
 def schedule_bitserial_conv2d_nchw(outs):
     """Schedule for bitserial_conv2d_nchw
 
@@ -176,7 +168,6 @@ def schedule_bitserial_conv2d_nchw(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_bitserial_conv2d_nhwc.register(["hls"])
 def schedule_bitserial_conv2d_nhwc(outs):
     """Schedule for bitserial_conv2d_nhwc
 
@@ -194,7 +185,6 @@ def schedule_bitserial_conv2d_nhwc(outs):
     return _schedule_conv2d(outs)
 
 
-@generic.schedule_reduce.register(["hls"])
 def schedule_reduce(outs):
     """Schedule for reduction
 
@@ -241,7 +231,6 @@ def schedule_reduce(outs):
     return s
 
 
-@generic.schedule_softmax.register(["hls"])
 def schedule_softmax(outs):
     """Schedule for softmax
 
@@ -286,7 +275,6 @@ def schedule_softmax(outs):
     return s
 
 
-@generic.schedule_dense.register(["hls"])
 def schedule_dense(outs):
     """Schedule for dense
 
@@ -330,7 +318,6 @@ def schedule_dense(outs):
     return s
 
 
-@generic.schedule_pool.register(["hls"])
 def schedule_pool(outs, layout):
     """Schedule for pool
 
@@ -374,7 +361,6 @@ def schedule_pool(outs, layout):
     return s
 
 
-@generic.schedule_adaptive_pool.register(["hls"])
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive_pool
 

@@ -19,7 +19,7 @@ from __future__ import absolute_import
 import tvm
 from .. import tag
 
-def dense_default(data, weight, bias=None, out_dtype=None):
+def dense(data, weight, bias=None, out_dtype=None):
     """The default implementation of dense in topi.
 
     Parameters
@@ -59,29 +59,3 @@ def dense_default(data, weight, bias=None, out_dtype=None):
                              lambda i, j: matmul[i, j] + bias[j].astype(out_dtype), \
                              tag=tag.BROADCAST)
     return matmul
-
-
-@tvm.target.override_native_generic_func("dense")
-def dense(data, weight, bias=None, out_dtype=None):
-    """Applies a linear transformation: :math:`Y = XW^T + b`.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        2-D with shape [batch, in_dim]
-
-    weight : tvm.Tensor
-        2-D with shape [out_dim, in_dim]
-
-    bias : tvm.Tensor, optional
-        1-D with shape [out_dim]
-
-    out_dtype : str
-        The output type. This is used for mixed precision.
-
-    Returns
-    -------
-    output : tvm.Tensor
-        2-D with shape [batch, out_dim]
-    """
-    return dense_default(data, weight, bias, out_dtype)

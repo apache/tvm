@@ -25,15 +25,8 @@ import topi
 from .util import is_packed_layout
 from ..environment import get_env
 
-@autotvm.register_topi_compute(topi.nn.conv2d, 'vta', 'direct')
-def _declaration_conv2d(cfg,
-                        data,
-                        kernel,
-                        strides,
-                        padding,
-                        dilation,
-                        layout,
-                        out_dtype):
+@autotvm.register_topi_compute("conv2d_packed.vta")
+def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """ Packed conv2d function."""
     if not is_packed_layout(layout):
         raise topi.InvalidShapeError()
@@ -69,8 +62,9 @@ def _declaration_conv2d(cfg,
 
     return res
 
-@autotvm.register_topi_schedule(topi.generic.schedule_conv2d_nchw, 'vta', 'direct')
-def _schedule_conv2d(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_packed.vta")
+def schedule_conv2d_packed(cfg, outs):
+    """Schedule packed conv2d"""
     assert len(outs) == 1
     output = outs[0]
     const_ops = []

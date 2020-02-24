@@ -20,7 +20,6 @@ from __future__ import absolute_import as _abs
 
 import tvm
 
-@tvm.target.override_native_generic_func("schedule_injective_from_existing")
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -36,10 +35,9 @@ def schedule_injective_from_existing(sch, out):
     sch: Schedule
          The updated schedule.
     """
-    sch[out].fuse(s[out].op.axis)
+    sch[out].fuse(*sch[out].op.axis)
     return sch
 
-@tvm.target.override_native_generic_func("schedule_injective")
 def schedule_injective(outs):
     """Schedule for injective op.
 
@@ -63,23 +61,6 @@ def schedule_injective(outs):
     tvm.schedule.AutoInlineInjective(s)
     schedule_injective_from_existing(s, x)
     return s
-
-@tvm.target.generic_func
-def schedule_concatenate(outs):
-    """Schedule for concatenate op.
-
-    Parameters
-    ----------
-    outs: Array of Tensor
-          The computation graph description of reduce in the format
-          of an array of tensors.
-
-    Returns
-    -------
-    sch: Schedule
-        The computation schedule for the op.
-    """
-    return schedule_injective(outs)
 
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective

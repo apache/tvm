@@ -66,18 +66,27 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+
+        if "cudnn" in device:
+            fcompute, fschedule = topi.cuda.conv2d_cudnn, topi.cuda.schedule_conv2d_cudnn
+        else:
+            fcompute, fschedule = topi.testing.get_conv2d_nchw_implement(device)
+
         with tvm.target.create(device):
-            C = topi.nn.conv2d(A, W, (stride, stride), padding,
-                               (dilation, dilation), layout='NCHW', out_dtype=dtype)
+            if "cudnn" in device:
+                C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), "NCHW", dtype)
+            else:
+                C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv2d_nchw([C])
+            s = fschedule([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(b_np, ctx)
+
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
             func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))

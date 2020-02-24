@@ -116,7 +116,7 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one):
                     out_tensor[i, j, k] = -one
     return valid_count, out_tensor
 
-@tvm.target.generic_func
+
 def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     """Get valid count of bounding boxes given a score threshold.
     Also moves valid boxes to the top of input data.
@@ -289,7 +289,6 @@ def hybrid_nms(data, sorted_index, valid_count,
     return output, box_indices
 
 
-@tvm.target.generic_func
 def non_max_suppression(data, valid_count, max_output_size=-1,
                         iou_threshold=0.5, force_suppress=False, top_k=-1,
                         coord_start=2, score_index=1, id_index=0,

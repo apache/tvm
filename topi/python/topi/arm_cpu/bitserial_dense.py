@@ -21,15 +21,13 @@ import tvm
 from tvm import autotvm
 from topi.util import get_const_tuple
 from .. import tag
-from .. import generic
 from .bitserial_conv2d import _intrin_popcount
 from ..nn.pad import pad
-from ..nn.bitserial_dense import bitserial_dense
 from ..nn.bitserial_util import bitpack, binary_op_multiplier
 
-@autotvm.register_topi_compute(bitserial_dense, ['arm_cpu'], 'direct')
-def bitserial_dense_generic(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
-                            unipolar):
+@autotvm.register_topi_compute('bitserial_dense.arm_cpu')
+def bitserial_dense(cfg, data, weight, data_bits, weight_bits, pack_dtype, out_dtype,
+                    unipolar):
     """The default implementation of bitserial dense in topi.
 
     Parameters
@@ -111,7 +109,7 @@ def bitserial_dense_generic(cfg, data, weight, data_bits, weight_bits, pack_dtyp
     return matmul
 
 
-@autotvm.register_topi_schedule(generic.nn.schedule_bitserial_dense, ['arm_cpu'], 'direct')
+@autotvm.register_topi_schedule('bitserial_dense.arm_cpu')
 def schedule_bitserial_dense(cfg, outs):
     """Schedule for binary_dense.
 

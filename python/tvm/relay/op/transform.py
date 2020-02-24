@@ -147,56 +147,54 @@ def squeeze(data, axis=None):
     return _make.squeeze(data, axis)
 
 def reshape(data, newshape):
-    """Reshapes the input array.
-
-    Example::
+    """Reshape the input array.
 
     To give user more convenience in without doing manual shape inference,
     some dimensions of the shape can take special values from the set {0, -1, -2, -3, -4}.
     The significance of each is explained below:
 
-    - ``0``  copy this dimension from the input to the output shape.
+    ``0`` copy this dimension from the input to the output shape.
 
-    Example::
+        .. code-block:: python
 
-    - data.shape = (2,3,4), newshape = (4,0,2), result.shape = (4,3,2)
-    - data.shape = (2,3,4), newshape = (2,0,0), result.shape = (2,3,4)
+            data.shape = (2,3,4), newshape = (4,0,2), result.shape = (4,3,2)
+            data.shape = (2,3,4), newshape = (2,0,0), result.shape = (2,3,4)
 
-    - ``-1`` infers the dimension of the output shape by using the remainder of the input dimensions
-    keeping the size of the new array same as that of the input array.
+    ``-1`` infers the dimension of the output shape by using the remainder of
+    the input dimensions keeping the size of the new array same as that of the input array.
     At most one dimension of shape can be -1.
 
-    Example::
+        .. code-block:: python
 
-    - data.shape = (2,3,4), newshape = (6,1,-1), result.shape = (6,1,4)
-    - data.shape = (2,3,4), newshape = (3,-1,8), result.shape = (3,1,8)
-    - data.shape = (2,3,4), newshape = (-1,), result.shape = (24,)
+            data.shape = (2,3,4), newshape = (6,1,-1), result.shape = (6,1,4)
+            data.shape = (2,3,4), newshape = (3,-1,8), result.shape = (3,1,8)
+            data.shape = (2,3,4), newshape = (-1,), result.shape = (24,)
 
-    - ``-2`` copy all/remainder of the input dimensions to the output shape.
+    ``-2`` copy all/remainder of the input dimensions to the output shape.
 
-    Example::
+        .. code-block:: python
 
-    - data.shape = (2,3,4), newshape = (-2,), result.shape = (2,3,4)
-    - data.shape = (2,3,4), newshape = (2,-2), result.shape = (2,3,4)
-    - data.shape = (2,3,4), newshape = (-2,1,1), result.shape = (2,3,4,1,1)
+            data.shape = (2,3,4), newshape = (-2,), result.shape = (2,3,4)
+            data.shape = (2,3,4), newshape = (2,-2), result.shape = (2,3,4)
+            data.shape = (2,3,4), newshape = (-2,1,1), result.shape = (2,3,4,1,1)
 
-    - ``-3`` use the product of two consecutive dimensions of the input shape
+    ``-3`` use the product of two consecutive dimensions of the input shape
     as the output dimension.
 
-    Example::
+        .. code-block:: python
 
-    - data.shape = (2,3,4), newshape = (-3,4), result.shape = (6,4)
-    - data.shape = (2,3,4,5), newshape = (-3,-3), result.shape = (6,20)
-    - data.shape = (2,3,4), newshape = (0,-3), result.shape = (2,12)
-    - data.shape = (2,3,4), newshape = (-3,-2), result.shape = (6,4)
+            data.shape = (2,3,4), newshape = (-3,4), result.shape = (6,4)
+            data.shape = (2,3,4,5), newshape = (-3,-3), result.shape = (6,20)
+            data.shape = (2,3,4), newshape = (0,-3), result.shape = (2,12)
+            data.shape = (2,3,4), newshape = (-3,-2), result.shape = (6,4)
 
-    - ``-4`` split one dimension of the input into two dimensions passed subsequent
+    ``-4`` split one dimension of the input into two dimensions passed subsequent
     to -4 in shape (can contain -1).
 
-    Example::
+        .. code-block:: python
 
-    - data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape = (1,2,3,4)
-    - data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
+            data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape = (1,2,3,4)
+            data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
 
     Parameters
     ----------
@@ -715,14 +713,14 @@ def reverse_reshape(data, newshape):
     """Reshapes the input array where the special values are inferred from
     right to left.
 
-    Example::
-
     The special values have the same semantics as :py:class:`tvm.relay.reshape`.
     The difference is that special values are inferred from right to left. It
-    can be explained in the example below::
+    can be explained in the example below.
 
-    - data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
-    - data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
+    .. code-block:: python
+
+        data.shape = (10,5,4), newshape = (-1,0), reshape results in (40,5)
+        data.shape = (10,5,4), newshape = (-1,0), reverse_reshape results in (40,5)
 
     Parameters
     ----------

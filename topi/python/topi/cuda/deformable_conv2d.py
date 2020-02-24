@@ -14,20 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-argument
 """Schedule template of deformable conv2d with cuda backend"""
 import tvm
 from tvm import autotvm
-from .. import nn, generic
+from .. import nn
 from ..util import traverse_inline
 
 
-autotvm.register_topi_compute(nn.deformable_conv2d_nchw, ["cuda", "gpu"], "direct",
-                              nn.deformable_conv2d_nchw.fdefault)
+@autotvm.register_topi_compute("deformable_conv2d_nchw.cuda")
+def deformable_conv2d_nchw(cfg, data, offset, kernel, strides, padding, dilation,
+                           deformable_groups, groups, out_dtype):
+    return nn.deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation,
+                                     deformable_groups, groups, out_dtype)
 
-
-@autotvm.register_topi_schedule(generic.schedule_deformable_conv2d_nchw, ["cuda", "gpu"], "direct")
-def schedule_deformable_conv2d_nchw_cuda(cfg, outs):
+@autotvm.register_topi_schedule("deformable_conv2d_nchw.cuda")
+def schedule_deformable_conv2d_nchw(cfg, outs):
     """TOPI schedule callback of deformable conv2d for cuda gpu
 
     Parameters
@@ -49,13 +51,13 @@ def schedule_deformable_conv2d_nchw_cuda(cfg, outs):
 
     def _callback(op):
         if op.tag == 'deformable_conv2d_nchw':
-            schedule_direct_cuda(cfg, s, op.output(0))
+            _schedule_direct_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def schedule_direct_cuda(cfg, s, conv):
+def _schedule_direct_cuda(cfg, s, conv):
     """Schedule template of deformable conv2d"""
     n, f, y, x = s[conv].op.axis
     rc, ry, rx = s[conv].op.reduce_axis

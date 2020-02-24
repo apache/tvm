@@ -24,7 +24,6 @@ from ..util import simplify
 from .util import get_pad_tuple1d
 
 
-@tvm.target.generic_func
 def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
     """Transposed 1D convolution ncw forward operator.
 

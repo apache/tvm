@@ -24,6 +24,12 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 
+_conv2d_hwcn_implement = {
+    "generic": (topi.nn.conv2d_hwcn, topi.generic.schedule_conv2d_hwcn),
+    "gpu": (topi.cuda.conv2d_hwcn, topi.cuda.schedule_conv2d_hwcn),
+    "opencl": (topi.cuda.conv2d_hwcn, topi.cuda.schedule_conv2d_hwcn),
+}
+
 def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
@@ -56,12 +62,13 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            t_conv = topi.nn.conv2d(A, W, stride, padding, dilation, layout='HWCN')
+            fcompute, fschedule = topi.testing.dispatch(device, _conv2d_hwcn_implement)
+            t_conv = fcompute(A, W, stride, padding, dilation)
             t_bias = topi.add(t_conv, B)
             t_relu = topi.nn.relu(t_bias)
-            s1 = topi.generic.schedule_conv2d_hwcn([t_conv])
-            s2 = topi.generic.schedule_conv2d_hwcn([t_bias])
-            s3 = topi.generic.schedule_conv2d_hwcn([t_relu])
+            s1 = fschedule([t_conv])
+            s2 = fschedule([t_bias])
+            s3 = fschedule([t_relu])
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(b_np, ctx)

@@ -25,7 +25,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
-@autotvm.template
+@autotvm.register_customized_task("testing/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     """An example template for testing"""
     assert N == 1, "Only consider batch_size = 1 in this template"
@@ -114,7 +114,7 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
 
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
     """return a sample task for testing"""
-    task = autotvm.task.create(conv2d_no_batching,
+    task = autotvm.task.create("testing/conv2d_no_batching",
                                args=(1, 7, 7, 512, 512, 3, 3),
                                target=target, target_host=target_host)
     return task, target

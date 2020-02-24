@@ -33,7 +33,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(B)
+            s = topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="expand_dims")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = data_npy.reshape(out_shape)
@@ -59,7 +59,7 @@ def verify_reinterpret(in_shape, in_dtype, out_dtype, generator):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_elemwise(B)
+            s = topi.testing.get_elemwise_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="reinterpret")
         data_npy = generator(in_shape).astype(in_dtype)
         out_npy = data_npy.view(B.dtype)
@@ -82,7 +82,7 @@ def verify_transpose(in_shape, axes):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="transpose")
         data_npy = np.arange(np.prod(in_shape)).reshape(in_shape).astype(A.dtype)
         out_npy = data_npy.transpose(axes)
@@ -105,7 +105,7 @@ def verify_reshape(src_shape, dst_shape):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="reshape")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npy = np.reshape(data_npy, newshape=dst_shape)
@@ -128,7 +128,7 @@ def verify_squeeze(src_shape, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name="squeeze")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
@@ -143,6 +143,19 @@ def verify_squeeze(src_shape, axis):
         check_device(device)
 
 def verify_concatenate(shapes, axis):
+
+    def get_concat_schedule(target):
+        schedule_map = {
+            "cpu": topi.x86.schedule_concatenate,
+            "arm_cpu": topi.arm_cpu.schedule_concatenate,
+        }
+        if isinstance(target, str):
+            target = tvm.target.create(target)
+        for key in target.keys:
+            if key in schedule_map:
+                return schedule_map[key]
+        return topi.testing.get_injective_schedule(target)
+
     tensor_l = []
     for i, shape in enumerate(shapes):
         tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
@@ -154,7 +167,7 @@ def verify_concatenate(shapes, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_concatenate(out_tensor)
+            s = get_concat_schedule(device)(out_tensor)
 
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="concatenate")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
@@ -179,7 +192,7 @@ def verify_stack(shapes, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(out_tensor)
+            s = topi.testing.get_broadcast_schedule(device)(out_tensor)
 
         foo = tvm.build(s, tensor_l + [out_tensor], device, name="stack")
         data_npys = [np.random.normal(size=shape).astype(tensor_l[0].dtype) for shape in shapes]
@@ -203,7 +216,7 @@ def verify_split(src_shape, indices_or_sections, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(tensor_l)
+            s = topi.testing.get_injective_schedule(device)(tensor_l)
 
         foo = tvm.build(s, [A] + list(tensor_l), device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
@@ -262,7 +275,7 @@ def verify_flip(in_shape, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name="reverse")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
@@ -293,7 +306,7 @@ def verify_take(src_shape, indices_src, axis=None, mode="clip"):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(out_tensor)
+            s = topi.testing.get_injective_schedule(device)(out_tensor)
 
         foo = tvm.build(s, [A] + [indices] + [out_tensor] , device, name="take")
         shape_size = 1
@@ -328,7 +341,7 @@ def verify_strided_slice(in_shape, begin, end, strides=None):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
 
         foo = tvm.build(s, [A, B], device, name="stride_slice")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
@@ -360,7 +373,7 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
 
         if strides is not None:
             foo = tvm.build(s, [A, V, b, e, st, B], device, name="stride_set")
@@ -402,7 +415,7 @@ def verify_gather_nd(src_shape, indices_src, indices_dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(out_tensor)
+            s = topi.testing.get_injective_schedule(device)(out_tensor)
 
         func = tvm.build(s, [A, indices, out_tensor] , device, name="take")
         shape_size = 1
@@ -441,7 +454,7 @@ def verify_arange(start, stop, step):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(A)
+            s = topi.testing.get_injective_schedule(device)(A)
         f = tvm.build(s, [A], device, name="arange")
         a_nd = tvm.nd.empty(a_np.shape, dtype='float32', ctx=ctx)
         f(a_nd)
@@ -460,7 +473,7 @@ def verify_repeat(in_shape, repeats, axis):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(B)
+            s = topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="repeat")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = np.repeat(data_npy, repeats, axis)
@@ -482,7 +495,7 @@ def verify_tile(in_shape, reps):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(B)
+            s = topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="tile")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = np.tile(data_npy, reps)
@@ -507,7 +520,7 @@ def verify_where(in_shape):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(C)
+            s = topi.testing.get_broadcast_schedule(device)(C)
         f = tvm.build(s, [Cond, A, B, C], device, name="where")
         cond_npy = np.random.uniform(low=-1, high=1, size=in_shape).astype(dtype)
         x_npy = np.random.uniform(size=in_shape).astype(dtype)
@@ -535,7 +548,7 @@ def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(one_hot_result)
+            s = topi.testing.get_injective_schedule(device)(one_hot_result)
         fn = tvm.build(s, [indices, one_hot_result], device, name="one_hot")
         indices_npy = np.random.randint(0, depth, size=indices_shape).astype(indices.dtype)
         out_npy = topi.testing.one_hot(indices_npy, on_value, off_value, depth, axis, dtype)
@@ -618,7 +631,7 @@ def test_squeeze():
         ctx = tvm.context(device, 0)
         if ctx.exist:
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(C)
+                s = topi.testing.get_injective_schedule(device)(C)
                 func = tvm.build(s, [A, C])
             a = tvm.nd.array(np.array((1, 2)).astype('float32'), ctx=ctx)
             c = tvm.nd.empty((1,), dtype='float32', ctx=ctx)
@@ -741,7 +754,7 @@ def test_layout_transform():
         tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype=B.dtype)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         f = tvm.build(s, [A, B], device, name="layout_transform")
         f(tvm_input, tvm_output)
         tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
@@ -768,7 +781,7 @@ def test_shape():
         tvm_output = tvm.nd.empty(output.shape, ctx=ctx, dtype=dtype)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         f = tvm.build(s, [A, B], device, name="shape")
         f(tvm_input, tvm_output)
         tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
@@ -800,7 +813,7 @@ def test_sequence_mask():
                     tvm_C = tvm.nd.empty(in_shape, ctx=ctx, dtype="float32")
                     print("Running on target: %s" % device)
                     with tvm.target.create(device):
-                        s = topi.generic.schedule_injective(C)
+                        s = topi.testing.get_injective_schedule(device)(C)
                     f = tvm.build(s, [A, B, C], device, name="SequenceMask")
                     f(tvm_A, tvm_B, tvm_C)
                     tvm.testing.assert_allclose(tvm_C.asnumpy(), C_gt_data)
@@ -825,7 +838,7 @@ def test_ndarray_size():
         tvm_output = tvm.nd.empty((1,), ctx=ctx, dtype=B.dtype)
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         f = tvm.build(s, [A, B], device, name="ndarray_size")
         f(tvm_input, tvm_output)
         tvm.testing.assert_allclose(tvm_output.asnumpy(), output)
@@ -843,9 +856,10 @@ def test_where_fusion():
                 print("Skip because %s is not enabled" % device)
                 return
             print("Running on target: %s" % device)
+            conv2d_compute, conv2d_schedule = topi.testing.get_conv2d_nchw_implement(device)
             data = tvm.placeholder((2, 1, 2, 4), 'int8', 'data')
             w = tvm.placeholder((3, 1, 2, 2), 'int8', 'w')
-            conv1 = topi.nn.conv2d(data, w, 1, 0, 1, out_dtype='int32')
+            conv1 = conv2d_compute(data, w, 1, 0, 1, 'int32')
             zeros = topi.full((2, 3, 1, 3), 'int32', tvm.const(0, dtype='int32'))
             gt = topi.greater_equal(conv1, zeros)
             one = topi.full((2, 3, 1, 3), 'int32', tvm.const(1, dtype='int32'))
@@ -853,7 +867,7 @@ def test_where_fusion():
             where = topi.where(gt, one, two)
             add = topi.add(conv1, where)
             outs = [add]
-            s = topi.generic.schedule_conv2d_nchw(outs)
+            s = conv2d_schedule(outs)
             tvm.build(s, [data, w, add], target=backend)
 
     for backend in get_all_backend():

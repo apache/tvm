@@ -14,13 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
 import tvm._ffi
 from tvm.runtime import convert, const
-from tvm.schedule import Buffer
+from tvm.ir import Array
 
-from .expr import Call
+from .buffer import Buffer
+from .expr import Call, Var, CommReducer
 from . import _ffi_api
 
 
@@ -194,6 +195,53 @@ def call_llvm_intrin(dtype, name, *args):
     llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
     return call_pure_intrin(dtype, 'llvm_intrin', tvm.const(llvm_id, 'uint32'), *args)
+
+
+def any(*args):
+    """Create a new experssion of the union of all conditions in the arguments
+
+    Parameters
+    ----------
+    args : list
+        List of symbolic boolean expressions
+
+    Returns
+    -------
+    expr: Expr
+        Expression
+    """
+    if not args:
+        raise ValueError("Any must take at least 1 argument")
+    if len(args) == 1:
+        return args[0]
+    ret = _ffi_api._OpOr(args[0], args[1])
+    for i in range(2, len(args)):
+        ret = _ffi_api._OpOr(ret, args[i])
+    return ret
+
+
+def all(*args):
+    """Create a new experssion of the intersection of all conditions in the
+      arguments
+
+    Parameters
+    ----------
+    args : list
+        List of symbolic boolean expressions
+
+    Returns
+    -------
+    expr: Expr
+        Expression
+    """
+    if not args:
+        raise ValueError("Any must take at least 1 argument")
+    if len(args) == 1:
+        return args[0]
+    ret = _ffi_api._OpAnd(args[0], args[1])
+    for i in range(2, len(args)):
+        ret = _ffi_api._OpAnd(ret, args[i])
+    return ret
 
 
 @tvm._ffi.register_func("tvm.default_trace_action")
@@ -780,3 +828,137 @@ def floormod(a, b):
         The result expression.
     """
     return _ffi_api._OpFloorMod(a, b)
+
+
+def comm_reducer(fcombine, fidentity, name="reduce"):
+    """Create a commutative reducer for reduction.
+
+    Parameters
+    ----------
+    fcombine : function(Expr -> Expr -> Expr)
+        A binary function which takes two Expr as input to return a Expr.
+
+    fidentity : function(str -> Expr)
+        A function which takes a type string as input to return a const Expr.
+
+    Returns
+    -------
+    reducer : function
+        A function which creates a reduce expression over axis.
+        There are two ways to use it:
+
+        1. accept (expr, axis, where) to produce an Reduce Expr on
+           specified axis;
+        2. simply use it with multiple Exprs.
+
+    Example
+    -------
+    .. code-block:: python
+
+        n = tvm.var("n")
+        m = tvm.var("m")
+        mysum = tvm.comm_reducer(lambda x, y: x+y,
+            lambda t: tvm.const(0, dtype=t), name="mysum")
+        A = tvm.placeholder((n, m), name="A")
+        k = tvm.reduce_axis((0, m), name="k")
+        B = tvm.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
+    """
+    def _reduce_directly(*args):
+        num = len(args)
+        # process `where` is None
+        if num == 3 and args[2] is None:
+            num = 2
+        res = args[0]
+        for i in range(num-1):
+            res = fcombine(res, args[i+1])
+        return res
+
+    def _make_reduce(expr, axis, where=None):
+        code = fcombine.__code__
+        assert fcombine.__code__.co_argcount == 2
+        expr = convert(expr)
+        if isinstance(expr, Array):
+            size = len(expr)
+            larr = []
+            rarr = []
+            dtypes = []
+            for i in range(size):
+                dtype = expr[i].dtype
+                dtypes.append(dtype)
+                lname = code.co_varnames[0] + "_" + str(i)
+                larr.append(Var(lname, dtype))
+                rname = code.co_varnames[1] + "_" + str(i)
+                rarr.append(Var(rname, dtype))
+            lhs = convert(larr)
+            rhs = convert(rarr)
+            result = fcombine(lhs, rhs)
+            id_elem = fidentity(*dtypes)
+        else:
+            assert isinstance(expr, tvm.ir.PrimExpr)
+            size = 1
+            dtype = expr.dtype
+            lvar = Var(code.co_varnames[0], dtype)
+            rvar = Var(code.co_varnames[1], dtype)
+            result = [fcombine(lvar, rvar)]
+            id_elem = [fidentity(dtype)]
+            lhs = convert([lvar])
+            rhs = convert([rvar])
+            expr = convert([expr])
+        result = convert(result)
+        id_elem = convert(id_elem)
+        combiner = CommReducer(lhs, rhs, result, id_elem)
+        axis = convert(axis if isinstance(axis, (list, tuple)) else [axis])
+        if where is None:
+            where = convert(True)
+        outputs = tuple(tvm.tir.Reduce(combiner, expr, axis, where, i)
+                        for i in range(size))
+        return outputs[0] if size == 1 else outputs
+
+    # pylint: disable=keyword-arg-before-vararg
+    def reducer(expr, axis, where=None, *args):
+        if isinstance(axis, (tvm.tir.IterVar, list, tuple)):
+            assert not args
+            return _make_reduce(expr, axis, where)
+        if where is None:
+            assert not args
+            return _reduce_directly(expr, axis)
+        return _reduce_directly(expr, axis, where, *args)
+
+    doc_str = """Create a {0} expression over axis.
+
+              Parameters
+              ----------
+              expr : PrimExpr
+                  The source expression.
+              axis : IterVar
+                  The reduction IterVar axis
+              where : optional, Expr
+                  Filtering predicate of the reduction.
+              Returns
+              -------
+              value : PrimExpr
+                  The result value.
+
+              Example
+              -------
+              .. code-block:: python
+
+                m = tvm.var("m")
+                n = tvm.var("n")
+                A = tvm.placeholder((m, n), name="A")
+                k = tvm.reduce_axis((0, n), name="k")
+
+                # there are two way to use this {0} reducer:
+                # mode 1, accept (expr, axis, where) to produce an Reduce Expr
+                B = tvm.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
+
+                # mode 2, simply use it with multiple Exprs:
+                {0}_res = tvm.{0}(m, n)
+              """
+    reducer.__doc__ = doc_str.format(name)
+    return reducer
+
+# pylint: disable=unnecessary-lambda
+sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
+min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y), max_value, name="min")
+max = comm_reducer(lambda x, y: _ffi_api._OpMax(x, y), min_value, name="max")

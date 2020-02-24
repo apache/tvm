@@ -21,7 +21,6 @@ from ...util import get_const_tuple
 from ...cpp.util import bilinear_sample_nchw
 
 
-@tvm.target.generic_func
 def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     """ROI align operator in NCHW layout.
 

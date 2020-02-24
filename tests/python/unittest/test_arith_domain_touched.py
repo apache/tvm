@@ -35,19 +35,19 @@ def test_domain_touched():
                 )
             )
     )
-    a_domain_r = tvm.arith.DomainTouched(ir, a, True, False)
+    a_domain_r = tvm.arith._ffi_api.DomainTouched(ir, a, True, False)
     assert a_domain_r[0].min.value == -1
     assert a_domain_r[0].extent.value == 100
     assert a_domain_r[1].min.value == -1
     assert a_domain_r[1].extent.name == 'm'
 
-    a_domain_w = tvm.arith.DomainTouched(ir, a, False, True)
+    a_domain_w = tvm.arith._ffi_api.DomainTouched(ir, a, False, True)
     assert a_domain_w[0].min.value == 0
     assert a_domain_w[0].extent.value == 100
     assert a_domain_w[1].min.value == 0
     assert a_domain_w[1].extent.name == 'm'
 
-    a_domain_rw= tvm.arith.DomainTouched(ir, a, True, True)
+    a_domain_rw= tvm.arith._ffi_api.DomainTouched(ir, a, True, True)
     assert a_domain_rw[0].min.value == -1
     assert a_domain_rw[0].extent.value == 101
     assert a_domain_rw[1].min.value == -1
@@ -55,17 +55,16 @@ def test_domain_touched():
     assert a_domain_rw[1].extent.a.name == 'm'
     assert a_domain_rw[1].extent.b.value == 1
 
-    b_domain_r = tvm.arith.DomainTouched(ir, b, True, False)
+    b_domain_r = tvm.arith._ffi_api.DomainTouched(ir, b, True, False)
     assert b_domain_r
     assert b_domain_r[0].min.value == -1
     assert b_domain_r[0].extent.value == 100
     assert b_domain_r[1].min.value == 1
     assert b_domain_r[1].extent.name == 'm'
 
-    b_domain_w = tvm.arith.DomainTouched(ir, b, False, True)
+    b_domain_w = tvm.arith._ffi_api.DomainTouched(ir, b, False, True)
     assert isinstance(b_domain_w, tvm.container.Array)
     assert len(b_domain_w) == 0
 
 if __name__ == "__main__":
     test_domain_touched()
-

@@ -15,30 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.tensor
+tvm.driver
 ----------
-.. automodule:: tvm.tensor
+.. automodule:: tvm.driver
 
-.. autoclass:: tvm.tensor.Tensor
-    :members:
-    :inherited-members:
+.. autofunction:: tvm.lower
 
-.. autoclass:: tvm.tensor.Operation
-    :members:
-    :inherited-members:
-
-.. autoclass:: tvm.tensor.ComputeOp
-    :members:
-    :show-inheritance:
-
-.. autoclass:: tvm.tensor.PlaceholderOp
-    :members:
-    :show-inheritance:
-
-.. autoclass:: tvm.tensor.ScanOp
-    :members:
-    :show-inheritance:
-
-.. autoclass:: tvm.tensor.ExternOp
-    :members:
-    :show-inheritance:
+.. autofunction:: tvm.build

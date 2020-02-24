@@ -89,7 +89,6 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
     return output
 
 
-@tvm.target.generic_func
 def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
@@ -233,7 +232,6 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
 
     return out_loc, valid_count
 
-@tvm.target.generic_func
 def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
                            variances=(0.1, 0.1, 0.2, 0.2)):
     """Location transformation for multibox detection
@@ -267,7 +265,6 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
                                          tvm.const(threshold, "float32"),
                                          tvm.convert(variances))
 
-@tvm.target.generic_func
 def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
                        force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
     """Convert multibox detection predictions.

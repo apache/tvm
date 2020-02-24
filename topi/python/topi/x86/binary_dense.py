@@ -19,10 +19,8 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
-from .. import generic
 
 
-@generic.schedule_binary_dense.register(["cpu"])
 def schedule_binary_dense(outs):
     """Schedule for binary_dense.
 

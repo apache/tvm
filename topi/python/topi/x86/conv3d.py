@@ -21,9 +21,7 @@ from collections import namedtuple
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from .. import generic
 from ..util import traverse_inline
-from ..nn.conv3d import conv3d, conv3d_ncdhw
 from ..nn.util import get_pad_tuple3d, infer_pad3d
 from ..nn.pad import pad
 from ..util import get_const_tuple, simplify, get_const_int
@@ -35,9 +33,8 @@ Workload3D = namedtuple('Workload',
                          'hkernel', 'wkernel', 'dpad', 'hpad', 'wpad',
                          'dstride', 'hstride', 'wstride'])
 
-@autotvm.register_topi_compute(conv3d, 'cpu', ['direct'])
-def _declaration_conv3d(cfg, data, kernel, strides, padding, dilation,
-                        layout, out_dtype):
+@autotvm.register_topi_compute("conv3d_ndhwc.x86")
+def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """3D convolution forward operator.
 
     Parameters
@@ -59,30 +56,24 @@ def _declaration_conv3d(cfg, data, kernel, strides, padding, dilation,
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
-    layout : str
-        layout of data
-
     Returns
     -------
     output : tvm.Tensor
         5-D with shape [batch, out_depth, out_height, out_width, out_channel] for NDHWC layout
         5-D with shape [batch, out_channel, out_depth, out_height, out_width] for NCDHW layout
     """
+    layout = "NDHWC"
     out_dtype = data.dtype if out_dtype is None else out_dtype
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides, strides)
     dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation, dilation)
 
-    if layout == 'NDHWC':
-        _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
-        if cfg.is_fallback:
-            _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout)
-        return _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
-    elif layout == 'NCDHW':
-        return conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
-    raise ValueError("Layout {} is not supported".format(layout))
+    _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
+    if cfg.is_fallback:
+        _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout)
+    return _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv3d_ndhwc, 'cpu', ['direct'])
+@autotvm.register_topi_schedule("conv3d_ndhwc.x86")
 def schedule_conv3d_ndhwc(cfg, outs):
     """TOPI schedule callback for conv3d
     Parameters
@@ -120,7 +111,7 @@ def schedule_conv3d_ndhwc(cfg, outs):
     return s
 
 
-def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
 
     assert isinstance(dilation, int) or len(dilation) == 3

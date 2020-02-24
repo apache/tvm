@@ -25,9 +25,6 @@ from tvm.intrin import if_then_else, exp
 
 import topi
 
-from topi.vision.ssd import multibox_prior
-from topi.vision.ssd import multibox_detection
-from topi.vision.ssd import multibox_transform_loc
 from ..nms import non_max_suppression
 
 
@@ -112,9 +109,8 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     return body
 
 
-@multibox_prior.register(["cuda", "gpu"])
-def multibox_prior_gpu(data, sizes=(1,), ratios=(1,), steps=(-1, -1),
-                       offsets=(0.5, 0.5), clip=False):
+def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1),
+                   offsets=(0.5, 0.5), clip=False):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
     Parameters
@@ -346,9 +342,8 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
     return ib.get()
 
 
-@multibox_transform_loc.register(["cuda", "gpu"])
-def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
-                               threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)):
+def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, \
+                           threshold=0.01, variances=(0.1, 0.1, 0.2, 0.2)):
     """Location transformation for multibox detection
 
     Parameters
@@ -426,9 +421,8 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
     return [out_loc, valid_count]
 
 
-@multibox_detection.register(["cuda", "gpu"])
-def multibox_detection_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
-                           force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
+def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
+                       force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
     """Convert multibox detection predictions.
 
     Parameters
