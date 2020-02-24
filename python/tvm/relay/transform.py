@@ -541,12 +541,12 @@ def PartitionGraph():
 
 
 def AnnotateTarget(target):
-    """Annotate ops in an experession with a provied compiler and then use it
-    for codegen.
+    """Annotate ops in an experession with a provied compiler/target and then
+    use it for codegen.
 
     Parameters
     ----------
-    target : str
+    target : String
         The target compiler used for codegen.
 
     Returns

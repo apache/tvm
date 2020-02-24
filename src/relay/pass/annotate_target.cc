@@ -39,10 +39,11 @@ class AnnotateTargetWrapper : public ExprMutator {
   explicit AnnotateTargetWrapper(const std::string& target) : target_(target) {}
 
   Expr VisitExpr_(const CallNode* cn) {
+    // TODO(@zhiics, @comaniac) Hanlde composite functions.
     auto new_e = ExprMutator::VisitExpr_(cn);
 
     Call call = Downcast<Call>(new_e);
-    static auto fannotate = Op::GetAttr<FTVMExternalCompiler>("target." + target_);
+    static auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
     Op op = Downcast<Op>(call->op);
     CHECK(op.defined());
 

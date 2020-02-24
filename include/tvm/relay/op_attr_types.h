@@ -181,7 +181,7 @@ using FTVMLegalize = runtime::TypedPackedFunc<
 
 /*!
  * \brief Annotates an expression to indicate if an op should be compiled using
- * the given external compilers.
+ * the given compiler/target.
  *
  * \param attrs The attribute of the original expr.
  * \param args The arguments of the original expr.
@@ -189,7 +189,7 @@ using FTVMLegalize = runtime::TypedPackedFunc<
  * \return true if this op should be registered to invoke a specific compiler
  * for codegen, otherwise, false.
  */
-using FTVMExternalCompiler = runtime::TypedPackedFunc<
+using FTVMAnnotateTarget = runtime::TypedPackedFunc<
   bool(const Attrs& attrs,  // NOLINT(*)
        const Array<Expr>& args)>;
 
