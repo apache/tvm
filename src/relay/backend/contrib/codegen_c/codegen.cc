@@ -101,7 +101,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    buf_stream << dtype << "* " << out << 
+    buf_stream << dtype << "* " << out <<
       " = (" << dtype << "*)std::malloc(4 * " << out_size << ");";
     buf_decl_.push_back(buf_stream.str());
 
