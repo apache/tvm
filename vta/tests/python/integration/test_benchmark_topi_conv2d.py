@@ -25,6 +25,7 @@ import numpy as np
 from collections import namedtuple
 
 import tvm
+from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
@@ -106,16 +107,17 @@ def run_conv2d(env, remote, wl, target,
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
     bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
+    padding = relay.nn.get_pad_tuple2d((wl.hpad, wl.wpad))
 
     # Define base computation schedule
     with target:
         if data_pack:
             res = conv2d_fcompute(
-                data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
+                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
                 layout, env.acc_dtype)
         else:
             res = conv2d_fcompute(
-                data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
+                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
                 env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = topi.add(res, bias)

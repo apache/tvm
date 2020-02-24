@@ -25,6 +25,7 @@ import numpy as np
 from collections import namedtuple
 
 import tvm
+from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
@@ -103,11 +104,12 @@ def run_conv2d_transpose(env, remote, wl, target,
         kernel_shape = w_shape
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    padding = relay.nn.get_pad_tuple2d((wl.hpad, wl.wpad))
 
     # Define base computation schedule
     with target:
         res = fcompute(
-            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), env.acc_dtype)
+            data, kernel, (wl.hstride, wl.wstride), padding, env.acc_dtype)
         res = topi.right_shift(res, env.WGT_WIDTH)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
