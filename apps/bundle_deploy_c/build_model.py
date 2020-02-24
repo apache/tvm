@@ -81,12 +81,6 @@ def build_inputs(opts):
 
     build_dir = os.path.abspath(opts.out_dir)
 
-    # Download ImageNet categories
-    categ_url = "https://github.com/uwsaml/web-data/raw/master/vta/models/synset.txt"
-    categ_fn = os.path.join(build_dir, "synset.txt")
-    download.download(categ_url, categ_fn)
-    synset = eval(open(categ_fn).read())
-
     # Download test image
     image_url = 'https://homes.cs.washington.edu/~moreau/media/vta/cat.jpg'
     image_fn = os.path.join(build_dir, "cat.png")
