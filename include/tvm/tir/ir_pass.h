@@ -386,6 +386,8 @@ Stmt DecorateDeviceScope(Stmt stmt);
  */
 Stmt HoistIfThenElse(Stmt stmt);
 
+Stmt DataTypeRewrite(Stmt stmt);
+
 /*!
  * \brief Make an user callable API LoweredFunc.
  *
