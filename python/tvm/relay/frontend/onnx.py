@@ -91,16 +91,16 @@ def get_numpy(tensor_proto):
     return to_array(tensor_proto)
 
 
-def dimension_picker(prefix, surfix=''):
+def dimension_picker(prefix, suffix=''):
     """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
         if len(kernel) == 1:
-            return prefix + '1d' + surfix
+            return prefix + '1d' + suffix
         if len(kernel) == 2:
-            return prefix + '2d' + surfix
+            return prefix + '2d' + suffix
         if len(kernel) == 3:
-            return prefix + '3d' + surfix
+            return prefix + '3d' + suffix
         msg = 'Only 1D, 2D, and 3D kernels are supported for operator {}.'
         op_name = prefix + '1d/2d/3d'
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))

@@ -1794,37 +1794,51 @@ def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilat
 
 
 def test_conv():
-    # Convolution with padding
-    # Conv2D
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1], [3, 3], [1, 1], [1, 1])
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [1, 1], [3], [1], [1])
-
-    # Convolution without padding
-    # Conv2D
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0], [3, 3], [1, 1], [1, 1])
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), [0, 0], [3], [1], [1])
-
-    # Convolution with autopadding
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5),
-                None, [3, 3], [1, 1], [1, 1],
-                auto_pad="SAME_UPPER")
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), None, [3], [1], [1], auto_pad="SAME_UPPER")
-
-    # Convolution with non uniform stride
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3),
-                None, [3, 3], [2, 2], [1, 1],
-                auto_pad="SAME_UPPER")
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), None, [3], [2], [1], auto_pad="SAME_UPPER")
-
-    # Convolution with dilation
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [2, 2, 2, 2], [3, 3], [1, 1], [2, 2])
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [2, 2], [3], [1], [2])
-
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+    for D in [1, 2, 3]:
+        # Convolution with padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    2 * repeat(1, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D))
+        # Convolution without padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    2 * repeat(0, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D))
+        # Convolution with autopadding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    None,
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    auto_pad="SAME_UPPER")
+        # Convolution with non uniform stride
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    None,
+                    repeat(3, D),
+                    repeat(2, D),
+                    repeat(1, D),
+                    auto_pad="SAME_UPPER")
+        # Convolution with dilation
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    2 * repeat(2, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(2, D))
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
     node = onnx.helper.make_node("ConvTranspose",

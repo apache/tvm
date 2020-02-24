@@ -30,6 +30,7 @@ from common import get_all_backend
 
 _conv3d_ncdhw_implement = {
     "generic": (topi.nn.conv3d_ncdhw, topi.generic.schedule_conv3d_ncdhw),
+    "cpu": (topi.x86.conv3d_ncdhw, topi.x86.schedule_conv3d_ncdhw),
     "gpu": (topi.cuda.conv3d_ncdhw, topi.cuda.schedule_conv3d_ncdhw),
 }
 
