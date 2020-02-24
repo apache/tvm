@@ -123,7 +123,9 @@ class CodegenCBase {
    *
    * \endcode
    */
-  void GenerateBackendCFunc(const std::string& func_name, const Array<Var>& args, const Output& out) {
+  void GenerateBackendCFunc(const std::string& func_name,
+                            const Array<Var>& args,
+                            const Output& out) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
