@@ -47,7 +47,9 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   void VisitExpr_(const VarNode* node) final {
     ext_func_args_.push_back(GetRef<Var>(node));
     out_.clear();
-    out_.push_back({node->name_hint(), 0});
+    Output output;
+    output.name = node->name_hint();
+    out_.push_back(output);
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
@@ -90,14 +92,14 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
           decl_stream << ", ";
         }
         first = false;
-        decl_stream << out.first;
+        decl_stream << out.name;
       }
     }
 
     // Analyze the output buffer
     auto type_node = call->checked_type().as<TensorTypeNode>();
-    CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
-        << "Only support single output tensor with float type";
+    CHECK(type_node);
+    const auto& dtype = GetDtypeString(type_node);
     std::string out = "buf_" + std::to_string(buf_idx_++);
     auto out_shape = GetShape(call->checked_type());
     int out_size = 1;
@@ -118,7 +120,12 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
 
     // Update output buffer
     out_.clear();
-    out_.push_back({out, out_size});
+    Output output;
+    output.name = out;
+    output.dtype = dtype;
+    output.need_copy = true;
+    output.size = out_size;
+    out_.push_back(output);
   }
 
   std::string JIT(void) {
@@ -219,7 +226,7 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
   /*! \brief The name of the the outputs. */
-  std::vector<std::pair<std::string, int>> out_;
+  std::vector<Output> out_;
 };
 
 /*!
