@@ -964,3 +964,11 @@ class Let(PrimExprWithOp):
     def __init__(self, var, value, body):
         self.__init_handle_by_constructor__(
             _ffi_api.Let, var, value, body)
+
+
+@tvm._ffi.register_object
+class Any(PrimExpr):
+    """Any node.
+    """
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.Any)
