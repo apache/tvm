@@ -45,7 +45,7 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   explicit CodegenDNNL(const std::string& id) { this->ext_func_id_ = id; }
 
   void VisitExpr_(const VarNode* node) final {
-    ext_func_args_.push_back(node->name_hint());
+    ext_func_args_.push_back(GetRef<Var>(node));
     out_.clear();
     out_.push_back({node->name_hint(), 0});
   }
@@ -213,7 +213,7 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
    */
   int buf_idx_{0};
   /*! \brief The arguments used by a wrapped function that calls DNNL kernels. */
-  std::vector<std::string> ext_func_args_;
+  Array<Var> ext_func_args_;
   /*! \brief statement of the function that will be compiled using DNNL kernels. */
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration of intermeidate buffers. */

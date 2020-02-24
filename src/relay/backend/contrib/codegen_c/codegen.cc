@@ -41,7 +41,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
   void VisitExpr_(const VarNode* node) {
-    ext_func_args_.push_back(node->name_hint());
+    ext_func_args_.push_back(GetRef<Var>(node));
     out_.clear();
     out_.push_back({node->name_hint(), 0});
   }
@@ -128,7 +128,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   /*! \brief The index of allocated buffers. */
   int buf_idx_ = 0;
   /*! \brief The arguments of a C compiler compatible function. */
-  std::vector<std::string> ext_func_args_;
+  Array<Var> ext_func_args_;
   /*! \brief The statements of a C compiler compatible function. */
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration statements of a C compiler compatible function. */
