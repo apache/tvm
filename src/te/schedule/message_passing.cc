@@ -82,7 +82,7 @@ void PassDownDomain(const Stage& stage,
                  Range::make_by_min_extent(0, r->factor), actx);
         }
         Update(p_state, r->outer,
-               Range::make_by_min_extent(0,outer_extent) , actx);
+               Range::make_by_min_extent(0, outer_extent) , actx);
       } else {
         Update(p_state, r->outer, Range::make_by_min_extent(0, r->nparts), actx);
         Update(p_state, r->inner,
