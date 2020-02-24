@@ -293,7 +293,7 @@ class CodegenCBase {
     } else {
       LOG(FATAL) << "Unsupported dtype " << ttype->dtype;
     }
-    
+
     return dtype;
   }
 
