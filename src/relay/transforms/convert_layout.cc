@@ -52,12 +52,17 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
   /*!
    * \brief Initializes the desired_layout.
    * \param desired_layout The desired layout.
+   * \param additional_layouts Specify additional layouts for operators
+   *    with additional inputs e.g. kernel_layout = OHWI.
    */
-  explicit ConvertTransformMemorizerNode(const std::string& desired_layout)
-      : desired_layout_(desired_layout) {}
+  explicit ConvertTransformMemorizerNode(const std::string& desired_layout,
+                                         const Map<std::string, ObjectRef>& additional_layouts)
+      : desired_layout_(desired_layout), additional_layouts_(additional_layouts) {}
 
   /*! \brief The desired layout for the Convert Layout pass */
   std::string desired_layout_;
+  /*! \brief The desired kernel layout for the Convert Layout pass */
+  Map<std::string, ObjectRef> additional_layouts_;
 };
 
 /*!
@@ -92,7 +97,8 @@ class ConvertTransformMemorizer : public TransformMemorizer {
         tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
       }
       Expr altered_value =
-          fconvert_layout[op](ref_call->attrs, new_args, tinfos, operator->()->desired_layout_);
+          fconvert_layout[op](ref_call->attrs, new_args, tinfos,
+              operator->()->desired_layout_, operator->()->additional_layouts_);
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;
@@ -115,9 +121,10 @@ class ConvertTransformMemorizer : public TransformMemorizer {
  * 1. The altered op should have the same number of arguments as the previous one.
  * 2. Do not support nested tuple arguments.
  */
-Expr ConvertLayout(const Expr& expr, const std::string& desired_layout) {
+Expr ConvertLayout(const Expr& expr, const std::string& desired_layout,
+                   const Map<std::string, ObjectRef>& additional_layouts) {
   ConvertTransformMemorizer transformMemorizer(
-      make_object<ConvertTransformMemorizerNode>(desired_layout));
+      make_object<ConvertTransformMemorizerNode>(desired_layout, additional_layouts));
   auto fcontext = [&](const Call& call) -> ObjectRef { return transformMemorizer; };
 
   return ForwardRewrite(expr, LayoutRewriter<ConvertTransformMemorizer>, fcontext);
@@ -127,10 +134,12 @@ Expr ConvertLayout(const Expr& expr, const std::string& desired_layout) {
 
 namespace transform {
 
-Pass ConvertLayout(const std::string& desired_layout) {
+Pass ConvertLayout(const std::string& desired_layout,
+                   const Map<std::string, ObjectRef>& additional_layouts) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layout));
+        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layout,
+            additional_layouts));
       };
   return CreateFunctionPass(pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
 }

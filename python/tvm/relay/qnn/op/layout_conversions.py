@@ -22,7 +22,7 @@ from tvm.relay.op import op as reg
 
 
 @reg.register_convert_op_layout("qnn.conv2d")
-def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layout):
+def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layout, additional_layouts):
     """Convert Layout pass registration for QNN conv2d op.
 
     Parameters
@@ -35,6 +35,8 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layout):
         List of input and output types
     desired_layout : str
         The desired layout
+    additional_layouts : tvm.ir.StrMap
+        Additional layouts (e.g. kernel layout).
 
     Returns
     -------

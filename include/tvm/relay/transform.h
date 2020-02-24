@@ -282,9 +282,13 @@ TVM_DLL Pass AlterOpLayout();
  * using the InferCorrectLayout infrastructure.
  *
  * \param desired_layout The desired layout.
+ * \param additional_layouts Specify additional layouts for inputs other than
+ *    data e.g. 'kernel_layout' to specify a kernel layout.
  * \return The pass.
  */
-TVM_DLL Pass ConvertLayout(const std::string& desired_layout);
+TVM_DLL Pass ConvertLayout(const std::string& desired_layout,
+                           const Map<std::string, ObjectRef>&
+                               additional_layouts = Map<std::string, ObjectRef>());
 
 /*!
  * \brief Legalizes an expr with another expression.

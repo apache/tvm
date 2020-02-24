@@ -324,7 +324,7 @@ def AlterOpLayout():
     return _ffi_api.AlterOpLayout()
 
 
-def ConvertLayout(desired_layout):
+def ConvertLayout(desired_layout, additional_layouts=None):
     """ Given a dest layout, this pass transforms the expr such that most of the ops input data
     layout is changed to the dest layout. In ideal situation, there are only 2 layout transforms,
     one at the start and one at the end.
@@ -343,13 +343,15 @@ def ConvertLayout(desired_layout):
     ----------
     desired_layout : str
       The desired layout for the transformed expr.
+    additional_layouts : dict (optional)
+      Specify additional layouts for the transformed expr. E.g. {"kernel_layout": "OHWI"}
 
     Returns
     -------
     pass: FunctionPass
       The pass.
     """
-    return _ffi_api.ConvertLayout(desired_layout)
+    return _ffi_api.ConvertLayout(desired_layout, tvm.runtime.convert(additional_layouts))
 
 
 def Legalize(legalize_map_attr_name="FTVMLegalize"):

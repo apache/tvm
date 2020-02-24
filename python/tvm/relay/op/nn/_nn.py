@@ -118,7 +118,7 @@ def legalize_conv2d(attrs, inputs, types):
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 @reg.register_convert_op_layout("nn.conv2d")
-def convert_conv2d(attrs, inputs, tinfos, desired_layout):
+def convert_conv2d(attrs, inputs, tinfos, desired_layout, additional_layouts):
     """Convert Layout pass registration for conv2d op.
 
     Parameters
@@ -131,6 +131,8 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
         List of input and output types
     desired_layout : str
         The desired layout
+    additional_layouts : tvm.ir.StrMap
+        Additional layouts (e.g. kernel layout).
 
     Returns
     -------
@@ -142,6 +144,13 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
     data, weight = inputs
     new_attrs = dict(attrs)
     new_attrs['data_layout'] = desired_layout
+
+    if additional_layouts:
+        if "kernel_layout" in additional_layouts:
+            new_attrs['kernel_layout'] = str(additional_layouts['kernel_layout'])
+            return relay.nn.conv2d(data, weight, **new_attrs)
+
+    # Handle cases where specific kernel layout is not provided
     if desired_layout == 'NCHW':
         new_attrs['kernel_layout'] = 'OIHW'
         return relay.nn.conv2d(data, weight, **new_attrs)
