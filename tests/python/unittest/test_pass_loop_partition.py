@@ -184,23 +184,6 @@ def test_condition_EQ():
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tir.Select))))
 
-def test_thread_axis2():
-    n = tvm.convert(4096)
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
-    s = tvm.create_schedule(C.op)
-    num_thread = 32
-    bx, x = s[C].split(C.op.axis[0], factor=32)
-    tx, x = s[C].split(x, nparts=num_thread)
-    _,  x = s[C].split(x, factor=m)
-    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-    stmt = lower(s, [A, B])
-    for_body = stmt.body.body.body.body.body[0]
-    assert('threadIdx' not in str(for_body.extent))
-
 def test_everything_during_deduction():
     m = tvm.size_var('m')
     n = tvm.size_var('n')
@@ -455,7 +438,6 @@ if __name__ == "__main__":
     test_vectorize()
     test_condition()
     test_condition_EQ()
-    test_thread_axis2()
     test_everything_during_deduction()
     test_single_likely()
     test_multi_likely()
