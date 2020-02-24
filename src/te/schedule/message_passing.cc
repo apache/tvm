@@ -55,7 +55,7 @@ void PassDownDomain(const Stage& stage,
                     std::unordered_map<IterVar, Range>* p_state,
                     arith::Analyzer* actx,
                     bool allow_missing) {
-  auto ceil_div = [actx](PrimExpr a, PrimExpr b) {
+  auto ceil_div = [actx](const PrimExpr& a, const PrimExpr& b) {
     if (actx->CanProve(indexmod(a, b) == 0)) {
       return actx->Simplify(indexdiv(a, b));
     }
@@ -63,7 +63,7 @@ void PassDownDomain(const Stage& stage,
   };
 
   auto& state = *p_state;
-  // forwar iteration on relations
+  // forward iteration on relations
   for (IterVarRelation rel : stage->relations) {
     if (const SplitNode* r = rel.as<SplitNode>()) {
       if (!state.count(r->parent)) {
@@ -73,11 +73,16 @@ void PassDownDomain(const Stage& stage,
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       if (r->factor.defined()) {
-        Update(p_state, r->inner,
-               Range::make_by_min_extent(0, r->factor), actx);
+        PrimExpr outer_extent = ceil_div(range_parent->extent, r->factor);
+        if (is_one(outer_extent)) {
+          Update(p_state, r->inner,
+                 Range::make_by_min_extent(0, range_parent->extent), actx);
+        } else {
+          Update(p_state, r->inner,
+                 Range::make_by_min_extent(0, r->factor), actx);
+        }
         Update(p_state, r->outer,
-               Range::make_by_min_extent(
-                   0, ceil_div(range_parent->extent, r->factor)), actx);
+               Range::make_by_min_extent(0,outer_extent) , actx);
       } else {
         Update(p_state, r->outer, Range::make_by_min_extent(0, r->nparts), actx);
         Update(p_state, r->inner,

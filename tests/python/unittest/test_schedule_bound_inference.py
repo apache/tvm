@@ -148,6 +148,42 @@ def test_bound_fusesplit2():
     assert(tvm.ir_pass.Simplify(tvm.ir_pass.Substitute(bounds[A1.op.axis[1]].extent, vars)).value == 3)
 
 
+def test_bound_split_compute_at():
+    N = M = K = 1024
+
+    A = tvm.placeholder((N, K), name='A')
+    B = tvm.placeholder((M, K), name='B')
+    C = tvm.compute((N, M), lambda i, j: A[i][j] * 2.0, name='C')
+    D = tvm.compute((N, M), lambda i, j: C[i][j] + 2.0, name='D')
+
+    s = tvm.create_schedule([D.op])
+
+    def multiple_split(X):
+        i, j = s[X].op.axis
+        i2, i3 = s[X].split(i, 4)
+        i1, i2 = s[X].split(i2, 4)
+        i0, i1 = s[X].split(i1, 4)
+
+        j2, j3 = s[X].split(j, 4)
+        j1, j2 = s[X].split(j2, 4)
+        j0, j1 = s[X].split(j1, 4)
+
+        iters = i0, j0, i1, j1, i2, j2, i3, j3
+        s[X].reorder(*iters)
+        return iters
+
+    c_iters = multiple_split(C)
+    d_iters = multiple_split(D)
+
+    s[C].compute_at(s[D], d_iters[-3])
+
+    bounds = tvm.schedule.InferBound(s)
+    for i in range(0, 6):
+        assert bounds[c_iters[i]].extent.value == 1
+    for i in range(6, 8):
+        assert bounds[c_iters[i]].extent.value == 4
+
+
 def test_bound_warp():
     m = tvm.var('m')
     l = tvm.var('l')
@@ -422,5 +458,6 @@ if __name__ == "__main__":
     test_bound_simplification_failure()
     test_bound_fusesplit1()
     test_bound_fusesplit2()
+    test_bound_split_compute_at()
     test_bound_split_divisible()
     test_bound_tile_divisible()
