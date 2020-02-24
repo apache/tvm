@@ -1146,17 +1146,22 @@ def _test_reduce_sum(data, keep_dims=None):
 
 #######################################################################
 # Reduce_any
-# -----------
+# ----------
 
 def _test_reduce_any(data, keep_dims=None):
     """ One iteration of reduce_any """
     return _test_reduce(math_ops.reduce_any, data, keep_dims)
 
-
 def _test_forward_reduce(testop, dtype="float32"):
     """ Reduce """
-    data0 = [np.random.rand(16, 16, 16, 16).astype(dtype), None]
-    data1 = [np.random.rand(16, 16, 16, 16).astype(dtype), np.array([1, 2], dtype=np.int32)]
+    if dtype == 'bool':
+        data0 = [np.random.choice(a=[False, True], size=(16, 16, 16, 16)).astype(dtype),
+                 None]
+        data1 = [np.random.choice(a=[False, True], size=(16, 16, 16, 16)).astype(dtype),
+                 np.array([1, 2], dtype=np.int32)]
+    else:
+        data0 = [np.random.rand(16, 16, 16, 16).astype(dtype), None]
+        data1 = [np.random.rand(16, 16, 16, 16).astype(dtype), np.array([1, 2], dtype=np.int32)]
     testop(data0)
     testop(data0, keep_dims=False)
     testop(data0, keep_dims=True)
@@ -1177,7 +1182,8 @@ def test_all_reduce():
     _test_forward_reduce_quantized(_test_reduce_mean)
     _test_forward_reduce(_test_reduce_prod)
     _test_forward_reduce(_test_reduce_sum)
-    _test_forward_reduce(_test_reduce_any, dtype="bool")
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_forward_reduce(_test_reduce_any, dtype="bool")
 
 
 #######################################################################
