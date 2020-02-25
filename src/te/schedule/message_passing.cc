@@ -51,6 +51,13 @@ void Update(std::unordered_map<IterVar, Range>* p_state,
   }
 }
 
+/*!
+ * \param Upward propagating whether an IterVar derives at least one leaf IterVar that binds to
+ * a thread.
+ *
+ * \param stage The stage to operate on.
+ * \param p_state The propagation result of each IterVar.
+ */
 void PassUpThreadBinding(const Stage& stage, std::unordered_map<IterVar, bool>* p_state) {
   auto bound_to_thread = [stage](const IterVar& iv) {
     bool bound = false;
@@ -66,7 +73,7 @@ void PassUpThreadBinding(const Stage& stage, std::unordered_map<IterVar, bool>* 
   for (IterVar iv : stage->leaf_iter_vars) {
     state[iv] = bound_to_thread(iv);
   }
-
+  // Traverse the graph bottom-up to propagate thread binding information
   for (size_t i = stage->relations.size(); i != 0; --i) {
     IterVarRelation rel = stage->relations[i - 1];
     if (const SplitNode* s = rel.as<SplitNode>()) {
@@ -101,7 +108,6 @@ void PassDownDomain(const Stage& stage,
     return actx->Simplify(b);
   };
 
-  // Construct a map: IterVar -> whether dominating a leaf iterVar binding to a thread
   std::unordered_map<IterVar, bool> dominating_thread;
   PassUpThreadBinding(stage, &dominating_thread);
 
@@ -116,6 +122,17 @@ void PassDownDomain(const Stage& stage,
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       if (r->factor.defined()) {
+        // Tighten r->inner's range to min(range_parent->extent, r->factor), only if all of the
+        // following conditions are met.  Same reason for r->out in the split with nparts mode.
+        // 1. no leaf IterVar derived from r->inner binds to any thread.  People may use split
+        // to force an IterVar extent to match the number of allocated threads to fuse stages
+        // that require different number of threads.
+        // 2. allow_missing is false, i.e. that PassDownDomain is called by the final InferBound,
+        // rather than by an early compiler phase, such as rfactor().  We don't want an IterVar
+        // to be tightened in an early phase, but bind to a thread later.
+        // 3. range_parent's extent is not 0.  At lest one Topi test has a case where a tensor has one
+        // zero-sized dimension.  Split creates r->inner with a positive extent to avoid zero-extent
+        // IterVar.  We don't touch it.
         Update(p_state, r->inner,
                Range::make_by_min_extent(
                    0, dominating_thread[r->inner] || allow_missing || is_zero(range_parent->extent)
