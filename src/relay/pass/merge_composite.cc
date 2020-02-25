@@ -164,7 +164,7 @@ class MergeCompositeWrapper : public ExprMutator {
     Map<Expr, Expr> call_map;
     auto extract = ExtractPattern(pattern, call, &args_map, &call_map);
     if (extract.defined()) {
-      auto free_vars = FreeVars(extract);
+      auto free_vars = GetOrderedFreeVars(extract);
       // make the composite function
       auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
       f = FunctionSetAttr(f, attr::kComposite, tir::StringImmNode::make(pattern_name_));
@@ -182,6 +182,28 @@ class MergeCompositeWrapper : public ExprMutator {
   }
 
  private:
+  /*! \brief Returns free vars from expr, ordered alphabetically
+   *         by name_hint. This is used to create a consistent
+   *         ordering for different patterns that have the same
+   *         free vars.
+   */
+  Array<Var> GetOrderedFreeVars(const Expr& expr) {
+    const auto& free_vars = FreeVars(expr);
+
+    // put free_vars into a std::vector since tvm::IterAdapter
+    // doesn't work with std::sort
+    std::vector<Var> free_vars_vector(free_vars.begin(), free_vars.end());
+    std::sort(free_vars_vector.begin(), free_vars_vector.end(), VarComparer);
+
+    Array<Var> free_vars_sorted(free_vars_vector.begin(), free_vars_vector.end());
+    return free_vars_sorted;
+  }
+
+  /*! \brief Compares two vars alphabetically by name_hint */
+  static bool VarComparer(Var a, Var b) {
+    return a->name_hint() < b->name_hint();
+  }
+
   /*! \brief The name of the pattern to match */
   std::string pattern_name_;
   /*! \brief The pattern to match */

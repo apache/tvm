@@ -18,6 +18,7 @@
 from tvm import relay
 from tvm import tir
 from tvm.relay.testing import run_opt_pass
+from tvm.relay.expr_functor import ExprVisitor
 
 """
 The merge composite pass is designed to merge multiple relay operators, that
@@ -128,6 +129,57 @@ def make_add_add_add_pattern():
     add_node_1 = relay.add(x, add_node)
     r = relay.add(add_node_1, add_node)
     return r
+
+
+def make_add_add_free_var_wrong_order_pattern():
+    """Create pattern to match the following graph
+       where free vars will be in the wrong order.
+       Used for testing alphabetical sorting.
+
+       x    y
+        \  / \
+        add  |
+         |  /
+        add
+    """
+    z = relay.var('z')
+    y = relay.var('y')
+    x = relay.var('x')
+    add_node = relay.add(z, y)
+    r = relay.add(add_node, x)
+    return r
+
+
+def test_fn_param_order():
+    """Test order of composite function params.
+       They should be sorted alphabetically.
+    """
+    pattern_table = [
+        ("add_add", make_add_add_free_var_wrong_order_pattern())
+    ]
+
+    def before():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+        c = relay.var('c', shape=(10, 10))
+        add_node = relay.add(a, b)
+        r = relay.add(add_node, c)
+        return relay.Function([a, b, c], r)
+
+    class FnParamAlphabeticalChecker(ExprVisitor):
+        def __init__(self):
+            super(FnParamAlphabeticalChecker, self).__init__()
+
+        def visit_call(self, call):
+            if isinstance(call.op, relay.expr.Function) and call.op.get_attribute("Composite") == "add_add":
+                param_names = [param.name_hint for param in call.op.params]
+                sorted_param_names = [param.name_hint for param in call.op.params]
+                sorted_param_names.sort()
+                assert param_names == sorted_param_names
+
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table))
+    assert not relay.analysis.free_vars(result)
+    FnParamAlphabeticalChecker().visit(result)
 
 
 def test_simple_merge():
