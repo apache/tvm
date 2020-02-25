@@ -85,7 +85,7 @@ CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) {
 }
 
 // Query the existence of a GlobalVar in the call graph. It creates an entry if
-// there is no such a node available.
+// there is no such node available.
 CallGraphEntry* CallGraphNode::LookupGlobalVar(const GlobalVar& gv) {
   CHECK(gv.defined());
 
@@ -151,7 +151,7 @@ std::vector<CallGraphEntry*> CallGraphNode::TopologicalOrder() const {
   for (const auto& it : entries) {
     // Keep tracking the nodes that have been visited.
     auto topo = it->TopologicalOrder(&visited);
-    // Preprend the collected items. The intermeidate nodes that are shared by
+    // Prepend the collected items. The intermediate nodes that are shared by
     // multiple entries are guaranteed to be collected when visiting the
     // previous entries. Therefore, topological order remains.
     ret.insert(ret.begin(), topo.begin(), topo.end());
@@ -173,10 +173,10 @@ std::vector<CallGraphEntry*> CallGraphNode::TopologicalOrder() const {
   return ret;
 }
 
-// A BSF traverser is used to collect the nodes in a CallGraphEntry. The nodes
+// BSF traversal is used to collect the nodes in a CallGraphEntry. The nodes
 // that are visited by previous CallGraphEntry entries can be memoized. This
 // helps us to make sure no entry will be visited multiple times when collecting
-// the nodes for an entir call graph.
+// the nodes for an entire call graph.
 std::vector<CallGraphEntry*> CallGraphEntry::TopologicalOrder(
     CallGraphEntrySet* visited) const {
   std::vector<CallGraphEntry*> ret;
