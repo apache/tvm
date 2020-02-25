@@ -35,7 +35,8 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return
 
     def update_lib(lib):
-        test_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
+        test_dir = os.path.dirname(
+            os.path.realpath(os.path.expanduser(__file__)))
         source_dir = os.path.join(test_dir, "..", "..", "..")
         contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
@@ -80,46 +81,83 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
 
 
 def test_extern_dnnl():
-    if not tvm.get_global_func("relay.ext.dnnl", True):
-        print("skip because DNNL codegen is not available")
-        return
+    def annotated(dtype, ishape, w1shape):
+        data = relay.var('data', shape=(ishape), dtype=dtype)
+        weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
+        depthwise_conv2d_1 = relay.nn.conv2d(data,
+                                             weight1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                             weight1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
-    dtype = 'float32'
+        f = relay.Function([data, weight1], out)
+
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def expected(dtype, ishape, w1shape):
+        data = relay.var('data', shape=(ishape), dtype=dtype)
+        weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
+        begin0 = relay.annotation.compiler_begin(data, "dnnl")
+        begin1 = relay.annotation.compiler_begin(weight1, "dnnl")
+        depthwise_conv2d_1 = relay.nn.conv2d(begin0,
+                                             begin1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        end0 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
+        begin2 = relay.annotation.compiler_begin(end0, "dnnl")
+        begin3 = relay.annotation.compiler_begin(end0, "dnnl")
+        begin4 = relay.annotation.compiler_begin(weight1, "dnnl")
+        depthwise_conv2d_2 = relay.nn.conv2d(begin3,
+                                             begin4,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        end1 = relay.annotation.compiler_end(depthwise_conv2d_2, "dnnl")
+        begin5 = relay.annotation.compiler_begin(end1, "dnnl")
+        out = relay.add(begin2, begin5)
+        end2 = relay.annotation.compiler_end(out, "dnnl")
+        f = relay.Function([data, weight1], end2)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    dtype = "float32"
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
-    data = relay.var('data', shape=(ishape), dtype=dtype)
-    weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
-    depthwise_conv2d_1 = relay.nn.conv2d(data,
-                                         weight1,
-                                         kernel_size=(3, 3),
-                                         padding=(1, 1),
-                                         groups=32)
-    depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
-                                         weight1,
-                                         kernel_size=(3, 3),
-                                         padding=(1, 1),
-                                         groups=32)
-    out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
-    f = relay.Function([data, weight1], out)
+    def test_annotate():
+        mod = annotated(dtype, ishape, w1shape)
+        mod = transform.AnnotateTarget("dnnl")(mod)
+        ref_mod = expected(dtype, ishape, w1shape)
+        assert relay.analysis.alpha_equal(mod, ref_mod)
 
-    mod = tvm.IRModule.from_expr(f)
-    mod = transform.AnnotateTarget("dnnl")(mod)
-    mod = transform.PartitionGraph()(mod)
+    def test_run():
+        if not tvm.get_global_func("relay.ext.dnnl", True):
+            print("skip because DNNL codegen is not available")
+            return
 
-    ref_mod = tvm.IRModule()
-    ref_mod['main'] = f
+        ref_mod = annotated(dtype, ishape, w1shape)
+        mod = annotated(dtype, ishape, w1shape)
+        mod = transform.PartitionGraph()(mod)
 
-    i_data = np.random.uniform(0, 1, ishape).astype(dtype)
-    w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
+        i_data = np.random.uniform(0, 1, ishape).astype(dtype)
+        w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
 
-    print('generating reference')
-    ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
-    ref_res = ref_ex.evaluate()(i_data, w1_data)
-    print('finished reference generation')
+        ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu())
+        ref_res = ref_ex.evaluate()(i_data, w1_data)
 
-    check_result(mod, {"data": i_data, "weight1": w1_data},
-                 (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+        check_result(mod, {"data": i_data, "weight1": w1_data},
+                     (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
+
+    test_annotate()
+    test_run()
 
 
 def test_extern_dnnl_mobilenet():
@@ -136,12 +174,10 @@ def test_extern_dnnl_mobilenet():
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
-    print('generating reference')
     ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
                                                            dtype='float32')
     ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
     ref_res = ref_ex.evaluate()(i_data, **params)
-    print('finished reference generation')
 
     check_result(mod, {"data": i_data},
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)

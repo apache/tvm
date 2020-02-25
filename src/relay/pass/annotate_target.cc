@@ -39,7 +39,7 @@ class AnnotateTargetWrapper : public ExprMutator {
   explicit AnnotateTargetWrapper(const std::string& target) : target_(target) {}
 
   Expr VisitExpr_(const CallNode* cn) {
-    // TODO(@zhiics, @comaniac) Hanlde composite functions.
+    // TODO(@zhiics, @comaniac) Handle composite functions.
     auto new_e = ExprMutator::VisitExpr_(cn);
 
     Call call = Downcast<Call>(new_e);
@@ -66,7 +66,8 @@ class AnnotateTargetWrapper : public ExprMutator {
         return end;
       }
     } else {
-      LOG(WARNING) << op->name << " in " << target_ << " is not registered";
+      LOG(WARNING) << op->name << " in " << target_
+                   << " is not registered. It will be executed on CPU.";
     }
     return new_e;
   }
