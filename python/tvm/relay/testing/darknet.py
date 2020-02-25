@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, no-init, unpacking-non-sequence
+# pylint: disable=invalid-name, unused-variable, unused-argument, no-init
 """
 Compile DarkNet Models
 ====================
@@ -23,60 +23,41 @@ This functions will not be loaded by default.
 These are utility functions used for testing and tutorial file.
 """
 from __future__ import division
-import math
 import numpy as np
 from cffi import FFI
 import cv2
 
-def _resize_image(img, w_in, h_in):
-    """Resize the image to the given height and width."""
-    imc, imh, imw = img.shape
-    h_in = int(h_in)
-    w_in = int(w_in)
-    part = np.zeros((imc, imh, w_in))
-    resized = np.zeros((imc, h_in, w_in))
-    w_scale = (imw - 1) / (w_in - 1)
-    h_scale = (imh - 1) / (h_in - 1)
-    for k in range(imc):
-        for j in range(imh):
-            for c in range(w_in):
-                if c == w_in - 1 or imw == 1:
-                    part[k][j][c] = img[k][j][imw - 1]
-                else:
-                    fdx, idx = math.modf(c * w_scale)
-                    part[k][j][c] = (1 - fdx) * img[k][j][int(idx)] + \
-                                            fdx * img[k][j][int(idx) + 1]
-    for k in range(imc):
-        for j in range(h_in):
-            fdy, idy = math.modf(j * h_scale)
-            for c in range(w_in):
-                resized[k][j][c] = (1 - fdy)*part[k][int(idy)][c]
-            if (j == h_in - 1) or (imh == 1):
-                continue
-            for c in range(w_in):
-                resized[k][j][c] += fdy * part[k][int(idy) + 1][c]
-    return resized
 
-def load_image_color(test_image):
-    """To load the image using opencv api and do preprocessing."""
-    imagex = cv2.imread(test_image)
-    imagex = cv2.cvtColor(imagex, cv2.COLOR_BGR2RGB)
-    imagex = np.array(imagex)
+def convert_image(image):
+    """Convert the image with numpy."""
+    imagex = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    imagex = np.array(image)
     imagex = imagex.transpose((2, 0, 1))
     imagex = np.divide(imagex, 255.0)
     imagex = np.flip(imagex, 0)
     return imagex
 
+def load_image_color(test_image):
+    """To load the image using opencv api and do preprocessing."""
+    imagex = cv2.imread(test_image)
+    return convert_image(imagex)
+
 def _letterbox_image(img, w_in, h_in):
     """To get the image in boxed format."""
-    imc, imh, imw = img.shape
+    imh, imw, imc = img.shape
     if (w_in / imw) < (h_in / imh):
         new_w = w_in
         new_h = imh * w_in // imw
     else:
         new_h = h_in
         new_w = imw * h_in // imh
-    resized = _resize_image(img, new_w, new_h)
+    dim = (new_w, new_h)
+    # Default interpolation method is INTER_LINEAR
+    # Other methods are INTER_AREA, INTER_NEAREST, INTER_CUBIC and INTER_LANCZOS4
+    # For more information see:
+    # https://docs.opencv.org/2.4/modules/imgproc/doc/geometric_transformations.html#resize
+    resized = cv2.resize(src=img, dsize=dim, interpolation=cv2.INTER_CUBIC)
+    resized = convert_image(resized)
     boxed = np.full((imc, h_in, w_in), 0.5, dtype=float)
     _, resizedh, resizedw = resized.shape
     boxed[:, int((h_in - new_h) / 2)
@@ -84,7 +65,7 @@ def _letterbox_image(img, w_in, h_in):
           :int((w_in - new_w) / 2) + resizedw] = resized
     return boxed
 
-def load_image(image, resize_width, resize_height):
+def load_image(img, resize_width, resize_height):
     """Load the image and convert to the darknet model format.
     The image processing of darknet is different from normal.
     Parameters
@@ -103,9 +84,8 @@ def load_image(image, resize_width, resize_height):
     img : Float array
         Array of processed image
     """
-
-    img = load_image_color(image)
-    return _letterbox_image(img, resize_width, resize_height)
+    imagex = cv2.imread(img)
+    return _letterbox_image(imagex, resize_width, resize_height)
 
 class LAYERTYPE(object):
     """Darknet LAYERTYPE Class constant."""
