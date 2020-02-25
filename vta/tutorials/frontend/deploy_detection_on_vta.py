@@ -72,10 +72,10 @@ from tvm import rpc, autotvm, relay
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
 
-######################################################################
+##############################################################################
 # Download yolo net configure file, weight file, darknet library file based on
 # Model Name
-# --------------------------
+# ----------------------------------------------------------------------------
 MODEL_NAME = 'yolov3-tiny'
 REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 
@@ -100,9 +100,9 @@ else:
     raise NotImplementedError("Darknet lib is not supported on {} platform"
                               .format(sys.platform))
 
-######################################################################
+##################################################
 # Download yolo categories and illustration front.
-# --------------------------
+# ------------------------------------------------
 coco_path = download_testdata(REPO_URL + 'data/' + 'coco.names' + '?raw=true', 
                               'coco.names',
                               module='data')
@@ -113,15 +113,15 @@ with open(coco_path) as f:
     content = f.readlines()
 names = [x.strip() for x in content]
 
-######################################################################
-# Define the platform and model targets
-# -------------------------------------
+########################################
+# Define the platform and model targets.
+# --------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
 # Load VTA parameters from the vta/config/vta_config.json file
 env = vta.get_env()
 # Set ``device=arm_cpu`` to run inference on the CPU
-    # or ``device=vta`` to run inference on the FPGA.
+# or ``device=vta`` to run inference on the FPGA.
 device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
     
@@ -141,9 +141,9 @@ pack_dict = {
 # to find operator name and index information.
 assert MODEL_NAME in pack_dict
 
-######################################################################
-# Obtain an execution remote
-# --------------------------
+#############################
+# Obtain an execution remote.
+# ---------------------------
 # When target is 'pynq' or other FPGA backend, reconfigure FPGA and runtime.
 # Otherwise, if target is 'sim', execute locally.
 
@@ -178,9 +178,9 @@ else:
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
-######################################################################
-# Build the inference graph runtime
-# ---------------------------------
+####################################
+# Build the inference graph runtime.
+# ----------------------------------
 # Using Darknet library load downloaded vision model and compile with Relay.
 # The compilation steps are:
 #
@@ -197,7 +197,6 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
     
-    optl = 3
     dpass = {"AlterOpLayout"}
 
     net = __darknetffi__.dlopen(darknet_lib_path).load_network(cfg_path.encode('utf-8'), 
@@ -215,7 +214,7 @@ with autotvm.tophub.context(target):
     if target.device_name == "vta":
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
-        with relay.build_config(opt_level=optl,disabled_pass=dpass):
+        with relay.build_config(opt_level=3,disabled_pass=dpass):
             with relay.quantize.qconfig(global_scale=33.0,
                                     skip_conv_layers=[0],
                                      store_lowbit_output=True,
@@ -255,9 +254,9 @@ with autotvm.tophub.context(target):
     # Graph runtime
     m = graph_runtime.create(graph, lib, ctx)
 
-######################################################################
-# Perform image detection inference
-# --------------------------------------
+####################################
+# Perform image detection inference.
+# ----------------------------------
 # We run detect on an downloaded image 
 # Download test image
 [neth, netw] = dshape[2:]
@@ -273,9 +272,8 @@ data = data.transpose((2, 0, 1))
 data = data[np.newaxis, :]
 data = np.repeat(data, env.BATCH, axis=0)
 
-
 # Set the network parameters and inputs
-m.set_input('data', data)#tvm.nd.array(data.astype(dtype)))
+m.set_input('data', data)
 m.set_input(**params)
 
 # Perform inference and gather execution statistics
