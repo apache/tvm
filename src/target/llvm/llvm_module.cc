@@ -239,7 +239,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     if (mtarget != nullptr) {
       llvm::MDString* pstr = llvm::dyn_cast<llvm::MDString>(mtarget);
       CHECK(pstr != nullptr);
-      target_ = pstr->getString();
+      target_ = pstr->getString().str();
     } else {
       std::ostringstream os;
       os << "llvm -target " << module_->getTargetTriple();
