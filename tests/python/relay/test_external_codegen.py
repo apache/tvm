@@ -161,6 +161,23 @@ def test_extern_gcc_single_op():
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
+def test_extern_gcc_single_op_int():
+    x = relay.var('x', shape=(8, 8), dtype="int32")
+    y = relay.var('y', shape=(8, 8), dtype="int32")
+
+    x0 = relay.var('x0', shape=(8, 8), dtype="int32")
+    y0 = relay.var('y0', shape=(8, 8), dtype="int32")
+    z = x0 + y0
+    f = relay.Function([x0, y0], z)
+    f = set_external_func_attr(f, "ccompiler", "ccompiler_0")
+    call = relay.Call(f, [x, y])
+    mod = tvm.IRModule.from_expr(call)
+    x_data = np.random.rand(8, 8).astype('int32')
+    y_data = np.random.rand(8, 8).astype('int32')
+
+    check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
+
+
 def test_extern_gcc():
     x = relay.var('x', shape=(2, 2))
     y = relay.var('y', shape=(2, 2))
@@ -242,5 +259,6 @@ def test_extern_dnnl():
 if __name__ == "__main__":
     test_multi_node_subgraph()
     test_extern_gcc_single_op()
+    test_extern_gcc_single_op_int()
     test_extern_gcc()
     test_extern_dnnl()
