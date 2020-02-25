@@ -87,7 +87,8 @@ class CallGraph(Object):
         return _analysis.GetGlobalVarCallCount(self, var)
 
     def is_recursive(self, var):
-        """Return the number of global function calls from a given global var.
+        """Return if the function corresponding to a var is a recursive
+        function.
 
         Parameters
         ----------
@@ -122,12 +123,8 @@ class CallGraph(Object):
         else:
             raise TypeError("var should be either a string or GlobalVar")
 
-    def __str__(self):
-        """Print the call graph in the topological order."""
-        return _analysis.PrintCallGraph(self)
-
-    def __getitem__(self, var):
-        """Lookup a call graph of a global function by name or by variable.
+    def print_var(self, var):
+        """Print a call graph of a global function by name or by variable.
 
         Parameters
         ----------
@@ -140,4 +137,8 @@ class CallGraph(Object):
             The call graph represented in string.
         """
         var = self._get_global_var(var)
-        return _analysis.GetCallGraphGlobalVar(self, var)
+        return _analysis.PrintCallGraphGlobalVar(self, var)
+
+    def __str__(self):
+        """Print the call graph in the topological order."""
+        return _analysis.PrintCallGraph(self)

@@ -41,12 +41,12 @@
 namespace tvm {
 namespace relay {
 
-class CallGraphEntryNode;
+class CallGraphEntry;
 class CallGraph;
 
 class CallGraphNode : public Object {
   using CallGraphMap =
-      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntryNode>, ObjectHash,
+      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash,
                          ObjectEqual>;
   // Create iterator alias for a CallGraphNode object.
   using iterator = CallGraphMap::iterator;
@@ -94,7 +94,7 @@ class CallGraphNode : public Object {
    *
    * \return The fetched element.
    */
-  const CallGraphEntryNode* operator[](const GlobalVar& gv) const;
+  const CallGraphEntry* operator[](const GlobalVar& gv) const;
   /*!
    * \brief Get an element from the CallGraphNode using a GlobalVar.
    *
@@ -102,7 +102,7 @@ class CallGraphNode : public Object {
    *
    * \return The fetched element.
    */
-  CallGraphEntryNode* operator[](const GlobalVar& gv);
+  CallGraphEntry* operator[](const GlobalVar& gv);
   /*!
    * \brief Get an element from the CallGraphNode using the global function name.
    *
@@ -110,7 +110,7 @@ class CallGraphNode : public Object {
    *
    * \return The fetched element.
    */
-  const CallGraphEntryNode* operator[](const std::string& gvar_name) const {
+  const CallGraphEntry* operator[](const std::string& gvar_name) const {
     return (*this)[module->GetGlobalVar(gvar_name)];
   }
   /*!
@@ -120,7 +120,7 @@ class CallGraphNode : public Object {
    *
    * \return The fetched element.
    */
-  CallGraphEntryNode* operator[](const std::string& gvar_name) {
+  CallGraphEntry* operator[](const std::string& gvar_name) {
     return (*this)[module->GetGlobalVar(gvar_name)];
   }
 
@@ -135,15 +135,15 @@ class CallGraphNode : public Object {
    *  Entry functions are never referenced by other functions.
    *  Note these functions can be recursive as well.
    *
-   * \return The list of CallGraphEntryNode that represent entry nodes.
+   * \return The list of CallGraphEntry that represent entry nodes.
    */
-  std::vector<CallGraphEntryNode*> GetEntryGlobals() const;
+  std::vector<CallGraphEntry*> GetEntryGlobals() const;
 
   /*!
-   * \brief Remove a GlobalVar in a given CallGraphEntryNode from the current
+   * \brief Remove a GlobalVar in a given CallGraphEntry from the current
    *        IR module.
    *
-   * \param cg_node The CallGraphEntryNode that contains a global function to be
+   * \param cg_node The CallGraphEntry that contains a global function to be
    *        removed.
    * \param update_call_graph Indicate if we will update the CallGraph as well
    *        since updating is costly. We are only able to remove a leaf function
@@ -152,7 +152,7 @@ class CallGraphNode : public Object {
    *
    * \return The GlobalVar removed from the current module.
    */
-  GlobalVar RemoveGlobalVarFromModule(CallGraphEntryNode* cg_node,
+  GlobalVar RemoveGlobalVarFromModule(CallGraphEntry* cg_node,
                                       bool update_call_graph = false);
 
   /*!
@@ -163,7 +163,7 @@ class CallGraphNode : public Object {
    *
    * \return The queried entry.
    */
-  CallGraphEntryNode* LookupGlobalVar(const GlobalVar& gv);
+  CallGraphEntry* LookupGlobalVar(const GlobalVar& gv);
 
   /*!
    * \brief Get the entries from the CallGraphNode in the topological order.
@@ -174,14 +174,14 @@ class CallGraphNode : public Object {
    *
    * \return The list of collected entries that are sorted in the topological order.
    */
-  std::vector<CallGraphEntryNode*> TopologicalOrder() const;
+  std::vector<CallGraphEntry*> TopologicalOrder() const;
 
   static constexpr const char* _type_key = "relay.CallGraph";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallGraphNode, Object);
 
  private:
   /*!
-   * \brief Create a CallGraphEntryNode for a global function and add it to the
+   * \brief Create a CallGraphEntry for a global function and add it to the
    *        CallGraphNode.
    *
    * \param gv The global var.
@@ -189,7 +189,7 @@ class CallGraphNode : public Object {
    */
   void AddToCallGraph(const GlobalVar& gv, const Function& func);
 
-  /*! \brief A record contains GlobalVar to CallGraphEntryNode mapping. */
+  /*! \brief A record contains GlobalVar to CallGraphEntry mapping. */
   CallGraphMap call_graph_;
 
   friend CallGraph;
@@ -202,7 +202,7 @@ class CallGraphNode : public Object {
  */
 class CallGraph : public ObjectRef {
   using CallGraphMap =
-      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntryNode>, ObjectHash,
+      std::unordered_map<GlobalVar, std::unique_ptr<CallGraphEntry>, ObjectHash,
                          ObjectEqual>;
   // Create iterator alias for a CallGraph object.
   using iterator = CallGraphMap::iterator;
@@ -254,7 +254,7 @@ class CallGraph : public ObjectRef {
    *
    * \return The fetched element.
    */
-  const CallGraphEntryNode* operator[](const GlobalVar& gv) const {
+  const CallGraphEntry* operator[](const GlobalVar& gv) const {
     const auto* n = operator->();
     CHECK(n);
     return (*n)[gv];
@@ -266,7 +266,7 @@ class CallGraph : public ObjectRef {
    *
    * \return The fetched element.
    */
-  CallGraphEntryNode* operator[](const GlobalVar& gv) {
+  CallGraphEntry* operator[](const GlobalVar& gv) {
     auto* n = operator->();
     CHECK(n);
     return (*n)[gv];
@@ -278,7 +278,7 @@ class CallGraph : public ObjectRef {
    *
    * \return The fetched element.
    */
-  const CallGraphEntryNode* operator[](const std::string& gvar_name) const {
+  const CallGraphEntry* operator[](const std::string& gvar_name) const {
     const auto* n = operator->();
     CHECK(n);
     return (*n)[gvar_name];
@@ -290,7 +290,7 @@ class CallGraph : public ObjectRef {
    *
    * \return The fetched element.
    */
-  CallGraphEntryNode* operator[](const std::string& gvar_name) {
+  CallGraphEntry* operator[](const std::string& gvar_name) {
     auto* n = operator->();
     CHECK(n);
     return (*n)[gvar_name];
@@ -312,27 +312,27 @@ class CallGraph : public ObjectRef {
  * \brief A node in the call graph. It maintains the edges from a caller to
  * all callees.
  */
-class CallGraphEntryNode {
+class CallGraphEntry {
  public:
-  using CallGraphEntry = std::pair<GlobalVar, CallGraphEntryNode*>;
-  using CallGraphEntryVector = std::vector<CallGraphEntry>;
-  using CallGraphEntryNodeSet = std::unordered_set<const CallGraphEntryNode*>;
-  // Create iterator alias for a CallGraphEntryNode object.
-  using iterator = std::vector<CallGraphEntry>::iterator;
-  using const_iterator = std::vector<CallGraphEntry>::const_iterator;
+  using CallGraphEntryPair = std::pair<GlobalVar, CallGraphEntry*>;
+  using CallGraphEntryVector = std::vector<CallGraphEntryPair>;
+  using CallGraphEntrySet = std::unordered_set<const CallGraphEntry*>;
+  // Create iterator alias for a CallGraphEntry object.
+  using iterator = std::vector<CallGraphEntryPair>::iterator;
+  using const_iterator = std::vector<CallGraphEntryPair>::const_iterator;
 
   /*!
    * \brief Construct from a GlobalVar.
    *
-   * \param gv The GlobalVar to create a CallGraphEntryNode.
+   * \param gv The GlobalVar to create a CallGraphEntry.
    */
-  explicit CallGraphEntryNode(const GlobalVar& gv) : global_(gv) {}
+  explicit CallGraphEntry(const GlobalVar& gv) : global_(gv) {}
   /*!
    * \brief Delete copy constructor.
    */
-  CallGraphEntryNode(const CallGraphEntryNode&) = delete;
+  CallGraphEntry(const CallGraphEntry&) = delete;
   /*! \brief Delete assignment. */
-  CallGraphEntryNode& operator=(const CallGraphEntryNode&) = delete;
+  CallGraphEntry& operator=(const CallGraphEntry&) = delete;
 
   /*! \return The begin iterator */
   iterator begin() {
@@ -371,20 +371,20 @@ class CallGraphEntryNode {
   }
 
   /*!
-   * \brief Fetch the i-th CallGraphEntryNode from the list of nodes that are called
+   * \brief Fetch the i-th CallGraphEntry from the list of nodes that are called
    * by the current function.
    *
    * \param i The index.
    *
-   * \return The fetched CallGraphEntryNode.
+   * \return The fetched CallGraphEntry.
    */
-  CallGraphEntryNode* operator[](size_t i) const {
+  CallGraphEntry* operator[](size_t i) const {
     CHECK_LT(i, called_globals_.size()) << "Invalid Index";
     return called_globals_[i].second;
   }
 
   /*!
-   * \brief Print the call graph that is stemmed from the current CallGraphEntryNode.
+   * \brief Print the call graph that is stemmed from the current CallGraphEntry.
    *
    * \param os The stream for printing.
    */
@@ -400,7 +400,7 @@ class CallGraphEntryNode {
   }
 
   /*!
-   * \brief Return the GlobalVar stored in the current CallGraphEntryNode.
+   * \brief Return the GlobalVar stored in the current CallGraphEntry.
    *
    * \return The GlobalVar.
    */
@@ -409,7 +409,7 @@ class CallGraphEntryNode {
   }
 
   /*!
-   * \brief Return the name hint of the GlobalVar stored in the CallGraphEntryNode.
+   * \brief Return the name hint of the GlobalVar stored in the CallGraphEntry.
    *
    * \return The name hint of the global function.
    */
@@ -419,7 +419,7 @@ class CallGraphEntryNode {
 
   /*!
    * \brief Return if the global function corresponding to the current
-   * CallGraphEntryNode is a recursive function.
+   * CallGraphEntry is a recursive function.
    *
    * \return true if it is recursive. Otherwise, false.
    */
@@ -429,7 +429,7 @@ class CallGraphEntryNode {
 
   /*!
    * \brief Return if the global function corresponding to the current
-   * CallGraphEntryNode is both a recursive function and an entry function. This type
+   * CallGraphEntry is both a recursive function and an entry function. This type
    * of function only has one reference which is called by itself.
    *
    * \return true if it is both a recursive function and an entry. Otherwise, false.
@@ -439,17 +439,17 @@ class CallGraphEntryNode {
   }
 
   /*!
-   * \brief Return the topological order of the CallGraphEntryNode.
+   * \brief Return the topological order of the CallGraphEntry.
    *
-   * \param visited A set of CallGraphEntryNode objects that have been visited.
+   * \param visited A set of CallGraphEntry objects that have been visited.
    *
-   * \return The list of CallGraphEntryNode that is represented in topological order.
+   * \return The list of CallGraphEntry that is represented in topological order.
    */
-  std::vector<CallGraphEntryNode*> TopologicalOrder(
-      CallGraphEntryNodeSet* visited = new CallGraphEntryNodeSet()) const;
+  std::vector<CallGraphEntry*> TopologicalOrder(
+      CallGraphEntrySet* visited = new CallGraphEntrySet()) const;
 
   /*!
-   * \brief Remove all edges from the current CallGraphEntryNode to any global
+   * \brief Remove all edges from the current CallGraphEntry to any global
    * function it calls.
    */
   void CleanCallGraphEntries();
@@ -458,9 +458,9 @@ class CallGraphEntryNode {
    * \brief Add a node to the list of nodes that are being called by the current
    * global function.
    *
-   * \param cg_node The CallGraphEntryNode that will be added to the call list.
+   * \param cg_node The CallGraphEntry that will be added to the call list.
    */
-  void AddCalledGlobal(CallGraphEntryNode* cg_node);
+  void AddCalledGlobal(CallGraphEntry* cg_node);
 
   /*!
    * \brief Remove a call edge to the global function from the current
@@ -472,11 +472,11 @@ class CallGraphEntryNode {
 
   /*!
    * \brief Remove all the edges that represent that calls to the global function
-   * stored in a given CallGraphEntryNode.
+   * stored in a given CallGraphEntry.
    *
    * \param callee The function that is being called.
    */
-  void RemoveAllCallTo(CallGraphEntryNode* callee);
+  void RemoveAllCallTo(CallGraphEntry* callee);
 
  private:
   /*! \brief Decrement the reference counter by 1. */
@@ -488,20 +488,20 @@ class CallGraphEntryNode {
   void IncRef() { ++ref_cnt_; }
 
   /*!
-   * \brief Mark if the global function stored in the CallGraphEntryNode is
+   * \brief Mark if the global function stored in the CallGraphEntry is
    * recursive function.
    */
   bool is_recursive_{false};
   /*! \brief Count the number of times the global function is referenced. */
   uint32_t ref_cnt_{0};
-  /*! \brief The GlobalVar stored in the current CallGraphEntryNode. */
+  /*! \brief The GlobalVar stored in the current CallGraphEntry. */
   GlobalVar global_;
-  /*! \brief The list of entries called by the current CallGraphEntryNode. */
+  /*! \brief The list of entries called by the current CallGraphEntry. */
   CallGraphEntryVector called_globals_;
 
   friend class CallGraph;
   /*! \brief Overload the << operator to print a call graph node. */
-  friend std::ostream& operator<<(std::ostream& os, const CallGraphEntryNode&);
+  friend std::ostream& operator<<(std::ostream& os, const CallGraphEntry&);
 };
 
 }  // namespace relay

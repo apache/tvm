@@ -40,8 +40,8 @@ def test_print_element():
     mod["g1"] = relay.Function([x1, y1], x1 - y1)
     call_graph = relay.CallGraph(mod)
 
-    assert "#refs = 0" in str(call_graph["g0"])
-    assert "#refs = 0" in str(call_graph["g1"])
+    assert "#refs = 0" in str(call_graph.print_var("g0"))
+    assert "#refs = 0" in str(call_graph.print_var("g1"))
 
 
 def test_global_call_count():
