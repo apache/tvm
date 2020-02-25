@@ -748,7 +748,6 @@ def _test_neg(data):
 def _test_square(data):
     """ One iteration of square """
     return _test_unary_elemwise(math_ops.square, data)
-#######################################################################
 
 def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
