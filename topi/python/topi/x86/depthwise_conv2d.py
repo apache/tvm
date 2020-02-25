@@ -223,6 +223,7 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
     s[C].parallel(parallel_axis)
     s[CC].compute_at(s[C], ow_chunk)
 
+    # the ow axis in the cached block CC is the ow_block in C
     _, ic_chunk, oh, ow, ic_block = s[CC].op.axis
     kh, kw = s[CC].op.reduce_axis
     s[CC].reorder(ic_chunk, oh, kh, kw, ow, ic_block)
