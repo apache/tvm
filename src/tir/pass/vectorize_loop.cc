@@ -524,12 +524,8 @@ class LoopVectorizer : public StmtMutator {
       CHECK(is_zero(op->min));
       int lanes = 0;
       bool succ = arith::GetConstInt(op->extent, &lanes);
-      if (!succ || lanes < 0) {
+      if (!succ || lanes < 1) {
         LOG(FATAL) << "Failed to vectorize loop with extent " << op->extent;
-      }
-      if (lanes == 0) {
-        // Nothing to run.  This may happen when a tensor has 0-sized dimension.
-        return Stmt();
       }
       return Vectorizer(op->loop_var, lanes)(op->body);
     } else {

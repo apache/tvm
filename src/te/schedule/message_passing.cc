@@ -116,22 +116,22 @@ void PassDownDomain(const Stage& stage,
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
       if (r->factor.defined()) {
-        Update(
-            p_state, r->inner,
-            Range::make_by_min_extent(0, dominating_thread[r->inner] || allow_missing
-                                             ? r->factor
-                                             : minimum_or_later(range_parent->extent, r->factor)),
-            actx);
+        Update(p_state, r->inner,
+               Range::make_by_min_extent(
+                   0, dominating_thread[r->inner] || allow_missing || is_zero(range_parent->extent)
+                          ? r->factor
+                          : minimum_or_later(range_parent->extent, r->factor)),
+               actx);
         Update(p_state, r->outer,
                Range::make_by_min_extent(
                    0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
-        Update(
-            p_state, r->outer,
-            Range::make_by_min_extent(0, dominating_thread[r->outer] || allow_missing
-                                             ? r->nparts
-                                             : minimum_or_later(range_parent->extent, r->nparts)),
-            actx);
+        Update(p_state, r->outer,
+               Range::make_by_min_extent(
+                   0, dominating_thread[r->outer] || allow_missing || is_zero(range_parent->extent)
+                          ? r->nparts
+                          : minimum_or_later(range_parent->extent, r->nparts)),
+               actx);
         Update(p_state, r->inner,
                Range::make_by_min_extent(
                    0, ceil_div(range_parent->extent, r->nparts)), actx);
