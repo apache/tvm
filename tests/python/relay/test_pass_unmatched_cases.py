@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.prelude import Prelude
 from tvm.relay.analysis import unmatched_cases

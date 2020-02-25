@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
+from tvm import te
 import numpy as np
 import re
 import topi
@@ -31,10 +31,10 @@ def checkdepdency():
     return not {'graphviz', 'ipython'} - {pkg.key for pkg in pkg_resources.working_set}
 
 def test_dfg():
-    A = tvm.placeholder((1024, 4096), dtype='float32', name='A')
+    A = te.placeholder((1024, 4096), dtype='float32', name='A')
     B = topi.nn.softmax(A)
     # confirm lower works
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
 
     def verify():
         from tvm.contrib import tedd
@@ -49,7 +49,7 @@ def test_dfg():
         findany(r"Stage_2:O_0 -> Tensor_2_0", str)
         findany(r"Tensor_2_0 -> Stage_3:I_0", str)
         findany(r"Stage_3:O_0 -> Tensor_3_0", str)
-        findany(r"Tensor_2_0 -> Stage_4:I_0", str)                
+        findany(r"Tensor_2_0 -> Stage_4:I_0", str)
         findany(r"Tensor_3_0 -> Stage_4:I_1", str)
         findany(r"Stage_4:O_0 -> Tensor_4_0", str)
     if checkdepdency():
@@ -57,13 +57,13 @@ def test_dfg():
 
 
 def test_itervar_relationship_graph():
-    n = tvm.var("n")
-    m = tvm.var("m")
-    A = tvm.placeholder((n, m), name='A')
-    k = tvm.reduce_axis((0, m), "k")
-    B = tvm.compute((n, ), lambda i: tvm.sum(A[i, k], axis=k), name="B")
+    n = te.var("n")
+    m = te.var("m")
+    A = te.placeholder((n, m), name='A')
+    k = te.reduce_axis((0, m), "k")
+    B = te.compute((n, ), lambda i: te.sum(A[i, k], axis=k), name="B")
 
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     s[B].split(B.op.reduce_axis[0], factor=16)
 
     def verify():
@@ -89,18 +89,18 @@ def test_itervar_relationship_graph():
 
 
 def test_schedule_tree():
-    block_x = tvm.thread_axis('blockIdx.x')
-    thread_x = tvm.thread_axis('threadIdx.x')
-    n = tvm.var("n")
-    m = tvm.var("m")
-    l = tvm.var("l")
-    A = tvm.placeholder((n, m, l), name='A')
-    B = tvm.compute((n, m, l), lambda bi, bj, bk: A[bi, bj, bk] + 1, name='B')
-    r = tvm.reduce_axis((0, m), "r")
-    C = tvm.compute((n, m,),
-                    lambda ci, cj: tvm.sum(B[ci, cj, r], axis=r),
-                    name="C")
-    s = tvm.create_schedule(C.op)
+    block_x = te.thread_axis('blockIdx.x')
+    thread_x = te.thread_axis('threadIdx.x')
+    n = te.var("n")
+    m = te.var("m")
+    l = te.var("l")
+    A = te.placeholder((n, m, l), name='A')
+    B = te.compute((n, m, l), lambda bi, bj, bk: A[bi, bj, bk] + 1, name='B')
+    r = te.reduce_axis((0, m), "r")
+    C = te.compute((n, m,),
+                   lambda ci, cj: te.sum(B[ci, cj, r], axis=r),
+                   name="C")
+    s = te.create_schedule(C.op)
     s.cache_read(A, 'shared', [B])
     s[B].vectorize(B.op.axis[-1])
     s[C].reorder(C.op.reduce_axis[0], C.op.axis[0])
@@ -115,7 +115,7 @@ def test_schedule_tree():
         str = tedd.viz_schedule_tree(s, False, '', True)
         findany(r"digraph \"Schedule Tree\"", str)
         findany(r"subgraph cluster_legend", str)
-        # Check the A_shared stage, including memory scope, itervars, 
+        # Check the A_shared stage, including memory scope, itervars,
         # and compute
         findany(r"Stage_1.*A\.shared<br/>Scope: shared.+>0.+>" \
             r"ax0\(kDataPar\).+>1.+ax1\(kDataPar\).+>2.+>ax2\(kDataPar\).+>" \

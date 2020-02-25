@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import tvm.testing
 import os
 import logging
@@ -34,9 +35,9 @@ def test_bigendian_rpc():
     if host is None:
         return
     def verify_rpc(remote, target, shape, dtype):
-        A = tvm.placeholder(shape, dtype=dtype)
-        B = tvm.compute(A.shape, lambda i: A[i]+tvm.const(1, A.dtype))
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder(shape, dtype=dtype)
+        B = te.compute(A.shape, lambda i: A[i]+tvm.tir.const(1, A.dtype))
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], target, name="myadd")
 
         ctx = remote.cpu(0)
@@ -116,10 +117,10 @@ def test_rpc_remote_module():
     server = rpc.Server("localhost")
     client = rpc.connect(server.host, server.port)
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
 
     def check_remote(remote):
         if not tvm.runtime.enabled("llvm"):
@@ -155,10 +156,10 @@ def test_rpc_remote_module():
             return
         temp = util.tempdir()
         ctx = remote.cl(0)
-        s = tvm.create_schedule(B.op)
+        s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=32)
-        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(xo, te.thread_axis("blockIdx.x"))
+        s[B].bind(xi, te.thread_axis("threadIdx.x"))
         f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
         # Option 1: save modules separately and rely on remote compiler
         path_o = temp.relpath("myadd.o")

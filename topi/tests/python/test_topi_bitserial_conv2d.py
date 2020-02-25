@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -33,8 +34,8 @@ def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel,
     out_dtype = 'int32'
 
     with tvm.target.create('llvm'):
-        A = tvm.placeholder((batch, in_channel, in_height, in_width), dtype=input_dtype, name='A')
-        W = tvm.placeholder((num_filter, in_channel, kernel, kernel), dtype=input_dtype, name='W')
+        A = te.placeholder((batch, in_channel, in_height, in_width), dtype=input_dtype, name='A')
+        W = te.placeholder((num_filter, in_channel, kernel, kernel), dtype=input_dtype, name='W')
         B = topi.x86.bitserial_conv2d_nchw(A, W, stride, padding, activation_bits, weight_bits,
                                            input_dtype, out_dtype, unipolar)
         s = topi.x86.schedule_bitserial_conv2d_nchw([B])
@@ -71,8 +72,8 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     out_dtype='int32'
 
     with tvm.target.create('llvm'):
-        A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_dtype, name='A')
-        W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_dtype, name='W')
+        A = te.placeholder((batch, in_height, in_width, in_channel), dtype=input_dtype, name='A')
+        W = te.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_dtype, name='W')
         B = topi.x86.bitserial_conv2d_nhwc(A, W, stride, padding, activation_bits, weight_bits,
                                            input_dtype, out_dtype, unipolar)
         s = topi.x86.schedule_bitserial_conv2d_nhwc([B])

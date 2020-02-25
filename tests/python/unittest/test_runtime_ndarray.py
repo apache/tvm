@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def enabled_ctx_list():
@@ -55,10 +56,10 @@ def test_fp16_conversion():
     n = 100
 
     for (src, dst) in [('float32', 'float16'), ('float16', 'float32')]:
-        A = tvm.placeholder((n,), dtype=src)
-        B = tvm.compute((n,), lambda i: A[i].astype(dst))
+        A = te.placeholder((n,), dtype=src)
+        B = te.compute((n,), lambda i: A[i].astype(dst))
 
-        s = tvm.create_schedule([B.op])
+        s = te.create_schedule([B.op])
         func = tvm.build(s, [A, B], 'llvm')
 
         x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50)

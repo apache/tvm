@@ -16,6 +16,7 @@
 # under the License.
 """ test bind function."""
 import tvm
+from tvm import te
 from tvm import relay
 
 

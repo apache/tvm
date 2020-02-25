@@ -24,6 +24,7 @@ import os
 import copy
 import numpy as np
 import tvm
+from tvm import te
 import tvm.relay.testing
 
 from tvm import autotvm
@@ -79,20 +80,20 @@ def _create_data(target, dshape, dtype, layout):
         records.append((ms_input, ms_output))
 
     ltf_records = []
-    ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
+    ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
     ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
     ltf_records.append((ms_input, ms_output))
 
     ltf_keys = []
-    ltf_arg = [tvm.placeholder((1, 4, 8, 8, 4), dtype=dtype), "NCHW4c", "NCHW8c"]
+    ltf_arg = [te.placeholder((1, 4, 8, 8, 4), dtype=dtype), "NCHW4c", "NCHW8c"]
     ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
     ltf_keys.append(ltf_wkl)
-    ltf_arg = [tvm.placeholder((1, 1, 8, 8, 32), dtype=dtype), "NCHW32c", "NCHW4c"]
+    ltf_arg = [te.placeholder((1, 1, 8, 8, 32), dtype=dtype), "NCHW32c", "NCHW4c"]
     ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
     ltf_keys.append(ltf_wkl)
-    ltf_arg = [tvm.placeholder((1, 4, 8, 8, 8), dtype=dtype), "NCHW8c", "NCHW32c"]
+    ltf_arg = [te.placeholder((1, 4, 8, 8, 8), dtype=dtype), "NCHW8c", "NCHW32c"]
     ltf_wkl = autotvm.task.args_to_workload(ltf_arg, 'layout_transform')
     ltf_keys.append(ltf_wkl)
 
@@ -314,7 +315,7 @@ def test_many_sub_graphs():
         records.append((ms_input, ms_output))
 
     ltf_records = []
-    ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
+    ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
     ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
@@ -397,7 +398,7 @@ def test_tuple():
         records.append((ms_input, ms_output))
 
     ltf_records = []
-    ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
+    ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
     ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)
@@ -497,7 +498,7 @@ def test_triangle_block():
         records.append((ms_input, ms_output))
 
     ltf_records = []
-    ltf_arg = [tvm.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
+    ltf_arg = [te.placeholder((1, 64, 16, 16, 8), dtype=dtype), "NCHW8c", "NCHW512c"]
     ltf_task = autotvm.task.create('layout_transform', ltf_arg, target)
     ms_input = MeasureInput(target=target, task=ltf_task, config=None)
     ms_output =  MeasureResult(costs=(1.91224744e-05,), error_no=0, all_cost=-1, timestamp=-1)

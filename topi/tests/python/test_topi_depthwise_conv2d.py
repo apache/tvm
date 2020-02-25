@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 import topi.testing
@@ -58,10 +59,10 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         padding_args = padding
 
     # placeholder
-    Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
-    Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
-    Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
-    Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
+    Input = te.placeholder((batch, in_channel, in_height, in_width), name='Input')
+    Filter = te.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
+    Scale = te.placeholder((in_channel * channel_multiplier,), name='Scale')
+    Shift = te.placeholder((in_channel * channel_multiplier,), name='Shift')
 
     dtype = 'float32'
 
@@ -161,10 +162,10 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         padding_args = padding
 
     # placeholder
-    Input = tvm.placeholder((batch, in_height, in_width, in_channel), name='Input')
-    Filter = tvm.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
-    Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
-    Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
+    Input = te.placeholder((batch, in_height, in_width, in_channel), name='Input')
+    Filter = te.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
+    Scale = te.placeholder((in_channel * channel_multiplier,), name='Scale')
+    Shift = te.placeholder((in_channel * channel_multiplier,), name='Shift')
 
     dtype = 'float32'
 
@@ -289,8 +290,8 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             break
 
     # placeholder
-    Input = tvm.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='Input')
-    Filter = tvm.placeholder((out_channel//oc_block, 1, filter_height, filter_width, 1, oc_block), name='Filter')
+    Input = te.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='Input')
+    Filter = te.placeholder((out_channel//oc_block, 1, filter_height, filter_width, 1, oc_block), name='Filter')
     in_layout = "NCHW%dc" % ic_block
     out_layout = "NCHW%dc" % oc_block
     dtype = 'float32'

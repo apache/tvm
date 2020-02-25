@@ -17,19 +17,20 @@
 """Test code for binary neural network operators."""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
 
 def verify_binary_dense(batch, in_dim, out_dim):
-    A = tvm.placeholder((batch, in_dim), name='A')
-    B = tvm.placeholder((out_dim, in_dim), name='B')
+    A = te.placeholder((batch, in_dim), name='A')
+    B = te.placeholder((out_dim, in_dim), name='B')
     bnn_A = topi.nn.binarize_pack(A)
     bnn_B = topi.nn.binarize_pack(B)
     # binary dense
-    bnn_A1 = tvm.placeholder(bnn_A.shape, dtype=bnn_A.dtype)
-    bnn_B1 = tvm.placeholder(bnn_B.shape, dtype=bnn_B.dtype)
+    bnn_A1 = te.placeholder(bnn_A.shape, dtype=bnn_A.dtype)
+    bnn_B1 = te.placeholder(bnn_B.shape, dtype=bnn_B.dtype)
     bnn_C = topi.nn.binary_dense(bnn_A1, bnn_B1)
     # schedule
     with tvm.target.create('llvm'):

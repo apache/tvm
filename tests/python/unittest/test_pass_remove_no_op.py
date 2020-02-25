@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def nop():
     return tvm.tir.Evaluate(0)
 
 def test_remove_no_op():
-    i = tvm.var('i')
-    j = tvm.var('j')
-    k = tvm.var('k')
-    m = tvm.var('m')
-    n = tvm.var('n')
+    i = te.var('i')
+    j = te.var('j')
+    k = te.var('k')
+    m = te.var('m')
+    n = te.var('n')
     dtype = 'int64'
-    Ab = tvm.decl_buffer((n, ), dtype)
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
     stmt = tvm.tir.For(
         i, 0, 4, 0, 0,
         tvm.tir.For(

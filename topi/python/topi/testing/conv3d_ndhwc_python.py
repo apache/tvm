@@ -73,7 +73,7 @@ def conv3d_ndhwc_python(a_np, w_np, stride, padding):
                 if pad_d > 0 or pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_depth + pad_d, in_height + pad_h, in_width + pad_w))
                     apad[pad_front:pad_front + in_depth, pad_top:pad_top + in_height,\
-                        pad_left:pad_left + in_width] = at[n, c]
+                         pad_left:pad_left + in_width] = at[n, c]
                 else:
                     apad = at[n, c]
                 out = scipy.signal.convolve(

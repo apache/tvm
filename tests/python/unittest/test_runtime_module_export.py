@@ -17,6 +17,7 @@
 from tvm import relay
 from tvm.relay import testing
 import tvm
+from tvm import te
 
 from tvm.contrib import util
 header_file_dir_path = util.tempdir()
@@ -95,9 +96,9 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
 
-        A = tvm.placeholder((1024,), name='A')
-        B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((1024,), name='A')
+        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         from tvm.contrib import util
         temp = util.tempdir()
@@ -144,9 +145,9 @@ def test_mod_export():
             f.write(subgraph_json)
 
         # Get Json and module.
-        A = tvm.placeholder((1024,), name='A')
-        B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((1024,), name='A')
+        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm", name="myadd")
         try:
             ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
@@ -179,9 +180,9 @@ def test_mod_export():
         with relay.build_config(opt_level=3):
             _, resnet18_cpu_lib, _ = relay.build_module.build(resnet18_mod, "llvm", params=resnet18_params)
 
-        A = tvm.placeholder((1024,), name='A')
-        B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((1024,), name='A')
+        B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "c", name="myadd")
         engine_module = generate_engine_module()
         from tvm.contrib import util

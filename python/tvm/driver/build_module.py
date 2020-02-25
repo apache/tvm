@@ -325,9 +325,9 @@ def build(inputs,
     .. code-block:: python
 
         n = 2
-        A = tvm.placeholder((n,), name='A')
-        B = tvm.placeholder((n,), name='B')
-        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        A = te.placeholder((n,), name='A')
+        B = te.placeholder((n,), name='B')
+        C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         s = tvm.create_schedule(C.op)
         f = tvm.lower(s, [A, B, C], name="test_add")
         m = tvm.build(f, target="llvm")
@@ -337,9 +337,9 @@ def build(inputs,
     .. code-block:: python
 
         n = 2
-        A = tvm.placeholder((n,), name='A')
-        B = tvm.placeholder((n,), name='B')
-        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        A = te.placeholder((n,), name='A')
+        B = te.placeholder((n,), name='B')
+        C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         s1 = tvm.create_schedule(C.op)
         with tvm.target.cuda() as cuda_tgt:
           s2 = topi.cuda.schedule_injective(cuda_tgt, [C])

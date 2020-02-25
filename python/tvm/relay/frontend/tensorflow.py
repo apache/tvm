@@ -18,9 +18,6 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 # pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
-from __future__ import absolute_import as _abs
-from __future__ import print_function
-
 import warnings
 from collections import defaultdict
 
@@ -1012,7 +1009,7 @@ def _gather():
                 'Attribute batch_dims is not supported')
         new_input = inputs[0:2]
         return AttrCvt(op_name="take",
-                       extras={'axis': tvm.const(axis, 'int32')},
+                       extras={'axis': tvm.tir.const(axis, 'int32')},
                        ignores=['Tindices', 'Tparams', 'validate_indices',
                                 'Taxis', '_class', 'batch_dims'])(new_input, attr)
     return _impl

@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 batch_matmul operators"""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cblas
@@ -34,13 +33,13 @@ def batch_matmul(cfg, x, y):
     ----------
     cfg : ConfigSpace
         Autotvm tuning space config file
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         3-D with shape [batch, M, K]
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         3-D with shape [batch, N, K]
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
     assert len(x.shape) == 3 and len(
@@ -54,10 +53,10 @@ def batch_matmul(cfg, x, y):
     if cfg.is_fallback:
         _default_batch_matmul_config(cfg, M, N, K)
 
-    k = tvm.reduce_axis((0, K), name='k')
-    C = tvm.compute(
+    k = te.reduce_axis((0, K), name='k')
+    C = te.compute(
         (B, M, N),
-        lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
+        lambda b, i, j: te.sum(x[b, i, k] * y[b, j, k], axis=k),
         tag='batch_matmul')
     return C
 
@@ -79,7 +78,7 @@ def schedule_batch_matmul(cfg, outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if "batch_matmul" in op.tag:
@@ -140,13 +139,13 @@ def batch_matmul_cblas(cfg, x, y):
     ----------
     cfg : ConfigSpace
         Autotvm tuning space config file
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         3-D with shape [batch, M, K]
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         3-D with shape [batch, N, K]
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
     assert len(x.shape) == 3 and len(

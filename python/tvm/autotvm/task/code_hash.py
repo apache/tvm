@@ -30,7 +30,7 @@ def attach_code_hash(s):
     Parameters
     ----------
     s: Schedule
-        tvm.schedule.Schedule to attach the hash to
+        tvm.te.schedule.Schedule to attach the hash to
     """
     def decorator(func):
         def wrapper(*args, **kwargs):

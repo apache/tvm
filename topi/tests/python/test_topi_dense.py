@@ -17,6 +17,7 @@
 """Test code for dense operator"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -38,9 +39,9 @@ _dense_implement = {
 }
 
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
-    A = tvm.placeholder((batch, in_dim), name='A')
-    B = tvm.placeholder((out_dim, in_dim), name='B')
-    C = tvm.placeholder((out_dim,), name='C')
+    A = te.placeholder((batch, in_dim), name='A')
+    B = te.placeholder((out_dim, in_dim), name='B')
+    C = te.placeholder((out_dim,), name='C')
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
@@ -83,9 +84,9 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
 def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
     dtype = 'int8'
     out_dtype = 'int32'
-    A = tvm.placeholder((batch, in_dim), name='A', dtype=dtype)
-    B = tvm.placeholder((out_dim, in_dim), name='B', dtype=dtype)
-    C = tvm.placeholder((out_dim,), name='C', dtype=out_dtype)
+    A = te.placeholder((batch, in_dim), name='A', dtype=dtype)
+    B = te.placeholder((out_dim, in_dim), name='B', dtype=dtype)
+    C = te.placeholder((out_dim,), name='C', dtype=out_dtype)
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_dense_int8")

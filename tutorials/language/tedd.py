@@ -37,9 +37,8 @@ TEDD renders these three graphs from a given schedule.  This tutorial demonstrat
 how to use TEDD and how to interpret the rendered graphs.
 
 """
-from __future__ import absolute_import, print_function
-
 import tvm
+from tvm import te
 import topi
 from tvm.contrib import tedd
 
@@ -58,11 +57,13 @@ kernel = 3
 stride = 1
 padding = "SAME"
 dilation=1
-A = tvm.placeholder((in_size, in_size, in_channel, batch), name='A')
-W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-B = tvm.placeholder((1, num_filter, 1), name='bias')
+
+A = te.placeholder((in_size, in_size, in_channel, batch), name='A')
+W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
+B = te.placeholder((1, num_filter, 1), name='bias')
+
 with tvm.target.create("llvm"):
-    t_conv = topi.nn.conv2d(A, W, stride, padding, dilation, layout='HWCN')
+    t_conv = topi.nn.conv2d_hwcn(A, W, stride, padding, dilation)
     t_bias = topi.add(t_conv, B)
     t_relu = topi.nn.relu(t_bias)
     s = topi.generic.schedule_conv2d_hwcn([t_relu])

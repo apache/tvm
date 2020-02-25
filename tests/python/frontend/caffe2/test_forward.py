@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 from tvm import relay

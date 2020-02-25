@@ -18,6 +18,7 @@
 """Schedule for vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import cpp
 from .. import tag
 from .pooling import schedule_pool
@@ -25,8 +26,8 @@ from .injective import schedule_injective_from_existing
 
 def _default_schedule(outs):
     """Default schedule for gpu."""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
     def traverse(op):
         if tag.is_broadcast(op.tag) or op.tag in ['bbox_score', 'sorted_bbox']:

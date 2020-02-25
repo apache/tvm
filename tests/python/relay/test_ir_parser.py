@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.analysis import graph_equal, assert_graph_equal
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal

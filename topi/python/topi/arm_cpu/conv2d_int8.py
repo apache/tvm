@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D int8 schedule on ARM"""
-
-import tvm
+from tvm import te
 from tvm import autotvm
 from .. import tag
 from ..util import get_const_tuple
@@ -55,8 +54,8 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides,
 
     # If no config was set, we can fallback to NCHW config.
     if cfg.is_fallback:
-        _get_default_config(cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-                            tvm.placeholder((num_filter, in_channel, kh, kw), dtype=kernel.dtype),
+        _get_default_config(cfg, te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+                            te.placeholder((num_filter, in_channel, kh, kw), dtype=kernel.dtype),
                             strides, padding, out_dtype)
     return nn.conv2d_NCHWc_int8_compute(data,
                                         kernel,
@@ -71,7 +70,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides,
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.arm_cpu")
 def schedule_conv2d_NCHWc_int8(cfg, outs):
     """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def traverse(op):
@@ -81,7 +80,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'conv2d_NCHWc_int8' in op.tag:
@@ -89,9 +88,9 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
             kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
             data = data_vec.op.input_tensors[0] \
-                if isinstance(data_vec.op, tvm.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
+                if isinstance(data_vec.op, te.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
                 else data_vec
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, te.tensor.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 

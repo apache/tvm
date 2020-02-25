@@ -18,6 +18,7 @@
 """Conv2D spatial pack implementation for ARM CPU"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from tvm import autotvm
 from .. import nn
 from ..util import get_const_tuple
@@ -98,46 +99,46 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
     if dilation_h != 1 or dilation_w != 1:
         # undilate input data
         dvshape = (N, OH // VH, OW // VW, CI, KH, KW, VH, VW)
-        data_vec = tvm.compute(dvshape, lambda n, h, w, ci, kh, kw, vh, vw:
-                               data_pad[n][ci][(h*VH+vh)*HSTR+kh*dilation_h]
-                               [(w*VW+vw)*WSTR+kw*dilation_w],
-                               name='data_vec_undilated')
+        data_vec = te.compute(dvshape, lambda n, h, w, ci, kh, kw, vh, vw:
+                              data_pad[n][ci][(h*VH+vh)*HSTR+kh*dilation_h]
+                              [(w*VW+vw)*WSTR+kw*dilation_w],
+                              name='data_vec_undilated')
     else:
         dvshape = (N, OH // VH, OW // VW, CI, VH*HSTR + KH-1, VW*WSTR + KW-1)
-        data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
-                               name='data_vec')
+        data_vec = te.compute(dvshape, lambda n, h, w, ci, vh, vw:
+                              data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
+                              name='data_vec')
 
     if pre_packed:
         kernel_vec = kernel
     else:
-        kernel_vec = tvm.compute(kvshape, lambda co, ci, kh, kw, vc:
-                                 kernel[co*VC+vc][ci][kh][kw],
-                                 name='kernel_vec')
+        kernel_vec = te.compute(kvshape, lambda co, ci, kh, kw, vc:
+                                kernel[co*VC+vc][ci][kh][kw],
+                                name='kernel_vec')
 
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    kh = tvm.reduce_axis((0, KH), name='kh')
-    kw = tvm.reduce_axis((0, KW), name='kw')
+    ci = te.reduce_axis((0, CI), name='ci')
+    kh = te.reduce_axis((0, KH), name='kh')
+    kw = te.reduce_axis((0, KW), name='kw')
 
     if dilation_h != 1 or dilation_w != 1:
-        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-            tvm.sum(data_vec[n, h, w, ci, kh, kw, vh, vw].astype(out_dtype) *
-                    kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
-                    axis=[ci, kh, kw]), name='conv')
+        conv = te.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+                          te.sum(data_vec[n, h, w, ci, kh, kw, vh, vw].astype(out_dtype) *
+                                 kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
+                                 axis=[ci, kh, kw]), name='conv')
     else:
-        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-            tvm.sum(data_vec[n, h, w, ci, vh*HSTR+kh, vw*WSTR+kw].astype(out_dtype) *
-                    kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
-                    axis=[ci, kh, kw]), name='conv')
+        conv = te.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+                          te.sum(data_vec[n, h, w, ci, vh*HSTR+kh, vw*WSTR+kw].astype(out_dtype) *
+                                 kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
+                                 axis=[ci, kh, kw]), name='conv')
 
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
 
-    output = tvm.compute(oshape, lambda n, co, h, w:
-                         conv[n,
-                              idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
-                              idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
-                         name='output_unpack', tag='spatial_conv2d_output')
+    output = te.compute(oshape, lambda n, co, h, w:
+                        conv[n,
+                             idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
+                             idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
+                        name='output_unpack', tag='spatial_conv2d_output')
     return output
 
 def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
@@ -216,7 +217,7 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
     dilated_kernel_w = (KW - 1) * dilation_w + 1
 
     pad_top, pad_left, pad_down, pad_right = \
-            get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
+        get_pad_tuple(padding, (dilated_kernel_h, dilated_kernel_w))
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
     OH = (IH + pad_top + pad_down - dilated_kernel_h) // HSTR + 1
@@ -257,40 +258,41 @@ def conv2d_spatial_pack_nhwc(cfg, data, kernel, strides, padding, dilation, out_
     if dilation_h != 1 or dilation_w != 1:
         # undilate input data
         dvshape = (N, OHO, OWO, KH, KW, IC, OHI, OWI)
-        data_vec = tvm.compute(dvshape, lambda n, oho, owo, kh, kw, ic, ohi, owi:
-                               data_pad[n][(oho*OHI+ohi)*HSTR+kh*dilation_h]
-                               [(owo*OWI+owi)*WSTR+kw*dilation_w][ic],
-                               name='data_vec_undilated')
+        data_vec = te.compute(dvshape, lambda n, oho, owo, kh, kw, ic, ohi, owi:
+                              data_pad[n][(oho*OHI+ohi)*HSTR+kh*dilation_h]
+                              [(owo*OWI+owi)*WSTR+kw*dilation_w][ic],
+                              name='data_vec_undilated')
     else:
         dvshape = (N, OHO, OWO, KH + (OHI-1)*HSTR, KW + (OWI-1)*WSTR, IC)
-        data_vec = tvm.compute(dvshape, lambda n, oho, owo, ohi, owi, ic:
-                               data_pad[n][oho*OHI*HSTR+ohi][owo*OWI*WSTR+owi][ic],
-                               name='data_vec')
-    kernel_vec = tvm.compute(kvshape, lambda oco, kh, kw, ic, oci: \
-                             kernel[kh][kw][ic][oco*OCI+oci],
-                             name='kernel_vec')
+        data_vec = te.compute(dvshape, lambda n, oho, owo, ohi, owi, ic:
+                              data_pad[n][oho*OHI*HSTR+ohi][owo*OWI*WSTR+owi][ic],
+                              name='data_vec')
+    kernel_vec = te.compute(kvshape, lambda oco, kh, kw, ic, oci: \
+                            kernel[kh][kw][ic][oco*OCI+oci],
+                            name='kernel_vec')
 
-    ic = tvm.reduce_axis((0, IC), name='ic')
-    kh = tvm.reduce_axis((0, KH), name='kh')
-    kw = tvm.reduce_axis((0, KW), name='kw')
+    ic = te.reduce_axis((0, IC), name='ic')
+    kh = te.reduce_axis((0, KH), name='kh')
+    kw = te.reduce_axis((0, KW), name='kw')
 
     if dilation_h != 1 or dilation_w != 1:
-        conv = tvm.compute(ovshape, lambda n, oho, owo, oco, ohi, owi, oci: \
-            tvm.sum(data_vec[n, oho, owo, kh, kw, ohi, owi, ic].astype(out_dtype) *
-                    kernel_vec[oco, kh, kw, ic, oci].astype(out_dtype),
-                    axis=[ic, kh, kw]), name='conv')
+        conv = te.compute(ovshape, lambda n, oho, owo, oco, ohi, owi, oci: \
+                          te.sum(data_vec[n, oho, owo, kh, kw, ohi, owi, ic].astype(out_dtype) *
+                                 kernel_vec[oco, kh, kw, ic, oci].astype(out_dtype),
+                                 axis=[ic, kh, kw]), name='conv')
     else:
-        conv = tvm.compute(ovshape, lambda n, oho, owo, oco, ohi, owi, oci: \
-            tvm.sum(data_vec[n, oho, owo, ohi*HSTR+kh, owi*WSTR+kw, ic].astype(out_dtype) *
-                    kernel_vec[oco, kh, kw, ic, oci].astype(out_dtype),
-                    axis=[ic, kh, kw]), name='conv')
+        conv = te.compute(
+            ovshape, lambda n, oho, owo, oco, ohi, owi, oci: \
+            te.sum(data_vec[n, oho, owo, ohi*HSTR+kh, owi*WSTR+kw, ic].astype(out_dtype) *
+                   kernel_vec[oco, kh, kw, ic, oci].astype(out_dtype),
+                   axis=[ic, kh, kw]), name='conv')
 
-    idiv = tvm.indexdiv
-    imod = tvm.indexmod
-    output = tvm.compute(oshape, lambda n, oho, owo, oc:
-                         conv[n][idiv(oho, OHI)][idiv(owo, OWI)][idiv(oc, OCI)]\
-                             [imod(oho, OHI)][imod(owo, OWI)][imod(oc, OCI)],
-                         name='output_unpack', tag='spatial_conv_output_NHWC')
+    idiv = tvm.tir.indexdiv
+    imod = tvm.tir.indexmod
+    output = te.compute(oshape, lambda n, oho, owo, oc:
+                        conv[n][idiv(oho, OHI)][idiv(owo, OWI)][idiv(oc, OCI)]\
+                        [imod(oho, OHI)][imod(owo, OWI)][imod(oc, OCI)],
+                        name='output_unpack', tag='spatial_conv_output_NHWC')
     return output
 
 def schedule_conv2d_spatial_pack_nhwc(cfg, s, op, output):

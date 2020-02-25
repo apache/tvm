@@ -18,10 +18,9 @@
 # pylint: disable=invalid-name
 import numpy as _np
 from tvm.runtime import ndarray as _nd
-
-from .. import expr as _expr
-from .. import api as _api
-from .. import tensor as _tensor
+from tvm import te
+from tvm.tir import expr as _expr
+from tvm.te import tensor as _tensor
 
 
 float32 = "float32"
@@ -136,9 +135,9 @@ class CSRPlaceholderOp(SparsePlaceholderOp):
         """
         SparsePlaceholderOp.__init__(self, shape, nonzeros, dtype, name)
         self.stype = 'csr'
-        self.data = _api.placeholder((nonzeros,), dtype=dtype, name=self.name+'_data')
-        self.indices = _api.placeholder((nonzeros,), dtype=itype, name=self.name+'_indices')
-        self.indptr = _api.placeholder((self.shape[0]+1,), dtype=itype, name=self.name+'_indptr')
+        self.data = te.placeholder((nonzeros,), dtype=dtype, name=self.name+'_data')
+        self.indices = te.placeholder((nonzeros,), dtype=itype, name=self.name+'_indices')
+        self.indptr = te.placeholder((self.shape[0]+1,), dtype=itype, name=self.name+'_indptr')
         assert isinstance(self.data, _tensor.Tensor)
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)

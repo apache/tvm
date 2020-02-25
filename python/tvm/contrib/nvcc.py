@@ -21,10 +21,11 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 import warnings
+
+import tvm._ffi
 from tvm.runtime import ndarray as nd
 
 from . import util
-from ..api import register_func
 from .._ffi.base import py_str
 
 def compile_cuda(code,
@@ -152,7 +153,7 @@ def get_cuda_version(cuda_path):
         raise RuntimeError("Cannot read cuda version file")
 
 
-@register_func("tvm_callback_libdevice_path")
+@tvm._ffi.register_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 

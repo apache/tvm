@@ -17,6 +17,7 @@
 """Test code for sparse operator"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -26,13 +27,13 @@ import time
 import scipy.sparse as sp
 
 def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
-    nr, nc, n = tvm.var("nr"), tvm.var("nc"), tvm.var("n")
+    nr, nc, n = te.var("nr"), te.var("nc"), te.var("n")
     dtype = 'float32'
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, dtype=dtype, name='A')
-    B = tvm.placeholder((in_dim, 1), name='B')
-    C = tvm.placeholder((nr,), name='C')
+    B = te.placeholder((in_dim, 1), name='B')
+    C = te.placeholder((nr,), name='C')
     D = topi.sparse.csrmv(A, B, C if use_bias else None)
-    s = tvm.create_schedule(D.op)
+    s = te.create_schedule(D.op)
     dtype = A.dtype
 
     # get the test data
@@ -70,13 +71,13 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         check_device(device)
 
 def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
-    nr, nc, n = tvm.var("nr"), tvm.var("nc"), tvm.var("n")
+    nr, nc, n = te.var("nr"), te.var("nc"), te.var("n")
     dtype = 'float32'
     A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, dtype=dtype, name='A')
-    B = tvm.placeholder((in_dim, out_dim), name='B')
-    C = tvm.placeholder((nr,), name='C')
+    B = te.placeholder((in_dim, out_dim), name='B')
+    C = te.placeholder((nr,), name='C')
     D = topi.sparse.csrmm(A, B, C if use_bias else None)
-    s = tvm.create_schedule(D.op)
+    s = te.create_schedule(D.op)
     dtype = A.dtype
 
     # get the test data
@@ -112,12 +113,12 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
         check_device(device)
 
 def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
-    nonzeros = tvm.var('nonzeros')
+    nonzeros = te.var('nonzeros')
     A = tvmsp.placeholder(shape=(batch, in_dim), nonzeros=nonzeros, dtype=dtype, name='A')
-    B = tvm.placeholder((out_dim, in_dim), dtype=dtype, name='B')
-    C = tvm.placeholder((out_dim,), dtype=dtype, name='C')
+    B = te.placeholder((out_dim, in_dim), dtype=dtype, name='B')
+    C = te.placeholder((out_dim,), dtype=dtype, name='C')
     D = topi.sparse.dense(A, B, C if use_bias else None)
-    s = tvm.create_schedule(D.op)
+    s = te.create_schedule(D.op)
 
     # get the test data
     def get_ref_data():
@@ -149,12 +150,12 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
     check_device('llvm')
 
 def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
-    nonzeros = tvm.var('nonzeros')
-    A = tvm.placeholder((batch, in_dim), dtype=dtype, name='A')
+    nonzeros = te.var('nonzeros')
+    A = te.placeholder((batch, in_dim), dtype=dtype, name='A')
     B = tvmsp.placeholder(shape=(out_dim, in_dim), nonzeros=nonzeros, dtype=dtype, name='B')
-    C = tvm.placeholder((out_dim,), dtype=dtype, name='C')
+    C = te.placeholder((out_dim,), dtype=dtype, name='C')
     D = topi.sparse.dense(A, B, C if use_bias else None)
-    s = tvm.create_schedule(D.op)
+    s = te.create_schedule(D.op)
 
     # get the test data
     def get_ref_data():
@@ -224,12 +225,12 @@ def test_sparse_dense_csr():
     W_np = W_sp_np.todense()
     Y_np = X_np.dot(W_np.T)
 
-    W_data = tvm.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
-    W_indices = tvm.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
-    W_indptr = tvm.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
-    X = tvm.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
     Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
-    s = tvm.create_schedule(Y.op)
+    s = te.create_schedule(Y.op)
     func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
     Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
     func(tvm.nd.array(X_np), tvm.nd.array(W_sp_np.data), tvm.nd.array(W_sp_np.indices), tvm.nd.array(W_sp_np.indptr), Y_tvm)
@@ -243,12 +244,12 @@ def test_sparse_transpose_csr():
     X_sp_T = X_sp.transpose()
     X_np_T = X_sp_T.todense()
 
-    X_data = tvm.placeholder(shape=X_sp.data.shape, dtype=str(X_sp.data.dtype))
-    X_indices = tvm.placeholder(shape=X_sp.indices.shape, dtype=str(X_sp.indices.dtype))
-    X_indptr = tvm.placeholder(shape=X_sp.indptr.shape, dtype=str(X_sp.indptr.dtype))
+    X_data = te.placeholder(shape=X_sp.data.shape, dtype=str(X_sp.data.dtype))
+    X_indices = te.placeholder(shape=X_sp.indices.shape, dtype=str(X_sp.indices.dtype))
+    X_indptr = te.placeholder(shape=X_sp.indptr.shape, dtype=str(X_sp.indptr.dtype))
 
     X_T_data, X_T_indices, X_T_indptr = topi.nn.sparse_transpose(X_data, X_indices, X_indptr)
-    s = tvm.create_schedule([X_T_data.op, X_T_indices.op, X_T_indptr.op])
+    s = te.create_schedule([X_T_data.op, X_T_indices.op, X_T_indptr.op])
     func = tvm.build(s, [X_data, X_indices, X_indptr, X_T_data, X_T_indices, X_T_indptr])
 
 
@@ -288,12 +289,12 @@ def test_sparse_dense_bsr():
     W_np = W_sp_np.todense()
     Y_np = X_np.dot(W_np.T)
 
-    W_data = tvm.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
-    W_indices = tvm.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
-    W_indptr = tvm.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
-    X = tvm.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+    W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+    W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+    W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+    X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
     Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
-    s = tvm.create_schedule(Y.op)
+    s = te.create_schedule(Y.op)
     func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
     Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
     func(tvm.nd.array(X_np),
@@ -317,12 +318,12 @@ def test_sparse_dense_bsr_randomized():
         W_np = W_sp_np.todense()
         Y_np = np.array(X_np.dot(W_np.T))
 
-        W_data = tvm.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
-        W_indices = tvm.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
-        W_indptr = tvm.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
-        X = tvm.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
+        W_data = te.placeholder(shape=W_sp_np.data.shape, dtype=str(W_sp_np.data.dtype))
+        W_indices = te.placeholder(shape=W_sp_np.indices.shape, dtype=str(W_sp_np.indices.dtype))
+        W_indptr = te.placeholder(shape=W_sp_np.indptr.shape, dtype=str(W_sp_np.indptr.dtype))
+        X = te.placeholder(shape=X_np.shape, dtype=str(X_np.dtype))
         Y = topi.nn.sparse_dense(X, W_data, W_indices, W_indptr)
-        s = tvm.create_schedule(Y.op)
+        s = te.create_schedule(Y.op)
         func = tvm.build(s, [X, W_data, W_indices, W_indptr, Y])
         Y_tvm = tvm.nd.array(np.zeros(Y_np.shape, dtype=Y_np.dtype))
         func(tvm.nd.array(X_np),

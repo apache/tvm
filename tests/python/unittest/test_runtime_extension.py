@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 @tvm.register_extension
@@ -29,9 +30,9 @@ class MyTensorView(object):
 
 def test_dltensor_compatible():
     dtype = 'int64'
-    n = tvm.var('n')
-    Ab = tvm.decl_buffer((n,), dtype)
-    i = tvm.var('i')
+    n = te.var('n')
+    Ab = tvm.tir.decl_buffer((n,), dtype)
+    i = te.var('i')
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     with ib.for_range(0, n - 1, "i") as i:

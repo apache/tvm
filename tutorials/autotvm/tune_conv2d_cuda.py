@@ -49,6 +49,7 @@ import sys
 import numpy as np
 
 import tvm
+from tvm import te
 import topi
 from topi.testing import conv2d_nchw_python
 
@@ -82,10 +83,10 @@ from tvm import autotvm
 def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
     assert N == 1, "Only consider batch_size = 1 in this template"
 
-    data = tvm.placeholder((N, CI, H, W), name='data')
-    kernel = tvm.placeholder((CO, CI, KH, KW), name='kernel')
+    data = te.placeholder((N, CI, H, W), name='data')
+    kernel = te.placeholder((CO, CI, KH, KW), name='kernel')
     conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, dilation=1, out_dtype='float32')
-    s = tvm.create_schedule([conv.op])
+    s = te.create_schedule([conv.op])
 
     ##### space definition begin #####
     n, f, y, x = s[conv].op.axis
@@ -123,15 +124,15 @@ def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
     kernel_scope = n  # this is the scope to attach global config inside this kernel
 
-    s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(by, tvm.thread_axis("blockIdx.y"))
-    s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[output].bind(vf, tvm.thread_axis("vthread"))
-    s[output].bind(vy, tvm.thread_axis("vthread"))
-    s[output].bind(vx, tvm.thread_axis("vthread"))
-    s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
-    s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[output].bind(bf, te.thread_axis("blockIdx.z"))
+    s[output].bind(by, te.thread_axis("blockIdx.y"))
+    s[output].bind(bx, te.thread_axis("blockIdx.x"))
+    s[output].bind(vf, te.thread_axis("vthread"))
+    s[output].bind(vy, te.thread_axis("vthread"))
+    s[output].bind(vx, te.thread_axis("vthread"))
+    s[output].bind(tf, te.thread_axis("threadIdx.z"))
+    s[output].bind(ty, te.thread_axis("threadIdx.y"))
+    s[output].bind(tx, te.thread_axis("threadIdx.x"))
     s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
     s[OL].compute_at(s[output], tx)
 
@@ -155,9 +156,9 @@ def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
         tz, fused = s[load].split(fused, nparts=cfg["tile_f"].size[2])
         ty, fused = s[load].split(fused, nparts=cfg["tile_y"].size[2])
         tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(ty, te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # tune unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)

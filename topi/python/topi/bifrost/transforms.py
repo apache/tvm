@@ -19,6 +19,7 @@
 
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 
 def fuse_and_bind(s, tensor, axis=None, num_thread=None):
     """Fuse all the axis and bind to GPU threads"""
@@ -26,18 +27,18 @@ def fuse_and_bind(s, tensor, axis=None, num_thread=None):
     fused = s[tensor].fuse(*axis)
     max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
     bx, tx = s[tensor].split(fused, num_thread or max_threads)
-    s[tensor].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[tensor].bind(bx, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(tx, te.thread_axis("threadIdx.x"))
     return bx, tx
 
 def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
     """Tile and bind to GPU threads"""
     x_factor = x_factor or y_factor
     yo, xo, yi, xi = s[tensor].tile(y, x, y_factor, x_factor)
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
+    s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(xi, te.thread_axis("threadIdx.x"))
+    s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
+    s[tensor].bind(yi, te.thread_axis("threadIdx.y"))
     return yo, xo, yi, xi
 
 def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None):
@@ -47,12 +48,12 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     zo, zi = s[tensor].split(z, z_factor)
     yo, yi = s[tensor].split(y, y_factor)
     xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].bind(zo, tvm.thread_axis("blockIdx.z"))
-    s[tensor].bind(zi, tvm.thread_axis("threadIdx.z"))
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[tensor].bind(zo, te.thread_axis("blockIdx.z"))
+    s[tensor].bind(zi, te.thread_axis("threadIdx.z"))
+    s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
+    s[tensor].bind(yi, te.thread_axis("threadIdx.y"))
+    s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(xi, te.thread_axis("threadIdx.x"))
     return zo, yo, xo, zi, yi, xi
 
 def pack_tensor(s, tensor, factor, readers):

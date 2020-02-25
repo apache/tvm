@@ -15,26 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_storage_sync():
-    m = tvm.size_var('m')
-    l = tvm.size_var('l')
-    A = tvm.placeholder((m, l), name='A')
+    m = te.size_var('m')
+    l = te.size_var('l')
+    A = te.placeholder((m, l), name='A')
 
-    A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
-    A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
+    A1 = te.compute((m, l), lambda i, j: A[i, j], name='A1')
+    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
 
-    s = tvm.create_schedule(A2.op)
+    s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], factor=8)
-    s[A2].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[A2].bind(xo, te.thread_axis("blockIdx.x"))
     s[A1].compute_at(s[A2], xo)
     s[A1].set_scope("shared")
 
-    bounds = tvm.schedule.InferBound(s)
+    bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
-    A2b = tvm.decl_buffer(A2.shape, A2.dtype, name='A2')
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
+    A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
     f = tvm.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 0, True)
     flist = tvm.ir_pass.SplitHostDevice(f)
@@ -52,10 +53,10 @@ def test_coproc_sync():
             unit_bits=8,
             max_simd_bits=32,
             max_num_bits=128,
-            head_address=tvm.call_extern("handle", "global_cache"))
+            head_address=tvm.tir.call_extern("handle", "global_cache"))
     ib = tvm.ir_builder.create()
-    n = tvm.size_var("n")
-    cp = tvm.thread_axis((0, 1), "cop")
+    n = te.size_var("n")
+    cp = te.thread_axis((0, 1), "cop")
     A = ib.allocate("float32", 128, name="A", scope="global.cache")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
@@ -76,9 +77,9 @@ def test_coproc_sync():
 
 def test_coproc_sync2():
     ib = tvm.ir_builder.create()
-    n = tvm.size_var("n")
-    cp = tvm.thread_axis((0, 1), "cop")
-    ty = tvm.thread_axis("cthread")
+    n = te.size_var("n")
+    cp = te.thread_axis((0, 1), "cop")
+    ty = te.thread_axis("cthread")
     A = ib.allocate("float32", 128, name="A")
     ib.scope_attr(ty, "virtual_thread", 2)
     with ib.new_scope():
@@ -102,8 +103,8 @@ def test_coproc_sync3():
         return True
 
     ib = tvm.ir_builder.create()
-    n = tvm.size_var("n")
-    cp = tvm.thread_axis((0, 1), "cop")
+    n = te.size_var("n")
+    cp = te.thread_axis((0, 1), "cop")
     A = ib.allocate("float32", 128, name="A", scope="global.cache")
     with ib.for_range(0, n, name="i") as i:
         with ib.for_range(0, n, name="i") as j:

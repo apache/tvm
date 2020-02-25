@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_basic():
-    a = tvm.var("a")
-    b = tvm.var("b")
+    a = te.var("a")
+    b = te.var("b")
     m = tvm.arith.detect_linear_equation(a * 4 + b * 6 + 7, [a])
     assert m[0].value == 4
     assert tvm.ir_pass.Simplify(m[1] - (b * 6 + 7)).value == 0
@@ -41,8 +42,8 @@ def test_basic():
     assert tvm.ir_pass.Simplify(m[0] - b * 7).value == 0
 
 def test_multivariate():
-    v = [tvm.var("v%d" % i) for i in range(4)]
-    b = tvm.var("b")
+    v = [te.var("v%d" % i) for i in range(4)]
+    b = te.var("b")
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8, v)
     assert(tvm.ir_pass.Equal(tvm.ir_pass.Simplify(m[0]), b + 5))
     assert(m[1].value == 8)

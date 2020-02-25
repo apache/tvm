@@ -39,6 +39,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import tvm
+from tvm import te
 import vta
 import numpy as np
 
@@ -167,16 +168,16 @@ output_shape = (batch_size // env.BATCH,
                 env.BLOCK_OUT)
 
 # Convolution reduction axes
-dy = tvm.reduce_axis((0, kernel_h), name='dy')
-dx = tvm.reduce_axis((0, kernel_w), name='dx')
-ic = tvm.reduce_axis((0, in_channels // env.BLOCK_IN), name='ic')
-ic_tns = tvm.reduce_axis((0, env.BLOCK_IN), name='ic_tns')
+dy = te.reduce_axis((0, kernel_h), name='dy')
+dx = te.reduce_axis((0, kernel_w), name='dx')
+ic = te.reduce_axis((0, in_channels // env.BLOCK_IN), name='ic')
+ic_tns = te.reduce_axis((0, env.BLOCK_IN), name='ic_tns')
 
 # Input placeholder tensors
-data = tvm.placeholder(data_shape,
+data = te.placeholder(data_shape,
                        name="data",
                        dtype=env.inp_dtype)
-kernel = tvm.placeholder(kernel_shape,
+kernel = te.placeholder(kernel_shape,
                          name="kernel",
                          dtype=env.wgt_dtype)
 
@@ -185,33 +186,33 @@ kernel = tvm.placeholder(kernel_shape,
 data_buf = topi.nn.pad(data,
                        [0, 0, pad_h, pad_w, 0, 0],
                        name="data_buf")
-kernel_buf = tvm.compute(kernel_shape, lambda *i: kernel(*i), "kernel_buf")
+kernel_buf = te.compute(kernel_shape, lambda *i: kernel(*i), "kernel_buf")
 
 # Declare 2D convolution
-res_conv = tvm.compute(
+res_conv = te.compute(
     output_shape,
-    lambda bo, co, i, j, bi, ci: tvm.sum(
+    lambda bo, co, i, j, bi, ci: te.sum(
       data_buf[bo, ic, i*stride_h+dy, j*stride_w+dx, bi, ic_tns].astype(env.acc_dtype) *
       kernel_buf[co, ic, dy, dx, ci, ic_tns].astype(env.acc_dtype),
     axis=[ic, dy, dx, ic_tns]),
     name="res_conv")
 
 # Add shift stage for fix-point normalization
-res_shr = tvm.compute(output_shape,
+res_shr = te.compute(output_shape,
                       lambda *i: res_conv(*i) >> 8,
                       name="res_shr")
 
 # Apply clipping between (0, input max value)
 inp_max = (1 << (env.INP_WIDTH - 1)) - 1
-res_max = tvm.compute(output_shape,
-                      lambda *i: tvm.max(res_shr(*i), 0),
+res_max = te.compute(output_shape,
+                      lambda *i: tvm.te.max(res_shr(*i), 0),
                       "res_max")
-res_min = tvm.compute(output_shape,
-                      lambda *i: tvm.min(res_max(*i), inp_max),
+res_min = te.compute(output_shape,
+                      lambda *i: tvm.te.min(res_max(*i), inp_max),
                       "res_min")
 
 # Result Tensor
-res = tvm.compute(output_shape,
+res = te.compute(output_shape,
                   lambda *i: res_min(*i).astype(env.inp_dtype),
                   name="res")
 
@@ -228,7 +229,7 @@ res = tvm.compute(output_shape,
 # - Lowering to VTA hardware intrinsics
 
 # Create TVM schedule
-s = tvm.create_schedule(res.op)
+s = te.create_schedule(res.op)
 # Let's look at the default TVM schedule
 print(tvm.lower(s, [data, kernel, res], simple_mode=True))
 
@@ -306,7 +307,7 @@ v_threads = 2
 # Perform virtual thread split along output channel outer axis
 _, tx = s[res].split(oc_out, factor=v_threads)
 s[res].reorder(tx, b_out)
-s[res].bind(tx, tvm.thread_axis("cthread"))
+s[res].bind(tx, te.thread_axis("cthread"))
 
 # Let's look at the current TVM schedule after blocking and virtual threading
 print(tvm.lower(s, [data, kernel, res], simple_mode=True))

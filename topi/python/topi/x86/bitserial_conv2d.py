@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,unused-variable,invalid-name
 """Bitserial conv2d schedule on x86"""
 import tvm
+from tvm import te
 from tvm import autotvm
 from .. import tag
 from ..util import get_const_int, get_const_tuple
@@ -94,40 +95,40 @@ def bitserial_conv2d_nchw(cfg, data, kernel, stride, padding, in_bits, weight_bi
     else:
         data_pad = data_q
 
-    data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw, b: \
-        data_pad[b][n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
+    data_vec = te.compute(dvshape, lambda n, h, w, ci, vh, vw, b: \
+                          data_pad[b][n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw], name='data_vec')
 
     if len(kernel.shape) == 4:
-        kernel_vec = tvm.compute(kvshape, lambda co, ci, dh, dw, b, vc: \
-            kernel_q[b][co*VC+vc][ci][dh][dw], name='kernel_vec')
+        kernel_vec = te.compute(kvshape, lambda co, ci, dh, dw, b, vc: \
+                                kernel_q[b][co*VC+vc][ci][dh][dw], name='kernel_vec')
 
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    dh = tvm.reduce_axis((0, KH), name='dh')
-    dw = tvm.reduce_axis((0, KW), name='dw')
-    b1 = tvm.reduce_axis((0, IB), name='ib')
-    b2 = tvm.reduce_axis((0, KB), name='kb')
+    ci = te.reduce_axis((0, CI), name='ci')
+    dh = te.reduce_axis((0, KH), name='dh')
+    dw = te.reduce_axis((0, KW), name='dw')
+    b1 = te.reduce_axis((0, IB), name='ib')
+    b2 = te.reduce_axis((0, KB), name='kb')
 
     def _conv(n, co, h, w, vh, vw, vc):
         b1b2 = (b1+b2).astype(out_dtype)
         if unipolar:
-            return tvm.sum((tvm.popcount(
+            return te.sum((tvm.tir.popcount(
                 data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype) &
                 kernel_vec[co, ci, dh, dw, b2, vc].astype(out_dtype))  -
-                            tvm.popcount(
-                                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype)
-                                & ~kernel_vec[co, ci, dh, dw, b2, vc]).astype(out_dtype)) << b1b2,
-                           axis=[ci, dh, dw, b1, b2])
+                           tvm.tir.popcount(
+                               data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype)
+                               & ~kernel_vec[co, ci, dh, dw, b2, vc]).astype(out_dtype)) << b1b2,
+                          axis=[ci, dh, dw, b1, b2])
 
-        return tvm.sum((tvm.popcount(
+        return te.sum((tvm.tir.popcount(
             data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
             kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
-                       axis=[ci, dh, dw, b1, b2])
+                      axis=[ci, dh, dw, b1, b2])
 
-    conv = tvm.compute(ovshape, _conv, name='conv_out')
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    conv = te.compute(ovshape, _conv, name='conv_out')
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
 
-    return tvm.compute(
+    return te.compute(
         oshape, lambda n, co, h, w:
         conv[n,
              idxd(co, VC), idxd(h, VH), idxd(w, VW),
@@ -202,38 +203,38 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, in_bits, weight_bi
     else:
         data_pad = data_q
 
-    data_vec = tvm.compute(dvshape, lambda n, h, w, vh, vw, ci, b: \
-        data_pad[n][h*VH*HSTR+vh][w*VW*WSTR+vw][ci][b], name='data_vec')
+    data_vec = te.compute(dvshape, lambda n, h, w, vh, vw, ci, b: \
+                          data_pad[n][h*VH*HSTR+vh][w*VW*WSTR+vw][ci][b], name='data_vec')
 
-    kernel_vec = tvm.compute(kvshape, lambda co, dh, dw, ci, vc, b: \
-        kernel_q[dh][dw][ci][co*VC+vc][b], name='kernel_vec')
+    kernel_vec = te.compute(kvshape, lambda co, dh, dw, ci, vc, b: \
+                            kernel_q[dh][dw][ci][co*VC+vc][b], name='kernel_vec')
 
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    dh = tvm.reduce_axis((0, KH), name='dh')
-    dw = tvm.reduce_axis((0, KW), name='dw')
-    b1 = tvm.reduce_axis((0, IB), name='ib')
-    b2 = tvm.reduce_axis((0, KB), name='kb')
+    ci = te.reduce_axis((0, CI), name='ci')
+    dh = te.reduce_axis((0, KH), name='dh')
+    dw = te.reduce_axis((0, KW), name='dw')
+    b1 = te.reduce_axis((0, IB), name='ib')
+    b2 = te.reduce_axis((0, KB), name='kb')
 
     def _conv(n, h, w, co, vh, vw, vc):
         b1b2 = (b1+b2).astype(out_dtype)
         if unipolar:
-            return tvm.sum(
-                ((tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                               kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) -
-                  tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1]&
-                               ~kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype)) << b1b2),
+            return te.sum(
+                ((tvm.tir.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
+                                   kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) -
+                  tvm.tir.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1]&
+                                   ~kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype)) << b1b2),
                 axis=[dh, dw, ci, b1, b2])
 
-        return tvm.sum(tvm.popcount(
+        return te.sum(tvm.tir.popcount(
             data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
             kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) << b1b2,
-                       axis=[dh, dw, ci, b1, b2])
+                      axis=[dh, dw, ci, b1, b2])
 
-    conv = tvm.compute(ovshape, _conv, name='conv')
+    conv = te.compute(ovshape, _conv, name='conv')
 
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
-    return tvm.compute(
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
+    return te.compute(
         oshape, lambda n, h, w, co:
         conv[n,
              idxd(h, VH), idxd(w, VW), idxd(co, VC),
@@ -250,7 +251,7 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
 
 def _schedule_bitserial_conv2d(cfg, outs):
     """CPU schedule for bitserial convolutions NCHW and NHWC"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def traverse(op):
@@ -262,7 +263,7 @@ def _schedule_bitserial_conv2d(cfg, outs):
                 s[op].compute_inline()
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and (tensor.op not in scheduled_ops):
-                    if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                    if isinstance(tensor.op, tvm.te.ComputeOp):
                         traverse(tensor.op)
 
         elif 'spatial_bitserial_conv_nchw' in op.tag or 'spatial_bitserial_conv_nhwc' in op.tag:
@@ -273,7 +274,7 @@ def _schedule_bitserial_conv2d(cfg, outs):
             data_q = data_vec.op.input_tensors[0]
             data = data_q.op.input_tensors[0]
             data_pad = None
-            if isinstance(data_q.op, tvm.tensor.ComputeOp) and "pad" in data_q.op.tag:
+            if isinstance(data_q.op, tvm.te.ComputeOp) and "pad" in data_q.op.tag:
                 data_pad = data_q
                 data_q = data
                 data = data_q.op.input_tensors[0]
@@ -320,7 +321,7 @@ def _schedule_bitserial_conv2d_nchw(cfg, s, data_q, data_pad, data_vec,
     VH = cfg["tile_oh"].size[-1]
     VW = cfg["tile_ow"].size[-1]
 
-     ##### Schedule Data padding, and bitpacking
+    ##### Schedule Data padding, and bitpacking
     if data_pad is not None:
         s[data_pad].compute_inline()
 

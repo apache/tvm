@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_coproc_lift():
     ib = tvm.ir_builder.create()
-    n = tvm.var("n")
-    cp = tvm.thread_axis((0, 1), "cop")
+    n = te.var("n")
+    cp = te.thread_axis((0, 1), "cop")
     value = tvm.tir.StringImm("xxx")
 
     A = ib.allocate("float32", n, name="A", scope="global")

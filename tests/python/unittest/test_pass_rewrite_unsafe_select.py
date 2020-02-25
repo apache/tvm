@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 
 def test_rewrite_Select():
     ib = tvm.ir_builder.create()
     A = ib.allocate("float32", 100, name="A", scope="global")
-    i = tvm.var("i")
+    i = te.var("i")
     y = tvm.tir.Select(i > 1, A[i-1], 1.0)
     yy = tvm.ir_pass.RewriteUnsafeSelect(tvm.tir.Evaluate(y)).value
 
@@ -28,7 +29,7 @@ def test_rewrite_Select():
         tvm.tir.Select(i > 1, A[i-1], 1.0) > 0.0, A[i], 0.1)
     zz = tvm.ir_pass.RewriteUnsafeSelect(tvm.tir.Evaluate(z)).value
 
-    a = tvm.tir.Select(tvm.floordiv(i, 4) > 10, y, z)
+    a = tvm.tir.Select(tvm.te.floordiv(i, 4) > 10, y, z)
     aa = tvm.ir_pass.RewriteUnsafeSelect(tvm.tir.Evaluate(a)).value
     assert yy.name == "tvm_if_then_else"
     assert zz.name == "tvm_if_then_else"

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.relay import transform
@@ -24,7 +25,7 @@ import topi.testing
 
 def test_binary_op():
     def check_binary_op(opfunc, ref):
-        n = tvm.size_var("n")
+        n = te.size_var("n")
         t1 = relay.TensorType((5, n, 5))
         t2 = relay.TensorType((n, 1))
         x = relay.var("x", t1)
@@ -193,7 +194,7 @@ def test_reduce_functions():
                 return func(data, axis=axis).reshape(out_shape)
         return _wrapper
 
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     for func in [[relay.sum, np.sum],
                  [relay.max, np.max],
                  [relay.min, np.min],
@@ -282,7 +283,7 @@ def test_strided_slice():
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     verify((d1, d2, 3), [None, None, 1], [None, None, 2], None, (d1, d2, 1), False)
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 
 var_list = []
@@ -53,9 +54,9 @@ def verify_structure(stmt, expected_struct):
 
 def test_basic():
     ib = tvm.ir_builder.create()
-    l = tvm.var('l')
-    m = tvm.var('m')
-    n = tvm.var('n')
+    l = te.var('l')
+    m = te.var('m')
+    n = te.var('n')
 
     with ib.for_range(0, l, "i") as i:
         with ib.for_range(0, m, "j") as j:
@@ -74,9 +75,9 @@ def test_basic():
 
 def test_no_else():
     ib = tvm.ir_builder.create()
-    l = tvm.var('l')
-    m = tvm.var('m')
-    n = tvm.var('n')
+    l = te.var('l')
+    m = te.var('m')
+    n = te.var('n')
 
     with ib.for_range(0, l, "i") as i:
         with ib.for_range(0, m, "j") as j:
@@ -95,18 +96,18 @@ def test_attr_stmt():
     ib = tvm.ir_builder.create()
     dshape = (32, 64)
     data = ib.pointer("float32", name="data")
-    l = tvm.var('l')
-    m = tvm.var('m')
-    n = tvm.var('n')
+    l = te.var('l')
+    m = te.var('m')
+    n = te.var('n')
 
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", dshape[0])
     ib.scope_attr(bx, "thread_extent", dshape[1])
     with ib.for_range(0, l, "i") as i:
         with ib.for_range(0, m, "j") as j:
             with ib.for_range(0, n, "k") as k:
-                with ib.if_scope(tvm.any(i < 4, j >= 8)):
+                with ib.if_scope(tvm.tir.any(i < 4, j >= 8)):
                     data[bx * j + tx * j * k] = data[bx * j + tx * j * k]  + 0.5
                 with ib.else_scope():
                     data[bx * j + tx * j * k] = data[bx * j + tx * j * k]  + 1.0
@@ -130,7 +131,7 @@ def test_nested_for():
                 data[i * 3 + j] = data[i * 3 + j] + 0.5
                 with ib.for_range(0, 15, "k") as k:
                     with ib.for_range(0, 20, "l") as l:
-                        with ib.if_scope(tvm.any(i < 4, j >= 8)):
+                        with ib.if_scope(tvm.tir.any(i < 4, j >= 8)):
                             data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 2
                         with ib.else_scope():
                             data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5
@@ -145,7 +146,7 @@ def test_nested_for():
 def test_if_block():
     ib = tvm.ir_builder.create()
     data = ib.pointer("float32", name="data")
-    n = tvm.var("n")
+    n = te.var("n")
 
 
     with ib.for_range(0, 5, "i") as i:
@@ -154,7 +155,7 @@ def test_if_block():
                 data[i * 3 + j] = data[i * 3 + j] + 0.5
                 with ib.for_range(0, 15, "k") as k:
                     with ib.for_range(0, 20, "l") as l:
-                        with ib.if_scope(tvm.any(i < 4, j >= 8)):
+                        with ib.if_scope(tvm.tir.any(i < 4, j >= 8)):
                             data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 2
                         with ib.else_scope():
                             data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5

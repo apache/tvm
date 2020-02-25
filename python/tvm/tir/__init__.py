@@ -17,6 +17,8 @@
 # pylint: disable=unused-import, redefined-builtin
 """Namespace for Tensor-level IR"""
 from tvm.ir import PrimExpr
+from tvm.runtime import const
+
 from .buffer import Buffer, decl_buffer
 from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
@@ -30,7 +32,7 @@ from .stmt import Store, Provide, Allocate, AttrStmt, Free, Realize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, LoweredFunc, stmt_seq, stmt_list
 
 from .op import call_packed, call_pure_intrin, call_intrin, call_pure_extern, call_extern
-from .op import call_llvm_intrin, all, any, min_value, max_value
+from .op import call_llvm_intrin, all, any, min_value, max_value, trace
 from .op import exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil
 from .op import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod

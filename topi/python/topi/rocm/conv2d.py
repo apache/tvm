@@ -32,10 +32,10 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, out_dtype=
     cfg: ConfigEntity
         The config for this template
 
-    input : tvm.Tensor
+    input : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    filter : tvm.Tensor
+    filter : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     strides : int or a list/tuple of two ints
@@ -51,7 +51,7 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, out_dtype=
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
 
@@ -67,7 +67,7 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, out_dtype=
     OH = (H + 2 * pad_h - KH) // stride_h + 1
     OW = (W + 2 * pad_w - KW) // stride_w + 1
     cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) *\
-                ((KW - 1) * dilation_w + 1))
+                 ((KW - 1) * dilation_w + 1))
 
     return miopen.conv2d_forward(data,
                                  kernel,

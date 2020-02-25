@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_inline():
-    m = tvm.size_var('m')
-    A = tvm.placeholder((m,), name='A')
-    T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
+    m = te.size_var('m')
+    A = te.placeholder((m,), name='A')
+    T = te.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.tir.Evaluate(T[10] + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
         stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
@@ -36,10 +37,10 @@ def test_inline():
         pass
 
 def test_inline2():
-    m = tvm.size_var('m')
-    A = tvm.placeholder((m,), name='A')
-    T = tvm.compute((m,), lambda i,: A[i] + 10, name='T')
-    stmt = tvm.tir.Evaluate(tvm.exp(T[10]) + 11 * T[100])
+    m = te.size_var('m')
+    A = te.placeholder((m,), name='A')
+    T = te.compute((m,), lambda i,: A[i] + 10, name='T')
+    stmt = tvm.tir.Evaluate(te.exp(T[10]) + 11 * T[100])
     stmt = tvm.ir_pass.Inline(
         stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
     def check(op):

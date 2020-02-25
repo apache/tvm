@@ -50,6 +50,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 import tvm
+from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.contrib import graph_runtime, util, download
 from tvm.contrib.debugger import debug_runtime

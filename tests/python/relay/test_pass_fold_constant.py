@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name

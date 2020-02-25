@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_double_buffer():
     dtype = 'int64'
     n = 100
     m = 4
-    tx = tvm.thread_axis("threadIdx.x")
+    tx = te.thread_axis("threadIdx.x")
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")

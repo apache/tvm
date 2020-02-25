@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_equal_expr():
-    x = tvm.var('x')
-    y = tvm.var('y')
+    x = te.var('x')
+    y = te.var('y')
 
     def func1():
         return x + y + 1
 
     def func2():
-        return tvm.exp(tvm.truncdiv((x + y + 1) * y, 4))
+        return te.exp(tvm.tir.truncdiv((x + y + 1) * y, 4))
 
     assert tvm.ir_pass.Equal(func1(), func1())
     assert tvm.ir_pass.Equal(func2(), func2())
@@ -32,20 +33,20 @@ def test_equal_expr():
 
 
 def test_equal_compute():
-    x = tvm.var('x')
-    y = tvm.var('y')
+    x = te.var('x')
+    y = te.var('y')
     n = 128
-    A = tvm.placeholder((n, n), name='A')
-    B = tvm.placeholder((n, n), name='B')
-    ii = tvm.var('i')
-    jj = tvm.var('j')
+    A = te.placeholder((n, n), name='A')
+    B = te.placeholder((n, n), name='B')
+    ii = te.var('i')
+    jj = te.var('j')
 
     def func1():
-        k = tvm.reduce_axis((0, n), name='k')
-        return tvm.sum(A[ii, k] * B[jj, k], axis=k)
+        k = te.reduce_axis((0, n), name='k')
+        return te.sum(A[ii, k] * B[jj, k], axis=k)
 
-    Ab = tvm.decl_buffer((n,), name='A')
-    n = tvm.var("n")
+    Ab = tvm.tir.decl_buffer((n,), name='A')
+    n = te.var("n")
     def func2():
         ib = tvm.ir_builder.create()
         A = ib.buffer_ptr(Ab)

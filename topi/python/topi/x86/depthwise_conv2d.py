@@ -18,6 +18,7 @@
 # pylint: disable=no-value-for-parameter
 """Depthwise Conv2D schedule on x86"""
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
 from ..nn.pad import pad
@@ -87,11 +88,11 @@ def _pack_data(cfg, data, kernel):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = tvm.compute((n, ic_chunk, ih, iw, ic_bn),
-                       lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                       name="data_vec")
+    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
+                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
+                      name="data_vec")
 
-    kernel = tvm.compute(
+    kernel = te.compute(
         (oc_chunk, 1, kh, kw, 1, oc_bn),
         lambda occ, icc, k_h, k_w, icb, ocb:
         kernel[(occ * oc_bn + ocb) // cm,
@@ -135,9 +136,9 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
 
     # get workload and related schedule config
     wkl = _get_workload(
-        tvm.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
-        tvm.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
-                        dtype=kernel.dtype),
+        te.placeholder((batch, in_channel, in_height, in_width), dtype=data.dtype),
+        te.placeholder((out_channel, channel_multiplier, filter_height, filter_width),
+                       dtype=kernel.dtype),
         strides, padding, out_dtype)
     if cfg.is_fallback:
         _fallback_schedule(cfg, wkl)
@@ -160,14 +161,14 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
         data_pad = data
 
     # depthconv stage
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
 
-    kh = tvm.reduce_axis((0, filter_height), name='kh')
-    kw = tvm.reduce_axis((0, filter_width), name='kw')
-    Output = tvm.compute(
+    kh = te.reduce_axis((0, filter_height), name='kh')
+    kw = te.reduce_axis((0, filter_width), name='kw')
+    Output = te.compute(
         (batch, out_channel_chunk, out_height, out_width, out_channel_block),
-        lambda b, oco, oh, ow, oci: tvm.sum(
+        lambda b, oco, oh, ow, oci: te.sum(
             (data_pad[
                 b,
                 idxdiv(idxdiv(oco * out_channel_block + oci, channel_multiplier), in_channel_block),
@@ -182,8 +183,8 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
 @autotvm.register_topi_schedule("depthwise_conv2d_NCHWc.x86")
 def schedule_depthwise_conv2d_NCHWc(cfg, outs):
     """CPU schedule for depthwise conv2d in NCHW[x]c layout"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         """Traverse operators from computation graph"""
@@ -199,7 +200,7 @@ def schedule_depthwise_conv2d_NCHWc(cfg, outs):
 def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out, output):
     tile_ow, oc_bn = cfg["tile_ow"].size[-1], cfg["tile_oc"].size[-1]
     # schedule pad
-    if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
+    if isinstance(s[data_vec].op, tvm.te.ComputeOp) \
             and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)

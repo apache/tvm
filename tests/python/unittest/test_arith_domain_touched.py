@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_domain_touched():
-    i = tvm.var('i')
-    j = tvm.var('j')
-    n = tvm.convert(100)
-    m = tvm.var('m')
-    a = tvm.placeholder((n, m), name = 'a')
-    b = tvm.placeholder((n, m), name = 'b')
+    i = te.var('i')
+    j = te.var('j')
+    n = tvm.runtime.convert(100)
+    m = te.var('m')
+    a = te.placeholder((n, m), name = 'a')
+    b = te.placeholder((n, m), name = 'b')
     ir = tvm.tir.For(
             i, 0, n, 0, 0,
             tvm.tir.For(j, 0, m, 0, 0,

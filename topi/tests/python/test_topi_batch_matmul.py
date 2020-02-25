@@ -17,6 +17,7 @@
 """Test code for batch_matmul operator"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -31,8 +32,8 @@ _batch_matmul_implement = {
 }
 
 def verify_batch_matmul(batch, M, N, K):
-    x = tvm.placeholder((batch, M, K), name='x')
-    y = tvm.placeholder((batch, N, K), name='y')
+    x = te.placeholder((batch, M, K), name='x')
+    y = te.placeholder((batch, N, K), name='y')
     dtype = x.dtype
 
     # use memoize to pickle the test data for next time use

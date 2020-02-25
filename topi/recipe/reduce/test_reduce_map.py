@@ -16,6 +16,7 @@
 # under the License.
 import os
 import tvm
+from tvm import te
 from tvm.contrib import nvcc
 import numpy as np
 
@@ -50,7 +51,7 @@ def tvm_callback_cuda_postproc(code):
 def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
     global TASK
     # Build the logic and compile the function
-    A = tvm.placeholder(shape=in_shape, name="A")
+    A = te.placeholder(shape=in_shape, name="A")
     if type == "sum":
         TASK = "sum_map_id%d" %test_id
         B = topi.sum(A, axis=axis, keepdims=keepdims)

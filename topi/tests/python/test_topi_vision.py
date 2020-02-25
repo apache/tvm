@@ -19,6 +19,7 @@ from __future__ import print_function
 import math
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
@@ -90,7 +91,7 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             fcompute, fschedule = topi.testing.dispatch(device, _get_valid_counts_implement)
-            data = tvm.placeholder(dshape, name="data", dtype=dtype)
+            data = te.placeholder(dshape, name="data", dtype=dtype)
             outs = fcompute(data, score_threshold, id_index, score_index)
             s = fschedule(outs)
 
@@ -121,8 +122,8 @@ def verify_non_max_suppression(np_data, np_valid_count, np_result, np_indices_re
     dshape = np_data.shape
     batch, num_anchors, _ = dshape
     indices_dshape = (batch, num_anchors)
-    data = tvm.placeholder(dshape, name="data")
-    valid_count = tvm.placeholder((batch,), dtype="int32", name="valid_count")
+    data = te.placeholder(dshape, name="data")
+    valid_count = te.placeholder((batch,), dtype="int32", name="valid_count")
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -182,7 +183,7 @@ def test_non_max_suppression():
 
 
 def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
-    data = tvm.placeholder(dshape, name="data")
+    data = te.placeholder(dshape, name="data")
 
     dtype = data.dtype
     input_data = np.random.uniform(size=dshape).astype(dtype)
@@ -223,7 +224,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        
+
         fcompute, fschedule = topi.testing.dispatch(device, _multibox_prior_implement)
         with tvm.target.create(device):
             out = fcompute(data, sizes, ratios, steps, offsets, clip)
@@ -249,9 +250,9 @@ def test_multibox_detection():
     batch_size = 1
     num_anchors = 3
     num_classes = 3
-    cls_prob = tvm.placeholder((batch_size, num_anchors, num_classes), name="cls_prob")
-    loc_preds = tvm.placeholder((batch_size, num_anchors * 4), name="loc_preds")
-    anchors = tvm.placeholder((1, num_anchors, 4), name="anchors")
+    cls_prob = te.placeholder((batch_size, num_anchors, num_classes), name="cls_prob")
+    loc_preds = te.placeholder((batch_size, num_anchors * 4), name="loc_preds")
+    anchors = te.placeholder((1, num_anchors, 4), name="anchors")
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -290,8 +291,8 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
     a_shape = (batch, in_channel, in_size, in_size)
     rois_shape = (num_roi, 5)
 
-    a = tvm.placeholder(a_shape)
-    rois = tvm.placeholder(rois_shape)
+    a = te.placeholder(a_shape)
+    rois = te.placeholder(rois_shape)
 
     @memoize("topi.tests.test_topi_vision.verify_roi_align")
     def get_ref_data():
@@ -342,8 +343,8 @@ def verify_roi_pool(batch, in_channel, in_size, num_roi, pooled_size, spatial_sc
     a_shape = (batch, in_channel, in_size, in_size)
     rois_shape = (num_roi, 5)
 
-    a = tvm.placeholder(a_shape)
-    rois = tvm.placeholder(rois_shape)
+    a = te.placeholder(a_shape)
+    rois = te.placeholder(rois_shape)
 
     @memoize("topi.tests.test_topi_vision.verify_roi_pool")
     def get_ref_data():
@@ -387,9 +388,9 @@ def test_roi_pool():
 
 
 def verify_proposal(np_cls_prob, np_bbox_pred, np_im_info, np_out, attrs):
-    cls_prob = tvm.placeholder(np_cls_prob.shape)
-    bbox_pred = tvm.placeholder(np_bbox_pred.shape)
-    im_info = tvm.placeholder(np_im_info.shape)
+    cls_prob = te.placeholder(np_cls_prob.shape)
+    bbox_pred = te.placeholder(np_bbox_pred.shape)
+    im_info = te.placeholder(np_im_info.shape)
 
     def check_device(device):
         ctx = tvm.context(device, 0)

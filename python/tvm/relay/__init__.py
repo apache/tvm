@@ -18,7 +18,7 @@
 """The Relay IR namespace containing the IR definition and compiler."""
 import os
 from sys import setrecursionlimit
-from ..api import register_func
+
 from . import call_graph
 from . import base
 from . import ty

@@ -32,7 +32,7 @@ import math
 from collections import namedtuple, OrderedDict
 import numpy as np
 
-from tvm import schedule, thread_axis
+from tvm.te import schedule, thread_axis
 from tvm.autotvm.util import get_const_int
 
 Axis = namedtuple('Axis', ['space', 'index'])
@@ -57,7 +57,7 @@ class TransformSpace(object):
     .. note::
 
         We can regard our schedule code as a transformation graph of axes.
-        Starting from raw axes in the definition of tvm.compute, we can transform these axes
+        Starting from raw axes in the definition of te.compute, we can transform these axes
         by some operators. The operator includes 'split', 'reorder' and 'annotate'.
         Each operator has some tunable parameters (e.g. the split factor).
         Then the tuning process is just to find good parameters of these op.
@@ -106,7 +106,7 @@ class VirtualAxis(TransformSpace):
 
     Parameters
     ----------
-    var: int or tvm.schedule.IterVar
+    var: int or tvm.te.schedule.IterVar
         If is int, return a virtual axis whose length is the provided argument.
         If is IterVar, return a virtual axis whose length is extracted from
         the IterVar's extent domain.
@@ -266,11 +266,11 @@ class SplitEntity(object):
 
         Parameters
         ----------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        op: tvm.tensor.Operation
+        op: tvm.te.Operation
             The stage to be applied
-        axis: tvm.schedule.IterVar
+        axis: tvm.te.schedule.IterVar
             axis to split
 
         Returns
@@ -390,11 +390,11 @@ class ReorderEntity(object):
 
         Parameters
         ----------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        op: tvm.tensor.Operation
+        op: tvm.te.Operation
             The stage to be applied
-        axis: tvm.schedule.IterVar
+        axis: tvm.te.schedule.IterVar
             axis to split
 
         Returns
@@ -513,11 +513,11 @@ class AnnotateEntity(object):
 
         Parameters
         ----------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        op: tvm.tensor.Operation
+        op: tvm.te.Operation
             The stage to be applied
-        axes: Array of tvm.schedule.IterVar
+        axes: Array of tvm.te.schedule.IterVar
             axis to split
         axis_lens: Array of int, optional
             the length of axes
@@ -532,7 +532,7 @@ class AnnotateEntity(object):
 
         Returns
         -------
-        axes : list of tvm.schedule.IterVar
+        axes : list of tvm.te.schedule.IterVar
             The transformed axes
         """
         if source is not None:  # special case : attach cache_read/cache_write
@@ -624,7 +624,7 @@ class ConfigSpace(object):
 
         Parameters
         ----------
-        var: int or tvm.schedule.IterVar
+        var: int or tvm.te.schedule.IterVar
             If is int, return an axis whose length is the provided argument.
             If is IterVar, return an axis whose length is extracted from the
             IterVar's extent domain.
@@ -640,7 +640,7 @@ class ConfigSpace(object):
         ----------
         name: str
             name to index the entity of this space
-        axis: tvm.schedule.IterVar
+        axis: tvm.te.schedule.IterVar
             axis to split
         policy: str
             name of policy.
@@ -681,7 +681,7 @@ class ConfigSpace(object):
         ----------
         name: str
             name to index the entity of this space
-        axes: Array of tvm.schedule.IterVar
+        axes: Array of tvm.te.schedule.IterVar
             axes to reorder
         policy: str
             name of policy
@@ -702,7 +702,7 @@ class ConfigSpace(object):
         ----------
         name: str
             name to index the entity of this space
-        axes: Array of tvm.schedule.IterVar
+        axes: Array of tvm.te.schedule.IterVar
             axes to annotate
         policy: str
             name of policy

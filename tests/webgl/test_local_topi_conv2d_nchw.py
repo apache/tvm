@@ -20,6 +20,7 @@ Should be removed once we fix OpenGL testing on Jenkins."""
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
@@ -27,8 +28,8 @@ from topi.util import get_const_tuple
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
     B = topi.nn.conv2d_nchw(A, W, stride, padding)
     C = topi.nn.relu(B)
 

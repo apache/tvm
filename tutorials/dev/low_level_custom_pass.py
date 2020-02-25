@@ -43,6 +43,7 @@ Before reading this tutorial, we assume readers have already known these topics 
 
 from __future__ import absolute_import, print_function
 import tvm
+from tvm import te
 import numpy as np
 
 ######################################################################
@@ -50,12 +51,12 @@ import numpy as np
 # our customized lowering pass to manipulate the IR directly instead of using schedule primitives.
 #
 
-n = tvm.const(128, "int32")
-a = tvm.placeholder((n, ), name="a")
-b = tvm.placeholder((n, ), name="b")
-c = tvm.compute((n, ), lambda i: a[i] + b[i], name='c')
+n = tvm.tir.const(128, "int32")
+a = te.placeholder((n, ), name="a")
+b = te.placeholder((n, ), name="b")
+c = te.compute((n, ), lambda i: a[i] + b[i], name='c')
 
-sch = tvm.create_schedule(c.op)
+sch = te.create_schedule(c.op)
 ir  = tvm.lower(sch, [a, b, c], simple_mode=True)
 print(ir)
 
@@ -111,7 +112,7 @@ def vectorize8(op):
     if op in loops:
         extent = op.extent.value
         name = op.loop_var.name
-        lo, li = tvm.var(name + '.outer'), tvm.var(name + '.inner')
+        lo, li = te.var(name + '.outer'), te.var(name + '.inner')
         body = tvm.ir_pass.Substitute(op.body, {op.loop_var: lo * 8 + li})
         body = tvm.tir.For(li, 0, 8, tvm.tir.For.Vectorized, 0, body)
         body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.For.Serial, 0, body)

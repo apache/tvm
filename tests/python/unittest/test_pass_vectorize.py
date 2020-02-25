@@ -15,15 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_vectorize_loop():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = te.var('n')
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n) as i:
         with ib.for_range(0, 4, for_type="vectorize") as j:
-            A[j] = tvm.const(1, A.dtype)
+            A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
 
     assert isinstance(stmt.body, tvm.tir.For)
@@ -35,12 +36,12 @@ def test_vectorize_loop():
 
 def test_vectorize_vector():
     dtype = 'int64'
-    n = tvm.var('n')
+    n = te.var('n')
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32x4", name="A")
     with ib.for_range(0, n) as i:
         with ib.for_range(0, 4, for_type="vectorize") as j:
-            A[j] = tvm.const(1, A.dtype)
+            A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
     assert isinstance(stmt.body, tvm.tir.For)
     stmt = tvm.ir_pass.VectorizeLoop(stmt)
@@ -51,8 +52,8 @@ def test_vectorize_vector():
 
 
 def test_vectorize_with_if():
-    n = tvm.var('n')
-    x = tvm.var('x')
+    n = te.var('n')
+    x = te.var('x')
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, 4, for_type="vectorize") as i:
@@ -70,7 +71,7 @@ def test_vectorize_with_if():
     assert isinstance(stmt.else_case, tvm.tir.For)
 
 def test_vectorize_with_le_cond():
-    n = tvm.var('n')
+    n = te.var('n')
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, 4, for_type="vectorize") as i:
@@ -81,7 +82,7 @@ def test_vectorize_with_le_cond():
     assert isinstance(stmt, tvm.tir.For)
 
 def test_vectorize_with_ge_cond():
-    n = tvm.var('n')
+    n = te.var('n')
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, 4, for_type="vectorize") as i:
@@ -92,12 +93,12 @@ def test_vectorize_with_ge_cond():
     assert isinstance(stmt, tvm.tir.For)
 
 def test_vectorize_if_then_else():
-    n = tvm.var('n')
-    x = tvm.var('x')
+    n = te.var('n')
+    x = te.var('x')
     ib = tvm.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, 4, for_type="vectorize") as i:
-        A[i] = tvm.call_intrin("float32", "tvm_if_then_else",
+        A[i] = tvm.tir.call_intrin("float32", "tvm_if_then_else",
                                i > 0,
                                A[i] + 1, A[i])
     stmt = ib.get()
@@ -109,7 +110,7 @@ def test_vectorize_if_then_else():
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, n) as k:
         with ib.for_range(0, 4, for_type="vectorize") as i:
-            A[k * 4 + i] = tvm.call_intrin("float32", "tvm_if_then_else",
+            A[k * 4 + i] = tvm.tir.call_intrin("float32", "tvm_if_then_else",
                                            k > 0,
                                            A[k * 4 + i], 0)
     stmt = ib.get()

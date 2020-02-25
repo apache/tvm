@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Compute definition for conv2d with cuda backend"""
-import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.contrib import cudnn
 
@@ -35,8 +35,8 @@ def conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype='float3
 @autotvm.register_topi_schedule("conv2d_nchw.cuda")
 def schedule_conv2d_nchw(cfg, outs):
     """Create the schedule for conv2d_nchw"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'conv2d_nchw':
@@ -55,8 +55,8 @@ def schedule_conv2d_nchw(cfg, outs):
 #
 # @autotvm.register_topi_schedule("conv2d_nhwc.cuda")
 # def schedule_conv2d_nhwc(cfg, outs):
-#     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-#     s = tvm.create_schedule([x.op for x in outs])
+#     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+#     s = te.create_schedule([x.op for x in outs])
 #
 #     def _callback(op):
 #         if op.tag == 'conv2d_nhwc':

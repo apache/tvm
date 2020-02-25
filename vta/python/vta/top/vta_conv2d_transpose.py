@@ -19,6 +19,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 from topi.util import get_const_tuple
@@ -52,14 +53,14 @@ def conv2d_transpose_packed(cfg, data, kernel, strides, padding, out_dtype):
     out_h = (i_h - 1) * stride_h - fpad_top - fpad_bottom + k_h
     out_w = (i_w - 1) * stride_w - fpad_left - fpad_right + k_w
     oshape = (b, c_o, out_h, out_w, t_b, t_co)
-    d_c = tvm.reduce_axis((0, c_i), name='d_c')
-    d_h = tvm.reduce_axis((0, k_h), name='d_h')
-    d_w = tvm.reduce_axis((0, k_w), name='d_w')
-    d_ci = tvm.reduce_axis((0, t_ci), name='d_ci')
+    d_c = te.reduce_axis((0, c_i), name='d_c')
+    d_h = te.reduce_axis((0, k_h), name='d_h')
+    d_w = te.reduce_axis((0, k_w), name='d_w')
+    d_ci = te.reduce_axis((0, t_ci), name='d_ci')
 
-    out = tvm.compute(
+    out = te.compute(
         oshape,
-        lambda i_n, i_c, i_h, i_w, j_n, j_c: tvm.sum(
+        lambda i_n, i_c, i_h, i_w, j_n, j_c: te.sum(
             data_pad(i_n, d_c, i_h + d_h, i_w + d_w, j_n, d_ci).astype(out_dtype) *
             kernel[i_c, d_c, d_h, d_w, j_c, d_ci].astype(out_dtype),
             axis=[d_c, d_h, d_w, d_ci]),
@@ -87,7 +88,7 @@ def schedule_conv2d_transpose_packed(cfg, outs):
             if not op.same_as(output.op):
                 ewise_ops.append(op)
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.PlaceholderOp):
+                if isinstance(tensor.op, tvm.te.PlaceholderOp):
                     ewise_inputs.append((op, tensor))
                 else:
                     _traverse(tensor.op)
@@ -98,7 +99,7 @@ def schedule_conv2d_transpose_packed(cfg, outs):
     _traverse(output.op)
     assert len(conv2d_res) == 1
     conv2d_stage = conv2d_res[0].output(0)
-    s = tvm.create_schedule(output.op)
+    s = te.create_schedule(output.op)
 
     ##### space definition begin #####
     b, c_o, x_i, x_j, _, c_i = s[conv2d_stage].op.axis
@@ -113,7 +114,7 @@ def schedule_conv2d_transpose_packed(cfg, outs):
     ###### space definition end ######
 
     data, kernel = conv2d_stage.op.input_tensors
-    if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+    if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
         temp = data.op.input_tensors[0]
         pad_data = data
         data = temp
@@ -162,13 +163,13 @@ def schedule_conv2d_transpose_packed(cfg, outs):
     if cfg['oc_nthread'].val > 1:
         _, v_t = s[output].split(x_co0, factor=cfg['oc_nthread'].val)
         s[output].reorder(v_t, x_bo)
-        s[output].bind(v_t, tvm.thread_axis("cthread"))
+        s[output].bind(v_t, te.thread_axis("cthread"))
 
     # virtual threading along spatial rows
     if cfg['h_nthread'].val > 1:
         _, v_t = s[output].split(x_i0, factor=cfg['h_nthread'].val)
         s[output].reorder(v_t, x_bo)
-        s[output].bind(v_t, tvm.thread_axis("cthread"))
+        s[output].bind(v_t, te.thread_axis("cthread"))
 
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[conv2d_stage].op.axis
     k_o, d_i, d_j, k_i = s[conv2d_stage].op.reduce_axis

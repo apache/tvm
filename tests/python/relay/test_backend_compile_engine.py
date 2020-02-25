@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 import tvm.testing
 from tvm import relay
 from tvm import autotvm
@@ -69,7 +70,7 @@ def _tmp_strategy(attrs, inputs, out_type, target):
     return strategy
 
 def _create_record(task_name, dshape, wshape, target, cost):
-    args = [tvm.placeholder(dshape), tvm.placeholder(wshape), (1, 1), (1, 1, 1, 1),
+    args = [te.placeholder(dshape), te.placeholder(wshape), (1, 1), (1, 1, 1, 1),
             (1, 1), 'float32']
     task = autotvm.task.create(task_name, args, target)
     cfg = autotvm.ConfigEntity(0, None, {}, [])
@@ -89,7 +90,7 @@ def test_get_valid_implementations():
         return relay.backend.compile_engine.get_valid_implementations(
             relay.op.get("nn.conv2d"),
             out.attrs,
-            [tvm.placeholder(dshape), tvm.placeholder(wshape)],
+            [te.placeholder(dshape), te.placeholder(wshape)],
             out.checked_type,
             target)
 
@@ -110,7 +111,7 @@ def test_select_implementation():
         return relay.backend.compile_engine.select_implementation(
             relay.op.get("nn.conv2d"),
             out.attrs,
-            [tvm.placeholder(dshape), tvm.placeholder(wshape)],
+            [te.placeholder(dshape), te.placeholder(wshape)],
             out.checked_type,
             target,
             use_autotvm)

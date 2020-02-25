@@ -23,6 +23,7 @@ import inspect
 import functools
 
 import tvm
+from tvm import te
 from tvm.runtime import ndarray as _nd
 from tvm.ir.transform import PassInfo, PassContext, Pass, ModulePass, Sequential, module_pass
 

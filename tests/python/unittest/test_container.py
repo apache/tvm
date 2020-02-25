@@ -17,6 +17,7 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import nd, relay
 from tvm.runtime import container as _container
 

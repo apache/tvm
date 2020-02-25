@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def run_jit(fapi, check):
@@ -32,9 +33,9 @@ def test_stack_vm_basic():
         print(shape0)
         assert shape0 == a.shape[0]
 
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), tvm.float32)
-    stmt = tvm.tir.Evaluate(tvm.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), "float32")
+    stmt = tvm.tir.Evaluate(tvm.tir.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
     fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
     fapi = tvm.ir_pass.LowerIntrin(fapi, "stackvm")
@@ -47,15 +48,15 @@ def tvm_stack_vm_print(*x):
 
 def test_stack_vm_loop():
     dtype = 'int64'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.size_var('i')
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
+    i = te.size_var('i')
 
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     with ib.for_range(0, n - 1, "i") as i:
         A[i + 1] = A[i] + 1
-        ib.emit(tvm.call_packed("tvm_stack_vm_print", i))
+        ib.emit(tvm.tir.call_packed("tvm_stack_vm_print", i))
 
     stmt = ib.get()
     fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
@@ -69,8 +70,8 @@ def test_stack_vm_loop():
 
 def test_stack_vm_cond():
     dtype = 'int64'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
 
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
@@ -93,9 +94,9 @@ def test_stack_vm_cond():
 
 def test_vm_parallel():
     dtype = 'int64'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.size_var('i')
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
+    i = te.size_var('i')
     ib = tvm.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     with ib.for_range(0, n, "i", for_type="parallel") as i:

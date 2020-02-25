@@ -20,11 +20,12 @@ from __future__ import absolute_import
 
 import topi
 from topi.util import get_const_tuple
+
+from tvm.runtime import convert
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
 from .._tensor import elemwise_shape_func
-from ....api import convert
 from ....hybrid import script
 
 # relu

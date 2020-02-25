@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
 import tvm
+from tvm import te
 from ..util import is_empty_shape
 
 def schedule_injective_from_existing(sch, out):
@@ -58,14 +59,14 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     x = outs[0]
     if list(s[x].op.axis):
         # do not vectorize for broadcast
         (io, ii) = s[x].split(list(s[x].op.axis)[-1], 8)
         s[x].vectorize(ii)
-    tvm.schedule.AutoInlineInjective(s)
+    tvm.te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):
         schedule_injective_from_existing(s, x)
@@ -85,10 +86,10 @@ def schedule_concatenate(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     x = outs[0]
-    tvm.schedule.AutoInlineInjective(s)
+    tvm.te.schedule.AutoInlineInjective(s)
     if len(s[x].op.axis) >= 4:
         fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
         s[x].parallel(fused)

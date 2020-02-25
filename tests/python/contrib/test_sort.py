@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_sort():
     n = 2
     l = 5
     m = 3
-    data = tvm.placeholder((n, l, m), name='data')
-    sort_num = tvm.placeholder((n, m), name="sort_num", dtype="int32")
+    data = te.placeholder((n, l, m), name='data')
+    sort_num = te.placeholder((n, m), name="sort_num", dtype="int32")
     axis = 1
     is_ascend = False
-    out = tvm.extern(data.shape, [data, sort_num],
-                     lambda ins, outs: tvm.call_packed(
+    out = te.extern(data.shape, [data, sort_num],
+                     lambda ins, outs: tvm.tir.call_packed(
                          "tvm.contrib.sort.argsort_nms", ins[0],
                          ins[1], outs[0], axis, is_ascend),
                      dtype='int32', name="sort_tensor")
@@ -38,7 +39,7 @@ def test_sort():
 
     ctx = tvm.cpu(0)
     target = "llvm"
-    s = tvm.create_schedule(out.op)
+    s = te.create_schedule(out.op)
     f = tvm.build(s, [data, sort_num, out], target)
     a = tvm.nd.array(np.array(input).astype(data.dtype), ctx)
     b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), ctx)
@@ -51,17 +52,17 @@ def test_sort_np():
     axis = 4
     reduced_shape = (1, 2, 3, 4, 6)
     is_ascend = True
-    data = tvm.placeholder(dshape, name='data')
-    sort_num = tvm.placeholder(reduced_shape, name="sort_num", dtype="int32")
-    out = tvm.extern(data.shape, [data, sort_num],
-                     lambda ins, outs: tvm.call_packed(
+    data = te.placeholder(dshape, name='data')
+    sort_num = te.placeholder(reduced_shape, name="sort_num", dtype="int32")
+    out = te.extern(data.shape, [data, sort_num],
+                     lambda ins, outs: tvm.tir.call_packed(
                          "tvm.contrib.sort.argsort_nms", ins[0],
                          ins[1], outs[0], axis, is_ascend),
                      dtype='int32', name="sort_tensor")
 
     ctx = tvm.cpu(0)
     target = "llvm"
-    s = tvm.create_schedule(out.op)
+    s = te.create_schedule(out.op)
     f = tvm.build(s, [data, sort_num, out], target)
 
     np_data = np.random.uniform(size=dshape)

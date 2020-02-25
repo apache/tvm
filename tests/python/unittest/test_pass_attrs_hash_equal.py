@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_attrs_equal():
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
@@ -33,7 +34,7 @@ def test_attrs_equal():
     assert tvm.ir_pass.AttrsEqual({"x": [x, x]}, {"x": [y, x]})
     assert not tvm.ir_pass.AttrsEqual({"x": [x, 1]}, {"x": [y, 2]})
 
-    n = tvm.var("n")
+    n = te.var("n")
     assert tvm.ir_pass.AttrsEqual({"x": n+1}, {"x": n+1})
 
 

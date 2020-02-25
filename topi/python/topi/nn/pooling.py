@@ -34,7 +34,7 @@ def global_pool(data, pool_type, layout="NCHW"):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     pool_type : str
@@ -51,7 +51,7 @@ def global_pool(data, pool_type, layout="NCHW"):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in same layout with height and width dimension size of 1.
         e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
     """
@@ -76,7 +76,7 @@ def pool(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     kernel : list/tuple of two ints
@@ -108,7 +108,7 @@ def pool(data,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.pool(data, kernel, stride, padding,
@@ -133,10 +133,10 @@ def pool_grad(grads,
 
     Parameters
     ----------
-    grads : tvm.Tensor
+    grads : tvm.te.Tensor
         n-D with shape of layout
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     kernel : list/tuple of two ints
@@ -168,7 +168,7 @@ def pool_grad(grads,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.pool_grad(grads, data, kernel,
@@ -192,7 +192,7 @@ def adaptive_pool(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     output_size : tuple of int
@@ -212,7 +212,7 @@ def adaptive_pool(data,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.adaptive_pool(data, output_size, POOL_TYPE_CODE[pool_type], layout)
@@ -236,7 +236,7 @@ def pool1d(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     kernel : list/tuple of one int or int
@@ -268,7 +268,7 @@ def pool1d(data,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     if isinstance(kernel, int):
@@ -297,7 +297,7 @@ def pool3d(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     kernel : list/tuple of three ints
@@ -329,7 +329,7 @@ def pool3d(data,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.pool3d(data, kernel, stride, padding,

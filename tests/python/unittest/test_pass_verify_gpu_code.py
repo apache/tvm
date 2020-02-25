@@ -16,6 +16,7 @@
 # under the License.
 """Test gpu code verifier"""
 import tvm
+from tvm import te
 
 def get_verify_pass(valid, **kwargs):
     def verify_pass(stmt):
@@ -31,15 +32,15 @@ def test_shared_memory():
         tvm_type = tvm.runtime.DataType(dtype)
         type_size = tvm_type.bits // 8 * tvm_type.lanes
 
-        A = tvm.placeholder((N,), name='A', dtype=dtype)
-        B = tvm.compute((N, ), lambda i: A[i], name='B')
+        A = te.placeholder((N,), name='A', dtype=dtype)
+        B = te.compute((N, ), lambda i: A[i], name='B')
 
-        s = tvm.create_schedule([B.op])
+        s = te.create_schedule([B.op])
         AA = s.cache_read(A, "shared", [B])
         o, i = s[B].split(s[B].op.axis[0], M)
         s[AA].compute_at(s[B], o)
-        s[B].bind(o, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(i, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(o, te.thread_axis("blockIdx.x"))
+        s[B].bind(i, te.thread_axis("threadIdx.x"))
 
         # shared memory usage: M * sizeof(dtype) Bytes
         # thread usage: M
@@ -68,14 +69,14 @@ def test_local_memory():
     N = 1024
     M = 128
 
-    A = tvm.placeholder((N,), name='A', dtype='float32')
-    B = tvm.compute((N, ), lambda i: A[i], name='B')
+    A = te.placeholder((N,), name='A', dtype='float32')
+    B = te.compute((N, ), lambda i: A[i], name='B')
 
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
     AA = s.cache_read(A, "local", [B])
     o, i = s[B].split(s[B].op.axis[0], M)
     s[AA].compute_at(s[B], o)
-    s[B].bind(o, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(o, te.thread_axis("blockIdx.x"))
 
     # local memory usage: M * 4B
     # thread usage: M
@@ -103,14 +104,14 @@ def test_num_thread():
     N = 1024
     M = 128
 
-    A = tvm.placeholder((N,), name='A', dtype='float32')
-    B = tvm.compute((N, ), lambda i: A[i], name='B')
+    A = te.placeholder((N,), name='A', dtype='float32')
+    B = te.compute((N, ), lambda i: A[i], name='B')
 
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
     o, i = s[B].split(s[B].op.axis[0], M)
 
-    s[B].bind(o, tvm.thread_axis('threadIdx.x'))
-    s[B].bind(i, tvm.thread_axis("threadIdx.y"))
+    s[B].bind(o, te.thread_axis('threadIdx.x'))
+    s[B].bind(i, te.thread_axis("threadIdx.y"))
 
     # shared memory usage: 0
     # thread usage: N
@@ -153,14 +154,14 @@ def test_num_thread():
 def test_multiple_kernels():
     N = 1024
 
-    A = tvm.placeholder((N, N), name='A')
-    B = tvm.compute((N, N), lambda i, j: A[i, j])
-    C = tvm.compute((N, N), lambda i, j: B[i, j])
+    A = te.placeholder((N, N), name='A')
+    B = te.compute((N, N), lambda i, j: A[i, j])
+    C = te.compute((N, N), lambda i, j: B[i, j])
 
-    s = tvm.create_schedule([C.op])
+    s = te.create_schedule([C.op])
 
-    s[C].bind(s[C].op.axis[1], tvm.thread_axis("threadIdx.x"))
-    s[B].bind(s[B].op.axis[1], tvm.thread_axis("threadIdx.x"))
+    s[C].bind(s[C].op.axis[1], te.thread_axis("threadIdx.x"))
+    s[B].bind(s[B].op.axis[1], te.thread_axis("threadIdx.x"))
 
     # shared memory usage: 0
     # thread usage: N
@@ -187,14 +188,14 @@ def test_multiple_kernels():
 def test_wrong_bind():
     N = 1024
 
-    A = tvm.placeholder((N, N-1), name='A')
-    B = tvm.compute((N, N-1), lambda i, j: A[i, j])
+    A = te.placeholder((N, N-1), name='A')
+    B = te.compute((N, N-1), lambda i, j: A[i, j])
 
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
 
     # bind a thread axis to two loop axes with different lengths
-    s[B].bind(s[B].op.axis[0], tvm.thread_axis("threadIdx.x"))
-    s[B].bind(s[B].op.axis[1], tvm.thread_axis("threadIdx.x"))
+    s[B].bind(s[B].op.axis[0], te.thread_axis("threadIdx.x"))
+    s[B].bind(s[B].op.axis[1], te.thread_axis("threadIdx.x"))
 
     for target in ['opencl', 'cuda']:
         if not tvm.context(target).exist:

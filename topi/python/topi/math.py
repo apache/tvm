@@ -16,8 +16,8 @@
 # under the License.
 """Elementwise operators"""
 # pylint: disable=redefined-builtin
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from . import tag
 from . import cpp
 
@@ -28,16 +28,16 @@ def identity(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     # pylint: disable=unnecessary-lambda
-    return tvm.compute(x.shape, lambda *i: x(*i))
+    return te.compute(x.shape, lambda *i: x(*i))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -46,16 +46,16 @@ def negative(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     # pylint: disable=unnecessary-lambda
-    return tvm.compute(x.shape, lambda *i: -x(*i))
+    return te.compute(x.shape, lambda *i: -x(*i))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -64,15 +64,15 @@ def exp(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.exp(x(*i)))
+    return te.compute(x.shape, lambda *i: te.exp(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -81,15 +81,15 @@ def erf(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.erf(x(*i)))
+    return te.compute(x.shape, lambda *i: te.erf(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -98,15 +98,15 @@ def tanh(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.tanh(x(*i)))
+    return te.compute(x.shape, lambda *i: te.tanh(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -115,15 +115,15 @@ def cos(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.cos(x(*i)))
+    return te.compute(x.shape, lambda *i: te.cos(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -132,15 +132,15 @@ def sin(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.sin(x(*i)))
+    return te.compute(x.shape, lambda *i: te.sin(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -149,15 +149,15 @@ def atan(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.atan(x(*i)))
+    return te.compute(x.shape, lambda *i: te.atan(x(*i)))
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
@@ -165,15 +165,15 @@ def floor(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.floor(x(*i)))
+    return te.compute(x.shape, lambda *i: te.floor(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -182,15 +182,15 @@ def ceil(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.ceil(x(*i)))
+    return te.compute(x.shape, lambda *i: te.ceil(x(*i)))
 
 
 def sign(x):
@@ -198,12 +198,12 @@ def sign(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.sign(x)
@@ -215,15 +215,15 @@ def trunc(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.trunc(x(*i)))
+    return te.compute(x.shape, lambda *i: te.trunc(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -232,15 +232,15 @@ def abs(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.abs(x(*i)))
+    return te.compute(x.shape, lambda *i: te.abs(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -249,15 +249,15 @@ def isnan(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.isnan(x(*i)))
+    return te.compute(x.shape, lambda *i: te.isnan(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -266,15 +266,15 @@ def round(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.round(x(*i)))
+    return te.compute(x.shape, lambda *i: te.round(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -283,15 +283,15 @@ def log(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.log(x(*i)))
+    return te.compute(x.shape, lambda *i: te.log(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -300,15 +300,15 @@ def sqrt(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.sqrt(x(*i)))
+    return te.compute(x.shape, lambda *i: te.sqrt(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -317,15 +317,15 @@ def rsqrt(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.rsqrt(x(*i)))
+    return te.compute(x.shape, lambda *i: te.rsqrt(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -334,15 +334,15 @@ def sigmoid(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.sigmoid(x(*i)))
+    return te.compute(x.shape, lambda *i: te.sigmoid(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -351,17 +351,17 @@ def left_shift(x, n):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
     n : int
         Number of bits.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: x(*i) << n)
+    return te.compute(x.shape, lambda *i: x(*i) << n)
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -370,17 +370,17 @@ def right_shift(x, n):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
     n : int
         Number of bits.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: x(*i) >> n)
+    return te.compute(x.shape, lambda *i: x(*i) >> n)
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -390,7 +390,7 @@ def clip(x, a_min, a_max):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
     a_min : int or float
         Minimum value.
@@ -399,15 +399,15 @@ def clip(x, a_min, a_max):
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     def _compute(*indices):
         value = x(*indices)
-        const_min = tvm.const(a_min, value.dtype)
-        const_max = tvm.const(a_max, value.dtype)
-        return tvm.max(tvm.min(value, const_max), const_min)
-    return tvm.compute(x.shape, _compute)
+        const_min = tvm.tir.const(a_min, value.dtype)
+        const_max = tvm.tir.const(a_max, value.dtype)
+        return tvm.te.max(tvm.te.min(value, const_max), const_min)
+    return te.compute(x.shape, _compute)
 
 
 def cast(x, dtype):
@@ -415,7 +415,7 @@ def cast(x, dtype):
 
     Parameters
     ----------
-    x : tvm.Tensor or Expr
+    x : tvm.te.Tensor or Expr
         Input argument.
 
     dtype : str
@@ -423,11 +423,11 @@ def cast(x, dtype):
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    if isinstance(x, tvm.tensor.Tensor):
-        return tvm.compute(
+    if isinstance(x, te.tensor.Tensor):
+        return te.compute(
             x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
     # pylint: disable=import-outside-toplevel
     from tvm.tir import _ffi_api
@@ -439,7 +439,7 @@ def reinterpret(x, dtype):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     dtype : str
@@ -447,7 +447,7 @@ def reinterpret(x, dtype):
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.reinterpret(x, dtype)
@@ -458,12 +458,12 @@ def fast_exp(x):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.fast_exp(x, x.dtype, tag.ELEMWISE)

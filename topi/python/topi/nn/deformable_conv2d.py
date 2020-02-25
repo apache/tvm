@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Deformable Conv2D operators"""
 import tvm
+from tvm import te
 
 from .util import get_pad_tuple
 from ..util import get_const_tuple
@@ -30,14 +31,14 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    offset : tvm.Tensor
+    offset : tvm.te.Tensor
         4-D with shape [batch, deformable_groups * filter_height * filter_width * 2,
         out_height, out_width].
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     strides : int or a list/tuple of two ints
@@ -57,7 +58,7 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     if out_dtype is None:
@@ -85,30 +86,30 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
     pad_top, pad_left, _, _ = get_pad_tuple(
         padding, (dilated_kernel_h, dilated_kernel_w))
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
 
-    zero = tvm.const(0.0, data.dtype)
+    zero = tvm.tir.const(0.0, data.dtype)
 
     def _bilinear(n, c, h, w):
-        outside = tvm.any(h < 0, w < 0, h >= in_height, w >= in_width)
+        outside = tvm.tir.any(h < 0, w < 0, h >= in_height, w >= in_width)
         val = bilinear_sample_nchw(data, (n, c, h, w), in_height - 1, in_width - 1)
-        return tvm.if_then_else(outside, zero, val)
+        return tvm.tir.if_then_else(outside, zero, val)
 
     data_deform = \
-        tvm.compute((batch, in_channel, kernel_h, kernel_w, out_height, out_width),
-                    lambda n, c, kh, kw, y, x:
-                    _bilinear(n, c,
-                              y * stride_h - pad_top + kh * dilation_h +
-                              offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                     (kh * kernel_w + kw) * 2, y, x],
-                              x * stride_w - pad_left + kw * dilation_w +
-                              offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                     (kh * kernel_w + kw) * 2 + 1, y, x]))
-    return tvm.compute(
+        te.compute((batch, in_channel, kernel_h, kernel_w, out_height, out_width),
+                   lambda n, c, kh, kw, y, x:
+                   _bilinear(n, c,
+                             y * stride_h - pad_top + kh * dilation_h +
+                             offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
+                                    (kh * kernel_w + kw) * 2, y, x],
+                             x * stride_w - pad_left + kw * dilation_w +
+                             offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
+                                    (kh * kernel_w + kw) * 2 + 1, y, x]))
+    return te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda n, f, y, x: tvm.sum(
+        lambda n, f, y, x: te.sum(
             data_deform[n, rc, ry, rx, y, x].astype(out_dtype) *
             kernel[f, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag="deformable_conv2d_nchw")

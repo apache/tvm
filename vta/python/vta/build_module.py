@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=unused-argument
 """VTA specific buildin for runtime."""
-from __future__ import absolute_import as _abs
-
 import tvm
 from . import ir_pass
 from .environment import get_env
@@ -63,7 +61,7 @@ def build_config(debug_flag=0, **kwargs):
     """
     env = get_env()
     def add_debug(stmt):
-        debug = tvm.call_extern(
+        debug = tvm.tir.call_extern(
             "int32", "VTASetDebugMode",
             env.dev.command_handle,
             debug_flag)
