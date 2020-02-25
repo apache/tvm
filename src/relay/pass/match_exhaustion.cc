@@ -168,8 +168,10 @@ Array<Pattern> ExpandWildcards(const Pattern& clause_pat,
                                const IRModule& mod) {
   if (auto clause_ctor = clause_pat.as<PatternConstructorNode>()) {
     return ExpandWildcardsConstructor(GetRef<PatternConstructor>(clause_ctor), cand, mod);
+  } else if (auto clause_tup = clause_pat.as<PatternTupleNode>()) {
+    return ExpandWildcardsTuple(GetRef<PatternTuple>(clause_tup), cand, mod);
   } else {
-    return ExpandWildcardsTuple(Downcast<PatternTuple>(clause_pat), cand, mod);
+    return {cand};
   }
 }
 
@@ -201,18 +203,9 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
   // for constructors, we will expand the wildcards in any field that is an ADT.
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < ctor_cand->constructor->inputs.size(); i++) {
-    bool subpattern =
-      clause_ctor->patterns[i].as<PatternConstructorNode>() ||
-      clause_ctor->patterns[i].as<PatternTupleNode>();
-    // for non-ADT fields, we can only have a wildcard for the value.
-    if (!subpattern) {
-      values_by_field.push_back({PatternWildcardNode::make()});
-    } else {
-      // otherwise, recursively expand.
-      values_by_field.push_back(ExpandWildcards(clause_ctor->patterns[i],
-                                                ctor_cand->patterns[i],
-                                                mod));
-    }
+    values_by_field.push_back(ExpandWildcards(clause_ctor->patterns[i],
+                                              ctor_cand->patterns[i],
+                                              mod));
   }
 
   // generate new candidates using a cartesian product.
@@ -243,18 +236,9 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
   // for constructors, we will expand the wildcards in any field that is an ADT.
   Array<Array<Pattern>> values_by_field;
   for (size_t i = 0; i < tuple_cand->patterns.size(); i++) {
-    bool subpattern =
-      clause_tuple->patterns[i].as<PatternConstructorNode>() ||
-      clause_tuple->patterns[i].as<PatternTupleNode>();
-    // for non-ADT fields, we can only have a wildcard for the value
-    if (!subpattern) {
-      values_by_field.push_back({PatternWildcardNode::make()});
-    } else {
-      // otherwise, recursively expand
-      values_by_field.push_back(ExpandWildcards(clause_tuple->patterns[i],
-                                                tuple_cand->patterns[i],
-                                                mod));
-    }
+    values_by_field.push_back(ExpandWildcards(clause_tuple->patterns[i],
+                                              tuple_cand->patterns[i],
+                                              mod));
   }
 
   // generate new candidates using a cartesian product
@@ -297,10 +281,10 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
   while (!candidates.empty()) {
     counter++;
     Pattern cand = candidates.top();
-    if (counter == 1000) {
+    if (counter == 100) {
       CHECK(false);
     }
-    std::cerr << AsText(cand) << std::endl;
+    std::cerr << candidates.size () << AsText(cand) << std::endl;
     candidates.pop();
 
     bool failure = true;
@@ -317,6 +301,7 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
       if (check == MatchResult::kUnspecified) {
         auto new_candidates = ExpandWildcards(clause->lhs, cand, mod);
         for (auto candidate : new_candidates) {
+          std::cerr << "new_candidate" << candidate << std::endl;
           candidates.push(candidate);
         }
       }
