@@ -153,6 +153,12 @@ def make_add_add_free_var_wrong_order_pattern():
 def test_fn_param_order():
     """Test order of composite function params.
        They should be sorted alphabetically.
+
+       Without the sorting, the free vars would be
+       [z, y, x]
+
+       With the sorting, they are
+       [x, y, z]
     """
     pattern_table = [
         ("add_add", make_add_add_free_var_wrong_order_pattern())
