@@ -53,9 +53,6 @@ from tvm.contrib.download import download_testdata
 # PyTorch imports
 import torch
 import torchvision
-if (version.parse(torch.__version__) > version.parse("1.4.0")) \
-    or (version.parse(torchvision.__version__) > version.parse("0.5.0")):
-    assert "Please ensure version of PyTorch is supported by TVM"
 
 ######################################################################
 # Load a pretrained PyTorch model
