@@ -43,7 +43,7 @@ def test_tanh():
     assert "fast_tanh" in fast_mod.astext()
 
     # Check that opt level 4 triggers the transformation.
-    with relay.build_config(opt_level=4):
+    with relay.build_config(opt_level=3, required_pass=['FastMath']):
         fast_mod = relay.optimize(mod, target='llvm', params=None)
     assert "fast_tanh" in fast_mod[0].astext()
 
