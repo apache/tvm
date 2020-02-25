@@ -116,7 +116,6 @@ with relay.build_config(opt_level=3):
 # Execute the portable graph on TVM
 # ---------------------------------
 # Now we can try deploying the compiled model on target.
-
 from tvm.contrib import graph_runtime
 dtype = 'float32'
 m = graph_runtime.create(graph, lib, ctx)
