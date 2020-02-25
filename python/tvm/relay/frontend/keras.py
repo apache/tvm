@@ -762,6 +762,8 @@ _convert_map = {
     'Dropout'                  : _default_skip,
     'SpatialDropout2D'         : _default_skip,
     'SpatialDropout1D'         : _default_skip,
+    'GaussianDropout'          : _default_skip,
+    'GaussianNoise'            : _default_skip,
 }
 
 
