@@ -121,23 +121,26 @@ void PassDownDomain(const Stage& stage,
       }
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
+      // Tighten iv's extent to min(parent_extent, factor_or_nparts), only if all of the
+      // following conditions are met:
+      // 1. no leaf IterVar derived from iv binds to any thread.  People may use split
+      // to force an IterVar extent to match the number of allocated threads to fuse stages
+      // that require different number of threads.  We don't want to change these extents.
+      // 2. allow_missing is false, i.e. that PassDownDomain is called by the final InferBound,
+      // rather than by an early compiler phase, such as rfactor().  We don't want to tighten an
+      // IterVar in an early phase allowing missing IterVars, because it may bind to a thread later.
+      // 3. range_parent's extent is not 0.  At lest one Topi test has a case where a tensor has one
+      // zero-sized dimension.  Split creates iv with a positive extent to avoid zero-extent
+      // IterVar.  We don't touch it.
+      auto resolve_min_extent_for_split = [&](IterVar iv, PrimExpr factor_or_nparts) {
+        return dominating_thread[iv] || allow_missing || is_zero(range_parent->extent)
+                   ? factor_or_nparts
+                   : minimum_or_later(range_parent->extent, factor_or_nparts);
+      };
       if (r->factor.defined()) {
-        // Tighten r->inner's range to min(range_parent->extent, r->factor), only if all of the
-        // following conditions are met.  Same reason for r->out in the split with nparts mode.
-        // 1. no leaf IterVar derived from r->inner binds to any thread.  People may use split
-        // to force an IterVar extent to match the number of allocated threads to fuse stages
-        // that require different number of threads.
-        // 2. allow_missing is false, i.e. that PassDownDomain is called by the final InferBound,
-        // rather than by an early compiler phase, such as rfactor().  We don't want an IterVar
-        // to be tightened in an early phase, but bind to a thread later.
-        // 3. range_parent's extent is not 0.  At lest one Topi test has a case where a tensor has one
-        // zero-sized dimension.  Split creates r->inner with a positive extent to avoid zero-extent
-        // IterVar.  We don't touch it.
         Update(p_state, r->inner,
                Range::make_by_min_extent(
-                   0, dominating_thread[r->inner] || allow_missing || is_zero(range_parent->extent)
-                          ? r->factor
-                          : minimum_or_later(range_parent->extent, r->factor)),
+                   0, resolve_min_extent_for_split(r->inner, r->factor)),
                actx);
         Update(p_state, r->outer,
                Range::make_by_min_extent(
@@ -145,9 +148,7 @@ void PassDownDomain(const Stage& stage,
       } else {
         Update(p_state, r->outer,
                Range::make_by_min_extent(
-                   0, dominating_thread[r->outer] || allow_missing || is_zero(range_parent->extent)
-                          ? r->nparts
-                          : minimum_or_later(range_parent->extent, r->nparts)),
+                   0, resolve_min_extent_for_split(r->outer, r->nparts)),
                actx);
         Update(p_state, r->inner,
                Range::make_by_min_extent(
