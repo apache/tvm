@@ -174,14 +174,7 @@ class Task(object):
         self.args = state["args"]
         self.kwargs = state["kwargs"]
         self.config_space = state["config_space"]
-<<<<<<< HEAD
-        # Use pickled function on Windows
-        self.func = state["func"] if os.name == 'nt' else \
-                                    TASK_TABLE.get(state["name"], _raise_error)
-        self.workload = state["workload"]
-=======
         self.func = TASK_TABLE.get(state["name"], _raise_error)
->>>>>>> upstream/master
         self.flop = state["flop"]
         self.target = state["target"]
         self.target_host = state["target_host"]
