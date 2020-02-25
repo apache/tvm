@@ -164,7 +164,7 @@ class MergeCompositeWrapper : public ExprMutator {
     Map<Expr, Expr> call_map;
     auto extract = ExtractPattern(pattern, call, &args_map, &call_map);
     if (extract.defined()) {
-      auto free_vars = GetOrderedFreeVars(extract);
+      auto free_vars = GetFreeVarsAlphabetical(extract);
       // make the composite function
       auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
       f = FunctionSetAttr(f, attr::kComposite, tir::StringImmNode::make(pattern_name_));
@@ -187,7 +187,7 @@ class MergeCompositeWrapper : public ExprMutator {
    *         ordering for different patterns that have the same
    *         free vars.
    */
-  Array<Var> GetOrderedFreeVars(const Expr& expr) {
+  Array<Var> GetFreeVarsAlphabetical(const Expr& expr) {
     const auto& free_vars = FreeVars(expr);
 
     // put free_vars into a std::vector since tvm::IterAdapter
