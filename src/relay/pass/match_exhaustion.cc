@@ -277,14 +277,8 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
 
   Array<Pattern> failures;
 
-  size_t counter = 0;
   while (!candidates.empty()) {
-    counter++;
     Pattern cand = candidates.top();
-    if (counter == 100) {
-      CHECK(false);
-    }
-    std::cerr << candidates.size () << AsText(cand) << std::endl;
     candidates.pop();
 
     bool failure = true;
@@ -301,7 +295,6 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
       if (check == MatchResult::kUnspecified) {
         auto new_candidates = ExpandWildcards(clause->lhs, cand, mod);
         for (auto candidate : new_candidates) {
-          std::cerr << "new_candidate" << candidate << std::endl;
           candidates.push(candidate);
         }
       }
