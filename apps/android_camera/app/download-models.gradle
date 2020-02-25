@@ -34,12 +34,11 @@ buildscript {
         jcenter()
     }
     dependencies {
-        classpath 'de.undercouch:gradle-download-task:3.2.0'
+        classpath 'de.undercouch:gradle-download-task:4.0.4'
     }
 }
 
-import de.undercouch.gradle.tasks.download.Download
-task downloadFile(type: Download){
+task downloadFile(type: de.undercouch.gradle.tasks.download.Download){
     for (f in models) {
         src "${MODEL_URL}/" + f + "?raw=true"
         dest new File(project.ext.TMP_DIR + "/" + f)
@@ -78,4 +77,3 @@ tasks.whenTaskAdded { task ->
         task.dependsOn 'extractModels'
     }
 }
-

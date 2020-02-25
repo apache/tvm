@@ -16,23 +16,25 @@
  */
 
 
-package ml.dmlc.tvm.android.androidcamerademo;
+package org.apache.tvm.android.androidcamerademo;
 
-import android.app.Activity;
 import android.os.Bundle;
 
-public class MainActivity extends Activity {
-  @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
-    System.err.println("set content view...");
-    if (null == savedInstanceState) {
-      getFragmentManager()
-          .beginTransaction()
-          .replace(R.id.container, Camera2BasicFragment.newInstance())
-          .commit();
-      System.err.println("done getfragmentmanager...");
+import androidx.appcompat.app.AppCompatActivity;
+
+
+public class MainActivity extends AppCompatActivity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        System.err.println("set content view...");
+        if (null == savedInstanceState) {
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.container, Camera2BasicFragment.newInstance())
+                    .commit();
+            System.err.println("done getfragmentmanager...");
+        }
     }
-  }
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package ml.dmlc.tvm.android.androidcamerademo;
+package org.apache.tvm.android.androidcamerademo;
 
 
 import android.content.Context;
@@ -37,8 +37,7 @@ public class AutoFitTextureView extends TextureView {
         this(context, attrs, 0);
     }
 
-    public AutoFitTextureView(Context context, AttributeSet attrs, int defStyle)
-{
+    public AutoFitTextureView(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
     }
 
@@ -74,7 +73,7 @@ public class AutoFitTextureView extends TextureView {
                 setMeasuredDimension(width, width * mRatioHeight / mRatioWidth);
             } else {
                 setMeasuredDimension(height * mRatioWidth / mRatioHeight,
-height);
+                        height);
             }
         }
     }

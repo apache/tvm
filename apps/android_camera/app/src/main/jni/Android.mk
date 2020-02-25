@@ -16,7 +16,7 @@ endif
 
 include $(config)
 
-LOCAL_SRC_FILES := ml_dmlc_tvm_native_c_api.cc
+LOCAL_SRC_FILES := org_apache_tvm_native_c_api.cc
 LOCAL_LDFLAGS := -L$(SYSROOT)/usr/lib/ -llog
 
 LOCAL_C_INCLUDES := $(ROOT_PATH)/include \
