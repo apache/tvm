@@ -188,10 +188,9 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
     if layout == "NCDHW":
-        logger.warning("conv3d with layout NCDHW is not optimized for x86.")
-        strategy.add_implementation(wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                                    wrap_topi_schedule(topi.generic.schedule_conv3d_ncdhw),
-                                    name="conv3d_ncdhw.generic")
+        strategy.add_implementation(wrap_compute_conv3d(topi.x86.conv3d_ncdhw),
+                                    wrap_topi_schedule(topi.x86.schedule_conv3d_ncdhw),
+                                    name="conv3d_ncdhw.x86")
     elif layout == "NDHWC":
         strategy.add_implementation(wrap_compute_conv3d(topi.x86.conv3d_ndhwc),
                                     wrap_topi_schedule(topi.x86.schedule_conv3d_ndhwc),
