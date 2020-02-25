@@ -16,7 +16,7 @@
 # under the License.
 """
 Compile PyTorch Models
-=====================
+======================
 **Author**: `Alex Wong <https://github.com/alexwong/>`_
 
 This article is an introductory tutorial to deploy PyTorch models with Relay.
@@ -33,6 +33,12 @@ A quick solution is to install via pip
 
 or please refer to official site
 https://pytorch.org/get-started/locally/
+
+PyTorch versions should be backwards compatible but should be used
+with the proper TorchVision version.
+
+Currently, TVM supports PyTorch 1.4, 1.3, and 1.2. Other versions may
+be unstable.
 """
 
 # tvm, relay
@@ -53,7 +59,7 @@ if (version.parse(torch.__version__) > version.parse("1.4.0")) \
 
 ######################################################################
 # Load a pretrained PyTorch model
-# ------------
+# -------------------------------
 model_name = 'resnet18'
 model = getattr(torchvision.models, model_name)(pretrained=True)
 model = model.float().eval()
@@ -65,7 +71,7 @@ scripted_model = torch.jit.trace(model, input_data).float().eval()
 
 ######################################################################
 # Load a test image
-# ------------------
+# -----------------
 # Classic cat example!
 from PIL import Image
 img_url = 'https://raw.githubusercontent.com/Cadene/pretrained-models.pytorch/master/data/cat_224.jpg'
