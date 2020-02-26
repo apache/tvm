@@ -301,7 +301,6 @@ def conv2d_nchw_winograd_without_weight_transform(cfg, data, kernel, strides,
                                                   padding, dilation, out_dtype):
     return winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
                          pre_computed=True)
->>>>>>> 623dd2087... [Relay][AutoTVM] Relay op strategy (#4644)
 
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_without_weight_transform.cuda")
