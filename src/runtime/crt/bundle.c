@@ -24,9 +24,7 @@ extern unsigned int build_graph_json_len;
 extern unsigned char build_params_bin[];
 extern unsigned int build_params_bin_len;
 
-#define TVM_BUNDLE_FUNCTION __attribute__((visibility("default")))
-
-TVM_BUNDLE_FUNCTION GraphRuntime * tvm_runtime_create() {
+TVM_DLL TVMGraphRuntime * tvm_runtime_create() {
   char * json_data = build_graph_json;
 
   int device_type = kDLCPU;
@@ -39,27 +37,27 @@ TVM_BUNDLE_FUNCTION GraphRuntime * tvm_runtime_create() {
   TVMContext ctx;
   ctx.device_type = device_type;
   ctx.device_id = device_id;
-  GraphRuntime * runtime = TVMGraphRuntimeCreate(json_data, 0, &ctx);
+  TVMGraphRuntime * runtime = TVMGraphRuntimeCreate(json_data, 0, &ctx);
 
   runtime->LoadParams(runtime, params.data, params.size);
 
   return runtime;
 }
 
-TVM_BUNDLE_FUNCTION void tvm_runtime_destroy(GraphRuntime * runtime) {
+TVM_DLL void tvm_runtime_destroy(TVMGraphRuntime * runtime) {
   TVMGraphRuntimeRelease(&runtime);
 }
 
-TVM_BUNDLE_FUNCTION void tvm_runtime_set_input(GraphRuntime * runtime, const char * name,
+TVM_DLL void tvm_runtime_set_input(TVMGraphRuntime * runtime, const char * name,
                                                DLTensor * tensor) {
   runtime->SetInput(runtime, "data", tensor);
 }
 
-TVM_BUNDLE_FUNCTION void tvm_runtime_run(GraphRuntime * runtime) {
+TVM_DLL void tvm_runtime_run(TVMGraphRuntime * runtime) {
   runtime->Run(runtime);
 }
 
-TVM_BUNDLE_FUNCTION void tvm_runtime_get_output(GraphRuntime * runtime, int32_t index,
+TVM_DLL void tvm_runtime_get_output(TVMGraphRuntime * runtime, int32_t index,
                                                 DLTensor * tensor) {
   runtime->GetOutput(runtime, index, tensor);
 }

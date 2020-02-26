@@ -27,13 +27,13 @@
 #include <string.h>
 #include <tvm/runtime/c_runtime_api.h>
 
-struct packed_func_t;
-typedef struct packed_func_t PackedFunc;
+struct TVMPackedFunc;
+typedef struct TVMPackedFunc TVMPackedFunc;
 
 /*!
  * \brief Module container of TVM.
  */
-typedef struct module_t {
+typedef struct TVMModule {
   /*!
    * \brief Get packed function from current module by name.
    *
@@ -43,10 +43,10 @@ typedef struct module_t {
    *  This function will return PackedFunc(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  void (*GetFunction)(const char * name, PackedFunc * pf);
-  void (*set_input)(const struct module_t * mod, const char * name, DLTensor * data);
-  void (*load_params)(const struct module_t * mod, const TVMByteArray * params_arr);
-  void (*run)(const struct module_t * mod);
-} Module;
+  void (*GetFunction)(const char * name, TVMPackedFunc * pf);
+  void (*set_input)(const struct TVMModule * mod, const char * name, DLTensor * data);
+  void (*load_params)(const struct TVMModule * mod, const TVMByteArray * params_arr);
+  void (*run)(const struct TVMModule * mod);
+} TVMModule;
 
 #endif  // TVM_RUNTIME_CRT_MODULE_H_

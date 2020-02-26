@@ -28,13 +28,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include "module.h"
-
-// Whether use TVM runtime in header only mode.
-#ifndef TVM_RUNTIME_HEADER_ONLY
-#define TVM_RUNTIME_HEADER_ONLY 0
-#endif
 
 static inline DLDataType String2DLDataType(const char * s) {
   DLDataType t;
@@ -77,7 +73,7 @@ static inline DLDataType String2DLDataType(const char * s) {
   return t;
 }
 
-typedef struct tvm_args_t {
+typedef struct TVMArgs {
   TVMValue values[TVM_CRT_MAX_ARGS];
   uint32_t tcodes[TVM_CRT_MAX_ARGS];
   uint32_t values_count;
@@ -100,34 +96,35 @@ static inline int TVMNoOperation(TVMValue * args, int * type_codes, int num_args
   return 0;
 }
 
-typedef struct packed_func_t {
+typedef struct TVMPackedFunc {
   char name[200];
   TVMPackedCFunc fexec;
   TVMArgs args;
-  void (*Call)(struct packed_func_t * pf);
-  void (*SetArgs)(struct packed_func_t * pf, const struct tvm_args_t * args);
-} PackedFunc;
+  void (*Call)(struct TVMPackedFunc * pf);
+  void (*SetArgs)(struct TVMPackedFunc * pf, const struct TVMArgs * args);
+} TVMPackedFunc;
 
-static inline void PackedFunc_Call(PackedFunc * pf) {
+static inline void TVMPackedFunc_Call(TVMPackedFunc * pf) {
   pf->fexec(pf->args.values, pf->args.tcodes, pf->args.values_count, 0, 0);
 }
 
-static inline void PackedFunc_SetArgs(PackedFunc * pf, const TVMArgs * args) {
+static inline void TVMPackedFunc_SetArgs(TVMPackedFunc * pf, const TVMArgs * args) {
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
 
-PackedFunc fexecs[GRAPH_RUNTIME_MAX_NODES];
+TVMPackedFunc fexecs[GRAPH_RUNTIME_MAX_NODES];
 
-void PackedFunc_SetupExecs();
+void TVMPackedFunc_SetupExecs();
 
-// Implement Module::GetFunction
-// Put implementation in this file so we have seen the PackedFunc
-static inline void Module_GetFunction(const char * name, PackedFunc * pf) {
+// Implement TVMModule::GetFunction
+// Put implementation in this file so we have seen the TVMPackedFunc
+static inline void TVMModule_GetFunction(const char * name, TVMPackedFunc * pf) {
   int idx;
-  memset(pf, 0, sizeof(PackedFunc));
+  memset(pf, 0, sizeof(TVMPackedFunc));
+  assert(strlen(name) <= sizeof(pf->name));
   snprintf(pf->name, strlen(name), "%s", name);
-  pf->Call = PackedFunc_Call;
-  pf->SetArgs = PackedFunc_SetArgs;
+  pf->Call = TVMPackedFunc_Call;
+  pf->SetArgs = TVMPackedFunc_SetArgs;
   pf->fexec = &TVMNoOperation;
   for (idx = 0; idx < GRAPH_RUNTIME_MAX_NODES; idx++) {
     if (!strcmp(fexecs[idx].name, name)) {
