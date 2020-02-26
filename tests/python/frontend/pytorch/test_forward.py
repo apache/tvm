@@ -709,6 +709,10 @@ def test_mnasnet0_5():
     torch.set_grad_enabled(False)
     verify_model("mnasnet0_5")
 
+def test_mobilenet_v2():
+    torch.set_grad_enabled(False)
+    verify_model("mobilenet_v2")
+
 """
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
 def test_alexnet():
@@ -722,12 +726,8 @@ def test_vgg11():
 def test_vgg11_bn():
     torch.set_grad_enabled(False)
     verify_model("vgg11_bn")
-
-#TODO: Need to update schedule in tophub file after PR #4787 updated workloads
-def test_mobilenet_v2():
-    torch.set_grad_enabled(False)
-    verify_model("mobilenet_v2")
 """
+
 
 if __name__ == "__main__":
     # Single operator tests
@@ -768,3 +768,4 @@ if __name__ == "__main__":
     test_inception_v3()
     test_googlenet()
     test_mnasnet0_5()
+    test_mobilenet_v2()
