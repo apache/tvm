@@ -759,8 +759,8 @@ def get_output_names(node):
     return [output.debugName() for output in node.outputs()]
 
 
-def get_input_names(node):
-    return [inp.debugName() for inp in node.inputs()]
+def get_input_names(node_or_graph):
+    return [inp.debugName() for inp in node_or_graph.inputs()]
 
 
 def get_op_inputs(op_node, outputs, output_index_map):
@@ -781,7 +781,7 @@ def get_all_op_names(graph):
 
 
 def report_missing_conversion(op_names):
-    """Check if all ops in an input graph are supported by TVM"""
+    """ Check if all ops in an input graph are supported by TVM """
     known_ops = ["prim::Constant", "prim::GetAttr",
                  "prim::ListConstruct", "prim::ListUnpack",
                  "prim::TupleConstruct", "prim::TupleUnpack"]
@@ -828,7 +828,7 @@ def get_use_chains(root_node, terminate=lambda _: False):
 
 
 def get_attr_chains(root_getattr_node):
-    """Returns chains of attribute access starting from root_getattr_node
+    """ Returns chains of attribute access starting from root_getattr_node
 
     For example, given attribute "block", as in "self.block" when "self" points
     to the top level torch.nn.Module, it returns lists of attribute "chains",
@@ -847,7 +847,7 @@ def get_attr_chains(root_getattr_node):
 
 
 def get_input_types(op_node):
-    """Returns a torch type for each input nodes"""
+    """ Returns a torch type for each input nodes """
     input_list_types = []
     for input_node in op_node.inputs():
         in_ty = input_node.type()
@@ -875,7 +875,7 @@ def get_input_types(op_node):
 
 
 def get_constant(node):
-    """ Retrive a constant associated with this prim::Constant node"""
+    """ Retrive a constant associated with this prim::Constant node """
     attribute_names = node.attributeNames()
     num_attributes = len(attribute_names)
 
@@ -904,12 +904,11 @@ def get_constant(node):
 
 
 def parse_inputs(graph_inputs, input_shapes):
-    """ Return Relay vars from torch input vars"""
+    """ Return Relay vars from torch input vars """
     ir_inputs = list(graph_inputs)
     input_vars = {}
 
     for input_name, ir_input in zip(input_shapes, ir_inputs[1:]):
-        ir_input.setDebugName(input_name)
         input_vars[input_name] = _expr.var(input_name,
                                            shape=input_shapes[input_name])
     return input_vars
@@ -961,6 +960,14 @@ def parse_ops(nodes):
     return ops
 
 
+def get_graph_input_names(script_module):
+    """ Use this function to set the keys for input_shapes"""
+    # It seems variable names could change the first time a copy is made
+    # Use the copy of the graph here to prevent troubles later
+    ir_inputs = get_input_names(script_module.graph.copy())
+    return ir_inputs[1:]  # remove self at the 0th arg
+
+
 def from_pytorch(script_module, input_shapes):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
@@ -971,8 +978,9 @@ def from_pytorch(script_module, input_shapes):
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    shape : Dictionary of input dimensions
+    input_shape : Dictionary of input dimensions
         Graph level input shape dictionary
+        The keys should be the same one returned by get_graph_input_names(...) above
 
     Returns
     -------
@@ -980,7 +988,7 @@ def from_pytorch(script_module, input_shapes):
         The module that optimizations will be performed on.
 
     params : dict of str to tvm.runtime.NDArray
-        Dict of converted parameters stored in tvm.ndarray format
+        Dict of converted parameters stored in tvm.runtime.ndarray format
     """
     graph = script_module.graph.copy()
     run_jit_passes(graph)

@@ -31,6 +31,8 @@ import torchvision
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
+from tvm.relay.frontend.pytorch import get_graph_input_names
+
 
 sys.setrecursionlimit(10000)
 
@@ -168,16 +170,15 @@ def verify_model(model_name, input_data=[]):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
         baseline_outputs = (baseline_outputs.float().cpu().numpy(),)
-    output_shapes = [out.shape for out in baseline_outputs]
-    dtype = "float32"
-    input_name = "input0"
-    input_shapes = {input_name: list(baseline_input.shape)}
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
+
     if torch.cuda.is_available():
         trace = trace.cuda()
     else:
         trace = trace.cpu()
 
+    input_name = get_graph_input_names(trace)[0]  # only one input
+    input_shapes = {input_name: list(baseline_input.shape)}
     mod, params = relay.frontend.from_pytorch(trace, input_shapes)
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
