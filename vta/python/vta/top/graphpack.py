@@ -60,6 +60,7 @@ def _unpack_batch_channel(data, old_shape):
 def _const_shape_match(data, dshape, cfactor_out):
     """ Pad the constant if the shape[0] not divisible by cfactor_out.
     """
+    assert len(dshape) == 3
     pad_width = int(dshape[0]) % cfactor_out
     if pad_width != 0:
         pad_width = cfactor_out -pad_width
@@ -70,6 +71,7 @@ def _const_shape_match(data, dshape, cfactor_out):
 def _weight_shape_match(data, dshape, channels, cfactor_out, transpose=False):
     """ Pad the weight if the shape[0] not divisible by cfactor_out.
     """
+    assert len(dshape) == 4
     pad_width = int(dshape[0]) % cfactor_out
     channels_pad = int(channels) % cfactor_out
     if pad_width != 0:
@@ -85,6 +87,7 @@ def _weight_shape_match(data, dshape, channels, cfactor_out, transpose=False):
 def _weight_shape_match_transpose(data, dshape, channels, cfactor_out):
     """ Pad the weight if the shape[1] not divisible by cfactor_out.
     """
+    assert len(dshape) == 4
     pad_width = int(dshape[1]) % cfactor_out
     channels_pad = int(channels) % cfactor_out
     if pad_width != 0:

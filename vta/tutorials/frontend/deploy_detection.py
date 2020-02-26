@@ -38,7 +38,7 @@ tensorization in the core) to massage the compute graph for the hardware target.
 #
 # YOLO-V3-tiny Model with Darknet parsing have dependancy with CFFI and CV2 library,
 # we need to install CFFI and CV2 before executing this script.
-# 
+#
 # pip3 install "Pillow<7"
 #
 # pip3 install cffi
@@ -51,24 +51,17 @@ from __future__ import absolute_import, print_function
 import sys
 import os
 import time
+import matplotlib.pyplot as plt
+import numpy as np
 import tvm
 import vta
-import numpy as np
-import matplotlib.pyplot as plt
-import tvm.relay.testing.yolo_detection
-import tvm.relay.testing.darknet
-
-from ctypes import *
-from tvm import relay
-from tvm.contrib import graph_runtime
-from tvm.contrib.download import download_testdata
-from tvm.contrib import graph_runtime, util
+from tvm import rpc, autotvm, relay
+from tvm.relay.testing import yolo_detection, darknet
 from tvm.relay.testing.darknet import __darknetffi__
-
-
+from tvm.contrib import graph_runtime, graph_runtime, util
+from tvm.contrib.download import download_testdata
 from vta.testing import simulator
 from vta.top import graph_pack
-from tvm import rpc, autotvm, relay
 # Make sure that TVM was compiled with RPC=1
 assert tvm.runtime.enabled("rpc")
 
@@ -79,23 +72,23 @@ assert tvm.runtime.enabled("rpc")
 MODEL_NAME = 'yolov3-tiny'
 REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
 
-cfg_path = download_testdata('https://github.com/pjreddie/darknet/blob/master/cfg/' 
-                             + MODEL_NAME + '.cfg' + '?raw=true', 
-                             MODEL_NAME + '.cfg', 
+cfg_path = download_testdata('https://github.com/pjreddie/darknet/blob/master/cfg/'
+                             + MODEL_NAME + '.cfg' + '?raw=true',
+                             MODEL_NAME + '.cfg',
                              module="darknet")
-weights_path = download_testdata('https://pjreddie.com/media/files/' 
-                                 + MODEL_NAME + '.weights' + '?raw=true', 
-                                 MODEL_NAME + '.weights', 
+weights_path = download_testdata('https://pjreddie.com/media/files/'
+                                 + MODEL_NAME + '.weights' + '?raw=true',
+                                 MODEL_NAME + '.weights',
                                  module="darknet")
 
 if sys.platform in ['linux', 'linux2']:
-    darknet_lib_path = download_testdata(REPO_URL + 'lib/' + 'libdarknet2.0.so' + '?raw=true', 
-                                 'libdarknet2.0.so', 
-                                 module="darknet")
+    darknet_lib_path = download_testdata(REPO_URL + 'lib/' + 'libdarknet2.0.so' + '?raw=true',
+                                         'libdarknet2.0.so',
+                                         module="darknet")
 elif sys.platform == 'darwin':
-    darknet_lib_path = download_testdata(REPO_URL + 'lib_osx/' + 'libdarknet_mac2.0.so' + '?raw=true', 
-                                 'libdarknet_mac2.0.so', 
-                                 module="darknet")
+    darknet_lib_path = download_testdata(REPO_URL+'lib_osx/'+'libdarknet_mac2.0.so'+'?raw=true',
+                                         'libdarknet_mac2.0.so',
+                                         module="darknet")
 else:
     raise NotImplementedError("Darknet lib is not supported on {} platform"
                               .format(sys.platform))
@@ -103,11 +96,11 @@ else:
 ##################################################
 # Download yolo categories and illustration front.
 # ------------------------------------------------
-coco_path = download_testdata(REPO_URL + 'data/' + 'coco.names' + '?raw=true', 
+coco_path = download_testdata(REPO_URL + 'data/' + 'coco.names' + '?raw=true',
                               'coco.names',
                               module='data')
-font_path = download_testdata(REPO_URL + 'data/' + 'arial.ttf' + '?raw=true', 
-                              'arial.ttf', 
+font_path = download_testdata(REPO_URL + 'data/' + 'arial.ttf' + '?raw=true',
+                              'arial.ttf',
                               module='data')
 with open(coco_path) as f:
     content = f.readlines()
@@ -124,7 +117,7 @@ env = vta.get_env()
 # or ``device=vta`` to run inference on the FPGA.
 device = "vta"
 target = env.target if device == "vta" else env.target_vta_cpu
-    
+
 pack_dict = {
     "yolov3-tiny": ["nn.max_pool2d", "cast", 4, 185],
 }
@@ -133,7 +126,7 @@ pack_dict = {
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
-# the number 4 indicate the the ``start_pack`` index is 4, the 
+# the number 4 indicate the the ``start_pack`` index is 4, the
 # number 185 indicate the ``stop_pack index`` is 185, by using
 # name and index number, here we can located to correct place
 # where to start/end when there are multiple ``nn.max_pool2d``
@@ -161,7 +154,10 @@ if env.TARGET not in ["sim", "tsim"]:
     if not tracker_host or not tracker_port:
         remote = rpc.connect(device_host, int(device_port))
     else:
-        remote = autotvm.measure.request_remote(env.TARGET, tracker_host, int(tracker_port), timeout=10000)
+        remote = autotvm.measure.request_remote(env.TARGET,
+                                                tracker_host,
+                                                int(tracker_port),
+                                                timeout=10000)
     # Reconfigure the JIT runtime and FPGA.
     # You can program the FPGA with your own custom bitstream
     # by passing the path to the bitstream file instead of None.
@@ -174,7 +170,7 @@ if env.TARGET not in ["sim", "tsim"]:
 # In simulation mode, host the RPC server locally.
 else:
     remote = rpc.LocalSession()
-    
+
 # Get execution context from remote
 ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
@@ -196,29 +192,26 @@ ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
 
 # Load pre-configured AutoTVM schedules
 with autotvm.tophub.context(target):
-    
-    dpass = {"AlterOpLayout"}
-
-    net = __darknetffi__.dlopen(darknet_lib_path).load_network(cfg_path.encode('utf-8'), 
-                                                   weights_path.encode('utf-8'),
-                                                   0)
+    net = __darknetffi__.dlopen(darknet_lib_path).load_network(cfg_path.encode('utf-8'),
+                                                               weights_path.encode('utf-8'),
+                                                               0)
     dshape = (env.BATCH, net.c, net.h, net.w)
     dtype = 'float32'
-    
+
     # Measure build start time
     build_start = time.time()
-    
+
     # Start front end compilation
     mod, params = relay.frontend.from_darknet(net, dtype=dtype, shape=dshape)
 
     if target.device_name == "vta":
     # Perform quantization in Relay
     # Note: We set opt_level to 3 in order to fold batch norm
-        with relay.build_config(opt_level=3,disabled_pass=dpass):
+        with relay.build_config(opt_level=3):
             with relay.quantize.qconfig(global_scale=33.0,
-                                    skip_conv_layers=[0],
-                                     store_lowbit_output=True,
-                                     round_for_shift = True):
+                                        skip_conv_layers=[0],
+                                        store_lowbit_output=True,
+                                        round_for_shift=True):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
             mod = graph_pack(
@@ -232,19 +225,19 @@ with autotvm.tophub.context(target):
                 stop_name_idx=pack_dict[MODEL_NAME][3])
     else:
         mod = mod["main"]
-        
+
     # Compile Relay program with AlterOpLayout disabled
-    with vta.build_config(disabled_pass=dpass):
+    with vta.build_config(disabled_pass={"AlterOpLayout"}):
         graph, lib, params = relay.build(
-            mod, 
+            mod,
             target=target,
-            params=params, 
+            params=params,
             target_host=env.target_host)
-        
+
     # Measure Relay build time
     build_time = time.time() - build_start
     print(MODEL_NAME + " inference graph built in {0:.2f}s!".format(build_time))
-    
+
     # Send the inference library over to the remote RPC server
     temp = util.tempdir()
     lib.save(temp.relpath("graphlib.o"))
@@ -257,13 +250,13 @@ with autotvm.tophub.context(target):
 ####################################
 # Perform image detection inference.
 # ----------------------------------
-# We run detect on an downloaded image 
+# We run detect on an downloaded image
 # Download test image
 [neth, netw] = dshape[2:]
 test_image = 'person.jpg'
 img_url = REPO_URL + 'data/' + test_image + '?raw=true'
 img_path = download_testdata(img_url, test_image, "data")
-data = tvm.relay.testing.darknet.load_image(img_path, neth, netw).transpose(1, 2, 0)
+data = darknet.load_image(img_path, neth, netw).transpose(1, 2, 0)
 
 # Prepare test image for inference
 plt.imshow(data)
@@ -318,15 +311,20 @@ for i in range(2):
     thresh = 0.560
 
 # Show detection results
-img = tvm.relay.testing.darknet.load_image_color(img_path)
+img = darknet.load_image_color(img_path)
 _, im_h, im_w = img.shape
-dets = tvm.relay.testing.yolo_detection.fill_network_boxes((netw, neth), 
-                                                           (im_w, im_h), 
-                                                           thresh, 
-                                                           1, 
-                                                           tvm_out)
+dets = yolo_detection.fill_network_boxes((netw, neth),
+                                         (im_w, im_h),
+                                         thresh,
+                                         1,
+                                         tvm_out)
 last_layer = net.layers[net.n - 1]
-tvm.relay.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
-tvm.relay.testing.yolo_detection.draw_detections(font_path, img, dets, thresh, names, last_layer.classes)
+yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
+yolo_detection.draw_detections(font_path,
+                               img,
+                               dets,
+                               thresh,
+                               names,
+                               last_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()
