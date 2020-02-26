@@ -25,6 +25,9 @@
 #include <random>
 #include <vector>
 
+#include "build/graph.json.c"
+#include "build/params.bin.c"
+
 template <typename F> auto getFunc(void *bundle, const char *name) {
   dlerror();
   auto *f =
@@ -38,7 +41,12 @@ int main(int argc, char **argv) {
   auto *bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
   assert(bundle);
 
-  auto *handle = getFunc<void *()>(bundle, "tvm_runtime_create")();
+  char * json_data = reinterpret_cast<char*>(build_graph_json);
+  char * params_data = reinterpret_cast<char*>(build_params_bin);
+  uint64_t params_size = build_params_bin_len;
+
+  auto *handle = getFunc<void *(char*, char*, int)>(bundle, "tvm_runtime_create")(
+      json_data, params_data, params_size);
 
   float input_storage[1 * 3 * 224 * 224];
   FILE * fp = fopen(argv[2], "rb");

@@ -24,15 +24,15 @@ extern unsigned int build_graph_json_len;
 extern unsigned char build_params_bin[];
 extern unsigned int build_params_bin_len;
 
-TVM_DLL TVMGraphRuntime * tvm_runtime_create() {
-  char * json_data = build_graph_json;
-
-  int device_type = kDLCPU;
-  int device_id = 0;
+TVM_DLL TVMGraphRuntime * tvm_runtime_create(const char * json_data,
+                                             const char * params_data,
+                                             const uint64_t params_size) {
+  int64_t device_type = kDLCPU;
+  int64_t device_id = 0;
 
   TVMByteArray params;
-  params.data = build_params_bin;
-  params.size = build_params_bin_len;
+  params.data = params_data;
+  params.size = params_size;
 
   TVMContext ctx;
   ctx.device_type = device_type;
@@ -49,7 +49,7 @@ TVM_DLL void tvm_runtime_destroy(TVMGraphRuntime * runtime) {
 }
 
 TVM_DLL void tvm_runtime_set_input(TVMGraphRuntime * runtime, const char * name,
-                                               DLTensor * tensor) {
+                                   DLTensor * tensor) {
   runtime->SetInput(runtime, "data", tensor);
 }
 
@@ -58,7 +58,7 @@ TVM_DLL void tvm_runtime_run(TVMGraphRuntime * runtime) {
 }
 
 TVM_DLL void tvm_runtime_get_output(TVMGraphRuntime * runtime, int32_t index,
-                                                DLTensor * tensor) {
+                                    DLTensor * tensor) {
   runtime->GetOutput(runtime, index, tensor);
 }
 
