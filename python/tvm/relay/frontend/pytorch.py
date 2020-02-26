@@ -734,19 +734,13 @@ _convert_map = {
 }
 
 
+def run_jit_passes(graph):
+    if version.parse(torch.__version__) >= version.parse("1.4.0"):
+        torch._C._jit_pass_inline(graph)
+
+
 def is_int_seq(seq):
     return len(seq) > 0 and all([isinstance(i, int) for i in seq])
-
-
-def parse_inputs(graph_inputs, input_shapes):
-    ir_inputs = list(graph_inputs)
-    input_vars = {}
-
-    for input_name, ir_input in zip(input_shapes, ir_inputs[1:]):
-        ir_input.setDebugName(input_name)
-        input_vars[input_name] = _expr.var(input_name,
-                                           shape=input_shapes[input_name])
-    return input_vars
 
 
 def get_tensor_and_var(torch_tensor, name):
@@ -768,11 +762,46 @@ def get_input_names(node):
     return [inp.debugName() for inp in node.inputs()]
 
 
+def get_op_inputs(op_node, outputs, output_index_map):
+    input_names = [output_index_map[name]
+                   for name in get_input_names(op_node)]
+    return [outputs[name] for name in input_names]
+
+
+def update_outputs_from_pairs(name_output_pairs, outputs, output_index_map):
+    for output_name, output in name_output_pairs:
+        output_index_map[output_name] = len(outputs)
+        outputs.append(output)
+
+
+def get_all_op_names(graph):
+    nodes = list(graph.nodes())
+    return set([node.kind() for node in nodes])
+
+
+def report_missing_conversion(op_names):
+    known_ops = ["prim::Constant", "prim::GetAttr",
+                 "prim::ListConstruct", "prim::ListUnpack",
+                 "prim::TupleConstruct", "prim::TupleUnpack"]
+    known_ops += list(_convert_map.keys())
+
+    missing = [op_name for op_name in op_names
+               if op_name not in known_ops]
+
+    if missing:
+        msg = "The following operators are not implemented: {}".format(missing)
+        raise NotImplementedError(msg)
+
+
 def getattr_attr_name(node):
     attribute_names = node.attributeNames()
     assert(len(attribute_names) == 1)
     attr_name = node.s(attribute_names[0])
     return attr_name
+
+
+def get_full_attr_name(getattrs):
+    return ".".join([getattr_attr_name(node) for node in getattrs])
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -809,36 +838,6 @@ def get_attr_chains(root_getattr_node):
         return len(next_attrs) == 0
 
     return get_use_chains(root_getattr_node, terminate)
-
-
-def get_full_attr_name(getattrs):
-    return ".".join([getattr_attr_name(node) for node in getattrs])
-
-
-def parse_params(graph, state_dict):
-    getattr_nodes = graph.findAllNodes("prim::GetAttr", recurse=True)
-    params = {}
-    param_tensors = {}
-    seen = set()
-
-    for node in getattr_nodes:
-        if get_output_name(node) in seen:
-            continue
-
-        for getattrs in get_attr_chains(node):
-            seen.update(map(get_output_name, getattrs))
-
-            full_attr = get_full_attr_name(getattrs)
-            full_attr_node_name = get_output_name(getattrs[-1])
-
-            if full_attr in state_dict:
-                torch_tensor = state_dict[full_attr]
-                tensor, var = get_tensor_and_var(torch_tensor,
-                                                 full_attr_node_name)
-                param_tensors[full_attr_node_name] = tensor
-                params[full_attr_node_name] = var
-
-    return params, param_tensors
 
 
 def get_input_types(op_node):
@@ -896,6 +895,43 @@ def get_constant(node):
         return None
 
 
+def parse_inputs(graph_inputs, input_shapes):
+    ir_inputs = list(graph_inputs)
+    input_vars = {}
+
+    for input_name, ir_input in zip(input_shapes, ir_inputs[1:]):
+        ir_input.setDebugName(input_name)
+        input_vars[input_name] = _expr.var(input_name,
+                                           shape=input_shapes[input_name])
+    return input_vars
+
+
+def parse_params(graph, state_dict):
+    getattr_nodes = graph.findAllNodes("prim::GetAttr", recurse=True)
+    params = {}
+    param_tensors = {}
+    seen = set()
+
+    for node in getattr_nodes:
+        if get_output_name(node) in seen:
+            continue
+
+        for getattrs in get_attr_chains(node):
+            seen.update(map(get_output_name, getattrs))
+
+            full_attr = get_full_attr_name(getattrs)
+            full_attr_node_name = get_output_name(getattrs[-1])
+
+            if full_attr in state_dict:
+                torch_tensor = state_dict[full_attr]
+                tensor, var = get_tensor_and_var(torch_tensor,
+                                                 full_attr_node_name)
+                param_tensors[full_attr_node_name] = tensor
+                params[full_attr_node_name] = var
+
+    return params, param_tensors
+
+
 def parse_ops(nodes):
     ops = {}
     # Traverse nodes and add to graph
@@ -909,45 +945,6 @@ def parse_ops(nodes):
             ops[node_name] = node
 
     return ops
-
-
-def get_input_node_names(op_node, output_index_map):
-    return [output_index_map[name] for name in get_input_names(op_node)]
-
-
-def get_op_inputs(op_node, outputs, output_index_map):
-    input_names = get_input_node_names(op_node, output_index_map)
-    return [outputs[name] for name in input_names]
-
-
-def run_jit_passes(graph):
-    if version.parse(torch.__version__) >= version.parse("1.4.0"):
-        torch._C._jit_pass_inline(graph)
-
-
-def update_outputs_from_pairs(name_output_pairs, outputs, output_index_map):
-    for output_name, output in name_output_pairs:
-        output_index_map[output_name] = len(outputs)
-        outputs.append(output)
-
-
-def get_all_op_names(graph):
-    nodes = list(graph.nodes())
-    return set([node.kind() for node in nodes])
-
-
-def report_missing_conversion(graph):
-    known_ops = ["prim::Constant", "prim::GetAttr",
-                 "prim::ListConstruct", "prim::ListUnpack",
-                 "prim::TupleConstruct", "prim::TupleUnpack"]
-    known_ops += list(_convert_map.keys())
-
-    missing = [op_name for op_name in get_all_op_names(graph)
-               if op_name not in known_ops]
-
-    if missing:
-        msg = "The following operators are not implemented: {}".format(missing)
-        raise NotImplementedError(msg)
 
 
 def from_pytorch(script_module, input_shapes):
@@ -973,7 +970,8 @@ def from_pytorch(script_module, input_shapes):
     """
     graph = script_module.graph.copy()
     run_jit_passes(graph)
-    report_missing_conversion(graph)
+    op_names = get_all_op_names(graph)
+    report_missing_conversion(op_names)
 
     params = script_module.state_dict()
     input_vars = parse_inputs(graph.inputs(), input_shapes)
