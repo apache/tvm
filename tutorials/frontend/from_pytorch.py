@@ -91,7 +91,7 @@ img = np.expand_dims(img, 0)
 # Import the graph to Relay
 # -------------------------
 # Convert PyTorch graph to Relay graph.
-shape_dict = {'input0': img.shape}
+shape_dict = {'img': img.shape}
 mod, params = relay.frontend.from_pytorch(scripted_model,
                                           shape_dict)
 
@@ -116,7 +116,7 @@ from tvm.contrib import graph_runtime
 dtype = 'float32'
 m = graph_runtime.create(graph, lib, ctx)
 # Set inputs
-m.set_input('input0', tvm.nd.array(img.astype(dtype)))
+m.set_input('img', tvm.nd.array(img.astype(dtype)))
 m.set_input(**params)
 # Execute
 m.run()
