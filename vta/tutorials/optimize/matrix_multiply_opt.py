@@ -23,7 +23,7 @@ Matrix Multiply Blocking
 
 This tutorial provides an overview on how to use TVM to map matrix
 multiplication efficiently on the VTA design.
-We recommend covering the :ref:`vta-basic-mat-mult` tutorial first.
+We recommend covering the :ref:`basic-mat-mult` tutorial first.
 
 In this tutorial, we will demonstrate TVM schedule optimizations to break large
 neural network operators down onto smaller blocks to achieve computation within

@@ -21,7 +21,7 @@ Intrinsics and Math Functions
 
 While TVM supports basic arithmetic operations. In many cases
 usually we will need more complicated builtin functions.
-For example :code:`exp` to take the exponetial of the function.
+For example :code:`exp` to take the exponential of the function.
 
 These functions are target system dependent and may have different
 names of different target platforms. In this tutorial, we will learn
@@ -94,6 +94,8 @@ print(fopencl.imported_modules[0].get_source())
 # TVM also allows user to customize the rules during runtime.
 # The following example customizes CUDA lowering rule for :code:`exp`.
 #
+
+
 def my_cuda_math_rule(op):
     """Customized CUDA intrinsic lowering rule"""
     assert isinstance(op, tvm.tir.Call)
@@ -106,6 +108,8 @@ def my_cuda_math_rule(op):
     else:
         # cannot do translation, return self.
         return op
+
+
 tvm.target.register_intrin_rule("cuda", "exp", my_cuda_math_rule, override=True)
 ######################################################################
 # Register the rule to TVM with override option to override existing rule.
@@ -123,9 +127,12 @@ print(fcuda.imported_modules[0].get_source())
 # User can easily add new intrinsic by using the intrinsic rule system.
 # The following example add an intrinsic :code:`mylog` to the system.
 #
+
+
 def mylog(x):
     """customized log intrinsic function"""
     return tvm.call_pure_intrin(x.dtype, "mylog", x)
+
 
 def my_cuda_mylog_rule(op):
     """CUDA lowering rule for log"""
@@ -135,6 +142,8 @@ def my_cuda_mylog_rule(op):
         return tvm.call_pure_extern("float64", "log", op.args[0])
     else:
         return op
+
+
 tvm.target.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)
 
 n = tvm.var("n")
