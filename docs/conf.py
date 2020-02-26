@@ -238,10 +238,11 @@ def setup(app):
 sphinx_gallery_conf = {
     'backreferences_dir': 'gen_modules/backreferences',
     'doc_module': ('tvm', 'numpy'),
-'reference_url': {
-    'tvm': None,
-    'matplotlib': 'https://matplotlib.org/',
-    'numpy': 'https://docs.scipy.org/doc/numpy/'},
+    'reference_url': {
+        'tvm': None,
+        'matplotlib': 'https://matplotlib.org/',
+        'numpy': 'https://docs.scipy.org/doc/numpy/'
+    },
     'examples_dirs': examples_dirs,
     'gallery_dirs': gallery_dirs,
     'subsection_order': subsection_order,
