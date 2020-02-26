@@ -24,9 +24,7 @@ This is an introduction about using TEDD to visualize tensor expressions.
 Tensor Expressions are scheduled with primitives.  Although individual
 primitives are usually easy to understand, they become complicated quickly
 when you put them together. We have introduced an operational model of
-schedule primitives in Tensor Expression in this document
-(https://docs.google.com/document/d/1nmz00_n4Ju-SpYN0QFl3abTHTlR_P0dRyo5zsWC0Q1k/edit?usp=sharing)
-to make it easier to understand
+schedule primitives in Tensor Expression.
 
 * the interactions between different schedule primitives,
 * the impact of the schedule primitives on the final code generation.
@@ -84,7 +82,6 @@ tedd.viz_dataflow_graph(s, dot_file_path = '/tmp/dfg.dot')
 ######################################################################
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_dfg.png
 #      :align: center
-#      :scale: 100%
 #
 # The first one is a dataflow graph.  Every node represents a stage with name and memory
 # scope shown in the middle and inputs/outputs information on the sides.
@@ -109,7 +106,6 @@ tedd.viz_schedule_tree(s, dot_file_path = '/tmp/scheduletree2.dot')
 ######################################################################
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_st.png
 #      :align: center
-#      :scale: 100%
 #
 # Now, let us take a close look at the second schedule tree.  Every block under ROOT
 # represents a
@@ -143,7 +139,6 @@ tedd.viz_itervar_relationship_graph(s, dot_file_path = '/tmp/itervar.dot')
 ######################################################################
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tedd_itervar_rel.png
 #      :align: center
-#      :scale: 100%
 #
 # The last one is an IterVar Relationship Graph.  Every subgraph represents a
 # stage and contains IterVar nodes and transformation nodes.  For example,
