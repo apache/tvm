@@ -59,12 +59,12 @@ import torchvision
 # -------------------------------
 model_name = 'resnet18'
 model = getattr(torchvision.models, model_name)(pretrained=True)
-model = model.float().eval()
+model = model.eval()
 
 # We grab the TorchScripted model via tracing
 input_shape = [1, 3, 224, 224]
-input_data = torch.randn(input_shape).float()
-scripted_model = torch.jit.trace(model, input_data).float().eval()
+input_data = torch.randn(input_shape)
+scripted_model = torch.jit.trace(model, input_data).eval()
 
 ######################################################################
 # Load a test image
@@ -101,7 +101,6 @@ mod, params = relay.frontend.from_pytorch(scripted_model,
 # Compile the graph to llvm target with given input specification.
 target = 'llvm'
 target_host = 'llvm'
-layout = None
 ctx = tvm.cpu(0)
 with relay.build_config(opt_level=3):
     graph, lib, params = relay.build(mod,
@@ -156,8 +155,6 @@ tvm_class_key = class_id_to_key[top1_tvm]
 
 # Convert input to PyTorch variable and get PyTorch result for comparison
 torch_img = torch.from_numpy(img)
-from torch.autograd import Variable
-torch_img = Variable(torch_img).float()
 output = model(torch_img)
 
 # Get top-1 result for PyTorch
