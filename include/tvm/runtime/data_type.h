@@ -92,6 +92,10 @@ class DataType {
   bool is_float() const {
     return code() == DataType::kFloat;
   }
+  /*! \return whether type is a float16 type. */
+  bool is_float16() const {
+    return is_float() && bits() == 16;
+  }
   /*! \return whether type is an int type. */
   bool is_int() const {
     return code() == DataType::kInt;
@@ -226,7 +230,12 @@ class DataType {
 inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
-  if (dtype == DataType::Bool()) return 1;
+  if (dtype == DataType::Bool() ||
+      dtype == DataType::Int(4) ||
+      dtype == DataType::UInt(4) ||
+      dtype == DataType::Int(1)) {
+    return 1;
+  }
   CHECK_EQ(data_bits % 8, 0U)
       << "Need to load/store by multiple of bytes";
   return data_bits / 8;

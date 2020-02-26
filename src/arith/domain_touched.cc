@@ -21,13 +21,11 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
-#include <tvm/expr.h>
-#include <tvm/ir_pass.h>
-#include <tvm/ir_functor_ext.h>
-#include <tvm/top/tensor.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
+#include <tvm/te/tensor.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 
 #include <unordered_set>
 #include <unordered_map>
@@ -35,12 +33,12 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 // Find Read region of the tensor in the stmt.
 class FuncTouchedDomain final : public StmtExprVisitor {
  public:
-  FuncTouchedDomain(const top::Tensor &tensor, bool consider_calls, bool consider_provides)
+  FuncTouchedDomain(const te::Tensor &tensor, bool consider_calls, bool consider_provides)
     : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
 
   Domain Find(const Stmt& stmt) {
@@ -108,18 +106,21 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  const top::Tensor &tensor_;
+  const te::Tensor &tensor_;
   bool consider_calls_, consider_provides_;
   std::vector<std::vector<IntSet> > bounds_;
   std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
 Domain DomainTouched(Stmt stmt,
-                     const top::Tensor &tensor,
+                     const te::Tensor &tensor,
                      bool consider_calls,
                      bool consider_provides) {
   return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
 }
+
+TVM_REGISTER_GLOBAL("arith.DomainTouched")
+.set_body_typed(DomainTouched);
 
 }  // namespace arith
 }  // namespace tvm

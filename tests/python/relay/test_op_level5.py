@@ -21,14 +21,9 @@ import numpy as np
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, run_infer_type
 import topi.testing
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_resize_infer_type():
     n, c, h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
@@ -226,8 +221,6 @@ def test_get_valid_counts():
         func = relay.Function([x], z.astuple())
         func = run_infer_type(func)
         for target, ctx in ctx_list():
-            if target == 'cuda':
-                return
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
@@ -466,7 +459,7 @@ def test_proposal():
         func = relay.Function([cls_prob, bbox_pred, im_info], z)
         func = run_infer_type(func)
         for target in ['llvm', 'cuda']:
-            if not tvm.module.enabled(target):
+            if not tvm.runtime.enabled(target):
                 print("Skip test because %s is not enabled." % target)
                 continue
             ctx = tvm.context(target, 0)

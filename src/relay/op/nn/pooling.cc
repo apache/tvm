@@ -21,7 +21,7 @@
  * \file pooling.cc
  * \brief Pooling operators
  */
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
@@ -134,12 +134,9 @@ bool Pool2DRel(const Array<Type>& types,
     return false;
   }
 
-  std::vector<IndexExpr> oshape;
-  for (const auto& e : dshape) {
-    oshape.push_back(e);
-  }
+  std::vector<IndexExpr> oshape(dshape.begin(), dshape.end());
 
-  if (dshape[hidx].as<ir::AnyNode>()) {
+  if (dshape[hidx].as<tir::AnyNode>()) {
     oshape[hidx] = dshape[hidx];
   } else {
     if (param->ceil_mode) {
@@ -149,7 +146,7 @@ bool Pool2DRel(const Array<Type>& types,
       oshape[hidx] = ((dshape[hidx] + pad_h - param->pool_size[0]) / param->strides[0]) + 1;
     }
   }
-  if (dshape[widx].as<ir::AnyNode>()) {
+  if (dshape[widx].as<tir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
@@ -161,15 +158,14 @@ bool Pool2DRel(const Array<Type>& types,
   }
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
 template<typename AttrType, topi::nn::PoolType mode>
-Array<top::Tensor> Pool2DCompute(const Attrs& attrs,
-                            const Array<top::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -203,11 +199,11 @@ Array<top::Tensor> Pool2DCompute(const Attrs& attrs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<top::Tensor>{
+    return Array<te::Tensor>{
       topi::nn::pool(inputs[0], pool_size, strides, padding,
                      mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<top::Tensor>{
+    return Array<te::Tensor>{
       topi::nn::pool(inputs[0], pool_size, strides, padding,
                      mode, ceil_mode, layout.name())};
   }
@@ -327,16 +323,15 @@ bool GlobalPool2DRel(const Array<Type>& types,
   oshape.Set(widx, 1);
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
 
 template<topi::nn::PoolType mode>
-Array<top::Tensor> GlobalPool2DCompute(const Attrs& attrs,
-                                  const Array<top::Tensor>& inputs,
-                                  const Type& out_type,
-                                  const Target& target) {
+Array<te::Tensor> GlobalPool2DCompute(const Attrs& attrs,
+                                      const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
@@ -351,7 +346,7 @@ Array<top::Tensor> GlobalPool2DCompute(const Attrs& attrs,
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
     << "Pool2D only support 4-D input (e.g., NCHW)"
     << " or 5-D input (last dimension is a split of channel)";
-  return Array<top::Tensor>{
+  return Array<te::Tensor>{
     topi::nn::global_pool(inputs[0], mode, layout.name()) };
 }
 
@@ -462,15 +457,14 @@ bool AdaptivePool2DRel(const Array<Type>& types,
   oshape.Set(widx, output_width);
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
 template<topi::nn::PoolType mode>
-Array<top::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
-                                    const Array<top::Tensor>& inputs,
-                                    const Type& out_type,
-                                    const Target& target) {
+Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
+                                        const Array<te::Tensor>& inputs,
+                                        const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
@@ -500,7 +494,7 @@ Array<top::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
     output_height = output_size[0];
     output_width = output_size[1];
   }
-  return Array<top::Tensor>{
+  return Array<te::Tensor>{
     topi::nn::adaptive_pool(inputs[0], Array<IndexExpr>{ output_height, output_width },
                             mode, layout.name()) };
 }
@@ -596,8 +590,9 @@ bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType, topi::nn::PoolType mode>
-Array<top::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<top::Tensor>& inputs,
-                                const Type& out_type, const Target& target) {
+Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs,
+                                    const Array<te::Tensor>& inputs,
+                                    const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -633,10 +628,10 @@ Array<top::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<top::Tensor
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool2DAttrs*>(param)->count_include_pad;
-    return Array<top::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+    return Array<te::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
         mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<top::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
+    return Array<te::Tensor>{topi::nn::pool_grad(inputs[0], inputs[1], pool_size, strides, padding,
         mode, ceil_mode, layout.name())};
   }
 }
@@ -775,12 +770,9 @@ bool Pool1DRel(const Array<Type>& types,
     return false;
   }
 
-  std::vector<IndexExpr> oshape;
-  for (const auto& e : dshape) {
-    oshape.push_back(e);
-  }
+  std::vector<IndexExpr> oshape(dshape.begin(), dshape.end());
 
-  if (dshape[widx].as<ir::AnyNode>()) {
+  if (dshape[widx].as<tir::AnyNode>()) {
     oshape[widx] = dshape[widx];
   } else {
     if (param->ceil_mode) {
@@ -792,16 +784,15 @@ bool Pool1DRel(const Array<Type>& types,
   }
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
 
 template<typename AttrType, topi::nn::PoolType mode>
-Array<top::Tensor> Pool1DCompute(const Attrs& attrs,
-                            const Array<top::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCW("NCW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -825,11 +816,11 @@ Array<top::Tensor> Pool1DCompute(const Attrs& attrs,
 
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool1DAttrs*>(param)->count_include_pad;
-    return Array<top::Tensor>{
+    return Array<te::Tensor>{
       topi::nn::pool1d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<top::Tensor>{
+    return Array<te::Tensor>{
       topi::nn::pool1d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name())};
   }
@@ -947,56 +938,52 @@ bool Pool3DRel(const Array<Type>& types,
   const auto hidx = layout.IndexOf(LayoutAxis::Get('H'));
   const auto widx = layout.IndexOf(LayoutAxis::Get('W'));
 
-  IndexExpr pad_d, pad_h, pad_w;
+  IndexExpr pad[3];
   if (param->padding.size() == 1) {
-    pad_d = param->padding[0] * 2;
-    pad_h = param->padding[0] * 2;
-    pad_w = param->padding[0] * 2;
+    pad[0] = param->padding[0] * 2;
+    pad[1] = param->padding[0] * 2;
+    pad[2] = param->padding[0] * 2;
   } else if (param->padding.size() == 3) {
     // (front, top, left)
-    pad_d = param->padding[0] * 2;
-    pad_h = param->padding[1] * 2;
-    pad_w = param->padding[2] * 2;
+    pad[0] = param->padding[0] * 2;
+    pad[1] = param->padding[1] * 2;
+    pad[2] = param->padding[2] * 2;
   } else if (param->padding.size() == 6) {
     // (front, top, left, back, bottom, right)
-    pad_d = param->padding[0] + param->padding[3];
-    pad_h = param->padding[1] + param->padding[4];
-    pad_w = param->padding[2] + param->padding[5];
+    pad[0] = param->padding[0] + param->padding[3];
+    pad[1] = param->padding[1] + param->padding[4];
+    pad[2] = param->padding[2] + param->padding[5];
   } else {
     return false;
   }
 
-  std::vector<IndexExpr> oshape;
-  for (const auto& e : dshape) {
-    oshape.push_back(e);
-  }
+  std::vector<IndexExpr> oshape(dshape.begin(), dshape.end());
 
-  std::vector<int> idxes = {didx, hidx, widx};
+  int idxes[3] = {didx, hidx, widx};
   for (int i = 0; i < 3; i++) {
     int ii = idxes[i];
-    if (dshape[ii].as<ir::AnyNode>()) {
+    if (dshape[ii].as<tir::AnyNode>()) {
       oshape[ii] = dshape[ii];
     } else {
       if (param->ceil_mode) {
-        oshape[ii] = ((dshape[ii] + pad_d - param->pool_size[i] +
+        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i] +
                          param->strides[i] - 1) / param->strides[i]) + 1;
       } else {
-        oshape[ii] = ((dshape[ii] + pad_d - param->pool_size[i]) / param->strides[i]) + 1;
+        oshape[ii] = ((dshape[ii] + pad[i] - param->pool_size[i]) / param->strides[i]) + 1;
       }
     }
   }
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
 
 template<typename AttrType, topi::nn::PoolType mode>
-Array<top::Tensor> Pool3DCompute(const Attrs& attrs,
-                            const Array<top::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCDHW("NCDHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -1033,11 +1020,11 @@ Array<top::Tensor> Pool3DCompute(const Attrs& attrs,
   }
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool3DAttrs*>(param)->count_include_pad;
-    return Array<top::Tensor>{
+    return Array<te::Tensor>{
       topi::nn::pool3d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name(), count_include_pad)};
   } else {
-    return Array<top::Tensor>{
+    return Array<te::Tensor>{
       topi::nn::pool3d(inputs[0], pool_size, strides, padding,
                        mode, ceil_mode, layout.name())};
   }

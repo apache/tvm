@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm
 from tvm import relay
 from tvm.relay import transform
 
@@ -23,14 +24,14 @@ def test_dup_type():
     make_id = relay.Function([av], relay.Tuple([av, av]), None, [a])
     t = relay.scalar_type("float32")
     b = relay.Var("b", t)
-    mod = relay.Module.from_expr(make_id(b))
+    mod = tvm.IRModule.from_expr(make_id(b))
     mod = transform.InferType()(mod)
     inferred = mod["main"].body
     assert inferred.checked_type == relay.TupleType([t, t])
 
 
 def test_id_type():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     id_type = relay.GlobalTypeVar("id")
     a = relay.TypeVar("a")
     mod[id_type] = relay.TypeData(id_type, [a], [])

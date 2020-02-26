@@ -36,8 +36,8 @@ def test_schedule_create():
     assert T.op.axis[1] in s[T].leaf_iter_vars
 
     # save load json
-    json_str = tvm.save_json(s)
-    s_loaded = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(s)
+    s_loaded = tvm.ir.load_json(json_str)
     assert isinstance(s_loaded, tvm.schedule.Schedule)
     assert(str(s_loaded.outputs[0].body) == str(s.outputs[0].body))
 
@@ -65,7 +65,7 @@ def test_reorder():
         # must raise an error
         s[T].reorder(xi2, xi1, xi2)
         assert False
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         pass
 
 def test_split():
@@ -240,7 +240,7 @@ def test_tensor_intrin_scalar_params():
     C = tvm.compute((10,10), lambda i, j: intrin(i*i, A[i, j], i+j), name="C")
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body.body, tvm.tir.Evaluate)
     assert len(stmt.body.body.body.value.args) == 5
     assert str(stmt.body.body.body.value.args[3]) == "(i*i)"
     assert str(stmt.body.body.body.value.args[4]) == "(i + j)"

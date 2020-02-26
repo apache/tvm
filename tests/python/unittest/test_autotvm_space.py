@@ -62,6 +62,21 @@ def test_split():
     cfg.define_split('tile_c', cfg.axis(224), policy='verbose', num_outputs=3)
     assert len(cfg.space_map['tile_c']) == 84
 
+    # Count the number of non-negative integer solutions of a + b + c + d = n
+    def count4(n):
+        cnt = 0
+        for a in range(0, n + 1):
+            for b in range(0, n - a + 1):
+                cnt += n - a - b + 1
+        return cnt
+
+    # test overflow
+    n = 25
+    cfg = ConfigSpace()
+    cfg.define_split('x', cfg.axis(2**n), policy='factors', num_outputs=4)
+    # count4(25) is 3276.
+    assert len(cfg.space_map['x']) == count4(n)
+
     # test fallback
     cfg = FallbackConfigEntity()
     cfg.define_split('tile_n', cfg.axis(128), num_outputs=3)

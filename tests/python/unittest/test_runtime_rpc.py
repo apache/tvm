@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 import os
 import logging
 import time
@@ -57,7 +58,7 @@ def test_bigendian_rpc():
 
 
 def test_rpc_simple():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     @tvm.register_func("rpc.test.addone")
     def addone(x):
@@ -78,14 +79,14 @@ def test_rpc_simple():
     try:
         f3("abc")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert "abc" in str(e)
 
     f2 = client.get_function("rpc.test.strcat")
     assert f2("abc", 11) == "abc:11"
 
 def test_rpc_array():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     x = np.random.randint(0, 10, size=(3, 4))
     @tvm.register_func("rpc.test.remote_array_func")
@@ -100,7 +101,7 @@ def test_rpc_array():
     fremote(r_cpu)
 
 def test_rpc_file_exchange():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
@@ -110,7 +111,7 @@ def test_rpc_file_exchange():
     assert(rev == blob)
 
 def test_rpc_remote_module():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     server = rpc.Server("localhost")
     client = rpc.connect(server.host, server.port)
@@ -121,7 +122,7 @@ def test_rpc_remote_module():
     s = tvm.create_schedule(B.op)
 
     def check_remote(remote):
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         temp = util.tempdir()
@@ -146,10 +147,10 @@ def test_rpc_remote_module():
         runtime initializes. We leave it as an example
         on how to do rpc when we want to do linking on remote.
         """
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
-        if not tvm.module.enabled("opencl"):
+        if not tvm.runtime.enabled("opencl"):
             print("Skip because opencl is not enabled")
             return
         temp = util.tempdir()
@@ -210,7 +211,7 @@ def test_rpc_return_ndarray():
         if name == "get_arr":
             return lambda : nd
         elif name == "ref_count":
-            return lambda : tvm._api_internal._ndarray_use_count(nd)
+            return lambda : tvm.testing.ndarray_use_count(nd)
         elif name == "get_elem":
             return lambda idx: nd.asnumpy()[idx]
         elif name == "get_arr_elem":

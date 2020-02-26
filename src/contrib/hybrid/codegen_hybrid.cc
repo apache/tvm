@@ -31,7 +31,7 @@ namespace contrib {
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
-using namespace ir;
+using namespace tir;
 
 std::string dot_to_underscore(std::string s) {
   for (auto &ch : s)
@@ -288,7 +288,7 @@ void CodeGenHybrid::VisitStmt_(const LetStmtNode* op) {
 }
 
 void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == ir::attr::thread_extent) {
+  if (op->attr_key == tir::attr::thread_extent) {
     auto iter_var = op->node.as<IterVarNode>();
     CHECK(iter_var);
     binds_[iter_var->var.get()] = dot_to_underscore(iter_var->var->name_hint);
@@ -300,7 +300,7 @@ void CodeGenHybrid::VisitStmt_(const AttrStmtNode* op) {
     indent_ += tab_;
     PrintStmt(op->body);
     indent_ -= tab_;
-  } else if (op->attr_key == ir::attr::realize_scope) {
+  } else if (op->attr_key == tir::attr::realize_scope) {
     auto v = Downcast<FunctionRef>(op->node);
     alloc_storage_scope_[v] = op->value.as<StringImmNode>()->value;
     PrintStmt(op->body);

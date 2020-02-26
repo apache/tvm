@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 import numpy as np
 
 def test_get_global():
@@ -26,7 +27,7 @@ def test_get_global():
         return 10
     # get it out from global function table
     f = tvm.get_global_func("my_packed_func")
-    assert isinstance(f, tvm.Function)
+    assert isinstance(f, tvm.runtime.PackedFunc)
     y = f(*targs)
     assert y == 10
 
@@ -45,7 +46,7 @@ def test_get_callback_with_node():
 
     # get it out from global function table
     f = tvm.get_global_func("my_callback_with_node")
-    assert isinstance(f, tvm.Function)
+    assert isinstance(f, tvm.runtime.PackedFunc)
     y = f(x, f2)
     assert(y.value == 10)
 
@@ -67,7 +68,7 @@ def test_convert():
         assert(tuple(args) == targs)
 
     f = tvm.convert(myfunc)
-    assert isinstance(f, tvm.Function)
+    assert isinstance(f, tvm.runtime.PackedFunc)
 
 def test_byte_array():
     s = "hello"
@@ -93,7 +94,7 @@ def test_ctx():
     x = test_ctx_func(tvm.gpu(7))
     assert x == tvm.cpu(0)
     x = tvm.opencl(10)
-    x = tvm._api_internal._context_test(x, x.device_type, x.device_id)
+    x = tvm.testing.context_test(x, x.device_type, x.device_id)
     assert x == tvm.opencl(10)
 
 def test_trace_default_action():
@@ -282,4 +283,3 @@ if __name__ == "__main__":
     test_trace_default_action()
     test_trace_can_change_traced_value_int()
     test_trace_can_change_traced_value_float()
-

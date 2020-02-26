@@ -40,12 +40,12 @@ def test_flatten_prefetch():
     _A= tvm.decl_buffer(A.shape, A.dtype, name = 'A');
     i = tvm.size_var('i')
     j = tvm.size_var('j')
-    region = [tvm.make.range_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
-    stmt = tvm.make.Prefetch(A.op, 0, A.dtype, region)
+    region = [tvm.ir.Range.make_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
+    stmt = tvm.tir.Prefetch(A.op, 0, A.dtype, region)
     stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
     stmt = tvm.ir_pass.Simplify(stmt)
     assert stmt.extent.value == 2
-    assert isinstance(stmt.body, tvm.stmt.For)
+    assert isinstance(stmt.body, tvm.tir.For)
     assert stmt.body.extent.value == 2
 
 
@@ -89,13 +89,13 @@ def test_flatten_double_buffer():
     stmt = tvm.ir_pass.StorageFlatten(stmt, {}, 64)
     stmt = tvm.ir_pass.InjectDoubleBuffer(stmt, 2)
     stmt = tvm.ir_pass.Simplify(stmt)
-    assert isinstance(stmt.body.body, tvm.stmt.Allocate)
+    assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
     f = tvm.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
     f = tvm.ir_pass.ThreadSync(f, "shared")
     count = [0]
     def count_sync(op):
-        if isinstance(op, tvm.expr.Call) and op.name == "tvm_storage_sync":
+        if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
     tvm.ir_pass.PostOrderVisit(f.body, count_sync)
     assert count[0] == 4

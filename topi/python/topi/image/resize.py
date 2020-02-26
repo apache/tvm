@@ -18,8 +18,42 @@
 """TVM operator input resize compute."""
 from __future__ import absolute_import
 import tvm
+from topi.util import nchw_pack_layout, nchw_xc_layout
 from .. import tag
 
+def get_2d_indices(indices, layout='NCHW'):
+    """ Get 2d indices """
+    (cc, inum, ic) = (0, 0, 0)
+    if layout == 'NHWC':
+        n, y, x, c = indices
+        cc = None
+    elif layout == 'NCHW':
+        n, c, y, x = indices
+        cc = None
+    elif nchw_pack_layout(layout):
+        n, c, y, x, inum, ic = indices
+    else:
+        # else must be NCHWxc
+        assert nchw_xc_layout(layout)
+        n, c, y, x, cc = indices
+
+    return n, c, y, x, cc, inum, ic
+
+def get_2d_pixel(data, layout, boxes, image_height, image_width, n, c, y, x, cc, ib, ic):
+    """ Get 2d pixel """
+    if boxes is None:
+        y = tvm.max(tvm.min(y, image_height - 1), 0)
+        x = tvm.max(tvm.min(x, image_width - 1), 0)
+    if layout == 'NHWC':
+        return data(n, y, x, c).astype('float')
+    if layout == 'NCHW':
+        return data(n, c, y, x).astype('float')
+    if nchw_pack_layout(layout):
+        return data(n, c, y, x, ib, ic).astype('float')
+
+    # else must be NCHWxc
+    assert nchw_xc_layout(layout)
+    return data(n, c, y, x, cc).astype('float')
 
 def resize_nearest_neighbor(indices, data, image_height, image_width,
                             target_height, target_width, boxes=None,
@@ -89,29 +123,7 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
             dtype = data_dtype
         return value.astype(dtype)
 
-    def _get_indices(indices, layout='NCHW'):
-        if layout == 'NHWC':
-            n, y, x, c = indices
-            cc = None
-        elif layout == 'NCHW':
-            n, c, y, x = indices
-            cc = None
-        else:
-            n, c, y, x, cc = indices
-        return n, c, y, x, cc
-
-    def _get_pixel(data, layout, n, c, y, x, cc):
-        if boxes is None:
-            y = tvm.max(tvm.min(y, image_height - 1), 0)
-            x = tvm.max(tvm.min(x, image_width - 1), 0)
-        if layout == 'NHWC':
-            return data(n, y, x, c).astype('float')
-        if layout == 'NCHW':
-            return data(n, c, y, x).astype('float')
-        # else must be NCHWxc
-        return data(n, c, y, x, cc).astype('float')
-
-    n, c, y, x, cc = _get_indices(indices, layout)
+    n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
     if boxes is not None:
         y1, x1 = boxes(n, 0), boxes(n, 1)
@@ -146,7 +158,8 @@ def resize_nearest_neighbor(indices, data, image_height, image_width,
         closest_y_index = tvm.floor(in_y + epsilon).astype('int32')
         closest_x_index = tvm.floor(in_x + epsilon).astype('int32')
 
-    value = _get_pixel(data, layout, box_idx, c, closest_y_index, closest_x_index, cc)
+    value = get_2d_pixel(data, layout, boxes, image_height, image_width,
+                         box_idx, c, closest_y_index, closest_x_index, cc, inum, ic)
 
     if extrapolation_value is not None:
         out = tvm.if_then_else(in_y < 0,
@@ -234,29 +247,7 @@ def resize_bilinear(indices, data, image_height, image_width,
     def _lerp(A, B, t):
         return A * (1.0 - t) + B * t
 
-    def _get_indices(indices, layout='NCHW'):
-        if layout == 'NHWC':
-            n, y, x, c = indices
-            cc = None
-        elif layout == 'NCHW':
-            n, c, y, x = indices
-            cc = None
-        else:
-            n, c, y, x, cc = indices
-        return n, c, y, x, cc
-
-    def _get_pixel(data, layout, n, c, y, x, cc):
-        if boxes is None:
-            y = tvm.max(tvm.min(y, image_height - 1), 0)
-            x = tvm.max(tvm.min(x, image_width - 1), 0)
-        if layout == 'NHWC':
-            return data(n, y, x, c).astype('float')
-        if layout == 'NCHW':
-            return data(n, c, y, x).astype('float')
-        # else must be NCHWxc
-        return data(n, c, y, x, cc).astype('float')
-
-    n, c, y, x, cc = _get_indices(indices, layout=layout)
+    n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout=layout)
     box_idx = box_indices(n) if box_indices is not None else n
 
     if boxes is not None:
@@ -296,10 +287,14 @@ def resize_bilinear(indices, data, image_height, image_width,
     right_x_index = tvm.ceil(in_x).astype('int32')
     x_lerp = in_x - left_x_index
 
-    top_left = _get_pixel(data, layout, box_idx, c, top_y_index, left_x_index, cc)
-    top_right = _get_pixel(data, layout, box_idx, c, top_y_index, right_x_index, cc)
-    bottom_left = _get_pixel(data, layout, box_idx, c, bottom_y_index, left_x_index, cc)
-    bottom_right = _get_pixel(data, layout, box_idx, c, bottom_y_index, right_x_index, cc)
+    top_left = get_2d_pixel(data, layout, boxes, image_height, image_width,
+                            box_idx, c, top_y_index, left_x_index, cc, inum, ic)
+    top_right = get_2d_pixel(data, layout, boxes, image_height, image_width,
+                             box_idx, c, top_y_index, right_x_index, cc, inum, ic)
+    bottom_left = get_2d_pixel(data, layout, boxes, image_height, image_width,
+                               box_idx, c, bottom_y_index, left_x_index, cc, inum, ic)
+    bottom_right = get_2d_pixel(data, layout, boxes, image_height, image_width,
+                                box_idx, c, bottom_y_index, right_x_index, cc, inum, ic)
 
     top = _lerp(top_left, top_right, x_lerp)
     bottom = _lerp(bottom_left, bottom_right, x_lerp)
@@ -394,29 +389,7 @@ def resize_bicubic(indices, data, image_height, image_width,
             dtype = data_dtype
         return value.astype(dtype)
 
-    def _get_indices(indices, layout='NCHW'):
-        if layout == 'NHWC':
-            n, y, x, c = indices
-            cc = None
-        elif layout == 'NCHW':
-            n, c, y, x = indices
-            cc = None
-        else:
-            n, c, y, x, cc = indices
-        return n, c, y, x, cc
-
-    def _get_pixel(data, layout, n, c, y, x, cc):
-        if boxes is None:
-            y = tvm.max(tvm.min(y, image_height - 1), 0)
-            x = tvm.max(tvm.min(x, image_width - 1), 0)
-        if layout == 'NHWC':
-            return data(n, y, x, c).astype('float')
-        if layout == 'NCHW':
-            return data(n, c, y, x).astype('float')
-        # else must be NCHWxc
-        return data(n, c, y, x, cc).astype('float')
-
-    n, c, y, x, cc = _get_indices(indices, layout)
+    n, c, y, x, cc, inum, ic = get_2d_indices(indices, layout)
     box_idx = box_indices(n) if box_indices is not None else n
 
     if boxes is not None:
@@ -455,28 +428,44 @@ def resize_bicubic(indices, data, image_height, image_width,
     yfract = in_y - tvm.floor(in_y)
 
     # 1st row
-    p00 = _get_pixel(data, layout, box_idx, c, yint - 1, xint - 1, cc)
-    p10 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 0, cc)
-    p20 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 1, cc)
-    p30 = _get_pixel(data, layout, box_idx, c, yint - 1, xint + 2, cc)
+    p00 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint - 1, xint - 1, cc, inum, ic)
+    p10 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint - 1, xint + 0, cc, inum, ic)
+    p20 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint - 1, xint + 1, cc, inum, ic)
+    p30 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint - 1, xint + 2, cc, inum, ic)
 
     # 2nd row
-    p01 = _get_pixel(data, layout, box_idx, c, yint + 0, xint - 1, cc)
-    p11 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 0, cc)
-    p21 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 1, cc)
-    p31 = _get_pixel(data, layout, box_idx, c, yint + 0, xint + 2, cc)
+    p01 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 0, xint - 1, cc, inum, ic)
+    p11 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 0, xint + 0, cc, inum, ic)
+    p21 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 0, xint + 1, cc, inum, ic)
+    p31 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 0, xint + 2, cc, inum, ic)
 
     # 3rd row
-    p02 = _get_pixel(data, layout, box_idx, c, yint + 1, xint - 1, cc)
-    p12 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 0, cc)
-    p22 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 1, cc)
-    p32 = _get_pixel(data, layout, box_idx, c, yint + 1, xint + 2, cc)
+    p02 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 1, xint - 1, cc, inum, ic)
+    p12 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 1, xint + 0, cc, inum, ic)
+    p22 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 1, xint + 1, cc, inum, ic)
+    p32 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 1, xint + 2, cc, inum, ic)
 
     # 4th row
-    p03 = _get_pixel(data, layout, box_idx, c, yint + 2, xint - 1, cc)
-    p13 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 0, cc)
-    p23 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 1, cc)
-    p33 = _get_pixel(data, layout, box_idx, c, yint + 2, xint + 2, cc)
+    p03 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 2, xint - 1, cc, inum, ic)
+    p13 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 2, xint + 0, cc, inum, ic)
+    p23 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 2, xint + 1, cc, inum, ic)
+    p33 = _get_pixel(data, layout, boxes, image_height, image_width,
+                     box_idx, c, yint + 2, xint + 2, cc, inum, ic)
 
     # Interpolate bicubically
     col0 = _cubic_kernel(p00, p10, p20, p30, xfract)
@@ -536,6 +525,7 @@ def resize(data, size, layout="NCHW", method="bilinear",
         or [batch, in_height*scale, in_width*scale, channel]
         or 5-D with shape [batch, channel-major, in_height*scale, in_width*scale, channel-minor]
     """
+
     method = method.lower()
 
     if layout == 'NHWC':
@@ -544,7 +534,10 @@ def resize(data, size, layout="NCHW", method="bilinear",
     elif layout == 'NCHW':
         in_n, in_c, in_h, in_w = data.shape
         output_shape = [in_n, in_c, size[0], size[1]]
-    elif layout.startswith("NCHW"):# for NCHWxc
+    elif nchw_pack_layout(layout):# for NCHWinic
+        in_n, in_c, in_h, in_w, in_inum, in_ic = data.shape
+        output_shape = [in_n, in_c, size[0], size[1], in_inum, in_ic]
+    elif nchw_xc_layout(layout):# for NCHWxc
         in_n, in_c, in_h, in_w, in_cc = data.shape
         output_shape = [in_n, in_c, size[0], size[1], in_cc]
     else:

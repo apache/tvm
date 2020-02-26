@@ -19,8 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
-#include <tvm/build_module.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/analysis.h>
@@ -28,7 +27,7 @@
 #include <tvm/relay/type.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 
 TVM_REGISTER_GLOBAL("schedule")
     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
@@ -37,7 +36,7 @@ TVM_REGISTER_GLOBAL("schedule")
 
 TEST(Relay, Sequential) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({1, 2, 3}, DataType::Float(32));
+  auto tensor_type = relay::TensorType({1, 2, 3}, DataType::Float(32));
   auto c_data =
       tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 

@@ -18,9 +18,7 @@
 """x86 nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import generic
 
-@generic.schedule_softmax.register(["cpu"])
 def schedule_softmax(outs):
     """Schedule for softmax
 
@@ -63,7 +61,7 @@ def schedule_softmax(outs):
     s[max_elem].compute_at(s[softmax], fused_outer_axes)
     s[expsum].compute_at(s[softmax], fused_outer_axes)
 
-    if exp != None:
+    if exp is not None:
         s[exp].compute_at(s[softmax], fused_outer_axes)
 
     return s

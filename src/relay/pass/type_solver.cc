@@ -21,12 +21,13 @@
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
+#include <tvm/ir/type_functor.h>
+#include <tvm/tir/op.h>
 #include <string>
 #include <memory>
 #include <tuple>
 #include <utility>
 #include "type_solver.h"
-#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -41,7 +42,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
   }
 
   bool Assert(const IndexExpr& cond) final {
-    if (const int64_t* pdiff = as_const_int(cond)) {
+    if (const int64_t* pdiff = tir::as_const_int(cond)) {
       return pdiff[0];
     }
     return true;
@@ -50,7 +51,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
   bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) final {
     // early warning constant case.
     IndexExpr diff = lhs - rhs;
-    if (const int64_t* pdiff = as_const_int(diff)) {
+    if (const int64_t* pdiff = tir::as_const_int(diff)) {
       return pdiff[0] == 0;
     }
     return true;
@@ -183,7 +184,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Any::make();
     }
 
-    auto left_index0 = ulhs.as<tvm::VarNode>();
+    auto left_index0 = ulhs.as<tvm::tir::VarNode>();
     auto right_index0 = urhs.as<tvm::IntImmNode>();
     if (left_index0 && right_index0) {
       solver_->shape_uf_.Set(ulhs, urhs);
@@ -191,7 +192,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     auto left_index1 = ulhs.as<tvm::IntImmNode>();
-    auto right_index1 = urhs.as<tvm::VarNode>();
+    auto right_index1 = urhs.as<tvm::tir::VarNode>();
     if (left_index1 && right_index1) {
       solver_->shape_uf_.Set(urhs, ulhs);
       return ulhs;
@@ -269,7 +270,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return Type(nullptr);
     }
 
-    return TensorTypeNode::make(shape, tt1->dtype);
+    return TensorType(shape, tt1->dtype);
   }
 
   Type VisitType_(const TupleTypeNode* op, const Type& tn) final {
@@ -311,7 +312,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
 
     for (size_t i = ftn->type_params.size(); i < op->type_params.size(); ++i) {
-      subst_map.Set(op->type_params[i], IncompleteTypeNode::make(kType));
+      subst_map.Set(op->type_params[i], IncompleteType(kType));
     }
 
     FuncType ft = FuncType(op->arg_types,
@@ -342,12 +343,12 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return FuncType(arg_types, ret_type, ft2->type_params, type_constraints);
   }
 
-  Type VisitType_(const RefTypeNode* op, const Type& tn) final {
-    const auto* rtn = tn.as<RefTypeNode>();
+  Type VisitType_(const RelayRefTypeNode* op, const Type& tn) final {
+    const auto* rtn = tn.as<RelayRefTypeNode>();
     if (!rtn) {
       return Type(nullptr);
     }
-    return RefTypeNode::make(Unify(op->value, rtn->value));
+    return RelayRefType(Unify(op->value, rtn->value));
   }
 
   Type VisitType_(const TypeCallNode* op, const Type& tn) override {
@@ -689,7 +690,7 @@ TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
             Expr e = VarNode::make("dummy_var",
-              IncompleteTypeNode::make(Kind::kType));
+              IncompleteType(Kind::kType));
             return solver->AddConstraint(c, e);
           });
       } else {

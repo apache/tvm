@@ -21,11 +21,9 @@
 from __future__ import absolute_import as _abs
 import tvm
 
-from .. import generic
 from .. import util
 from .. import tag
 
-@generic.schedule_depthwise_conv2d_nchw.register(["bifrost"])
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 

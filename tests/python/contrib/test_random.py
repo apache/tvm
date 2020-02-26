@@ -25,7 +25,7 @@ def test_randint():
     s = tvm.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
@@ -49,7 +49,7 @@ def test_uniform():
     s = tvm.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
@@ -73,7 +73,7 @@ def test_normal():
     s = tvm.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.normal", True):

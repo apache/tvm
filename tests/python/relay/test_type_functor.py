@@ -64,8 +64,8 @@ def test_tuple_type():
 
 
 def test_type_relation():
-    func = tvm.get_env_func('tvm.relay.type_relation.Broadcast')
-    attrs = tvm.make.node('attrs.TestAttrs', name='attr', padding=(3,4))
+    func = tvm.ir.EnvFunc.get('tvm.relay.type_relation.Broadcast')
+    attrs = tvm.ir.make_node('attrs.TestAttrs', name='attr', padding=(3,4))
     tp = TypeVar('tp')
     tf = FuncType([], TupleType([]), [], [])
     tt = TensorType([1, 2, 3], 'float32')

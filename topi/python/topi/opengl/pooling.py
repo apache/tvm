@@ -18,9 +18,7 @@
 """Schedule for pooling operators"""
 import tvm
 from .. import tag
-from .. import generic
 
-@generic.schedule_adaptive_pool.register(["opengl"])
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive pool.
 
@@ -69,7 +67,6 @@ def schedule_adaptive_pool(outs):
     return s
 
 
-@generic.schedule_pool.register(["opengl"])
 def schedule_pool(outs, layout):
     """Schedule for pool.
 

@@ -18,7 +18,7 @@
 import tvm
 from ctypes import *
 import topi
-import tvm.ir_pass as ir_pass
+import tvm.tir.ir_pass as ir_pass
 import numpy as np
 
 tgt = "llvm"
@@ -29,19 +29,19 @@ def setup_module():
     # In this case, we have built the test functions used below right into TVM.
     # CDLL("libmybfloat16.so", RTLD_GLOBAL)
 
-    tvm.datatype.register("bfloat", 129)
+    tvm.target.datatype.register("bfloat", 129)
 
-    tvm.datatype.register_op(
-        tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "Cast",
+    tvm.target.datatype.register_op(
+        tvm.target.datatype.create_lower_func("FloatToBFloat16_wrapper"), "Cast",
         "llvm", "bfloat", "float")
-    tvm.datatype.register_op(
-        tvm.datatype.create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
+    tvm.target.datatype.register_op(
+        tvm.target.datatype.create_lower_func("BFloat16ToFloat_wrapper"), "Cast",
         "llvm", "float", "bfloat")
-    tvm.datatype.register_op(
-        tvm.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
+    tvm.target.datatype.register_op(
+        tvm.target.datatype.create_lower_func("BFloat16Add_wrapper"), "Add", "llvm",
         "bfloat")
-    tvm.datatype.register_op(
-        tvm.datatype.create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
+    tvm.target.datatype.register_op(
+        tvm.target.datatype.create_lower_func("FloatToBFloat16_wrapper"), "FloatImm",
         "llvm", "bfloat")
 
 def lower_datatypes_and_build(schedule, args):
@@ -126,7 +126,7 @@ def test_bfloat_add_and_cast_FloatImm():
     Z = topi.cast(
         topi.add(
             topi.cast(X, dtype="custom[bfloat]16"),
-            tvm.expr.FloatImm("custom[bfloat]16", 1.5)),
+            tvm.tir.FloatImm("custom[bfloat]16", 1.5)),
         dtype="float")
 
     s = tvm.create_schedule([Z.op])

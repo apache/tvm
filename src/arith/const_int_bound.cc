@@ -20,8 +20,9 @@
 /*!
  * \file tvm/arith/const_int_bound.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/ir_functor_ext.h>
+#include <tvm/tir/expr_functor.h>
 #include <algorithm>
 #include "int_operator.h"
 #include "pattern_match.h"
@@ -29,7 +30,7 @@
 namespace tvm {
 namespace arith {
 
-using namespace ir;
+using namespace tir;
 
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
@@ -41,6 +42,13 @@ ConstIntBound::ConstIntBound(
   data_ = std::move(node);
 }
 
+ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
+  return ConstIntBound(min_value, max_value);
+}
+
+TVM_REGISTER_GLOBAL("arith.ConstIntBound")
+.set_body_typed(MakeConstIntBound);
+
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {
     os << "pos_inf";
@@ -51,8 +59,8 @@ inline void PrintBoundValue(std::ostream& os, int64_t val) {
   }
 }
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<ConstIntBoundNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const ConstIntBoundNode*>(node.get());
     p->stream << "ConstIntBound[";
     PrintBoundValue(p->stream, op->min_value);
@@ -133,7 +141,7 @@ class ConstIntBoundAnalyzer::Impl :
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
-      if (ir::Equal(expr, info.expr)) {
+      if (tir::Equal(expr, info.expr)) {
         res = Intersect(res, info.bound);
       }
     }

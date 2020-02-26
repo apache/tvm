@@ -24,15 +24,21 @@
 #ifndef TVM_RELAY_OP_ATTR_TYPES_H_
 #define TVM_RELAY_OP_ATTR_TYPES_H_
 
-#include <tvm/top/tensor.h>
-#include <tvm/top/schedule.h>
-#include <tvm/build_module.h>
+#include <tvm/te/tensor.h>
+#include <tvm/te/schedule.h>
 #include <tvm/relay/type.h>
 #include <tvm/relay/expr.h>
+#include <tvm/target/target.h>
+#include <tvm/target/generic_func.h>
+#include <tvm/tir/data_layout.h>
 #include <string>
 
 namespace tvm {
 namespace relay {
+
+using tir::Layout;
+using tir::LayoutAxis;
+using tir::BijectiveLayoutNode;
 
 /*! \brief operator pattern used in graph fusion */
 enum OpPatternKind {
@@ -99,10 +105,9 @@ using TShapeDataDependant = bool;
  * \return The output compute description of the operator.
  */
 using FTVMCompute = runtime::TypedPackedFunc<
-  Array<top::Tensor>(const Attrs& attrs,
-                     const Array<top::Tensor>& inputs,
-                     const Type& out_type,
-                     const Target& target)>;
+  Array<te::Tensor>(const Attrs& attrs,
+                    const Array<te::Tensor>& inputs,
+                    const Type& out_type)>;
 
 /*!
  * \brief Build the computation schedule for
@@ -114,9 +119,19 @@ using FTVMCompute = runtime::TypedPackedFunc<
  * \return schedule The computation schedule.
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
-  top::Schedule(const Attrs& attrs,
-                const Array<top::Tensor>& outs,
-                const Target& target)>;
+  te::Schedule(const Attrs& attrs,
+               const Array<te::Tensor>& outs,
+               const Target& target)>;
+
+/*!
+ * \brief Generate the strategy of operators. This function is a generic
+ * function and can be re-defined for different targets.
+ *
+ * The function signature of generic function is:
+ *   OpStrategy(const Attrs& attrs, const Array<Tensor>& inputs,
+ *              const Type& out_type, const Target& target)
+ */
+using FTVMStrategy = GenericFunc;
 
 /*!
  * \brief Alternate the layout of operators or replace the
@@ -131,7 +146,8 @@ using FTVMSchedule = runtime::TypedPackedFunc<
 using FTVMAlterOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<top::Tensor>& tinfos)>;
+       const Array<te::Tensor>& tinfos,
+       const Type& out_type)>;
 
 /*!
  * \brief Convert the layout of operators or replace the
@@ -147,7 +163,7 @@ using FTVMAlterOpLayout = runtime::TypedPackedFunc<
 using FTVMConvertOpLayout = runtime::TypedPackedFunc<
   Expr(const Attrs& attrs,
        const Array<Expr>& args,
-       const Array<top::Tensor>& tinfos,
+       const Array<te::Tensor>& tinfos,
        const std::string& desired_layout)>;
 /*!
  * \brief Legalizes an expression with another expression. This function will be
@@ -186,9 +202,7 @@ using FForwardRewrite = runtime::TypedPackedFunc<
  * \brief Gradient for a specific op.
  *
  * \param orig_call the original Expr.
- *
  * \param output_grad the gradient of the Expr.
- *
  * \return the gradient for each parameters.
  */
 using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(const Expr& orig_call,
@@ -202,13 +216,13 @@ enum AnyCodegenStrategy {
   kVariableDimensions
 };
 
-/* \brief A runtime representation of shape. */
+/*! \brief A runtime representation of shape. */
 using Shape = Array<IndexExpr>;
 
 using FShapeFunc = runtime::TypedPackedFunc<
-  Array<top::Tensor>(const Attrs& attrs,
-                     const Array<top::Tensor>& inputs,
-                     const Array<IndexExpr>& out_ndims)>;
+  Array<te::Tensor>(const Attrs& attrs,
+                    const Array<te::Tensor>& inputs,
+                    const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay
 }  // namespace tvm

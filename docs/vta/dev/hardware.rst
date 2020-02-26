@@ -215,6 +215,7 @@ This would result in a ``load-gemm-activate-store`` task pipeline which closely 
 Adding more stages has a cost however: it can add storage and extra logic overhead, which is why we opted for a default 3-stage pipeline.
 
 .. _vta-uarch:
+
 Microarchitectural Overview
 ---------------------------
 

@@ -23,7 +23,6 @@ import os
 
 import tvm
 from tvm import autotvm
-from tvm.contrib.util import get_lower_ir
 import topi
 import vta
 import vta.testing
@@ -60,7 +59,7 @@ def dense(N, CI, CO):
         res = my_clip(res, 0, 127)
         res = topi.cast(res, "int8")
 
-    if tvm.target.current_target().device_name == 'vta':
+    if tvm.target.Target.current().device_name == 'vta':
         s = topi.generic.schedule_dense([res])
     else:
         s = tvm.create_schedule([res.op])

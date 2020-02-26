@@ -15,51 +15,62 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=redefined-builtin, wildcard-import
-"""TVM: Low level DSL/IR stack for tensor computation."""
-from __future__ import absolute_import as _abs
-
+"""TVM: Open Deep Learning Compiler Stack."""
 import multiprocessing
 import sys
 import traceback
 
-from . import _pyversion
-
-from . import tensor
-from . import arith
-from . import expr
-from . import stmt
-from . import make
-from . import ir_pass
-from . import codegen
-from . import container
-from . import schedule
-from . import module
-from . import object
-from . import attrs
-from . import ir_builder
-from . import target
-from . import generic
-from . import hybrid
-from . import testing
-from . import error
-from . import datatype
-
-from . import ndarray as nd
-from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .ndarray import vpi, rocm, opengl, ext_dev, micro_dev
-
-from ._ffi.runtime_ctypes import TypeCode, TVMType
-from ._ffi.ndarray import TVMContext
-from ._ffi.function import Function
+# top-level alias
+# tvm._ffi
 from ._ffi.base import TVMError, __version__
+from ._ffi.runtime_ctypes import TypeCode, DataType
+from ._ffi.registry import register_object, register_func, register_extension
+
+# top-level alias
+# tvm.runtime
+from .runtime.object import Object
+from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
+from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
+from .runtime import ndarray as nd
+
+# tvm.error
+from . import error
+
+# tvm.ir
+from .ir import IRModule
+from .ir import transform
+from .ir import container
+from . import ir
+
+# tvm.tir
+from . import tir
+
+# tvm.target
+from . import target
+from .target import build_config
+
+# tvm.te
+from .te import decl_tensor_intrin, create_schedule, tag_scope
+
+# tvm.testing
+from . import testing
+
+# tvm.driver
+from .driver import build, lower
+
+# tvm.hybrid
+from . import hybrid
+
+# others
+from . import arith
+
+# backward compact for topi, to be removed later
 from .api import *
-from .intrin import *
-from .tensor_intrin import decl_tensor_intrin
-from .object import register_object
-from .ndarray import register_extension
-from .schedule import create_schedule
-from .build_module import build, lower, build_config
-from .tag import tag_scope
+from .tir import expr, stmt, ir_builder, ir_pass, generic
+from .te import tensor, schedule
+from .tir.op import *
+from . import intrin
+from . import make
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

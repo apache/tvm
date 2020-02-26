@@ -41,6 +41,7 @@ bool QuantizeRel(const Array<Type>& types,
                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 4);
   const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
   const auto input_dtype = data->dtype;
   CHECK(input_dtype == DataType::Float(32))
     << "Input type should be one of float32 but was " <<  input_dtype;
@@ -63,7 +64,7 @@ bool QuantizeRel(const Array<Type>& types,
         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, unit8, int32] but was " << out_dtype;
   // assign output type
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
 }
 

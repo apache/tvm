@@ -21,7 +21,7 @@
  * \file src/relay/qnn/op/convolution.cc
  * \brief Property def of qnn convolution operator.
  */
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/base.h>
 #include <tvm/relay/op.h>
@@ -57,7 +57,10 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[5], DataType::Float(32)));  // kernel_scale
+  // Kernel scale can be a vector of length output_channels or a scalar.
+  size_t axis = param->kernel_layout.find('O');
+  CHECK(axis != std::string::npos) << "Kernel layout attribute is not defined";
+  AssignType(types[5], DataType::Float(32), weight->shape[axis], reporter);  // kernel scale
 
   // Collect the input tensor and output tensor devoid of scale and zero points to reuse Relay
   // Conv2D infer type function.
@@ -66,7 +69,7 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {
-  return param->channels.defined() && tvm::ir::Equal(param->channels, param->groups) &&
+  return param->channels.defined() && tvm::tir::Equal(param->channels, param->groups) &&
          param->groups != 1;
 }
 
@@ -127,17 +130,17 @@ WorkloadType GetWorkload(const Array<tvm::relay::Type>& arg_types, const Conv2DA
 }
 
 /*
- * \brief Fallback to simpler lowering for dilation or grouped conv.
+ * \brief Fallback to simpler lowering for dilation (when non-zero kernel point) or grouped conv.
  * \param data The input expr.
  * \param weight The weight expr.
  * \param input_zero_point The input zero point expr.
  * \param kernel_zero_point The kernel zero point expr.
  * \param param The qnn conv2d attributes.
  * \return The fallback lowered sequence of Relay expr.
- * \note In case of dilation, normal lowering would require a dilated pool.
- *       Since, we don't have dilated pool, we fallback to a simpler sequence of
- *       Relay operations. This will potentially lead to performance degradation
- *       as the convolution is called on int32 tensors instead of int8 tensors.
+ * \note In case of dilation with non-zero kernel zero point, normal lowering would require a
+ * dilated pool. Since, we don't have dilated pool, we fallback to a simpler sequence of Relay
+ * operations. This will potentially lead to performance degradation as the convolution is called on
+ * int32 tensors instead of int8 tensors.
  */
 Expr Conv2DFallBack(const Expr& data, const Expr& weight, const Expr& input_zero_point,
                     const Expr& kernel_zero_point, const Conv2DAttrs* param) {
@@ -595,12 +598,16 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto input_zero_point_int = GetScalarFromConstant<int>(input_zero_point);
   auto kernel_zero_point_int = GetScalarFromConstant<int>(kernel_zero_point);
 
-  // Fallback to int32 conv if there is dilation or grouped conv2d
+  // Fallback to int32 conv if there is dilation with non-zero kernel point or grouped conv2d
+  // For dilated conv, if the kernel zero point is non-zero, the pooling operator also has to
+  // traverse the elements in dilated manner. Currently, we do not have strided pool. So, in case of
+  // dilated conv with non-zero kernel point, we fall back to simpler but slow lowering.
 
   CHECK_EQ(param->dilation.size(), 2) << "qnn.conv2d only supports 2D dilation";
   auto dilation_h = get_const_int(param->dilation[0]);
   auto dilation_w = get_const_int(param->dilation[1]);
-  if (dilation_h != 1 || dilation_w != 1 || (param->groups != 1 && !is_depthwise(param))) {
+  if ((kernel_zero_point_int != 0 && (dilation_h != 1 || dilation_w != 1)) ||
+      (param->groups != 1 && !is_depthwise(param))) {
     return Conv2DFallBack(data, weight, input_zero_point, kernel_zero_point, param);
   } else if (is_depthwise(param)) {
     CHECK_NE(channel_multiplier, -1);

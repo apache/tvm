@@ -19,7 +19,7 @@
 Example Plugin Module
 =====================
 This folder contains an example that implements a C++ module
-that can be directly loaded as TVM's DSOModule (via tvm.module.load)
+that can be directly loaded as TVM's DSOModule (via tvm.runtime.load_module)
 
 ## Guideline
 

@@ -18,29 +18,19 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-import topi
 from .. import op as reg
-from ..op import schedule_injective, OpPattern
+from .. import strategy
+from ..op import OpPattern
 
 
 # adaptive_max_pool2d
-@reg.register_schedule("contrib.adaptive_max_pool2d")
-def schedule_adaptive_max_pool2d(_, outs, target):
-    """Schedule definition of adaptive_max_pool2d"""
-    with target:
-        return topi.generic.schedule_adaptive_pool(outs)
-
+reg.register_schedule("contrib.adaptive_max_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("contrib.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # adaptive_avg_pool2d
-@reg.register_schedule("contrib.adaptive_avg_pool2d")
-def schedule_adaptive_avg_pool2d(_, outs, target):
-    """Schedule definition of adaptive_avg_pool2d"""
-    with target:
-        return topi.generic.schedule_adaptive_pool(outs)
-
+reg.register_schedule("contrib.adaptive_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("contrib.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # relay.contrib.ndarray_size
-reg.register_schedule("contrib.ndarray_size", schedule_injective)
+reg.register_injective_schedule("contrib.ndarray_size")

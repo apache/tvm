@@ -24,8 +24,6 @@
 #include <tvm/ir/type.h>
 #include <tvm/ir/type_relation.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
-
 namespace tvm {
 
 TypeCall::TypeCall(Type func, tvm::Array<Type> args) {
@@ -37,13 +35,13 @@ TypeCall::TypeCall(Type func, tvm::Array<Type> args) {
 
 TVM_REGISTER_NODE_TYPE(TypeCallNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TypeCall")
+TVM_REGISTER_GLOBAL("ir.TypeCall")
 .set_body_typed([](Type func, Array<Type> type) {
   return TypeCall(func, type);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeCallNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TypeCallNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const TypeCallNode*>(ref.get());
   p->stream << "TypeCallNode(" << node->func << ", "
             << node->args << ")";
@@ -63,7 +61,7 @@ TypeRelation::TypeRelation(TypeRelationFn func,
 
 TVM_REGISTER_NODE_TYPE(TypeRelationNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
+TVM_REGISTER_GLOBAL("ir.TypeRelation")
 .set_body_typed([](TypeRelationFn func,
                    Array<Type> args,
                    int num_inputs,
@@ -71,8 +69,8 @@ TVM_REGISTER_GLOBAL("relay._make.TypeRelation")
   return TypeRelation(func, args, num_inputs, attrs);
 });
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<TypeRelationNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const TypeRelationNode*>(ref.get());
     p->stream << "TypeRelationNode("
               << node->func->name

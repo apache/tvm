@@ -21,18 +21,19 @@ from a Relay expression.
 import warnings
 import numpy as np
 
+from tvm.ir import IRModule
+
 from tvm import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
-from .module import Module as _Module
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
 def _update_target(target):
-    target = target if target else _target.current_target()
+    target = target if target else _target.Target.current()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
 
@@ -49,6 +50,15 @@ def _update_target(target):
                         "tvm.target.Target, but received " +
                         "{}".format(type(target)))
     return tgts
+
+
+def _convert_param_map(params):
+    inputs = {}
+    for name, param in params.items():
+        if isinstance(param, np.ndarray):
+            param = _nd.array(param)
+        inputs[name] = _expr.const(param)
+    return inputs
 
 
 class BuildModule(object):
@@ -132,7 +142,7 @@ class BuildModule(object):
 
         Returns
         -------
-        mod : relay.Module
+        mod : tvm.IRModule
             The optimized relay module.
 
         params : dict
@@ -151,12 +161,7 @@ class BuildModule(object):
 
 
     def _set_params(self, params):
-        inputs = {}
-        for name, param in params.items():
-            if isinstance(param, np.ndarray):
-                param = _nd.array(param)
-            inputs[name] = _expr.const(param)
-        self._set_params_func(inputs)
+        self._set_params_func(_convert_param_map(params))
 
     def get_json(self):
         """Return the json file of the built program."""
@@ -181,7 +186,7 @@ def build(mod, target=None, target_host=None, params=None):
 
     Parameters
     ----------
-    mod : relay.Module
+    mod : tvm.IRModule
         The module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
@@ -213,16 +218,16 @@ def build(mod, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
-    if isinstance(mod, _Module):
+    if isinstance(mod, IRModule):
         func = mod["main"]
     elif isinstance(mod, _expr.Function):
         func = mod
         warnings.warn(
-            "Please use input parameter mod (tvm.relay.module.Module) "
+            "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter func (tvm.relay.expr.Function)",
             DeprecationWarning)
     else:
-        raise ValueError("Type of input parameter mod must be tvm.relay.module.Module")
+        raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     target = _update_target(target)
 
@@ -250,7 +255,7 @@ def optimize(mod, target=None, params=None):
 
     Parameters
     ----------
-    mod : relay.Module
+    mod : tvm.IRModule
         The module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
@@ -264,22 +269,22 @@ def optimize(mod, target=None, params=None):
 
     Returns
     -------
-    mod : relay.Module
+    mod : tvm.IRModule
         The optimized relay module.
 
     params : dict
         The parameters of the final graph.
     """
-    if isinstance(mod, _Module):
+    if isinstance(mod, IRModule):
         func = mod["main"]
     elif isinstance(mod, _expr.Function):
         func = mod
         warnings.warn(
-            "Please use input parameter mod (tvm.relay.module.Module) "
+            "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter func (tvm.relay.expr.Function)",
             DeprecationWarning)
     else:
-        raise ValueError("Type of input parameter mod must be tvm.relay.module.Module")
+        raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     target = _update_target(target)
 
@@ -296,6 +301,29 @@ def optimize(mod, target=None, params=None):
     return mod, params
 
 
+def bind_params_by_name(func, params):
+    """Bind params to function by name.
+    This could be useful when assembling custom Relay optimization
+    passes that involve constant folding.
+
+    Parameters
+    ----------
+    func : relay.Function
+        The function to bind parameters to.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for constant folding.
+
+    Returns
+    -------
+    func : relay.Function
+        The function with parameters bound
+    """
+    inputs = _convert_param_map(params)
+    return _build_module.BindParamsByName(func, inputs)
+
+
 class GraphExecutor(_interpreter.Executor):
     """Wrapper around Executor interface.
 
@@ -303,7 +331,7 @@ class GraphExecutor(_interpreter.Executor):
 
     Parameters
     ----------
-    mod : :py:class:`~tvm.relay.module.Module`
+    mod : :py:class:`~tvm.IRModule`
         The module to support the execution.
 
     ctx : :py:class:`TVMContext`
@@ -358,17 +386,17 @@ def create_executor(kind="debug",
     kind : str
         The type of executor
 
-    mod : :py:class:`~tvm.relay.module.Module`
+    mod : :py:class:`~tvm.IRModule`
         The Relay module containing collection of functions
 
-    ctx : :py:class:`tvm.TVMContext`
+    ctx : :py:class:`tvmContext`
         The context to execute the code.
 
     target : :py:class:`tvm.Target`
         The corresponding context
     """
     if mod is None:
-        mod = _Module()
+        mod = IRModule()
     if ctx is not None:
         assert ctx.device_type == _nd.context(str(target), 0).device_type
     else:
@@ -380,7 +408,6 @@ def create_executor(kind="debug",
         return _interpreter.Interpreter(mod, ctx, target)
     if kind == "graph":
         return GraphExecutor(mod, ctx, target)
-    elif kind == "vm":
+    if kind == "vm":
         return VMExecutor(mod, ctx, target)
-    else:
-        raise RuntimeError("unknown execution strategy: {0}".format(kind))
+    raise RuntimeError("unknown execution strategy: {0}".format(kind))

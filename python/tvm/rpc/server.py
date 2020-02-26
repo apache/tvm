@@ -25,9 +25,6 @@ Server is TCP based with the following protocol:
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
 # pylint: disable=invalid-name
-
-from __future__ import absolute_import
-
 import os
 import ctypes
 import socket
@@ -39,12 +36,13 @@ import subprocess
 import time
 import sys
 import signal
+import platform
+import tvm._ffi
 
-from .._ffi.function import register_func
-from .._ffi.base import py_str
-from .._ffi.libinfo import find_lib_path
-from ..module import load as _load_module
-from ..contrib import util
+from tvm._ffi.base import py_str
+from tvm._ffi.libinfo import find_lib_path
+from tvm.runtime.module import load_module as _load_module
+from tvm.contrib import util
 from . import base
 from . base import TrackerCode
 
@@ -58,11 +56,11 @@ def _server_env(load_library, work_path=None):
         temp = util.tempdir()
 
     # pylint: disable=unused-variable
-    @register_func("tvm.rpc.server.workpath")
+    @tvm._ffi.register_func("tvm.rpc.server.workpath")
     def get_workpath(path):
         return temp.relpath(path)
 
-    @register_func("tvm.rpc.server.load_module", override=True)
+    @tvm._ffi.register_func("tvm.rpc.server.load_module", override=True)
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)
@@ -163,11 +161,10 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
                 conn.close()
                 logger.warning("mismatch key from %s", addr)
                 continue
-            else:
-                conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
-                conn.sendall(struct.pack("<i", len(server_key)))
-                conn.sendall(server_key.encode("utf-8"))
-                return conn, addr, _parse_server_opt(arr[1:])
+            conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
+            conn.sendall(struct.pack("<i", len(server_key)))
+            conn.sendall(server_key.encode("utf-8"))
+            return conn, addr, _parse_server_opt(arr[1:])
 
     # Server logic
     tracker_conn = None
@@ -210,6 +207,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
         server_proc.join(opts.get("timeout", None))
         if server_proc.is_alive():
             logger.info("Timeout in RPC session, kill..")
+            # pylint: disable=import-outside-toplevel
             import psutil
             parent = psutil.Process(server_proc.pid)
             # terminate worker childs
@@ -235,7 +233,8 @@ def _connect_proxy_loop(addr, key, load_library):
             magic = struct.unpack("<i", base.recvall(sock, 4))[0]
             if magic == base.RPC_CODE_DUPLICATE:
                 raise RuntimeError("key: %s has already been used in proxy" % key)
-            elif magic == base.RPC_CODE_MISMATCH:
+
+            if magic == base.RPC_CODE_MISMATCH:
                 logger.warning("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
                 raise RuntimeError("%s is not RPC Proxy" % str(addr))
@@ -366,7 +365,10 @@ class Server(object):
             # interim, stop the pylint diagnostic.
             #
             # pylint: disable=subprocess-popen-preexec-fn
-            self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
+            if platform.system() == "Windows":
+                self.proc = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+            else:
+                self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
             sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
@@ -379,8 +381,7 @@ class Server(object):
                 except socket.error as sock_err:
                     if sock_err.errno in [98, 48]:
                         continue
-                    else:
-                        raise sock_err
+                    raise sock_err
             if not self.port:
                 raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
             logger.info("bind to %s:%d", host, self.port)
@@ -402,7 +403,10 @@ class Server(object):
         """Terminate the server process"""
         if self.use_popen:
             if self.proc:
-                os.killpg(self.proc.pid, signal.SIGTERM)
+                if platform.system() == "Windows":
+                    os.kill(self.proc.pid, signal.CTRL_C_EVENT)
+                else:
+                    os.killpg(self.proc.pid, signal.SIGTERM)
                 self.proc = None
         else:
             if self.proc:

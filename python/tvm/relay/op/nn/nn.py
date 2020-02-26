@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 from ...expr import TupleWrapper
 from . import _make
+from .util import get_pad_tuple2d
 
 
 def conv1d(data,
@@ -200,9 +201,9 @@ def conv2d(data,
         strides = (strides, strides)
     if isinstance(dilation, int):
         dilation = (dilation, dilation)
-    if isinstance(padding, int):
-        padding = (padding, padding)
-
+    # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -296,7 +297,6 @@ def conv3d(data,
         dilation = (dilation, dilation, dilation)
     if isinstance(padding, int):
         padding = (padding, padding, padding)
-
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
@@ -363,6 +363,8 @@ def conv2d_transpose(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.conv2d_transpose(data, weight, strides, padding, dilation,
                                   groups, channels, kernel_size, data_layout,
                                   kernel_layout, out_layout, output_padding, out_dtype)
@@ -1420,10 +1422,12 @@ def batch_norm(data,
 
     Besides the inputs and the outputs, this operator accepts two auxiliary
     states, ``moving_mean`` and ``moving_var``, which are *k*-length
-    vectors. They are global statistics for the whole dataset, which are updated by::
+    vectors. They are global statistics for the whole dataset, which are updated by
 
-    moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
-    moving_var = moving_var * momentum + data_var * (1 - momentum)
+    .. code:: python
+
+        moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+        moving_var = moving_var * momentum + data_var * (1 - momentum)
 
     The parameter ``axis`` specifies which axis of the input shape denotes
     the 'channel' (separately normalized groups).  The default is 1.
@@ -1758,74 +1762,10 @@ def contrib_conv2d_winograd_without_weight_transform(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_winograd_without_weight_transform(
         data, weight, tile_size, strides, padding, dilation,
-        groups, channels, kernel_size, data_layout,
-        kernel_layout, out_layout, out_dtype)
-
-
-def contrib_conv2d_winograd_nnpack_without_weight_transform(data,
-                                                            weight,
-                                                            strides=(1, 1),
-                                                            padding=(0, 0),
-                                                            dilation=(1, 1),
-                                                            groups=1,
-                                                            channels=None,
-                                                            kernel_size=None,
-                                                            data_layout="NCHW",
-                                                            kernel_layout="OIHW",
-                                                            out_layout="",
-                                                            out_dtype=""):
-    r"""2D convolution with the NNPACK implementation of winograd algorithm.
-
-    The basic parameters are the same as the ones in vanilla conv2d.
-    It assumes the weight is pre-transformed by nn.contrib_conv2d_winograd_nnpack_weight_transform
-
-    Parameters
-    ----------
-    data : tvm.relay.Expr
-        The input data to the operator.
-
-    weight : tvm.relay.Expr
-        The weight expressions.
-
-    strides : tuple of int, optional
-        The strides of convolution.
-
-    padding : tuple of int, optional
-        The padding of convolution on both sides of inputs before convolution.
-
-    dilation : tuple of int, optional
-        Specifies the dilation rate to be used for dilated convolution.
-
-    groups : int, optional
-        Number of groups for grouped convolution.
-
-    channels : int, optional
-        Number of output channels of this convolution.
-
-    kernel_size : tuple of int, optional
-        The spatial of the convolution kernel.
-
-    data_layout : str, optional
-        Layout of the input.
-
-    kernel_layout : str, optional
-        Layout of the weight.
-
-    out_layout : str, optional
-        Layout of the output, by default, out_layout is the same as data_layout
-
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision conv2d.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The computed result.
-    """
-    return _make.contrib_conv2d_winograd_nnpack_without_weight_transform(
-        data, weight, strides, padding, dilation,
         groups, channels, kernel_size, data_layout,
         kernel_layout, out_layout, out_dtype)
 
@@ -1891,6 +1831,8 @@ def contrib_conv2d_nchwc(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_conv2d_NCHWc(data, kernel, strides, padding, dilation,
                                       groups, channels, kernel_size, data_layout,
                                       kernel_layout, out_layout, out_dtype)
@@ -1956,74 +1898,11 @@ def contrib_depthwise_conv2d_nchwc(data,
     result : tvm.relay.Expr
         The computed result.
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.contrib_depthwise_conv2d_NCHWc(data, kernel, strides, padding, dilation,
                                                 groups, channels, kernel_size, data_layout,
                                                 kernel_layout, out_layout, out_dtype)
-
-def contrib_conv2d_nchwc_int8(data,
-                              kernel,
-                              strides=(1, 1),
-                              padding=(0, 0),
-                              dilation=(1, 1),
-                              groups=1,
-                              channels=None,
-                              kernel_size=None,
-                              data_layout="NCHW8c",
-                              kernel_layout="OIHW",
-                              out_layout="",
-                              out_dtype=""):
-    r"""Variant of 2D convolution. It deals with only int8 inputs.
-
-    This operator takes the weight as the convolution kernel
-    and convolves it with data to produce an output, following a specialized
-    NCHWc data layout.
-
-    Parameters
-    ----------
-    data : tvm.relay.Expr
-        The input data to the operator.
-
-    kernel : tvm.relay.Expr
-        The kernel expressions.
-
-    strides : tuple of int, optional
-        The strides of convolution.
-
-    padding : tuple of int, optional
-        The padding of convolution on both sides of inputs before convolution.
-
-    dilation : tuple of int, optional
-        Specifies the dilation rate to be used for dilated convolution.
-
-    groups : int, optional
-        Number of groups for grouped convolution.
-
-    channels : int, optional
-        Number of output channels of this convolution.
-
-    kernel_size : tuple of int, optional
-        The spatial of the convolution kernel.
-
-    data_layout : str, optional
-        Layout of the input.
-
-    kernel_layout : str, optional
-        Layout of the weight.
-
-    out_layout : str, optional
-        Layout of the output, by default, out_layout is the same as data_layout
-
-    out_dtype : str, optional
-        Specifies the output data type for mixed precision conv2d.
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The computed result.
-    """
-    return _make.contrib_conv2d_NCHWc_int8(data, kernel, strides, padding, dilation,
-                                           groups, channels, kernel_size, data_layout,
-                                           kernel_layout, out_layout, out_dtype)
 
 
 def contrib_conv2d_winograd_weight_transform(weight,
@@ -2142,6 +2021,8 @@ def deformable_conv2d(data,
         The computed result.
 
     """
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.deformable_conv2d(data, offset, weight, strides, padding, dilation,
                                    deformable_groups, groups, channels, kernel_size, data_layout,
                                    kernel_layout, out_layout, out_dtype)
@@ -2251,7 +2132,8 @@ def bitserial_conv2d(data,
     result : tvm.relay.Expr
         The computed result.
     """
-
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.bitserial_conv2d(data, weight, strides, padding, channels,
                                   kernel_size, activation_bits, weight_bits,
                                   data_layout, kernel_layout, pack_dtype,

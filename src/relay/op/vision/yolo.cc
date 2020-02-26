@@ -56,7 +56,7 @@ bool YoloReorgRel(const Array<Type>& types,
   oshape[1] = oshape[1] * param->stride * param->stride;
   oshape[2] = indexdiv(oshape[2], param->stride);
   oshape[3] = indexdiv(oshape[3], param->stride);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -82,12 +82,11 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
 .set_attrs_type<YoloReorgAttrs>()
 .add_type_rel("YoloReorg", YoloReorgRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
+                                         const Array<te::Tensor>& inputs,
+                                         const Type& out_type) {
   const auto* params = attrs.as<YoloReorgAttrs>();
   CHECK(params != nullptr);
-  return Array<top::Tensor>{ topi::vision::reorg(inputs[0], params->stride) };
+  return Array<te::Tensor>{ topi::vision::reorg(inputs[0], params->stride) };
 });
 
 }  // namespace relay

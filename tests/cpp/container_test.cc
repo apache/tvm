@@ -19,13 +19,14 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/tir/op.h>
 #include <tvm/runtime/container.h>
 #include <new>
 #include <unordered_map>
 #include <vector>
 
 using namespace tvm;
+using namespace tvm::tir;
 using namespace tvm::runtime;
 
 class TestErrorSwitch {

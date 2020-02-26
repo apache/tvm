@@ -38,7 +38,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/node/reflection.h>
-#include <tvm/node/printer.h>
+#include <tvm/node/repr_printer.h>
 
 #include <string>
 #include <vector>
@@ -56,6 +56,9 @@ using runtime::Downcast;
 using runtime::ObjectHash;
 using runtime::ObjectEqual;
 using runtime::make_object;
+using runtime::PackedFunc;
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

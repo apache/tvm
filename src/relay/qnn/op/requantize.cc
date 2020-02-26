@@ -67,6 +67,9 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     tensor = Subtract(tensor, Cast(input_zero_point, hp_dtype));
   }
 
+  // Check if multiplier is greater than 1.
+  bool is_multiplier_gt_one = false;
+
   // 2) If the input and output scales are same, we can skip the fixed point multiplication. Check
   // if the input scale is per-tensor or per-channel. If it is per-tensor, there is single scale for
   // the whole tensor. For per-channel (aka per-axis), there is a vector of scales for the input
@@ -78,6 +81,9 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     float input_scale_float = GetScalarFromConstant<float>(input_scale);
     double double_multiplier =
         static_cast<double>(input_scale_float) / static_cast<double>(output_scale_float);
+    if (double_multiplier > 1) {
+      is_multiplier_gt_one = true;
+    }
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
       scaled_int64_t =
@@ -88,8 +94,12 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     std::vector<double> double_multipliers;
     auto input_axis_scales = GetFloatVectorFromConstant(input_scale);
     for (auto input_axis_scale : input_axis_scales) {
-      double_multipliers.push_back(static_cast<double>(input_axis_scale) /
-                                   static_cast<double>(output_scale_float));
+      double multiplier =
+          static_cast<double>(input_axis_scale) / static_cast<double>(output_scale_float);
+      double_multipliers.push_back(multiplier);
+      if (multiplier > 1) {
+        is_multiplier_gt_one = true;
+      }
     }
     int axis = param->axis;
     axis = (axis == -1) ? input_shape.size() - 1 : axis;
@@ -103,7 +113,11 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
     shifted_int64_t = Add(Cast(output_zero_point, hp_dtype), scaled_int64_t);
   }
 
-  // 4) Clip to the out_dtype min/max.
+  // 4) Clip to the out_dtype min/max. Skip clipping if out_dtype is Int32. The fixed point
+  // multiplication keeps the value in int32 range if the requantize scale is less than 1.
+  if (out_dtype == DataType::Int(32) && !is_multiplier_gt_one) {
+    return Cast(shifted_int64_t, out_dtype);
+  }
   auto q_min = GetQmin(out_dtype);
   auto q_max = GetQmax(out_dtype);
   auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
@@ -169,6 +183,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                    const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 6);
   const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
   const auto in_dtype = data->dtype;
   CHECK(in_dtype == DataType::Int(8) ||
         in_dtype == DataType::UInt(8) ||
@@ -197,7 +212,7 @@ bool RequantizeRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         out_dtype == DataType::UInt(8) ||
         out_dtype == DataType::Int(32))
       << "Output type should be one of [int8, uint8, int32] but was " << out_dtype;
-  reporter->Assign(types[5], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[5], TensorType(oshape, out_dtype));
   return true;
 }
 

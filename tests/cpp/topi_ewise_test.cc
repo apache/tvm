@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <topi/elemwise.h>
 #include <gtest/gtest.h>
 

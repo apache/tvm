@@ -20,7 +20,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from ..util import get_const_tuple
 
-def batch_matmul_default(x, y):
+def batch_matmul(x, y):
     """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
     data in batch.
 
@@ -48,23 +48,3 @@ def batch_matmul_default(x, y):
     return tvm.compute((batch, M, N),
                        lambda b, i, j: tvm.sum(x[b, i, k] * y[b, j, k], axis=k),
                        tag='batch_matmul')
-
-@tvm.target.generic_func
-def batch_matmul(x, y):
-    """Computes batch matrix multiplication of `x` and `y` when `x` and `y` are
-    data in batch.
-
-    Parameters
-    ----------
-    x : tvm.Tensor
-        3-D with shape [batch, M, K]
-
-    y : tvm.Tensor
-        3-D with shape [batch, N, K]
-
-    Returns
-    -------
-    output : tvm.Tensor
-        3-D with shape [batch, M, N]
-    """
-    return batch_matmul_default(x, y)

@@ -243,7 +243,7 @@ TVM_REGISTER_GLOBAL("__sgx_reserve_space__")
 }  // extern "C"
 }  // namespace sgx
 
-TVM_REGISTER_GLOBAL("module.loadfile_sgx")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_sgx")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   std::shared_ptr<SGXModuleNode> node = std::make_shared<SGXModuleNode>();
   node->Init(args[0]);

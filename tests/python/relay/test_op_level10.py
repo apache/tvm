@@ -21,15 +21,10 @@ import tvm
 import topi.testing
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, run_infer_type
 import topi
 import topi.testing
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_checkpoint():
     dtype = "float32"
@@ -60,7 +55,7 @@ def test_checkpoint_alpha_equal():
     with transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(relay.Module.from_expr(df))
+        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -116,7 +111,7 @@ def test_checkpoint_alpha_equal_tuple():
     with transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(relay.Module.from_expr(df))
+        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -429,7 +424,7 @@ def test_one_hot():
             else:
                 oshape.append(indices_shape[indices_index])
                 indices_index += 1
-        
+
         return oshape
 
     def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
@@ -448,7 +443,7 @@ def test_one_hot():
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 out_relay = intrp.evaluate(func)(indices_np)
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
-    
+
     _verify((3,), 3, 1, 0, -1, "int32")
     _verify((3,), 3, 1.0, 0.0, -1, "float32")
     _verify((2, 2), 5, 2, -2, 0, "int32")

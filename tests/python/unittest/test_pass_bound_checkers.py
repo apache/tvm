@@ -166,12 +166,12 @@ def test_out_of_bounds_loop_partition_basic_llvm(index_a, index_b):
 
 def test_in_bounds_const_loop_partition_ir():
     def check_attr_stmt (x):
-        if isinstance(x, tvm.stmt.AttrStmt) and x.attr_key == "buffer_bound" and str(x.value) == str(n):
+        if isinstance(x, tvm.tir.AttrStmt) and x.attr_key == "buffer_bound" and str(x.value) == str(n):
             return True
         return False
 
     def check_branch_stmt (x):
-        if isinstance(x, tvm.stmt.IfThenElse):
+        if isinstance(x, tvm.tir.IfThenElse):
             return True
         return False
 
@@ -183,7 +183,7 @@ def test_in_bounds_const_loop_partition_ir():
         assert (count == nums)
 
     def collect_branch_stmt (x):
-        if isinstance(x, tvm.stmt.IfThenElse):
+        if isinstance(x, tvm.tir.IfThenElse):
             branch_collector.append(x)
 
     n = 21
@@ -449,7 +449,7 @@ def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
     n = 64
     A = tvm.placeholder((n, ), name='A')

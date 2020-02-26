@@ -377,7 +377,7 @@ also add a Python binding for the pass, as in this code snippet:
 
 .. code:: c
 
-   TVM_REGISTER_API("relay._transform.FoldConstant")
+   TVM_REGISTER_GLOBAL("relay._transform.FoldConstant")
    .set_body_typed(FoldConstant);
 
 Once ``Pass`` objects are defined in the above fashion, they can be invoked using the

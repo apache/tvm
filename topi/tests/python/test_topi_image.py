@@ -52,7 +52,7 @@ def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -116,7 +116,7 @@ def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(out_shape, dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -176,7 +176,7 @@ def test_crop_and_resize():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(out)
+                s = topi.testing.get_injective_schedule(device)(out)
             tvm_images = tvm.nd.array(np_images, ctx)
             tvm_boxes = tvm.nd.array(np_boxes, ctx)
             tvm_indices = tvm.nd.array(np_box_indices, ctx)

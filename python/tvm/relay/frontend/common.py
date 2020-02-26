@@ -17,12 +17,13 @@
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
+import numpy as np
 
 import tvm
-import numpy as np
+from tvm.ir import IRModule
 from topi.util import get_const_tuple
+
 from .. import expr as _expr
-from .. import module as _module
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
@@ -302,7 +303,7 @@ class ExprTable(object):
             self.exprs[name] = expr
 
     def has_expr(self, name):
-        return True if name in self.exprs else False
+        return name in self.exprs
 
     def set_padding(self, paddings):
         self.paddings = paddings
@@ -391,7 +392,7 @@ class AttrCvt(object):
             if k in self._excludes:
                 raise NotImplementedError('Attribute %s in operator %s is not' +
                                           ' supported.', k, op_name)
-            elif k in self._disables:
+            if k in self._disables:
                 logging.warning("Attribute %s is disabled in relay.sym.%s", k, op_name)
             elif k in self._ignores:
                 if k != 'tvm_custom':
@@ -453,7 +454,7 @@ def get_name(node):
 
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
-    new_mod = _module.Module.from_expr(node)
+    new_mod = IRModule.from_expr(node)
     if mod is not None:
         new_mod.update(mod)
     new_mod = _transform.InferType()(new_mod)
@@ -485,6 +486,7 @@ def infer_value(input_val, params):
     portion of the relay graph. This is often needed for functions that
     whose output shape depends on the value of a tensor.
     """
+    # pylint: disable=import-outside-toplevel
     from tvm.contrib import graph_runtime
     # Check that all free variables have associated parameters.
     assert all(var.name_hint in params.keys() for var in analysis.free_vars(

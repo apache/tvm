@@ -57,11 +57,11 @@ import os
 
 tgt="sdaccel"
 
-fadd = tvm.module.load("myadd.so")
+fadd = tvm.runtime.load("myadd.so")
 if os.environ.get("XCL_EMULATION_MODE"):
-    fadd_dev = tvm.module.load("myadd.xclbin")
+    fadd_dev = tvm.runtime.load("myadd.xclbin")
 else:
-    fadd_dev = tvm.module.load("myadd.awsxclbin")
+    fadd_dev = tvm.runtime.load("myadd.awsxclbin")
 fadd.import_module(fadd_dev)
 
 ctx = tvm.context(tgt, 0)

@@ -52,10 +52,10 @@ def test_dot():
     fapi = lower(s, [A, B, C])
 
     def verify(target):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("Target %s is not enabled" % target)
             return
-        f = tvm.codegen.build_module(fapi, target)
+        f = tvm.target.codegen.build_module(fapi, target)
         # verify
         ctx = tvm.cpu(0)
         a = tvm.nd.array(np.random.uniform(size=(nn,)).astype(A.dtype), ctx)

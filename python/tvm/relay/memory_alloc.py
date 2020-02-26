@@ -23,13 +23,13 @@ from .expr_functor import ExprMutator
 from .scope_builder import ScopeBuilder
 from . import transform
 from . import op, ty, expr
-from .. import TVMType, register_func
+from .. import DataType, register_func
 from .backend import compile_engine
 
 
 def is_primitive(call):
-    return hasattr(call.op, 'attrs') and hasattr(call.op.attrs, 'Primitive') and \
-        int(call.op.attrs.Primitive) == 1
+    return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
+           hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
 
 # TODO(@jroesch): port to c++ and unify with existing code
 class LinearizeRetType:
@@ -109,7 +109,7 @@ class ManifestAllocPass(ExprMutator):
         return expr.Tuple(new_fields)
 
     def compute_alignment(self, dtype):
-        dtype = TVMType(dtype)
+        dtype = DataType(dtype)
         align = (dtype.bits // 8) * dtype.lanes
         # MAGIC CONSTANT FROM device_api.h
         if align < 64:
@@ -118,7 +118,7 @@ class ManifestAllocPass(ExprMutator):
         return expr.const(align, dtype="int64")
 
     def compute_storage_in_relay(self, shape, dtype):
-        dtype = TVMType(dtype)
+        dtype = DataType(dtype)
         els = op.prod(shape)
         num = expr.const(dtype.bits * dtype.lanes, self.compute_dtype)
         num = num + expr.const(7, self.compute_dtype)
@@ -126,7 +126,7 @@ class ManifestAllocPass(ExprMutator):
         return els * (num / div)
 
     def compute_storage(self, tensor_type):
-        dtype = TVMType(tensor_type.dtype)
+        dtype = DataType(tensor_type.dtype)
         shape = [int(sh) for sh in tensor_type.shape]
         size = 1
         for sh in shape:
@@ -176,7 +176,7 @@ class ManifestAllocPass(ExprMutator):
             view = LinearizeRetType(ret_type)
             out_types = view.unpack()
 
-            is_dynamic = ret_type.is_dynamic()
+            is_dynamic = ty.type_has_any(ret_type)
             # TODO(@jroesch): restore this code, more complex then it seems
             # for arg in call.args:
             #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()

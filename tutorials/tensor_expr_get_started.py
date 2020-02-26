@@ -235,17 +235,17 @@ print(temp.listdir())
 # The following code loads the host and device module separately and
 # re-links them together. We can verify that the newly loaded function works.
 #
-fadd1 = tvm.module.load(temp.relpath("myadd.so"))
+fadd1 = tvm.runtime.load_module(temp.relpath("myadd.so"))
 if tgt == "cuda":
-    fadd1_dev = tvm.module.load(temp.relpath("myadd.ptx"))
+    fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.ptx"))
     fadd1.import_module(fadd1_dev)
 
 if tgt == "rocm":
-    fadd1_dev = tvm.module.load(temp.relpath("myadd.hsaco"))
+    fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.hsaco"))
     fadd1.import_module(fadd1_dev)
 
 if tgt.startswith('opencl'):
-    fadd1_dev = tvm.module.load(temp.relpath("myadd.cl"))
+    fadd1_dev = tvm.runtime.load_module(temp.relpath("myadd.cl"))
     fadd1.import_module(fadd1_dev)
 
 fadd1(a, b, c)
@@ -261,7 +261,7 @@ tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 # Currently we support packing of Metal, OpenCL and CUDA modules.
 #
 fadd.export_library(temp.relpath("myadd_pack.so"))
-fadd2 = tvm.module.load(temp.relpath("myadd_pack.so"))
+fadd2 = tvm.runtime.load_module(temp.relpath("myadd_pack.so"))
 fadd2(a, b, c)
 tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 

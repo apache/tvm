@@ -18,10 +18,9 @@
 """Conv1D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
 import tvm
-from .. import generic, tag
+from .. import tag
 
 
-@generic.schedule_conv1d_ncw.register(["cpu"])
 def schedule_conv1d_ncw(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -76,7 +75,6 @@ def schedule_conv1d_ncw(outs):
     return s
 
 
-@generic.schedule_conv1d_nwc.register(["cpu"])
 def schedule_conv1d_nwc(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])

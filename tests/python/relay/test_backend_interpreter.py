@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import nd
 from tvm import relay
-from tvm.relay.backend.interpreter import TupleValue
+from tvm.runtime import container
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
@@ -39,7 +39,8 @@ def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
 
 
 def test_tuple_value():
-    tv = TupleValue(relay.const(1), relay.const(2), relay.const(3))
+    tv = container.tuple_object([relay.const(1), relay.const(2),
+                                 relay.const(3)])
     np.testing.assert_allclose(tv[0].data.asnumpy(), 1)
     np.testing.assert_allclose(tv[1].data.asnumpy(), 2)
     np.testing.assert_allclose(tv[2].data.asnumpy(), 3)
@@ -92,7 +93,7 @@ def test_subtract():
 
 
 def test_simple_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     sb = ScopeBuilder()
@@ -109,7 +110,7 @@ def test_simple_loop():
 
 
 def test_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
@@ -128,7 +129,7 @@ def test_loop():
 
 
 def test_ref():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     three_with_ref = relay.GlobalVar('three_with_ref')
     i = relay.Var('i')
     iv = relay.Var('iv')
@@ -167,7 +168,7 @@ def test_kwargs_params():
 
 
 def test_function_taking_adt_ref_tuple():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     prelude = relay.prelude.Prelude(mod)
     intrp = create_executor("debug", mod)
 
@@ -178,7 +179,7 @@ def test_function_taking_adt_ref_tuple():
     ], prelude.cons)
 
     ref_value = RefValue(nd.array(np.random.rand(1, 10).astype('float32')))
-    tuple_value = TupleValue(*[
+    tuple_value = container.tuple_object([
         nd.array(np.random.rand(1, 10).astype('float32')) for _ in range(10)
     ])
 
@@ -202,8 +203,8 @@ def test_function_taking_adt_ref_tuple():
 
     res_tuple = id_func(tuple_value)
     for i in range(10):
-        tvm.testing.assert_allclose(res_tuple.fields[i].asnumpy(),
-                                    tuple_value.fields[i].asnumpy())
+        tvm.testing.assert_allclose(res_tuple[i].asnumpy(),
+                                    tuple_value[i].asnumpy())
 
 def test_tuple_passing():
     x = relay.var('x', type_annotation=relay.ty.TupleType([
@@ -211,7 +212,7 @@ def test_tuple_passing():
         relay.ty.TensorType((), 'int64')]))
 
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
-    mod = relay.Module({})
+    mod = tvm.IRModule({})
     gv = relay.GlobalVar('main')
     mod[gv] = fn
     mod = relay.transform.InferType()(mod)
@@ -224,7 +225,8 @@ def test_tuple_passing():
     out = f((10, 8))
     tvm.testing.assert_allclose(out.asnumpy(), np.array(10))
     # Second use a tuple value.
-    value_tuple = TupleValue(nd.array(np.array(11)), nd.array(np.array(12)))
+    value_tuple = container.tuple_object([nd.array(np.array(11)),
+                                          nd.array(np.array(12))])
     out = f(value_tuple)
     tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
 

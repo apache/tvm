@@ -25,7 +25,6 @@ from .util import get_pad_tuple
 from ..util import simplify
 
 
-@tvm.target.generic_func
 def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     """Transposed 2D convolution nchw forward operator.
 
@@ -111,7 +110,7 @@ def conv2d_transpose_legalize(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current Transposed 2D convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized

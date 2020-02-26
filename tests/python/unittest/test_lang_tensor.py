@@ -96,8 +96,8 @@ def test_tensor_reduce():
     rv = tvm.reduce_axis((0, A.shape[1]), "k")
     C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), axis=rv))
     # json load save
-    C_json = tvm.save_json(C)
-    C_loaded = tvm.load_json(C_json)
+    C_json = tvm.ir.save_json(C)
+    C_loaded = tvm.ir.load_json(C_json)
     assert(isinstance(C_loaded, tvm.tensor.Tensor))
     assert(str(C_loaded) == str(C))
 
@@ -128,7 +128,7 @@ def test_tensor_compute1():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body, tvm.tir.Evaluate)
 
 def test_tensor_compute2():
     M = 2048
@@ -171,8 +171,8 @@ def test_tensor_compute2():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body[0], tvm.stmt.Evaluate)
-    assert isinstance(stmt.body.body.body[1].body, tvm.stmt.Evaluate)
+    assert isinstance(stmt.body.body.body[0], tvm.tir.Evaluate)
+    assert isinstance(stmt.body.body.body[1].body, tvm.tir.Evaluate)
 
 def test_tensor_scan():
     m = tvm.size_var("m")
@@ -201,8 +201,8 @@ def test_scan_multi_out():
                       [s1, s2])
     assert(r0.value_index == 0)
     assert(r1.value_index == 1)
-    json_str = tvm.save_json(r0.op)
-    zz = tvm.load_json(json_str)
+    json_str = tvm.ir.save_json(r0.op)
+    zz = tvm.ir.load_json(json_str)
     assert isinstance(zz, tvm.tensor.ScanOp)
 
 def test_extern():
@@ -259,7 +259,7 @@ def test_tuple_with_different_deps():
     stmt = tvm.schedule.ScheduleOps(sch, bounds)
 
     def get_B1_realize(x):
-        if isinstance(x, tvm.stmt.Realize) and \
+        if isinstance(x, tvm.tir.Realize) and \
            x.func == B1.op and x.value_index == 1:
             ret.append(x)
     ret = []

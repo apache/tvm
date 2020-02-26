@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=eval-used,invalid-name,too-many-arguments
 """Utility functions"""
+import tvm
 from tvm import relay
 from tvm.relay import transform
 
@@ -46,7 +47,7 @@ def has_multiple_inputs(node_list, node_idx, input_names):
         in_idx = in_idx[0]
         in_node = node_list[in_idx]
         # Exclude parameter nodes
-        if in_node["op"] != "null" or \
+        if in_node["op"] is not None or \
                 ("name" in in_node and in_node["name"] in input_names):
             num_inputs += 1
     return num_inputs > 1
@@ -71,9 +72,10 @@ def is_boundary_node(node_entry, input_names):
         whether node is a boundary node.
     """
     # Operators dependent on original layouts.
-    _LAYOUT_FIXED_OP = ["batch_flatten", "transpose", "reshape",
-                        "multibox_prior", "multibox_transform_loc", "where",
-                        "non_max_suppression", "strided_slice"]
+    _LAYOUT_FIXED_OP = [relay.op.get(name) for name in (
+        "nn.batch_flatten", "transpose", "reshape", "vision.multibox_prior",
+        "vision.multibox_transform_loc", "where", "vision.non_max_suppression",
+        "strided_slice")]
 
     out = node_entry["op"] in _LAYOUT_FIXED_OP or \
           ("name" in node_entry and node_entry["name"] in input_names)
@@ -94,9 +96,7 @@ def is_skipped_node(node_entry):
         whether node is skipped.
     """
     # Operators not counted in graph tuner.
-    _SKIPPED_OP = ["Tuple"]
-
-    return node_entry["op"] in _SKIPPED_OP
+    return isinstance(node_entry["node"], relay.Tuple)
 
 
 def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
@@ -136,7 +136,7 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
             rebind_dict[var] = updated_input_dict[var.name_hint]
     updated_expr = relay.expr.bind(expr, rebind_dict)
 
-    mod = relay.Module.from_expr(updated_expr)
+    mod = tvm.IRModule.from_expr(updated_expr)
     mod = transform.InferType()(mod)
     entry = mod["main"]
     return entry if isinstance(updated_expr, relay.Function) else entry.body

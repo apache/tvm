@@ -212,10 +212,10 @@ class Partitioner : public ExprMutator {
       Expr arg0 = call->args[0];
       std::string name = compiler_attrs->compiler + "_" + std::to_string(subgraph->id);
       subgraph_func =
-          FunctionSetAttr(subgraph_func, attr::kExternalSymbol, tvm::ir::StringImmNode::make(name));
+          FunctionSetAttr(subgraph_func, attr::kExternalSymbol, tir::StringImmNode::make(name));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kPrimitive, tvm::Integer(1));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kCompiler,
-                                      tvm::ir::StringImmNode::make(compiler_attrs->compiler));
+                                      tvm::tir::StringImmNode::make(compiler_attrs->compiler));
       return CallNode::make(subgraph_func, args);
     }
   }

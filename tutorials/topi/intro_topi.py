@@ -85,7 +85,7 @@ e = topi.elemwise_sum([c, d])
 f = e / 2.0
 g = topi.sum(f)
 with tvm.target.cuda():
-    sg = topi.generic.schedule_reduce(g)
+    sg = topi.cuda.schedule_reduce(g)
     print(tvm.lower(sg, [a, b], simple_mode=True))
 
 ######################################################################
@@ -113,7 +113,7 @@ tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
 tarray = tvm.placeholder((512, 512), name="tarray")
 softmax_topi = topi.nn.softmax(tarray)
 with tvm.target.create("cuda"):
-    sst = topi.generic.schedule_softmax(softmax_topi)
+    sst = topi.cuda.schedule_softmax(softmax_topi)
     print(tvm.lower(sst, [tarray], simple_mode=True))
 
 ######################################################################
@@ -133,9 +133,9 @@ data = tvm.placeholder((1, 3, 224, 224))
 kernel = tvm.placeholder((10, 3, 5, 5))
 
 with tvm.target.create("cuda"):
-    conv = topi.nn.conv2d(data, kernel, strides=1, padding=2, dilation=1)
+    conv = topi.cuda.conv2d_nchw(data, kernel, 1, 2, 1)
     out = topi.nn.relu(conv)
-    sconv = topi.generic.nn.schedule_conv2d_nchw([out])
+    sconv = topi.cuda.schedule_conv2d_nchw([out])
     print(tvm.lower(sconv, [data, kernel], simple_mode=True))
 
 ######################################################################

@@ -22,7 +22,7 @@
  * \brief Property def of nn operators.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
@@ -61,7 +61,7 @@ bool BiasAddRel(const Array<Type>& types,
       << "axis " << param->axis << " is out of range";
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(
+  reporter->Assign(types[1], TensorType(
       {data->shape[axis]}, data->dtype));
   reporter->Assign(types[2], types[0]);
   return true;
@@ -93,10 +93,11 @@ RELAY_REGISTER_OP("nn.bias_add")
 .add_argument("bias", "1D Tensor", "Bias.")
 .set_support_level(1)
 .add_type_rel("BiasAdd", BiasAddRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs, const Array<top::Tensor>& inputs,
-                                        const Type& out_type, const Target& target) {
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<te::Tensor>& inputs,
+                                         const Type& out_type) {
     const auto* param = attrs.as<BiasAddAttrs>();
-    return tvm::Array<tvm::top::Tensor>{topi::nn::bias_add(inputs[0], inputs[1], param->axis)};
+    return tvm::Array<tvm::te::Tensor>{topi::nn::bias_add(inputs[0], inputs[1], param->axis)};
 });
 
 
@@ -138,7 +139,7 @@ bool FIFOBufferRel(const Array<Type>& types,
 
   Array<tvm::PrimExpr> oshape = buffer->shape;
 
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, buffer->dtype));
+  reporter->Assign(types[2], TensorType(oshape, buffer->dtype));
   return true;
 }
 
@@ -233,11 +234,10 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
-                    const Array<top::Tensor>& inputs,
-                    const Type& out_type,
-                    const Target& target) {
+                    const Array<te::Tensor>& inputs,
+                    const Type& out_type) {
     const auto* param = attrs.as<LeakyReluAttrs>();
-    return Array<top::Tensor>{ topi::leaky_relu(inputs[0], param->alpha) };
+    return Array<te::Tensor>{ topi::leaky_relu(inputs[0], param->alpha) };
 });
 
 
@@ -260,10 +260,10 @@ bool PReluRel(const Array<Type>& types,
 
   // assign alpha type
   Array<IndexExpr> alpha_shape({data->shape[param->axis]});
-  reporter->Assign(types[1], TensorTypeNode::make(alpha_shape, data->dtype));
+  reporter->Assign(types[1], TensorType(alpha_shape, data->dtype));
 
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(data->shape, data->dtype));
+  reporter->Assign(types[2], TensorType(data->shape, data->dtype));
   return true;
 }
 
@@ -314,11 +314,10 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", PReluInferCorrectLayout<PReluAttrs>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
-                    const Array<top::Tensor>& inputs,
-                    const Type& out_type,
-                    const Target& target) {
+                    const Array<te::Tensor>& inputs,
+                    const Type& out_type) {
     const auto* param = attrs.as<PReluAttrs>();
-    return Array<top::Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
+    return Array<te::Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
 });
 
 
@@ -350,12 +349,11 @@ RELAY_REGISTER_OP("nn.softmax")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
+                                         const Array<te::Tensor>& inputs,
+                                         const Type& out_type) {
   const auto* param = attrs.as<SoftmaxAttrs>();
   CHECK(param != nullptr);
-  return Array<top::Tensor>{ topi::nn::softmax(inputs[0], param->axis) };
+  return Array<te::Tensor>{ topi::nn::softmax(inputs[0], param->axis) };
 });
 
 
@@ -384,14 +382,13 @@ RELAY_REGISTER_OP("nn.log_softmax")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
+                                         const Array<te::Tensor>& inputs,
+                                         const Type& out_type) {
   const auto* param = attrs.as<SoftmaxAttrs>();
   CHECK(param != nullptr);
   CHECK(param->axis == -1 || param->axis == static_cast<int32_t>(inputs[0].ndim()) - 1)
       << "log_softmax currently only works on last dimension";
-  return Array<top::Tensor>{ topi::nn::log_softmax(inputs[0]) };
+  return Array<te::Tensor>{ topi::nn::log_softmax(inputs[0]) };
 });
 
 
@@ -405,10 +402,10 @@ bool BatchFlattenRel(const Array<Type>& types,
   if (data == nullptr) return false;
   if (data->shape.size() == 0) return false;
 
-  auto target_dim = make_const(DataType::Int(32), 1);
+  auto target_dim = tir::make_const(DataType::Int(32), 1);
 
   for (uint32_t i = 1; i < data->shape.size(); ++i) {
-    if (!data->shape[i].as<ir::AnyNode>()) {
+    if (!data->shape[i].as<tir::AnyNode>()) {
       target_dim = target_dim * data->shape[i];
     } else {
       target_dim = data->shape[i];
@@ -419,7 +416,7 @@ bool BatchFlattenRel(const Array<Type>& types,
   std::vector<IndexExpr> oshape({data->shape[0], target_dim});
 
   // assign output type
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
@@ -461,10 +458,9 @@ Example::
 .add_type_rel("BatchFlatten", BatchFlattenRel)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
-                    const Array<top::Tensor>& inputs,
-                    const Type& out_type,
-                    const Target& target) {
-    return Array<top::Tensor>{ topi::nn::flatten(inputs[0]) };
+                    const Array<te::Tensor>& inputs,
+                    const Type& out_type) {
+    return Array<te::Tensor>{ topi::nn::flatten(inputs[0]) };
 });
 
 
@@ -488,10 +484,9 @@ RELAY_REGISTER_OP("nn.relu")
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<top::Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
-  return Array<top::Tensor>{ topi::relu(inputs[0], 0.0f) };
+                                         const Array<te::Tensor>& inputs,
+                                         const Type& out_type) {
+  return Array<te::Tensor>{ topi::relu(inputs[0], 0.0f) };
 });
 
 
@@ -585,7 +580,7 @@ bool DropoutRel(const Array<Type>& types,
 
   // dropout returns the original tensor with dropout applied
   // and a mask tensor (1.0 where element not dropped, 0.0 where dropped)
-  auto ret_type = TensorTypeNode::make(data->shape, data->dtype);
+  auto ret_type = TensorType(data->shape, data->dtype);
   reporter->Assign(types[1], TupleType(Array<Type>({ret_type, ret_type})));
   return true;
 }
@@ -661,17 +656,17 @@ bool BatchNormRel(const Array<Type>& types,
   auto axis_size = data->shape[axis];
 
   // if we are using beta and gamma, they need to be of shape (dim,)
-  reporter->Assign(types[1], TensorTypeNode::make({axis_size}, data->dtype));
-  reporter->Assign(types[2], TensorTypeNode::make({axis_size}, data->dtype));
-  reporter->Assign(types[3], TensorTypeNode::make({axis_size}, data->dtype));
-  reporter->Assign(types[4], TensorTypeNode::make({axis_size}, data->dtype));
+  reporter->Assign(types[1], TensorType({axis_size}, data->dtype));
+  reporter->Assign(types[2], TensorType({axis_size}, data->dtype));
+  reporter->Assign(types[3], TensorType({axis_size}, data->dtype));
+  reporter->Assign(types[4], TensorType({axis_size}, data->dtype));
 
   // output is a tuple of the normed data (same shape as input), new running mean,
   // and new running average (the latter two are both vectors of length dim)
   std::vector<Type> fields;
-  auto vec_ty = TensorTypeNode::make(Array<IndexExpr>({data->shape[axis]}),
+  auto vec_ty = TensorType(Array<IndexExpr>({data->shape[axis]}),
                                      data->dtype);
-  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
+  fields.push_back(TensorType(data->shape, data->dtype));
   fields.push_back(vec_ty);
   fields.push_back(vec_ty);
   reporter->Assign(types[5], TupleType(Array<Type>(fields)));
@@ -754,9 +749,9 @@ bool InstanceNormRel(const Array<Type>& types,
   const InstanceNormAttrs* param = attrs.as<InstanceNormAttrs>();
   int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
   CHECK(axis >= 0 && axis < (int)data->shape.size());
-  reporter->Assign(types[1], TensorTypeNode::make({data->shape[axis]}, data->dtype));
-  reporter->Assign(types[2], TensorTypeNode::make({data->shape[axis]}, data->dtype));
-  reporter->Assign(types[3], TensorTypeNode::make(data->shape, data->dtype));
+  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[2], TensorType({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
 
   return true;
 }
@@ -824,9 +819,9 @@ bool LayerNormRel(const Array<Type>& types,
   const LayerNormAttrs* param = attrs.as<LayerNormAttrs>();
   int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
   CHECK(axis >= 0 && axis < (int)data->shape.size());
-  reporter->Assign(types[1], TensorTypeNode::make({data->shape[axis]}, data->dtype));
-  reporter->Assign(types[2], TensorTypeNode::make({data->shape[axis]}, data->dtype));
-  reporter->Assign(types[3], TensorTypeNode::make(data->shape, data->dtype));
+  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[2], TensorType({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
 
   return true;
 }
@@ -881,7 +876,7 @@ bool BatchMatmulRel(const Array<Type>& types,
   oshape.Set(2, y->shape[1]);
 
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, x->dtype));
+  reporter->Assign(types[2], TensorType(oshape, x->dtype));
   return true;
 }
 
@@ -940,7 +935,7 @@ bool CrossEntropyRel(const Array<Type>& types,
     << "x shape = " << x->shape << ", "
     << "y shape = " << y->shape;
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make({}, x->dtype));
+  reporter->Assign(types[2], TensorType({}, x->dtype));
   return true;
 }
 
@@ -1016,7 +1011,7 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 
   // Assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
+                   TensorType(layout_converter.BackwardShape(oshape), data->dtype));
 
   return true;
 }
@@ -1074,7 +1069,7 @@ bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attr
 
   // Assign output type
   reporter->Assign(types[1],
-                   TensorTypeNode::make(layout_converter.BackwardShape(oshape), data->dtype));
+                   TensorType(layout_converter.BackwardShape(oshape), data->dtype));
 
   return true;
 }

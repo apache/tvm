@@ -29,14 +29,14 @@ def program_rpc_bitstream(path=None):
     ----------
     path : path to bitstream (optional)
     """
-    assert tvm.module.enabled("rpc")
+    assert tvm.runtime.enabled("rpc")
     remote = rpc.connect(host, port)
     program_fpga(remote, path)
 
 def reconfig_rpc_runtime():
     """Reconfig the RPC server runtime
     """
-    assert tvm.module.enabled("rpc")
+    assert tvm.runtime.enabled("rpc")
     remote = rpc.connect(host, port)
     reconfig_runtime(remote)
 

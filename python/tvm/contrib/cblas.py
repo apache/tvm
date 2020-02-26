@@ -15,30 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to BLAS libraries."""
-from __future__ import absolute_import as _abs
-
-from .. import api as _api, intrin as _intrin
+import tvm
+from .. import api as _api
 
 
 def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     """Create an extern op that compute matrix mult of A and rhs with CrhsLAS
-
     This function serves as an example on how to call external libraries.
 
     Parameters
     ----------
-    lhs : Tensor
+    lhs: Tensor
         The left matrix operand
-    rhs : Tensor
+    rhs: Tensor
         The right matrix operand
-    transa : bool
+    transa: bool
         Whether transpose lhs
-    transb : bool
+    transb: bool
         Whether transpose rhs
 
     Returns
     -------
-    C : Tensor
+    C: Tensor
         The result tensor.
     """
     n = lhs.shape[1] if transa else lhs.shape[0]
@@ -46,7 +44,7 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     return _api.extern(
         (n, m),
         [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cblas.matmul", ins[0], ins[1], outs[0], transa, transb
         ),
         name="C",
@@ -56,20 +54,22 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
 
 def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs):
     """Create an extern op that compute batched matrix mult of A and rhs with CBLAS
-     This function serves as an example on how to call external libraries.
-     Parameters
+    This function serves as an example on how to call external libraries.
+
+    Parameters
     ----------
-    lhs : Tensor
+    lhs: Tensor
         The left matrix operand
-    rhs : Tensor
+    rhs: Tensor
         The right matrix operand
-    transa : bool
+    transa: bool
         Whether transpose lhs
-    transb : bool
+    transb: bool
         Whether transpose rhs
-     Returns
+
+    Returns
     -------
-    C : Tensor
+    C: Tensor
         The result tensor.
     """
     b = lhs.shape[0]
@@ -78,7 +78,7 @@ def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs
     return _api.extern(
         (b, n, m),
         [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cblas.batch_matmul"
             if not iterative
             else "tvm.contrib.cblas.batch_matmul_iterative",

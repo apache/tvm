@@ -19,9 +19,8 @@
 
 import tvm
 from tvm import autotvm
-from .. import generic, tag
+from .. import tag
 from ..util import get_const_tuple
-from ..nn.conv2d import conv2d_NCHWc_int8
 from ..generic import conv2d as conv2d_generic
 from .. import nn
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
@@ -42,9 +41,10 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype):
             cfg, wkl, int32_lanes=2, num_int8_elements=4)
 
 
-@autotvm.register_topi_compute(conv2d_NCHWc_int8, ['arm_cpu'], 'direct')
-def _declaration_conv_NCHWc_int8(cfg, data, kernel, strides,
-                                 padding, dilation, layout, out_layout, out_dtype):
+@autotvm.register_topi_compute("conv2d_NCHWc_int8.arm_cpu")
+def conv2d_NCHWc_int8(cfg, data, kernel, strides,
+                      padding, dilation, layout, out_layout, out_dtype):
+    """Compute conv2d int8 with NCHWc layout"""
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
@@ -68,8 +68,8 @@ def _declaration_conv_NCHWc_int8(cfg, data, kernel, strides,
                                         out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv2d_NCHWc_int8, ['arm_cpu'], ['direct'])
-def _schedule_conv2d_NCHWc_int8(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_NCHWc_int8.arm_cpu")
+def schedule_conv2d_NCHWc_int8(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
@@ -86,7 +86,7 @@ def _schedule_conv2d_NCHWc_int8(cfg, outs):
 
         if 'conv2d_NCHWc_int8' in op.tag:
             conv_out = op.output(0)
-            kernel = conv_out.op.input_tensors[1]
+            kernel_vec = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
             data = data_vec.op.input_tensors[0] \
                 if isinstance(data_vec.op, tvm.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
@@ -95,9 +95,9 @@ def _schedule_conv2d_NCHWc_int8(cfg, outs):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
-            args = [s, cfg, data_vec, conv_out, outs[0]]
+            args = [s, cfg, data_vec, kernel_vec, conv_out, outs[0]]
             # int8 conv kernel is 7-dim
-            _, _, kh, kw, _, _, _ = get_const_tuple(kernel.shape)
+            _, _, kh, kw, _, _, _ = get_const_tuple(kernel_vec.shape)
             dtype = "uint" if data.dtype == "uint8" else "int"
             if kh == 1 and kw == 1:
                 conv2d_generic.schedule_conv_NCHWc_cpu_1x1_int8(

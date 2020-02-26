@@ -33,7 +33,7 @@ def early_rewrite(stmt):
     """Try to do storage rewrite in early pass."""
     try:
         return tvm.ir_pass.StorageRewrite(stmt)
-    except tvm.TVMError:
+    except tvm.error.TVMError:
         return stmt
 
 
@@ -68,7 +68,7 @@ def build_config(debug_flag=0, **kwargs):
             env.dev.command_handle,
             debug_flag)
 
-        return tvm.make.stmt_seq(debug, stmt)
+        return tvm.tir.stmt_seq(debug, stmt)
     pass_list = [(0, ir_pass.inject_conv2d_transpose_skip),
                  (1, ir_pass.inject_dma_intrin),
                  (1, ir_pass.inject_skip_copy),
@@ -96,7 +96,7 @@ def lower(*args, **kwargs):
     --------
     tvm.lower : The original TVM's lower function
     """
-    cfg = tvm.build_module.current_build_config()
+    cfg = tvm.target.BuildConfig.current()
     if not cfg.add_lower_pass:
         with build_config():
             return tvm.lower(*args, **kwargs)
@@ -113,7 +113,7 @@ def build(*args, **kwargs):
     --------
     tvm.build : The original TVM's build function
     """
-    cfg = tvm.build_module.current_build_config()
+    cfg = tvm.target.BuildConfig.current()
     if not cfg.add_lower_pass:
         with build_config():
             return tvm.build(*args, **kwargs)

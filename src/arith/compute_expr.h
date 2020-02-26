@@ -24,7 +24,7 @@
 #ifndef TVM_ARITH_COMPUTE_EXPR_H_
 #define TVM_ARITH_COMPUTE_EXPR_H_
 
-#include <tvm/ir.h>
+#include <tvm/tir/expr.h>
 #include <limits>
 #include <algorithm>
 
@@ -57,7 +57,7 @@ inline PrimExpr ComputeReduce(
 
 inline bool GetConst(PrimExpr e, int64_t* out) {
   if (e.dtype().is_vector()) return false;
-  const int64_t* v = as_const_int(e);
+  const int64_t* v = tir::as_const_int(e);
   if (v) {
     *out = *v; return true;
   } else {
@@ -77,37 +77,37 @@ inline bool GetConstInt(PrimExpr e, int* out) {
 }
 
 template<>
-inline PrimExpr Compute<ir::AddNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::AddNode>(PrimExpr a, PrimExpr b) {
   return a + b;
 }
 
 template<>
-inline PrimExpr Compute<ir::SubNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::SubNode>(PrimExpr a, PrimExpr b) {
   return a - b;
 }
 
 template<>
-inline PrimExpr Compute<ir::MulNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::MulNode>(PrimExpr a, PrimExpr b) {
   return a * b;
 }
 
 template<>
-inline PrimExpr Compute<ir::DivNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::DivNode>(PrimExpr a, PrimExpr b) {
   return truncdiv(a, b);
 }
 
 template<>
-inline PrimExpr Compute<ir::ModNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::ModNode>(PrimExpr a, PrimExpr b) {
   return truncmod(a, b);
 }
 
 template<>
-inline PrimExpr Compute<ir::MaxNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::MaxNode>(PrimExpr a, PrimExpr b) {
   return max(a, b);
 }
 
 template<>
-inline PrimExpr Compute<ir::MinNode>(PrimExpr a, PrimExpr b) {
+inline PrimExpr Compute<tir::MinNode>(PrimExpr a, PrimExpr b) {
   return min(a, b);
 }
 

@@ -25,6 +25,10 @@ rm -rf docs/_build/html/javadoc
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials
+rm -rf docs/vta/tutorials
+
+# cleanup stale log files
+find . -type f -path "*.log" | xargs rm -f
 
 # C++ doc
 make doc

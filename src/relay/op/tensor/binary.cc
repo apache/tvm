@@ -32,9 +32,8 @@ namespace relay {
 
 #define RELAY_BINARY_COMPUTE(FTOPI)                        \
   [] (const Attrs& attrs,                                  \
-      const Array<top::Tensor>& inputs,                         \
-      const Type& out_type,                                \
-      const Target& target) -> Array<top::Tensor> {             \
+      const Array<te::Tensor>& inputs,                     \
+      const Type& out_type) -> Array<te::Tensor> {         \
     CHECK_EQ(inputs.size(), 2U);                           \
     return {FTOPI(inputs[0], inputs[1])};                  \
   }                                                        \
@@ -122,6 +121,24 @@ RELAY_REGISTER_BINARY_OP("logical_or")
 .describe("Elementwise logical OR with broadcasting")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::logical_or));
+
+
+RELAY_REGISTER_BINARY_OP("bitwise_and")
+.describe("Elementwise bitwise AND with broadcasting")
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::bitwise_and));
+
+
+RELAY_REGISTER_BINARY_OP("bitwise_or")
+.describe("Elementwise bitwise OR with broadcasting")
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::bitwise_or));
+
+
+RELAY_REGISTER_BINARY_OP("bitwise_xor")
+.describe("Elementwise bitwise XOR with broadcasting")
+.set_support_level(4)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::bitwise_xor));
 
 
 RELAY_REGISTER_CMP_OP("equal")

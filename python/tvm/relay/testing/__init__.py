@@ -17,6 +17,7 @@
 #pylint: disable=invalid-name
 """Utilities for testing and benchmarks"""
 from __future__ import absolute_import as _abs
+import numpy as np
 
 import tvm
 import tvm.relay as relay
@@ -24,7 +25,6 @@ import tvm.relay.op as op
 from tvm.relay import transform
 from tvm.relay import Function, GlobalVar, ScopeBuilder, Tuple, TupleGetItem, create_executor
 from tvm.relay import TensorType, TupleType
-import numpy as np
 
 from . import mlp
 from . import resnet
@@ -47,7 +47,7 @@ from ..transform import gradient
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body

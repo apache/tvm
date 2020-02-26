@@ -23,7 +23,7 @@ import tvm
 
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import simplify, get_const_tuple, get_const_int
+from ..util import simplify, get_const_tuple, get_const_int, tag
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -31,7 +31,6 @@ Workload = namedtuple('Workload',
                       ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'groups',
                        'out_filter', 'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
-@tvm.target.generic_func
 def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=None):
     """Conv2D operator.
 
@@ -66,9 +65,9 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
     # default declaration
     if layout == 'NCHW':
         return conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'HWCN':
+    if layout == 'HWCN':
         return conv2d_hwcn(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'NHWC':
+    if layout == 'NHWC':
         return conv2d_nhwc(input, filter, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
@@ -79,7 +78,7 @@ def conv2d_legalize(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -96,24 +95,23 @@ def conv2d_legalize(attrs, inputs, types):
 
 
 @tvm.target.generic_func
-def conv2d_alter_layout(attrs, inputs, tinfos, F):
+def conv2d_alter_layout(attrs, inputs, tinfos, out_type):
     """Change Conv2D layout.
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : tvm.relay.Expr
         Grouped input symbols
     tinfos : list
         Input shape and dtype
-    F: symbol
-        The context, can be either relay.op
+    out_type: type
+        The output type
 
     Note
     ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level,
-    so we have to pass 'F' to make it support our two versions of graph IR, Relay.
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
     """
     # not to change by default
     return None
@@ -368,7 +366,6 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     return Output
 
 
-@tvm.target.generic_func
 def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype='float32'):
     """Conv2D operator for nChw[x]c layout.
 
@@ -408,64 +405,15 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
 
-    return conv2d_NCHWc_compute(data,
-                                kernel,
-                                stride,
-                                padding,
-                                dilation,
-                                layout,
-                                out_layout,
-                                out_dtype)
-
-
-def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
-    """Conv2D operator compute for nChw[x]c layout.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
-
-    kernel : tvm.Tensor
-        6-D with shape
-        [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
-        in_channel_block, num_filter_block]
-
-    stride : int or a list/tuple of two ints
-        stride size, or [stride_height, stride_width]
-
-    padding : int or a list/tuple of 2 or 4 ints
-        padding size, or
-        [pad_height, pad_width] for 2 ints, or
-        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
-
-    dilation: int or a list/tuple of two ints
-        dilation size, or [dilation_height, dilation_width]
-
-    layout : str
-        Input data layout
-
-    out_layout : str
-        Output data layout
-
-    out_dtype : str
-        output data type
-
-    Returns
-    -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
-    """
-
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
     dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
         else (dilation, dilation)
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = \
         get_const_tuple(kernel.shape)
     num_filter = oc_chunk * oc_bn
@@ -516,59 +464,8 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
                        name='conv2d_NCHWc', tag="conv2d_NCHWc")
 
 
-@tvm.target.generic_func
-def conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, layout, out_layout,
+def conv2d_NCHWc_int8(data, kernel, stride, padding, dilation, layout, out_layout,
                       out_dtype='int32'):
-    """Conv2D operator for nChw[x]c layout.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
-
-    kernel : tvm.Tensor
-        7-D with shape
-        [num_filter_chunk, in_channel_chunk, filter_height, filter_width, in_channel_block/4,
-        num_filter_block, 4]
-
-    stride : int or a list/tuple of two ints
-        stride size, or [stride_height, stride_width]
-
-    padding : int or a list/tuple of 2 or 4 ints
-        padding size, or
-        [pad_height, pad_width] for 2 ints, or
-        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
-
-    dilation: int or a list/tuple of two ints
-        dilation size, or [dilation_height, dilation_width]
-
-    layout : str
-        Input data layout
-
-    out_layout : str
-        Output data layout
-
-    out_dtype : str
-        output data type
-
-    Returns
-    -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
-    """
-
-    return conv2d_NCHWc_int8_compute(data,
-                                     kernel,
-                                     strides,
-                                     padding,
-                                     dilation,
-                                     layout,
-                                     out_layout,
-                                     out_dtype)
-
-
-def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, out_layout,
-                              out_dtype='int32'):
     """Conv2D operator for nChw[x]c layout.
 
     Parameters
@@ -609,7 +506,7 @@ def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, 
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
     dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
         else (dilation, dilation)
 
@@ -724,33 +621,6 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
                                axis=[r_kh, r_kw]), name='transform_weight')
 
 
-@tvm.target.generic_func
-def conv2d_winograd_without_weight_transform(input, filter, strides, padding, dilation,
-                                             layout, out_dtype, tile_size):
-    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
-    in advance.
-
-    Parameters
-    ----------
-    input : tvm.Tensor
-        4-D with shape [batch, in_height, in_width, in_channel]
-    filter : tvm.Tensor
-        4-D with shape [filter_height, filter_width, in_channel, num_filter]
-    strides : int or a list/tuple of two ints
-        Stride size, or [stride_height, stride_width]
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
-    tile_size: int
-        Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
-
-    Returns
-    -------
-    output : tvm.Tensor
-        4-D with shape [batch, out_height, out_width, out_channel]
-    """
-    raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
-
-
 def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_dtype):
     """Weight transformation for winograd
      Parameters
@@ -764,36 +634,12 @@ def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_d
     output : tvm.Tensor
         4-D with shape [alpha, alpha, CO, CI]
     """
+    # pylint: disable=import-outside-toplevel
     from tvm.contrib import nnpack
     return nnpack.convolution_inference_weight_transform(
         kernel, algorithm=convolution_algorithm, dtype=out_dtype)
 
-@tvm.target.generic_func
-def conv2d_winograd_nnpack_without_weight_transform(
-        input, filter, bias, strides, padding, dilation, layout, out_dtype):
-    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
-    in advance.
-     Parameters
-    ----------
-    input : tvm.Tensor
-        4-D with shape [batch, in_height, in_width, in_channel]
-    filter : tvm.Tensor
-        4-D with shape [num_filter, in_channel, 8, 8]
-    bias : tvm.Tensor
-        1-D with shape [num_filter]
-    strides : int or a list/tuple of two ints
-        Stride size, or [stride_height, stride_width]
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
-     Returns
-    -------
-    output : tvm.Tensor
-        4-D with shape [batch, out_height, out_width, out_channel]
-    """
-    raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
 
-
-@tvm.target.generic_func
 def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
     """Group convolution operator in NCHW layout.
 
@@ -870,3 +716,35 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag='group_conv2d_nchw')
+
+
+def unpack_NCHWc_to_nchw(packed_out, out_dtype):
+    """Unpack conv2d_NCHWc output from layout NCHWc to NCHW
+
+     Parameters
+    -----------
+    packed_out : tvm.Tensor
+        The output tensor of conv2d_NCHWc.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    unpacked_out : tvm.Tensor
+        The unpacked output tensor in NCHW layout.
+    """
+    n, oc_chunk, oh, ow, oc_bn = get_const_tuple(packed_out.shape)
+
+    idxmod = tvm.indexmod
+    idxdiv = tvm.indexdiv
+
+    oshape = (n, oc_chunk * oc_bn, oh, ow)
+    unpacked_out = \
+        tvm.compute(oshape,
+                    lambda n, c, h, w:
+                    packed_out[n, idxdiv(c, oc_bn), h, w, idxmod(c, oc_bn)]
+                    .astype(out_dtype),
+                    name='output_unpack',
+                    tag=tag.INJECTIVE+",unpack_nchwc")
+    return unpacked_out

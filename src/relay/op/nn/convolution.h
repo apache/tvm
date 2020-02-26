@@ -24,7 +24,7 @@
 #ifndef TVM_RELAY_OP_NN_CONVOLUTION_H_
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
-#include <tvm/ir_pass.h>
+#include <tvm/tir/ir_pass.h>
 #include <string>
 #include <utility>
 
@@ -81,7 +81,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -104,7 +104,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // dilation
   Array<IndexExpr> oshape({dshape_ncw[0], channels, 0});
 
-  if (!dshape_ncw[2].as<ir::AnyNode>()) {
+  if (!dshape_ncw[2].as<tir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_ncw[2] + param->padding[0] + param->padding[1] - dilated_ksize,
                            param->strides[0]) + 1);
   } else {
@@ -117,7 +117,7 @@ bool Conv1DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -153,6 +153,16 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       << " But got " << out_layout;
 
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
+  bool is_depthwise = false;
+  if (param->groups > 1) {
+    CHECK(weight && weight->shape.defined()) <<
+        "Weight shape must be specified when groups is greater than 1.";
+    Array<IndexExpr> wshape_oihw = trans_kernel_layout.ForwardShape(weight->shape);
+    if (tvm::tir::Equal(param->groups, dshape_nchw[1]) &&
+        tvm::tir::Equal(param->groups, wshape_oihw[0])) {
+      is_depthwise = true;
+    }
+  }
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
   // infer weight if the kernel_size and channels are defined
@@ -161,9 +171,9 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape;
 
-    if (tvm::ir::Equal(param->channels, param->groups) && !tvm::ir::Equal(param->channels, 1)) {
+    if (is_depthwise) {
       // infer weight's shape for depthwise convolution
-      wshape = {{dshape_nchw[1], indexdiv(param->groups, dshape_nchw[1]), param->kernel_size[0],
+      wshape = {{dshape_nchw[1], indexdiv(param->channels, dshape_nchw[1]), param->kernel_size[0],
                  param->kernel_size[1]}};
     } else {
       wshape = {{param->channels, indexdiv(dshape_nchw[1], param->groups), param->kernel_size[0],
@@ -179,7 +189,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       weight_dtype = weight->dtype;
     }
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -207,14 +217,14 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   IndexExpr pad_h, pad_w;
   GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  if (!dshape_nchw[2].as<ir::AnyNode>()) {
+  if (!dshape_nchw[2].as<tir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_nchw[2] + pad_h - dilated_ksize_y,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_nchw[2]);
   }
 
-  if (!dshape_nchw[3].as<ir::AnyNode>()) {
+  if (!dshape_nchw[3].as<tir::AnyNode>()) {
     oshape.Set(3, indexdiv(dshape_nchw[3] + pad_w - dilated_ksize_x,
                            param->strides[1]) + 1);
   } else {
@@ -226,7 +236,7 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 
@@ -270,7 +280,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->dilation.size(), 3);
     Array<IndexExpr> wshape;
 
-    if (tvm::ir::Equal(param->channels, param->groups) && !tvm::ir::Equal(param->channels, 1)) {
+    if (tvm::tir::Equal(param->channels, param->groups) && !tvm::tir::Equal(param->channels, 1)) {
       // infer weight's shape for depthwise convolution
       wshape = {{dshape_ncdhw[1], indexdiv(param->groups, dshape_ncdhw[1]), param->kernel_size[0],
                  param->kernel_size[1], param->kernel_size[2]}};
@@ -290,7 +300,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     }
 
     // assign result to reporter
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
   } else {
     // use weight to infer the conv shape.
     if (weight == nullptr) return false;
@@ -320,21 +330,21 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   IndexExpr pad_d, pad_h, pad_w;
   GetPaddingDepthHeightWidth(param->padding, &pad_d, &pad_h, &pad_w);
-  if (!dshape_ncdhw[2].as<ir::AnyNode>()) {
+  if (!dshape_ncdhw[2].as<tir::AnyNode>()) {
     oshape.Set(2, indexdiv(dshape_ncdhw[2] + pad_d - dilated_ksize_z,
                            param->strides[0]) + 1);
   } else {
     oshape.Set(2, dshape_ncdhw[2]);
   }
 
-  if (!dshape_ncdhw[3].as<ir::AnyNode>()) {
+  if (!dshape_ncdhw[3].as<tir::AnyNode>()) {
     oshape.Set(3, indexdiv(dshape_ncdhw[3] + pad_h - dilated_ksize_y,
                            param->strides[1]) + 1);
   } else {
     oshape.Set(3, dshape_ncdhw[3]);
   }
 
-  if (!dshape_ncdhw[4].as<ir::AnyNode>()) {
+  if (!dshape_ncdhw[4].as<tir::AnyNode>()) {
     oshape.Set(4, indexdiv(dshape_ncdhw[4] + pad_w - dilated_ksize_x,
                            param->strides[2]) + 1);
   } else {
@@ -346,7 +356,7 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   }
   oshape = trans_out_layout.BackwardShape(oshape);
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 

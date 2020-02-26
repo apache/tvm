@@ -40,6 +40,8 @@ namespace runtime {
  */
 class Library : public Object {
  public:
+  // destructor.
+  virtual ~Library() {}
   /*!
    * \brief Get the symbol address for a given name.
    * \param name The name of the symbol.

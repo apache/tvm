@@ -23,9 +23,10 @@ from .injective import schedule_injective_from_existing
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple
+from ..util import get_const_tuple, traverse_inline
 
 
+@autotvm.register_topi_compute("conv2d_NCHWc_int8.cuda")
 def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_dtype):
     """Convolution operator in NCHW[x]c layout for int8.
 
@@ -152,8 +153,21 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_
 _dp4a = dp4a('shared', 'shared', 'local')
 
 
-def schedule_conv2d_NCHWc_int8(cfg, s, output):
+@autotvm.register_topi_schedule("conv2d_NCHWc_int8.cuda")
+def schedule_conv2d_NCHWc_int8(cfg, outs):
     """Schedule conv2d int8 NCHWc template"""
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == 'conv2d_NCHWc_int8':
+            _schedule_conv2d_NCHWc_int8(cfg, s, op.output(0))
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+def _schedule_conv2d_NCHWc_int8(cfg, s, output):
     conv = output.op.input_tensors[0]
     packed_data, packed_kernel = conv.op.input_tensors
 

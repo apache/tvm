@@ -18,9 +18,9 @@ import tvm
 import numpy as np
 
 def test_local_gemm():
-    if not tvm.module.enabled("opengl"):
+    if not tvm.runtime.enabled("opengl"):
         return
-    if not tvm.module.enabled("llvm"):
+    if not tvm.runtime.enabled("llvm"):
         return
 
     nn = 1024

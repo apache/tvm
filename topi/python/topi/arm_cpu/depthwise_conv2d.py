@@ -20,19 +20,19 @@
 import tvm
 from tvm import autotvm
 
-from ..generic import schedule_depthwise_conv2d_nchw
-from ..nn import depthwise_conv2d_nchw, pad
+from .. import nn
 from ..util import traverse_inline, get_const_tuple, get_const_int
 from ..nn.util import get_pad_tuple
 
-# register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.register_topi_compute(depthwise_conv2d_nchw, 'arm_cpu', 'direct',
-                              depthwise_conv2d_nchw.fdefault)
 
-# register customized schedule for arm cpu.
-@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'arm_cpu',
-                                ['direct', 'contrib_spatial_pack'])
-def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
+@autotvm.register_topi_compute("depthwise_conv2d_nchw.arm_cpu")
+def depthwise_conv2d_nchw(_, data, kernel, strides, padding, dilation, out_dtype):
+    """Compute depthwise_conv2d with NCHW layout"""
+    return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw.arm_cpu")
+def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule depthwise conv2d
 
     Parameters
@@ -65,7 +65,7 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
         # fallback support
         if cfg.is_fallback:
             ref_log = autotvm.tophub.load_reference_log(
-                'arm_cpu', 'rk3399', 'depthwise_conv2d_nchw', 'direct')
+                'arm_cpu', 'rk3399', 'depthwise_conv2d_nchw.arm_cpu')
             cfg.fallback_with_reference_log(ref_log)
         ##### space definition end #####
 
@@ -134,25 +134,12 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
                 data = data_pad.op.input_tensors[0]
             _schedule(cfg, s, data, data_pad, kernel, output)
 
-        if op.tag == 'spatial_depthwise_conv2d_nchw_output':
-            output = op.output(0)
-            conv = op.input_tensors[0]
-            data_vec = conv.op.input_tensors[0]
-            kernel_vec = conv.op.input_tensors[1]
-            if kernel_vec.op.name == 'kernel_vec':
-                kernel = kernel_vec.op.input_tensors[0]
-            else:
-                kernel = kernel_vec
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
-                s[kernel].compute_inline()
-
-            _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
-
     traverse_inline(s, outs[0].op, _callback)
     return s
 
-@autotvm.register_topi_compute(depthwise_conv2d_nchw, 'arm_cpu', ['contrib_spatial_pack'])
-def depthwise_conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, out_dtype):
+
+@autotvm.register_topi_compute("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
+def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """TOPI compute callback for depthwise_conv2d nchw
 
     Parameters
@@ -189,6 +176,30 @@ def depthwise_conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, out_
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile=2)
 
 
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
+def schedule_depthwise_conv2d_nchw_spatial_pack(cfg, outs):
+    """Create the schedule for depthwise_conv2d_nchw_spatial_pack"""
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if op.tag == 'spatial_depthwise_conv2d_nchw_output':
+            output = op.output(0)
+            conv = op.input_tensors[0]
+            data_vec = conv.op.input_tensors[0]
+            kernel_vec = conv.op.input_tensors[1]
+            if kernel_vec.op.name == 'kernel_vec':
+                kernel = kernel_vec.op.input_tensors[0]
+            else:
+                kernel = kernel_vec
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+                s[kernel].compute_inline()
+            _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
 def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype, num_tile):
     out_dtype = out_dtype or data.dtype
 
@@ -220,16 +231,16 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype,
     WPAD = pad_left + pad_right
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data, (0, 0, pad_top, pad_left), (0, 0, pad_down, pad_right),
-                       name="data_pad")
+        data_pad = nn.pad(data, (0, 0, pad_top, pad_left), (0, 0, pad_down, pad_right),
+                          name="data_pad")
     else:
         data_pad = data
 
     # fallback support
     # Currently, Mali schedule doesn't use it like conv2d.
     if cfg.is_fallback:
-        ref_log = autotvm.tophub.load_reference_log('arm_cpu', 'rk3399', 'depthwise_conv2d_nchw',
-                                                    'contrib_spatial_pack')
+        ref_log = autotvm.tophub.load_reference_log(
+            'arm_cpu', 'rk3399', 'depthwise_conv2d_nchw_spatial_pack.arm_cpu')
         cfg.fallback_with_reference_log(ref_log)
 
     # ==================== define configuration space ====================

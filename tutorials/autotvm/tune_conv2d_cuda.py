@@ -78,7 +78,7 @@ from tvm import autotvm
 # can be very large (at the level of 10^9 for some input shapes)
 #
 
-@autotvm.template
+@autotvm.register_customized_task("tutorial/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
     assert N == 1, "Only consider batch_size = 1 in this template"
 
@@ -180,7 +180,7 @@ logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
 # the last layer in resnet
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
-task = autotvm.task.create(conv2d_no_batching,
+task = autotvm.task.create("tutorial/conv2d_no_batching",
                            args=(N, H, W, CO, CI, KH, KW, strides, padding),
                            target='cuda')
 print(task.config_space)

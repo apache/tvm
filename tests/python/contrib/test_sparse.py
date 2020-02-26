@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 import tvm.contrib.sparse as tvmsp
-import tvm.ndarray as _nd
+import tvm.runtime.ndarray as _nd
 import numpy as np
 from collections import namedtuple
 

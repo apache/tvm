@@ -22,7 +22,6 @@
  */
 #include <tvm/ir/span.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/packed_func_ext.h>
 
 namespace tvm {
 
@@ -46,11 +45,11 @@ SourceName SourceName::Get(const std::string& name) {
   return SourceName(GetSourceNameNode(name));
 }
 
-TVM_REGISTER_GLOBAL("relay._make.SourceName")
+TVM_REGISTER_GLOBAL("ir.SourceName")
 .set_body_typed(SourceName::Get);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<SourceNameNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const SourceNameNode*>(ref.get());
     p->stream << "SourceName(" << node->name << ", " << node << ")";
   });
@@ -71,11 +70,11 @@ Span SpanNode::make(SourceName source, int lineno, int col_offset) {
 
 TVM_REGISTER_NODE_TYPE(SpanNode);
 
-TVM_REGISTER_GLOBAL("relay._make.Span")
+TVM_REGISTER_GLOBAL("ir.Span")
 .set_body_typed(SpanNode::make);
 
-TVM_STATIC_IR_FUNCTOR(NodePrinter, vtable)
-.set_dispatch<SpanNode>([](const ObjectRef& ref, NodePrinter* p) {
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<SpanNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const SpanNode*>(ref.get());
     p->stream << "Span(" << node->source << ", " << node->lineno << ", "
               << node->col_offset << ")";

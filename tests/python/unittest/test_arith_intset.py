@@ -36,12 +36,16 @@ def test_basic():
     assert s.min_value.value == 2
     assert s.max_value.value == 3
 
+    s = tvm.arith.IntSet.single_point(2)
+    assert s.min_value.value == 2
+    assert s.max_value.value == 2
+
 
 def test_vector():
     base = 10
     stride = 3
     lanes = 2
-    s = tvm.arith.intset_vector(tvm.make.Ramp(base, stride, lanes))
+    s = tvm.arith.IntSet.vector(tvm.tir.Ramp(base, stride, lanes))
     assert s.min_value.value == base
     assert s.max_value.value == base + stride * lanes - 1
 
@@ -99,7 +103,7 @@ def test_max_min():
 def test_select():
     ck = IntSetChecker()
     x, y = tvm.var("x"), tvm.var("y")
-    ck.verify(tvm.expr.Select(x > 0, x - 1, x + 1),
+    ck.verify(tvm.tir.Select(x > 0, x - 1, x + 1),
               {x : tvm.arith.IntervalSet(0, 10)}, (-1, 11))
 
 

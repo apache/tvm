@@ -22,7 +22,7 @@
  * \brief A compiler from relay::Module to the VM byte code.
  */
 
-#include <tvm/top/operation.h>
+#include <tvm/te/operation.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
@@ -31,13 +31,14 @@
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/relay/attrs/memory.h>
+#include <tvm/driver/driver_api.h>
+
 #include <iostream>
 #include <memory>
 #include <string>
 #include <tuple>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
+#include "../utils.h"
 #include "../../backend/compile_engine.h"
 #include "../../pass/pass_util.h"
 #include "../../op/op_common.h"
@@ -636,6 +637,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // emit invoke closure here.
       VisitExpr(GetRef<Var>(var_node));
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
+    } else if (auto inner_call_node = op.as<CallNode>()) {
+      VisitExpr(GetRef<Call>(inner_call_node));
+      Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
     } else {
       // Finally if there are any other cases this is a bug.
       LOG(FATAL) << "internal error: unreachable code,"
@@ -771,6 +775,19 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
         this->SetParam(kv.first, kv.second->data);
       }
     });
+  } else if (name == "get_params") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      Map<std::string, Constant> ret;
+      for (const auto& kv : params_) {
+        ret.Set(kv.first, ConstantNode::make(kv.second));
+      }
+      *rv = ret;
+    });
+  } else if (name == "optimize") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK_EQ(args.num_args, 2);
+      *rv = this->OptimizeModule(args[0], args[1]);
+    });
   } else {
     LOG(FATAL) << "Unknown packed function: " << name;
     return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
@@ -779,38 +796,6 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
 
 void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
   params_[name] = data_in;
-}
-
-relay::Function VMCompiler::BindParamsByName(
-    relay::Function func,
-    const std::unordered_map<std::string, runtime::NDArray>& params) {
-  std::unordered_map<std::string, relay::Var> name_dict;
-  std::unordered_set<relay::Var, ObjectHash, ObjectEqual> repeat_var;
-  for (auto arg : func->params) {
-    const auto &name = arg->name_hint();
-    if (name_dict.count(name)) {
-      repeat_var.insert(arg);
-    } else {
-      name_dict[name] = arg;
-    }
-  }
-  std::unordered_map<relay::Var, Expr, ObjectHash, ObjectEqual> bind_dict;
-  for (auto &kv : params) {
-    if (name_dict.count(kv.first) == 0) {
-      continue;
-    }
-    auto arg = name_dict.at(kv.first);
-    if (repeat_var.count(arg)) {
-      LOG(FATAL) << "Multiple args in the function have name " << kv.first;
-    }
-    bind_dict[arg] = ConstantNode::make(kv.second);
-  }
-  Expr bound_expr = relay::Bind(func, bind_dict);
-  Function ret = Downcast<Function>(bound_expr);
-  CHECK(ret.defined())
-      << "The returning type is expected to be a Relay Function."
-      << "\n";
-  return ret;
 }
 
 void VMCompiler::Lower(IRModule mod,
@@ -822,7 +807,7 @@ void VMCompiler::Lower(IRModule mod,
     BaseFunc base_func = mod->Lookup("main");
     CHECK(base_func->IsInstance<FunctionNode>())
         << "VM compiler expects to compile relay::Function";
-    auto f = BindParamsByName(Downcast<Function>(base_func), params_);
+    auto f = relay::backend::BindParamsByName(Downcast<Function>(base_func), params_);
     auto gvar = mod->GetGlobalVar("main");
     mod->Add(gvar, f);
   }
@@ -968,6 +953,8 @@ void VMCompiler::PopulateGlobalMap() {
 }
 
 void VMCompiler::Codegen() {
+  using tir::LoweredFunc;
+
   if (!context_.module.defined()) {
     LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
     return;

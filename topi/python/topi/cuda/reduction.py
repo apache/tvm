@@ -19,7 +19,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
-from .. import generic
 from .injective import schedule_injective_from_existing
 
 def _schedule_reduce(op, sch, is_idx_reduce=False):
@@ -35,7 +34,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     if len(sch[data_out].op.axis) > 0:
         all_reduce = False
         num_thread = 32
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         if target and target.target_name == "opencl":
             # without it, CL_INVALID_WORK_GROUP_SIZE occurred when running test_topi_reduce.py
             # don't know why
@@ -45,7 +44,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
         thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
     else:
         all_reduce = True
-        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+        num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
         thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
     # Fuse and refactor the reduce axis
@@ -89,7 +88,6 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     return sch
 
 
-@generic.schedule_reduce.register(["cuda", "gpu"])
 def schedule_reduce(outs):
     """Schedule for inject->reduce->bcast ops.
 

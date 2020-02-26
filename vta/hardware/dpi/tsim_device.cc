@@ -141,6 +141,8 @@ int VTADPISim() {
       tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
 #endif
     trace_count++;
+    if ((trace_count % 1000000) == 1)
+      fprintf(stderr, "[traced %dM cycles]\n", trace_count / 1000000);
     while (top->sim_wait) {
       top->clock = 0;
       std::this_thread::sleep_for(std::chrono::milliseconds(100));

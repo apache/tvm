@@ -52,7 +52,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     // data dtype as the weight dtype. However if weight dtype is explicitly
     // present we will use that.
     auto weight_dtype = (weight == nullptr ? data->dtype : weight->dtype);
-    reporter->Assign(types[1], TensorTypeNode::make(wshape, weight_dtype));
+    reporter->Assign(types[1], TensorType(wshape, weight_dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
@@ -70,7 +70,7 @@ bool DenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     out_dtype = data->dtype;
   }
   // assign output type
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
   return true;
 }
 

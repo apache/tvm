@@ -21,8 +21,9 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 import warnings
+from tvm.runtime import ndarray as nd
+
 from . import util
-from .. import ndarray as nd
 from ..api import register_func
 from .._ffi.base import py_str
 
@@ -231,11 +232,7 @@ def have_fp16(compute_version):
     # https://docs.nvidia.com/cuda/cuda-c-programming-guide/#arithmetic-instructions
     if major == 5 and minor == 3:
         return True
-    # NOTE: exclude compute capability 6.1 devices although it is actually available
-    #       to compute fp16, because these devices only have low-rate fp16 performance.
-    if major == 6 and minor != 1:
-        return True
-    if major == 7:
+    if major >= 6:
         return True
 
     return False

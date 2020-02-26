@@ -18,9 +18,7 @@
 """Schedule for conv2d_nchw with auto fusion"""
 import tvm
 from .. import tag
-from .. import generic
 
-@generic.schedule_conv2d_nchw.register(["opengl"])
 def schedule_conv2d_nchw(outs):
     """Schedule for conv2d_nchw.
 

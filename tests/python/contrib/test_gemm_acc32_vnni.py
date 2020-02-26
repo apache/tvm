@@ -41,7 +41,7 @@ def test_fc_int8_acc32():
     # (ignoring processor)" error with the following setting. After LLVM 8.0 is enabled in the
     # test, we should use cascadelake setting.
     def verify(target="llvm -mcpu=cascadelake"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
 

@@ -23,7 +23,7 @@
  * \brief Fold axis scaling into weights of
  *  conv/dense operators.
  */
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/expr_functor.h>
@@ -955,7 +955,7 @@ Pass ForwardFoldScaleAxis() {
           relay::fold_scale_axis::ForwardFoldScaleAxis(f));
   };
   return CreateFunctionPass(pass_func, 3, "ForwardFoldScaleAxis",
-                            {ir::StringImmNode::make("InferType")});
+                            {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
@@ -968,7 +968,7 @@ Pass BackwardFoldScaleAxis() {
           relay::fold_scale_axis::BackwardFoldScaleAxis(f));
     };
   return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis",
-                            {ir::StringImmNode::make("InferType")});
+                            {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis")

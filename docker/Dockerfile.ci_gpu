@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker GPU env
-# tag: v0.56
+# tag: v0.60
 FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 
 # Base scripts
@@ -86,8 +86,6 @@ RUN bash /install/ubuntu_install_caffe2.sh
 
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
-
-RUN pip3 install "Pillow<7"
 
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh

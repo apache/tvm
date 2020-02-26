@@ -15,10 +15,11 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test code for broadcasting operators."""
-from common import get_all_backend
 import numpy as np
 import tvm
 import topi
+import topi.testing
+from common import get_all_backend
 
 
 def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
@@ -33,7 +34,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(B)
+            s = topi.testing.get_broadcast_schedule(device)(B)
         foo = tvm.build(s, [A, B], device, name="broadcast_to")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = np.broadcast_to(data_npy, out_shape)
@@ -81,7 +82,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_broadcast(C)
+            s = topi.testing.get_broadcast_schedule(device)(C)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + ftopi.__name__)
 
         lhs_npy, lhs_nd = gen_operand(lhs_shape, lhs_min, lhs_max, ctx)
@@ -252,7 +253,7 @@ def test_logical_single_ele():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_broadcast(B)
+                s = topi.testing.get_broadcast_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
 
             data_npy = indata.astype(A.dtype)
@@ -268,6 +269,47 @@ def test_logical_single_ele():
 
     test_apply(topi.logical_not, "logical_not", np.logical_not, np.array([True, False, 0, 1]))
     test_apply(topi.logical_not, "logical_not", np.logical_not, np.array(np.arange(5) < 3))
+
+
+def test_bitwise_not():
+    def test_apply(
+            func,
+            name,
+            f_numpy,
+            shape,
+            dtype="int32",
+    ):
+        # Build the logic and compile the function
+        A = tvm.placeholder(shape=shape, name="A", dtype=dtype)
+        B = func(A)
+
+        if isinstance(A, tvm.expr.PrimExpr):
+            assert (isinstance(B, tvm.expr.PrimExpr))
+            return
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                return
+            print("Running on target: %s" % device)
+            with tvm.target.create(device):
+                s = topi.testing.get_broadcast_schedule(device)(B)
+            foo = tvm.build(s, [A, B], device, name=name)
+
+            data_npy = np.random.uniform(size=shape).astype(A.dtype)
+            data_nd = tvm.nd.array(data_npy, ctx)
+
+            out_npy = f_numpy(data_npy)
+            out_nd = tvm.nd.array(np.empty(data_npy.shape).astype(B.dtype), ctx)
+            foo(data_nd, out_nd)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+        for device in get_all_backend():
+            check_device(device)
+
+    test_apply(topi.bitwise_not, "bitwise_not", np.bitwise_not, ())
+    test_apply(topi.bitwise_not, "bitwise_not", np.bitwise_not, (2, 1, 2))
 
 
 def test_logical_binary_ele():
@@ -294,7 +336,7 @@ def test_logical_binary_ele():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_broadcast(C)
+                s = topi.testing.get_broadcast_schedule(device)(C)
             foo = tvm.build(s, [A, B, C], device, name=name)
 
             lhs_nd = tvm.nd.array(lhs, ctx)
@@ -314,6 +356,33 @@ def test_logical_binary_ele():
     test_apply(topi.logical_or, "logical_or", np.logical_or, [True, False], [False, False])
 
 
+def test_bitwise_and():
+    verify_broadcast_binary_ele(
+        None, None, topi.bitwise_and, np.bitwise_and,
+        dtype="int32")
+    verify_broadcast_binary_ele(
+        (2, 1, 2), (2, 1, 2), topi.bitwise_and, np.bitwise_and,
+        dtype="int32")
+
+
+def test_bitwise_or():
+    verify_broadcast_binary_ele(
+        None, None, topi.bitwise_or, np.bitwise_or,
+        dtype="int32")
+    verify_broadcast_binary_ele(
+        (2, 1, 2), (2, 1, 2), topi.bitwise_or, np.bitwise_or,
+        dtype="int32")
+
+
+def test_bitwise_xor():
+    verify_broadcast_binary_ele(
+        None, None, topi.bitwise_xor, np.bitwise_xor,
+        dtype="int32")
+    verify_broadcast_binary_ele(
+        (2, 1, 2), (2, 1, 2), topi.bitwise_xor, np.bitwise_xor,
+        dtype="int32")
+
+
 if __name__ == "__main__":
     test_add()
     test_shift()
@@ -328,4 +397,8 @@ if __name__ == "__main__":
     test_power()
     test_broadcast_to()
     test_logical_single_ele()
+    test_bitwise_not()
     test_logical_binary_ele()
+    test_bitwise_and()
+    test_bitwise_or()
+    test_bitwise_xor()

@@ -37,7 +37,7 @@
  * If we can not infer a type or there are conflicting typing
  * constraints we will trigger an error.
  */
-
+#include <tvm/ir/type_functor.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
@@ -45,7 +45,6 @@
 #include <tvm/relay/transform.h>
 #include "./pass_util.h"
 #include "type_solver.h"
-#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -180,7 +179,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     if (op->type_annotation.defined()) {
       return op->type_annotation;
     } else {
-      return IncompleteTypeNode::make(Kind::kType);
+      return IncompleteType(Kind::kType);
     }
   }
 
@@ -215,7 +214,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
           EnvFunc::Get("tvm.relay.type_relation.TupleGetItem"));
     }
     Type tuple_type = GetType(op->tuple);
-    Type rtype = IncompleteTypeNode::make(Kind::kType);
+    Type rtype = IncompleteType(Kind::kType);
     auto attrs = make_object<TupleGetItemAttrs>();
     attrs->index = op->index;
     solver_.AddConstraint(TypeRelation(
@@ -233,7 +232,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // we can expect a certain number of arguments
     Array<Type> unknown_args;
     for (size_t i = 0; i < td->type_vars.size(); i++) {
-      unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
+      unknown_args.push_back(IncompleteType(Kind::kType));
     }
     Type expected = TypeCall(con->constructor->belong_to, unknown_args);
     Type unified = Unify(t, expected, GetRef<ObjectRef>(con));
@@ -275,7 +274,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // we can expect a certain number of arguments
     Array<Type> unknown_args;
     for (size_t i = 0; i < tup->patterns.size(); i++) {
-      unknown_args.push_back(IncompleteTypeNode::make(Kind::kType));
+      unknown_args.push_back(IncompleteType(Kind::kType));
     }
     Type expected = TupleType(unknown_args);
     Type unified = Unify(t, expected, GetRef<ObjectRef>(tup));
@@ -302,7 +301,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (const auto& c : op->clauses) {
       VisitPattern(c->lhs, dtype);
     }
-    Type rtype = IncompleteTypeNode::make(Kind::kType);
+    Type rtype = IncompleteType(Kind::kType);
     for (const auto& c : op->clauses) {
       rtype = this->Unify(rtype,
                           GetType(c->rhs),
@@ -336,7 +335,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   Type VisitExpr_(const LetNode* let) final {
     // if the definition is a function literal, permit recursion
     bool is_functional_literal = let->value.as<FunctionNode>() != nullptr;
-    Type let_type = IncompleteTypeNode::make(Kind::kType);
+    Type let_type = IncompleteType(Kind::kType);
 
     if (is_functional_literal) {
       let_type = GetType(let->var);
@@ -362,7 +361,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // that is a rank-0 boolean tensor.
     Type cond_type = this->GetType(ite->cond);
     this->Unify(cond_type,
-                TensorTypeNode::Scalar(tvm::DataType::Bool()),
+                TensorType::Scalar(tvm::DataType::Bool()),
                 ite->cond);
     Type checked_true = this->GetType(ite->true_branch);
     Type checked_false = this->GetType(ite->false_branch);
@@ -385,7 +384,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     for (size_t i = 0; i < op->type_params.size(); ++i) {
       if (!op->type_params[i].same_as(rel->args[i])) return Type();
     }
-    Type rtype = IncompleteTypeNode::make(Kind::kType);
+    Type rtype = IncompleteType(Kind::kType);
     arg_types.push_back(rtype);
     // we can do simple replacement here
     solver_.AddConstraint(TypeRelation(
@@ -404,7 +403,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     }
 
     for (size_t i = ty_args.size(); i < fn_ty->type_params.size(); ++i) {
-      subst_map.Set(fn_ty->type_params[i], IncompleteTypeNode::make(Kind::kType));
+      subst_map.Set(fn_ty->type_params[i], IncompleteType(Kind::kType));
     }
 
     Type ret_type = fn_ty->ret_type;
@@ -415,7 +414,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // This is a temporary work around to check recursive functions whose
     // return type is not yet known.
     if (!ret_type.defined()) {
-      ret_type = IncompleteTypeNode::make(Kind::kType);
+      ret_type = IncompleteType(Kind::kType);
     }
 
     Type inst_ty = FuncType(fn_ty->arg_types,
@@ -433,7 +432,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
 
     Array<Type> type_args;
     for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
-      type_args.push_back(IncompleteTypeNode::make(Kind::kType));
+      type_args.push_back(IncompleteType(Kind::kType));
     }
     return InstantiateFuncType(fn_ty, type_args);
   }
@@ -466,7 +465,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
     // incomplete type => it must be a function taking the arg types
     // with an unknown return type
     if (inc_ty_node != nullptr) {
-      Type ret_type = IncompleteTypeNode::make(Kind::kType);
+      Type ret_type = IncompleteType(Kind::kType);
       Type func_type = FuncType(arg_types, ret_type, {}, {});
       Type unified = this->Unify(ftype, func_type, GetRef<Call>(call));
       fn_ty_node = unified.as<FuncTypeNode>();
@@ -562,18 +561,18 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   }
 
   Type VisitExpr_(const RefCreateNode* op) final {
-    return RefTypeNode::make(GetType(op->value));
+    return RelayRefType(GetType(op->value));
   }
 
   Type VisitExpr_(const RefReadNode* op) final {
-    Type it = IncompleteTypeNode::make(Kind::kType);
-    this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefRead>(op));
+    Type it = IncompleteType(Kind::kType);
+    this->Unify(GetType(op->ref), RelayRefType(it), GetRef<RefRead>(op));
     return it;
   }
 
   Type VisitExpr_(const RefWriteNode* op) final {
-    Type it = IncompleteTypeNode::make(Kind::kType);
-    this->Unify(GetType(op->ref), RefTypeNode::make(it), GetRef<RefWrite>(op));
+    Type it = IncompleteType(Kind::kType);
+    this->Unify(GetType(op->ref), RelayRefType(it), GetRef<RefWrite>(op));
     this->Unify(GetType(op->value), it, GetRef<RefWrite>(op));
     return TupleType::Empty();
   }

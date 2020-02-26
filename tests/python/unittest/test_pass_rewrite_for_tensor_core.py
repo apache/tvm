@@ -204,7 +204,7 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
 
 def test_tensor_core_matmul():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
     if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):
@@ -216,7 +216,7 @@ def test_tensor_core_matmul():
     tensor_core_matmul(32) #test with warp_tile 32x8x16
 
 def test_tensor_core_batch_matmul():
-    if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
         return
     if not nvcc.have_tensorcore(tvm.gpu(0).compute_version):

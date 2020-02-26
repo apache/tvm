@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import mxnet as mx
+
+import tvm
 from tvm import relay
 from tvm.relay import transform
 import model_zoo
@@ -99,7 +101,7 @@ def test_multi_outputs():
         z = F.split(x, **kwargs)
         z = F.subtract(F.add(z[0], z[2]), y)
         func = relay.Function(relay.analysis.free_vars(z), z)
-        return relay.Module.from_expr(func)
+        return tvm.IRModule.from_expr(func)
 
     mx_sym = mx_compose(mx, num_outputs=3, axis=1)
     mod, _ = relay.frontend.from_mxnet(

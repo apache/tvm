@@ -22,9 +22,8 @@ from __future__ import absolute_import as _abs
 import tvm
 from topi import util
 
-from tvm.relay.op.op import register_compute, register_schedule
+from tvm.relay.op.op import register_compute, register_injective_schedule
 from tvm.relay.op.op import register_pattern, OpPattern
-from tvm.relay.op.op import schedule_injective
 
 def bitpack(data, bits, pack_type="int8", name="bitpack"):
     """Packs lowest dimension into format needed by VTA
@@ -86,5 +85,5 @@ def compute_bitpack(attrs, inputs):
     bits = 8 // lanes
     return bitpack(inputs[0], bits, dtype)
 
-register_schedule("bitpack", schedule_injective)
+register_injective_schedule("bitpack")
 register_pattern("bitpack", OpPattern.INJECTIVE)

@@ -19,67 +19,22 @@
 import tvm
 from tvm import autotvm
 
-from .. import nn, generic
+from .. import nn
 from ..util import traverse_inline, get_const_tuple
 
 
-@autotvm.register_topi_compute(nn.conv1d, ['cuda', 'gpu'], ['direct'])
-def conv1d_cuda(cfg,
-                data,
-                kernel,
-                strides,
-                padding,
-                dilation,
-                layout='NCW',
-                out_dtype='float32'):
-    """ 1D convolution forward operator for cuda backend.
-
-    Parameters
-    ----------
-    cfg : ConfigEntity
-        The config for this template
-
-    data : tvm.Tensor
-        3-D input shape [batch, in_channel, in_width] for layout == 'NCW'
-        and [batch, in_width, in_channel] for layout == 'NWC'
-
-    kernel : tvm.Tensor
-        3-D kernel with shape [num_filter, in_channel, filter_size] for layout == 'NCW'
-        and [filter_size, in_channel, num_filter] for layout == 'NWC'
-
-    strides : int or tuple
-        The spatial stride along width
-
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
-
-    dilation : int or tuple
-        Dilation rate if convolution should be dilated.
-
-    layout : str
-        How input data is laid out, must be one of ['NCW', 'NWC']
-
-    out_dtype : str
-        The output data type. If None then output is same type as input.
-    """
-    if out_dtype is None:
-        out_dtype = data.dtype
-    if isinstance(strides, (tuple, list)):
-        strides = strides[0]
-    if isinstance(dilation, (tuple, list)):
-        dilation = dilation[0]
-
-    if layout == 'NCW':
-        return nn.conv1d_ncw(data, kernel, strides, padding, dilation,
-                             out_dtype)
-    if layout == 'NWC':
-        return nn.conv1d_nwc(data, kernel, strides, padding, dilation,
-                             out_dtype)
-    raise ValueError("This layout is not yet supported: {}".format(layout))
+@autotvm.register_topi_compute("conv1d_ncw.cuda")
+def conv1d_ncw(cfg,
+               data,
+               kernel,
+               strides,
+               padding,
+               dilation,
+               out_dtype='float32'):
+    return nn.conv1d_ncw(data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv1d_ncw, ["cuda", "gpu"],
-                                ["direct"])
+@autotvm.register_topi_schedule("conv1d_ncw.cuda")
 def schedule_conv1d_ncw(cfg, outs):
     """TOPI schedule callback of conv1d ncw for cuda gpu
 
@@ -115,7 +70,7 @@ def schedule_conv1d_ncw(cfg, outs):
             cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
-            target = tvm.target.current_target()
+            target = tvm.target.Target.current()
             if target.target_name in ['nvptx', 'rocm']:
                 cfg.define_knob("unroll_explicit", [1])
             else:
@@ -193,8 +148,18 @@ def schedule_conv1d_ncw(cfg, outs):
     return s
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv1d_nwc, ["cuda", "gpu"],
-                                ["direct"])
+@autotvm.register_topi_compute("conv1d_nwc.cuda")
+def conv1d_nwc(cfg,
+               data,
+               kernel,
+               strides,
+               padding,
+               dilation,
+               out_dtype='float32'):
+    return nn.conv1d_nwc(data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("conv1d_nwc.cuda")
 def schedule_conv1d_nwc(cfg, outs):
     """TOPI schedule callback of conv1d nwc for cuda gpu
 
@@ -230,7 +195,7 @@ def schedule_conv1d_nwc(cfg, outs):
             cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
             cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
 
-            target = tvm.target.current_target()
+            target = tvm.target.Target.current()
             if target.target_name in ['nvptx', 'rocm']:
                 cfg.define_knob("unroll_explicit", [1])
             else:

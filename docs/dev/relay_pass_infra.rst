@@ -78,7 +78,7 @@ C++ Backend
 We provide a ``PassInfo`` object to contain the basic information needed by
 a pass. ``name`` is the pass name, ``opt_level`` indicates at which optimization
 level the pass will be enabled, and ``required`` represents the passes that are
-required to execute a certain pass (see `include/tvm/relay/transform.h`_ for
+required to execute a certain pass (see `include/tvm/ir/transform.h`_ for
 more details). For example, during registration of a pass (will be covered in
 later), the pass developers can specify the name of the pass, the optimization
 level it will be performed at, and/or the passes that are required.
@@ -183,7 +183,7 @@ optimization passes, e.g., function-level passes, module-level passes, and
 sequential passes.  Each subclass itself could act as a pass manager. For
 instance, they could collect the required passes and execute them or build
 a dependency graph based on the given metadata. The full definition of them
-can be found in `src/relay/pass/pass_manager.cc`_
+can be found in `src/relay/ir/transform.cc`_ and `src/ir/transform.cc`_.
 
 Module-Level Passes
 ^^^^^^^^^^^^^^^^^^^
@@ -621,6 +621,26 @@ By inserting the ``PrintIR`` pass after ``FoldConstant``, the pass infra will
 dump out the module IR when ``FoldConstant`` is done. Users can plug in this
 pass after any pass they want to debug for viewing the optimization effect.
 
+There is a more flexible debugging mechanism also exposed by the build configuration
+object. One can pass a tracing function which can be used to execute arbitrary code
+before and/or after each pass. A tracing function will receive a ``IRModule``, ``PassInfo``,
+and a boolean indicating whether you are executing before, or after a pass.
+An example is below.
+
+.. code:: python
+
+    def print_ir(mod, info, is_before):
+        """Print the name of the pass, the IR, only before passes execute."""
+        if is_before:
+            print(f"Running pass: {}", info)
+            print(mod)
+
+    with relay.build_config(opt_level=3, trace=print_ir):
+            with tvm.target.create("llvm"):
+                # Perform the optimizations.
+                mod = seq(mod)
+
+
 For more pass infra related examples in Python and C++, please refer to
 `tests/python/relay/test_pass_manager.py`_ and
 `tests/cpp/relay_transform_sequential.cc`_, respectively.
@@ -631,9 +651,11 @@ For more pass infra related examples in Python and C++, please refer to
 
 .. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions
 
-.. _include/tvm/relay/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/relay/transform.h
+.. _include/tvm/ir/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/ir/transform.h
 
-.. _src/relay/pass/pass_manager.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/pass_manager.cc
+.. _src/relay/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/ir/transform.cc
+
+.. _src/ir/transform.cc: https://github.com/apache/incubator-tvm/blob/master/src/ir/transform.cc
 
 .. _src/relay/pass/fold_constant.cc: https://github.com/apache/incubator-tvm/blob/master/src/relay/pass/fold_constant.cc
 

@@ -21,13 +21,13 @@
  * \file src/tvm/relay/ir/hash.cc
  * \brief Hash functions for Relay types and expressions.
  */
-#include <tvm/ir_pass.h>
+#include <tvm/ir/type_functor.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/ir/attrs.h>
-#include "type_functor.h"
 #include "../../ir/attr_functor.h"
 
 namespace tvm {
@@ -125,9 +125,9 @@ class RelayHashHandler:
   }
 
   using AttrsHashHandler::VisitAttr_;
-  size_t VisitAttr_(const tvm::VarNode* var) final {
+  size_t VisitAttr_(const tvm::tir::VarNode* var) final {
     size_t hash = std::hash<std::string>()(VarNode::_type_key);
-    auto it = hash_map_.find(GetRef<tvm::Var>(var));
+    auto it = hash_map_.find(GetRef<tvm::tir::Var>(var));
     if (it != hash_map_.end()) {
       return it->second;
     }
@@ -201,8 +201,8 @@ class RelayHashHandler:
     return hash;
   }
 
-  size_t VisitType_(const RefTypeNode* rtn) final {
-    size_t hash = std::hash<std::string>()(RefTypeNode::_type_key);
+  size_t VisitType_(const RelayRefTypeNode* rtn) final {
+    size_t hash = std::hash<std::string>()(RelayRefTypeNode::_type_key);
     hash = Combine(hash, TypeHash(rtn->value));
     return hash;
   }

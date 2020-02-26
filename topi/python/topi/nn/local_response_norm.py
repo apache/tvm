@@ -17,10 +17,8 @@
 # pylint: disable=invalid-name
 """TVM operator for local response norm compute."""
 from __future__ import absolute_import
-import tvm
 from .. import cpp
 
-@tvm.target.generic_func
 def lrn(data, size, axis=1, alpha=0.0001, beta=0.75, bias=2):
     """Perform the across channels local response normalisation
     on the input data.

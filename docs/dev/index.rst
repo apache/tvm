@@ -37,3 +37,4 @@ In this part of documentation, we share the rationale for the specific choices m
    convert_layout
    inferbound
    benchmark
+   introduction_to_module_serialization

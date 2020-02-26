@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Annotation operations."""
-from __future__ import absolute_import as _abs
+from tvm.runtime import ndarray as _nd
+from tvm.runtime import TVMContext as _TVMContext
+
 from . import _make
-from ..op import register_schedule, schedule_injective
-from .... import nd as _nd
-from .... import TVMContext as _TVMContext
+from .. import op as reg
+
 
 def on_device(data, device):
     """Annotate an expression with a certain device type.
@@ -78,7 +79,7 @@ def checkpoint(data):
     """
     return _make.checkpoint(data)
 
-register_schedule("annotation.checkpoint", schedule_injective)
+reg.register_injective_schedule("annotation.checkpoint")
 
 
 def compiler_begin(data, compiler):

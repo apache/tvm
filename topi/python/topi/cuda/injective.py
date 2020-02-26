@@ -17,10 +17,8 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
-from .. import generic, util
-from ..util import is_empty_shape
+from .. import util
 
-@generic.schedule_injective_from_existing.register(["cuda", "gpu"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -37,15 +35,22 @@ def schedule_injective_from_existing(sch, out):
          The updated schedule.
     """
     fused = sch[out].fuse(*sch[out].op.axis)
-    num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+    num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
     max_block = 256
+
+    # vectorize on fp16 data type. This allows to better utilize the memory
+    # bandwidth.
+    vector_width = 4 if out.dtype == "float16" else 1
 
     try:
         const_size = util.get_const_int(util.prod(out.shape))
-        max_block = 256
-        need_block_split = const_size > max_block * num_thread
+        need_block_split = const_size > max_block * num_thread * vector_width
     except ValueError:
         need_block_split = False
+
+    if vector_width > 1:
+        fused, v = sch[out].split(fused, vector_width)
+        sch[out].vectorize(v)
 
     if need_block_split:
         xo, xi = sch[out].split(fused, factor=num_thread * max_block)
@@ -60,7 +65,6 @@ def schedule_injective_from_existing(sch, out):
 
     return sch
 
-@generic.schedule_injective.register(["cuda", "gpu"])
 def schedule_injective(outs):
     """Schedule for injective op.
 
@@ -80,7 +84,7 @@ def schedule_injective(outs):
 
     tvm.schedule.AutoInlineInjective(s)
     for out in outs:
-        if not is_empty_shape(out.shape):
+        if not util.is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)
     return s
 

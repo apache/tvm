@@ -20,11 +20,16 @@ import tvm
 from tvm import autotvm
 from ..util import get_const_tuple
 
-def schedule_direct_3d_cuda(cfg, s, conv):
+def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     """schedule optimized for batch size = 1"""
 
     ##### space definition begin #####
-    n, f, d, y, x = s[conv].op.axis
+    if layout == "NCDHW":
+        n, f, d, y, x = s[conv].op.axis
+    elif layout == "NDHWC":
+        n, d, y, x, f = s[conv].op.axis
+    else:
+        raise ValueError("not support this layout {} yet".format(layout))
     rc, rd, ry, rx = s[conv].op.reduce_axis
     cfg.define_split("tile_f", f, num_outputs=4)
     cfg.define_split("tile_d", d, num_outputs=4)
@@ -36,7 +41,7 @@ def schedule_direct_3d_cuda(cfg, s, conv):
     cfg.define_split("tile_rx", rx, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
 
-    target = tvm.target.current_target()
+    target = tvm.target.Target.current()
     if target.target_name in ['nvptx', 'rocm']:
         cfg.define_knob("unroll_explicit", [1])
     else:
@@ -45,7 +50,7 @@ def schedule_direct_3d_cuda(cfg, s, conv):
     # fallback support
     if cfg.is_fallback:
         ref_log = autotvm.tophub.load_reference_log(
-            target.target_name, target.model, 'conv3d', 'direct')
+            target.target_name, target.model, workload_name)
         cfg.fallback_with_reference_log(ref_log)
     ##### space definition end #####
 

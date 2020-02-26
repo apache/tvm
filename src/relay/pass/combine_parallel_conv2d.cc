@@ -204,7 +204,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
-                           MakeConstScalar(DataType::Int(32), num_filters));
+                           tir::make_const(DataType::Int(32), num_filters));
   }
 };
 
@@ -221,7 +221,7 @@ Pass CombineParallelConv2D(uint64_t min_num_branches) {
       return Downcast<Function>(CombineParallelConv2D(f, min_num_branches));
   };
   return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d",
-                            {ir::StringImmNode::make("InferType")});
+                            {tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelConv2D")
