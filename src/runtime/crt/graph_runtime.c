@@ -27,7 +27,7 @@
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #endif  // MAX
 
-static inline uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim) {
+uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim) {
   int64_t accum = 1;
   uint32_t idx;
   for (idx = 0; idx < ndim; idx++) {
@@ -37,7 +37,7 @@ static inline uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim) {
   return accum;
 }
 
-static inline int NodeEntry_Load(TVMGraphRuntimeNodeEntry * entry, JSONReader * reader) {
+int NodeEntry_Load(TVMGraphRuntimeNodeEntry * entry, JSONReader * reader) {
   int status = 0;
   reader->BeginArray(reader);
   if (!(reader->NextArrayItem(reader))) {
@@ -59,7 +59,7 @@ static inline int NodeEntry_Load(TVMGraphRuntimeNodeEntry * entry, JSONReader * 
   return status;
 }
 
-static inline void GraphRuntimeNode_LoadAttrs(GraphRuntimeNode * node, JSONReader *reader,
+void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode * node, JSONReader *reader,
                                               TVMOpParam* param) {
   int bitmask = 0;
   char key[20], value[120];
@@ -88,7 +88,7 @@ static inline void GraphRuntimeNode_LoadAttrs(GraphRuntimeNode * node, JSONReade
   if (bitmask != (1|2|4|8)) { fprintf(stderr, "invalid format\n"); }
 }
 
-static inline int GraphRuntimeNode_Load(GraphRuntimeNode * node, JSONReader *reader) {
+int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode * node, JSONReader *reader) {
   int status = 0;
   reader->BeginObject(reader);
   int bitmask = 0;
@@ -140,7 +140,7 @@ static inline int GraphRuntimeNode_Load(GraphRuntimeNode * node, JSONReader *rea
     } else if (!strcmp(key, "attr") || !strcmp(key, "attrs")) {
       TVMOpParam param;
 
-      GraphRuntimeNode_LoadAttrs(node, reader, &param);
+      TVMGraphRuntimeNode_LoadAttrs(node, reader, &param);
       memcpy(&node->param, &param, sizeof(param));
     } else if (!strcmp(key, "control_deps")) {
       fprintf(stderr, "do not support key %s", key);
@@ -155,15 +155,15 @@ static inline int GraphRuntimeNode_Load(GraphRuntimeNode * node, JSONReader *rea
   return status;
 }
 
-static inline GraphRuntimeNode GraphRuntimeNodeCreate() {
-  GraphRuntimeNode node;
-  memset(&node, 0, sizeof(GraphRuntimeNode));
-  node.LoadAttrs = GraphRuntimeNode_LoadAttrs;
-  node.Load = GraphRuntimeNode_Load;
+TVMGraphRuntimeNode TVMGraphRuntimeNodeCreate() {
+  TVMGraphRuntimeNode node;
+  memset(&node, 0, sizeof(TVMGraphRuntimeNode));
+  node.LoadAttrs = TVMGraphRuntimeNode_LoadAttrs;
+  node.Load = TVMGraphRuntimeNode_Load;
   return node;
 }
 
-static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONReader *reader) {
+int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *reader) {
   int status = 0;
   int bitmask = 0;
   char key[16], type[16];
@@ -273,7 +273,7 @@ static inline int GraphRuntimeGraphAttr_Load(GraphRuntimeGraphAttr * attr, JSONR
   return status;
 }
 
-static inline int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *reader) {
+int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *reader) {
     int status = 0;
     reader->BeginObject(reader);
     int bitmask = 0;
@@ -282,8 +282,8 @@ static inline int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *re
       if (!strcmp(key, "nodes")) {
         reader->BeginArray(reader);
         while (reader->NextArrayItem(reader)) {
-          GraphRuntimeNode * node = runtime->nodes + runtime->nodes_count;
-          status = GraphRuntimeNode_Load(node, reader);
+          TVMGraphRuntimeNode * node = runtime->nodes + runtime->nodes_count;
+          status = TVMGraphRuntimeNode_Load(node, reader);
           if (status != 0) {
             fprintf(stderr, "failed to load an element in `nodes` field in graph runtime node.\n");
             break;
@@ -325,7 +325,7 @@ static inline int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *re
         }
         bitmask |= 8;
       } else if (!strcmp(key, "attrs")) {
-        status = GraphRuntimeGraphAttr_Load(&(runtime->attrs), reader);
+        status = TVMGraphRuntimeGraphAttr_Load(&(runtime->attrs), reader);
         if (status != 0) {
           fprintf(stderr, "Fail to load an element in `heads` field in graph runtime node.\n");
           break;
@@ -343,7 +343,7 @@ static inline int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *re
     return status;
 }
 
-static inline uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime * runtime,
+uint32_t TVMGraphRuntime_GetEntryId(TVMGraphRuntime * runtime,
                                                   uint32_t nid, uint32_t index) {
   return runtime->node_row_ptr[nid] + index;
 }
@@ -487,7 +487,7 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
 
   // Grab saved optimization plan from graph.
   DLDataType vtype[GRAPH_RUNTIME_MAX_NODES];
-  GraphRuntimeGraphAttr * attrs = &(runtime->attrs);
+  TVMGraphRuntimeGraphAttr * attrs = &(runtime->attrs);
   for (idx = 0; idx < attrs->dltype_count; idx++) {
     vtype[idx] = String2DLDataType(attrs->dltype[idx]);
   }
@@ -549,7 +549,7 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime * runtime) {
   uint32_t nid, idx;
   runtime->op_execs_count = runtime->nodes_count;
   for (nid = 0; nid < runtime->nodes_count; nid++) {
-    const GraphRuntimeNode * inode = runtime->nodes + nid;
+    const TVMGraphRuntimeNode * inode = runtime->nodes + nid;
     if (strcmp(inode->op_type, "null")) {
       DLTensorPtr args[GRAPH_RUNTIME_MAX_NODES];
       uint32_t args_count = 0;
@@ -585,7 +585,7 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime * runtime) {
   return status;
 }
 
-typedef struct OpArgs {
+typedef struct TVMOpArgs {
   DLTensor args[TVM_CRT_MAX_ARGS];
   uint32_t args_count;
   TVMValue arg_values[TVM_CRT_MAX_ARGS];
@@ -594,14 +594,14 @@ typedef struct OpArgs {
   uint32_t arg_tcodes_count;
   int64_t  shape_data[TVM_CRT_MAX_ARGS];
   uint32_t shape_data_count;
-} OpArgs;
+} TVMOpArgs;
 
 int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam * param,
                                     DLTensorPtr * args, const uint32_t args_count,
                                     uint32_t num_inputs, TVMPackedFunc * pf) {
   uint32_t idx;
-  OpArgs arg_ptr;
-  memset(&arg_ptr, 0, sizeof(OpArgs));
+  TVMOpArgs arg_ptr;
+  memset(&arg_ptr, 0, sizeof(TVMOpArgs));
   arg_ptr.args_count = args_count;
   if (param->flatten_data) {
     arg_ptr.shape_data_count = arg_ptr.args_count;

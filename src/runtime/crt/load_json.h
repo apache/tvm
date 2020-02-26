@@ -56,7 +56,6 @@ typedef struct Seq {
  */
 typedef struct JSONReader {
   /*! \brief internal reader string */
-  /* char is_[TVM_CRT_MAX_JSON_LENGTH]; */
   char * is_;
   char * isptr;
   /*! \brief "\\r" counter */
@@ -82,10 +81,8 @@ typedef struct JSONReader {
   uint8_t (*NextArrayItem)(struct JSONReader * reader);
 } JSONReader;
 
-typedef void (*ReadFunction)(JSONReader *reader, void *addr);
-
 /*!
- * \brief Constructor.
+ * \brief Constructor of JSONReader class
  * \param is the input source.
  */
 JSONReader JSONReader_Create(const char * is);

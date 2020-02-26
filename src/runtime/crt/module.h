@@ -38,15 +38,11 @@ typedef struct TVMModule {
    * \brief Get packed function from current module by name.
    *
    * \param name The name of the function.
-   * \param query_imports Whether also query dependency modules.
-   * \return The result function.
+   * \param pf The result function.
+   *
    *  This function will return PackedFunc(nullptr) if function do not exist.
-   * \note Implemented in packed_func.cc
    */
   void (*GetFunction)(const char * name, TVMPackedFunc * pf);
-  void (*set_input)(const struct TVMModule * mod, const char * name, DLTensor * data);
-  void (*load_params)(const struct TVMModule * mod, const TVMByteArray * params_arr);
-  void (*run)(const struct TVMModule * mod);
 } TVMModule;
 
 #endif  // TVM_RUNTIME_CRT_MODULE_H_

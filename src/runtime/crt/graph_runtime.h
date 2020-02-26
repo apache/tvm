@@ -55,7 +55,7 @@ typedef struct TVMGraphRuntimeNodeEntry {
 } TVMGraphRuntimeNodeEntry;
 
 // Node
-typedef struct graph_runtime_node_t {
+typedef struct TVMGraphRuntimeNode {
   // operator type in string
   char op_type[16];
   // name of the op
@@ -68,13 +68,13 @@ typedef struct graph_runtime_node_t {
   // control deps
   uint32_t control_deps[200];
   // JSON Loader
-  void (*LoadAttrs)(struct graph_runtime_node_t * node, JSONReader *reader, TVMOpParam* param);
+  void (*LoadAttrs)(struct TVMGraphRuntimeNode * node, JSONReader *reader, TVMOpParam* param);
   // JSON Loader
-  int (*Load)(struct graph_runtime_node_t * node, JSONReader *reader);
-} GraphRuntimeNode;
+  int (*Load)(struct TVMGraphRuntimeNode * node, JSONReader *reader);
+} TVMGraphRuntimeNode;
 
 // Graph attribute
-typedef struct graph_runtime_graph_attr_t {
+typedef struct TVMGraphRuntimeGraphAttr {
   uint32_t storage_num_not_alloctaed;
   uint32_t storage_id[GRAPH_RUNTIME_MAX_NODES];
   uint32_t device_index[GRAPH_RUNTIME_MAX_NODES];
@@ -83,7 +83,7 @@ typedef struct graph_runtime_graph_attr_t {
   int64_t  shape[GRAPH_RUNTIME_MAX_NODES][TVM_CRT_MAX_NDIM];
   uint32_t ndim[GRAPH_RUNTIME_MAX_NODES];
   uint32_t shape_count;
-} GraphRuntimeGraphAttr;
+} TVMGraphRuntimeGraphAttr;
 
 typedef DLTensor* DLTensorPtr;
 
@@ -160,7 +160,7 @@ typedef struct TVMGraphRuntime {
 
   // /*! \brief The graph nodes. */
   /* GraphRuntimeNode nodes_[GRAPH_RUNTIME_MAX_NODES]; */
-  GraphRuntimeNode nodes[GRAPH_RUNTIME_MAX_NODES];
+  TVMGraphRuntimeNode nodes[GRAPH_RUNTIME_MAX_NODES];
   uint32_t           nodes_count;
   /*! \brief The argument nodes. */
   uint32_t input_nodes[GRAPH_RUNTIME_MAX_INPUT_NODES];
@@ -172,7 +172,7 @@ typedef struct TVMGraphRuntime {
   TVMGraphRuntimeNodeEntry outputs[GRAPH_RUNTIME_MAX_OUTPUTS];
   uint32_t              outputs_count;
   /*! \brief Additional graph attributes. */
-  GraphRuntimeGraphAttr attrs;
+  TVMGraphRuntimeGraphAttr attrs;
   /*! \brief The code module that contains both host and device code. */
   TVMModule module;
   /*! \brief Execution context of all devices including the host. */

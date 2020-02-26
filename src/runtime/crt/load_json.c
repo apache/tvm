@@ -24,11 +24,11 @@
 #include "load_json.h"
 
 // the node entry structure in serialized format
-typedef struct _JSONNodeEntry {
+typedef struct JSONNodeEntry {
   uint32_t node_id;
   uint32_t index;
   uint32_t version;
-  void (*Load)(struct _JSONNodeEntry * entry, JSONReader *reader);
+  void (*Load)(struct JSONNodeEntry * entry, JSONReader *reader);
 } JSONNodeEntry;
 
 void JSONNodeEntryLoad(JSONNodeEntry * entry, JSONReader *reader) {
@@ -48,8 +48,7 @@ void JSONNodeEntryLoad(JSONNodeEntry * entry, JSONReader *reader) {
 
 // implementation of Seq class
 
-
-static inline void SeqPush(Seq * seq, uint32_t src) {
+void SeqPush(Seq * seq, uint32_t src) {
   if (seq->size >= seq->allocated) {
     printf("seq too large.\n");
   }
@@ -57,14 +56,14 @@ static inline void SeqPush(Seq * seq, uint32_t src) {
   seq->size += 1;
 }
 
-static inline uint32_t * SeqBack(Seq * seq) {
+uint32_t * SeqBack(Seq * seq) {
   if (seq->size >= seq->allocated) {
     printf("seq too large.\n");
   }
   return seq->data + (seq->size-1);
 }
 
-static inline void SeqPop(Seq * seq) {
+void SeqPop(Seq * seq) {
   if (seq->size >= seq->allocated) {
     printf("seq size is too large.\n");
   }
@@ -74,7 +73,7 @@ static inline void SeqPop(Seq * seq) {
   seq->size -= 1;
 }
 
-static inline Seq * SeqCreate(uint64_t len) {
+Seq * SeqCreate(uint64_t len) {
   Seq * seq = (Seq*)malloc(sizeof(Seq));  // NOLINT(*)
   memset(seq, 0, sizeof(Seq));
   seq->allocated = len;
@@ -85,7 +84,7 @@ static inline Seq * SeqCreate(uint64_t len) {
   return seq;
 }
 
-static inline void SeqRelease(Seq ** seq) {
+void SeqRelease(Seq ** seq) {
   free((*seq)->data);
   free(*seq);
 }
@@ -97,7 +96,7 @@ static inline void SeqRelease(Seq ** seq) {
  * \brief Takes the next char from the input source.
  * \return the next character.
  */
-static inline char JSONReader_NextChar(JSONReader * reader) {
+char JSONReader_NextChar(JSONReader * reader) {
   char ch = reader->isptr[0];
   reader->isptr += 1;
   return ch;
@@ -107,7 +106,7 @@ static inline char JSONReader_NextChar(JSONReader * reader) {
  * \brief Returns the next char from the input source.
  * \return the next character.
  */
-static inline char JSONReader_PeekNextChar(JSONReader * reader) {
+char JSONReader_PeekNextChar(JSONReader * reader) {
   return reader->isptr[0];
 }
 
@@ -115,7 +114,7 @@ static inline char JSONReader_PeekNextChar(JSONReader * reader) {
  * \brief Read next nonspace character.
  * \return the next nonspace character.
  */
-static inline char JSONReader_NextNonSpace(JSONReader * reader) {
+char JSONReader_NextNonSpace(JSONReader * reader) {
   int ch;
   do {
     ch = reader->NextChar(reader);
@@ -129,7 +128,7 @@ static inline char JSONReader_NextNonSpace(JSONReader * reader) {
  * \brief Read just before next nonspace but not read that.
  * \return the next nonspace character.
  */
-static inline char JSONReader_PeekNextNonSpace(JSONReader * reader) {
+char JSONReader_PeekNextNonSpace(JSONReader * reader) {
   int ch;
   while (1) {
     ch = reader->PeekNextChar(reader);
@@ -146,7 +145,7 @@ static inline char JSONReader_PeekNextNonSpace(JSONReader * reader) {
  * \param out_str the output string.
  * \throw dmlc::Error when next token is not string
  */
-static inline int JSONReader_ReadString(JSONReader * reader, char * out_str) {
+int JSONReader_ReadString(JSONReader * reader, char * out_str) {
   int status = 0;
   char ch = reader->NextNonSpace(reader);
   char output[128];
@@ -187,7 +186,7 @@ static inline int JSONReader_ReadString(JSONReader * reader, char * out_str) {
   return status;
 }
 
-static inline int JSONReader_ReadUnsignedInteger(JSONReader * reader, unsigned int * out_value) {
+int JSONReader_ReadUnsignedInteger(JSONReader * reader, unsigned int * out_value) {
   int status = 0;
   char* endptr;
   const char* icstr = reader->isptr;
@@ -198,7 +197,7 @@ static inline int JSONReader_ReadUnsignedInteger(JSONReader * reader, unsigned i
 }
 
 
-static inline int JSONReader_ReadInteger(JSONReader * reader, int64_t * out_value) {
+int JSONReader_ReadInteger(JSONReader * reader, int64_t * out_value) {
   int status = 0;
   char* endptr;
   const char* icstr = reader->isptr;
@@ -221,7 +220,7 @@ static inline int JSONReader_ReadInteger(JSONReader * reader, int64_t * out_valu
  *  }
  * \endcode
  */
-static inline void JSONReader_BeginObject(JSONReader * reader) {
+void JSONReader_BeginObject(JSONReader * reader) {
   int ch = reader->NextNonSpace(reader);
   if (!(ch == '{')) {
     fprintf(stderr, "Error at line X, Expect \'{\' but got \'%c\'\n", ch);
@@ -237,7 +236,7 @@ static inline void JSONReader_BeginObject(JSONReader * reader) {
  * \param out_key the key to the next object.
  * \return true if the read is successful, false if we are at end of the object.
  */
-static inline uint8_t JSONReader_NextObjectItem(JSONReader * reader, char * out_key) {
+uint8_t JSONReader_NextObjectItem(JSONReader * reader, char * out_key) {
   uint8_t next = 1;
   Seq * scope_counter_ = reader->scope_counter_;
   if (scope_counter_->back(scope_counter_)[0] != 0) {
@@ -283,7 +282,7 @@ static inline uint8_t JSONReader_NextObjectItem(JSONReader * reader, char * out_
  *  }
  * \endcode
  */
-static inline void JSONReader_BeginArray(JSONReader * reader) {
+void JSONReader_BeginArray(JSONReader * reader) {
   int ch = reader->NextNonSpace(reader);
   if (ch != '[') {
     fprintf(stderr, "Error at line X, Expect \'[\' but get \'%c\'\n", ch);
@@ -298,7 +297,7 @@ static inline void JSONReader_BeginArray(JSONReader * reader) {
  *  reader->Read to read in the value.
  * \return true if the read is successful, false if we are at end of the array.
  */
-static inline uint8_t JSONReader_NextArrayItem(JSONReader * reader) {
+uint8_t JSONReader_NextArrayItem(JSONReader * reader) {
   uint8_t next = 1;
   Seq * scope_counter_ = reader->scope_counter_;
   if (scope_counter_->back(scope_counter_)[0] != 0) {
