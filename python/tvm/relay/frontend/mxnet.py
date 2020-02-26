@@ -649,7 +649,7 @@ def _mx_arange(inputs, attrs):
 # pylint: disable=unused-argument
 def _mx_make_loss(inputs, attrs):
     # while doing inference make_loss does not have any effect
-    # and should be mapped to identity  
+    # and should be mapped to identity
     return inputs[0]
 
 
