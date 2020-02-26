@@ -71,9 +71,9 @@ scripted_model = torch.jit.trace(model, input_data).eval()
 # -----------------
 # Classic cat example!
 from PIL import Image
-img_url = 'https://raw.githubusercontent.com/Cadene/pretrained-models.pytorch/master/data/cat_224.jpg'
-img_path = download_testdata(img_url, 'cat_224.png', module='data')
-img = Image.open(img_path)
+img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
+img_path = download_testdata(img_url, 'cat.png', module='data')
+img = Image.open(img_path).resize((224, 224))
 
 # Preprocess the image and convert to tensor
 from torchvision import transforms
