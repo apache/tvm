@@ -109,7 +109,7 @@ def tanh(x):
     return te.compute(x.shape, lambda *i: te.tanh(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def tan(x):
     """Take tan of input x.
 
@@ -123,7 +123,7 @@ def tan(x):
     y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.tan(x(*i)))
+    return te.compute(x.shape, lambda *i: te.tan(x(*i)))
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
