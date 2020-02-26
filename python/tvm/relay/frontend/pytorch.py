@@ -734,7 +734,7 @@ _convert_map = {
 
 
 def run_jit_passes(graph):
-    """ The inline pass is nessary to unwrap prim::CallMethod """
+    """ The inline pass is necessary to unwrap prim::CallMethod """
     import torch
     if version.parse(torch.__version__) >= version.parse("1.4.0"):
         torch._C._jit_pass_inline(graph)
@@ -875,7 +875,7 @@ def get_input_types(op_node):
 
 
 def get_constant(node):
-    """ Retrive a constant associated with this prim::Constant node """
+    """ Retrieve a constant associated with this prim::Constant node """
     attribute_names = node.attributeNames()
     num_attributes = len(attribute_names)
 
@@ -978,7 +978,7 @@ def from_pytorch(script_module, input_shapes):
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_shape : Dictionary of input dimensions
+    input_shapes : Dictionary of input dimensions
         Graph level input shape dictionary
         The keys should be the same one returned by get_graph_input_names(...) above
 
