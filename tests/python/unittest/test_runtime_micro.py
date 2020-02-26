@@ -47,7 +47,7 @@ def relay_micro_build(func, dev_config, params=None):
     mod : tvm.runtime.Module
         graph runtime module for the target device
     """
-    with tvm.build_config(disable_vectorize=True):
+    with tvm.target.build_config(disable_vectorize=True):
         graph, c_mod, params = relay.build(func, target="c", params=params)
     micro_mod = create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)

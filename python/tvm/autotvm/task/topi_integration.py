@@ -28,8 +28,8 @@ See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 """
 import tvm.te._ffi_api
 from tvm import target as _target
+from tvm.te import tensor
 
-from ... import tensor
 from .task import args_to_workload, DispatchContext, \
     register_task_compute, register_task_schedule, serialize_args
 

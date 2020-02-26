@@ -32,7 +32,7 @@ def verify_structure(stmt, expected_struct):
         key = op
         if isinstance(op, tvm.tir.IfThenElse):
             global var_list
-            tvm.ir_pass.PostOrderVisit(op.condition, _extract_vars)
+            tvm.tir.ir_pass.PostOrderVisit(op.condition, _extract_vars)
             val = [(op.then_case, op.else_case), ("IfThenElse", tuple(var_list))]
             var_list.clear()
         elif isinstance(op, tvm.tir.For):
@@ -43,7 +43,7 @@ def verify_structure(stmt, expected_struct):
             return
         node_dict[key] = val
 
-    tvm.ir_pass.PostOrderVisit(stmt, _visit)
+    tvm.tir.ir_pass.PostOrderVisit(stmt, _visit)
     for key, val in node_dict.items():
         struct[val[1]] = tuple(node_dict[child][1] if child in node_dict
                                else None for child in val[0])
@@ -53,7 +53,7 @@ def verify_structure(stmt, expected_struct):
     var_list.clear()
 
 def test_basic():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     l = te.var('l')
     m = te.var('m')
     n = te.var('n')
@@ -67,14 +67,14 @@ def test_basic():
                     ib.emit(tvm.tir.Evaluate(n))
 
     stmt = ib.get()
-    new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('For', 'j'): (('For', 'k'),),
                        ('IfThenElse', ('i',)): (('For', 'j'), ('For', 'j')),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
     verify_structure(new_stmt, expected_struct)
 
 def test_no_else():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     l = te.var('l')
     m = te.var('m')
     n = te.var('n')
@@ -86,14 +86,14 @@ def test_no_else():
                     ib.emit(tvm.tir.Evaluate(m))
 
     stmt = ib.get()
-    new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('For', 'j'): (('For', 'k'),),
                        ('IfThenElse', ('i',)): (('For', 'j'), None),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
     verify_structure(new_stmt, expected_struct)
 
 def test_attr_stmt():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
     data = ib.pointer("float32", name="data")
     l = te.var('l')
@@ -113,7 +113,7 @@ def test_attr_stmt():
                     data[bx * j + tx * j * k] = data[bx * j + tx * j * k]  + 1.0
 
     stmt = ib.get()
-    new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('IfThenElse', ('i', 'j')): (('For', 'k'), ('For', 'k')),
                        ('For', 'j'): (('IfThenElse', ('i', 'j')),), ('For', 'i'): (('For', 'j'),),
                        ('AttrStmt', 'thread_extent', 64): (('For', 'i'),),
@@ -121,7 +121,7 @@ def test_attr_stmt():
     verify_structure(new_stmt, expected_struct)
 
 def test_nested_for():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     data = ib.pointer("float32", name="data")
 
 
@@ -137,14 +137,14 @@ def test_nested_for():
                             data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5
 
     stmt = ib.get()
-    new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
     expected_struct = {('IfThenElse', ('i', 'j')): (None, None), ('For', 'l'): (('IfThenElse', ('i', 'j')),),
                        ('For', 'k'): (('For', 'l'),), ('For', 'j'): (None,), ('IfThenElse', ('i',)): (('For', 'j'), None),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
     verify_structure(new_stmt, expected_struct)
 
 def test_if_block():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     data = ib.pointer("float32", name="data")
     n = te.var("n")
 
@@ -170,7 +170,7 @@ def test_if_block():
                         data[i * 3 + j + k] = data[i * 3 + j + k] + 0.6
 
     stmt = ib.get()
-    new_stmt = tvm.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
     expected_struct = {('IfThenElse', ('i', 'j')): (None, None), ('IfThenElse', ('j',)): (None, None),
                        ('For', 'l'): (None,), ('For', 'k'): (None,), ('For', 'j'): (('For', 'j'),),
                        ('IfThenElse', ('i',)): (('For', 'j'), None), ('For', 'i'): (('IfThenElse', ('i',)),),

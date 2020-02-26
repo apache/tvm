@@ -22,8 +22,8 @@ def lower_intrin(stmt):
     """wrapper to call transformation in stmt"""
     lower_expr = isinstance(stmt, tvm.tir.PrimExpr)
     stmt = tvm.tir.Evaluate(stmt) if lower_expr else stmt
-    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
-    stmt  = tvm.ir_pass._LowerIntrinStmt(stmt, "llvm")
+    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
+    stmt  = tvm.tir.ir_pass._LowerIntrinStmt(stmt, "llvm")
     return stmt.value if lower_expr else stmt.body
 
 

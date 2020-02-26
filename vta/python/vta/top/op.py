@@ -45,7 +45,7 @@ def compute_clip_vta(attrs, inputs, output_type):
     a_max = attrs.a_max
     const_min = tvm.tir.const(a_min, x.dtype)
     const_max = tvm.tir.const(a_max, x.dtype)
-    with tvm.tag_scope(topi.tag.ELEMWISE):
+    with tvm.te.tag_scope(topi.tag.ELEMWISE):
         x = te.compute(
             x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
         x = te.compute(

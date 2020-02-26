@@ -113,12 +113,12 @@ def test_tensor_compute1():
         z = te.compute(x.shape, lambda i: x[i] + y[i])
 
         def intrin_func(ins, outs):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
             return ib.get()
 
-        with tvm.build_config(offset_factor=n):
-            return tvm.decl_tensor_intrin(z.op, intrin_func)
+        with tvm.target.build_config(offset_factor=n):
+            return te.decl_tensor_intrin(z.op, intrin_func)
 
     vadd = intrin_vadd(factor)
 
@@ -159,8 +159,8 @@ def test_tensor_compute2():
                 "gemv_add", x_ptr, y_ptr, z_ptr, m, n, l)
             return body, reset, update
 
-        with tvm.build_config(offset_factor=n):
-            return tvm.decl_tensor_intrin(z.op, intrin_func)
+        with tvm.target.build_config(offset_factor=n):
+            return te.decl_tensor_intrin(z.op, intrin_func)
 
     vgemm = intrin_gemm(factor1, factor2, factor)
 
@@ -264,7 +264,7 @@ def test_tuple_with_different_deps():
            x.func == B1.op and x.value_index == 1:
             ret.append(x)
     ret = []
-    tvm.ir_pass.PostOrderVisit(stmt, get_B1_realize)
+    tvm.tir.ir_pass.PostOrderVisit(stmt, get_B1_realize)
 
     assert stmt.node == C.op and len(ret) == 1
 
@@ -290,8 +290,8 @@ def test_tensor_pool():
             dout = outs[0]
             return tvm.tir.call_packed("op", dinp, dout)
 
-        with tvm.build_config(offset_factor=1):
-            return tvm.decl_tensor_intrin(P.op, intrin_func)
+        with tvm.target.build_config(offset_factor=1):
+            return te.decl_tensor_intrin(P.op, intrin_func)
 
     A = te.placeholder((1, 64, 16, 16), name='A')
     P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0),

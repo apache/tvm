@@ -199,7 +199,7 @@ def test_tensor_intrin():
         assert(isinstance(ins[0], tvm.te.schedule.Buffer))
         assert(ins[0].shape[0].value == n)
         return tvm.tir.call_packed("vadd", ins[0].data, outs[0].data, ins[0].shape[0])
-    intrin = tvm.decl_tensor_intrin(z.op, intrin_func)
+    intrin = te.decl_tensor_intrin(z.op, intrin_func)
     assert intrin.op == z.op
     assert intrin.reduce_init is None
     assert tuple(intrin.inputs) == tuple(z.op.input_tensors)
@@ -228,8 +228,8 @@ def test_tensor_intrin_scalar_params():
         assert(sp[1] == w)
         return tvm.tir.call_packed("hw_func", ins[0].data, outs[0].data, sp[0], sp[1])
 
-    with tvm.build_config(offset_factor=1):
-      intrin = tvm.decl_tensor_intrin(z.op, intrin_func, scalar_params=[v, w])
+    with tvm.target.build_config(offset_factor=1):
+      intrin = te.decl_tensor_intrin(z.op, intrin_func, scalar_params=[v, w])
     assert intrin.op == z.op
     assert intrin.reduce_init is None
     assert tuple(intrin.inputs) == tuple(z.op.input_tensors)

@@ -21,7 +21,7 @@ from tvm import te
 from .. import tag
 from ..util import get_const_int
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def relu(x):
     """Take relu of input x.
 
@@ -38,7 +38,7 @@ def relu(x):
     return te.compute(x.shape, lambda *i: tvm.te.max(x(*i), tvm.tir.const(0, x.dtype)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def leaky_relu(x, alpha):
     """Take leaky relu of input x.
 
@@ -61,7 +61,7 @@ def leaky_relu(x, alpha):
         return tvm.tir.Select(value > 0, value, value * calpha)
     return te.compute(x.shape, _compute)
 
-@tvm.tag_scope(tag=tag.BROADCAST)
+@tvm.te.tag_scope(tag=tag.BROADCAST)
 def prelu(x, slope, axis=1):
     """ PReLU.
     It accepts two arguments: an input ``x`` and a weight array ``W``

@@ -34,8 +34,8 @@ def test_lower_warp_mem():
     s[AA].bind(xi, tx)
 
     f = tvm.lower(s, [A, B])
-    fhost, fdevice = tvm.ir_pass.SplitHostDevice(f)
-    fdevice = tvm.ir_pass.LowerWarpMemory(fdevice, 16)
+    fhost, fdevice = tvm.tir.ir_pass.SplitHostDevice(f)
+    fdevice = tvm.tir.ir_pass.LowerWarpMemory(fdevice, 16)
     assert(fdevice.body.body.value.value == "local")
     assert(fdevice.body.body.body.extents[0].value == 2)
 

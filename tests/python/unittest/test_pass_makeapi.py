@@ -32,10 +32,10 @@ def test_makeapi():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
     Cb = tvm.tir.decl_buffer(C.shape, C.dtype, name='C')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
 
     num_unpacked_args = 2
-    f = tvm.ir_pass.MakeAPI(
+    f = tvm.tir.ir_pass.MakeAPI(
         stmt, "myadd", [n, Ab, Bb, Cb], num_unpacked_args, True)
     assert(f.handle_data_type[Ab.data].dtype == Ab.dtype)
     assert(len(f.args) == 7)

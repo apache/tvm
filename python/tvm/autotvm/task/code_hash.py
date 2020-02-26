@@ -22,7 +22,7 @@ code hashing is used to check the consistence of schedule code and the parameter
 import inspect
 import zlib
 
-from tvm import schedule
+from tvm.te import schedule
 
 def attach_code_hash(s):
     """Decorator for attaching a code hash to a schedule

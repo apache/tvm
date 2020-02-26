@@ -78,7 +78,7 @@ def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, scor
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
 
@@ -141,7 +141,7 @@ def flag_scan(flag, prefix_sum):
     batch_size = flag.shape[0]
     num_anchors = flag.shape[1]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     flag = ib.buffer_ptr(flag)
     prefix_sum = ib.buffer_ptr(prefix_sum)
@@ -201,7 +201,7 @@ def out_rewrite(data, flag, prefix_sum, valid_count, out):
     num_anchors = out.shape[1]
     elem_length = out.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     one = tvm.tir.const(1, dtype=out.dtype)
     data = ib.buffer_ptr(data)
@@ -373,7 +373,7 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
     sorted_index = ib.buffer_ptr(sorted_index)
@@ -498,7 +498,7 @@ def invalid_to_bottom_pre(data, flag, idx):
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
     flag = ib.buffer_ptr(flag)
@@ -557,7 +557,7 @@ def invalid_to_bottom_ir(data, flag, idx, out):
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
     flag = ib.buffer_ptr(flag)

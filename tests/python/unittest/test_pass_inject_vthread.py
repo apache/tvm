@@ -25,7 +25,7 @@ def test_vthread():
     def get_vthread(name):
         tx = te.thread_axis(name)
         ty = te.thread_axis(name)
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         A = ib.pointer("float32", name="A")
         C = ib.pointer("float32", name="C")
         with ib.for_range(0, n) as i:
@@ -40,9 +40,9 @@ def test_vthread():
             C[i * nthread + tx] = B[i] + 1
         return ib.get()
 
-    stmt = tvm.ir_pass.InjectVirtualThread(get_vthread("vthread"))
+    stmt = tvm.tir.ir_pass.InjectVirtualThread(get_vthread("vthread"))
     assert stmt.body.body.extents[0].value == 2
-    stmt = tvm.ir_pass.InjectVirtualThread(get_vthread("cthread"))
+    stmt = tvm.tir.ir_pass.InjectVirtualThread(get_vthread("cthread"))
     assert len(stmt.body.body.extents) == 3
 
 
@@ -54,7 +54,7 @@ def test_vthread_extern():
     def get_vthread(name):
         tx = te.thread_axis(name)
         ty = te.thread_axis(name)
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         with ib.for_range(0, n) as i:
             ib.scope_attr(tx, "virtual_thread", nthread)
             ib.scope_attr(ty, "virtual_thread", nthread)
@@ -72,7 +72,7 @@ def test_vthread_extern():
                                     cbuffer.access_ptr("rw")))
         return ib.get()
 
-    stmt = tvm.ir_pass.InjectVirtualThread(get_vthread("vthread"))
+    stmt = tvm.tir.ir_pass.InjectVirtualThread(get_vthread("vthread"))
     assert stmt.body.body.extents[0].value == 2
     assert stmt.body.body.body.body.body.body.extents[0].value == 2
     assert len(stmt.body.body.body.body.body.body.extents) == 3
@@ -80,7 +80,7 @@ def test_vthread_extern():
 def test_vthread_if_then_else():
     nthread = 2
     tx = te.thread_axis("vthread")
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     with ib.for_range(0, 100) as i:
         ib.scope_attr(tx, "virtual_thread", nthread)
@@ -92,7 +92,7 @@ def test_vthread_if_then_else():
         with ib.if_scope(i == 0):
             B[i] = A[i * nthread + tx] + 2
     stmt = ib.get()
-    stmt = tvm.ir_pass.InjectVirtualThread(stmt)
+    stmt = tvm.tir.ir_pass.InjectVirtualThread(stmt)
     assert stmt.body.body.body[0].else_case != None
     assert stmt.body.body.body[1].else_case == None
 

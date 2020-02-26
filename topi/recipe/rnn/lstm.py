@@ -188,7 +188,7 @@ def lstm():
         print("Time cost=%g" % eval_result.mean)
 
     # set unroll_explicit for more readable code.
-    with tvm.build_config(
+    with tvm.target.build_config(
             detect_global_barrier=DETECT_GLOBAL_BARRIER,
             auto_unroll_max_step=128,
             unroll_explicit=False):

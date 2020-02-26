@@ -104,7 +104,7 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
     """
     batch, num_anchors, height, width = get_const_tuple(cls_prob_buf.shape)
     num_anchors //= 2
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     p_score = ib.buffer_ptr(cls_prob_buf)
     p_delta = ib.buffer_ptr(bbox_pred_buf)
@@ -184,7 +184,7 @@ def argsort_ir(data_buf, out_index_buf):
         The result IR statement.
     """
     batch, num_bbox = get_const_tuple(data_buf.shape)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(data_buf)
     index_out = ib.buffer_ptr(out_index_buf)
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
@@ -246,7 +246,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
         return i / u
 
     batch, num_bbox = get_const_tuple(out_buf.shape)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(sorted_bbox_buf)
     p_out = ib.buffer_ptr(out_buf)
     with ib.for_range(0, batch, for_type="unroll", name="n") as b:
@@ -285,7 +285,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     """
     batch, num_bbox, _ = get_const_tuple(sorted_bbox_buf.shape)
     rpn_post_nms_top_n = get_const_int(out_buf.shape[0]) // batch
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     i = ib.allocate('int32', (batch,), 'i', scope='local')
     p_sorted_bbox = ib.buffer_ptr(sorted_bbox_buf)
     p_remove = ib.buffer_ptr(remove_mask_buf)

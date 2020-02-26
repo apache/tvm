@@ -22,7 +22,7 @@ from tvm import te
 from .. import tag
 from ..transform import concatenate, strided_slice
 
-@tvm.tag_scope(tag=tag.INJECTIVE+",fifo_buffer")
+@tvm.te.tag_scope(tag=tag.INJECTIVE+",fifo_buffer")
 def fifo_buffer(data, buffer, axis):
     """
     FIFO buffer to enable computation reuse in CNNs with sliding indow input

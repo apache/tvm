@@ -47,7 +47,7 @@ mobilenet_wkls = [
     ('mobilenet.D9', Workload(env.BATCH,   7,  7,  1024, 1024, 64, 3, 3, 1, 1, 1, 1)),
 ]
 
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
     const_min = tvm.tir.const(a_min, x.dtype)

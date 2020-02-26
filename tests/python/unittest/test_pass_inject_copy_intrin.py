@@ -28,14 +28,14 @@ def test_copy2d():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     def cb(src, dst, pad_before, pad_after, pad_value):
         assert dst.strides[0] == l
         assert dst.strides[1].value == 1
         assert src.strides[0] == l
         assert tuple(src.shape) == (m, l)
         return tvm.tir.Evaluate(0)
-    stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def test_copy_pad():
     m = te.var('m')
@@ -50,16 +50,16 @@ def test_copy_pad():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     def cb(src, dst, pad_before, pad_after, pad_value):
-        assert tvm.ir_pass.Simplify(src.elem_offset).value == 0
+        assert tvm.tir.ir_pass.Simplify(src.elem_offset).value == 0
         assert pad_before[0].value == 1
         assert pad_before[1].value == 0
         assert pad_after[0].value == 1
         assert pad_after[1].value == 0
         assert pad_value.value == 1.0
         return tvm.tir.Evaluate(0)
-    stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def test_single_point_test():
     A = te.placeholder((1,), name='A')
@@ -71,17 +71,17 @@ def test_single_point_test():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
     def cb(src, dst, pad_before, pad_after, pad_value):
-        assert tvm.ir_pass.Simplify(src.elem_offset).value == 0
-        assert tvm.ir_pass.Simplify(dst.elem_offset).value == 0
-        assert tvm.ir_pass.Simplify(src.strides[0]).value == 1
-        assert tvm.ir_pass.Simplify(dst.strides[0]).value == 1
+        assert tvm.tir.ir_pass.Simplify(src.elem_offset).value == 0
+        assert tvm.tir.ir_pass.Simplify(dst.elem_offset).value == 0
+        assert tvm.tir.ir_pass.Simplify(src.strides[0]).value == 1
+        assert tvm.tir.ir_pass.Simplify(dst.strides[0]).value == 1
         return tvm.tir.Evaluate(0)
-    stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def assert_expr_equal(a, b):
-    assert tvm.ir_pass.Simplify(a - b).value == 0
+    assert tvm.tir.ir_pass.Simplify(a - b).value == 0
 
 def test_copy_pad_split():
     m = 4 * 3
@@ -98,9 +98,9 @@ def test_copy_pad_split():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
-    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
     def cb(src, dst, pad_before, pad_after, pad_value):
         assert(dst.elem_offset.value == 0)
         assert_expr_equal(src.elem_offset, tvm.te.max(xo * 4, 1) - 1)
@@ -111,7 +111,7 @@ def test_copy_pad_split():
         assert_expr_equal(pad_after[0], rpad_after)
         assert_expr_equal(src.shape[0], 6 - rpad_before - rpad_after)
         return tvm.tir.Evaluate(0)
-    stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 
 if __name__ == "__main__":

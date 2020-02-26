@@ -20,7 +20,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import te
 
-@tvm.tag_scope(tag='softmax_output')
+@tvm.te.tag_scope(tag='softmax_output')
 def softmax(x, axis=-1):
     """Perform softmax activation on the data
 
@@ -78,7 +78,7 @@ def softmax(x, axis=-1):
                       name='T_softmax_norm', attrs={"axis" : axis})
 
 
-@tvm.tag_scope(tag='log_softmax_output')
+@tvm.te.tag_scope(tag='log_softmax_output')
 def log_softmax(x):
     """Perform log softmax activation on the data
 

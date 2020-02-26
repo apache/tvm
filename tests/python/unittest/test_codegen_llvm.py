@@ -23,7 +23,7 @@ import ctypes
 import math
 
 def test_llvm_intrin():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [
@@ -34,7 +34,7 @@ def test_llvm_intrin():
         tvm.tir.Call(
             "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
     body = ib.get()
-    func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
+    func = tvm.tir.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
 
 
@@ -79,13 +79,13 @@ def test_llvm_import():
 
 
 def test_llvm_lookup_intrin():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     m = te.size_var("m")
     A = ib.pointer("uint8x8", name="A")
     x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.tir.const(1, 'uint32'), A)
     ib.emit(x)
     body = ib.get()
-    func = tvm.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
+    func = tvm.tir.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
     fcode = tvm.build(func, None, "llvm")
 
 
@@ -148,7 +148,7 @@ def test_llvm_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.build_config(offset_factor=4):
+    with tvm.target.build_config(offset_factor=4):
         check_llvm()
 
 
@@ -263,7 +263,7 @@ def test_llvm_madd_pipeline():
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
-    with tvm.build_config(restricted_func=False):
+    with tvm.target.build_config(restricted_func=False):
         check_llvm(4, 0, 3)
 
 
@@ -391,7 +391,7 @@ def test_rank_zero_bound_checkers():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        with tvm.build_config(instrument_bound_checkers=True):
+        with tvm.target.build_config(instrument_bound_checkers=True):
             A = te.placeholder((n, ), name='A')
             scale = te.placeholder((), name='scale')
             k = te.reduce_axis((0, n), name="k")
@@ -653,9 +653,9 @@ def test_llvm_shuffle():
             value = new_a + new_b
             return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
 
-        return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 
-    with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
+    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
         a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))

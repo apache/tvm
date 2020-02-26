@@ -71,7 +71,7 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.x")
     tid = bx * max_threads + tx
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
 
@@ -154,7 +154,7 @@ def argsort_ir(data_buf, out_index_buf):
     """
     batch, num_bbox = get_const_tuple(data_buf.shape)
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(data_buf)
     index_out = ib.buffer_ptr(out_index_buf)
     nthread_tx = max_threads
@@ -229,7 +229,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
     max_threads = int(math.sqrt(tvm.target.Target.current(allow_none=False).max_num_threads))
     tx = te.thread_axis("threadIdx.x")
     bx = te.thread_axis("blockIdx.x")
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(sorted_bbox_buf)
     p_out = ib.buffer_ptr(out_buf)
     nthread_tx = max_threads
@@ -277,7 +277,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     rpn_post_nms_top_n = get_const_int(out_buf.shape[0]) // batch
     nthread_tx = batch
     tx = te.thread_axis("threadIdx.x")
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     i = ib.allocate('int32', (1,), 'i', scope='local')
     i[0] = 0

@@ -60,7 +60,7 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     ty = te.thread_axis("threadIdx.y")
     bx = te.thread_axis("blockIdx.x")
     by = te.thread_axis("blockIdx.y")
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_out = ib.buffer_ptr(out)
     in_height = data.shape[2]
     in_width = data.shape[3]
@@ -180,7 +180,7 @@ def transform_loc_pre(cls_prob, valid_count, temp_valid_count, temp_cls_id, temp
     num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     cls_prob = ib.buffer_ptr(cls_prob)
     cls_id = ib.buffer_ptr(temp_cls_id)
@@ -292,7 +292,7 @@ def transform_loc_ir(loc_pred, anchor, temp_valid_count, temp_cls_id, temp_score
             tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, ox + ow)), ox + ow), \
             tvm.tir.if_then_else(clip, tvm.te.max(0.0, tvm.te.min(1.0, oy + oh)), oy + oh)
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     loc_pred = ib.buffer_ptr(loc_pred)
     anchor = ib.buffer_ptr(anchor)

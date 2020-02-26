@@ -20,7 +20,7 @@ import tvm
 from tvm import te
 from .. import tag
 
-@tvm.tag_scope(tag=tag.INJECTIVE)
+@tvm.te.tag_scope(tag=tag.INJECTIVE)
 def flatten(data):
     """Flattens the input array into a 2-D array by collapsing the higher dimensions.
 

@@ -198,9 +198,9 @@ def test_cuda_shuffle():
                 new_b = tvm.tir.Shuffle(bs, ids)
                 return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
             return None
-        return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 
-    with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
+    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
         module = tvm.build(sch, [a, b, c], target='cuda')
         a_ = np.array(list(range(64)), dtype='int32')
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')

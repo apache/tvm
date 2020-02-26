@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 
 def test_stmt_simplify():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
     n = te.size_var("n")
@@ -27,12 +27,12 @@ def test_stmt_simplify():
             A[i] = C[i]
 
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    body = tvm.ir_pass.CanonicalSimplify(body)
+    body = tvm.tir.ir_pass.CanonicalSimplify(body)
     assert isinstance(body.body, tvm.tir.Store)
 
 
 def test_thread_extent_simplify():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
     n = te.size_var("n")
@@ -44,7 +44,7 @@ def test_thread_extent_simplify():
     with ib.if_scope(tx + ty < 12):
         A[tx] = C[tx + ty]
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    body = tvm.ir_pass.CanonicalSimplify(body)
+    body = tvm.tir.ir_pass.CanonicalSimplify(body)
     assert isinstance(body.body.body.body, tvm.tir.Store)
 
 

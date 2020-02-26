@@ -23,7 +23,7 @@ class CanonicalChecker:
 
     def verify(self, data, expected):
         res = self.analyzer.canonical_simplify(data)
-        assert tvm.ir_pass.Equal(res, expected), "\ndata={}\nres={}\nexpected={}".format(data, res, expected)
+        assert tvm.tir.ir_pass.Equal(res, expected), "\ndata={}\nres={}\nexpected={}".format(data, res, expected)
 
 
 def test_mul_sum_simplify():
@@ -197,7 +197,7 @@ def test_reduce_combiner_simplify():
 
         # Check that the remaining components are the expected ones.
         for lhs, rhs in zip(simplified.source, reference_simplified_sources[j]):
-            assert tvm.ir_pass.Equal(lhs, rhs)
+            assert tvm.tir.ir_pass.Equal(lhs, rhs)
 
     # Test that components with side effects are not removed
     side_effect = lambda *xs: tvm.tir.Call("int32", "dummy", xs, tvm.tir.Call.Intrinsic, None, 0)

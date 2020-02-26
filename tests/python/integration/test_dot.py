@@ -30,11 +30,11 @@ def lower(s, args, name="mydot"):
     s = s.normalize()
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 16)
-    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
-    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 16)
+    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
+    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     return fapi
 
 

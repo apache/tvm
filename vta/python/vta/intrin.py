@@ -75,7 +75,7 @@ def gemm(env, mock=False):
         dout = outs[0]
         def instr(index):
             """Generate matrix-matrix multiply VTA instruction"""
-            irb = tvm.ir_builder.create()
+            irb = tvm.tir.ir_builder.create()
             dev = env.dev
             irb.scope_attr(dev.vta_axis, "coproc_scope",
                            dev.get_task_qid(dev.QID_COMPUTE))
@@ -104,8 +104,8 @@ def gemm(env, mock=False):
             return (nop, nop, nop)
         return (instr(0), instr(1), instr(2))
 
-    return tvm.decl_tensor_intrin(out.op, intrin_func,
-                                  name="GEMM",
-                                  binds={inp: inp_layout,
-                                         wgt: wgt_layout,
-                                         out: out_layout})
+    return te.decl_tensor_intrin(out.op, intrin_func,
+                                 name="GEMM",
+                                 binds={inp: inp_layout,
+                                        wgt: wgt_layout,
+                                        out: out_layout})

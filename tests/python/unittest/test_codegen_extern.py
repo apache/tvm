@@ -26,14 +26,14 @@ def test_add_pipeline():
 
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         with ib.for_range(0, (n+1) // 2) as i:
             ib.emit(outs[0].vstore(i*2, ins[0].vload(i*2, "float32x2") + tvm.tir.const(1, "float32x2")))
         return ib.get()
 
     def extern_generator_gpu(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(bx, "thread_extent", (nn+max_threads-1) // max_threads)

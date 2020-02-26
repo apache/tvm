@@ -36,9 +36,9 @@ def test_virtual_thread():
 
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
-    stmt = tvm.ir_pass.InjectVirtualThread(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.InjectVirtualThread(stmt)
     print(stmt)
 
 if __name__ == "__main__":

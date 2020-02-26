@@ -86,7 +86,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
         elif i > axis:
             axis_mul_after *= value
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     data = ib.buffer_ptr(data)
     values_out = ib.buffer_ptr(values_out)
     if indices_out is not None:
@@ -110,7 +110,7 @@ def sort_ir(data, values_out, axis, is_ascend, indices_out=None):
                 values_out[base_idx + tid * axis_mul_after] = data[base_idx + tid * axis_mul_after]
                 if indices_out is not None:
                     indices_out[base_idx + tid * axis_mul_after] = \
-                        tvm.generic.cast(tid, indices_out.dtype)
+                        tvm.tir.generic.cast(tid, indices_out.dtype)
     ib.emit(tvm.tir.Call(None, 'tvm_storage_sync',
                          tvm.runtime.convert(['shared']),
                          tvm.tir.Call.Intrinsic, None, 0))
@@ -185,7 +185,7 @@ def sort_nms_ir(data, valid_count, output, axis, is_ascend):
         elif i > axis:
             axis_mul_after *= value
     max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     data = ib.buffer_ptr(data)
     valid_count = ib.buffer_ptr(valid_count)
     output = ib.buffer_ptr(output)

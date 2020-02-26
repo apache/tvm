@@ -38,7 +38,7 @@ dense_wkls = [
     ('lstm.dense.4',  Workload(4, 256, 128)),
 ]
 
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
     const_min = tvm.tir.const(a_min, x.dtype)

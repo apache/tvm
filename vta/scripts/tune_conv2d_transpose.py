@@ -42,7 +42,7 @@ dcgan_wkls = [
     ('DCGAN.CT3', Workload(env.BATCH, 16, 16,  256, 128, 4, 4, 1, 1, 2, 2)),
 ]
 
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
     const_min = tvm.tir.const(a_min, x.dtype)

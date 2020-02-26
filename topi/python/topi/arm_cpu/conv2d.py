@@ -345,13 +345,13 @@ def _conv2d_arm_cpu_winograd_nnpack(
     cfg.define_knob('winograd_nnpack_algorithm', [convolution_algorithm])
 
     assert N == 1
-    with tvm.tag_scope("winograd_nnpack_conv2d_weight_transform"):
+    with tvm.te.tag_scope("winograd_nnpack_conv2d_weight_transform"):
         transformed_kernel = tvm.contrib.nnpack.convolution_inference_weight_transform(
             kernel, algorithm=cfg['winograd_nnpack_algorithm'].val)
         if autotvm.GLOBAL_SCOPE.in_tuning:
             transformed_kernel = te.compute(transformed_kernel.shape, lambda *args: 0.0)
 
-    with tvm.tag_scope("winograd_nnpack_conv2d_output"):
+    with tvm.te.tag_scope("winograd_nnpack_conv2d_output"):
         output = tvm.contrib.nnpack.convolution_inference_without_weight_transform(
             data, transformed_kernel,
             bias=None,
@@ -399,7 +399,7 @@ def conv2d_nchw_winograd_nnpack_without_weight_transform(
     W = (IW + pl + pr - 3) // WSTR + 1
 
     assert N == 1
-    with tvm.tag_scope("winograd_nnpack_conv2d_output"):
+    with tvm.te.tag_scope("winograd_nnpack_conv2d_output"):
         output = tvm.contrib.nnpack.convolution_inference_without_weight_transform(
             data=data,
             transformed_kernel=transformed_kernel,

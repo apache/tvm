@@ -70,14 +70,14 @@ def test_add_pipeline():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
     Db = tvm.tir.decl_buffer(D.shape, D.dtype, name='D')
-    stmt = tvm.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, D:Db}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
-    fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
+    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, D:Db}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
+    fsplits = [x for x in tvm.tir.ir_pass.SplitHostDevice(fapi)]
     # lower the floordiv(use stackvm rules so it works for all targets)
-    fsplits = [tvm.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
-    fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
+    fsplits = [tvm.tir.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
+    fsplits[0] = tvm.tir.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)

@@ -33,8 +33,8 @@ def test_flatten2():
 
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
 
 def test_flatten_prefetch():
     A = te.placeholder((25, 100, 4), name = 'A')
@@ -43,8 +43,8 @@ def test_flatten_prefetch():
     j = te.size_var('j')
     region = [tvm.ir.Range.make_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
     stmt = tvm.tir.Prefetch(A.op, 0, A.dtype, region)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert stmt.extent.value == 2
     assert isinstance(stmt.body, tvm.tir.For)
     assert stmt.body.extent.value == 2
@@ -64,8 +64,8 @@ def test_flatten_storage_align():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert(stmt.body.extents[0].value == 17 * 8)
 
 def test_flatten_double_buffer():
@@ -73,7 +73,7 @@ def test_flatten_double_buffer():
     n = 100
     m = 4
     tx = te.thread_axis("threadIdx.x")
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
     ib.scope_attr(tx, "thread_extent", 1)
@@ -87,18 +87,18 @@ def test_flatten_double_buffer():
             C[j] = B[j] + 1
 
     stmt = ib.get()
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {}, 64)
-    stmt = tvm.ir_pass.InjectDoubleBuffer(stmt, 2)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {}, 64)
+    stmt = tvm.tir.ir_pass.InjectDoubleBuffer(stmt, 2)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
-    f = tvm.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
-    f = tvm.ir_pass.ThreadSync(f, "shared")
+    f = tvm.tir.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
+    f = tvm.tir.ir_pass.ThreadSync(f, "shared")
     count = [0]
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
-    tvm.ir_pass.PostOrderVisit(f.body, count_sync)
+    tvm.tir.ir_pass.PostOrderVisit(f.body, count_sync)
     assert count[0] == 4
 
 if __name__ == "__main__":

@@ -127,7 +127,7 @@ def rnn_matexp():
     s[SS].bind(tx, thread_x)
 
     def check_device(target):
-        with tvm.build_config(
+        with tvm.target.build_config(
                 detect_global_barrier=detect_global_barrier,
                 auto_unroll_max_step=128,
                 unroll_explicit=False):

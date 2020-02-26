@@ -77,7 +77,7 @@ def test_conv2d_hwcn_map():
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.target.build_config(auto_unroll_max_step=128,
                               unroll_explicit=device == 'rocm'):
             func1 = tvm.build(s1, [A, W, B], device)
             func1(a, w, b)

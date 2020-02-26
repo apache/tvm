@@ -47,7 +47,7 @@ def dilate(data, strides, name="DilatedInput"):
             n, len(strides)))
 
     out_shape = tuple(
-        tvm.ir_pass.Simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
+        tvm.tir.ir_pass.Simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
 
     def _dilate(*indices):
         not_zero = []

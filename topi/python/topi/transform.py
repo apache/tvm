@@ -158,7 +158,7 @@ def strided_slice(a, begin, end, strides=None):
         strides = []
     return cpp.strided_slice(a, begin, end, strides)
 
-@tvm.tag_scope(tag=tag.INJECTIVE+",strided_set")
+@tvm.te.tag_scope(tag=tag.INJECTIVE+",strided_set")
 def strided_set(a, v, begin, end, strides=None):
     """Set slice of an array.
 

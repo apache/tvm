@@ -37,9 +37,9 @@ def lower(sch, args):
     sch = sch.normalize()
     bounds = tvm.te.schedule.InferBound(sch)
     stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64)
-    func = tvm.ir_pass.MakeAPI(stmt, "myadd", arg_list, 0, True)
+    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64)
+    func = tvm.tir.ir_pass.MakeAPI(stmt, "myadd", arg_list, 0, True)
     return func
 
 
@@ -60,7 +60,7 @@ def test_verify_memory_all_bind():
   func = lower(s, [A, B])
 
   for dev_type in gpu_devices + other_devices:
-    assert tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
 
 
 # Computations are not bound.
@@ -77,9 +77,9 @@ def test_verify_memory_not_bind():
   func = lower(s, [A, B])
 
   for dev_type in gpu_devices:
-    assert not tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert not tvm.tir.ir_pass.VerifyMemory(func, dev_type)
   for dev_type in other_devices:
-    assert tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
 
 
 # Computations are partially bound.
@@ -101,9 +101,9 @@ def test_verify_memory_partially_bind():
   func = lower(s, [A, B, C, D])
 
   for dev_type in gpu_devices:
-    assert not tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert not tvm.tir.ir_pass.VerifyMemory(func, dev_type)
   for dev_type in other_devices:
-    assert tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
 
 
 if __name__ == "__main__":

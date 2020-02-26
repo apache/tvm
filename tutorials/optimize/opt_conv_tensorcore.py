@@ -159,7 +159,7 @@ def intrin_wmma_load_matrix(scope):
     BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=256)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
         BA = ins[0]
         BC = outs[0]
@@ -168,7 +168,7 @@ def intrin_wmma_load_matrix(scope):
                                 BA.access_ptr('r'), n, 'row_major'))
         return ib.get()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
 def intrin_wmma_gemm():
@@ -189,12 +189,12 @@ def intrin_wmma_gemm():
         BC, = outs
 
         def init():
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, n, n, BC.elem_offset // 256, 0.0))
             return ib.get()
 
         def update():
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
                                     BC.data, BC.elem_offset // 256,
                                     BA.data, BA.elem_offset // 256,
@@ -204,7 +204,7 @@ def intrin_wmma_gemm():
 
         return update(), init(), update()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
 
 
 def intrin_wmma_store_matrix():
@@ -215,7 +215,7 @@ def intrin_wmma_store_matrix():
     BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=256)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         BA = ins[0]
         BC = outs[0]
         ib.emit(tvm.tir.call_intrin('handle', 'tvm_store_matrix_sync',
@@ -223,7 +223,7 @@ def intrin_wmma_store_matrix():
                                 BC.access_ptr('w'), n, 'row_major'))
         return ib.get()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 ###############################################################################
 # Scheduling the Computation
@@ -331,7 +331,7 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ctx = tvm.gpu(0)
 if nvcc.have_tensorcore(ctx.compute_version):
-    with tvm.build_config(auto_unroll_max_step=16):
+    with tvm.target.build_config(auto_unroll_max_step=16):
         func = tvm.build(s, [A, W, Conv], 'cuda')
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)

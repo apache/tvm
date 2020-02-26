@@ -24,8 +24,8 @@ from tvm.hybrid.runtime import HYBRID_GLOBALS
 @pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
-        val = tvm.ir_pass.Substitute(val, var_dict)
-        val = tvm.ir_pass.Simplify(val)
+        val = tvm.tir.ir_pass.Substitute(val, var_dict)
+        val = tvm.tir.ir_pass.Simplify(val)
         assert isinstance(val, (tvm.tir.IntImm,))
         return val.value
 
@@ -182,7 +182,7 @@ def test_fanout():
     assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i'
     assert ir.min.value == 0
-    assert tvm.ir_pass.Equal(ir.extent, n - 3)
+    assert tvm.tir.ir_pass.Equal(ir.extent, n - 3)
     #Check loopbody
     ibody = ir.body
     assert isinstance(ibody, tvm.tir.AttrStmt)
@@ -215,7 +215,7 @@ def test_fanout():
     assert value.a.args[0].value == 0
     assert value.b.name == 'a'
     assert len(value.b.args) == 1
-    assert tvm.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
+    assert tvm.tir.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
     divide= rbody[2]
     assert isinstance(divide, tvm.tir.Provide)
     assert len(divide.args) == 1

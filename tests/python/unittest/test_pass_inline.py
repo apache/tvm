@@ -22,15 +22,15 @@ def test_inline():
     A = te.placeholder((m,), name='A')
     T = te.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.tir.Evaluate(T[10] + 11 * T[100])
-    stmt = tvm.ir_pass.Inline(
+    stmt = tvm.tir.ir_pass.Inline(
         stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
     print(stmt)
-    assert(tvm.ir_pass.VerifySSA(stmt))
+    assert(tvm.tir.ir_pass.VerifySSA(stmt))
 
     try:
         # pass in int array(wrong argument type)
         # must raise an error
-        stmt = tvm.ir_pass.Inline(
+        stmt = tvm.tir.ir_pass.Inline(
             T.op, [1,2,3], T.op.body, stmt)
         assert False
     except tvm.error.TVMError:
@@ -41,12 +41,12 @@ def test_inline2():
     A = te.placeholder((m,), name='A')
     T = te.compute((m,), lambda i,: A[i] + 10, name='T')
     stmt = tvm.tir.Evaluate(te.exp(T[10]) + 11 * T[100])
-    stmt = tvm.ir_pass.Inline(
+    stmt = tvm.tir.ir_pass.Inline(
         stmt, T.op, [x.var for x in T.op.axis], T.op.body[0])
     def check(op):
         if isinstance(op, tvm.tir.Call):
             assert op.func != T.op
-    tvm.ir_pass.PostOrderVisit(stmt, check)
+    tvm.tir.ir_pass.PostOrderVisit(stmt, check)
 
 
 if __name__ == "__main__":

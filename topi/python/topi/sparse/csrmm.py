@@ -57,7 +57,7 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
     _, N = weight.shape
     def csrmm_default_ir(data, indices, indptr, weight, out):
         """define ir for csrmm"""
-        irb = tvm.ir_builder.create()
+        irb = tvm.tir.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
         indptr_ptr = irb.buffer_ptr(indptr)

@@ -82,7 +82,7 @@ def dot_16x1x16_uint8_int8_int32_skylake():
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
                 ib.emit(outs[0].vstore(0, tvm.tir.const(0, 'int32x16')))
                 return ib.get()
@@ -110,8 +110,8 @@ def dot_16x1x16_uint8_int8_int32_skylake():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
 def dot_16x1x16_uint8_int8_int16():
@@ -165,7 +165,7 @@ def dot_16x1x16_uint8_int8_int16():
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
                 for i in range(4):
                     ib.emit(outs[0].vstore([i*32], tvm.tir.const(0, 'int16x32')))
@@ -192,8 +192,8 @@ def dot_16x1x16_uint8_int8_int16():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
 def dot_16x1x16_uint8_int8_int32_cascadelake():
@@ -245,7 +245,7 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
                 ib.emit(outs[0].vstore(0, tvm.tir.const(0, 'int32x16')))
                 return ib.get()
@@ -287,5 +287,5 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})

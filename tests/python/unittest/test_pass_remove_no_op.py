@@ -36,16 +36,16 @@ def test_remove_no_op():
                 k, 0, m, 0, 0,
                 tvm.tir.IfThenElse(
                     (i*m+j+k < n), tvm.tir.Evaluate(m), tvm.tir.Evaluate(n)))))
-    ret = tvm.ir_pass.RemoveNoOp(stmt)
+    ret = tvm.tir.ir_pass.RemoveNoOp(stmt)
     assert(isinstance(ret, tvm.tir.Evaluate))
     store = tvm.tir.Store(Ab.data,
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1)
     stmt2 = tvm.tir.SeqStmt([nop(), tvm.tir.SeqStmt([store, nop()])])
-    assert(tvm.ir_pass.RemoveNoOp(stmt2) == store)
+    assert(tvm.tir.ir_pass.RemoveNoOp(stmt2) == store)
     # remove zero extent loop
     stmt3 = tvm.tir.For(i, 0, 0, 0, 0, store)
-    ret = tvm.ir_pass.RemoveNoOp(stmt3)
+    ret = tvm.tir.ir_pass.RemoveNoOp(stmt3)
     assert(isinstance(ret, tvm.tir.Evaluate))
 
 

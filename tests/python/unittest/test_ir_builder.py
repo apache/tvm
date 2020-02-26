@@ -19,7 +19,7 @@ from tvm import te
 import numpy as np
 
 def test_for():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
@@ -39,7 +39,7 @@ def test_for():
     assert isinstance(body[1], tvm.tir.For)
 
 def test_if():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
     A = ib.pointer("float32", name="A")
     tmod = tvm.tir.truncmod
@@ -60,7 +60,7 @@ def test_if():
 
 def test_prefetch():
     A = te.placeholder((10, 20), name="A")
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     n = te.size_var("n")
 
     with ib.for_range(0, n, name="i") as i:
@@ -80,7 +80,7 @@ def test_cpu():
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 8
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
         Cptr = ib.buffer_ptr(C)
@@ -115,7 +115,7 @@ def test_gpu():
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 32
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))

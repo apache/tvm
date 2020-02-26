@@ -76,7 +76,7 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
                 ib.emit(outs[0].vstore(0, tvm.tir.const(0, '%s32x%d' % (dtype, int32_lanes))))
                 return ib.get()
@@ -107,5 +107,5 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})

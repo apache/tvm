@@ -54,7 +54,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     batch = indptr.shape[0]-1
     def csrmv_default_ir(data, indices, indptr, weight, out):
         """define ir for csrmv"""
-        irb = tvm.ir_builder.create()
+        irb = tvm.tir.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
         indptr_ptr = irb.buffer_ptr(indptr)

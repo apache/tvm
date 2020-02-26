@@ -80,11 +80,11 @@ def get_shape(shape):
     """Convert the shape to correct dtype and vars."""
     ret = []
     for dim in shape:
-        if isinstance(dim, tvm.expr.IntImm):
+        if isinstance(dim, tvm.tir.IntImm):
             val = int(dim)
             assert val <= np.iinfo(np.int32).max
-            ret.append(tvm.expr.IntImm("int32", val))
-        elif isinstance(dim, tvm.expr.Any):
+            ret.append(tvm.tir.IntImm("int32", val))
+        elif isinstance(dim, tvm.tir.Any):
             ret.append(te.var("any_dim", "int32"))
         else:
             ret.append(dim)
@@ -130,7 +130,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
             flag = True
             for clause in spec.condition.clauses:
                 clause = analyzer.canonical_simplify(clause)
-                if isinstance(clause, tvm.expr.IntImm) and clause.value:
+                if isinstance(clause, tvm.tir.IntImm) and clause.value:
                     continue
                 flag = False
                 break

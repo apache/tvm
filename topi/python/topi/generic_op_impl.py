@@ -90,12 +90,12 @@ def _bind_generic_ops():
     """Bind generic operators for Tensor."""
     # Check __op_priority__ to make sure the binding happens only once.
     __op_priority__ = 1
-    if __op_priority__ > tvm.generic.__op_priority__:
-        tvm.generic.__op_priority__ = __op_priority__
-        tvm.generic.add = _make_bop(_broadcast.add, tvm.generic.add)
-        tvm.generic.subtract = _make_bop(_broadcast.subtract, tvm.generic.subtract)
-        tvm.generic.multiply = _make_bop(_broadcast.multiply, tvm.generic.multiply)
-        tvm.generic.divide = _make_bop(_broadcast.divide, tvm.generic.divide)
-        tvm.generic.cast = _math.cast
+    if __op_priority__ > tvm.tir.generic.__op_priority__:
+        tvm.tir.generic.__op_priority__ = __op_priority__
+        tvm.tir.generic.add = _make_bop(_broadcast.add, tvm.tir.generic.add)
+        tvm.tir.generic.subtract = _make_bop(_broadcast.subtract, tvm.tir.generic.subtract)
+        tvm.tir.generic.multiply = _make_bop(_broadcast.multiply, tvm.tir.generic.multiply)
+        tvm.tir.generic.divide = _make_bop(_broadcast.divide, tvm.tir.generic.divide)
+        tvm.tir.generic.cast = _math.cast
 
 _bind_generic_ops()

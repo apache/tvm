@@ -20,7 +20,7 @@ from tvm import te
 import numpy as np
 def collect_visit(stmt, f):
     ret = []
-    tvm.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
+    tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
     return ret
 
 def lower(sch, args):
@@ -37,12 +37,12 @@ def lower(sch, args):
     sch = sch.normalize()
     bounds = tvm.te.schedule.InferBound(sch)
     stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.ir_pass.RemoveNoOp(stmt)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64, True)
-    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.ir_pass.VectorizeLoop(stmt)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.tir.ir_pass.RemoveNoOp(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, True)
+    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
     return stmt
 
 @pytest.mark.xfail
@@ -201,7 +201,7 @@ def test_in_bounds_const_loop_partition_ir():
     # before instrumentation
     assert_bound_instrumentation(stmt, check_attr_stmt, 2 * 3)
     assert_bound_instrumentation(stmt, check_branch_stmt, 0)
-    stmt = tvm.ir_pass.InstrumentBoundCheckers(stmt)
+    stmt = tvm.tir.ir_pass.InstrumentBoundCheckers(stmt)
     # after instrumentation
     assert_bound_instrumentation(stmt, check_attr_stmt, 2 * 3)
     assert_bound_instrumentation(stmt, check_branch_stmt, 2)
@@ -213,7 +213,7 @@ def test_in_bounds_const_loop_partition_ir():
     print (branch_collector[1].condition)
 
 def test_in_bounds_const_loop_partition_llvm():
-    with tvm.build_config(instrument_bound_checkers=True, partition_const_loop=True):
+    with tvm.target.build_config(instrument_bound_checkers=True, partition_const_loop=True):
         n = 21
         A = te.placeholder((n, ), name='A')
         B = te.placeholder((n, ), name='B')
@@ -233,7 +233,7 @@ def test_in_bounds_const_loop_partition_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
-    with tvm.build_config(instrument_bound_checkers=True, partition_const_loop=True):
+    with tvm.target.build_config(instrument_bound_checkers=True, partition_const_loop=True):
         n = 21
         A = te.placeholder((n, ), name='A')
         B = te.placeholder((n, ), name='B')
@@ -474,7 +474,7 @@ def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
     tvm.testing.assert_allclose(d.asnumpy(), d_np)
 
 if __name__ == "__main__":
-    with tvm.build_config(instrument_bound_checkers=True):
+    with tvm.target.build_config(instrument_bound_checkers=True):
         # zero scale
         test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm()
         # in bound

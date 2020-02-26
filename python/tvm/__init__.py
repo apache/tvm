@@ -47,10 +47,9 @@ from . import tir
 
 # tvm.target
 from . import target
-from .target import build_config
 
 # tvm.te
-from .te import decl_tensor_intrin, create_schedule, tag_scope
+from . import te
 
 # tvm.testing
 from . import testing
@@ -63,10 +62,6 @@ from . import hybrid
 
 # others
 from . import arith
-
-# backward compact for topi, to be removed later
-from .tir import expr, stmt, ir_builder, ir_pass, generic
-from .te import tensor, schedule
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

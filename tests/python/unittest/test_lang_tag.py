@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 from tvm import te
 
-@tvm.tag_scope(tag="conv")
+@tvm.te.tag_scope(tag="conv")
 def compute_conv(data, weight):
     N, IC, H, W = data.shape
     OC, IC, KH, KW = weight.shape
@@ -41,7 +41,7 @@ def test_with():
 
     A = te.placeholder((n, l), name='A')
     B = te.placeholder((m, l), name='B')
-    with tvm.tag_scope(tag="gemm"):
+    with tvm.te.tag_scope(tag="gemm"):
         k = te.reduce_axis((0, l), name='k')
         C = te.compute((n, m), lambda i, j: te.sum(A[i, k] * B[j, k], axis=k),
                         attrs={"hello" : 1, "arr": [10, 12]})

@@ -23,7 +23,7 @@ class RewriteChecker:
 
     def verify(self, data, expected):
         res = self.analyzer.rewrite_simplify(data)
-        assert tvm.ir_pass.Equal(res, expected), "data={}, res={}, expected={}".format(data, res, expected)
+        assert tvm.tir.ir_pass.Equal(res, expected), "data={}, res={}, expected={}".format(data, res, expected)
 
 
 def test_vector_simplify():

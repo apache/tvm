@@ -183,7 +183,7 @@ class OpImplementation(Object):
 
         Returns
         -------
-        schedule : tvm.Schedule
+        schedule : tvm.te.Schedule
             The schedule.
         """
         return _OpImplementationSchedule(self, attrs, outs, target)

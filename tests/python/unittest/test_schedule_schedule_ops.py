@@ -145,7 +145,7 @@ def test_inline_mixed():
     def check(x):
         if isinstance(x, tvm.tir.Call):
             assert x.func != A2
-    tvm.ir_pass.PostOrderVisit(s[C].op.body[0], check)
+    tvm.tir.ir_pass.PostOrderVisit(s[C].op.body[0], check)
 
 
 def test_scan_inline1():
@@ -311,9 +311,9 @@ def intrin_gemv(m, n):
             "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
         return body, reset, update
 
-    with tvm.build_config(data_alignment=16,
+    with tvm.target.build_config(data_alignment=16,
                           offset_factor=16):
-        return tvm.decl_tensor_intrin(z.op, intrin_func,
+        return te.decl_tensor_intrin(z.op, intrin_func,
                                       binds={w: Wb})
 
 
@@ -363,12 +363,12 @@ def intrin_vadd(n, cache_read=False, cache_write=False):
         binds[z] = create_buffer(z)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         ib.emit(tvm.tir.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
         return ib.get()
 
-    with tvm.build_config(offset_factor=16):
-        return tvm.decl_tensor_intrin(z.op, intrin_func, binds=binds)
+    with tvm.target.build_config(offset_factor=16):
+        return te.decl_tensor_intrin(z.op, intrin_func, binds=binds)
 
 
 def test_schedule_tensor_compute2():

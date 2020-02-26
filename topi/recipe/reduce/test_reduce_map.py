@@ -64,7 +64,7 @@ def test_reduce_map(in_shape, axis, keepdims, type="sum", test_id=0):
     else:
         raise NotImplementedError
     s = topi.cuda.schedule_reduce(B)
-    with tvm.build_config(auto_unroll_max_step=16,
+    with tvm.target.build_config(auto_unroll_max_step=16,
                           auto_unroll_min_depth=0):
         fcuda = tvm.build(s, [A, B], "cuda", name="sum")
 

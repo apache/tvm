@@ -59,7 +59,7 @@ def dense_si(data, indices, indptr, weight, bias=None):
     def dense_default_ir(data, indices, indptr, weight, out):
         """Define IR for Dense"""
         dtype = data.dtype
-        irb = tvm.ir_builder.create()
+        irb = tvm.tir.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
         indptr_ptr = irb.buffer_ptr(indptr)
@@ -127,7 +127,7 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
     def dense_default_ir(data, w_data, w_indices, w_indptr, out):
         """Define IR for Dense"""
         dtype = data.dtype
-        irb = tvm.ir_builder.create()
+        irb = tvm.tir.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         w_data_ptr = irb.buffer_ptr(w_data)
         w_indices_ptr = irb.buffer_ptr(w_indices)

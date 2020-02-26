@@ -30,7 +30,7 @@ def main():
     A = te.placeholder((n,), name='A')
     B = te.placeholder((n,), name='B')
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    s = tvm.te.create_schedule(C.op)
     s[C].parallel(s[C].op.axis[0])
     print(tvm.lower(s, [A, B, C], simple_mode=True))
     obj_file = osp.join(sys.argv[1], 'test.o')

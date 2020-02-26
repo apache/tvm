@@ -208,7 +208,7 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
     def extern(ins, outs):
         # pylint: disable=unused-argument
         """construct measurement function by building IR directly"""
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
         bx = te.thread_axis("blockIdx.x")
         tx = te.thread_axis("threadIdx.x")

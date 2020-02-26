@@ -56,7 +56,7 @@ def dp4a(x_scope='local', y_scope='local', z_scope='local'):
             if index == 1:
                 return zz.vstore(0, 0)
 
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
 
             vec_x = xx.vload(0, dtype='int8x4')
             vec_y = yy.vload(0, dtype='int8x4')
@@ -69,11 +69,11 @@ def dp4a(x_scope='local', y_scope='local', z_scope='local'):
 
         return _instr(0), _instr(1), _instr(2) # body, reset, update
 
-    with tvm.build_config(data_alignment=4, offset_factor=1) as cfg:
+    with tvm.target.build_config(data_alignment=4, offset_factor=1) as cfg:
         scopes = {x: x_scope, y: y_scope, z: z_scope}
         binds = {t: tvm.tir.decl_buffer(t.shape, t.dtype, t.op.name,
                                         data_alignment=cfg.data_alignment,
                                         offset_factor=cfg.offset_factor,
                                         scope=scopes[t]) for t in [x, y, z]}
 
-        return tvm.decl_tensor_intrin(z.op, _intrin_func, binds=binds)
+        return te.decl_tensor_intrin(z.op, _intrin_func, binds=binds)

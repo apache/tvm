@@ -35,7 +35,7 @@ def intrin_wmma_load_matrix(shape, scope):
     BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=row * col)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
         BA = ins[0]
         BC = outs[0]
@@ -44,7 +44,7 @@ def intrin_wmma_load_matrix(shape, scope):
                                 BA.access_ptr('r'), col, 'row_major'))
         return ib.get()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
 def intrin_wmma_gemm(shape):
@@ -65,12 +65,12 @@ def intrin_wmma_gemm(shape):
         BC, = outs
 
         def init():
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, m, l, BC.elem_offset // (n * m), 0.0))
             return ib.get()
 
         def update():
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
                                     BC.data, BC.elem_offset // (n * m),
                                     BA.data, BA.elem_offset // (n * l),
@@ -80,7 +80,7 @@ def intrin_wmma_gemm(shape):
 
         return update(), init(), update()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
 
 
 def intrin_wmma_store_matrix(shape):
@@ -91,7 +91,7 @@ def intrin_wmma_store_matrix(shape):
     BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=n * m)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
         BA = ins[0]
         BC = outs[0]
@@ -100,7 +100,7 @@ def intrin_wmma_store_matrix(shape):
                                 BC.access_ptr('w'), m, 'row_major'))
         return ib.get()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
 def test_tensor_core_batch_matmal():

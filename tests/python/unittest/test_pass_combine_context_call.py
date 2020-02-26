@@ -24,7 +24,7 @@ def test_for():
         return tvm.tir.Call(
             "handle", "tvm_thread_context", [ctx], tvm.tir.Call.Intrinsic, None, 0)
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     n = te.var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
@@ -36,8 +36,8 @@ def test_for():
             ib.emit(tvm.tir.call_extern
                     ("int32", "fadd", device_context(0), A))
     body = ib.get()
-    f = tvm.ir_pass.MakeAPI(body, "func", [dev_type, n], 2, True)
-    f = tvm.ir_pass.CombineContextCall(f)
+    f = tvm.tir.ir_pass.MakeAPI(body, "func", [dev_type, n], 2, True)
+    f = tvm.tir.ir_pass.CombineContextCall(f)
     assert f.body.value.dtype == "handle"
     assert f.body.body.value.dtype == "handle"
 

@@ -80,11 +80,11 @@ def tag_scope(tag):
         B = te.placeholder((m, l), name='B')
         k = te.reduce_axis((0, l), name='k')
 
-        with tvm.tag_scope(tag='matmul'):
+        with tvm.te.tag_scope(tag='matmul'):
             C = te.compute((n, m), lambda i, j: te.sum(A[i, k] * B[j, k], axis=k))
 
         # or use tag_scope as decorator
-        @tvm.tag_scope(tag="conv")
+        @tvm.te.tag_scope(tag="conv")
         def compute_relu(data):
             return te.compute(data.shape, lambda *i: tvm.select(data(*i) < 0, 0.0, data(*i)))
     """

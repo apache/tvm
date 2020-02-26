@@ -298,7 +298,7 @@ def tune_tasks(tasks,
 def register_vta_tuning_tasks():
     from tvm.autotvm.task import TaskExtractEnv
 
-    @tvm.tag_scope(tag=topi.tag.ELEMWISE)
+    @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
     def my_clip(x, a_min, a_max):
         """Unlike topi's current clip, put min and max into two stages."""
         const_min = tvm.tir.const(a_min, x.dtype)

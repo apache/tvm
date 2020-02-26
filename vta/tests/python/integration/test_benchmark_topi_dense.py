@@ -36,7 +36,7 @@ import vta.testing
 from vta.testing import simulator
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
     const_min = tvm.tir.const(a_min, x.dtype)

@@ -22,7 +22,7 @@ from . import tag
 from . import cpp
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def identity(x):
     """Take identity of input x.
 
@@ -40,7 +40,7 @@ def identity(x):
     return te.compute(x.shape, lambda *i: x(*i))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def negative(x):
     """Take negation of input x.
 
@@ -58,7 +58,7 @@ def negative(x):
     return te.compute(x.shape, lambda *i: -x(*i))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def exp(x):
     """Take exponential of input x.
 
@@ -75,7 +75,7 @@ def exp(x):
     return te.compute(x.shape, lambda *i: te.exp(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def erf(x):
     """Take gauss error function of input x.
 
@@ -92,7 +92,7 @@ def erf(x):
     return te.compute(x.shape, lambda *i: te.erf(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def tanh(x):
     """Take hyperbolic tanh of input x.
 
@@ -109,7 +109,7 @@ def tanh(x):
     return te.compute(x.shape, lambda *i: te.tanh(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def cos(x):
     """Take cos of input x.
 
@@ -126,7 +126,7 @@ def cos(x):
     return te.compute(x.shape, lambda *i: te.cos(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def sin(x):
     """Take sin of input x.
 
@@ -143,7 +143,7 @@ def sin(x):
     return te.compute(x.shape, lambda *i: te.sin(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def atan(x):
     """Take atan of input x.
 
@@ -159,7 +159,7 @@ def atan(x):
     """
     return te.compute(x.shape, lambda *i: te.atan(x(*i)))
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def floor(x):
     """Take floor of input x.
 
@@ -176,7 +176,7 @@ def floor(x):
     return te.compute(x.shape, lambda *i: te.floor(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def ceil(x):
     """Take ceil of input x.
 
@@ -209,7 +209,7 @@ def sign(x):
     return cpp.sign(x)
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def trunc(x):
     """Take truncated value of the input of x, element-wise.
 
@@ -226,7 +226,7 @@ def trunc(x):
     return te.compute(x.shape, lambda *i: te.trunc(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def abs(x):
     """Take absolute value of the input of x, element-wise.
 
@@ -243,7 +243,7 @@ def abs(x):
     return te.compute(x.shape, lambda *i: te.abs(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def isnan(x):
     """Check if value of x is NaN, element-wise.
 
@@ -260,7 +260,7 @@ def isnan(x):
     return te.compute(x.shape, lambda *i: te.isnan(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def round(x):
     """Round elements of x to nearest integer.
 
@@ -277,7 +277,7 @@ def round(x):
     return te.compute(x.shape, lambda *i: te.round(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def log(x):
     """Take logarithm of input x.
 
@@ -294,7 +294,7 @@ def log(x):
     return te.compute(x.shape, lambda *i: te.log(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def sqrt(x):
     """Take square root of input x.
 
@@ -311,7 +311,7 @@ def sqrt(x):
     return te.compute(x.shape, lambda *i: te.sqrt(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def rsqrt(x):
     """Take inverse square root of input x.
 
@@ -328,7 +328,7 @@ def rsqrt(x):
     return te.compute(x.shape, lambda *i: te.rsqrt(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def sigmoid(x):
     """Take sigmoid tanh of input x.
 
@@ -345,7 +345,7 @@ def sigmoid(x):
     return te.compute(x.shape, lambda *i: te.sigmoid(x(*i)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def left_shift(x, n):
     """Take n bits left shift of input x.
 
@@ -364,7 +364,7 @@ def left_shift(x, n):
     return te.compute(x.shape, lambda *i: x(*i) << n)
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def right_shift(x, n):
     """Take n bits right shift of input x.
 
@@ -383,7 +383,7 @@ def right_shift(x, n):
     return te.compute(x.shape, lambda *i: x(*i) >> n)
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def clip(x, a_min, a_max):
     """Clip (limit) the values in an array. Given an interval, values
     outside the interval are clipped to the interval edges.

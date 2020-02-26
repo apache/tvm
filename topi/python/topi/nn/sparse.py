@@ -158,7 +158,7 @@ def sparse_transpose(sparse_data, sparse_indices, sparse_indptr):
 
 def _csr_transpose_ir(data, indices, indptr, out_data, out_indices, out_indptr):
     """define ir for csr_transpose"""
-    irb = tvm.ir_builder.create()
+    irb = tvm.tir.ir_builder.create()
 
     data_ptr = irb.buffer_ptr(data)
     indices_ptr = irb.buffer_ptr(indices)

@@ -106,7 +106,7 @@ def intrin_gemv(m, l):
                          offset_factor=1,
                          strides=[1])
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         aa, bb = ins
         cc = outs[0]
         ib.emit(tvm.tir.call_extern("int32", "gemv_update",
@@ -115,11 +115,11 @@ def intrin_gemv(m, l):
                                 bb.access_ptr("r"),
                                 m, l, bb.strides[0]))
         return ib.get()
-    with tvm.build_config(offset_factor=1):
-        return tvm.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    with tvm.target.build_config(offset_factor=1):
+        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
-# Here :code:`tvm.decl_tensor_intrin` declares how to execute the computation :code:`c.op`.
+# Here :code:`te.decl_tensor_intrin` declares how to execute the computation :code:`c.op`.
 # Our implementation simply takes the inputs and outputs,
 # converts them to pointers and emit an external function call.
 # Note that tensorization requires user to specify :code:`offset_factor`,
@@ -255,7 +255,7 @@ def intrin_gemv(m, l):
         aa, bb = ins
         cc = outs[0]
         def _body():
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_extern("int32", "gemv_update",
                                     cc.access_ptr("w"),
                                     aa.access_ptr("r"),
@@ -263,14 +263,14 @@ def intrin_gemv(m, l):
                                     m, l, bb.strides[0]))
             return ib.get()
         def _reduce_reset():
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             ib.emit(tvm.tir.call_extern("int32", "gemv_reset", cc.access_ptr("w"), m))
             return ib.get()
         def _reduce_update():
             return _body()
         return _body(), _reduce_reset(), _reduce_update()
-    with tvm.build_config(offset_factor=1):
-        return tvm.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    with tvm.target.build_config(offset_factor=1):
+        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
 # Note that :code:`intrin_func` now returns a triplet:

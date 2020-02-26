@@ -214,7 +214,7 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
             return_dtype = 'uint16x8'
 
         def _instr(index):
-            irb = tvm.ir_builder.create()
+            irb = tvm.tir.ir_builder.create()
             if index == 1: # reduce reset
                 irb.emit(zz.vstore(0, tvm.tir.const(0, return_dtype)))
                 return irb.get()
@@ -271,8 +271,8 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
             return irb.get()
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(z.op, _intrin_func, binds={w: Wb, x:Xb, z:Zb})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(z.op, _intrin_func, binds={w: Wb, x:Xb, z:Zb})
 
 # ARM specific schedule that using custom microkernel
 def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,

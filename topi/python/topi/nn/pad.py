@@ -21,7 +21,7 @@ from tvm import te
 from ..util import equal_const_int
 from .. import tag
 
-@tvm.tag_scope(tag=tag.INJECTIVE+",pad")
+@tvm.te.tag_scope(tag=tag.INJECTIVE+",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     """Pad Input with zeros.
 
@@ -56,9 +56,9 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
         raise ValueError("Input dimension and pad_after dismatch : %d vs %d" % (
             n, len(pad_before)))
     out_shape = tuple(
-        tvm.ir_pass.Simplify(
+        tvm.tir.ir_pass.Simplify(
             (data.shape[i] + pad_before[i] + pad_after[i])) for i in range(n))
-    pad_value = (pad_value if isinstance(pad_value, tvm.expr.PrimExpr)
+    pad_value = (pad_value if isinstance(pad_value, tvm.tir.PrimExpr)
                  else tvm.tir.const(pad_value, data.dtype))
     def _pad(*indices):
         not_zero = []
@@ -77,7 +77,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     return te.compute(out_shape, _pad, name=name)
 
 
-@tvm.tag_scope(tag=tag.INJECTIVE + ",pad")
+@tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
 def mirror_pad(data,
                pad_before,
                pad_after=None,
@@ -116,7 +116,7 @@ def mirror_pad(data,
         raise ValueError("Input dimension and pad_after dismatch : %d vs %d" %
                          (n, len(pad_before)))
     out_shape = tuple(
-        tvm.ir_pass.Simplify((data.shape[i] + pad_before[i] + pad_after[i]))
+        tvm.tir.ir_pass.Simplify((data.shape[i] + pad_before[i] + pad_after[i]))
         for i in range(n))
     assert mode in ('SYMMETRIC', 'REFLECT')
     mode = int(mode == 'SYMMETRIC')
