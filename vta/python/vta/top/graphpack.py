@@ -31,6 +31,8 @@ def run_opt_pass(expr, opt_pass):
     return entry if isinstance(expr, relay.Function) else entry.body
 
 def _to_shape(shape):
+    """ convert shape into tuple.
+    """
     return tuple(int(sh) for sh in shape)
 
 def _pack_batch_channel(data, dshape, bfactor, cfactor):
@@ -54,6 +56,49 @@ def _unpack_batch_channel(data, old_shape):
     data = op.reshape(data, newshape=old_shape)
     return data
 
+
+def _const_shape_match(data, dshape, cfactor_out):
+    """ Pad the constant if the shape[0] not divisible by cfactor_out.
+    """
+    assert len(dshape) == 3
+    pad_width = int(dshape[0]) % cfactor_out
+    if pad_width != 0:
+        pad_width = cfactor_out -pad_width
+        data = op.nn.pad(data, [[0, pad_width], [0, 0], [0, 0]])
+        dshape = tuple([dshape[0] + pad_width, dshape[1], dshape[2]])
+    return data, dshape
+
+def _weight_shape_match(data, dshape, channels, cfactor_out, transpose=False):
+    """ Pad the weight if the shape[0] not divisible by cfactor_out.
+    """
+    assert len(dshape) == 4
+    pad_width = int(dshape[0]) % cfactor_out
+    channels_pad = int(channels) % cfactor_out
+    if pad_width != 0:
+        pad_width = cfactor_out - pad_width
+        data = op.nn.pad(data, [[0, pad_width], [0, 0], [0, 0], [0, 0]])
+        dshape = tuple([dshape[0] + pad_width, dshape[1], dshape[2], dshape[3]])
+
+    if channels_pad != 0:
+        channels = channels + (cfactor_out - channels_pad)
+
+    return data, dshape, channels
+
+def _weight_shape_match_transpose(data, dshape, channels, cfactor_out):
+    """ Pad the weight if the shape[1] not divisible by cfactor_out.
+    """
+    assert len(dshape) == 4
+    pad_width = int(dshape[1]) % cfactor_out
+    channels_pad = int(channels) % cfactor_out
+    if pad_width != 0:
+        pad_width = cfactor_out - pad_width
+        data = op.nn.pad(data, [[0, 0], [0, pad_width], [0, 0], [0, 0]])
+        dshape = tuple(dshape[0], [dshape[1] + pad_width, dshape[2], dshape[3]])
+
+    if channels_pad != 0:
+        channels = channels + (cfactor_out - channels_pad)
+
+    return data, dshape, channels
 
 def _pack_weight(data, dshape, cfactor):
     """Pack the weight into packed format.
@@ -106,10 +151,19 @@ def _pack_const(data, dshape, dtype, bfactor, cfactor):
     return data
 
 
-def _get_shape(node):
-    """Get the shape of a node.
+def _get_tensor_shape(node):
+    """Get node shape.
     """
-    return _to_shape(node.checked_type.shape)
+    if isinstance(node.checked_type, relay.ty.TensorType):
+        return _to_shape(node.checked_type.shape)
+    return []
+
+def _get_tensor_type(node):
+    """Get node type.
+    """
+    if isinstance(node.checked_type, relay.ty.TensorType):
+        return node.checked_type.dtype
+    return "float32"
 
 def _operator_idx_inc(expr, count_meta, operator_current_idx):
     """Increase operator index
@@ -136,14 +190,17 @@ class ExprPack(ExprMutator):
         self.add = op.op.get("add")
         self.multiply = op.op.get("multiply")
         self.bias_add = op.op.get("nn.bias_add")
+        self.pad = op.op.get("nn.pad")
+        self.upsampling = op.op.get("nn.upsampling")
+        self.reshape = op.op.get("reshape")
         self.number_of_conv2d = 0
         super().__init__()
 
     def visit_call(self, call):
         """ Visit the children. """
         # First visit the children.
-        oshape = _get_shape(call)
-        odtype = call.checked_type.dtype
+        oshape = _get_tensor_shape(call)
+        odtype = _get_tensor_type(call)
         input_types = [arg.checked_type for arg in call.args]
         args = [self.visit(arg) for arg in call.args]
 
@@ -156,7 +213,7 @@ class ExprPack(ExprMutator):
             if self.start_pack:
                 self.start_pack = False
                 data = args[0]
-                data_shape = _get_shape(call.args[0])
+                data_shape = _get_tensor_shape(call.args[0])
                 return _unpack_batch_channel(data, data_shape)
         if self.start_pack:
             # Operator cases
@@ -169,11 +226,17 @@ class ExprPack(ExprMutator):
                 data, weight = args
                 data_shape = _to_shape(input_types[0].shape)
                 kernel_shape = _to_shape(input_types[1].shape)
+                channels = call.attrs.channels
+                weight, kernel_shape, channels = _weight_shape_match(weight,
+                                                                     kernel_shape,
+                                                                     channels,
+                                                                     self.cfactor)
                 kernel = _pack_weight(weight, kernel_shape, self.cfactor)
                 # insert bit packing when necessary
                 if w_lanes != 1:
                     assert 8 % w_lanes == 0
                     kernel = op.bitpack(kernel, lanes=w_lanes)
+
                 conv2d = op.nn.conv2d(
                     data,
                     kernel,
@@ -181,7 +244,7 @@ class ExprPack(ExprMutator):
                     padding=call.attrs.padding,
                     dilation=call.attrs.dilation,
                     groups=call.attrs.groups,
-                    channels=call.attrs.channels,
+                    channels=channels,
                     kernel_size=call.attrs.kernel_size,
                     data_layout=data_layout,
                     kernel_layout=kernel_layout,
@@ -198,6 +261,11 @@ class ExprPack(ExprMutator):
                     data, weight = args
                     data_shape = _to_shape(input_types[0].shape)
                     kernel_shape = _to_shape(input_types[1].shape)
+                    channels = call.attrs.channels
+                    weight, kernel_shape, channels = _weight_shape_match_transpose(weight,
+                                                                                   kernel_shape,
+                                                                                   channels,
+                                                                                   self.cfactor)
                     kernel = _pack_weight_conv2d_transpose(weight, kernel_shape, self.cfactor)
                     conv2d = op.nn.conv2d_transpose(
                         data,
@@ -218,8 +286,11 @@ class ExprPack(ExprMutator):
                 pass
             elif call.op == self.add and len(input_types[1].shape) == 3:
                 data, const = args
+                const, input_shape = _const_shape_match(const,
+                                                        input_types[1].shape,
+                                                        self.cfactor)
                 const = _pack_const(const,
-                                    _to_shape(input_types[1].shape),
+                                    _to_shape(input_shape),
                                     input_types[1].dtype,
                                     self.bfactor,
                                     self.cfactor)
@@ -247,6 +318,36 @@ class ExprPack(ExprMutator):
                     input_types[0].dtype == 'int32':
                 cast = relay.Call(op.op.get('cast'), [args[0]], call.attrs)
                 return relay.Call(op.op.get('copy'), [cast])
+            elif call.op == self.pad:
+                pad_width = call.attrs.pad_width
+                if len(pad_width) == 6:
+                    pass
+                elif len(pad_width) == 4:
+                    data, = args
+                    new_pad_width = []
+                    new_pad_width.extend(pad_width)
+                    for _ in range(2):
+                        new_pad_width.append([0, 0])
+                    return op.nn.pad(data,
+                                     pad_value=call.attrs.pad_value,
+                                     pad_width=new_pad_width)
+            elif call.op == self.upsampling:
+                data, = args
+                scale_h = call.attrs.scale_h
+                scale_w = call.attrs.scale_w
+                data_layout = "NCHW%dn%dc" % (self.bfactor, self.cfactor)
+                method = call.attrs.method
+                align_corners = call.attrs.align_corners
+                return op.nn.upsampling(data,
+                                        scale_h,
+                                        scale_w,
+                                        data_layout,
+                                        method,
+                                        align_corners)
+            elif call.op == self.reshape and len(input_types[0].shape) == 4:
+                data, = args
+                data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
+                return op.reshape(data, input_types[0].shape)
 
         return relay.Call(
             self.visit(call.op),
