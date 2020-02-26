@@ -154,12 +154,13 @@ top1_tvm = np.argmax(tvm_output.asnumpy()[0])
 tvm_class_key = class_id_to_key[top1_tvm]
 
 # Convert input to PyTorch variable and get PyTorch result for comparison
-torch_img = torch.from_numpy(img)
-output = model(torch_img)
+with torch.no_grad():
+    torch_img = torch.from_numpy(img)
+    output = model(torch_img)
 
-# Get top-1 result for PyTorch
-top1_torch = np.argmax(output.detach().numpy())
-torch_class_key = class_id_to_key[top1_torch]
+    # Get top-1 result for PyTorch
+    top1_torch = np.argmax(output.numpy())
+    torch_class_key = class_id_to_key[top1_torch]
 
 print('Relay top-1 id: {}, class name: {}'.format(top1_tvm, key_to_classname[tvm_class_key]))
 print('Torch top-1 id: {}, class name: {}'.format(top1_torch, key_to_classname[torch_class_key]))
