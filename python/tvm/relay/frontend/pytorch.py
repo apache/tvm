@@ -903,6 +903,22 @@ def get_constant(node):
         return None
 
 
+def get_operator_nodes(nodes):
+    """ Returns torch IR nodes that need conversion to Relay """
+    ops = {}
+    # Traverse nodes and add to graph
+    for node in nodes:
+        if node.outputsSize() > 1:
+            node_name = "_".join(get_output_names(node))
+        else:
+            node_name = get_output_name(node)
+
+        if node.kind() != "prim::GetAttr":
+            ops[node_name] = node
+
+    return ops
+
+
 def parse_inputs(graph_inputs, input_shapes):
     """ Return Relay vars from torch input vars """
     ir_inputs = list(graph_inputs)
@@ -944,20 +960,31 @@ def parse_params(graph, state_dict):
     return params, param_tensors
 
 
-def parse_ops(nodes):
-    """ Returns torch IR nodes that need conversion to Relay """
-    ops = {}
-    # Traverse nodes and add to graph
-    for node in nodes:
-        if node.outputsSize() > 1:
-            node_name = "_".join(get_output_names(node))
+def parse_operators(operators, outputs, output_index_map, ret_name):
+    for node_name, op_node in operators.items():
+        operator = op_node.kind()
+        inputs = get_op_inputs(op_node, outputs, output_index_map)
+
+        if operator == "prim::Constant":
+            output_index_map[node_name] = len(outputs)
+            outputs.append(get_constant(op_node))
+        elif operator == 'prim::ListConstruct' and is_int_seq(inputs):
+            output_index_map[node_name] = len(outputs)
+            outputs.append(_expr.var(node_name, shape=inputs))
+        elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
+            output_index_map[node_name] = len(outputs)
+            outputs.append(inputs)
+        elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
+            assert len(inputs) == 1
+            unpacked_names = get_output_names(op_node)
+            update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
+                                      outputs, output_index_map)
         else:
-            node_name = get_output_name(node)
+            output_index_map[node_name] = len(outputs)
+            relay_op = _convert_map[operator]
+            outputs.append(relay_op(inputs, get_input_types(op_node)))
 
-        if node.kind() != "prim::GetAttr":
-            ops[node_name] = node
-
-    return ops
+    return outputs[output_index_map[ret_name]]
 
 
 def get_graph_input_names(script_module):
@@ -998,37 +1025,14 @@ def from_pytorch(script_module, input_shapes):
     params = script_module.state_dict()
     input_vars = parse_inputs(graph.inputs(), input_shapes)
     param_vars, tensors = parse_params(graph, params)
-    ops = parse_ops(graph.nodes())
 
     input_vars.update(param_vars)
     outputs = list(input_vars.values())
     output_index_map = dict(zip(input_vars.keys(), range(len(outputs))))
-
-    for node_name, op_node in ops.items():
-        operator = op_node.kind()
-        inputs = get_op_inputs(op_node, outputs, output_index_map)
-
-        if operator == "prim::Constant":
-            output_index_map[node_name] = len(outputs)
-            outputs.append(get_constant(op_node))
-        elif operator == 'prim::ListConstruct' and is_int_seq(inputs):
-            output_index_map[node_name] = len(outputs)
-            outputs.append(_expr.var(node_name, shape=inputs))
-        elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
-            output_index_map[node_name] = len(outputs)
-            outputs.append(inputs)
-        elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
-            assert len(inputs) == 1
-            unpacked_names = get_output_names(op_node)
-            update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
-                                      outputs, output_index_map)
-        else:
-            output_index_map[node_name] = len(outputs)
-            relay_op = _convert_map[operator]
-            outputs.append(relay_op(inputs, get_input_types(op_node)))
-
     ret_name = get_input_names(graph.return_node())[0]
-    body = outputs[output_index_map[ret_name]]
+
+    body = parse_operators(get_operator_nodes(graph.nodes()), outputs,
+                           output_index_map, ret_name)
     func = tvm.relay.Function(_analysis.free_vars(body), body)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
