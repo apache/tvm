@@ -29,6 +29,7 @@ from tvm.ir import module as _module
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import op as _op
+from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
@@ -107,9 +108,8 @@ def _select():
     def _impl(inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
-        index = int(inputs[2])
-
-        return _op.transform.take(data, _expr.const(index, dtype="int32"), axis=dim)
+        index = _wrap_const(inputs[2])
+        return _op.transform.take(data, index, axis=dim)
     return _impl
 
 def _ones():
@@ -126,7 +126,8 @@ def _ones():
         else:
             assert "data type {} could not be parsed in ones op" % (type(data))
 
-        return _op.full(_expr.const(1), shape, dtype=_convert_data_type(input_types[0]))
+        dtype = "float32"
+        return _op.full(_expr.const(1), shape, dtype=dtype)
     return _impl
 
 def _zeros():
@@ -143,7 +144,8 @@ def _zeros():
         else:
             assert "data type {} could not be parsed in zeros op" % (type(data))
 
-        return _op.full(_expr.const(0), shape, dtype=_convert_data_type(input_types[0]))
+        dtype = "float32"
+        return _op.full(_expr.const(0), shape, dtype=dtype)
     return _impl
 
 def _relu():
@@ -493,7 +495,7 @@ def _dropout():
     return _impl
 
 def _reduce(name):
-    def _impl(inputs, attrs, params):
+    def _impl(inputs, input_types):
         data = inputs[0]
         return get_relay_op(name)(data)
     return _impl
@@ -711,7 +713,6 @@ def _upsample(method):
 
     return _impl
 
-
 def _expand_as():
     def _impl(inputs, input_types):
         # TODO: maybe fix this
@@ -721,6 +722,53 @@ def _expand_as():
         return inputs[0]
     return _impl
 
+def _neg():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.tensor.negative(data)
+    return _impl
+
+def _tanh():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.tensor.tanh(data)
+    return _impl
+
+def _ge():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 2
+        lhs = _wrap_const(inputs[0])
+        rhs = _wrap_const(inputs[1])
+        return _op.tensor.greater_equal(lhs, rhs)
+    return _impl
+
+def _gt():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 2
+        lhs = _wrap_const(inputs[0])
+        rhs = _wrap_const(inputs[1])
+        return _op.tensor.greater(lhs, rhs)
+    return _impl
+
+def _lt():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 2
+        lhs = _wrap_const(inputs[0])
+        rhs = _wrap_const(inputs[1])
+        return _op.tensor.less(lhs, rhs)
+    return _impl
+
+def _Bool():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 1
+        return inputs[0]
+    return _impl
+
+def _Float():
+    def _impl(inputs, input_types):
+        assert len(inputs) == 1
+        return _op.cast(inputs[0], "float")
+    return _impl
 
 # Helper functions for operator implementation
 
@@ -776,6 +824,12 @@ def _convert_elemwise_input(data, input_type):
         return _expr.const(data, dtype=_convert_data_type(input_type))
     else:
         return data
+
+def _wrap_const(c):
+    # TODO: replace this function with something already that exists above
+    if not isinstance(c, _expr.Expr) and not isinstance(c, list):
+        return _expr.const(c)
+    return c
 
 # Operator mappings
 
@@ -843,6 +897,12 @@ _convert_map = {
     "aten::upsample_bilinear2d"             : _upsample("bilinear"),
     "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
     "aten::expand_as"                       : _expand_as()
+    'aten::lt'                              : _lt(),
+    'aten::gt'                              : _gt(),
+    'aten::Bool'                            : _Bool(),
+    'aten::Float'                           : _Float(),
+    'aten::neg'                             : _neg(),
+    'aten::tanh'                            : _tanh(),
 }
 
 
@@ -891,7 +951,8 @@ def _report_missing_conversion(op_names):
     """ Check if all ops in an input graph are supported by TVM """
     known_ops = ["prim::Constant", "prim::GetAttr",
                  "prim::ListConstruct", "prim::ListUnpack",
-                 "prim::TupleConstruct", "prim::TupleUnpack"]
+                 "prim::TupleConstruct", "prim::TupleUnpack",
+                 "prim::If", "prim::Loop"]
     known_ops += list(_convert_map.keys())
     known_ops += list(qnn_torch.convert_map.keys())
 
@@ -1073,6 +1134,91 @@ def parse_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
+def parse_block(block, outputs, output_index_map):
+    ops = get_operator_nodes(block.nodes())
+    ret_name = get_input_names(block.returnNode())[0]
+    return parse_operators(ops, outputs, output_index_map, ret_name)
+
+
+def parse_loop(op_node, outputs, output_index_map):
+
+    def get_input(index):
+        inode = op_node.inputsAt(index).node()
+        if inode.kind() == "prim::Constant":
+            return _expr.const(get_constant(inode))
+        var_name = op_node.inputsAt(index).debugName()
+        assert var_name in output_index_map
+        output_ind = output_index_map[var_name]
+        out = outputs[output_ind]
+        if isinstance(out, (_expr.Expr, list)):
+            return out
+        return _expr.const(out)
+
+    max_loop_count = get_input(0)
+    init_cond = get_input(1)
+    num_loop_var = len(list(op_node.inputs())) - 2
+    init_vals = [get_input(i + 2) for i in range(num_loop_var)]
+
+    is_for_loop = isinstance(init_cond, _expr.Constant)
+
+    if is_for_loop:
+        loop_iter_dtype = "int32"
+        init_loop_iter_val = _expr.const(0, dtype="int32")
+    else:
+        loop_iter_dtype = "bool"
+        init_loop_iter_val = init_cond
+
+    body_block = list(op_node.blocks())[0]
+    inames = get_input_names(body_block)
+    loop_input_vals = [init_loop_iter_val] + init_vals
+    name_val_pairs = list(zip(inames, loop_input_vals))
+    update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
+
+    def get_outputs(outputs, output_index_map, names):
+        return [_wrap_const(outputs[output_index_map[name]])
+                for name in names]
+
+    def cond(*current_vals):
+        i = current_vals[0]
+
+        if is_for_loop:
+            return _op.less(i, max_loop_count)
+
+        return _op.equal(i, _expr.const(True, 'bool'))
+
+    def body(*current_vals):
+        for (i, iname) in enumerate(inames):
+            outputs[output_index_map[iname]] = current_vals[i]
+
+        parse_block(body_block, outputs, output_index_map)
+
+        block_output_names = get_output_names(body_block)
+        block_outputs = get_outputs(outputs, output_index_map,
+                                    block_output_names)
+        if is_for_loop:
+            # this assumes the step is always 1
+            incr = _expr.const(1, dtype="int32")
+            block_outputs[0] = current_vals[0] + incr
+
+        return block_outputs
+
+    def get_var(name, val):
+        if isinstance(val, _expr.Constant):
+            return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
+        if isinstance(val, _expr.Var):
+            return _expr.var(name, type_annotation=val.type_annotation)
+        if isinstance(val, list):
+            assert False
+        return _expr.var(name)
+
+    loop_iter_var = _expr.var(inames[0], shape=(), dtype=loop_iter_dtype)
+    loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
+    loop = while_loop(cond, [loop_iter_var] + loop_vars, body)
+    loop_val = loop(init_loop_iter_val, *init_vals)
+
+    return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
+
+
 def parse_operators(operators, outputs, output_index_map, ret_name):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
@@ -1093,12 +1239,26 @@ def parse_operators(operators, outputs, output_index_map, ret_name):
             unpacked_names = _get_output_names(op_node)
             _update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
                                        outputs, output_index_map)
+        elif operator == "prim::If":
+            cond = outputs[output_index_map[op_node.inputsAt(0).debugName()]]
+            blocks = list(op_node.blocks())
+            true_branch = parse_block(blocks[0], outputs, output_index_map)
+            false_branch = parse_block(blocks[1], outputs, output_index_map)
+            output_index_map[node_name] = len(outputs)
+            outputs.append(_expr.If(cond, true_branch, false_branch))
+        elif operator == "prim::Loop":
+            loop = parse_loop(op_node, outputs, output_index_map)
+            unpacked_names = _get_output_names(op_node)
+            assert len(loop) == len(unpacked_names)
+            _update_outputs_from_pairs(zip(unpacked_names, loop),
+                                       outputs, output_index_map)
         else:
             output_index_map[node_name] = len(outputs)
             relay_op = _convert_map[operator]
             outputs.append(relay_op(inputs, _get_input_types(op_node)))
 
-    return outputs[output_index_map[ret_name]]
+    ret = outputs[output_index_map[ret_name]]
+    return _wrap_const(ret)
 
 
 def get_all_op_names(graph):
