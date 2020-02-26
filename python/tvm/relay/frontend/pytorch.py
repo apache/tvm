@@ -18,6 +18,10 @@
 # pylint: disable=consider-iterating-dictionary, invalid-name, unused-argument, unused-variable, broad-except
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
 """PT: PyTorch frontend."""
+import itertools
+from packaging import version
+
+import torch
 import numpy as np
 
 import tvm
@@ -484,10 +488,19 @@ def _reduce(name):
 def _mean():
     def _impl(inputs, input_types):
         data = inputs[0]
-        axis = _infer_shape(inputs[1])
 
-        keepdims = int(inputs[2])
-        exclude = int(inputs[3])
+        if inputs[1]:
+            axis = _infer_shape(inputs[1])
+        else:
+            axis = None
+        if len(inputs) > 2 and inputs[2]:
+            keepdims = int(inputs[2])
+        else:
+            keepdims = False
+        if len(inputs) > 3 and inputs[3]:
+            exclude = int(inputs[3])
+        else:
+            exclude = False
 
         return _op.mean(data, axis, keepdims, exclude)
     return _impl
@@ -651,7 +664,7 @@ def _convert_elemwise_input(data, input_type):
     if isinstance(data, torch.Tensor):
         return _expr.const(data.item(), dtype=_convert_data_type(input_type))
     elif not isinstance(data, _expr.Expr):
-        return _expr.const(int(data), dtype=_convert_data_type(input_type))
+        return _expr.const(data, dtype=_convert_data_type(input_type))
     else:
         return data
 
@@ -718,293 +731,231 @@ _convert_map = {
     "aten::sqrt"                            : _sqrt()
 }
 
-# Internal graph for parsing
 
-class Graph(object):
-    """ A helper class for parsing PyTorch model to Relay graph."""
+def is_int_seq(seq):
+    return len(seq) > 0 and all([isinstance(i, int) for i in seq])
 
-    def __init__(self, script_module, input_shapes):
 
-        self._script_module = script_module
-        self._graph = script_module.graph.copy()
+def parse_inputs(graph_inputs, input_shapes):
+    ir_inputs = list(graph_inputs)
+    ir_names = [i.debugName() for i in ir_inputs]
+    input_vars = {}
 
-        # TODO: Temporary fix to remove prim::CallMethod node introduced in PT 1.4
-        import torch
-        from packaging import version
-        if version.parse(torch.__version__) >= version.parse("1.4.0"):
-            torch._C._jit_pass_inline(self._graph)
+    for input_name, ir_input in zip(input_shapes, ir_inputs[1:]):
+        input_shape = input_shapes[input_name]
+        ir_input.setDebugName(input_name)
+        input_vars[input_name] = _expr.var(input_name,
+                                           shape=input_shapes[input_name])
+    # Add self (first input of a PyTorch graph) to inputs
+    input_shape = [3]
+    tensor = tvm.nd.array(np.zeros(input_shape).astype(np.float32))
+    input_name = ir_names[0]  # self.1
+    input_vars[input_name] = tensor
 
-        self._inputs_r = {}
-        self._params = {}
-        self._param_tensors = {}
-        self._consts = {}
-        self._ops = {}
-        self._op_inputs_r = {}
-        self._op_inputs_types = {}
-        self._input_shapes = input_shapes if input_shapes else {}
-        self._parsed_node_names = {}
+    return input_vars
 
-    def from_pytorch(self):
-        """ Construct relay nodes from PyTorch graph
 
-        Currently only supports traced PyTorch format which means no control flow.
-        User must perform torch.jit.trace on a model and pass this in.
-        Future support should include support scripted models (torch.jit.script) which
-        preserves control flow.
+def get_tensor_and_var(torch_tensor, name):
+    tensor = tvm.nd.array(torch_tensor.cpu().numpy())
+    var = _expr.var(name, shape=tensor.shape)
+    return tensor, var
 
-        Returns
-        -------
-        mod : tvm.relay.Module
-            The module that optimizations will be performed on.
 
-        params : dict of str to tvm.runtime
-            Dict of converted parameters stored in tvm.runtime format
-        """
-        # Check for missing ops
-        missing_operators = self._parse_import_prerequisites()
+def get_output_name(node):
+    assert node.outputsSize() == 1
+    return node.output().debugName()
 
-        if missing_operators:
-            raise tvm.error.OpNotImplemented( \
-                "The following operators are not implemented: {}".format(missing_operators))
 
-        # Translate PyTorch graph to by decorating Graph with state dict and inputs into each op
-        self._parse_inputs()
-        self._parse_params()
-        self._parse_ops()
+def get_output_names(node):
+    return [output.debugName() for output in node.outputs()]
 
-        outputs = []
-        nid = 0
 
-        for op_name, op_node in self._ops.items():
-            if op_node.kind() == "prim::ListConstruct":
-                if any(inp.debugName() in self._parsed_node_names.keys() \
-                       for inp in op_node.inputs()):
-                    list_constr = []
-                    for i in op_node.inputs():
-                        if i.debugName() in self._parsed_node_names.keys():
-                            list_constr.append( \
-                                outputs[self._parsed_node_names[i.debugName()]])
-                        elif i.node().kind() == "prim::Constant":
-                            list_constr.append(int(self._consts[i.debugName()]))
-                        elif i.debugName() in self._inputs_r.keys():
-                            list_constr.append(int(self._inputs_r[i.debugName()]))
+def get_input_names(node):
+    return [inp.debugName() for inp in node.inputs()]
 
-                    # Unwrap for tensors
-                    if len(list_constr) == 1:
-                        list_constr = list_constr[0]
 
-                    outputs.append(list_constr)
-                    self._parsed_node_names[op_name] = nid
-                    nid = nid+1
-            elif op_node.kind() != "prim::Constant":
-                for i in op_node.inputs():
-                    if i.debugName() in self._parsed_node_names.keys():
-                        for cnt in range(0, len(self._op_inputs_r[op_name])):
-                            if isinstance(self._op_inputs_r[op_name][cnt], str):
-                                if "call/var" in self._op_inputs_r[op_name][cnt]:
-                                    self._op_inputs_r[op_name][cnt] = \
-                                        outputs[self._parsed_node_names[i.debugName()]]
-                                    break
+def getattr_attr_name(node):
+    attribute_names = node.attributeNames()
+    assert(len(attribute_names) == 1)
+    attr_name = node.s(attribute_names[0])
+    return attr_name
 
-                call = _convert_map[op_node.kind()](self._op_inputs_r[op_name],
-                                                    self._op_inputs_types[op_name])
 
-                outputs.append(call)
-                self._parsed_node_names[op_name] = nid
-                nid = nid+1
+def get_use_chains(root_node, terminate=lambda _: False):
+    def concat_lists(lists):
+        return itertools.chain.from_iterable(lists)
 
-        func = tvm.relay.Function(_analysis.free_vars(outputs[-1]), outputs[-1])
+    def inner(current, accum):
+        users = []
+        for output in current.outputs():
+            users += [use.user for use in output.uses()]
 
-        param = {k: tvm.nd.array(v) for k, v in self._param_tensors.items()}
+        if not users or terminate(users):
+            return [accum]
 
-        return  _module.IRModule.from_expr(func), param
+        return concat_lists([inner(nxt, accum + [nxt]) for nxt in users])
 
-    def _parse_inputs(self):
-        """ Map inputs to parser and inputs to graph. """
-        # Get names and objects of inputs for IR
-        ir_inputs = [i for i in self._graph.inputs()]
+    return inner(root_node, [root_node])
 
-        # Create corresponding shape and add to input
-        for input_name, ir_input in zip(self._input_shapes, ir_inputs[1:]):
-            input_shape = self._input_shapes[input_name]
-            ir_input.setDebugName(input_name)
 
-            ir_dtype = _convert_data_type(ir_input.type().scalarType().lower())
-            self._inputs_r[input_name] = _expr.var(input_name,
-                                                   shape=self._input_shapes[input_name],
-                                                   dtype=ir_dtype)
+def get_attr_chains(root_getattr_node):
+    """Returns chains of attribute access starting from root_getattr_node
 
-        # Add self (first input of a PyTorch graph) to inputs, the value doesn't matter here
-        input_name = ir_inputs[0].debugName()
-        self._inputs_r[input_name] = "self"
+    For example, given attribute "block", as in "self.block" when "self" points
+    to the top level torch.nn.Module, it returns lists of attribute "chains",
+    e.g. ['block', '2'], ['block', '1'], ['block', '0', '_packed_params']
 
-    def _parse_params(self):
-        """ Map state dictionary values to corresponding prim::GetAttr op node. """
-        # Grab weights, biases, etc. from graph
-        state_dict = self._script_module.state_dict()
-        param_names = []
-        for key, value in state_dict.items():
-            param_str = str(key)
-            param_name = param_str.split(".")[-1]
-            param_names.append(param_name)
+    These sets of attributes form full attribute accessors. For example,
+    "self.block.1", "self.block.2" will return the second and third submodule,
+    and "self.block.0._packed_params" will return the parameters of the first
+    submodule.
+    """
+    def terminate(users):
+        next_attrs = [user for user in users if user.kind() == "prim::GetAttr"]
+        return len(next_attrs) == 0
 
-        # Get names of all inputs
-        input_names = [i for i in self._inputs_r.keys()]
+    return get_use_chains(root_getattr_node, terminate)
 
-        # Iterate through graph for getAttr nodes and match full state_dict name to nodes
-        node_weight_map = {}
-        for node in self._graph.nodes():
-            if node.kind() == "prim::GetAttr":
 
-                attribute_names = node.attributeNames()
-                assert len(attribute_names) == 1
-                node_getattr_name = node.s(attribute_names[0])
-                node_arg = node.input().debugName()
+def get_full_attr_name(getattrs):
+    return ".".join([getattr_attr_name(node) for node in getattrs])
 
-                if node.outputsSize() == 1:
-                    node_name = node.output().debugName()
-                else:
-                    node_name = [output.debugName() for output in node.outputs()][0]
 
-                if node_arg in input_names:
-                    node_weight_map[node_name] = node_getattr_name
-                else:
-                    previous_map = node_weight_map[node_arg[:]]
-                    node_weight_map[node_name] = previous_map+"."+node_getattr_name
+def parse_params(graph, state_dict):
+    getattr_nodes = graph.findAllNodes("prim::GetAttr", recurse=True)
+    params = {}
+    param_tensors = {}
+    seen = set()
 
-                if node_getattr_name in param_names:
+    for node in getattr_nodes:
+        if get_output_name(node) in seen:
+            continue
 
-                    value = state_dict[node_weight_map[node_name]]
-                    tensor = tvm.nd.array(value.cpu().numpy())
-                    shape = tensor.shape
-                    self._param_tensors[node_name] = tensor
+        for getattrs in get_attr_chains(node):
+            seen.update(map(get_output_name, getattrs))
 
-                    self._params[node_name] = _expr.var(node_name,
-                                                        shape=shape,
-                                                        dtype=_convert_data_type(str(value.dtype)))
+            full_attr = get_full_attr_name(getattrs)
+            full_attr_node_name = get_output_name(getattrs[-1])
 
-    def _parse_ops(self):
-        """ Iterate through nodes and decorate graph with constants, operators,
-        and the inputs to each operator. """
-        # Traverse nodes and add to graph
-        for node in self._graph.nodes():
+            if full_attr in state_dict:
+                torch_tensor = state_dict[full_attr]
+                tensor, var = get_tensor_and_var(torch_tensor,
+                                                 full_attr_node_name)
+                param_tensors[full_attr_node_name] = tensor
+                params[full_attr_node_name] = var
 
-            if node.outputsSize() == 1:
-                node_name = node.output().debugName()
+    return params, param_tensors
+
+
+def get_input_types(op_node):
+    input_list_types = []
+    for input_node in op_node.inputs():
+        in_ty = input_node.type()
+        input_node_kind = in_ty.kind()
+        if input_node_kind == 'TensorType':
+            if in_ty.scalarType() is None:
+                input_list_types.append('float')
             else:
-                node_name = [output.debugName() for output in node.outputs()][0]
+                input_list_types.append(in_ty.scalarType().lower())
+        elif input_node_kind == 'ListType':
+            input_list_types.append(str(in_ty.getElementType()).lower())
+        elif input_node_kind in ['IntType', 'FloatType', 'BoolType',
+                                 'StringType', 'OptionalType']:
+            input_list_types.append(str(in_ty).lower())
+        else:
+            input_list_types.append('UnsupportedType')
 
-            if node.kind() == "prim::Constant":
-                if node.hasAttributes():
-                    attribute_names = node.attributeNames()
-                    attr_name = attribute_names[0]
-                    ty = node.output().type().kind()
+    if op_node.kind() in ['aten::ones', 'aten::zeros']:
+        node_type = op_node.output().type()
+        scalar_type = node_type.scalarType()
+        if scalar_type:
+            input_list_types[0] = scalar_type.lower()
 
-                    if ty in ["IntType", "BoolType"]:
-                        self._consts[node_name] = node.i(attr_name)
-                    elif ty in ["FloatType", "LongType"]:
-                        self._consts[node_name] = node.f(attr_name)
-                    elif ty in ["TensorType", "CompleteTensorType"]:
-                        self._consts[node_name] = node.output().toIValue()
-                    else:
-                        self._consts[node_name] = "0"
-                else:
-                    self._consts[node_name] = "0"
-            elif node.kind() == "prim::ListConstruct":
-                list_shape = []
-                for input_node in node.inputs():
-                    if input_node.debugName() in self._inputs_r.keys():
-                        c = self._inputs_r[input_node.debugName()]
-                        assert isinstance(c, int)
-                        list_shape.append(c)
-                    elif input_node.debugName() in self._consts.keys():
-                        c = self._consts[input_node.debugName()]
-                        assert isinstance(c, int)
-                        list_shape.append(c)
-                self._inputs_r[node_name] = _expr.var(node_name, shape=list_shape)
+    return input_list_types
 
-            if node.kind() != "prim::GetAttr":
-                self._add_op(node_name, node)
 
-    # Graph Helper Functions
+def get_constant(node):
+    attribute_names = node.attributeNames()
+    num_attributes = len(attribute_names)
 
-    def _add_op(self, node_id, op_node):
-        """ Add an operator and its operators inputs to the graph and insert placeholders
-            where an input is a call node.
+    if num_attributes == 1:
+        attr_name = attribute_names[0]
+        ty = node.output().type().kind()
 
-        Parameters
-        ----------
-        node_id : string
-            The ID of the op node
+        if ty == "IntType" or ty == "BoolType":
+            return node.i(attr_name)
+        elif ty in ["FloatType", "LongType"]:
+            return node.f(attr_name)
+        elif ty in ["TensorType", "CompleteTensorType"]:
+            tensor = node.t(attr_name)
+            if len(tensor.shape) == 0:  # tensor(0.1)
+                return float(tensor)
+            return tensor
+        elif ty == "DeviceObjType":
+            return node.s(attr_name)
+        elif ty == "FunctionType":
+            return None
+        else:
+            print(ty, node)
+            assert False  # TODO: handle other types
+    else:
+        assert num_attributes == 0
+        return None
 
-        op_node : PyTorch Node object
-            The full Node object for the op node
 
-        """
-        self._ops[(node_id)] = op_node
-        input_list_r = []
-        input_list_types = []
-        for input_value in op_node.inputs():
+def parse_ops(nodes):
+    ops = {}
+    # Traverse nodes and add to graph
+    for node in nodes:
+        if node.outputsSize() > 1:
+            node_name = "_".join(get_output_names(node))
+        else:
+            node_name = get_output_name(node)
 
-            inode_id = input_value.debugName()
-            inode = input_value.node()
+        if node.kind() != "prim::GetAttr":
+            ops[node_name] = node
 
-            if inode_id in self._inputs_r.keys():
-                input_list_r.append(self._inputs_r[inode_id])
-            elif inode_id in self._params.keys():
-                input_list_r.append(self._params[inode_id])
-            elif inode.kind() == "prim::Constant":
-                input_list_r.append(self._consts[inode_id])
-            else:
-                input_list_r.append("call/var."+inode_id)
+    return ops
 
-                # If the inputs of a ListConstruct op is a call or var, remove it from inputs
-                if op_node.kind() == "prim::ListConstruct":
-                    if node_id in self._inputs_r.keys():
-                        self._inputs_r.pop(node_id)
 
-            try:
-                input_value_kind = input_value.type().kind()
-                if input_value_kind in ["TensorType", "CompleteTensorType"]:
-                    if input_value.type().scalarType() is None:
-                        input_list_types.append("float")
-                    else:
-                        input_list_types.append(input_value.type().scalarType().lower())
-                elif input_value_kind == "ListType":
-                    input_list_types.append(str(input_value.type().getElementType()).lower())
-                elif input_value_kind in ["IntType", "FloatType", "BoolType", "StringType",
-                                          "OptionalType"]:
-                    input_list_types.append(str(input_value.type()).lower())
-                else:
-                    input_list_types.append("UnsupportedType")
-                    print("UnsupportedType "+str(input_value.type())+" and "+str(input_value_kind))
-            except Exception as e:
-                print("Internal PyTorch error. Failed to grab type.")
+def get_input_node_names(op_node, output_index_map):
+    return [output_index_map[name] for name in get_input_names(op_node)]
 
-        if op_node.kind() in ["aten::ones", "aten::zeros"]:
-            node_type = op_node.output().type().scalarType()
-            input_list_types[0] = node_type.lower()
 
-        self._op_inputs_r[node_id] = input_list_r
-        self._op_inputs_types[node_id] = input_list_types
+def get_op_inputs(op_node, outputs, output_index_map):
+    input_names = get_input_node_names(op_node, output_index_map)
+    return [outputs[name] for name in input_names]
 
-    def _parse_import_prerequisites(self):
-        """ Calculate the named preconditions from PyTorch graph.
 
-        Returns
-        -------
-        missing_operators : set object
-            Set of operator names which don't have their mapping in TVM
-            i.e. which are not supported
+def run_jit_passes(graph):
+    if version.parse(torch.__version__) >= version.parse("1.4.0"):
+        torch._C._jit_pass_inline(graph)
 
-        """
-        missing_operators = set()
-        for node in self._graph.nodes():
-            if not node.kind() in ["prim::Constant", "prim::ListConstruct", "prim::GetAttr"] \
-                    and not node.kind() in _convert_map:
-                missing_operators.add(node.kind())
 
-        return missing_operators
+def update_outputs_from_pairs(name_output_pairs, outputs, output_index_map):
+    for output_name, output in name_output_pairs:
+        output_index_map[output_name] = len(outputs)
+        outputs.append(output)
+
+
+def get_all_op_names(graph):
+    nodes = list(graph.nodes())
+    return set([node.kind() for node in nodes])
+
+
+def report_missing_conversion(graph):
+    known_ops = ["prim::Constant", "prim::GetAttr",
+                 "prim::ListConstruct", "prim::ListUnpack",
+                 "prim::TupleConstruct", "prim::TupleUnpack"]
+    known_ops += list(_convert_map.keys())
+
+    missing = [op_name for op_name in get_all_op_names(graph)
+               if op_name not in known_ops]
+
+    if missing:
+        msg = "The following operators are not implemented: {}".format(missing)
+        raise NotImplementedError(msg)
+
 
 def from_pytorch(script_module, input_shapes):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
@@ -1024,9 +975,48 @@ def from_pytorch(script_module, input_shapes):
     mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.runtime
-        Dict of converted parameters stored in tvm.runtime format
+    params : dict of str to tvm.ndarray
+        Dict of converted parameters stored in tvm.ndarray format
     """
-    g = Graph(script_module, input_shapes)
-    mod, params = g.from_pytorch()
-    return mod, params
+    graph = script_module.graph.copy()
+    run_jit_passes(graph)
+    report_missing_conversion(graph)
+
+    params = script_module.state_dict()
+    input_vars = parse_inputs(graph.inputs(), input_shapes)
+    param_vars, tensors = parse_params(graph, params)
+    ops = parse_ops(graph.nodes())
+
+    input_vars.update(param_vars)
+    outputs = list(input_vars.values())
+    output_index_map = dict(zip(input_vars.keys(), range(len(outputs))))
+
+    for node_name, op_node in ops.items():
+        operator = op_node.kind()
+        inputs = get_op_inputs(op_node, outputs, output_index_map)
+
+        if operator == "prim::Constant":
+            output_index_map[node_name] = len(outputs)
+            outputs.append(get_constant(op_node))
+        elif operator == 'prim::ListConstruct' and is_int_seq(inputs):
+            output_index_map[node_name] = len(outputs)
+            outputs.append(_expr.var(node_name, shape=inputs))
+        elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
+            output_index_map[node_name] = len(outputs)
+            outputs.append(inputs)
+        elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
+            assert len(inputs) == 1
+            unpacked_names = get_output_names(op_node)
+            update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
+                                      outputs, output_index_map)
+        else:
+            output_index_map[node_name] = len(outputs)
+            relay_op = _convert_map[operator]
+            outputs.append(relay_op(inputs, get_input_types(op_node)))
+
+    ret_name = get_input_names(graph.return_node())[0]
+    body = outputs[output_index_map[ret_name]]
+    func = tvm.relay.Function(_analysis.free_vars(body), body)
+    tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
+
+    return _module.IRModule.from_expr(func), tvm_params

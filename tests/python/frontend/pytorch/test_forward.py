@@ -94,6 +94,7 @@ def load_model(model_name):
     if hasattr(torchvision.models, model_name):
         return load_torchvision(model_name)
     try:
+        import pretrainedmodels
         if hasattr(pretrainedmodels, model_name):
             return load_pretrainedmodels(model_name)
     except ModuleNotFoundError:
@@ -276,7 +277,7 @@ def test_forward_multiply():
 
     class Multiply2(Module):
         def forward(self, *args):
-            return args[0] * 1
+            return args[0] * 1.0
 
     class Multiply3(Module):
         def forward(self, *args):
@@ -507,7 +508,7 @@ def test_forward_size():
 
     class Size1(Module):
         def forward(self, *args):
-            return args[0].size(0) * args[0]
+            return float(args[0].size(0)) * args[0]
 
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
