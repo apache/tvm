@@ -400,9 +400,11 @@ def _dense():
 
 def _size():
     def _impl(inputs, input_types):
-        axis = int(inputs[1])
         shape = _infer_shape(inputs[0])
-        return shape[axis]
+        if len(inputs) > 1:
+            axis = int(inputs[1])
+            return shape[axis]
+        return shape
     return _impl
 
 def _numtotensor():
@@ -738,20 +740,12 @@ def is_int_seq(seq):
 
 def parse_inputs(graph_inputs, input_shapes):
     ir_inputs = list(graph_inputs)
-    ir_names = [i.debugName() for i in ir_inputs]
     input_vars = {}
 
     for input_name, ir_input in zip(input_shapes, ir_inputs[1:]):
-        input_shape = input_shapes[input_name]
         ir_input.setDebugName(input_name)
         input_vars[input_name] = _expr.var(input_name,
                                            shape=input_shapes[input_name])
-    # Add self (first input of a PyTorch graph) to inputs
-    input_shape = [3]
-    tensor = tvm.nd.array(np.zeros(input_shape).astype(np.float32))
-    input_name = ir_names[0]  # self.1
-    input_vars[input_name] = tensor
-
     return input_vars
 
 
@@ -896,8 +890,7 @@ def get_constant(node):
         elif ty == "FunctionType":
             return None
         else:
-            print(ty, node)
-            assert False  # TODO: handle other types
+            raise NotImplementedError("Unsupported type: %s" % ty)
     else:
         assert num_attributes == 0
         return None
@@ -975,7 +968,7 @@ def from_pytorch(script_module, input_shapes):
     mod : tvm.relay.Module
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
+    params : dict of str to tvm.runtime.NDArray
         Dict of converted parameters stored in tvm.ndarray format
     """
     graph = script_module.graph.copy()
