@@ -214,4 +214,3 @@ register_shape_func("minimum", False, broadcast_shape_func)
 register_shape_func("sqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
-

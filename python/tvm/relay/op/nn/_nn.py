@@ -629,4 +629,3 @@ reg.register_pattern("nn.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # adaptive_avg_pool2d
 reg.register_schedule("nn.adaptive_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
-
