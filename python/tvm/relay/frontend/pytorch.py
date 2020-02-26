@@ -961,6 +961,7 @@ def parse_params(graph, state_dict):
 
 
 def parse_operators(operators, outputs, output_index_map, ret_name):
+    """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators.items():
         operator = op_node.kind()
         inputs = get_op_inputs(op_node, outputs, output_index_map)
