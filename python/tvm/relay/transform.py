@@ -176,7 +176,7 @@ def SimplifyInference():
     Returns
     -------
     ret: tvm.relay.Pass
-        The registered to perform operator simplification.
+        The registered pass to perform operator simplification.
     """
     return _transform.SimplifyInference()
 
@@ -187,7 +187,7 @@ def FastMath():
     Returns
     -------
     ret: tvm.relay.Pass
-        The registered to perform operator simplification.
+        The registered pass to perform fast math operations.
     """
     return _transform.FastMath()
 

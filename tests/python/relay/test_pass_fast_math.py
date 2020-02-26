@@ -28,8 +28,8 @@ def test_exp():
     fast_mod = FastMath()(mod)
     assert "fast_exp" in fast_mod.astext()
 
-    # Check that opt level 4 triggers the transformation.
-    with relay.build_config(opt_level=4):
+    # Check that FastMath option works for relay.build.
+    with relay.build_config(opt_level=3, required_pass=['FastMath']):
         fast_mod = relay.optimize(mod, target='llvm', params=None)
     assert "fast_exp" in fast_mod[0].astext()
 
@@ -42,7 +42,7 @@ def test_tanh():
     fast_mod = FastMath()(mod)
     assert "fast_tanh" in fast_mod.astext()
 
-    # Check that opt level 4 triggers the transformation.
+    # Check that FastMath option works for relay.build.
     with relay.build_config(opt_level=3, required_pass=['FastMath']):
         fast_mod = relay.optimize(mod, target='llvm', params=None)
     assert "fast_tanh" in fast_mod[0].astext()
