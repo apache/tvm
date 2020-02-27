@@ -82,7 +82,7 @@ class PassContext(Object):
         elif isinstance(fallback_device, TVMContext):
             fallback_device = fallback_device.device_type
         if not isinstance(fallback_device, int):
-            raise TypeError("required_pass is expected to be the type of " +
+            raise TypeError("fallback_device is expected to be the type of " +
                             "int/str/TVMContext.")
 
         required = list(required_pass) if required_pass else []
