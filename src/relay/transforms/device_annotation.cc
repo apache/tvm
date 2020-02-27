@@ -142,7 +142,7 @@ class RewriteAnnotation : public ExprMutator {
     }
   }
 
-  Expr VisitExp_(const TupleNode* op) {
+  Expr VisitExpr_(const TupleNode* op) {
     Array<Expr> fields;
     bool annotated = false;
     for (const auto& field : fields) {
@@ -162,8 +162,7 @@ class RewriteAnnotation : public ExprMutator {
   Expr VisitExpr_(const TupleGetItemNode* op) final {
     Expr tuple = op->tuple;
     if (NeedDeviceCopy(tuple.operator->(), op)) {
-      Expr new_expr =
-          TupleGetItem(GetDeviceCopyExpr(tuple, op), op->index);
+      Expr new_expr = TupleGetItem(GetDeviceCopyExpr(tuple, op), op->index);
       UpdateAnnotationMap(op, new_expr.operator->());
       return this->VisitExpr(new_expr);
     } else {
@@ -176,7 +175,8 @@ class RewriteAnnotation : public ExprMutator {
     Expr true_br = GetDeviceCopyExpr(if_node->true_branch, if_node);
     Expr false_br = GetDeviceCopyExpr(if_node->false_branch, if_node);
 
-    if (if_node->cond.same_as(cond) && if_node->true_branch.same_as(true_br) &&
+    if (if_node->cond.same_as(cond) &&
+        if_node->true_branch.same_as(true_br) &&
         if_node->false_branch.same_as(false_br)) {
       return ExprMutator::VisitExpr_(if_node);
     } else {
@@ -204,7 +204,7 @@ class RewriteAnnotation : public ExprMutator {
 
     if (annotated) {
       Call new_call = Call(call_node->op, new_args, call_node->attrs,
-                                     call_node->type_args);
+                           call_node->type_args);
 
       UpdateAnnotationMap(call_node, new_call.operator->());
       return this->VisitExpr(new_call);
@@ -221,7 +221,6 @@ class RewriteAnnotation : public ExprMutator {
     } else {
       annotation_map_.insert({new_node, it->second});
     }
-    this->memo_[GetRef<Expr>(old_node)] = GetRef<Expr>(new_node);
   }
 
   Expr GetDeviceCopyExpr(const Expr& src, const ExprNode* dst) {
