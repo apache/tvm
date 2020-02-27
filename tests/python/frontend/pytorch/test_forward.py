@@ -77,7 +77,7 @@ def load_torchvision(model_name):
             input_data[:, channel] /= std[channel]
         model = getattr(torchvision.models, model_name)(pretrained=True)
         model = model.float().eval()
-        return model, input_data
+        return model, [input_data]
 
 def load_pretrainedmodels(model_name):
     """Given a model name, returns a pretrainedmodels.pytorch model in eval
@@ -89,7 +89,7 @@ def load_pretrainedmodels(model_name):
     for channel in range(3):
         input_data[:, channel] -= model.mean[channel]
         input_data[:, channel] /= model.std[channel]
-    return model, input_data
+    return model, [input_data]
 
 def load_model(model_name):
     """Given a model name, returns a model as well as an example input."""
@@ -153,23 +153,31 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
             if err < thresh:
                 return est
 
-def verify_model(model_name, input_data=[]):
+def verify_model(model_name, input_data=[], custom_convert_map={}):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if len(input_data) == 0:
         baseline_model, baseline_input = load_model(model_name)
+    elif isinstance(input_data, torch.Tensor):
+        baseline_model = model_name
+        baseline_input = [input_data]
     else:
+        assert isinstance(input_data, list)
         baseline_model = model_name
         baseline_input = input_data
+
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
-        baseline_input = baseline_input.cuda()
+        baseline_input = [inp.cuda() for inp in baseline_input]
+
     with torch.no_grad():
-        baseline_outputs = baseline_model(baseline_input)
+        baseline_outputs = baseline_model(*baseline_input)
+
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
         baseline_outputs = (baseline_outputs.float().cpu().numpy(),)
+
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
 
     if torch.cuda.is_available():
@@ -177,17 +185,21 @@ def verify_model(model_name, input_data=[]):
     else:
         trace = trace.cpu()
 
-    input_name = get_graph_input_names(trace)[0]  # only one input
-    input_shapes = {input_name: list(baseline_input.shape)}
-    mod, params = relay.frontend.from_pytorch(trace, input_shapes)
-    compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
+    input_names = get_graph_input_names(trace)
+    input_shapes = dict(zip(input_names,
+                            [inp.shape for inp in baseline_input]))
+    mod, params = relay.frontend.from_pytorch(trace, input_shapes,
+                                              custom_convert_map)
+    compiled_input = dict(zip(input_names,
+                              [inp.cpu().numpy() for inp in baseline_input]))
 
     with relay.build_config(opt_level=3):
         for target, ctx in ctx_list():
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
-            relay_model.set_input(**compiled_input)
+            for name, inp in compiled_input.items():
+                relay_model.set_input(name, inp)
             relay_model.run()
 
             for i, baseline_output in enumerate(baseline_outputs):
@@ -756,28 +768,7 @@ def test_custom_conversion_map():
     custom_map = {'torchvision::roi_align': convert_roi_align()}
     model, inputs = get_roi_align()
 
-    with torch.no_grad():
-        pt_result = model(*inputs).numpy()
-
-    script_module = torch.jit.trace(model, inputs).eval()
-    input_names = get_graph_input_names(script_module)
-    input_shapes = dict(zip(input_names, [inp.shape for inp in inputs]))
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes,
-                                              custom_map)
-    target = "llvm"
-    with relay.build_config(opt_level=3):
-        json, lib, params = relay.build(mod, target=target, params=params)
-
-    ctx = tvm.context(target, 0)
-    runtime = tvm.contrib.graph_runtime.create(json, lib, ctx)
-    runtime.set_input(**params)
-    for name, inp in zip(input_names, inputs):
-        runtime.set_input(name, inp.numpy())
-    runtime.run()
-    tvm_result = runtime.get_output(0).asnumpy()
-
-    tvm.testing.assert_allclose(tvm_result, pt_result,
-                                rtol=1e-5, atol=1e-5)
+    verify_model(model, inputs, custom_map)
 
 
 if __name__ == "__main__":
