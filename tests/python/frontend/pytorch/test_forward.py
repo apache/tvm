@@ -23,6 +23,7 @@ from tempfile import TemporaryDirectory
 from scipy.stats import t as tdistr
 import numpy as np
 import torch
+from torch import nn
 from torch.nn import Module
 import tvm
 from tvm import te
@@ -668,14 +669,26 @@ def test_forward_chunk():
     input_data = torch.rand(input_shape).float()
     verify_model(Chunk1().float().eval(), input_data=input_data)
 
-# def test_upsample():
-#     class Upsample(nn.Module):
-#         def __init__(self):
-#             super().__init__()
+def test_upsample():
+    class Upsample(nn.Module):
+        def __init__(self, size=None, scale=None,
+                     mode="nearest", align_corners=None):
+            super().__init__()
+            self.size = size
+            self.scale = scale
+            self.mode = mode
+            self.align_corners = align_corners
 
-#         def forward(self, x):
-#             return nn.functional.interpolate(x, scale_factor=2,
-#                                              mode='bilinear', align_corners=True)
+        def forward(self, x):
+            return nn.functional.interpolate(x, size=self.size,
+                                             scale_factor=self.scale,
+                                             mode=self.mode,
+                                             align_corners=self.align_corners)
+    inp = torch.rand((1, 3, 32, 32))
+    verify_model(Upsample(size=(64, 64), mode="nearest"), inp)
+    verify_model(Upsample(scale=2, mode="nearest"), inp)
+    verify_model(Upsample(size=(64, 64), mode="bilinear", align_corners=True), inp)
+    verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
 
 # Model tests
 def test_resnet18():
@@ -805,6 +818,7 @@ if __name__ == "__main__":
     test_forward_expand()
     test_forward_pow()
     test_forward_chunk()
+    test_upsample()
 
     # Model tests
     test_resnet18()

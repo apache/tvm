@@ -615,6 +615,26 @@ def _sqrt():
         return _op.tensor.sqrt(data)
     return _impl
 
+def _floor():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.floor(data)
+    return _impl
+
+def _to():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        # special handling for aten::to(data, 6, _, _, _) case
+        # 6 means dtype = float
+        # this happens when converting upsampling with scale factor
+        cast_func = {
+            6: float,
+        }
+        if inputs[1] in cast_func and not isinstance(data, _expr.Expr):
+            return cast_func[inputs[1]](data)
+        return data
+    return _impl
+
 def _upsample(method):
     def _impl(inputs, input_types):
         if isinstance(inputs[1], _expr.Var):
@@ -625,7 +645,11 @@ def _upsample(method):
                         for res in infer_res]
 
         data = inputs[0]
-        align_corners = inputs[2]
+
+        if len(inputs) > 2:
+            align_corners = inputs[2]
+        else:
+            align_corners = False
 
         if align_corners:
             coord_trans = "align_corners"
@@ -708,7 +732,7 @@ _convert_map = {
     "aten::div_"                            : _elemwise("divide"),
     "aten::ones"                            : _ones(),
     "aten::zeros"                           : _zeros(),
-    "aten::to"                              : _identity(),
+    "aten::to"                              : _to(),
     "aten::unsqueeze"                       : _unsqueeze(),
     "aten::cat"                             : _concatenate(),
     "aten::slice"                           : _slice(),
@@ -752,8 +776,10 @@ _convert_map = {
     "aten::sum"                             : _reduce("sum"),
     "aten::prod"                            : _reduce("prod"),
     "aten::sqrt"                            : _sqrt(),
-    'aten::upsample_bilinear2d'             : _upsample("bilinear"),
-    'aten::upsample_nearest2d'              : _upsample("nearest"),
+    'aten::floor'                           : _floor(),
+    "aten::detach"                          : _identity(),
+    "aten::upsample_bilinear2d"             : _upsample("bilinear"),
+    "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
 }
 
 
@@ -1009,8 +1035,7 @@ def parse_operators(operators, outputs, output_index_map, ret_name):
 
 def get_all_op_names(graph):
     """ Return all operator names in the input graph """
-    nodes = list(graph.nodes())
-    return set(node.kind() for node in nodes)
+    return set(node.kind() for node in graph.nodes())
 
 
 def get_graph_input_names(script_module):
@@ -1036,7 +1061,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map={}):
         The keys should be the same one returned by get_graph_input_names(...) above
 
     custom_convert_map: Dictionary of str to Relay op
-        A custom op conversion map in the same format as _convert_map above[
+        A custom op conversion map in the same format as _convert_map above
 
     Returns
     -------
