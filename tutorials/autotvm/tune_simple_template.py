@@ -55,6 +55,7 @@ import sys
 
 import numpy as np
 import tvm
+from tvm import te
 
 # the module is called `autotvm`
 from tvm import autotvm
@@ -70,12 +71,12 @@ from tvm import autotvm
 
 # Matmul V0: Constant tiling factor
 def matmul_v0(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -104,12 +105,12 @@ def matmul_v0(N, L, M, dtype):
 # Matmul V1: List candidate values
 @autotvm.register_customized_task("tutorial/matmul_v1")  # 1. use a decorator
 def matmul_v1(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -184,12 +185,12 @@ def matmul_v1(N, L, M, dtype):
 
 @autotvm.register_customized_task("tutorial/matmul")
 def matmul(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis

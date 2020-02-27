@@ -17,6 +17,7 @@
 """Test code for upsampling"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 import math
@@ -28,12 +29,12 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
                       layout='NCHW', method="nearest_neighbor",
                       in_batch_block = 0, in_channel_block = 0):
     if layout == 'NCHW':
-        A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
+        A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
         dtype = A.dtype
         out_shape = (batch, in_channel, int(round(in_height*scale_h)), int(round(in_width*scale_w)))
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
     elif nchw_pack_layout(layout):
-        A = tvm.placeholder((batch, in_channel, in_height, in_width, in_batch_block, in_channel_block),
+        A = te.placeholder((batch, in_channel, in_height, in_width, in_batch_block, in_channel_block),
                              name='A')
         dtype = A.dtype
         out_shape = (batch, in_channel, int(round(in_height*scale_h)), int(round(in_width*scale_w)),
@@ -41,7 +42,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale_h, scale_w,
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width,
                                  in_batch_block, in_channel_block)).astype(dtype)
     elif layout == 'NHWC':
-        A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
+        A = te.placeholder((batch, in_height, in_width, in_channel), name='A')
         dtype = A.dtype
         out_shape = (batch, int(round(in_height*scale_h)), int(round(in_width*scale_w)), in_channel)
         a_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(dtype)
@@ -115,13 +116,13 @@ def test_upsampling():
 def verify_upsampling3d(batch, in_channel, in_depth, in_height, in_width, scale_d, scale_h, scale_w,
                         layout='NCDHW', method="nearest_neighbor"):
     if layout == 'NCDHW':
-        A = tvm.placeholder((batch, in_channel, in_depth, in_height, in_width), name='A')
+        A = te.placeholder((batch, in_channel, in_depth, in_height, in_width), name='A')
         dtype = A.dtype
         out_shape = (batch, in_channel, int(round(in_depth*scale_d)), int(round(in_height*scale_h)),
                      int(round(in_width*scale_w)))
         a_np = np.random.uniform(size=(batch, in_channel, in_depth, in_height, in_width)).astype(dtype)
     elif layout == 'NDHWC':
-        A = tvm.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
+        A = te.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
         dtype = A.dtype
         out_shape = (batch, int(round(in_depth*scale_d)), int(round(in_height*scale_h)),
                      int(round(in_width*scale_w)), in_channel)

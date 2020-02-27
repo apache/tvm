@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm.runtime import profiler_vm
 from tvm import relay
 from tvm.relay.testing import resnet

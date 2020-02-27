@@ -17,6 +17,7 @@
 """Test code for FIFO buffer"""
 
 import tvm
+from tvm import te
 import topi
 import topi.testing
 import numpy as np
@@ -25,8 +26,8 @@ from tvm.contrib.pickle_memoize import memoize
 from common import get_all_backend
 
 def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
-    buffer = tvm.placeholder(buffer_shape, name='buffer', dtype=dtype)
-    data = tvm.placeholder(data_shape, name='data', dtype=dtype)
+    buffer = te.placeholder(buffer_shape, name='buffer', dtype=dtype)
+    data = te.placeholder(data_shape, name='data', dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
     @memoize('topi.tests.test_fifo_buffer')
@@ -98,12 +99,12 @@ def verify_conv1d_integration():
 
     dtype = 'float32'
 
-    inc_input = tvm.placeholder(inc_input_shape, name='inc_input', dtype=dtype)
-    input_window = tvm.placeholder(input_window_shape, name='input_window', dtype=dtype)
-    context = tvm.placeholder(context_shape, name='context', dtype=dtype)
-    kernel = tvm.placeholder(kernel_shape, name='kernel', dtype=dtype)
-    inc_output = tvm.placeholder(inc_input_shape, name='inc_output', dtype=dtype)
-    output_window = tvm.placeholder(output_window_shape, name='output_window', dtype=dtype)
+    inc_input = te.placeholder(inc_input_shape, name='inc_input', dtype=dtype)
+    input_window = te.placeholder(input_window_shape, name='input_window', dtype=dtype)
+    context = te.placeholder(context_shape, name='context', dtype=dtype)
+    kernel = te.placeholder(kernel_shape, name='kernel', dtype=dtype)
+    inc_output = te.placeholder(inc_input_shape, name='inc_output', dtype=dtype)
+    output_window = te.placeholder(output_window_shape, name='output_window', dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
     @memoize('topi.tests.test_fifo_buffer_conv1d_integration')

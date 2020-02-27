@@ -27,7 +27,7 @@ def reorg(data, stride):
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
     stride : int
@@ -35,7 +35,7 @@ def reorg(data, stride):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     return cpp.vision.reorg(data, stride)

@@ -20,6 +20,7 @@ import sys
 import numpy as np
 
 import tvm
+from tvm import te
 import tvm.relay.testing
 import tvm.relay.transform
 from tvm import relay

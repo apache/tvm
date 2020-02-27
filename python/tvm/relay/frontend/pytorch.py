@@ -406,7 +406,7 @@ def _numtotensor():
         val = inputs[0]
         dtype = type(val)
 
-        if isinstance(val, tvm.expr.IntImm):
+        if isinstance(val, tvm.tir.IntImm):
             val = val.__int__()
             dtype = int
 

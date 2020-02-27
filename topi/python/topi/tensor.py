@@ -24,12 +24,12 @@ def elemwise_sum(xs):
 
     Parameters
     ----------
-    xs : list of tvm.Tensor
+    xs : list of tvm.te.Tensor
         Input arguments.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.elemwise_sum(xs)
@@ -49,7 +49,7 @@ def full(shape, dtype, fill_value):
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.full(shape, dtype, fill_value)
@@ -61,14 +61,14 @@ def full_like(x, fill_value):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
     fill_value : float
         Value to be filled
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     return cpp.full_like(x, fill_value)

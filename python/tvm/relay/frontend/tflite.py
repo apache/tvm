@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
-
 """Tensorflow lite frontend."""
 import math
 import numpy as np

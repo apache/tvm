@@ -20,5 +20,5 @@ tvm.tir
 .. automodule:: tvm.tir
    :members:
    :imported-members:
-   :exclude-members: PrimExpr
+   :exclude-members: PrimExpr, const
    :autosummary:

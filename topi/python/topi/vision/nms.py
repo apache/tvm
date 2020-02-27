@@ -17,6 +17,7 @@
 # pylint: disable=import-error, invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches, too-many-statements, too-many-function-args
 """Non-maximum suppression operator"""
 import tvm
+from tvm import te
 
 from tvm import hybrid
 from ..sort import argsort
@@ -28,16 +29,16 @@ def hybrid_rearrange_out(data, one):
 
     Parameters
     ----------
-    data : tvm.Tensor or numpy NDArray
+    data : tvm.te.Tensor or numpy NDArray
         NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
 
-    one: tvm.const
+    one: tvm.tir.const
         Constant one with the same dtype as data.
 
     Returns
     -------
-    output : tvm.Tensor or numpy NDArray
+    output : tvm.te.Tensor or numpy NDArray
         Transformed NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
     """
@@ -70,28 +71,28 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one):
 
     Parameters
     ----------
-    data : tvm.Tensor or numpy NDArray
+    data : tvm.te.Tensor or numpy NDArray
         Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
         or [batch_size, num_anchors, 5].
 
-    score_threshold : tvm.const
+    score_threshold : tvm.tir.const
         Lower limit of score for valid bounding boxes.
 
-    id_index : tvm.const
+    id_index : tvm.tir.const
         index of the class categories, -1 to disable.
 
-    score_index: tvm.const
+    score_index: tvm.tir.const
         Index of the scores/confidence of boxes.
 
-    one: tvm.const
+    one: tvm.tir.const
         Constant one with the same dtype as data.
 
     Returns
     -------
-    out_tensor : tvm.Tensor or numpy NDArray
+    out_tensor : tvm.te.Tensor or numpy NDArray
         Rearranged data tensor.
 
-    valid_count : tvm.Tensor or numpy NDArray
+    valid_count : tvm.te.Tensor or numpy NDArray
         1-D tensor for valid number of boxes.
     """
     batch_size = data.shape[0]
@@ -123,7 +124,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         Input data. 3-D tensor with shape [batch_size, num_anchors, 6]
         or [batch_size, num_anchors, 5].
 
@@ -138,18 +139,18 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 
     Returns
     -------
-    out_tensor : tvm.Tensor
+    out_tensor : tvm.te.Tensor
         Rearranged data tensor.
 
-    valid_count : tvm.Tensor
+    valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
     """
-    score_threshold_const = tvm.const(score_threshold, data.dtype)
-    id_index_const = tvm.const(id_index, "int32")
-    score_index_const = tvm.const(score_index, "int32")
+    score_threshold_const = tvm.tir.const(score_threshold, data.dtype)
+    id_index_const = tvm.tir.const(id_index, "int32")
+    score_index_const = tvm.tir.const(score_index, "int32")
     return hybrid_get_valid_counts(data, score_threshold_const,
                                    id_index_const, score_index_const,
-                                   tvm.const(1, data.dtype))
+                                   tvm.tir.const(1, data.dtype))
 
 
 @hybrid.script
@@ -160,51 +161,51 @@ def hybrid_nms(data, sorted_index, valid_count,
 
     Parameters
     ----------
-    data: tvm.Tensor or numpy NDArray
+    data: tvm.te.Tensor or numpy NDArray
         Bounding boxes with class and score. 3-D tensor with shape
         [batch_size, num_anchors, 6].
 
-    sorted_index : tvm.Tensor or numpy NDArray
+    sorted_index : tvm.te.Tensor or numpy NDArray
         Bounding box indexes sorted by score, with shape
         [batch_size, num_anchors].
 
-    valid_count : tvm.Tensor or numpy NDArray
+    valid_count : tvm.te.Tensor or numpy NDArray
         1-D tensor for valid number of boxes.
 
-    max_output_size : tvm.const
+    max_output_size : tvm.tir.const
         Max number of output valid boxes for each instance.
         By default all valid boxes are returned.
 
-    iou_threshold : tvm.const
+    iou_threshold : tvm.tir.const
         Overlapping(IoU) threshold to suppress object with smaller score.
 
-    force_suppress : tvm.const
+    force_suppress : tvm.tir.const
         Whether to suppress all detections regardless of class_id.
 
-    top_k : tvm.const
+    top_k : tvm.tir.const
         Keep maximum top k detections before nms, -1 for no limit.
 
-    coord_start : tvm.const
+    coord_start : tvm.tir.const
         Start index of the consecutive 4 coordinates.
 
-    id_index : tvm.const
+    id_index : tvm.tir.const
         index of the class categories, -1 to disable.
 
-    score_index: tvm.const
+    score_index: tvm.tir.const
         Index of the scores/confidence of boxes.
 
-    zero: tvm.const
+    zero: tvm.tir.const
         Constant zero with the same dtype as data.
 
-    one: tvm.const
+    one: tvm.tir.const
         Constant one with the same dtype as data.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6].
 
-    box_indices: tvm.Tensor
+    box_indices: tvm.te.Tensor
         2-D tensor with shape [batch_size, num_anchors].
     """
     batch_size = data.shape[0]
@@ -297,10 +298,10 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5].
 
-    valid_count : tvm.Tensor
+    valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
 
     max_output_size : optional, int
@@ -333,7 +334,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6].
 
     Example
@@ -342,8 +343,8 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
         # An example to use non_max_suppression
         dshape = (1, 5, 6)
-        data = tvm.placeholder(dshape, name="data")
-        valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+        data = te.placeholder(dshape, name="data")
+        valid_count = te.placeholder((dshape[0],), dtype="int32", name="valid_count")
         iou_threshold = 0.7
         force_suppress = True
         top_k = -1
@@ -363,19 +364,19 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     num_anchors = data.shape[1]
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
-    score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
+    score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis])
     sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
     out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
-                                  tvm.const(max_output_size, dtype="int32"),
-                                  tvm.const(iou_threshold, dtype=data.dtype),
-                                  tvm.const(force_suppress, dtype="bool"),
-                                  tvm.const(top_k, dtype="int32"),
-                                  tvm.const(coord_start, dtype="int32"),
-                                  tvm.const(id_index, dtype="int32"),
-                                  tvm.const(score_index, dtype="int32"),
-                                  zero=tvm.const(0, dtype=data.dtype),
-                                  one=tvm.const(1, dtype=data.dtype))
+                                  tvm.tir.const(max_output_size, dtype="int32"),
+                                  tvm.tir.const(iou_threshold, dtype=data.dtype),
+                                  tvm.tir.const(force_suppress, dtype="bool"),
+                                  tvm.tir.const(top_k, dtype="int32"),
+                                  tvm.tir.const(coord_start, dtype="int32"),
+                                  tvm.tir.const(id_index, dtype="int32"),
+                                  tvm.tir.const(score_index, dtype="int32"),
+                                  zero=tvm.tir.const(0, dtype=data.dtype),
+                                  one=tvm.tir.const(1, dtype=data.dtype))
     if not return_indices and invalid_to_bottom:
-        out = hybrid_rearrange_out(out, one=tvm.const(1, dtype=data.dtype))
+        out = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype))
 
     return box_indices if return_indices else out

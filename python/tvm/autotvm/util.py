@@ -24,7 +24,7 @@ from random import randrange
 
 import numpy as np
 
-from .. import expr, ir_pass
+from tvm.tir import expr, ir_pass
 
 logger = logging.getLogger('autotvm')
 

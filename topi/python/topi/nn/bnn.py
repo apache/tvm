@@ -17,6 +17,7 @@
 """Binary Neural Network (BNN) Operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import tag
 from ..util import simplify, get_const_int
 
@@ -26,7 +27,7 @@ def binarize_pack(data, axis=None, name="PackedInput"):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D input, can be any layout.
 
     axis : None or int
@@ -38,7 +39,7 @@ def binarize_pack(data, axis=None, name="PackedInput"):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D, the same layout as input, dtype is uint32.
     """
     ishape = data.shape
@@ -47,11 +48,11 @@ def binarize_pack(data, axis=None, name="PackedInput"):
     assert get_const_int(ishape[axis]) % 32 == 0
     n = len(ishape)
     oshape = tuple(simplify(ishape[i] // 32) if i == axis \
-        else ishape[i] for i in range(n))
+                   else ishape[i] for i in range(n))
 
     def _binarize_pack(*indices):
         start_idx = [indices[i] * 32 if i == axis else indices[i] for i in range(n)]
-        packed = tvm.const(0, 'uint32')
+        packed = tvm.tir.const(0, 'uint32')
         for j in range(32):
             idx = [start_idx[i] + j if i == axis else start_idx[i] for i in range(n)]
             sign = (data(*idx) >= 0).astype("uint32")
@@ -61,7 +62,7 @@ def binarize_pack(data, axis=None, name="PackedInput"):
             packed = packed << 1
         raise RuntimeError("not resach")
 
-    return tvm.compute(oshape, _binarize_pack, name=name, tag='binarize_pack')
+    return te.compute(oshape, _binarize_pack, name=name, tag='binarize_pack')
 
 
 def binary_dense(data, weight):
@@ -69,15 +70,15 @@ def binary_dense(data, weight):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         2-D with shape [batch, in_dim], dtype is uint32.
 
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         2-D with shape [out_dim, in_dim], dtype is uint32.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         2-D with shape [batch, out_dim], dtype is float32.
     """
     assert data.dtype == 'uint32' and weight.dtype == 'uint32', \
@@ -86,11 +87,11 @@ def binary_dense(data, weight):
         "only support 2-dim binary dense"
     batch, in_dim = data.shape
     out_dim, _ = weight.shape
-    k = tvm.reduce_axis((0, in_dim), name='k')
-    matmul = tvm.compute((batch, out_dim), lambda i, j: \
-                          tvm.sum(tvm.popcount(data[i, k] ^ weight[j, k]), axis=k), \
-                          tag='binary_dense')
+    k = te.reduce_axis((0, in_dim), name='k')
+    matmul = te.compute((batch, out_dim), lambda i, j: \
+                        te.sum(tvm.tir.popcount(data[i, k] ^ weight[j, k]), axis=k), \
+                        tag='binary_dense')
 
-    return tvm.compute((batch, out_dim), lambda i, j: \
-                        32 * in_dim - 2. * matmul(i, j), \
-                        tag=tag.ELEMWISE)
+    return te.compute((batch, out_dim), lambda i, j: \
+                      32 * in_dim - 2. * matmul(i, j), \
+                      tag=tag.ELEMWISE)

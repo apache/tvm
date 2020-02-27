@@ -15,20 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm.contrib import util
 import numpy as np
 
 def test_large_uint_imm():
     value =  (1 << 63) + 123
-    other = tvm.const(3, "uint64")
+    other = tvm.tir.const(3, "uint64")
     n = 12
     num_thread = 2
 
-    A = tvm.compute((n,), lambda *i: tvm.const(value, "uint64") + other, name='A')
-    s = tvm.create_schedule(A.op)
+    A = te.compute((n,), lambda *i: tvm.tir.const(value, "uint64") + other, name='A')
+    s = te.create_schedule(A.op)
     xo, xi = s[A].split(A.op.axis[0], factor=num_thread)
-    s[A].bind(xi, tvm.thread_axis("threadIdx.x"))
-    s[A].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[A].bind(xi, te.thread_axis("threadIdx.x"))
+    s[A].bind(xo, te.thread_axis("blockIdx.x"))
 
     def check_target(device):
         ctx = tvm.context(device, 0)
@@ -45,38 +46,38 @@ def test_large_uint_imm():
 
 
 def test_add_pipeline():
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(), name='C')
-    D = tvm.compute(A.shape, lambda *i: C(*i) + 1, name='D')
-    s = tvm.create_schedule(D.op)
+    n = te.size_var('n')
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(), name='C')
+    D = te.compute(A.shape, lambda *i: C(*i) + 1, name='D')
+    s = te.create_schedule(D.op)
 
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
     xo, xi = s[C].split(C.op.axis[0], factor=num_thread)
-    s[C].bind(xi, tvm.thread_axis("threadIdx.x"))
-    s[C].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(xi, te.thread_axis("threadIdx.x"))
+    s[C].bind(xo, te.thread_axis("blockIdx.x"))
 
     xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
-    s[D].bind(xi, tvm.thread_axis("threadIdx.x"))
-    s[D].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[D].bind(xi, te.thread_axis("threadIdx.x"))
+    s[D].bind(xo, te.thread_axis("blockIdx.x"))
 
     # compile to IR
     s = s.normalize()
-    bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
-    Db = tvm.decl_buffer(D.shape, D.dtype, name='D')
-    stmt = tvm.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, D:Db}, 64)
-    stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
-    fsplits = [x for x in tvm.ir_pass.SplitHostDevice(fapi)]
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
+    Db = tvm.tir.decl_buffer(D.shape, D.dtype, name='D')
+    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, D:Db}, 64)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
+    fsplits = [x for x in tvm.tir.ir_pass.SplitHostDevice(fapi)]
     # lower the floordiv(use stackvm rules so it works for all targets)
-    fsplits = [tvm.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
-    fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
+    fsplits = [tvm.tir.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
+    fsplits[0] = tvm.tir.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)

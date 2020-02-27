@@ -28,6 +28,7 @@ In this tutorial, we will demonstrate how to do reduction in TVM.
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import numpy as np
 
 ######################################################################
@@ -38,8 +39,8 @@ import numpy as np
 #
 # The following lines describe the row sum operation.
 # To create a reduction formula, we declare a reduction axis using
-# :any:`tvm.reduce_axis`. :any:`tvm.reduce_axis` takes in the range of reductions.
-# :any:`tvm.sum` takes in the expression to be reduced as well as the reduction
+# :any:`te.reduce_axis`. :any:`te.reduce_axis` takes in the range of reductions.
+# :any:`te.sum` takes in the expression to be reduced as well as the reduction
 # axis and compute the sum of value over all k in the declared range.
 #
 # The equivalent C code is as follows:
@@ -53,11 +54,11 @@ import numpy as np
 #     }
 #   }
 #
-n = tvm.var("n")
-m = tvm.var("m")
-A = tvm.placeholder((n, m), name='A')
-k = tvm.reduce_axis((0, m), "k")
-B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
+n = te.var("n")
+m = te.var("m")
+A = te.placeholder((n, m), name='A')
+k = te.reduce_axis((0, m), "k")
+B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
 
 ######################################################################
 # Schedule the Reduction
@@ -65,7 +66,7 @@ B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
 # There are several ways to schedule a reduction.
 # Before doing anything, let us print out the IR code of default schedule.
 #
-s = tvm.create_schedule(B.op)
+s = te.create_schedule(B.op)
 print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
@@ -81,8 +82,8 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
 # If we are building a GPU kernel, we can bind the rows of B to GPU threads.
-s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+s[B].bind(xo, te.thread_axis("blockIdx.x"))
+s[B].bind(xi, te.thread_axis("threadIdx.x"))
 print(tvm.lower(s, [A, B], simple_mode=True))
 
 ######################################################################
@@ -97,7 +98,7 @@ print(tvm.lower(s, [A, B], simple_mode=True))
 # In the following schedule, the result of B is written to a temporary
 # result B.rf. The factored dimension becomes the first dimension of B.rf.
 #
-s = tvm.create_schedule(B.op)
+s = te.create_schedule(B.op)
 ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
 BF = s.rfactor(B, ki)
 print(tvm.lower(s, [A, B], simple_mode=True))
@@ -122,9 +123,9 @@ print(s[B].op.body)
 # columns by threadIdx.x and finally do a cross thread reduction over threadIdx.x
 #
 xo, xi = s[B].split(s[B].op.axis[0], factor=32)
-s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-s[B].bind(xi, tvm.thread_axis("threadIdx.y"))
-tx = tvm.thread_axis("threadIdx.x")
+s[B].bind(xo, te.thread_axis("blockIdx.x"))
+s[B].bind(xi, te.thread_axis("threadIdx.y"))
+tx = te.thread_axis("threadIdx.x")
 s[B].bind(s[B].op.reduce_axis[0], tx)
 s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
 s[B].set_store_predicate(tx.var.equal(0))
@@ -148,16 +149,16 @@ tvm.testing.assert_allclose(
 # In TVM, we can describe convolution via 2D reduction in a simple way.
 # Here is an example for 2D convolution with filter size = [3, 3] and strides = [1, 1].
 #
-n = tvm.var('n')
-Input = tvm.placeholder((n, n), name='Input')
-Filter = tvm.placeholder((3, 3), name='Filter')
-di = tvm.reduce_axis((0, 3), name='di')
-dj = tvm.reduce_axis((0, 3), name='dj')
-Output = tvm.compute(
+n = te.var('n')
+Input = te.placeholder((n, n), name='Input')
+Filter = te.placeholder((3, 3), name='Filter')
+di = te.reduce_axis((0, 3), name='di')
+dj = te.reduce_axis((0, 3), name='dj')
+Output = te.compute(
     (n - 2, n - 2),
-    lambda i, j: tvm.sum(Input[i + di, j + dj] * Filter[di, dj], axis=[di, dj]),
+    lambda i, j: te.sum(Input[i + di, j + dj] * Filter[di, dj], axis=[di, dj]),
     name='Output')
-s = tvm.create_schedule(Output.op)
+s = te.create_schedule(Output.op)
 print(tvm.lower(s, [Input, Filter, Output], simple_mode=True))
 
 ######################################################################
@@ -165,18 +166,18 @@ print(tvm.lower(s, [Input, Filter, Output], simple_mode=True))
 #
 # Define General Commutative Reduction Operation
 # ----------------------------------------------
-# Besides the built-in reduction operations like :any:`tvm.sum`,
-# :any:`tvm.min` and :any:`tvm.max`, you can also define your
-# commutative reduction operation by :any:`tvm.comm_reducer`.
+# Besides the built-in reduction operations like :any:`te.sum`,
+# :any:`tvm.te.min` and :any:`tvm.te.max`, you can also define your
+# commutative reduction operation by :any:`te.comm_reducer`.
 #
 
-n = tvm.var('n')
-m = tvm.var('m')
-product = tvm.comm_reducer(lambda x, y: x*y,
-    lambda t: tvm.const(1, dtype=t), name="product")
-A = tvm.placeholder((n, m), name='A')
-k = tvm.reduce_axis((0, m), name='k')
-B = tvm.compute((n,), lambda i: product(A[i, k], axis=k), name='B')
+n = te.var('n')
+m = te.var('m')
+product = te.comm_reducer(lambda x, y: x*y,
+    lambda t: tvm.tir.const(1, dtype=t), name="product")
+A = te.placeholder((n, m), name='A')
+k = te.reduce_axis((0, m), name='k')
+B = te.compute((n,), lambda i: product(A[i, k], axis=k), name='B')
 
 ######################################################################
 # .. note::
@@ -192,4 +193,4 @@ B = tvm.compute((n,), lambda i: product(A[i, k], axis=k), name='B')
 #
 # - Describe reduction with reduce_axis.
 # - Use rfactor to factor out axis if we need parallelism.
-# - Define new reduction operation by :any:`tvm.comm_reducer`
+# - Define new reduction operation by :any:`te.comm_reducer`

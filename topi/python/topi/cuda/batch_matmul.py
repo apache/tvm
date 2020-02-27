@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """cuda batch_matmul operators"""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from tvm.contrib import cublas
 from ..util import traverse_inline, get_const_tuple, get_max_power2_factor
 
@@ -35,8 +34,8 @@ def schedule_batch_matmul(outs):
     s: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _schedule(op):
         C = op.output(0)
@@ -60,13 +59,13 @@ def schedule_batch_matmul(outs):
         x_nthreads = min(x_bn, 8)
         ty, yi = s[C].split(y, nparts=y_nthreads)
         tx, xi = s[C].split(x, nparts=x_nthreads)
-        thread_x = tvm.thread_axis((0, x_nthreads), "threadIdx.x")
-        thread_y = tvm.thread_axis((0, y_nthreads), "threadIdx.y")
+        thread_x = te.thread_axis((0, x_nthreads), "threadIdx.x")
+        thread_y = te.thread_axis((0, y_nthreads), "threadIdx.y")
 
         s[C].reorder(b, by, bx, ty, tx, yi, xi)
-        s[C].bind(b, tvm.thread_axis("blockIdx.z"))
-        s[C].bind(by, tvm.thread_axis("blockIdx.y"))
-        s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[C].bind(b, te.thread_axis("blockIdx.z"))
+        s[C].bind(by, te.thread_axis("blockIdx.y"))
+        s[C].bind(bx, te.thread_axis("blockIdx.x"))
         s[C].bind(ty, thread_y)
         s[C].bind(tx, thread_x)
         s[C].pragma(yi, "auto_unroll_max_step", 16)
@@ -111,15 +110,15 @@ def batch_matmul_cublas(x, y):
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         3-D with shape [batch, M, K]
 
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         3-D with shape [batch, N, K]
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         3-D with shape [batch, M, N]
     """
     return cublas.batch_matmul(x, y, False, True)

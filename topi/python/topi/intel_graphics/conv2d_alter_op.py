@@ -18,6 +18,7 @@
 """Conv2D alter op and legalize functions for x86"""
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm import autotvm
 
@@ -74,10 +75,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
 
         # Store altered operator's config
-        new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
-                                   dtype=data_dtype)
-        new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn,
-                                      kh, kw, ic_bn, oc_bn), dtype=kernel_dtype)
+        new_data = te.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
+                                  dtype=data_dtype)
+        new_kernel = te.placeholder((out_channel//oc_bn, in_channel//ic_bn,
+                                     kh, kw, ic_bn, oc_bn), dtype=kernel_dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_attrs["data_layout"],
              new_attrs["out_layout"], out_dtype], "conv2d_NCHWc.intel_graphics")

@@ -35,6 +35,7 @@ and usage of tensorize instead of providing an efficient solution.
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import numpy as np
 
 ######################################################################
@@ -46,12 +47,12 @@ import numpy as np
 # The following lines describe the computation :code:`A * B^T` in TVM.
 #
 N, M, L = 1024, 512, 64
-A = tvm.placeholder((N, L), name='A')
-B = tvm.placeholder((M, L), name='B')
-k = tvm.reduce_axis((0, L), name='k')
-C = tvm.compute((N, M), lambda i, j:
-                tvm.sum(A[i, k] * B[j, k], axis=k), name='C')
-s = tvm.create_schedule(C.op)
+A = te.placeholder((N, L), name='A')
+B = te.placeholder((M, L), name='B')
+k = te.reduce_axis((0, L), name='k')
+C = te.compute((N, M), lambda i, j:
+                te.sum(A[i, k] * B[j, k], axis=k), name='C')
+s = te.create_schedule(C.op)
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
@@ -88,37 +89,37 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # which is done in :code:`intrin_func` below.
 #
 def intrin_gemv(m, l):
-    a = tvm.placeholder((l,), name='a')
-    b = tvm.placeholder((m, l), name='b')
-    k = tvm.reduce_axis((0, l), name='k')
-    c = tvm.compute((m,), lambda i: tvm.sum(a[k] * b[i, k], axis=k), name='c')
-    Ab = tvm.decl_buffer(a.shape, a.dtype,
+    a = te.placeholder((l,), name='a')
+    b = te.placeholder((m, l), name='b')
+    k = te.reduce_axis((0, l), name='k')
+    c = te.compute((m,), lambda i: te.sum(a[k] * b[i, k], axis=k), name='c')
+    Ab = tvm.tir.decl_buffer(a.shape, a.dtype,
                          name="A",
                          offset_factor=1,
                          strides=[1])
-    Bb = tvm.decl_buffer(b.shape, b.dtype,
+    Bb = tvm.tir.decl_buffer(b.shape, b.dtype,
                          name="B",
                          offset_factor=1,
-                         strides=[tvm.var("s1"), 1])
-    Cb = tvm.decl_buffer(c.shape, c.dtype,
+                         strides=[te.var("s1"), 1])
+    Cb = tvm.tir.decl_buffer(c.shape, c.dtype,
                          name="C",
                          offset_factor=1,
                          strides=[1])
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         aa, bb = ins
         cc = outs[0]
-        ib.emit(tvm.call_extern("int32", "gemv_update",
+        ib.emit(tvm.tir.call_extern("int32", "gemv_update",
                                 cc.access_ptr("w"),
                                 aa.access_ptr("r"),
                                 bb.access_ptr("r"),
                                 m, l, bb.strides[0]))
         return ib.get()
-    with tvm.build_config(offset_factor=1):
-        return tvm.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    with tvm.target.build_config(offset_factor=1):
+        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
-# Here :code:`tvm.decl_tensor_intrin` declares how to execute the computation :code:`c.op`.
+# Here :code:`te.decl_tensor_intrin` declares how to execute the computation :code:`c.op`.
 # Our implementation simply takes the inputs and outputs,
 # converts them to pointers and emit an external function call.
 # Note that tensorization requires user to specify :code:`offset_factor`,
@@ -134,7 +135,7 @@ def intrin_gemv(m, l):
 # For now :code:`bb.strides[0] == l`,
 # but later we will see how they can differ with more complicated schedules.
 #
-# Note that we use :code:`tvm.var("s1")` as the first stride dimension for :code:`B`.
+# Note that we use :code:`te.var("s1")` as the first stride dimension for :code:`B`.
 # If the strides can be inferred
 # - in this case, TVM knows tensor B is compact thus the strides are :code:`[L, 1]` -
 # such placeholder can be put to let TVM automatically bind the inferred value for us.
@@ -233,20 +234,20 @@ def gemv_impl():
     return ll_code
 
 def intrin_gemv(m, l):
-    a = tvm.placeholder((l,), name='a')
-    b = tvm.placeholder((m, l), name='b')
-    k = tvm.reduce_axis((0, l), name='k')
-    c = tvm.compute((m,), lambda i:
-    tvm.sum(a[k] * b[i, k], axis=k), name='c')
-    Ab = tvm.decl_buffer(a.shape, a.dtype,
+    a = te.placeholder((l,), name='a')
+    b = te.placeholder((m, l), name='b')
+    k = te.reduce_axis((0, l), name='k')
+    c = te.compute((m,), lambda i:
+    te.sum(a[k] * b[i, k], axis=k), name='c')
+    Ab = tvm.tir.decl_buffer(a.shape, a.dtype,
                          name="A",
                          offset_factor=1,
                          strides=[1])
-    Bb = tvm.decl_buffer(b.shape, b.dtype,
+    Bb = tvm.tir.decl_buffer(b.shape, b.dtype,
                          name="B",
                          offset_factor=1,
-                         strides=[tvm.var("s1"), 1])
-    Cb = tvm.decl_buffer(c.shape, c.dtype,
+                         strides=[te.var("s1"), 1])
+    Cb = tvm.tir.decl_buffer(c.shape, c.dtype,
                          name="C",
                          offset_factor=1,
                          strides=[1])
@@ -254,22 +255,22 @@ def intrin_gemv(m, l):
         aa, bb = ins
         cc = outs[0]
         def _body():
-            ib = tvm.ir_builder.create()
-            ib.emit(tvm.call_extern("int32", "gemv_update",
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(tvm.tir.call_extern("int32", "gemv_update",
                                     cc.access_ptr("w"),
                                     aa.access_ptr("r"),
                                     bb.access_ptr("r"),
                                     m, l, bb.strides[0]))
             return ib.get()
         def _reduce_reset():
-            ib = tvm.ir_builder.create()
-            ib.emit(tvm.call_extern("int32", "gemv_reset", cc.access_ptr("w"), m))
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(tvm.tir.call_extern("int32", "gemv_reset", cc.access_ptr("w"), m))
             return ib.get()
         def _reduce_update():
             return _body()
         return _body(), _reduce_reset(), _reduce_update()
-    with tvm.build_config(offset_factor=1):
-        return tvm.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
+    with tvm.target.build_config(offset_factor=1):
+        return te.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
 ######################################################################
 # Note that :code:`intrin_func` now returns a triplet:

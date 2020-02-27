@@ -16,6 +16,7 @@
 # under the License.
 import pytest
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.prelude import Prelude

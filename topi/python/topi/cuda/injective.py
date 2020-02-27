@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
+from tvm import te
 from .. import util
 
 def schedule_injective_from_existing(sch, out):
@@ -56,12 +57,12 @@ def schedule_injective_from_existing(sch, out):
         xo, xi = sch[out].split(fused, factor=num_thread * max_block)
         bx, tx = sch[out].split(xi, factor=num_thread)
         sch[out].reorder(bx, tx, xo)
-        sch[out].bind(bx, tvm.thread_axis("blockIdx.x"))
-        sch[out].bind(tx, tvm.thread_axis("threadIdx.x"))
+        sch[out].bind(bx, te.thread_axis("blockIdx.x"))
+        sch[out].bind(tx, te.thread_axis("threadIdx.x"))
     else:
         bx, tx = sch[out].split(fused, factor=num_thread)
-        sch[out].bind(tx, tvm.thread_axis("threadIdx.x"))
-        sch[out].bind(bx, tvm.thread_axis("blockIdx.x"))
+        sch[out].bind(tx, te.thread_axis("threadIdx.x"))
+        sch[out].bind(bx, te.thread_axis("blockIdx.x"))
 
     return sch
 
@@ -79,10 +80,10 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    tvm.schedule.AutoInlineInjective(s)
+    tvm.te.schedule.AutoInlineInjective(s)
     for out in outs:
         if not util.is_empty_shape(out.shape):
             schedule_injective_from_existing(s, out)

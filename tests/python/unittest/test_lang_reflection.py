@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_const_saveload_json():
     # save load json
-    x = tvm.const(1, "int32")
-    y = tvm.const(10, "int32")
+    x = tvm.tir.const(1, "int32")
+    y = tvm.tir.const(10, "int32")
     z = x + y
     z = z + z
     json_str = tvm.ir.save_json(z)
@@ -29,11 +30,11 @@ def test_const_saveload_json():
 
 def test_make_smap():
     # save load json
-    x = tvm.const(1, "int32")
-    y = tvm.const(10, "int32")
+    x = tvm.tir.const(1, "int32")
+    y = tvm.tir.const(10, "int32")
     z = tvm.tir.Add(x, y)
-    smap = tvm.convert({"z": z, "x": x})
-    json_str = tvm.ir.save_json(tvm.convert([smap]))
+    smap = tvm.runtime.convert({"z": z, "x": x})
+    json_str = tvm.ir.save_json(tvm.runtime.convert([smap]))
     arr = tvm.ir.load_json(json_str)
     assert len(arr) == 1
     assert arr[0]["z"].a == arr[0]["x"]
@@ -43,7 +44,7 @@ def test_make_node():
     x = tvm.ir.make_node("IntImm", dtype="int32", value=10)
     assert isinstance(x, tvm.tir.IntImm)
     assert x.value == 10
-    A = tvm.placeholder((10, ), name='A')
+    A = te.placeholder((10, ), name='A')
     AA = tvm.ir.make_node("Tensor",
                        shape=A.shape,
                        dtype=A.dtype,
@@ -81,9 +82,9 @@ def test_make_attrs():
 
 
 def test_make_sum():
-    A = tvm.placeholder((2, 10), name='A')
-    k = tvm.reduce_axis((0,10), "k")
-    B = tvm.compute((2,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
+    A = te.placeholder((2, 10), name='A')
+    k = te.reduce_axis((0,10), "k")
+    B = te.compute((2,), lambda i: te.sum(A[i, k], axis=k), name="B")
     json_str = tvm.ir.save_json(B)
     BB = tvm.ir.load_json(json_str)
     assert B.op.body[0].combiner is not None

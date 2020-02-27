@@ -16,10 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable
 """dense schedule on ARM Mali Biforst GPU"""
-
-from __future__ import absolute_import as _abs
-
-import tvm
+from tvm import te
 from tvm import autotvm
 
 from .. import nn
@@ -47,8 +44,8 @@ def schedule_dense(cfg, outs):
     s: Schedule
         The computation schedule for dense.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'dense':
@@ -79,10 +76,10 @@ def schedule_dense(cfg, outs):
             by, ty, yi = cfg['tile_y'].apply(s, output, y)
             bx, tx, xi = cfg['tile_x'].apply(s, output, x)
 
-            s[output].bind(by, tvm.thread_axis('blockIdx.y'))
-            s[output].bind(bx, tvm.thread_axis('blockIdx.x'))
-            s[output].bind(ty, tvm.thread_axis('threadIdx.y'))
-            s[output].bind(tx, tvm.thread_axis('threadIdx.x'))
+            s[output].bind(by, te.thread_axis('blockIdx.y'))
+            s[output].bind(bx, te.thread_axis('blockIdx.x'))
+            s[output].bind(ty, te.thread_axis('threadIdx.y'))
+            s[output].bind(tx, te.thread_axis('threadIdx.x'))
 
             if cfg['tile_y'].size[-1] < max_unroll:
                 s[output].unroll(yi)
@@ -108,6 +105,6 @@ def fuse_and_bind(s, tensor, axis=None, num_thread=None):
     axis = axis or s[tensor].op.axis
     fused = s[tensor].fuse(*axis)
     bx, tx = s[tensor].split(fused, num_thread)
-    s[tensor].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[tensor].bind(bx, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(tx, te.thread_axis("threadIdx.x"))
     return bx, tx

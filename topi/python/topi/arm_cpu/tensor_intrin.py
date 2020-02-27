@@ -18,6 +18,7 @@
 """Conv2D int8 schedule on ARM"""
 
 import tvm
+from tvm import te
 
 def dot_int8_int8_int32(int32_lanes, dtype='uint'):
     """
@@ -57,27 +58,27 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
     """
     num_int8_elements = 4  # 4 int8 elements in int32
 
-    data = tvm.placeholder((num_int8_elements,), dtype='%s8' % dtype, name='data')
-    kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='%s8' % dtype, name='kernel')
+    data = te.placeholder((num_int8_elements,), dtype='%s8' % dtype, name='data')
+    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype='%s8' % dtype, name='kernel')
 
-    k = tvm.reduce_axis((0, num_int8_elements), name='k')
-    C = tvm.compute((int32_lanes,),
-                    lambda i: tvm.sum(data[k].astype('%s32' % dtype) *
-                                      kernel[i, k].astype('%s32' % dtype),
-                                      axis=k), name="C")
+    k = te.reduce_axis((0, num_int8_elements), name='k')
+    C = te.compute((int32_lanes,),
+                   lambda i: te.sum(data[k].astype('%s32' % dtype) *
+                                    kernel[i, k].astype('%s32' % dtype),
+                                    axis=k), name="C")
 
-    a_buffer = tvm.decl_buffer(data.shape, dtype='%s8' % dtype, name="a_buffer",
-                               offset_factor=1,
-                               strides=[1])
-    b_buffer = tvm.decl_buffer(kernel.shape, dtype='%s8' % dtype, name="b_buffer",
-                               offset_factor=1,
-                               strides=[tvm.var('s'), 1])
+    a_buffer = tvm.tir.decl_buffer(data.shape, dtype='%s8' % dtype, name="a_buffer",
+                                   offset_factor=1,
+                                   strides=[1])
+    b_buffer = tvm.tir.decl_buffer(kernel.shape, dtype='%s8' % dtype, name="b_buffer",
+                                   offset_factor=1,
+                                   strides=[te.var('s'), 1])
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
-                ib.emit(outs[0].vstore(0, tvm.const(0, '%s32x%d' % (dtype, int32_lanes))))
+                ib.emit(outs[0].vstore(0, tvm.tir.const(0, '%s32x%d' % (dtype, int32_lanes))))
                 return ib.get()
 
             dtype_a = '%s8x%d' % (dtype, num_int8_elements)
@@ -85,26 +86,26 @@ def dot_int8_int8_int32(int32_lanes, dtype='uint'):
             dtype_c = '%s32x%d' % (dtype, int32_lanes)
 
             a_int8 = ins[0].vload([0], dtype_a)
-            re_int32 = tvm.call_pure_intrin('%s32' % dtype, 'reinterpret', a_int8)
+            re_int32 = tvm.tir.call_pure_intrin('%s32' % dtype, 'reinterpret', a_int8)
             # broadcast a
             vec_ai32 = re_int32.astype(dtype_c)
 
-            vec_a = tvm.call_pure_intrin(dtype_b, 'reinterpret', vec_ai32)
+            vec_a = tvm.tir.call_pure_intrin(dtype_b, 'reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0], dtype_b)
             vec_c = outs[0].vload([0], dtype_c)
 
             inst = 'udot' if dtype == 'uint' else 'sdot'
             inst = 'llvm.aarch64.neon.%s.v%di32.v%di8' % (
                 inst, int32_lanes, int32_lanes * num_int8_elements)
-            vdot = tvm.call_llvm_intrin(dtype_c,
-                                        inst,
-                                        tvm.const(2, 'uint32'),
-                                        vec_c, vec_a, vec_b)
+            vdot = tvm.tir.call_llvm_intrin(dtype_c,
+                                            inst,
+                                            tvm.tir.const(2, 'uint32'),
+                                            vec_c, vec_a, vec_b)
             ib.emit(outs[0].vstore(0, vdot))
             return ib.get()
 
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})

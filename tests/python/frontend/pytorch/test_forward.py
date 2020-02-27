@@ -25,6 +25,7 @@ import numpy as np
 import torch
 from torch.nn import Module
 import tvm
+from tvm import te
 import torchvision
 
 from tvm import relay
@@ -720,7 +721,7 @@ def test_vgg11():
 def test_vgg11_bn():
     torch.set_grad_enabled(False)
     verify_model("vgg11_bn")
-    
+
 #TODO: Need to update schedule in tophub file after PR #4787 updated workloads
 def test_mobilenet_v2():
     torch.set_grad_enabled(False)

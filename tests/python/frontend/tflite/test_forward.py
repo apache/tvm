@@ -24,6 +24,7 @@ from __future__ import print_function
 from functools import partial
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 import tensorflow as tf
 from tensorflow.python.framework import constant_op

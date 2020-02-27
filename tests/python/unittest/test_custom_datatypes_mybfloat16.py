@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 from ctypes import *
 import topi
 import tvm.tir.ir_pass as ir_pass
@@ -56,14 +57,14 @@ def lower_datatypes_and_build(schedule, args):
     return tvm.build(flist[0], target=tgt)
 
 def test_bfloat_add_and_cast_1():
-    X = tvm.placeholder((3, ), name="X")
-    Y = tvm.placeholder((3, ), name="Y")
+    X = te.placeholder((3, ), name="X")
+    Y = te.placeholder((3, ), name="Y")
     Z = topi.cast(
         topi.cast(X, dtype="custom[bfloat]16") +
         topi.cast(Y, dtype="custom[bfloat]16"),
         dtype="float")
 
-    s = tvm.create_schedule([Z.op])
+    s = te.create_schedule([Z.op])
     built_cast = lower_datatypes_and_build(s, [X,Y,Z])
 
     ctx = tvm.context(tgt, 0)
@@ -87,14 +88,14 @@ def test_bfloat_add_and_cast_1():
 
 
 def test_bfloat_add_and_cast_2():
-    X = tvm.placeholder((3, ), name="X")
-    Y = tvm.placeholder((3, ), name="Y")
+    X = te.placeholder((3, ), name="X")
+    Y = te.placeholder((3, ), name="Y")
     Z = topi.cast(
         topi.cast(X, dtype="custom[bfloat]16") +
         topi.cast(Y, dtype="custom[bfloat]16"),
         dtype="float")
 
-    s = tvm.create_schedule([Z.op])
+    s = te.create_schedule([Z.op])
     built_cast = lower_datatypes_and_build(s, [X,Y,Z])
 
     ctx = tvm.context(tgt, 0)
@@ -122,14 +123,14 @@ def test_bfloat_add_and_cast_2():
 
 
 def test_bfloat_add_and_cast_FloatImm():
-    X = tvm.placeholder((3, ), name="X")
+    X = te.placeholder((3, ), name="X")
     Z = topi.cast(
         topi.add(
             topi.cast(X, dtype="custom[bfloat]16"),
             tvm.tir.FloatImm("custom[bfloat]16", 1.5)),
         dtype="float")
 
-    s = tvm.create_schedule([Z.op])
+    s = te.create_schedule([Z.op])
     built_cast = lower_datatypes_and_build(s, [X,Z])
 
     ctx = tvm.context(tgt, 0)

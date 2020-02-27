@@ -21,6 +21,7 @@
 import logging
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from .. import nn
 from ..nn.conv2d import conv2d_infer_layout, _get_workload as _get_conv2d_workload
@@ -39,11 +40,11 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
     """
     static_data_shape = []
     for dim in get_const_tuple(data.shape):
-        if isinstance(dim, tvm.expr.Var):
+        if isinstance(dim, tvm.tir.Var):
             static_data_shape.append(1)
         else:
             static_data_shape.append(dim)
-    data = tvm.placeholder(static_data_shape, dtype=data.dtype)
+    data = te.placeholder(static_data_shape, dtype=data.dtype)
     if is_depthwise:
         wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
         from .depthwise_conv2d import _fallback_schedule
@@ -61,7 +62,7 @@ def _conv2d_infer_layout(workload, cfg):
     _, data, kernel, strides, padding, dilation, layout, _, dtype = workload
     batch_size, in_channel, in_height, in_width = data[1]
     out_channel, _, k_height, k_width = kernel[1]
-    idxdiv = tvm.indexdiv
+    idxdiv = tvm.tir.indexdiv
 
     pt, pl, pb, pr = get_pad_tuple(padding, (k_height, k_width))
     out_height = idxdiv(in_height + pt + pb - k_height, strides[0]) + 1
@@ -75,20 +76,20 @@ def _conv2d_infer_layout(workload, cfg):
 
 def schedule_conv2d_nhwc(outs):
     """Create schedule for conv2d_nhwc"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     output_op = outs[0].op
 
     def _callback(op):
         if 'conv2d_nhwc' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             data = op.input_tensors[0]
             data_pad = None
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
@@ -132,11 +133,11 @@ def _pack_data(cfg, data, kernel):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = tvm.compute((n, ic_chunk, ih, iw, ic_bn),
-                       lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                       name="data_vec")
+    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
+                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
+                      name="data_vec")
 
-    kernel = tvm.compute(
+    kernel = te.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn),
         lambda occ, icc, k_h, k_w, icb, ocb:
         kernel[occ * oc_bn + ocb, icc * ic_bn + icb, k_h, k_w],
@@ -176,9 +177,9 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
-        _get_default_config(cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-                            tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                                            dtype=kernel.dtype),
+        _get_default_config(cfg, te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+                            te.placeholder((num_filter, in_channel, kernel_height, kernel_width),
+                                           dtype=kernel.dtype),
                             strides, padding, out_dtype)
 
     # Pack data if raw 4-D data is provided.
@@ -198,8 +199,8 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 @autotvm.register_topi_schedule("conv2d_NCHWc.x86")
 def schedule_conv2d_NCHWc(cfg, outs):
     """Create schedule for tensors"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'conv2d_NCHWc' in op.tag:

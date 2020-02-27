@@ -20,6 +20,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
@@ -132,14 +133,14 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     xo, xi = s[tensor].split(x, x_factor)
     s[tensor].reorder(zo, yo, xo, zi, yi, xi)
 
-    thread_z = tvm.thread_axis((0, z_factor), "threadIdx.z")
-    thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
-    thread_x = tvm.thread_axis((0, x_factor), "threadIdx.x")
-    s[tensor].bind(zo, tvm.thread_axis("blockIdx.z"))
+    thread_z = te.thread_axis((0, z_factor), "threadIdx.z")
+    thread_y = te.thread_axis((0, y_factor), "threadIdx.y")
+    thread_x = te.thread_axis((0, x_factor), "threadIdx.x")
+    s[tensor].bind(zo, te.thread_axis("blockIdx.z"))
     s[tensor].bind(zi, thread_z)
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
+    s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
     s[tensor].bind(yi, thread_y)
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
     s[tensor].bind(xi, thread_x)
     return xi, thread_z, thread_y, thread_x
 
@@ -151,11 +152,11 @@ def _pack_data(data, kernel, ic_bn, oc_bn):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = tvm.compute((n, ic_chunk, ih, iw, ic_bn),
-                       lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                       name="data_vec")
+    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
+                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
+                      name="data_vec")
 
-    kernel = tvm.compute(
+    kernel = te.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn, oc_bn),
         lambda occ, icc, k_h, k_w, icb, ocb:
         kernel[occ * oc_bn + ocb,
@@ -172,10 +173,10 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         5-D with shape [num_filter, in_channel, filter_height, filter_width, nnum_filter_vec]
 
     stride : int or a list/tuple of two ints
@@ -189,7 +190,7 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     if len(data.shape) == 5:
@@ -215,9 +216,9 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
     _create_schedule_template(cfg, data_shape, kernel_shape, strides, padding, dilation)
 
     if cfg.is_fallback:
-        _get_default_config(cfg, tvm.placeholder((batch, in_channel, ih, iw), dtype=data.dtype),
-                            tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                                            dtype=kernel.dtype),
+        _get_default_config(cfg, te.placeholder((batch, in_channel, ih, iw), dtype=data.dtype),
+                            te.placeholder((num_filter, in_channel, kernel_height, kernel_width),
+                                           dtype=kernel.dtype),
                             strides, padding, out_dtype)
 
     ic_bn = cfg["tile_ic"].val if hasattr(cfg["tile_ic"], "val") else cfg["tile_ic"].size[-1]
@@ -232,9 +233,9 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
     out_width = simplify((iw - kernel_width + pad_left + pad_right) // stride_w + 1)
     oshape = (batch, out_channel // oc_bn, out_height, out_width, oc_bn)
 
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_height), name='ry')
-    rx = tvm.reduce_axis((0, kernel_width), name='rx')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_height), name='ry')
+    rx = te.reduce_axis((0, kernel_width), name='rx')
 
     block_h = cfg["block_oh"].val
     block_w = cfg["block_ow"].val
@@ -261,17 +262,17 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout,
     else:
         temp = data
 
-    conv = tvm.compute(
+    conv = te.compute(
         cshape,
         lambda nn, ff, yy, xx, ff_v: \
-            tvm.sum(
-                temp[nn, rc//ic_bn, yy * stride_h + ry, xx * stride_w + rx, rc%ic_bn]. \
-                astype(out_dtype) *
-                kernel[ff, rc//ic_bn, ry, rx, rc%ic_bn, ff_v].astype(out_dtype),
-                axis=[rc, ry, rx]), tag="conv2d_NCHWc", name='conv2d_NCHWc')
+        te.sum(
+            temp[nn, rc//ic_bn, yy * stride_h + ry, xx * stride_w + rx, rc%ic_bn]. \
+            astype(out_dtype) *
+            kernel[ff, rc//ic_bn, ry, rx, rc%ic_bn, ff_v].astype(out_dtype),
+            axis=[rc, ry, rx]), tag="conv2d_NCHWc", name='conv2d_NCHWc')
 
     if DOUNPACK:
-        output = tvm.compute(
+        output = te.compute(
             oshape,
             lambda nn, ff, yy, xx, ff_v:
             conv[nn][ff][yy][xx][ff_v],
@@ -297,8 +298,8 @@ def schedule_conv2d_NCHWc(cfg, outs):
     s: Schedule
         The computation schedule for conv2d_nchw.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         """inline all one-to-one-mapping operators except the last stage (output)"""
@@ -344,7 +345,7 @@ def _schedule_cl_spatialpack_NCHWc(cfg, s, op):
         # this part will be folded during Relay fold_constant pass.
         s[data].pragma(s[data].op.axis[0], "debug_skip_region")
         s[kernel].pragma(s[kernel].op.axis[0], "debug_skip_region")
-    elif isinstance(kernel.op, tvm.tensor.ComputeOp) and kernel.name == "kernel_vec":
+    elif isinstance(kernel.op, tvm.te.ComputeOp) and kernel.name == "kernel_vec":
         # data and kernel are not pre-computed, schedule layout transform here.
         # TODO(@Laurawly): Add schedule for data and kernel pack
         pass
@@ -356,9 +357,9 @@ def _schedule_cl_spatialpack_NCHWc(cfg, s, op):
     z_factor = 1
     y_factor = 1
     x_factor = 16
-    thread_z = tvm.thread_axis((0, z_factor), "threadIdx.z")
-    thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
-    thread_x = tvm.thread_axis((0, x_factor), "threadIdx.x")
+    thread_z = te.thread_axis((0, z_factor), "threadIdx.z")
+    thread_y = te.thread_axis((0, y_factor), "threadIdx.y")
+    thread_x = te.thread_axis((0, x_factor), "threadIdx.x")
     _, co, oh, ow, vc = s[conv].op.axis
     ooh, ioh = s[conv].split(oh, factor=OUTPUT_BLOCK_HEIGHT)
     oow, iow = s[conv].split(ow, factor=OUTPUT_BLOCK_WIDTH)
@@ -371,9 +372,9 @@ def _schedule_cl_spatialpack_NCHWc(cfg, s, op):
     s[conv].bind(oohi, thread_z)
     s[conv].bind(oowi, thread_y)
     s[conv].bind(vci, thread_x)
-    s[conv].bind(ooho, tvm.thread_axis("blockIdx.z"))
-    s[conv].bind(oowo, tvm.thread_axis("blockIdx.y"))
-    s[conv].bind(coi, tvm.thread_axis("blockIdx.x"))
+    s[conv].bind(ooho, te.thread_axis("blockIdx.z"))
+    s[conv].bind(oowo, te.thread_axis("blockIdx.y"))
+    s[conv].bind(coi, te.thread_axis("blockIdx.x"))
 
     # schedule conv_L
     s[conv_L].compute_at(s[conv], vci)
@@ -424,9 +425,9 @@ def conv2d_nchw(data, kernel, stride, padding, dilation, out_dtype='float32'):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -434,7 +435,7 @@ def conv2d_nchw(data, kernel, stride, padding, dilation, out_dtype='float32'):
         padding size, or [pad_height, pad_width]
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     assert data.shape[0].value == 1, "only support batch size=1 convolution on intel gpu"
@@ -456,8 +457,8 @@ def schedule_conv2d_nchw(outs):
     s: Schedule
         The computation schedule for conv2d_nchw.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         """inline all one-to-one-mapping operators except the last stage (output)"""
@@ -483,9 +484,9 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
     out_width = simplify((in_width - kernel_w + pad_left + pad_right) // stride_w + 1)
     oshape = (batch, out_channel, out_height, out_width)
 
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
 
     if stride_h == 2:
         if num_filter + kernel_h == 515:
@@ -529,20 +530,20 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, out_dtype='float16'):
     cshape = (batch, out_channel // nv, c_h, c_w, nv)
     kvshape = (num_filter // nv, channel, kernel_h, kernel_w, nv)
 
-    kernel_vec = tvm.compute(
+    kernel_vec = te.compute(
         kvshape,
         lambda co, ci, kh, kw, vc:
         kernel[co*nv + vc][ci][kh][kw], name='kernel_vec')
 
-    conv = tvm.compute(
+    conv = te.compute(
         cshape,
         lambda nn, ff, yy, xx, vc: \
-            tvm.sum(
-                temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
-                kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
-                axis=[rc, ry, rx]), name='conv', attrs=attrs)
+        te.sum(
+            temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
+            kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
+            axis=[rc, ry, rx]), name='conv', attrs=attrs)
 
-    output = tvm.compute(
+    output = te.compute(
         oshape,
         lambda nn, ff, yy, xx:
         conv[nn][ff//nv][yy][xx][ff%nv],
@@ -573,9 +574,9 @@ def _schedule_cl_spatialpack(s, op):
     z_factor = 1
     y_factor = 1
     x_factor = 16
-    thread_z = tvm.thread_axis((0, z_factor), "threadIdx.z")
-    thread_y = tvm.thread_axis((0, y_factor), "threadIdx.y")
-    thread_x = tvm.thread_axis((0, x_factor), "threadIdx.x")
+    thread_z = te.thread_axis((0, z_factor), "threadIdx.z")
+    thread_y = te.thread_axis((0, y_factor), "threadIdx.y")
+    thread_x = te.thread_axis((0, x_factor), "threadIdx.x")
     _, co, oh, ow, vc = s[conv].op.axis
     ooh, ioh = s[conv].split(oh, factor=OUTPUT_BLOCK_HEIGHT)
     oow, iow = s[conv].split(ow, factor=OUTPUT_BLOCK_WIDTH)
@@ -588,9 +589,9 @@ def _schedule_cl_spatialpack(s, op):
     s[conv].bind(oohi, thread_z)
     s[conv].bind(oowi, thread_y)
     s[conv].bind(vci, thread_x)
-    s[conv].bind(ooho, tvm.thread_axis("blockIdx.z"))
-    s[conv].bind(oowo, tvm.thread_axis("blockIdx.y"))
-    s[conv].bind(coi, tvm.thread_axis("blockIdx.x"))
+    s[conv].bind(ooho, te.thread_axis("blockIdx.z"))
+    s[conv].bind(oowo, te.thread_axis("blockIdx.y"))
+    s[conv].bind(coi, te.thread_axis("blockIdx.x"))
 
     # schedule conv_L
     s[conv_L].compute_at(s[conv], vci)

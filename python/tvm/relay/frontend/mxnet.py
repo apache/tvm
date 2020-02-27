@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
 """MXNet symbol frontend."""
-from __future__ import absolute_import as _abs
-
 import json
 import numpy as np
 import tvm

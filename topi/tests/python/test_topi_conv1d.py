@@ -18,6 +18,7 @@
 import numpy as np
 import itertools
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -54,8 +55,8 @@ def verify_conv1d(batch,
         kernel_shape = [kernel_size, in_channels, filters]
 
     dtype = 'float32'
-    A = tvm.placeholder(in_shape, name='A', dtype=dtype)
-    W = tvm.placeholder(kernel_shape, name='W', dtype=dtype)
+    A = te.placeholder(in_shape, name='A', dtype=dtype)
+    W = te.placeholder(kernel_shape, name='W', dtype=dtype)
 
     def get_ref_data(layout):
         a_np = np.random.uniform(size=in_shape).astype(dtype)

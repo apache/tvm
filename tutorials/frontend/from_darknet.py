@@ -38,6 +38,7 @@ import sys
 
 # tvm, relay
 import tvm
+from tvm import te
 from tvm import relay
 from ctypes import *
 from tvm.contrib.download import download_testdata

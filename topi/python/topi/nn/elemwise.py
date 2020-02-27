@@ -17,33 +17,34 @@
 """Elementwise operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import tag
 from ..util import get_const_int
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def relu(x):
     """Take relu of input x.
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.max(x(*i), tvm.const(0, x.dtype)))
+    return te.compute(x.shape, lambda *i: tvm.te.max(x(*i), tvm.tir.const(0, x.dtype)))
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def leaky_relu(x, alpha):
     """Take leaky relu of input x.
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
     alpha : float
@@ -51,16 +52,16 @@ def leaky_relu(x, alpha):
 
     Returns
     -------
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
     """
     def _compute(*indices):
         value = x(*indices)
-        calpha = tvm.const(alpha, value.dtype)
-        return tvm.expr.Select(value > 0, value, value * calpha)
-    return tvm.compute(x.shape, _compute)
+        calpha = tvm.tir.const(alpha, value.dtype)
+        return tvm.tir.Select(value > 0, value, value * calpha)
+    return te.compute(x.shape, _compute)
 
-@tvm.tag_scope(tag=tag.BROADCAST)
+@tvm.te.tag_scope(tag=tag.BROADCAST)
 def prelu(x, slope, axis=1):
     """ PReLU.
     It accepts two arguments: an input ``x`` and a weight array ``W``
@@ -68,17 +69,17 @@ def prelu(x, slope, axis=1):
     where :math:`*` is an elementwise multiplication for each sample in the
     batch.
     Arguments:
-    x : tvm.Tensor
+    x : tvm.te.Tensor
         Input argument.
 
-    slope : tvm.Tensor
+    slope : tvm.te.Tensor
         Channelised slope tensor for prelu
 
     axis : int
         The axis where the channel data needs to be applied
 
     Returns:
-    y : tvm.Tensor
+    y : tvm.te.Tensor
         The result.
 
     Links:
@@ -91,5 +92,5 @@ def prelu(x, slope, axis=1):
 
     def _compute_channelwise(*indices):
         xval = x(*indices)
-        return tvm.expr.Select(xval > 0, xval, xval * slope(indices[axis]))
-    return tvm.compute(x.shape, _compute_channelwise)
+        return tvm.tir.Select(xval > 0, xval, xval * slope(indices[axis]))
+    return te.compute(x.shape, _compute_channelwise)

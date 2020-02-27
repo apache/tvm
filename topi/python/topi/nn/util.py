@@ -107,8 +107,8 @@ def infer_stride(data, kernel, out):
     _, _, IH, IW = data.shape
     _, _, KH, KW = kernel.shape
     _, _, OH, OW = out.shape
-    hstride = (IH - KH) // tvm.make.Max(OH - 1, 1) + tvm.expr.Select(OH == 1, 1, 0)
-    wstride = (IW - KW) // tvm.make.Max(OW - 1, 1) + tvm.expr.Select(OW == 1, 1, 0)
+    hstride = (IH - KH) // tvm.te.max(OH - 1, 1) + tvm.tir.Select(OH == 1, 1, 0)
+    wstride = (IW - KW) // tvm.te.max(OW - 1, 1) + tvm.tir.Select(OW == 1, 1, 0)
     return get_const_int(hstride), get_const_int(wstride)
 
 

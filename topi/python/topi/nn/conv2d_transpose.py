@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 2D convolution operators (sometimes called Deconvolution)."""
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from tvm import relay
 from .dilate import dilate
 from .pad import pad
@@ -30,10 +30,10 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         4-D with shape [in_channel, num_filter, filter_height, filter_width]
 
     strides : tuple of two ints
@@ -47,7 +47,7 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     return declaration_conv2d_transpose_impl(Input, Filter, strides, padding, out_dtype)
@@ -72,9 +72,9 @@ def conv2d_transpose_nchw_preprocess(data, kernel, strides, padding, out_dtype):
                    [0, 0, bpad_bottom, bpad_right], \
                    name='data_pad')
     # transform kernel layout from IOHW to OIHW, and rotate kernel by 180 degrees
-    kernel_transform = tvm.compute((out_c, in_c, filter_h, filter_w), \
-                                    lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
-                                    name='kernel_transform')
+    kernel_transform = te.compute((out_c, in_c, filter_h, filter_w), \
+                                  lambda o, i, h, w: kernel[i][o][filter_h-1-h][filter_w-1-w], \
+                                  name='kernel_transform')
     return data_pad, kernel_transform
 
 
@@ -90,13 +90,13 @@ def declaration_conv2d_transpose_impl(data, kernel, strides, padding, out_dtype)
     out_c = simplify(out_c)
     out_h = simplify(in_h - filter_h + 1)
     out_w = simplify(in_w - filter_w + 1)
-    dc = tvm.reduce_axis((0, in_c), name='dc')
-    dh = tvm.reduce_axis((0, filter_h), name='dh')
-    dw = tvm.reduce_axis((0, filter_w), name='dw')
+    dc = te.reduce_axis((0, in_c), name='dc')
+    dh = te.reduce_axis((0, filter_h), name='dh')
+    dw = te.reduce_axis((0, filter_w), name='dw')
 
-    Output = tvm.compute(
+    Output = te.compute(
         (batch, out_c, out_h, out_w),
-        lambda b, c, h, w: tvm.sum(
+        lambda b, c, h, w: te.sum(
             data_pad[b, dc, h+dh, w+dw].astype(out_dtype) *
             kernel_transform[c, dc, dh, dw].astype(out_dtype),
             axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")

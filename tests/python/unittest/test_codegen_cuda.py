@@ -16,14 +16,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 import topi
 import unittest
 from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
 
-tx = tvm.thread_axis("threadIdx.x")
-bx = tvm.thread_axis("blockIdx.x")
+tx = te.thread_axis("threadIdx.x")
+bx = te.thread_axis("blockIdx.x")
 
 def test_cuda_vectorize_add():
     num_thread = 8
@@ -37,9 +38,9 @@ def test_cuda_vectorize_add():
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
             print("skip because gpu does not support int8")
             return
-        A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = tvm.compute((n,), lambda i: A[i] + tvm.const(1, A.dtype), name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
+        B = te.compute((n,), lambda i: A[i] + tvm.tir.const(1, A.dtype), name='B')
+        s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
@@ -69,12 +70,12 @@ def test_cuda_multiply_add():
         if dtype == "int8" and not have_int8(tvm.gpu(0).compute_version):
             print("skip because gpu does not support int8")
             return
-        A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = tvm.placeholder((n,), name='B', dtype="%sx%d" % (dtype, lanes))
-        C = tvm.placeholder((n,), name='C', dtype="int32")
-        D = tvm.compute((n,),
-                        lambda i: tvm.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
-        s = tvm.create_schedule(D.op)
+        A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
+        B = te.placeholder((n,), name='B', dtype="%sx%d" % (dtype, lanes))
+        C = te.placeholder((n,), name='C', dtype="int32")
+        D = te.compute((n,),
+                        lambda i: tvm.tir.call_pure_extern("int32", "__dp4a", A[i], B[i], C[i]), name='D')
+        s = te.create_schedule(D.op)
         xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
         s[D].bind(xo, bx)
         s[D].bind(xi, tx)
@@ -99,9 +100,9 @@ def test_cuda_vectorize_load():
             print("skip because cuda is not enabled..")
             return
         ctx = tvm.gpu(0)
-        A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = tvm.compute((n,), lambda i: A[i], name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
+        B = te.compute((n,), lambda i: A[i], name='B')
+        s = te.create_schedule(B.op)
         block, thread = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(block, bx)
         s[B].bind(thread, tx)
@@ -122,8 +123,8 @@ def test_cuda_make_int8x4():
         lanes = 4
         dtype = 'int8'
         ctx = tvm.gpu(0)
-        A = tvm.compute((n, lanes), lambda i,j: tvm.const(value, dtype=dtype))
-        s = tvm.create_schedule(A.op)
+        A = te.compute((n, lanes), lambda i,j: tvm.tir.const(value, dtype=dtype))
+        s = te.create_schedule(A.op)
         y, x = s[A].op.axis
         s[A].vectorize(x)
         s[A].bind(y, bx)
@@ -140,10 +141,10 @@ def test_cuda_make_int8x4():
 def test_cuda_inf_nan():
     target = 'cuda'
     def check_inf_nan(ctx, n, value, dtype):
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
-        inf_value = tvm.const(value, dtype=dtype)
-        C = tvm.compute((n,), lambda i: inf_value, name='C')
-        s = tvm.create_schedule(C.op)
+        A = te.placeholder((n,), name='A', dtype=dtype)
+        inf_value = tvm.tir.const(value, dtype=dtype)
+        C = te.compute((n,), lambda i: inf_value, name='C')
+        s = te.create_schedule(C.op)
         s[C].bind(s[C].op.axis[0], tx)
         fun = tvm.build(s, [A, C], target)
         a = tvm.nd.empty((n,), A.dtype, ctx)
@@ -170,36 +171,36 @@ def test_cuda_shuffle():
         print("skip because cuda is not enabled..")
         return
 
-    idxm = tvm.indexmod
-    a = tvm.placeholder((64, ), 'int32')
-    b = tvm.placeholder((64, ), 'int32')
-    c = tvm.compute((64, ), lambda x: a[x] + b[x - idxm(x, 4) + (3 - idxm(x, 4))])
-    sch = tvm.create_schedule(c.op)
+    idxm = tvm.tir.indexmod
+    a = te.placeholder((64, ), 'int32')
+    b = te.placeholder((64, ), 'int32')
+    c = te.compute((64, ), lambda x: a[x] + b[x - idxm(x, 4) + (3 - idxm(x, 4))])
+    sch = te.create_schedule(c.op)
     x = c.op.axis[0]
     xo, xi = sch[c].split(x, 4)
-    thrx = tvm.thread_axis("threadIdx.x")
+    thrx = te.thread_axis("threadIdx.x")
     sch[c].bind(xo, thrx)
     sch[c].vectorize(xi)
 
     def my_vectorize(stmt):
         def vectorizer(op):
             if op.for_type == tvm.tir.For.Vectorized:
-                four = tvm.const(4, 'int32')
-                idx = tvm.tir.Ramp(thrx.var * four, tvm.const(1, 'int32'), 4)
-                all_ones = tvm.const(1, 'int32x4')
+                four = tvm.tir.const(4, 'int32')
+                idx = tvm.tir.Ramp(thrx.var * four, tvm.tir.const(1, 'int32'), 4)
+                all_ones = tvm.tir.const(1, 'int32x4')
                 store = op.body
                 value = store.value
                 new_a = tvm.tir.Load('int32x4', value.a.buffer_var, idx, all_ones)
                 bs, ids = [], []
                 for i in range(4):
-                    bs.append(tvm.tir.Load('int32', value.b.buffer_var, thrx.var * four + tvm.const(i, 'int32')))
-                    ids.append(tvm.const(3 - i, 'int32'))
+                    bs.append(tvm.tir.Load('int32', value.b.buffer_var, thrx.var * four + tvm.tir.const(i, 'int32')))
+                    ids.append(tvm.tir.const(3 - i, 'int32'))
                 new_b = tvm.tir.Shuffle(bs, ids)
                 return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
             return None
-        return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 
-    with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
+    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
         module = tvm.build(sch, [a, b, c], target='cuda')
         a_ = np.array(list(range(64)), dtype='int32')
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')
@@ -215,17 +216,17 @@ def test_cuda_reducition_binding():
         print("skip because cuda is not enabled..")
         return
 
-    k = tvm.reduce_axis((0, 32), 'k')
-    A = tvm.placeholder((96, 32), name='A')
-    B = tvm.compute( (96,), lambda m:
-                     tvm.sum(A[m, k], axis=k),
+    k = te.reduce_axis((0, 32), 'k')
+    A = te.placeholder((96, 32), name='A')
+    B = te.compute( (96,), lambda m:
+                     te.sum(A[m, k], axis=k),
                      name='B')
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
 
     s[B].reorder(B.op.reduce_axis[0], B.op.axis[0])
 
     mo, _ = s[B].split(B.op.axis[0], 32)
-    s[B].bind(mo, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(mo, te.thread_axis("blockIdx.x"))
 
     fcuda = tvm.build(s, [A, B], "cuda")
 
@@ -234,15 +235,15 @@ def test_rfactor_predicates():
         print("skip because cuda is not enabled..")
         return
 
-    n = tvm.reduce_axis((0, 129), 'n')
-    A = tvm.placeholder((129,), name='A')
-    B = tvm.compute( (1, ), lambda b:
-                     tvm.sum(A[n],
+    n = te.reduce_axis((0, 129), 'n')
+    A = te.placeholder((129,), name='A')
+    B = te.compute( (1, ), lambda b:
+                     te.sum(A[n],
                              axis=n),
                      name='B'
     )
 
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
 
     _, ni = s[B].split(s[B].op.reduce_axis[0], factor=8)
 
@@ -270,15 +271,15 @@ def test_cuda_const_float_to_half():
     # otherwise it is found that the code gen is done by nvrtc.
     from tvm import autotvm
     shape = (2, 3, 4)
-    a = tvm.placeholder(shape, dtype='float16', name='a')
-    b = tvm.const(0.5, dtype='float16')
-    c = tvm.compute(shape, lambda i, j, k: a[i, j, k] > b, name='c')
-    s = tvm.create_schedule(c.op)
+    a = te.placeholder(shape, dtype='float16', name='a')
+    b = tvm.tir.const(0.5, dtype='float16')
+    c = te.compute(shape, lambda i, j, k: a[i, j, k] > b, name='c')
+    s = te.create_schedule(c.op)
     axes = [axis for axis in c.op.axis]
     fused = s[c].fuse(*axes)
     bx, tx = s[c].split(fused, factor=64)
-    s[c].bind(bx, tvm.thread_axis('blockIdx.x'))
-    s[c].bind(tx, tvm.thread_axis('threadIdx.x'))
+    s[c].bind(bx, te.thread_axis('blockIdx.x'))
+    s[c].bind(tx, te.thread_axis('threadIdx.x'))
 
     func = tvm.build(s, [a, c], 'cuda')
     ctx = tvm.gpu(0)
@@ -298,8 +299,8 @@ def test_cuda_reduction():
             print("Skip because gpu does not have fp16 support")
             return
 
-        a = tvm.placeholder((m, n), name="a", dtype=dtype)
-        b = tvm.placeholder((m, n), name="b", dtype=dtype)
+        a = te.placeholder((m, n), name="a", dtype=dtype)
+        b = te.placeholder((m, n), name="b", dtype=dtype)
         c = a + b
         d = a * b
         e = topi.elemwise_sum([c, d])

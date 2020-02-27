@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 import time
 
@@ -22,26 +23,26 @@ import time
 def test_gemm():
     # graph
     nn = 1024
-    n = tvm.convert(nn)
+    n = tvm.runtime.convert(nn)
     m = n
     l = n
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((m, l), name='B')
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute(
+    A = te.placeholder((n, l), name='A')
+    B = te.placeholder((m, l), name='B')
+    k = te.reduce_axis((0, l), name='k')
+    C = te.compute(
         (n, m),
-        lambda ii, jj: tvm.sum(A[ii, k] * B[jj, k], axis=k),
+        lambda ii, jj: te.sum(A[ii, k] * B[jj, k], axis=k),
         name='CC')
     # schedule
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     xtile, ytile = 32, 32
     scale = 8
     num_thread = 8
     block_factor = scale * num_thread
-    block_x = tvm.thread_axis("blockIdx.x")
-    thread_x = tvm.thread_axis("threadIdx.x")
-    block_y = tvm.thread_axis("blockIdx.y")
-    thread_y = tvm.thread_axis("threadIdx.y")
+    block_x = te.thread_axis("blockIdx.x")
+    thread_x = te.thread_axis("threadIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    thread_y = te.thread_axis("threadIdx.y")
 
     CC = s.cache_write(C, "local")
     AA = s.cache_read(A, "shared", [CC])
