@@ -15,20 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_basic():
-    a = tvm.var("a")
-    b = tvm.var("b")
+    a = te.var("a")
+    b = te.var("b")
     m = tvm.arith.detect_linear_equation(a * 4 + b * 6 + 7, [a])
     assert m[0].value == 4
-    assert tvm.ir_pass.Simplify(m[1] - (b * 6 + 7)).value == 0
+    assert tvm.tir.ir_pass.Simplify(m[1] - (b * 6 + 7)).value == 0
 
     m = tvm.arith.detect_linear_equation(a * 4 * (a+1) + b * 6 + 7, [a])
     assert len(m) == 0
 
     m = tvm.arith.detect_linear_equation(a * 4  + (a+1) + b * 6 + 7, [a])
     assert m[0].value == 5
-    assert tvm.ir_pass.Simplify(m[1] - (b * 6 + 7 + 1)).value == 0
+    assert tvm.tir.ir_pass.Simplify(m[1] - (b * 6 + 7 + 1)).value == 0
 
     m = tvm.arith.detect_linear_equation(a * b + 7, [a])
     assert m[0] == b
@@ -38,13 +39,13 @@ def test_basic():
 
     m = tvm.arith.detect_linear_equation(b * 7, [])
     assert len(m) == 1
-    assert tvm.ir_pass.Simplify(m[0] - b * 7).value == 0
+    assert tvm.tir.ir_pass.Simplify(m[0] - b * 7).value == 0
 
 def test_multivariate():
-    v = [tvm.var("v%d" % i) for i in range(4)]
-    b = tvm.var("b")
+    v = [te.var("v%d" % i) for i in range(4)]
+    b = te.var("b")
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8, v)
-    assert(tvm.ir_pass.Equal(tvm.ir_pass.Simplify(m[0]), b + 5))
+    assert(tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.Simplify(m[0]), b + 5))
     assert(m[1].value == 8)
 
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8 * v[2], v)
@@ -60,11 +61,11 @@ def test_multivariate():
 
     m = tvm.arith.detect_linear_equation((v[0] - v[1]), [v[2]])
     assert(m[0].value == 0)
-    assert(tvm.ir_pass.Simplify(m[1] - (v[0] - v[1])).value == 0)
+    assert(tvm.tir.ir_pass.Simplify(m[1] - (v[0] - v[1])).value == 0)
 
     m = tvm.arith.detect_linear_equation((v[0] - v[1]), [])
     assert(len(m) == 1)
-    assert(tvm.ir_pass.Simplify(m[0] - (v[0] - v[1])).value == 0)
+    assert(tvm.tir.ir_pass.Simplify(m[0] - (v[0] - v[1])).value == 0)
 
 if __name__ == "__main__":
     test_basic()

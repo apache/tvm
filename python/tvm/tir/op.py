@@ -64,7 +64,7 @@ def call_packed(*args):
 
     See Also
     --------
-    tvm.extern : Create tensor with extern function call.
+    te.extern : Create tensor with extern function call.
     """
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     return Call(
@@ -194,7 +194,7 @@ def call_llvm_intrin(dtype, name, *args):
     from tvm.target import codegen
     llvm_id = codegen.llvm_lookup_intrinsic_id(name)
     assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
-    return call_pure_intrin(dtype, 'llvm_intrin', tvm.const(llvm_id, 'uint32'), *args)
+    return call_pure_intrin(dtype, 'llvm_intrin', tvm.tir.const(llvm_id, 'uint32'), *args)
 
 
 def any(*args):
@@ -274,7 +274,7 @@ def trace(args, trace_action="tvm.default_trace_action"):
     tvm.tir.call_packed : Creates packed function.
     """
     if not isinstance(args, list):
-        raise Exception("tvm.trace consumes the args as list type")
+        raise Exception("tvm.tir.trace consumes the args as list type")
     call_args = [_pack_buffer(x) if isinstance(x, Buffer) else x for x in args]
     call_args.insert(0, trace_action)
     return tvm.tir.Call(
@@ -556,9 +556,9 @@ def round(x):
 def nearbyint(x):
     """Round elements of the array to the nearest integer.
     This intrinsic uses llvm.nearbyint instead of llvm.round
-    which is faster but will results different from tvm.round.
+    which is faster but will results different from te.round.
     Notably nearbyint rounds according to the rounding mode,
-    whereas tvm.round (llvm.round) ignores that.
+    whereas te.round (llvm.round) ignores that.
     For differences between the two see:
     https://en.cppreference.com/w/cpp/numeric/math/round
     https://en.cppreference.com/w/cpp/numeric/math/nearbyint
@@ -855,13 +855,13 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     -------
     .. code-block:: python
 
-        n = tvm.var("n")
-        m = tvm.var("m")
-        mysum = tvm.comm_reducer(lambda x, y: x+y,
-            lambda t: tvm.const(0, dtype=t), name="mysum")
-        A = tvm.placeholder((n, m), name="A")
-        k = tvm.reduce_axis((0, m), name="k")
-        B = tvm.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
+        n = te.var("n")
+        m = te.var("m")
+        mysum = te.comm_reducer(lambda x, y: x+y,
+            lambda t: tvm.tir.const(0, dtype=t), name="mysum")
+        A = te.placeholder((n, m), name="A")
+        k = te.reduce_axis((0, m), name="k")
+        B = te.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
     """
     def _reduce_directly(*args):
         num = len(args)
@@ -943,14 +943,14 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
               -------
               .. code-block:: python
 
-                m = tvm.var("m")
-                n = tvm.var("n")
-                A = tvm.placeholder((m, n), name="A")
-                k = tvm.reduce_axis((0, n), name="k")
+                m = te.var("m")
+                n = te.var("n")
+                A = te.placeholder((m, n), name="A")
+                k = te.reduce_axis((0, n), name="k")
 
                 # there are two way to use this {0} reducer:
                 # mode 1, accept (expr, axis, where) to produce an Reduce Expr
-                B = tvm.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
+                B = te.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
 
                 # mode 2, simply use it with multiple Exprs:
                 {0}_res = tvm.{0}(m, n)

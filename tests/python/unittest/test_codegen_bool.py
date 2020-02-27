@@ -17,21 +17,22 @@
 """codegen related to bool types"""
 
 import tvm
+from tvm import te
 import numpy as np
 
 def test_cmp_load_store():
     n = 32
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) > B(*i), name='C')
-    D = tvm.compute(C.shape, lambda *i: tvm.all(C(*i),
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) > B(*i), name='C')
+    D = te.compute(C.shape, lambda *i: tvm.tir.all(C(*i),
                                                 A(*i) > 1).astype('float32'), name="D")
 
 
     def check_llvm():
         if not tvm.runtime.enabled("llvm"):
             return
-        s = tvm.create_schedule(D.op)
+        s = te.create_schedule(D.op)
         xo, xi = s[C].split(C.op.axis[0], factor=4)
         xo1, xo2 = s[C].split(xo, factor=13)
         s[C].parallel(xo2)
@@ -50,11 +51,11 @@ def test_cmp_load_store():
         ctx = tvm.context(device, 0)
         if not ctx.exist:
             return
-        s = tvm.create_schedule(D.op)
+        s = te.create_schedule(D.op)
         for stage in [C, D]:
             xo, xi = s[stage].split(stage.op.axis[0], factor=4)
-            s[stage].bind(xo, tvm.thread_axis("blockIdx.x"))
-            s[stage].bind(xi, tvm.thread_axis("threadIdx.x"))
+            s[stage].bind(xo, te.thread_axis("blockIdx.x"))
+            s[stage].bind(xi, te.thread_axis("threadIdx.x"))
         f = tvm.build(s, [A, B, D], device)
         a_np = np.random.uniform(size=n).astype(A.dtype)
         a = tvm.nd.array(a_np, ctx)

@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import util
 
 def test_add():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = te.create_schedule(C.op)
 
     def check_c():
         mhost = tvm.build(s, [A, B, C], "c", name="fadd")
@@ -47,14 +48,14 @@ def test_add():
 
 def test_add_pipeline():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    AA = tvm.compute((n,), lambda *i: A(*i), name='A')
-    BB = tvm.compute((n,), lambda *i: B(*i), name='B')
-    T = tvm.compute(A.shape, lambda *i: AA(*i) + BB(*i), name='T')
-    C = tvm.compute(A.shape, lambda *i: T(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    AA = te.compute((n,), lambda *i: A(*i), name='A')
+    BB = te.compute((n,), lambda *i: B(*i), name='B')
+    T = te.compute(A.shape, lambda *i: AA(*i) + BB(*i), name='T')
+    C = te.compute(A.shape, lambda *i: T(*i), name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     xo1, xo2 = s[C].split(xo, factor=13)
     s[C].parallel(xo2)
@@ -65,16 +66,16 @@ def test_add_pipeline():
 
     def check_c():
         # Specifically allow offset to test codepath when offset is available
-        Ab = tvm.decl_buffer(
+        Ab = tvm.tir.decl_buffer(
             A.shape, A.dtype,
-            elem_offset=tvm.size_var('Aoffset'),
+            elem_offset=te.size_var('Aoffset'),
             offset_factor=8,
             name='A')
         binds = {A : Ab}
         # BUILD and invoke the kernel.
         f1 = tvm.lower(s, [A,B,C], name="fadd_pipeline")
-        fsplits = [x for x in tvm.ir_pass.SplitHostDevice(f1)]
-        fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
+        fsplits = [x for x in tvm.tir.ir_pass.SplitHostDevice(f1)]
+        fsplits[0] = tvm.tir.ir_pass.LowerTVMBuiltin(fsplits[0])
         mhost = tvm.target.codegen.build_module(fsplits[0], "c")
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
@@ -91,16 +92,16 @@ def test_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.build_config(offset_factor=4):
+    with tvm.target.build_config(offset_factor=4):
         check_c()
 
 
 def test_reinterpret():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A', dtype="int32")
-    B = tvm.compute(A.shape, lambda *i: tvm.call_pure_intrin("float32", "reinterpret", A(*i)), name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A', dtype="int32")
+    B = te.compute(A.shape, lambda *i: tvm.tir.call_pure_intrin("float32", "reinterpret", A(*i)), name='B')
+    s = te.create_schedule(B.op)
 
     def check_c():
         mhost = tvm.build(s, [A, B], "c", name="reinterpret")

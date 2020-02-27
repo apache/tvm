@@ -15,27 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 
 def assert_expr_equal(a, b):
-    res =  tvm.ir_pass.Simplify(a - b)
+    res =  tvm.tir.ir_pass.Simplify(a - b)
     equal = isinstance(res, tvm.tir.IntImm) and res.value == 0
     if not equal:
         raise ValueError("{} and {} are not equal".format(a, b))
 
 
 def test_deduce():
-    a = tvm.var('a')
-    b = tvm.var('b')
-    c = tvm.var('c')
-    d = tvm.var('d')
+    a = te.var('a')
+    b = te.var('b')
+    c = te.var('c')
+    d = te.var('d')
 
     b_s = tvm.arith.IntervalSet(2, 3)
     c_s = tvm.arith.IntervalSet(10, 15)
     d_s = tvm.arith.IntervalSet(-3, -1)
-    zero = tvm.const(0, "int32")
+    zero = tvm.tir.const(0, "int32")
 
-    fdiv = tvm.floordiv
+    fdiv = tvm.te.floordiv
 
     e0 = (-b)*a+c-d
     res0 = tvm.arith.deduce_bound(a, e0>=0, {b: b_s, c: c_s, d: d_s}, {})
@@ -68,13 +69,13 @@ def test_deduce():
     assert_expr_equal(res1.max_value, ans1)
 
 
-    e2 = (tvm.max(5, a * 4) < 0)
+    e2 = (tvm.te.max(5, a * 4) < 0)
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
     assert str(res2.max_value) == "neg_inf"
     assert str(res2.min_value) == "pos_inf"
 
     # expression containing variable a is on rhs
-    e2 = (zero < tvm.max(5, a * 4))
+    e2 = (zero < tvm.te.max(5, a * 4))
     res2 = tvm.arith.deduce_bound(a, e2, {b: b_s, c: c_s, d: d_s}, {})
     assert str(res2.max_value) == "neg_inf"
     assert str(res2.min_value) == "pos_inf"
@@ -82,10 +83,10 @@ def test_deduce():
     e3 = (-b)+a*c-d
     res3 = tvm.arith.deduce_bound(a, e3>=0, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
     ans3 = fdiv(2,c)+1
-    assert str(tvm.ir_pass.Simplify(res3.min_value)) == str(ans3)
+    assert str(tvm.tir.ir_pass.Simplify(res3.min_value)) == str(ans3)
 
     res3 = tvm.arith.deduce_bound(a, zero <= e3, {b: b_s, c: c_s, d: d_s}, {b: b_s, d: d_s})
-    assert str(tvm.ir_pass.Simplify(res3.min_value)) == str(ans3)
+    assert str(tvm.tir.ir_pass.Simplify(res3.min_value)) == str(ans3)
 
     # tests for `EQ` op
     res4 = tvm.arith.deduce_bound(a, a == b, {}, {})
@@ -127,10 +128,10 @@ def test_deduce():
 
 
 def test_check():
-    a = tvm.var('a')
-    b = tvm.var('b')
-    c = tvm.var('c')
-    d = tvm.var('d')
+    a = te.var('a')
+    b = te.var('b')
+    c = te.var('c')
+    d = te.var('d')
 
     b_s = tvm.arith.IntervalSet(2, 3)
     c_s = tvm.arith.IntervalSet(5, 7)
@@ -150,28 +151,28 @@ def test_check():
 
 def test_deduce_basic():
     def test_basic(a1, a2, coff):
-        a = tvm.var('a')
-        b = tvm.var('b')
+        a = te.var('a')
+        b = te.var('b')
         b_s = tvm.arith.IntervalSet(a1, a2)
         e0 = b + a*coff + 3
 
         res1 = tvm.arith.deduce_bound(a, e0<17, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) < 17)).value == 1
+        assert (tvm.tir.ir_pass.Simplify((x * coff + 3 + y) < 17)).value == 1
 
         # expression containing variable a is on rhs
-        res1 = tvm.arith.deduce_bound(a, tvm.const(17, "int32") < e0, {b: b_s}, {b: b_s})
+        res1 = tvm.arith.deduce_bound(a, tvm.tir.const(17, "int32") < e0, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) > 17)).value == 1
+        assert (tvm.tir.ir_pass.Simplify((x * coff + 3 + y) > 17)).value == 1
 
         # expression containing variable a is on rhs
-        res1 = tvm.arith.deduce_bound(a, tvm.const(17, "int32")>= e0, {b: b_s}, {b: b_s})
+        res1 = tvm.arith.deduce_bound(a, tvm.tir.const(17, "int32")>= e0, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) <= 17)).value == 1
+        assert (tvm.tir.ir_pass.Simplify((x * coff + 3 + y) <= 17)).value == 1
 
         res1 = tvm.arith.deduce_bound(a, e0>=17, {b: b_s}, {b: b_s})
         [x, y] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify((x * coff + 3 + y) >= 17)).value == 1
+        assert (tvm.tir.ir_pass.Simplify((x * coff + 3 + y) >= 17)).value == 1
 
     test_basic(0, 4, 4)
     test_basic(1, 5, 4)
@@ -182,28 +183,28 @@ def test_deduce_basic():
 
 def test_deduce_complex():
     def test_complex(a1, a2, coff):
-        a = tvm.var('a')
-        b = tvm.var('b')
+        a = te.var('a')
+        b = te.var('b')
         b_s = tvm.arith.IntervalSet(a1, a2)
         e0 = (b*3 + a* coff) * 4
 
         res1 = tvm.arith.deduce_bound(a, e0<63, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) < 63)).value == 1
+        assert (tvm.tir.ir_pass.Simplify(((x*3 + t* coff) * 4) < 63)).value == 1
 
         # expression containing variable a is on rhs
-        res1 = tvm.arith.deduce_bound(a, tvm.const(63, "int32")>= e0, {b: b_s}, {b: b_s})
+        res1 = tvm.arith.deduce_bound(a, tvm.tir.const(63, "int32")>= e0, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff > 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) <= 63)).value == 1
+        assert (tvm.tir.ir_pass.Simplify(((x*3 + t* coff) * 4) <= 63)).value == 1
 
         res1 = tvm.arith.deduce_bound(a, e0>63, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) > 63)).value == 1
+        assert (tvm.tir.ir_pass.Simplify(((x*3 + t* coff) * 4) > 63)).value == 1
 
         # expression containing variable a is on rhs
-        res1 = tvm.arith.deduce_bound(a, tvm.const(63, "int32") <= e0, {b: b_s}, {b: b_s})
+        res1 = tvm.arith.deduce_bound(a, tvm.tir.const(63, "int32") <= e0, {b: b_s}, {b: b_s})
         [t, x] = [res1.max_value, b_s.max_value] if coff < 0 else [res1.min_value, b_s.min_value]
-        assert (tvm.ir_pass.Simplify(((x*3 + t* coff) * 4) >= 63)).value == 1
+        assert (tvm.tir.ir_pass.Simplify(((x*3 + t* coff) * 4) >= 63)).value == 1
 
     test_complex(0, 4, 4)
     test_complex(0, 4, -4)

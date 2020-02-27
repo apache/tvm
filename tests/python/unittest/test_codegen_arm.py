@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import re
 import os
 import ctypes
@@ -23,10 +24,10 @@ def test_popcount():
     target = 'llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
 
     def check_correct_assembly(type, elements, counts):
-        n = tvm.convert(elements)
-        A = tvm.placeholder(n, dtype=type, name='A')
-        B = tvm.compute(A.shape, lambda i: tvm.popcount(A[i]), name='B')
-        s = tvm.create_schedule(B.op)
+        n = tvm.runtime.convert(elements)
+        A = te.placeholder(n, dtype=type, name='A')
+        B = te.compute(A.shape, lambda i: tvm.tir.popcount(A[i]), name='B')
+        s = te.create_schedule(B.op)
         s[B].vectorize(s[B].op.axis[0])
         f = tvm.build(s, [A, B], target)
 
@@ -47,13 +48,13 @@ def test_vmlal_s16():
     target = 'llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon'
 
     def check_correct_assembly(N):
-        K = tvm.size_var("K")
-        A = tvm.placeholder((K, N), dtype="int8", name='A')
-        B = tvm.placeholder((K, N), dtype="int8", name='B')
-        k = tvm.reduce_axis((0, K))
-        C = tvm.compute((N, ), lambda n: tvm.sum(
+        K = te.size_var("K")
+        A = te.placeholder((K, N), dtype="int8", name='A')
+        B = te.placeholder((K, N), dtype="int8", name='B')
+        k = te.reduce_axis((0, K))
+        C = te.compute((N, ), lambda n: te.sum(
             A[k, n].astype("int32") * B[k, n].astype("int32"), axis=[k]), name='C')
-        s = tvm.create_schedule(C.op)
+        s = te.create_schedule(C.op)
         s[C].vectorize(s[C].op.axis[0])
         f = tvm.build(s, [A, B, C], target)
 
@@ -67,14 +68,14 @@ def test_vmlal_s16():
     check_correct_assembly(64)
 
     def check_broadcast_correct_assembly(N):
-        K = tvm.size_var("K")
-        A = tvm.placeholder((K, N), dtype="int8", name='A')
-        B = tvm.placeholder((K,), dtype="int8", name='B')
-        k = tvm.reduce_axis((0, K))
-        C = tvm.compute((N, ), lambda n: tvm.sum(
+        K = te.size_var("K")
+        A = te.placeholder((K, N), dtype="int8", name='A')
+        B = te.placeholder((K,), dtype="int8", name='B')
+        k = te.reduce_axis((0, K))
+        C = te.compute((N, ), lambda n: te.sum(
             A[k, n].astype("int32") * B[k].astype("int32"),
             axis=[k]), name='C')
-        s = tvm.create_schedule(C.op)
+        s = te.create_schedule(C.op)
         s[C].vectorize(s[C].op.axis[0])
         f = tvm.build(s, [A, B, C], target)
 

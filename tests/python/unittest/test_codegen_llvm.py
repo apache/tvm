@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 from tvm.contrib import util, clang
 import numpy as np
@@ -22,18 +23,18 @@ import ctypes
 import math
 
 def test_llvm_intrin():
-    ib = tvm.ir_builder.create()
-    n = tvm.convert(4)
+    ib = tvm.tir.ir_builder.create()
+    n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [
-        tvm.call_pure_intrin("handle", "tvm_address_of", A[0]),
+        tvm.tir.call_pure_intrin("handle", "tvm_address_of", A[0]),
         0, 3, 1
     ]
     ib.emit(tvm.tir.Evaluate(
         tvm.tir.Call(
             "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
     body = ib.get()
-    func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
+    func = tvm.tir.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
 
 
@@ -45,9 +46,9 @@ def test_llvm_import():
     }
     """
     n = 10
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute((n,), lambda *i:
-                    tvm.call_pure_extern("float32", "my_add", A(*i), 1.0),
+    A = te.placeholder((n,), name='A')
+    B = te.compute((n,), lambda *i:
+                    tvm.tir.call_pure_extern("float32", "my_add", A(*i), 1.0),
                     name='B')
     def check_llvm(use_file):
         if not tvm.runtime.enabled("llvm"):
@@ -58,7 +59,7 @@ def test_llvm_import():
         temp = util.tempdir()
         ll_path = temp.relpath("temp.ll")
         ll_code = clang.create_llvm(cc_code, output=ll_path)
-        s = tvm.create_schedule(B.op)
+        s = te.create_schedule(B.op)
         if use_file:
             s[B].pragma(s[B].op.axis[0], "import_llvm", ll_path)
         else:
@@ -78,21 +79,21 @@ def test_llvm_import():
 
 
 def test_llvm_lookup_intrin():
-    ib = tvm.ir_builder.create()
-    m = tvm.size_var("m")
+    ib = tvm.tir.ir_builder.create()
+    m = te.size_var("m")
     A = ib.pointer("uint8x8", name="A")
-    x = tvm.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.const(1, 'uint32'), A)
+    x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.tir.const(1, 'uint32'), A)
     ib.emit(x)
     body = ib.get()
-    func = tvm.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
+    func = tvm.tir.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
     fcode = tvm.build(func, None, "llvm")
 
 
 def test_llvm_large_uintimm():
     value =  (1 << 63) + 123
-    other = tvm.const(3, "uint64")
-    A = tvm.compute((), lambda : tvm.const(value, "uint64") + other, name='A')
-    s = tvm.create_schedule(A.op)
+    other = tvm.tir.const(3, "uint64")
+    A = te.compute((), lambda : tvm.tir.const(value, "uint64") + other, name='A')
+    s = te.create_schedule(A.op)
 
     def check_llvm():
         if not tvm.runtime.enabled("llvm"):
@@ -109,14 +110,14 @@ def test_llvm_large_uintimm():
 
 def test_llvm_add_pipeline():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    AA = tvm.compute((n,), lambda *i: A(*i), name='A')
-    BB = tvm.compute((n,), lambda *i: B(*i), name='B')
-    T = tvm.compute(A.shape, lambda *i: AA(*i) + BB(*i), name='T')
-    C = tvm.compute(A.shape, lambda *i: T(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    AA = te.compute((n,), lambda *i: A(*i), name='A')
+    BB = te.compute((n,), lambda *i: B(*i), name='B')
+    T = te.compute(A.shape, lambda *i: AA(*i) + BB(*i), name='T')
+    C = te.compute(A.shape, lambda *i: T(*i), name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     xo1, xo2 = s[C].split(xo, factor=13)
     s[C].parallel(xo2)
@@ -129,9 +130,9 @@ def test_llvm_add_pipeline():
         if not tvm.runtime.enabled("llvm"):
             return
         # Specifically allow offset to test codepath when offset is available
-        Ab = tvm.decl_buffer(
+        Ab = tvm.tir.decl_buffer(
             A.shape, A.dtype,
-            elem_offset=tvm.size_var('Aoffset'),
+            elem_offset=te.size_var('Aoffset'),
             offset_factor=8,
             name='A')
         binds = {A : Ab}
@@ -147,16 +148,16 @@ def test_llvm_add_pipeline():
         tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
-    with tvm.build_config(offset_factor=4):
+    with tvm.target.build_config(offset_factor=4):
         check_llvm()
 
 
 def test_llvm_persist_parallel():
     n = 128
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name='B')
-    C = tvm.compute(A.shape, lambda *i: tvm.sqrt(B(*i)) * 2 + 2, name='C')
-    s = tvm.create_schedule(C.op)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1, name='B')
+    C = te.compute(A.shape, lambda *i: te.sqrt(B(*i)) * 2 + 2, name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=8)
     xo1, xo2 = s[C].split(xo, nparts=1)
     s[B].compute_at(s[C], xo1)
@@ -187,10 +188,10 @@ def test_llvm_flip_pipeline():
     def check_llvm(nn, base):
         if not tvm.runtime.enabled("llvm"):
             return
-        n = tvm.convert(nn)
-        A = tvm.placeholder((n + base), name='A')
-        C = tvm.compute((n,), lambda i: A(nn + base- i - 1), name='C')
-        s = tvm.create_schedule(C.op)
+        n = tvm.runtime.convert(nn)
+        A = te.placeholder((n + base), name='A')
+        C = te.compute((n,), lambda i: A(nn + base- i - 1), name='C')
+        s = te.create_schedule(C.op)
         xo, xi = s[C].split(C.op.axis[0], factor=4)
         s[C].parallel(xo)
         s[C].vectorize(xi)
@@ -214,10 +215,10 @@ def test_llvm_vadd_pipeline():
     def check_llvm(n, lanes):
         if not tvm.runtime.enabled("llvm"):
             return
-        A = tvm.placeholder((n,), name='A', dtype="float32x%d" % lanes)
-        B = tvm.compute((n,), lambda i: A[i], name='B')
-        C = tvm.compute((n,), lambda i: B[i] + tvm.const(1, A.dtype), name='C')
-        s = tvm.create_schedule(C.op)
+        A = te.placeholder((n,), name='A', dtype="float32x%d" % lanes)
+        B = te.compute((n,), lambda i: A[i], name='B')
+        C = te.compute((n,), lambda i: B[i] + tvm.tir.const(1, A.dtype), name='C')
+        s = te.create_schedule(C.op)
         xo, xi = s[C].split(C.op.axis[0], nparts=2)
         _, xi = s[C].split(xi, factor=2)
         s[C].parallel(xo)
@@ -243,10 +244,10 @@ def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
         if not tvm.runtime.enabled("llvm"):
             return
-        n = tvm.convert(nn)
-        A = tvm.placeholder((n + base, stride), name='A')
-        C = tvm.compute((n, stride), lambda i, j: A(base + i, j) + 1, name='C')
-        s = tvm.create_schedule(C.op)
+        n = tvm.runtime.convert(nn)
+        A = te.placeholder((n + base, stride), name='A')
+        C = te.compute((n, stride), lambda i, j: A(base + i, j) + 1, name='C')
+        s = te.create_schedule(C.op)
         xo, xi = s[C].split(C.op.axis[0], factor=4)
         s[C].parallel(xo)
         s[C].vectorize(xi)
@@ -262,17 +263,17 @@ def test_llvm_madd_pipeline():
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
-    with tvm.build_config(restricted_func=False):
+    with tvm.target.build_config(restricted_func=False):
         check_llvm(4, 0, 3)
 
 
 def test_llvm_temp_space():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda i: A(i) + 1, name='B')
-    C = tvm.compute(A.shape, lambda i: B(i) + 1, name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda i: A(i) + 1, name='B')
+    C = te.compute(A.shape, lambda i: B(i) + 1, name='C')
+    s = te.create_schedule(C.op)
 
     def check_llvm():
         if not tvm.runtime.enabled("llvm"):
@@ -291,11 +292,11 @@ def test_llvm_temp_space():
 
 def test_multiple_func():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     s[C].parallel(xo)
     s[C].vectorize(xi)
@@ -328,9 +329,9 @@ def test_llvm_condition():
     def check_llvm(n, offset):
         if not tvm.runtime.enabled("llvm"):
             return
-        A = tvm.placeholder((n, ), name='A')
-        C = tvm.compute((n,), lambda i: tvm.if_then_else(i >= offset, A[i], 0.0), name='C')
-        s = tvm.create_schedule(C.op)
+        A = te.placeholder((n, ), name='A')
+        C = te.compute((n,), lambda i: tvm.tir.if_then_else(i >= offset, A[i], 0.0), name='C')
+        s = te.create_schedule(C.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
         ctx = tvm.cpu(0)
@@ -348,9 +349,9 @@ def test_llvm_bool():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        A = tvm.placeholder((n, ), name='A', dtype="int32")
-        C = tvm.compute((n,), lambda i: A[i].equal(1).astype("float"), name='C')
-        s = tvm.create_schedule(C.op)
+        A = te.placeholder((n, ), name='A', dtype="int32")
+        C = te.compute((n,), lambda i: A[i].equal(1).astype("float"), name='C')
+        s = te.create_schedule(C.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, C], "llvm")
         ctx = tvm.cpu(0)
@@ -367,12 +368,12 @@ def test_rank_zero():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        A = tvm.placeholder((n, ), name='A')
-        scale = tvm.placeholder((), name='scale')
-        k = tvm.reduce_axis((0, n), name="k")
-        C = tvm.compute((), lambda : tvm.sum(A[k] * scale(), axis=k), name="C")
-        D = tvm.compute((), lambda : C() + 1)
-        s = tvm.create_schedule(D.op)
+        A = te.placeholder((n, ), name='A')
+        scale = te.placeholder((), name='scale')
+        k = te.reduce_axis((0, n), name="k")
+        C = te.compute((), lambda : te.sum(A[k] * scale(), axis=k), name="C")
+        D = te.compute((), lambda : C() + 1)
+        s = te.create_schedule(D.op)
         # build and invoke the kernel.
         f = tvm.build(s, [A, scale, D], "llvm")
         ctx = tvm.cpu(0)
@@ -390,13 +391,13 @@ def test_rank_zero_bound_checkers():
     def check_llvm(n):
         if not tvm.runtime.enabled("llvm"):
             return
-        with tvm.build_config(instrument_bound_checkers=True):
-            A = tvm.placeholder((n, ), name='A')
-            scale = tvm.placeholder((), name='scale')
-            k = tvm.reduce_axis((0, n), name="k")
-            C = tvm.compute((), lambda : tvm.sum(A[k] * scale(), axis=k), name="C")
-            D = tvm.compute((), lambda : C() + 1)
-            s = tvm.create_schedule(D.op)
+        with tvm.target.build_config(instrument_bound_checkers=True):
+            A = te.placeholder((n, ), name='A')
+            scale = te.placeholder((), name='scale')
+            k = te.reduce_axis((0, n), name="k")
+            C = te.compute((), lambda : te.sum(A[k] * scale(), axis=k), name="C")
+            D = te.compute((), lambda : C() + 1)
+            s = te.create_schedule(D.op)
             # build and invoke the kernel.
             f = tvm.build(s, [A, scale, D], "llvm")
             ctx = tvm.cpu(0)
@@ -412,10 +413,10 @@ def test_rank_zero_bound_checkers():
 
 
 def test_alignment():
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda i: A[i] * 3, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda i: A[i] * 3, name='B')
+    s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=8)
     s[B].vectorize(tx)
     f = tvm.build(s, [A, B], "llvm")
@@ -427,26 +428,26 @@ def test_alignment():
 def test_llvm_div():
     """Check that the semantics of div and mod is correct"""
     def check(start, end, dstart, dend, dtype, floor_div=False):
-        div = tvm.floordiv if floor_div else tvm.truncdiv
-        mod = tvm.floormod if floor_div else tvm.truncmod
+        div = tvm.te.floordiv if floor_div else tvm.tir.truncdiv
+        mod = tvm.te.floormod if floor_div else tvm.tir.truncmod
 
         # A are dividends, B are divisors. Note that we add 1 to make include end in the range.
-        A = tvm.placeholder((end - start + 1,), name="A", dtype=dtype)
-        B = tvm.placeholder((dend - dstart + 1,), name="B", dtype=dtype)
+        A = te.placeholder((end - start + 1,), name="A", dtype=dtype)
+        B = te.placeholder((dend - dstart + 1,), name="B", dtype=dtype)
         # We clip values with min and max so that simplifiers know the ranges of values
-        clipa = lambda x: tvm.min(tvm.const(end, dtype), tvm.max(tvm.const(start, dtype), x))
-        clipb = lambda x: tvm.min(tvm.const(dend, dtype), tvm.max(tvm.const(dstart, dtype), x))
+        clipa = lambda x: tvm.te.min(tvm.tir.const(end, dtype), tvm.te.max(tvm.tir.const(start, dtype), x))
+        clipb = lambda x: tvm.te.min(tvm.tir.const(dend, dtype), tvm.te.max(tvm.tir.const(dstart, dtype), x))
         # If the range is just a single point, use the constant itself
         if start == end:
-            clipa = lambda x: tvm.const(start, dtype)
+            clipa = lambda x: tvm.tir.const(start, dtype)
         if dstart == dend:
-            clipb = lambda x: tvm.const(dstart, dtype)
+            clipb = lambda x: tvm.tir.const(dstart, dtype)
         # D are division results and M are modulo results
-        [D, M] = tvm.compute((end - start + 1, dend - dstart + 1),
+        [D, M] = te.compute((end - start + 1, dend - dstart + 1),
                              lambda i, j: (div(clipa(A[i]), clipb(B[j])),
                                           mod(clipa(A[i]), clipb(B[j]))))
 
-        s = tvm.create_schedule([D.op, M.op])
+        s = te.create_schedule([D.op, M.op])
         f = tvm.build(s, [A, B, D, M], "llvm")
 
         # Fill input arrays with values
@@ -525,10 +526,10 @@ def test_llvm_div():
 
 def test_llvm_fp_math():
     def check_llvm_reciprocal(n):
-        A = tvm.placeholder((n,), name='A')
-        B = tvm.compute((n,), lambda i: tvm.div(1.0,(1e+37*A[i])), name='B')
+        A = te.placeholder((n,), name='A')
+        B = te.compute((n,), lambda i: te.div(1.0,(1e+37*A[i])), name='B')
 
-        s = tvm.create_schedule(B.op)
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm")
 
         a = tvm.nd.array(np.full((n,), 100, 'float32'))
@@ -541,10 +542,10 @@ def test_llvm_fp_math():
     check_llvm_reciprocal(16)
 
     def check_llvm_sigmoid(n):
-        A = tvm.placeholder((n,), name='A')
-        B = tvm.compute((n,), lambda i: tvm.sigmoid(A[i]), name='B')
+        A = te.placeholder((n,), name='A')
+        B = te.compute((n,), lambda i: te.sigmoid(A[i]), name='B')
 
-        s = tvm.create_schedule(B.op)
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], "llvm")
 
         a = tvm.nd.array(np.full((n,), -1000, 'float32'))
@@ -559,11 +560,11 @@ def test_llvm_fp_math():
 
 def test_dwarf_debug_information():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     s[C].parallel(xo)
     s[C].vectorize(xi)
@@ -634,27 +635,27 @@ def test_dwarf_debug_information():
 
 
 def test_llvm_shuffle():
-    a = tvm.placeholder((8, ), 'int32')
-    b = tvm.placeholder((8, ), 'int32')
-    c = tvm.compute((8, ), lambda x: a[x] + b[7-x])
-    sch = tvm.create_schedule(c.op)
+    a = te.placeholder((8, ), 'int32')
+    b = te.placeholder((8, ), 'int32')
+    c = te.compute((8, ), lambda x: a[x] + b[7-x])
+    sch = te.create_schedule(c.op)
 
     def my_vectorize(stmt):
 
         def vectorizer(op):
             store = op.body
-            idx = tvm.tir.Ramp(tvm.const(0, 'int32'), tvm.const(1, 'int32'), 8)
-            all_ones = tvm.const(1, 'int32x8')
+            idx = tvm.tir.Ramp(tvm.tir.const(0, 'int32'), tvm.tir.const(1, 'int32'), 8)
+            all_ones = tvm.tir.const(1, 'int32x8')
             value = store.value
-            b_idx = tvm.tir.Shuffle([idx], [tvm.const(i, 'int32') for i in range(7, -1, -1)])
+            b_idx = tvm.tir.Shuffle([idx], [tvm.tir.const(i, 'int32') for i in range(7, -1, -1)])
             new_a = tvm.tir.Load('int32x8', value.a.buffer_var, idx, all_ones)
             new_b = tvm.tir.Load('int32x8', value.b.buffer_var, b_idx, all_ones)
             value = new_a + new_b
             return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
 
-        return tvm.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 
-    with tvm.build_config(add_lower_pass=[(1, my_vectorize)]):
+    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
         a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))
