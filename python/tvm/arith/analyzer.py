@@ -212,7 +212,7 @@ class Analyzer:
         --------
         .. code-block:: python
 
-          x = tvm.var("x")
+          x = te.var("x")
           analyzer = tvm.arith.Analyzer()
           with analzyer.constraint_scope(x % 3 == 0):
               # constraint in effect

@@ -15,23 +15,24 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 import unittest
 
-tx = tvm.thread_axis("threadIdx.x")
-ty = tvm.thread_axis("threadIdx.y")
-bx = tvm.thread_axis("blockIdx.x")
-by = tvm.thread_axis("blockIdx.y")
+tx = te.thread_axis("threadIdx.x")
+ty = te.thread_axis("threadIdx.y")
+bx = te.thread_axis("blockIdx.x")
+by = te.thread_axis("blockIdx.y")
 
 @unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
 def test_rocm_cross_thread_reduction():
     # based on the reduction tutorial
-    n = tvm.size_var("n")
-    m = tvm.size_var("m")
-    A = tvm.placeholder((n, m), name='A')
-    k = tvm.reduce_axis((0, m), "k")
-    B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
-    s = tvm.create_schedule(B.op)
+    n = te.size_var("n")
+    m = te.size_var("m")
+    A = te.placeholder((n, m), name='A')
+    k = te.reduce_axis((0, m), "k")
+    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
+    s = te.create_schedule(B.op)
     ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
     BF = s.rfactor(B, ki)
     xo, xi = s[B].split(s[B].op.axis[0], factor=32)
@@ -54,10 +55,10 @@ def test_rocm_cross_thread_reduction():
 @unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
 def test_rocm_inf_nan():
     def check_inf_nan(ctx, n, value, dtype):
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
-        inf_value = tvm.const(value, dtype=dtype)
-        C = tvm.compute((n,), lambda i: inf_value, name='C')
-        s = tvm.create_schedule(C.op)
+        A = te.placeholder((n,), name='A', dtype=dtype)
+        inf_value = tvm.tir.const(value, dtype=dtype)
+        C = te.compute((n,), lambda i: inf_value, name='C')
+        s = te.create_schedule(C.op)
         s[C].bind(s[C].op.axis[0], tx)
         fun = tvm.build(s, [A, C], "rocm")
         a = tvm.nd.empty((n,), A.dtype, ctx)
@@ -76,12 +77,12 @@ def test_rocm_inf_nan():
 
 @unittest.skipIf(not tvm.rocm(0).exist or not tvm.runtime.enabled("rocm"), "skip because rocm is not enabled..")
 def test_rocm_reducition_binding():
-    k = tvm.reduce_axis((0, 32), 'k')
-    A = tvm.placeholder((96, 32), name='A')
-    B = tvm.compute( (96,), lambda m:
-                     tvm.sum(A[m, k], axis=k),
+    k = te.reduce_axis((0, 32), 'k')
+    A = te.placeholder((96, 32), name='A')
+    B = te.compute( (96,), lambda m:
+                     te.sum(A[m, k], axis=k),
                      name='B')
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
 
     s[B].reorder(B.op.reduce_axis[0], B.op.axis[0])
 
@@ -92,7 +93,7 @@ def test_rocm_reducition_binding():
 def test_rocm_copy():
 
     def check_rocm(dtype, n):
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        A = te.placeholder((n,), name='A', dtype=dtype)
         ctx = tvm.rocm(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(a_np)
@@ -111,9 +112,9 @@ def test_rocm_vectorize_add():
     num_thread = 8
 
     def check_rocm(dtype, n, lanes):
-        A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = tvm.compute((n,), lambda i: A[i]+tvm.const(1, A.dtype), name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
+        B = te.compute((n,), lambda i: A[i]+tvm.tir.const(1, A.dtype), name='B')
+        s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)

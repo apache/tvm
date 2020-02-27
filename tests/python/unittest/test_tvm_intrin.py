@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 from tvm.contrib import util, clang
 import numpy as np
@@ -23,10 +24,10 @@ import math
 
 
 def test_nearbyint():
-    m = tvm.var("m",)
-    A = tvm.placeholder((m,), name='A')
-    A_rounded = tvm.compute((m,), lambda *i: tvm.nearbyint(A(*i)), name='A')
-    s = tvm.create_schedule(A_rounded.op)
+    m = te.var("m",)
+    A = te.placeholder((m,), name='A')
+    A_rounded = te.compute((m,), lambda *i: tvm.tir.nearbyint(A(*i)), name='A')
+    s = te.create_schedule(A_rounded.op)
     f = tvm.build(s, [A, A_rounded], "llvm")
     ctx = tvm.cpu(0)
     n = 10

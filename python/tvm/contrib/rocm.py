@@ -18,11 +18,13 @@
 import subprocess
 from os.path import join, exists
 
+import tvm._ffi
 from tvm._ffi.base import py_str
+import tvm.runtime
 import tvm.target
 
 from . import util
-from ..api import register_func, convert
+
 
 def find_lld(required=True):
     """Find ld.lld in system.
@@ -85,7 +87,7 @@ def rocm_link(in_file, out_file, lld=None):
         raise RuntimeError(msg)
 
 
-@register_func("tvm_callback_rocm_link")
+@tvm._ffi.register_func("tvm_callback_rocm_link")
 def callback_rocm_link(obj_bin):
     """Links object file generated from LLVM to HSA Code Object
 
@@ -108,7 +110,7 @@ def callback_rocm_link(obj_bin):
     cobj_bin = bytearray(open(tmp_cobj, "rb").read())
     return cobj_bin
 
-@register_func("tvm_callback_rocm_bitcode_path")
+@tvm._ffi.register_func("tvm_callback_rocm_bitcode_path")
 def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
     """Utility function to find ROCm device library bitcodes
 
@@ -138,4 +140,4 @@ def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
         "oclc_wavefrontsize64_on.amdgcn.bc"
     ]
     paths = [join(rocdl_dir, bitcode) for bitcode in bitcode_files]
-    return convert([path for path in paths if exists(path)])
+    return tvm.runtime.convert([path for path in paths if exists(path)])

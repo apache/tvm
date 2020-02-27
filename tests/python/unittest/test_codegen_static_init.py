@@ -15,24 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import ctypes
 import numpy as np
 
 def test_static_callback():
     dtype = 'int64'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.size_var('i')
-    ib = tvm.ir_builder.create()
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
+    i = te.size_var('i')
+    ib = tvm.tir.ir_builder.create()
     A = ib.buffer_ptr(Ab)
-    cp = tvm.thread_axis((0, 1), "cop")
+    cp = te.thread_axis((0, 1), "cop")
     finit = tvm.tir.StringImm("TVMBackendRunOnce")
     ib.scope_attr(cp, "coproc_uop_scope", finit)
     with ib.for_range(0, n, "i", for_type="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
-    fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
+    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     f = tvm.target.codegen.build_module(fapi, "llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
@@ -41,13 +42,13 @@ def test_static_callback():
 
 def test_static_init():
     dtype = 'int64'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
-    i = tvm.size_var('i')
-    ib = tvm.ir_builder.create()
-    handle = tvm.call_intrin("handle", "tvm_static_handle")
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
+    i = te.size_var('i')
+    ib = tvm.tir.ir_builder.create()
+    handle = tvm.tir.call_intrin("handle", "tvm_static_handle")
     ib.emit(
-        tvm.call_packed("test_static_callback", handle, Ab))
+        tvm.tir.call_packed("test_static_callback", handle, Ab))
 
     @tvm.register_func("test_static_callback")
     def test_cb(sh, A):
@@ -55,8 +56,8 @@ def test_static_init():
         return sh
 
     stmt = ib.get()
-    fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
+    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     f = tvm.target.codegen.build_module(fapi, "llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)

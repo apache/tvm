@@ -25,7 +25,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 
 .. code-block:: python
 
-  x = tvm.var("n")
+  x = te.var("n")
   y = x + 2
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
@@ -169,7 +169,7 @@ class ExprOp(object):
 
     def __nonzero__(self):
         raise ValueError("Cannot use and / or / not operator to Expr, hint: " +
-                         "use tvm.all / tvm.any instead")
+                         "use tvm.tir.all / tvm.tir.any instead")
 
     def __bool__(self):
         return self.__nonzero__()
@@ -346,8 +346,8 @@ class IterVar(Object, ExprOp):
 
     See Also
     --------
-    tvm.thread_axis: Create thread axis IterVar.
-    tvm.reduce_axis: Create reduce axis IterVar.
+    te.thread_axis: Create thread axis IterVar.
+    te.reduce_axis: Create reduce axis IterVar.
     """
     DataPar = 0
     ThreadIndex = 1
@@ -812,7 +812,7 @@ class Select(PrimExprWithOp):
     Note
     ----
     Select may compute both true_value and false_value.
-    Use :py:class:`tvm.if_then_else` instead if you want to
+    Use :py:class:`tvm.tir.if_then_else` instead if you want to
     get a conditional expression that only evaluates
     the correct branch.
 

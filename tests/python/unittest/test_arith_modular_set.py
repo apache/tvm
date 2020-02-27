@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 
 def test_cast():
     analyzer = tvm.arith.Analyzer()
-    x = tvm.var("x", dtype="int8")
+    x = te.var("x", dtype="int8")
     m = analyzer.modular_set((x * 3).astype("uint32"))
     assert m.coeff == 3
     assert m.base == 0
@@ -31,7 +32,7 @@ def test_cast():
 
 def test_add_sub():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x", "int64"), tvm.var("y", "int64")
+    x, y = te.var("x", "int64"), te.var("y", "int64")
     m = analyzer.modular_set(x * 6 + y * 4)
     assert m.coeff == 2
     assert m.base == 0
@@ -44,7 +45,7 @@ def test_add_sub():
 
 def test_mul():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
     m = analyzer.modular_set((x * 4 + 2) * (y * 6 + 1))
     assert m.coeff == 4
     assert m.base == 2
@@ -52,9 +53,9 @@ def test_mul():
 
 def test_div_shift():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
     # not sure if x is non-negative
-    tdiv = tvm.truncdiv
+    tdiv = tvm.tir.truncdiv
     m = analyzer.modular_set(tdiv(x * 4 + 2, 2))
     assert m.coeff == 1
     assert m.base == 0
@@ -62,7 +63,7 @@ def test_div_shift():
     m = analyzer.modular_set((x * 4 + 2) >> 1)
     assert m.coeff == 2
     assert m.base == 1
-    fld = tvm.floordiv
+    fld = tvm.te.floordiv
     m = analyzer.modular_set(fld(x * 4 + 2, 2))
     assert m.coeff == 2
     assert m.base == 1
@@ -75,12 +76,12 @@ def test_div_shift():
 
 def test_min_max_select():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
-    m = analyzer.modular_set(tvm.min(x * 3, y * 9))
+    x, y = te.var("x"), te.var("y")
+    m = analyzer.modular_set(tvm.te.min(x * 3, y * 9))
     assert m.coeff == 3
     assert m.base == 0
 
-    m = analyzer.modular_set(tvm.max(x * 3 + 1, y * 9 + 4))
+    m = analyzer.modular_set(tvm.te.max(x * 3 + 1, y * 9 + 4))
     assert m.coeff == 3
     assert m.base == 1
 
@@ -90,10 +91,10 @@ def test_min_max_select():
 
 
 def test_mix_index():
-    a = tvm.var("a")
-    b = tvm.var("b")
+    a = te.var("a")
+    b = te.var("b")
     analyzer = tvm.arith.Analyzer()
-    tdiv = tvm.truncdiv
+    tdiv = tvm.tir.truncdiv
     m = analyzer.modular_set(a * 4 + b * 6 + 7)
     assert m.coeff == 2
     assert m.base == 1
@@ -114,16 +115,16 @@ def test_mix_index():
     assert m.coeff == 3
     assert m.base == 2
 
-    m = analyzer.modular_set(a * 12 + tvm.min(b * 3 * 7, 2))
+    m = analyzer.modular_set(a * 12 + tvm.te.min(b * 3 * 7, 2))
     assert m.coeff == 1
     assert m.base == 0
 
 
 def test_constraint_scope():
-    a = tvm.var("a")
-    b = tvm.var("b")
+    a = te.var("a")
+    b = te.var("b")
     analyzer = tvm.arith.Analyzer()
-    tmod = tvm.truncmod
+    tmod = tvm.tir.truncmod
 
     with analyzer.constraint_scope(tmod(b, 4) == 2):
         m = analyzer.modular_set(b + 1)
@@ -142,9 +143,9 @@ def test_constraint_scope():
     assert m.base == 0
 
 def test_intersect():
-    a = tvm.var("a")
+    a = te.var("a")
     analyzer = tvm.arith.Analyzer()
-    tmod = tvm.truncmod
+    tmod = tvm.tir.truncmod
     with analyzer.constraint_scope(tmod(a, 4) == 1):
         with analyzer.constraint_scope(tmod(a, 3) == 1):
             m = analyzer.modular_set(a)

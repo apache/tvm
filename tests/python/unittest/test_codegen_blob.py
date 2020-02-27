@@ -20,6 +20,7 @@ from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import graph_runtime
 import tvm
+from tvm import te
 import ctypes
 
 def test_resnet18():
@@ -74,13 +75,13 @@ def test_system_lib():
             print("skip because %s is not enabled..." % device)
             return
     nn = 12
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
     bx, tx = s[B].split(B.op.axis[0], factor=4)
-    s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[B].bind(bx, te.thread_axis("blockIdx.x"))
+    s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
     from tvm.contrib import util
     temp = util.tempdir()

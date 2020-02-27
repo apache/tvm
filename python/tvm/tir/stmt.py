@@ -23,8 +23,8 @@ Each statement node have subfields that can be visited from python side.
 
 .. code-block:: python
 
-    x = tvm.var("n")
-    a = tvm.var("array", tvm.handle)
+    x = te.var("n")
+    a = te.var("array", "handle")
     st = tvm.tir.stmt.Store(a, x + 1, 1)
     assert isinstance(st, tvm.tir.stmt.Store)
     assert(st.buffer_var == a)
