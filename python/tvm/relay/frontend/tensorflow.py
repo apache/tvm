@@ -2187,8 +2187,16 @@ class GraphProto(object):
         missing_operators = self._parse_import_prerequisites(graph)
 
         if missing_operators:
-            raise NotImplementedError( \
-                "The following operators are not implemented: {}".format(missing_operators))
+            # TODO: ReadVariableOp gets removed when graph is frozen.
+            # Add list of other operators as well which get removed
+            # and are not needed for inference.
+            # Other approach is instead of raising error, we can freeze the graph.
+            if 'ReadVariableOp' in missing_operators:
+                raise Exception("Found ReadVariableOp operator in the graph. "
+                                "Graph is not frozen. Provide a frozen graph.")
+            else:
+                raise NotImplementedError( \
+                    "The following operators are not implemented: {}".format(missing_operators))
 
         control_flow_node_map = defaultdict(set)
         for node in graph.node:
