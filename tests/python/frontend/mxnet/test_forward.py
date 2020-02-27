@@ -201,6 +201,12 @@ def test_forward_ones_like():
     mx_sym = mx.sym.ones_like(data, dtype='float32')
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
 
+def test_forward_make_loss():
+    data = mx.sym.var('data')
+    ones = mx.sym.ones(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.make_loss((data-ones)**2/2, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
 def test_forward_zeros_like():
     data = mx.sym.var('data')
     mx_sym = mx.sym.zeros_like(data, dtype='float32')
@@ -997,3 +1003,4 @@ if __name__ == '__main__':
     test_forward_convolution()
     test_forward_deconvolution()
     test_forward_cond()
+    test_forward_make_loss()

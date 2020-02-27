@@ -644,6 +644,13 @@ def _mx_arange(inputs, attrs):
     return _op.arange(**new_attrs)
 
 
+# pylint: disable=unused-argument
+def _mx_make_loss(inputs, attrs):
+    # while doing inference make_loss does not have any effect
+    # and it should be mapped to identity
+    return inputs[0]
+
+
 def _mx_repeat(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
@@ -1822,6 +1829,7 @@ _convert_map = {
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
+    "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
     "one_hot"           : _mx_one_hot,
     # vision
