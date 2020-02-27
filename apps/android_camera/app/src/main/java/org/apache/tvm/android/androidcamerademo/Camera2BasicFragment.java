@@ -17,48 +17,43 @@
 
 package org.apache.tvm.android.androidcamerademo;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.content.Context;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
-import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
-import android.graphics.Matrix;
-import android.graphics.Point;
-import android.graphics.RectF;
-import android.graphics.SurfaceTexture;
-import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraCaptureSession;
-import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CameraDevice;
-import android.hardware.camera2.CameraManager;
-import android.hardware.camera2.CaptureRequest;
-import android.hardware.camera2.CaptureResult;
-import android.hardware.camera2.TotalCaptureResult;
-import android.hardware.camera2.params.StreamConfigurationMap;
-import android.media.ImageReader;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.media.Image;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.Size;
 import android.view.LayoutInflater;
-import android.view.Surface;
-import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
-import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.widget.AppCompatTextView;
+import androidx.camera.core.Camera;
+import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
+import androidx.camera.core.Preview;
+import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+
+import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.tvm.Function;
 import org.apache.tvm.Module;
@@ -67,28 +62,25 @@ import org.apache.tvm.TVMContext;
 import org.apache.tvm.TVMType;
 import org.apache.tvm.TVMValue;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Vector;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class Camera2BasicFragment extends Fragment implements
         ActivityCompat.OnRequestPermissionsResultCallback {
-    private static final String TAG = MainActivity.class.getSimpleName();
-
-    private static final String HANDLE_THREAD_NAME = "CameraBackground";
+    private static final String TAG = Camera2BasicFragment.class.getSimpleName();
     private static final int PERMISSIONS_REQUEST_CODE = 1;
-    private static final int MAX_PREVIEW_WIDTH = 1920;
-    private static final int MAX_PREVIEW_HEIGHT = 1080;
     // TVM constants
     private static final int OUTPUT_INDEX = 0;
     private static final int IMG_CHANNEL = 3;
@@ -107,164 +99,28 @@ public class Camera2BasicFragment extends Fragment implements
     private static final String MODEL_LABEL_FILE = "file:///android_asset/imagenet.txt";
     private static String[] MODELS;
     private static String mCurModel = "";
-    private final Object lock = new Object();
     private boolean mRunClassifier = false;
     private int[] mRGBValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
     private float[] mCHW = new float[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * IMG_CHANNEL];
-
-    //private PreviewCallback mPreviewCallback;
-    private String mCameraId;
+    private Semaphore isProcessingDone = new Semaphore(1);
     private boolean mCheckedPermissions = false;
-    private CaptureRequest.Builder mPreviewRequestBuilder;
-    private CaptureRequest mPreviewRequest;
-
-    private Semaphore mCameraOpenCloseLock = new Semaphore(1);
-    private CameraDevice mCameraDevice;
-    private CameraCaptureSession mCaptureSession;
-    private Size mPreviewSize;
-    private CameraCaptureSession.CaptureCallback mCaptureCallback =
-            new CameraCaptureSession.CaptureCallback() {
-
-                @Override
-                public void onCaptureProgressed(
-                        @NonNull CameraCaptureSession session,
-                        @NonNull CaptureRequest request,
-                        @NonNull CaptureResult partialResult) {
-                }
-
-                @Override
-                public void onCaptureCompleted(
-                        @NonNull CameraCaptureSession session,
-                        @NonNull CaptureRequest request,
-                        @NonNull TotalCaptureResult result) {
-                }
-            };
-
-    private Handler mBackgroundHandler;
-
-    private AutoFitTextureView mAutoFitTextureView;
-    private final CameraDevice.StateCallback mStateCallback =
-            new CameraDevice.StateCallback() {
-
-                @Override
-                public void onOpened(@NonNull CameraDevice currentCameraDevice) {
-                    mCameraOpenCloseLock.release();
-                    mCameraDevice = currentCameraDevice;
-                    createCameraPreviewSession();
-                }
-
-                @Override
-                public void onDisconnected(@NonNull CameraDevice currentCameraDevice) {
-                    mCameraOpenCloseLock.release();
-                    currentCameraDevice.close();
-                    mCameraDevice = null;
-                }
-
-                @Override
-                public void onError(@NonNull CameraDevice currentCameraDevice, int error) {
-                    mCameraOpenCloseLock.release();
-                    currentCameraDevice.close();
-                    mCameraDevice = null;
-                    Activity activity = getActivity();
-                    if (activity != null)
-                        activity.finish();
-                }
-
-            };
-    // tflite style
-    private final TextureView.SurfaceTextureListener mSurfaceTextureListener =
-            new TextureView.SurfaceTextureListener() {
-
-                @Override
-                public void onSurfaceTextureAvailable(SurfaceTexture texture, int width, int height) {
-                    System.err.println("surface texture available...");
-                    openCamera(width, height);
-                }
-
-                @Override
-                public void onSurfaceTextureSizeChanged(SurfaceTexture texture, int width, int height) {
-                    System.err.println("surface texture size changed...");
-                    configureTransform(width, height);
-                }
-
-                @Override
-                public boolean onSurfaceTextureDestroyed(SurfaceTexture texture) {
-                    return true;
-                }
-
-                @Override
-                public void onSurfaceTextureUpdated(SurfaceTexture texture) {
-                }
-            };
-    private TextView mResultView;
-    private TextView mInfoView;
+    private AppCompatTextView mResultView;
+    private AppCompatTextView mInfoView;
     private ListView mModelView;
     private AssetManager assetManager;
     private Module graphRuntimeModule;
     private Vector<String> labels = new Vector<String>();
-    private Runnable mPeriodicClassify =
-            new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (lock) {
-                        if (mRunClassifier) {
-                            long t1 = SystemClock.uptimeMillis();
-                            float[] chw = getFrame();
-                            long t2 = SystemClock.uptimeMillis();
-                            String[] results = inference(chw);
-                            long t3 = SystemClock.uptimeMillis();
-                            String msg = "";
-                            for (int l = 1; l < 5; l++) {
-                                msg = msg + results[l] + "\n";
-                            }
-                            msg += "getFrame(): " + (t2 - t1) + "ms" + "\n";
-                            msg += "inference(): " + (t3 - t2) + "ms" + "\n";
-
-                            mResultView.setText("model: " + mCurModel + "\n" + results[0]);
-                            mInfoView.setText(msg);
-                        }
-                    }
-                    mBackgroundHandler.post(mPeriodicClassify);
-                }
-            };
-
-    private static Size chooseOptimalSize(
-            Size[] choices,
-            int textureViewWidth,
-            int textureViewHeight,
-            int maxWidth,
-            int maxHeight,
-            Size aspectRatio) {
-
-        // Collect the supported resolutions that are at least as big as the preview Surface
-        List<Size> bigEnough = new ArrayList<>();
-        // Collect the supported resolutions that are smaller than the preview Surface
-        List<Size> notBigEnough = new ArrayList<>();
-        int w = aspectRatio.getWidth();
-        int h = aspectRatio.getHeight();
-        for (Size option : choices) {
-            if (option.getWidth() <= maxWidth
-                    && option.getHeight() <= maxHeight
-                    && option.getHeight() == option.getWidth() * h / w) {
-                if (option.getWidth() >= textureViewWidth && option.getHeight() >= textureViewHeight) {
-                    bigEnough.add(option);
-                } else {
-                    notBigEnough.add(option);
-                }
-            }
-        }
-
-        // Pick the smallest of those big enough. If there is no one big enough, pick the
-        // largest of those not big enough.
-        if (bigEnough.size() > 0) {
-            return Collections.min(bigEnough, new CompareSizesByArea());
-        } else if (notBigEnough.size() > 0) {
-            return Collections.max(notBigEnough, new CompareSizesByArea());
-        } else {
-            Log.e(TAG, "Couldn't find any suitable preview size");
-            return choices[0];
-        }
-    }
+    private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
+    private PreviewView previewView;
+    private Camera camera;
+    private ImageAnalysis imageAnalysis;
+    private ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
+            3,
+            3,
+            1,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>()
+    );
 
     public static Camera2BasicFragment newInstance() {
         return new Camera2BasicFragment();
@@ -283,7 +139,7 @@ public class Camera2BasicFragment extends Fragment implements
             System.err.println("asset: " + asset);
             // hack
             // hack
-            if (asset.contains("deploy_lib"))           {
+            if (asset.contains("deploy_lib")) {
                 modelAssets.add(asset);
             }
         }
@@ -293,189 +149,6 @@ public class Camera2BasicFragment extends Fragment implements
         modelAssetsArray[modelAssets.size() - 1] = modelAssetsArray[0];
         modelAssetsArray[0] = tmp;
         return modelAssetsArray;
-    }
-
-    private void createCameraPreviewSession() {
-        try {
-            SurfaceTexture texture = mAutoFitTextureView.getSurfaceTexture();
-            assert texture != null;
-
-            // We configure the size of default buffer to be the size of camera preview we want.
-            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-
-            // This is the output Surface we need to start preview.
-            Surface surface = new Surface(texture);
-
-            // We set up a CaptureRequest.Builder with the output Surface.
-            mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-            mPreviewRequestBuilder.addTarget(surface);
-
-            // Here, we create a CameraCaptureSession for camera preview.
-            mCameraDevice.createCaptureSession(
-                    Arrays.asList(surface),
-                    new CameraCaptureSession.StateCallback() {
-
-                        @Override
-                        public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                            // The camera is already closed
-                            if (null == mCameraDevice) {
-                                return;
-                            }
-
-                            // When the session is ready, we start displaying the preview.
-                            mCaptureSession = cameraCaptureSession;
-                            try {
-                                // Auto focus should be continuous for camera preview.
-                                mPreviewRequestBuilder.set(
-                                        CaptureRequest.CONTROL_AF_MODE,
-                                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-
-                                // Finally, we start displaying the camera preview.
-                                mPreviewRequest = mPreviewRequestBuilder.build();
-                                mCaptureSession.setRepeatingRequest(
-                                        mPreviewRequest, mCaptureCallback, mBackgroundHandler);
-                            } catch (CameraAccessException e) {
-                                Log.e(TAG, "Failed to set up config to capture Camera", e);
-                            }
-                        }
-
-                        @Override
-                        public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                            Log.e(TAG, "onConfigureFailed.");
-                        }
-                    },
-                    null);
-        } catch (CameraAccessException e) {
-            Log.e(TAG, "Failed to preview Camera", e);
-        }
-    }
-
-    private void setUpCameraOutputs(int width, int height) {
-        Activity activity = getActivity();
-        CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
-        try {
-            for (String cameraId : manager.getCameraIdList()) {
-                System.err.println("id: " + cameraId);
-                CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
-
-                // We don't use a front facing camera in this sample.
-                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
-                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
-                    continue;
-                }
-
-                StreamConfigurationMap map =
-                        characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-                if (map == null) {
-                    continue;
-                }
-                System.err.println("map");
-                // // For still image captures, we use the largest available size.
-                Size largest =
-                        Collections.max(
-                                Arrays.asList(map.getOutputSizes(ImageFormat.JPEG)), new CompareSizesByArea());
-                ImageReader.newInstance(
-                        largest.getWidth(), largest.getHeight(), ImageFormat.JPEG, /*maxImages*/ 2);
-
-                // Find out if we need to swap dimension to get the preview size relative to sensor
-                // coordinate.
-                int displayRotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-                // noinspection ConstantConditions
-                /* Orientation of the camera sensor */
-                int sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-                boolean swappedDimensions = false;
-                switch (displayRotation) {
-                    case Surface.ROTATION_0:
-                    case Surface.ROTATION_180:
-                        if (sensorOrientation == 90 || sensorOrientation == 270) {
-                            swappedDimensions = true;
-                        }
-                        break;
-                    case Surface.ROTATION_90:
-                    case Surface.ROTATION_270:
-                        if (sensorOrientation == 0 || sensorOrientation == 180) {
-                            swappedDimensions = true;
-                        }
-                        break;
-                    default:
-                        Log.e(TAG, "Display rotation is invalid: " + displayRotation);
-                }
-
-                Point displaySize = new Point();
-                System.err.println("point");
-                activity.getWindowManager().getDefaultDisplay().getSize(displaySize);
-                int rotatedPreviewWidth = width;
-                int rotatedPreviewHeight = height;
-                int maxPreviewWidth = displaySize.x;
-                int maxPreviewHeight = displaySize.y;
-
-                if (swappedDimensions) {
-                    rotatedPreviewWidth = height;
-                    rotatedPreviewHeight = width;
-                    maxPreviewWidth = displaySize.y;
-                    maxPreviewHeight = displaySize.x;
-                }
-
-                if (maxPreviewWidth > MAX_PREVIEW_WIDTH) {
-                    maxPreviewWidth = MAX_PREVIEW_WIDTH;
-                }
-
-                if (maxPreviewHeight > MAX_PREVIEW_HEIGHT) {
-                    maxPreviewHeight = MAX_PREVIEW_HEIGHT;
-                }
-
-                mPreviewSize =
-                        chooseOptimalSize(
-                                map.getOutputSizes(SurfaceTexture.class),
-                                rotatedPreviewWidth,
-                                rotatedPreviewHeight,
-                                maxPreviewWidth,
-                                maxPreviewHeight,
-                                largest);
-                System.err.println("optimal size...");
-                // We fit the aspect ratio of TextureView to the size of preview we picked.
-                int orientation = getResources().getConfiguration().orientation;
-                if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                    mAutoFitTextureView.setAspectRatio(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-                } else {
-                    mAutoFitTextureView.setAspectRatio(mPreviewSize.getHeight(), mPreviewSize.getWidth());
-                }
-                this.mCameraId = cameraId;
-                return;
-            }
-        } catch (CameraAccessException e) {
-            Log.e(TAG, "Failed to access Camera", e);
-        } catch (NullPointerException e) {
-            // Currently an NPE is thrown when the Camera2API is used but not supported on the
-            // device this code runs.
-            e.printStackTrace();
-            System.err.println("NPE Camera2API");
-        }
-    }
-
-    private void openCamera(int width, int height) {
-        if (!mCheckedPermissions && !allPermissionsGranted()) {
-            requestPermissions(getRequiredPermissions(), PERMISSIONS_REQUEST_CODE);
-            return;
-        } else {
-            mCheckedPermissions = true;
-        }
-        setUpCameraOutputs(width, height);
-        configureTransform(width, height);
-        Activity activity = getActivity();
-        CameraManager manager = (CameraManager) activity.getSystemService(Context.CAMERA_SERVICE);
-        try {
-            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
-                throw new RuntimeException("Time out waiting to lock camera opening.");
-            }
-            manager.openCamera(mCameraId, mStateCallback, mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            Log.e(TAG, "Failed to open Camera", e);
-        } catch (SecurityException e) {
-            Log.e(TAG, "Failed to open Camera (security)", e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while trying to lock camera opening.", e);
-        }
     }
 
     private String[] inference(float[] chw) {
@@ -537,7 +210,6 @@ public class Camera2BasicFragment extends Fragment implements
         } else {
             mCheckedPermissions = true;
         }
-        mAutoFitTextureView = view.findViewById(R.id.textureView);
         mResultView = view.findViewById(R.id.resultTextView);
         mInfoView = view.findViewById(R.id.infoTextView);
         mModelView = view.findViewById(R.id.modelListView);
@@ -553,26 +225,12 @@ public class Camera2BasicFragment extends Fragment implements
                 new ArrayAdapter<>(
                         getContext(), R.layout.listview_row, R.id.listview_row_text, MODELS);
         mModelView.setAdapter(modelAdapter);
-        mModelView.setItemChecked(0, true);
+        mModelView.setItemChecked(1, true);
         mModelView.setOnItemClickListener(
                 (parent, view1, position, id) -> updateActiveModel());
 
         new LoadModelAsyncTask().execute();
         System.err.println("view created...");
-    }
-
-    /**
-     * Starts a background thread and its {@link Handler}.
-     */
-    private void startBackgroundThread() {
-        HandlerThread mBackgroundThread = new HandlerThread(HANDLE_THREAD_NAME);
-        mBackgroundThread.start();
-        mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
-        // Start the classification train & load an initial model.
-        synchronized (lock) {
-            mRunClassifier = true;
-        }
-        mBackgroundHandler.post(mPeriodicClassify);
     }
 
     @Override
@@ -585,12 +243,6 @@ public class Camera2BasicFragment extends Fragment implements
     public void onResume() {
         super.onResume();
         System.err.println("on resume...");
-        if (mAutoFitTextureView.isAvailable()) {
-            System.err.println("autofittextureview available...");
-            openCamera(mAutoFitTextureView.getWidth(), mAutoFitTextureView.getHeight());
-        } else {
-            mAutoFitTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
-        }
     }
 
     @Override
@@ -650,8 +302,8 @@ public class Camera2BasicFragment extends Fragment implements
         Activity activity = getActivity();
         try {
             PackageInfo info = activity
-                            .getPackageManager()
-                            .getPackageInfo(activity.getPackageName(), PackageManager.GET_PERMISSIONS);
+                    .getPackageManager()
+                    .getPackageInfo(activity.getPackageName(), PackageManager.GET_PERMISSIONS);
             String[] ps = info.requestedPermissions;
             if (ps != null && ps.length > 0) {
                 return ps;
@@ -663,10 +315,37 @@ public class Camera2BasicFragment extends Fragment implements
         }
     }
 
-    private float[] getFrame() {
-        Bitmap bitmap = mAutoFitTextureView.getBitmap(MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
-        bitmap.getPixels(mRGBValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+    private Bitmap toBitmap(Image image) {
+        Image.Plane[] planes = image.getPlanes();
+        ByteBuffer yBuffer = planes[0].getBuffer();
+        ByteBuffer uBuffer = planes[1].getBuffer();
+        ByteBuffer vBuffer = planes[2].getBuffer();
+
+        int ySize = yBuffer.remaining();
+        int uSize = uBuffer.remaining();
+        int vSize = vBuffer.remaining();
+
+        byte[] nv21 = new byte[ySize + uSize + vSize];
+        //U and V are swapped
+        yBuffer.get(nv21, 0, ySize);
+        vBuffer.get(nv21, ySize, vSize);
+        uBuffer.get(nv21, ySize + vSize, uSize);
+
+        YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, image.getWidth(), image.getHeight(), null);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        yuvImage.compressToJpeg(new Rect(0, 0, yuvImage.getWidth(), yuvImage.getHeight()), 75, out);
+
+        byte[] imageBytes = out.toByteArray();
+        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+    }
+
+    private float[] getFrame(ImageProxy imageProxy) {
         int pixel = 0;
+        @SuppressLint("UnsafeExperimentalUsageError") Image image = imageProxy.getImage();
+        if(image!=null) {
+            Bitmap bitmap = toBitmap(image);
+            bitmap.getPixels(mRGBValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+        }
         for (int h = 0; h < MODEL_INPUT_SIZE; h++) {
             for (int w = 0; w < MODEL_INPUT_SIZE; w++) {
                 int val = mRGBValues[pixel++];
@@ -698,45 +377,76 @@ public class Camera2BasicFragment extends Fragment implements
     }
 
     @Override
-    public View onCreateView(
-            LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        return inflater.inflate(R.layout.fragment_camera2_basic, container, false);
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        cameraProviderFuture = ProcessCameraProvider.getInstance(getActivity());
     }
 
-    private void configureTransform(int viewWidth, int viewHeight) {
-        Activity activity = getActivity();
-        if (null == mAutoFitTextureView || null == mPreviewSize || null == activity) {
-            return;
-        }
-        int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
-        Matrix matrix = new Matrix();
-        RectF viewRect = new RectF(0, 0, viewWidth, viewHeight);
-        RectF bufferRect = new RectF(0, 0, mPreviewSize.getHeight(), mPreviewSize.getWidth());
-        float centerX = viewRect.centerX();
-        float centerY = viewRect.centerY();
-        if (Surface.ROTATION_90 == rotation || Surface.ROTATION_270 == rotation) {
-            bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY());
-            matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL);
-            float scale =
-                    Math.max(
-                            (float) viewHeight / mPreviewSize.getHeight(),
-                            (float) viewWidth / mPreviewSize.getWidth());
-            matrix.postScale(scale, scale, centerX, centerY);
-            matrix.postRotate(90 * (rotation - 2), centerX, centerY);
-        } else if (Surface.ROTATION_180 == rotation) {
-            matrix.postRotate(180, centerX, centerY);
-        }
-        mAutoFitTextureView.setTransform(matrix);
+    @SuppressLint({"RestrictedApi", "UnsafeExperimentalUsageError"})
+    @Nullable
+    @Override
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View v = inflater.inflate(R.layout.fragment_camera2_basic, container, false);
+        previewView = v.findViewById(R.id.textureView);
+
+        cameraProviderFuture.addListener(() -> {
+            try {
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+                bindPreview(cameraProvider);
+            } catch (ExecutionException | InterruptedException e) {
+                // No errors need to be handled for this Future. This should never be reached
+            }
+        }, ContextCompat.getMainExecutor(getActivity()));
+
+        imageAnalysis = new ImageAnalysis.Builder()
+                .setTargetResolution(new Size(224, 224))
+                .setMaxResolution(new Size(800, 800))
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build();
+
+        imageAnalysis.setAnalyzer(threadPoolExecutor, image -> {
+            Log.e(TAG, "w: " + image.getWidth() + " h: " + image.getHeight());
+
+            if (mRunClassifier && isProcessingDone.tryAcquire()) {
+                long t1 = SystemClock.uptimeMillis();
+                float[] chw = getFrame(image);
+                image.close();
+                long t2 = SystemClock.uptimeMillis();
+                String[] results = inference(chw);
+                long t3 = SystemClock.uptimeMillis();
+                String msg = "";
+                for (int l = 1; l < 5; l++) {
+                    msg = msg + results[l] + "\n";
+                }
+                msg += "getFrame(): " + (t2 - t1) + "ms" + "\n";
+                msg += "inference(): " + (t3 - t2) + "ms" + "\n";
+
+                mResultView.setText("model: " + mCurModel + "\n" + results[0]);
+                mInfoView.setText(msg);
+                isProcessingDone.release();
+            }
+        });
+        return v;
     }
 
-    private static class CompareSizesByArea implements Comparator<Size> {
+    private void bindPreview(@NonNull ProcessCameraProvider cameraProvider) {
+        @SuppressLint("RestrictedApi") Preview preview = new Preview.Builder()
+                .setMaxResolution(new Size(800, 800))
+                .setTargetName("Preview")
+                .build();
 
-        @Override
-        public int compare(Size lhs, Size rhs) {
-            // We cast here to ensure the multiplications won't overflow
-            return Long.signum(
-                    (long) lhs.getWidth() * lhs.getHeight() - (long) rhs.getWidth() * rhs.getHeight());
-        }
+        preview.setSurfaceProvider(previewView.getPreviewSurfaceProvider());
+        CameraSelector cameraSelector =
+                new CameraSelector.Builder()
+                        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                        .build();
+        camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+    }
+
+    @Override
+    public void onDestroyView() {
+        threadPoolExecutor.shutdownNow();
+        super.onDestroyView();
     }
 
     /*
@@ -746,6 +456,7 @@ public class Camera2BasicFragment extends Fragment implements
 
         @Override
         protected Integer doInBackground(Void... args) {
+            mRunClassifier = false;
             // load synset name
             int modelIndex = mModelView.getCheckedItemPosition();
             String model = MODELS[modelIndex];
@@ -765,7 +476,6 @@ public class Camera2BasicFragment extends Fragment implements
             // load json graph
             String modelGraph = null;
             String graphFilename = MODEL_GRAPH_FILE.split("file:///android_asset/")[1];
-            graphFilename = model + "/" + graphFilename;
             System.err.println("Reading json graph from: " + graphFilename);
             try {
                 modelGraph = new String(getBytesFromFile(assetManager, graphFilename));
@@ -778,11 +488,10 @@ public class Camera2BasicFragment extends Fragment implements
             String libCacheFilePath = null;
             String libFilename = EXE_GPU ? MODEL_CL_LIB_FILE.split("file:///android_asset/")[1] :
                     MODEL_CPU_LIB_FILE.split("file:///android_asset/")[1];
-            String libPath = model + "/" + libFilename;
             System.err.println("Uploading compiled function to cache folder");
             try {
                 libCacheFilePath = getTempLibFilePath(libFilename);
-                byte[] modelLibByte = getBytesFromFile(assetManager, libPath);
+                byte[] modelLibByte = getBytesFromFile(assetManager, libFilename);
                 FileOutputStream fos = new FileOutputStream(libCacheFilePath);
                 fos.write(modelLibByte);
                 fos.close();
@@ -794,7 +503,6 @@ public class Camera2BasicFragment extends Fragment implements
             // load parameters
             byte[] modelParams;
             String paramFilename = MODEL_PARAM_FILE.split("file:///android_asset/")[1];
-            paramFilename = model + "/" + paramFilename;
             try {
                 modelParams = getBytesFromFile(assetManager, paramFilename);
             } catch (IOException e) {
@@ -821,47 +529,26 @@ public class Camera2BasicFragment extends Fragment implements
             System.err.println("ctx type: " + tvmCtx.deviceType);
             System.err.println("ctx id: " + tvmCtx.deviceId);
 
+            TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
+                    .pushArg(modelLib)
+                    .pushArg(tvmCtx.deviceType)
+                    .pushArg(tvmCtx.deviceId)
+                    .invoke();
 
-            synchronized (lock) {
-                TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
-                        .pushArg(modelLib)
-                        .pushArg(tvmCtx.deviceType)
-                        .pushArg(tvmCtx.deviceId)
-                        .invoke();
-
-                System.err.println("as module...");
-                graphRuntimeModule = runtimeCreFunRes.asModule();
-                System.err.println("getting graph runtime load params handle...");
-                // get the function from the module(load parameters)
-                Function loadParamFunc = graphRuntimeModule.getFunction("load_params");
-                System.err.println("loading params...");
-                loadParamFunc.pushArg(modelParams).invoke();
-                // release tvm local variables
-                modelLib.release();
-                loadParamFunc.release();
-                runtimeCreFun.release();
-
-                mCurModel = model;
-            }
+            System.err.println("as module...");
+            graphRuntimeModule = runtimeCreFunRes.asModule();
+            System.err.println("getting graph runtime load params handle...");
+            // get the function from the module(load parameters)
+            Function loadParamFunc = graphRuntimeModule.getFunction("load_params");
+            System.err.println("loading params...");
+            loadParamFunc.pushArg(modelParams).invoke();
+            // release tvm local variables
+            modelLib.release();
+            loadParamFunc.release();
+            runtimeCreFun.release();
+            mCurModel = model;
+            mRunClassifier = true;
             return 0;//success
-        }
-
-        @Override
-        protected void onPreExecute() {
-            super.onPreExecute();
-        }
-
-        @Override
-        protected void onPostExecute(Integer status) {
-            if (status < 0) {
-                System.err.println("error status" + status);
-                System.err.println("Fail to initialized model, check compiled model");
-            } else if (status > 0) {
-                System.err.println("debug status" + status);
-            } else {
-                System.err.println("finished pre...");
-            }
-            startBackgroundThread();
         }
     }
 }
