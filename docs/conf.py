@@ -30,6 +30,7 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 import sys
+import inspect
 import os, subprocess
 import shlex
 import recommonmark
@@ -183,19 +184,6 @@ latex_documents = [
    author, 'manual'),
 ]
 
-# hook for doxygen
-def run_doxygen(folder):
-    """Run the doxygen make command in the designated folder."""
-    try:
-        #retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
-        retcode = subprocess.call("rm -rf _build/html/doxygen", shell=True)
-        retcode = subprocess.call("mkdir -p _build/html", shell=True)
-        retcode = subprocess.call("cp -rf doxygen/html _build/html/doxygen", shell=True)
-        if retcode < 0:
-            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
-    except OSError as e:
-        sys.stderr.write("doxygen execution failed: %s" % e)
-
 intersphinx_mapping = {
     'python': ('https://docs.python.org/{.major}'.format(sys.version_info), None),
     'numpy': ('https://docs.scipy.org/doc/numpy/', None),
@@ -224,18 +212,6 @@ def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""
     run_doxygen('..')
 
-def setup(app):
-    # Add hook for building doxygen xml when needed
-    # no c++ API for now
-    app.connect("builder-inited", generate_doxygen_xml)
-    app.add_stylesheet('css/tvm_theme.css')
-    app.add_config_value('recommonmark_config', {
-        'url_resolver': lambda url: github_doc_root + url,
-        'auto_doc_ref': True
-            }, True)
-    app.add_transform(AutoStructify)
-
-
 sphinx_gallery_conf = {
     'backreferences_dir': 'gen_modules/backreferences',
     'doc_module': ('tvm', 'numpy'),
@@ -255,3 +231,81 @@ sphinx_gallery_conf = {
 autodoc_default_options = {
     'member-order': 'bysource',
 }
+
+# hook for doxygen
+def run_doxygen(folder):
+    """Run the doxygen make command in the designated folder."""
+    try:
+        #retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
+        retcode = subprocess.call("rm -rf _build/html/doxygen", shell=True)
+        retcode = subprocess.call("mkdir -p _build/html", shell=True)
+        retcode = subprocess.call("cp -rf doxygen/html _build/html/doxygen", shell=True)
+        if retcode < 0:
+            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
+    except OSError as e:
+        sys.stderr.write("doxygen execution failed: %s" % e)
+
+# Maps the original namespace to list of potential modules
+# that we can import alias from.
+tvm_alias_check_map = {
+    "tvm.te": ["tvm.tir"],
+    "tvm.tir": ["tvm.ir", "tvm.runtime"],
+}
+
+def update_alias_docstring(name, obj, lines):
+    """Update the docstring of alias functions.
+
+    This function checks if the obj is an alias of another documented object
+    in a different module.
+
+    If it is an alias, then it will append the alias information to the docstring.
+
+    Parameters
+    ----------
+    name : str
+        The full name of the object in the doc.
+
+    obj : object
+        The original object.
+
+    lines : list
+        The docstring lines, need to be modified inplace.
+    """
+    arr = name.rsplit(".", 1)
+    if len(arr) != 2:
+        return
+    target_mod, target_name = arr
+
+    if target_mod not in tvm_alias_check_map:
+        return
+    if not hasattr(obj, "__module__"):
+        return
+    obj_mod = obj.__module__
+
+    for amod in tvm_alias_check_map[target_mod]:
+        if not obj_mod.startswith(amod):
+            continue
+
+        if hasattr(sys.modules[amod], target_name):
+            obj_type = ":py:func" if callable(obj) else ":py:class"
+            lines.append(
+                ".. rubric:: Alias of %s:`%s.%s`" % (obj_type, amod, target_name))
+
+
+def process_docstring(app, what, name, obj, options, lines):
+    """Sphinx callback to process docstring"""
+    if callable(obj) or inspect.isclass(obj):
+        update_alias_docstring(name, obj, lines)
+
+
+def setup(app):
+    # Add hook for building doxygen xml when needed
+    # no c++ API for now
+    app.connect("builder-inited", generate_doxygen_xml)
+    app.connect('autodoc-process-docstring', process_docstring)
+    app.add_stylesheet('css/tvm_theme.css')
+    app.add_config_value('recommonmark_config', {
+        'url_resolver': lambda url: github_doc_root + url,
+        'auto_doc_ref': True
+            }, True)
+    app.add_transform(AutoStructify)
