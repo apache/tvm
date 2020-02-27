@@ -45,11 +45,23 @@ namespace {
 #include "rpc_env.h"
 
 namespace {
+  std::string GenerateUntarCommand(const std::string& tar_file, const std::string& output_dir) {
+    std::string untar_cmd;
+    untar_cmd.reserve(512);
 #if defined(__linux__) || defined(__ANDROID__)
-  const std::string untar_cmd = "tar -C ";
+    untar_cmd += "tar -C ";
+    untar_cmd += output_dir;
+    untar_cmd += " -zxf ";
+    untar_cmd += tar_file;
 #elif defined(_WIN32)
-  const std::string untar_cmd = "wsl tar -C ";
-#endif 
+    untar_cmd += "python -m tarfile -e ";
+    untar_cmd += tar_file;
+    untar_cmd += " ";
+    untar_cmd += output_dir;
+#endif
+    return untar_cmd;
+  }
+
 }// Anonymous namespace
 
 namespace tvm {
@@ -236,7 +248,7 @@ Module Load(std::string *fileIn, const std::string& fmt) {
     const std::string tmp_dir = "./rpc/tmp/";
     mkdir(tmp_dir.c_str(), 0777);
 
-    const std::string cmd = untar_cmd + tmp_dir + " -zxf " + file;
+    const std::string cmd = GenerateUntarCommand(file, tmp_dir);
 
     std::string err_msg;
     const int executed_status = support::Execute(cmd, &err_msg);
