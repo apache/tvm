@@ -997,7 +997,7 @@ def get_graph_input_names(script_module):
     return ir_inputs[1:]  # remove self at the 0th arg
 
 
-def from_pytorch(script_module, input_shapes):
+def from_pytorch(script_module, input_shapes, custom_convert_map):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -1011,6 +1011,9 @@ def from_pytorch(script_module, input_shapes):
         Graph level input shape dictionary
         The keys should be the same one returned by get_graph_input_names(...) above
 
+    custom_convert_map: Dictionary of str to Relay op
+        A custom op conversion map
+
     Returns
     -------
     mod : tvm.relay.Module
@@ -1021,6 +1024,7 @@ def from_pytorch(script_module, input_shapes):
     """
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    _convert_map.update(custom_convert_map)
     op_names = get_all_op_names(graph)
     _report_missing_conversion(op_names)
 
