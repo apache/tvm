@@ -919,6 +919,11 @@ class TVMRetValue : public TVMPODValue_ {
                          int* type_code,                                \
                          int num_args,                                  \
                          TVMValue* out_value,                           \
+                         int* out_type_code);                           \
+  int ExportName(TVMValue* args,                                        \
+                         int* type_code,                                \
+                         int num_args,                                  \
+                         TVMValue* out_value,                           \
                          int* out_type_code) {                          \
     try {                                                               \
       ::tvm::runtime::TVMRetValue rv;                                   \
