@@ -22,10 +22,4 @@ tvm.te
 .. automodule:: tvm.te
    :members:
    :imported-members:
-   :exclude-members:
-      any, all, min_value, max_value, trace,
-      exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil,
-      trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else,
-      div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod,
-      comm_reducer, min, max, sum
    :autosummary:

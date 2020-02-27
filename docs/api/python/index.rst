@@ -21,7 +21,6 @@ Python API
 .. toctree::
    :maxdepth: 2
 
-   tvm
    runtime
    ndarray
    error
