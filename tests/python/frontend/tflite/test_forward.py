@@ -742,6 +742,12 @@ def _test_neg(data):
     """ One iteration of neg """
     return _test_unary_elemwise(math_ops.neg, data)
 #######################################################################
+# Square
+# ------
+
+def _test_square(data):
+    """ One iteration of square """
+    return _test_unary_elemwise(math_ops.square, data)
 
 def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
@@ -759,6 +765,7 @@ def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_sqrt)
     _test_forward_unary_elemwise(_test_rsqrt)
     _test_forward_unary_elemwise(_test_neg)
+    _test_forward_unary_elemwise(_test_square)
     # ceil and cos come with TFLite 1.14.0.post1 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_forward_unary_elemwise(_test_ceil)

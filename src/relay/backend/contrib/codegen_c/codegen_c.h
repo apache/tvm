@@ -35,6 +35,13 @@ namespace tvm {
 namespace relay {
 namespace contrib {
 
+struct Output {
+  std::string name;
+  std::string dtype;
+  int size;
+  bool need_copy;
+};
+
 class CSourceModuleCodegenBase {
  public:
   CSourceModuleCodegenBase() = default;
@@ -98,7 +105,7 @@ class CodegenCBase {
    * \brief Gerenate C code for the external function.
    *
    * \param func_name The name of the external function.
-   * \param arg_cnt The expected number of arguments.
+   * \param args arguments to the external function.
    *
    * \code
    *
@@ -116,16 +123,18 @@ class CodegenCBase {
    *
    * \endcode
    */
-  void GenerateBackendCFunc(const std::string& func_name, int arg_cnt) {
+  void GenerateBackendCFunc(const std::string& func_name,
+                            const Array<Var>& args,
+                            const Output& out) {
     // Print signature
     code_stream_ << "\n";
     code_stream_ << "extern \"C\" int " << func_name << "_wrapper_(";
-    for (int i = 0; i < arg_cnt - 1; i++) {
+    for (size_t i = 0; i < args.size(); i++) {
       code_stream_ << "DLTensor* arg" << i << ",\n";
       code_stream_ << "\t";
     }
-    if (arg_cnt > 0) {
-      code_stream_ << "DLTensor* arg" << arg_cnt - 1 << ") {\n";
+    if (args.size() > 0) {
+      code_stream_ << "DLTensor* arg" << args.size() << ") {\n";
     }
 
     EnterScope();
@@ -133,12 +142,13 @@ class CodegenCBase {
     // Generate the internal call.
     PrintIndents();
     code_stream_ << func_name << "_(";
-    for (int i = 0; i < arg_cnt - 1; i++) {
-      code_stream_ << "static_cast<float*>(arg" << i << "->data),\n";
+    for (size_t i = 0; i < args.size(); i++) {
+      const auto& dtype_str = GetDtypeString(args[i]);
+      code_stream_ << "static_cast<" << dtype_str << "*>(arg" << i << "->data),\n";
       PrintIndents();
     }
-    if (arg_cnt > 0) {
-      code_stream_ << "static_cast<float*>(arg" << arg_cnt - 1 << "->data)";
+    if (args.size() > 0) {
+      code_stream_ << "static_cast<" << out.dtype << "*>(arg" << args.size() << "->data)";
     }
     code_stream_ << ");\n";
     PrintIndents();
@@ -207,17 +217,21 @@ class CodegenCBase {
    *
    * \return The emitted code string.
    */
-  std::string JitImpl(std::string ext_func_id, std::vector<std::string> args,
-                      std::vector<std::string> buf_decl, std::vector<std::string> body,
-                      std::vector<std::pair<std::string, int>> out) {
+  std::string JitImpl(std::string ext_func_id, const Array<Var>& args,
+                      const std::vector<std::string>& buf_decl,
+                      const std::vector<std::string>& body,
+                      const std::vector<Output>& out) {
     // Create the signature. For example, it could be:
     // extern "C" void dnnl_0_(float* input0, float* input1, float* out, int M, int N) {}
     code_stream_ << "extern \"C\" void " << ext_func_id << "_(";
 
+    CHECK_EQ(out.size(), 1U) << "Internal error: only single output is support.";
+
     for (const auto& arg : args) {
-      code_stream_ << "float* " << arg << ", ";
+      const auto& dtype_str = GetDtypeString(arg);
+      code_stream_ << dtype_str << "* " << arg->name_hint() << ", ";
     }
-    code_stream_ << "float* out) {\n";
+    code_stream_ << out[0].dtype << "* out) {\n";
     this->EnterScope();
 
     // Function body
@@ -232,22 +246,58 @@ class CodegenCBase {
     }
 
     // Copy output
-    CHECK_EQ(out.size(), 1U) << "Internal error: only single output is support.";
-    this->PrintIndents();
-    code_stream_ << "std::memcpy(out, " << out[0].first << ", 4 * " << out[0].second << ");\n";
-
-    // Free buffers
-    for (size_t i = 0; i < buf_decl.size(); i++) {
+    if (out[0].need_copy) {
       this->PrintIndents();
-      code_stream_ << "std::free(buf_" << i << ");\n";
+      code_stream_ << "std::memcpy(out, " << out[0].name << ", 4 * " << out[0].size << ");\n";
+
+      // Free buffers
+      for (size_t i = 0; i < buf_decl.size(); i++) {
+        this->PrintIndents();
+        code_stream_ << "std::free(buf_" << i << ");\n";
+      }
     }
 
     this->ExitScope();
     code_stream_ << "}\n";
 
     // Create the wrapper to call the ext_func
-    this->GenerateBackendCFunc(ext_func_id, args.size() + 1 /* output */);
+    this->GenerateBackendCFunc(ext_func_id, args, out[0]);
     return code_stream_.str();
+  }
+
+  /*!
+   * \brief Returns dtype string
+   *
+   * \param var Var to get the dtype of
+   *
+   * \return The dtype string.
+   */
+  std::string GetDtypeString(const Var& var) {
+    auto ttype = var->checked_type().as<TensorTypeNode>();
+    CHECK(ttype) << "Expect TensorTypeNode";
+    return GetDtypeString(ttype);
+  }
+
+  /*!
+   * \brief Returns dtype string
+   *
+   * \param ttype TensorTypeNode* to get the dtype of
+   *
+   * \return The dtype string.
+   */
+  std::string GetDtypeString(const TensorTypeNode* ttype) {
+    std::string dtype;
+    if (runtime::TypeMatch(ttype->dtype, kDLFloat, 32)) {
+      dtype = "float";
+    } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 32)) {
+      dtype = "int";
+    } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 64)) {
+      dtype = "int64_t";
+    } else {
+      LOG(FATAL) << "Unsupported dtype " << ttype->dtype;
+    }
+
+    return dtype;
   }
 
   /*! \brief The external function source code stream. */

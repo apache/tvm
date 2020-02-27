@@ -19,6 +19,7 @@
 import os
 from sys import setrecursionlimit
 from ..api import register_func
+from . import call_graph
 from . import base
 from . import ty
 from . import expr
@@ -141,3 +142,6 @@ Sequential = transform.Sequential
 
 # Feature
 Feature = feature.Feature
+
+# CallGraph
+CallGraph = call_graph.CallGraph
