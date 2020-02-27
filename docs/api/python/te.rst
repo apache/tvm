@@ -23,4 +23,3 @@ tvm.te
    :members:
    :imported-members:
    :autosummary:
-   :show-inheritance:
