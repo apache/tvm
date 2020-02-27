@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm.contrib import cudnn
 import numpy as np
 import topi.testing
@@ -48,8 +49,8 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
         xshape = [batch, height, weight, in_channel]
         wshape = [out_channel, filter_h, filter_w, in_channel]
 
-    X = tvm.placeholder(xshape, name='X', dtype=data_dtype)
-    W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
+    X = te.placeholder(xshape, name='X', dtype=data_dtype)
+    W = te.placeholder(wshape, name='W', dtype=data_dtype)
     Y = cudnn.conv_forward(X,
                            W,
                            [pad_h, pad_w],
@@ -60,7 +61,7 @@ def verify_conv2d(data_dtype, conv_dtype, tensor_format=0):
                            conv_dtype=conv_dtype,
                            algo=-1)
     yshape = [x.value for x in Y.shape]
-    s = tvm.create_schedule(Y.op)
+    s = te.create_schedule(Y.op)
 
     def verify():
         ctx = tvm.gpu(0)
@@ -120,8 +121,8 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
     xshape = [batch, in_channel, depth, height, weight]
     wshape = [out_channel, in_channel, filter_d, filter_h, filter_w]
 
-    X = tvm.placeholder(xshape, name='X', dtype=data_dtype)
-    W = tvm.placeholder(wshape, name='W', dtype=data_dtype)
+    X = te.placeholder(xshape, name='X', dtype=data_dtype)
+    W = te.placeholder(wshape, name='W', dtype=data_dtype)
     Y = cudnn.conv_forward(X,
                            W,
                            [pad_d, pad_h, pad_w],
@@ -132,7 +133,7 @@ def verify_conv3d(data_dtype, conv_dtype, tensor_format=0):
                            algo=-1,
                            conv_dtype=conv_dtype)
     yshape = [x.value for x in Y.shape]
-    s = tvm.create_schedule(Y.op)
+    s = te.create_schedule(Y.op)
 
     def verify():
         ctx = tvm.gpu(0)

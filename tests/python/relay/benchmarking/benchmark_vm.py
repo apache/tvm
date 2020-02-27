@@ -18,6 +18,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 from tvm import relay
 from tvm.runtime import container
@@ -73,7 +74,7 @@ def benchmark_execution(mod,
             prof_res = np.array(ftimer("main", data).results) * 1000
             print("Mean vm inference time (std dev): %.2f ms (%.2f ms)" %
                   (np.mean(prof_res), np.std(prof_res)))
-            
+
         return result.asnumpy().astype(dtype)
 
     # random input

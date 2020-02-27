@@ -17,16 +17,17 @@
 """Test space definition primitives"""
 
 import tvm
+from tvm import te
 from tvm.autotvm.task.space import ConfigSpace, FallbackConfigEntity
 
 def gemm_func(cfg, N):
-    A = tvm.placeholder((N, N), name='A')
-    B = tvm.placeholder((N, N), name='B')
+    A = te.placeholder((N, N), name='A')
+    B = te.placeholder((N, N), name='B')
 
-    k = tvm.reduce_axis((0, N), name='k')
-    C = tvm.compute((N, N), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=[k]), name='C')
+    k = te.reduce_axis((0, N), name='k')
+    C = te.compute((N, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=[k]), name='C')
 
-    s = tvm.create_schedule([C.op])
+    s = te.create_schedule([C.op])
 
     y, x = s[C].op.axis
 

@@ -16,7 +16,7 @@
 # under the License.
 
 """sparse_dense schedule on x86"""
-import tvm
+from tvm import te
 
 from ..util import traverse_inline, get_const_int
 from .util import get_fp32_len
@@ -24,7 +24,7 @@ from .util import get_fp32_len
 
 def schedule_sparse_dense(outs):
     """Create schedule for sparse dense"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         simd_width = get_fp32_len()

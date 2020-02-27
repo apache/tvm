@@ -17,6 +17,7 @@
 """Test code for space to depth"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
@@ -37,7 +38,7 @@ def verify_space_to_depth(block_size, batch, in_channel, in_height, in_width, la
     else:
         raise NotImplementedError('Layout not supported {}'.format(layout))
 
-    A = tvm.placeholder(in_shape, name='A', dtype='float32')
+    A = te.placeholder(in_shape, name='A', dtype='float32')
     dtype = A.dtype
     a_np = np.random.uniform(size=in_shape).astype(dtype)
 

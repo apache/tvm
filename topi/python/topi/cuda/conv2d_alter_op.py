@@ -19,6 +19,7 @@
 
 import logging
 import tvm
+from tvm import te
 from tvm import relay
 from tvm import autotvm
 
@@ -70,10 +71,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         ic_block_factor = oc_block_factor = 4
 
         # Store the same config for the altered operator (workload)
-        new_data = tvm.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
-                                   dtype=data.dtype)
-        new_kernel = tvm.placeholder((CO // oc_block_factor, CI // ic_block_factor, KH, KW, \
-                                      oc_block_factor, ic_block_factor), dtype=kernel.dtype)
+        new_data = te.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
+                                  dtype=data.dtype)
+        new_kernel = te.placeholder((CO // oc_block_factor, CI // ic_block_factor, KH, KW, \
+                                     oc_block_factor, ic_block_factor), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_layout, out_dtype],
             "conv2d_NCHWc_int8.cuda")
@@ -100,8 +101,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # Store the same config for the altered operator (workload)
         new_data = data
-        new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
-                                     dtype=kernel.dtype)
+        new_weight = te.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
+                                    dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_weight, strides, padding, dilation, out_dtype],
             "conv2d_nchw_winograd_without_weight_transform.cuda")
@@ -122,11 +123,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         ic_block_factor = oc_block_factor = 4
 
         # Store the same config for the altered operator (workload)
-        new_data = tvm.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
-                                   dtype=data.dtype)
-        new_kernel = tvm.placeholder((CO // oc_block_factor, CI // ic_block_factor // groups,
-                                      KH, KW, oc_block_factor, ic_block_factor),
-                                     dtype=kernel.dtype)
+        new_data = te.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
+                                  dtype=data.dtype)
+        new_kernel = te.placeholder((CO // oc_block_factor, CI // ic_block_factor // groups,
+                                     KH, KW, oc_block_factor, ic_block_factor),
+                                    dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, groups, out_dtype],
             "group_conv2d_NCHWc_int8.cuda")

@@ -22,6 +22,7 @@ import logging
 import os
 
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 import vta
@@ -37,21 +38,21 @@ dense_wkls = [
     ('lstm.dense.4',  Workload(4, 256, 128)),
 ]
 
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
-    const_min = tvm.const(a_min, x.dtype)
-    const_max = tvm.const(a_max, x.dtype)
-    x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-    x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+    const_min = tvm.tir.const(a_min, x.dtype)
+    const_max = tvm.tir.const(a_max, x.dtype)
+    x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+    x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
 def dense(N, CI, CO):
     data_shape = (N//env.BATCH, CI//env.BLOCK_IN, env.BATCH, env.BLOCK_IN)
     kernel_shape = (CO//env.BLOCK_OUT, CI//env.BLOCK_IN, env.BLOCK_OUT, env.BLOCK_IN)
 
-    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = te.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
 
     with tvm.target.vta():
         res = topi.nn.dense(data, kernel, None, 'int32')
@@ -62,7 +63,7 @@ def dense(N, CI, CO):
     if tvm.target.Target.current().device_name == 'vta':
         s = topi.generic.schedule_dense([res])
     else:
-        s = tvm.create_schedule([res.op])
+        s = te.create_schedule([res.op])
 
     return s, [data, kernel, res]
 

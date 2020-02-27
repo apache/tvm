@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for dense operator"""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.contrib import rocblas
 from .. import generic, nn
@@ -30,13 +29,13 @@ def dense(cfg, data, weight, bias=None, out_dtype=None):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         2-D with shape [batch, in_dim]
 
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         2-D with shape [out_dim, in_dim]
 
-    bias : tvm.Tensor, optional
+    bias : tvm.te.Tensor, optional
         1-D with shape [out_dim]
 
     out_dtype : str
@@ -44,7 +43,7 @@ def dense(cfg, data, weight, bias=None, out_dtype=None):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
     assert len(data.shape) == 2 and len(weight.shape) == 2, \
@@ -71,8 +70,8 @@ def schedule_dense(cfg, outs):
     s: Schedule
         The computation schedule for dense.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'dense':
@@ -87,11 +86,11 @@ def schedule_dense(cfg, outs):
             else:
                 Out = outs[0].op.output(0)
                 s[Dense].compute_at(s[Out], s[Out].op.axis[1])
-            s[Out].bind(s[Out].op.axis[0], tvm.thread_axis("blockIdx.y"))
-            s[Out].bind(s[Out].op.axis[1], tvm.thread_axis("blockIdx.x"))
+            s[Out].bind(s[Out].op.axis[0], te.thread_axis("blockIdx.y"))
+            s[Out].bind(s[Out].op.axis[1], te.thread_axis("blockIdx.x"))
 
             tx = s[Dense].op.reduce_axis[0]
-            thread_x = tvm.thread_axis("threadIdx.x")
+            thread_x = te.thread_axis("threadIdx.x")
             s[Dense].bind(tx, thread_x)
             s[DenseF].compute_at(s[Dense], tx)
             s[Dense].set_store_predicate(thread_x.var.equal(0))
@@ -107,13 +106,13 @@ def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         2-D with shape [batch, in_dim]
 
-    weight : tvm.Tensor
+    weight : tvm.te.Tensor
         2-D with shape [out_dim, in_dim]
 
-    bias : tvm.Tensor, optional
+    bias : tvm.te.Tensor, optional
         1-D with shape [out_dim]
 
     out_dtype : str
@@ -121,7 +120,7 @@ def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
     assert out_dtype == data.dtype, "Mixed precision not supported."
@@ -130,9 +129,9 @@ def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
     out_dim, _ = weight.shape
     cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
-        matmul = tvm.compute((batch, out_dim),
-                             lambda i, j: matmul[i, j] + bias[j],
-                             tag=tag.BROADCAST)
+        matmul = te.compute((batch, out_dim),
+                            lambda i, j: matmul[i, j] + bias[j],
+                            tag=tag.BROADCAST)
     return matmul
 
 

@@ -17,7 +17,7 @@
 # pylint: disable=too-many-arguments
 """Argsort operator"""
 import tvm
-from tvm import api
+from tvm import te
 from .util import get_const_tuple
 
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
@@ -27,14 +27,14 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         The input tensor.
 
-    valid_count : tvm.Tensor, optional
+    valid_count : tvm.te.Tensor, optional
         1-D tensor for valid number of boxes only for ssd.
 
     axis : int, optional
-	    Axis along which to sort the input tensor.
+            Axis along which to sort the input tensor.
         By default the flattened array is used.
 
     is_ascend : boolean, optional
@@ -45,7 +45,7 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Sorted index tensor.
 
     Example
@@ -54,7 +54,7 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
 
         # An example to use argsort
         dshape = (1, 5, 6)
-        data = tvm.placeholder(dshape, name="data")
+        data = te.placeholder(dshape, name="data")
         axis = 0
         is_ascend = False
         out = argsort(data, axis=axis, is_ascend=is_ascend)
@@ -66,35 +66,36 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
         f(tvm_data, tvm_out)
     """
-    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     if valid_count is not None:
-        valid_count_buf = api.decl_buffer(valid_count.shape, valid_count.dtype,
-                                          "valid_count_buf", data_alignment=4)
-        out_buf = api.decl_buffer(data.shape, "int32", "out_buf", data_alignment=8)
+        valid_count_buf = tvm.tir.decl_buffer(
+            valid_count.shape, valid_count.dtype,
+            "valid_count_buf", data_alignment=4)
+        out_buf = tvm.tir.decl_buffer(data.shape, "int32", "out_buf", data_alignment=8)
         out = \
-            tvm.extern(data.shape,
-                       [data, valid_count],
-                       lambda ins, outs: tvm.call_packed(
-                           "tvm.contrib.sort.argsort_nms", ins[0], ins[1],
-                           outs[0], axis, is_ascend),
-                       dtype="int32",
-                       in_buffers=[data_buf, valid_count_buf],
-                       out_buffers=out_buf,
-                       name="argsort_nms_cpu",
-                       tag="argsort_nms_cpu")
+            te.extern(data.shape,
+                      [data, valid_count],
+                      lambda ins, outs: tvm.tir.call_packed(
+                          "tvm.contrib.sort.argsort_nms", ins[0], ins[1],
+                          outs[0], axis, is_ascend),
+                      dtype="int32",
+                      in_buffers=[data_buf, valid_count_buf],
+                      out_buffers=out_buf,
+                      name="argsort_nms_cpu",
+                      tag="argsort_nms_cpu")
     else:
-        out_buf = api.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
+        out_buf = tvm.tir.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8)
         out = \
-            tvm.extern(data.shape,
-                       [data],
-                       lambda ins, outs: tvm.call_packed(
-                           "tvm.contrib.sort.argsort", ins[0],
-                           outs[0], axis, is_ascend),
-                       dtype=dtype,
-                       in_buffers=[data_buf],
-                       out_buffers=out_buf,
-                       name="argsort_cpu",
-                       tag="argsort_cpu")
+            te.extern(data.shape,
+                      [data],
+                      lambda ins, outs: tvm.tir.call_packed(
+                          "tvm.contrib.sort.argsort", ins[0],
+                          outs[0], axis, is_ascend),
+                      dtype=dtype,
+                      in_buffers=[data_buf],
+                      out_buffers=out_buf,
+                      name="argsort_cpu",
+                      tag="argsort_cpu")
     return out
 
 
@@ -103,7 +104,7 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         The input tensor.
 
     k : int, optional
@@ -126,27 +127,27 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
 
     Returns
     -------
-    out : tvm.Tensor or List[tvm.Tensor]
+    out : tvm.te.Tensor or List[tvm.te.Tensor]
         The computed result.
     """
     assert ret_type in ["both", "values", "indices"]
-    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     out_shape = list(get_const_tuple(data.shape))
     if k >= 1:
         out_shape[axis] = k
     out_bufs = []
     if ret_type in ["both", "values"]:
-        out_bufs.append(api.decl_buffer(out_shape, data.dtype, "value_buf", data_alignment=8))
+        out_bufs.append(tvm.tir.decl_buffer(out_shape, data.dtype, "value_buf", data_alignment=8))
     if ret_type in ["both", "indices"]:
-        out_bufs.append(api.decl_buffer(out_shape, dtype, "indices_buf", data_alignment=8))
+        out_bufs.append(tvm.tir.decl_buffer(out_shape, dtype, "indices_buf", data_alignment=8))
     out_shapes = [out_shape] * len(out_bufs)
 
-    out = tvm.extern(out_shapes,
-                     [data],
-                     lambda ins, outs: tvm.call_packed(
-                         "tvm.contrib.sort.topk", ins[0], *outs, k, axis, ret_type, is_ascend),
-                     in_buffers=[data_buf],
-                     out_buffers=out_bufs,
-                     name="topk_cpu",
-                     tag="topk_cpu")
+    out = te.extern(out_shapes,
+                    [data],
+                    lambda ins, outs: tvm.tir.call_packed(
+                        "tvm.contrib.sort.topk", ins[0], *outs, k, axis, ret_type, is_ascend),
+                    in_buffers=[data_buf],
+                    out_buffers=out_bufs,
+                    name="topk_cpu",
+                    tag="topk_cpu")
     return out

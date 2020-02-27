@@ -20,6 +20,7 @@ import time
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
 from tvm.autotvm.measure.measure import Runner
@@ -38,12 +39,12 @@ class DummyRunner(Runner):
 
 @autotvm.register_customized_task("testing/matmul")
 def matmul(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -66,12 +67,12 @@ def matmul(N, L, M, dtype):
 @autotvm.register_customized_task("testing/bad_matmul")
 def bad_matmul(N, L, M, dtype):
     if 'bad_device' in tvm.target.Target.current().keys:
-        A = tvm.placeholder((N, L), name='A', dtype=dtype)
-        B = tvm.placeholder((L, M), name='B', dtype=dtype)
+        A = te.placeholder((N, L), name='A', dtype=dtype)
+        B = te.placeholder((L, M), name='B', dtype=dtype)
 
-        k = tvm.reduce_axis((0, L-1), name='k')
-        C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-        s = tvm.create_schedule(C.op)
+        k = te.reduce_axis((0, L-1), name='k')
+        C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+        s = te.create_schedule(C.op)
 
         # schedule
         y, x = s[C].op.axis

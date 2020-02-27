@@ -167,13 +167,13 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
     .. code-block:: python
 
       # The following code is equivalent to numpy.cumsum
-      m = tvm.var("m")
-      n = tvm.var("n")
-      X = tvm.placeholder((m, n), name="X")
-      s_state = tvm.placeholder((m, n))
-      s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-      s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
-      res = tvm.scan(s_init, s_update, s_state, X)
+      m = te.var("m")
+      n = te.var("n")
+      X = te.placeholder((m, n), name="X")
+      s_state = te.placeholder((m, n))
+      s_init = te.compute((1, n), lambda _, i: X[0, i])
+      s_update = te.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+      res = tvm.te.scan(s_init, s_update, s_state, X)
     """
     if _tag.TagScope.get_current() is not None:
         if tag != "":
@@ -264,10 +264,10 @@ def extern(shape,
 
     .. code-block:: python
 
-        A = tvm.placeholder((n, l), name="A")
-        B = tvm.placeholder((l, m), name="B")
-        C = tvm.extern((n, m), [A, B],
-                       lambda ins, outs: tvm.call_packed(
+        A = te.placeholder((n, l), name="A")
+        B = te.placeholder((l, m), name="B")
+        C = te.extern((n, m), [A, B],
+                       lambda ins, outs: tvm.tir.call_packed(
                           "tvm.contrib.cblas.matmul",
                             ins[0], ins[1], outs[0], 0, 0), name="C")
     """

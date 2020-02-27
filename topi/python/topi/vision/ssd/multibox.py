@@ -16,11 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable
 """SSD multibox operators"""
-from __future__ import absolute_import as _abs
 import tvm
 
 from tvm import hybrid
-from tvm.intrin import exp, sqrt
+from tvm.tir import exp, sqrt
 
 import topi
 
@@ -32,7 +31,7 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
 
     Parameters
     ----------
-    data : tvm.Tensor or numpy NDArray
+    data : tvm.te.Tensor or numpy NDArray
         4-D tensor with shape [batch, channel, height, width]]
 
     sizes : tvm ConsExpr
@@ -49,7 +48,7 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
 
     Returns
     -------
-    output : tvm.Tensor or numpy NDArray
+    output : tvm.te.Tensor or numpy NDArray
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
     in_height = data.shape[2]
@@ -80,7 +79,7 @@ def hybrid_multibox_prior(data, sizes, ratios, steps, offsets):
                         * sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
                     h = sizes[0] / sqrt(ratios[k - num_sizes + 1] * 1.0) / 2.0
                 count = i * in_width * (num_sizes + num_ratios - 1) \
-                        + j * (num_sizes + num_ratios - 1) + k
+                    + j * (num_sizes + num_ratios - 1) + k
                 output[0, count, 0] = center_w - w
                 output[0, count, 1] = center_h - h
                 output[0, count, 2] = center_w + w
@@ -94,7 +93,7 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, c_in, h_in, w_in]]
 
     sizes : tuple of float
@@ -114,11 +113,11 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
-    out = hybrid_multibox_prior(data, tvm.convert(sizes), tvm.convert(ratios),
-                                tvm.convert(steps), tvm.convert(offsets))
+    out = hybrid_multibox_prior(data, tvm.runtime.convert(sizes), tvm.runtime.convert(ratios),
+                                tvm.runtime.convert(steps), tvm.runtime.convert(offsets))
     if clip:
         out = topi.clip(out, 0, 1)
     return out
@@ -166,19 +165,19 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
 
     Parameters
     ----------
-    cls_prob : tvm.Tensor or numpy NDArray
+    cls_prob : tvm.te.Tensor or numpy NDArray
         3-D tensor of class probabilities.
 
-    loc_pred : tvm.Tensor or numpy NDArray
+    loc_pred : tvm.te.Tensor or numpy NDArray
         2-D tensor of location regression predictions.
 
-    anchor : tvm.Tensor or numpy NDArray
+    anchor : tvm.te.Tensor or numpy NDArray
         3-D tensor of prior anchor boxes.
 
-    clip : tvm.const
+    clip : tvm.tir.const
         Whether to clip out-of-boundary boxes.
 
-    threshold : tvm.const
+    threshold : tvm.tir.const
         Threshold to be a positive prediction.
 
     variances : tvm.nd.NDArray
@@ -186,10 +185,10 @@ def hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
 
     Returns
     -------
-    out_loc : tvm.Tensor or numpy NDArray
+    out_loc : tvm.te.Tensor or numpy NDArray
         3-D tensor of transformed location.
 
-    valid_count : tvm.Tensor or numpy NDArray
+    valid_count : tvm.te.Tensor or numpy NDArray
         1_d tensor of valid counts for boxes.
     """
     batch_size = cls_prob.shape[0]
@@ -238,13 +237,13 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
 
     Parameters
     ----------
-    cls_prob : tvm.Tensor
+    cls_prob : tvm.te.Tensor
         Class probabilities.
 
-    loc_pred : tvm.Tensor
+    loc_pred : tvm.te.Tensor
         Location regression predictions.
 
-    anchor : tvm.Tensor
+    anchor : tvm.te.Tensor
         Prior anchor boxes.
 
     clip : boolean
@@ -258,12 +257,12 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
 
     Returns
     -------
-    ret : tuple of tvm.Tensor
+    ret : tuple of tvm.te.Tensor
     """
     return hybrid_multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                         tvm.const(clip, "bool"),
-                                         tvm.const(threshold, "float32"),
-                                         tvm.convert(variances))
+                                         tvm.tir.const(clip, "bool"),
+                                         tvm.tir.const(threshold, "float32"),
+                                         tvm.runtime.convert(variances))
 
 def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
                        force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
@@ -271,13 +270,13 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
 
     Parameters
     ----------
-    cls_prob : tvm.Tensor
+    cls_prob : tvm.te.Tensor
         Class probabilities.
 
-    loc_pred : tvm.Tensor
+    loc_pred : tvm.te.Tensor
         Location regression predictions.
 
-    anchor : tvm.Tensor
+    anchor : tvm.te.Tensor
         Prior anchor boxes.
 
     clip : boolean
@@ -300,7 +299,7 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         3-D tensor with shape (batch_size, num_anchors, 6)
     """
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,

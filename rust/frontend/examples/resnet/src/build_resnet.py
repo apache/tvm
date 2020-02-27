@@ -25,6 +25,7 @@ import sys
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import testing
 from tvm.contrib import graph_runtime, cc

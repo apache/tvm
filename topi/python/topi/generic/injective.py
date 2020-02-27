@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import te
 
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
@@ -55,10 +56,10 @@ def schedule_injective(outs):
     target = tvm.target.Target.current(allow_none=False)
     if target.target_name != "llvm":
         raise RuntimeError("schedule_injective not registered for '%s'" % target)
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     x = outs[0]
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    s = te.create_schedule([x.op for x in outs])
+    te.schedule.AutoInlineInjective(s)
     schedule_injective_from_existing(s, x)
     return s
 

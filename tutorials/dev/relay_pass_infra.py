@@ -49,6 +49,7 @@ a certain optimization and create an optimization pipeline.
 
 import numpy as np
 import tvm
+from tvm import te
 import tvm.relay as relay
 
 ###############################################################################

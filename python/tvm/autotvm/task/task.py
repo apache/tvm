@@ -21,10 +21,13 @@ Task can be constructed from tuple of func, args, and kwargs.
 func is a state-less function, or a string that
 registers the standard task.
 """
-
 import numpy as np
 
-from ... import tensor, expr, container, placeholder, target as _target
+from tvm import target as _target
+from tvm.ir import container
+from tvm.tir import expr
+from tvm.te import tensor, placeholder
+
 
 from ..util import get_const_int, get_const_tuple
 from .dispatcher import DispatchContext, ApplyConfig
@@ -81,7 +84,7 @@ def deserialize_args(args):
 def args_to_workload(args, task_name=None):
     """Convert argument list to hashable workload tuple.
     This function will convert list to tuple, tvm node to python value and
-    flatten tvm.tensor.Tensor to a tuple
+    flatten te.tensor.Tensor to a tuple
 
     Parameters
     ----------
@@ -138,9 +141,9 @@ class Task(object):
 
         Returns
         -------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        arg_bufs: Array of tvm.tensor.Tensor
+        arg_bufs: Array of te.tensor.Tensor
             The input/output buffers
         """
         config.flop = 0
@@ -303,12 +306,12 @@ def register_customized_task(name, func=None):
 
         @autotvm.register_customized_task("matmul")
         def matmul(N, L, M, dtype):
-            A = tvm.placeholder((N, L), name='A', dtype=dtype)
-            B = tvm.placeholder((L, M), name='B', dtype=dtype)
+            A = te.placeholder((N, L), name='A', dtype=dtype)
+            B = te.placeholder((L, M), name='B', dtype=dtype)
 
-            k = tvm.reduce_axis((0, L), name='k')
-            C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-            s = tvm.create_schedule(C.op)
+            k = te.reduce_axis((0, L), name='k')
+            C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+            s = te.create_schedule(C.op)
 
             # schedule
             y, x = s[C].op.axis
@@ -400,7 +403,7 @@ def compute_flop(sch):
 
     Parameters
     ----------
-    sch: tvm.schedule.Schedule
+    sch: tvm.te.schedule.Schedule
         schedule
 
     Returns
@@ -475,8 +478,8 @@ def compute_flop(sch):
             elif isinstance(op, tensor.PlaceholderOp):
                 pass
             else:
-                raise FlopCalculationError("Only support tvm.compute currently. "
-                                           "Other ops like tvm.scan/tvm.extern is not supported")
+                raise FlopCalculationError("Only support te.compute currently. "
+                                           "Other ops like tvm.te.scan/te.extern is not supported")
         return ret
 
     try:

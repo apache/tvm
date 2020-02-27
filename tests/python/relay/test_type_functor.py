@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import TypeFunctor, TypeMutator, TypeVisitor
 from tvm.relay.analysis import assert_graph_equal
@@ -53,7 +54,7 @@ def test_tensor_type():
 
 def test_func_type():
     tv = TypeVar('tv')
-    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
+    tt = relay.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
     ft = FuncType([tt], tt, type_params=[tv])
     check_visit(ft)
 

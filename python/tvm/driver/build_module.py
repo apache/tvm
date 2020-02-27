@@ -89,7 +89,7 @@ def form_body(sch):
     """According to the given schedule, form the raw body
     Parameters
     ----------
-    sch : tvm.schedule.Schedule
+    sch : tvm.te.schedule.Schedule
     The given scheduler to form the raw body
 
     Returns
@@ -113,7 +113,7 @@ def lower(sch,
 
     Parameters
     ----------
-    sch : tvm.schedule.Schedule
+    sch : tvm.te.schedule.Schedule
         The schedule to be built
 
     args : list of Buffer or Tensor or Var
@@ -286,7 +286,7 @@ def build(inputs,
 
     Parameters
     ----------
-    inputs : tvm.Schedule, LoweredFunc, or dict of target to LoweredFunc list
+    inputs : tvm.te.Schedule, LoweredFunc, or dict of target to LoweredFunc list
         The schedule to be built
 
     args : list of Buffer or Tensor or Var, optional
@@ -325,10 +325,10 @@ def build(inputs,
     .. code-block:: python
 
         n = 2
-        A = tvm.placeholder((n,), name='A')
-        B = tvm.placeholder((n,), name='B')
-        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-        s = tvm.create_schedule(C.op)
+        A = te.placeholder((n,), name='A')
+        B = te.placeholder((n,), name='B')
+        C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        s = tvm.te.create_schedule(C.op)
         f = tvm.lower(s, [A, B, C], name="test_add")
         m = tvm.build(f, target="llvm")
 
@@ -337,10 +337,10 @@ def build(inputs,
     .. code-block:: python
 
         n = 2
-        A = tvm.placeholder((n,), name='A')
-        B = tvm.placeholder((n,), name='B')
-        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-        s1 = tvm.create_schedule(C.op)
+        A = te.placeholder((n,), name='A')
+        B = te.placeholder((n,), name='B')
+        C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        s1 = tvm.te.create_schedule(C.op)
         with tvm.target.cuda() as cuda_tgt:
           s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
           f1 = tvm.lower(s1, [A, B, C], name="test_add1")

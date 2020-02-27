@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """The template for cuda group_conv2d_nchw"""
 import tvm
+from tvm import te
 from tvm import autotvm
 
 from .injective import schedule_injective_from_existing
@@ -51,8 +52,8 @@ def schedule_group_conv2d_nchw(cfg, outs):
     s: Schedule
         The computation schedule for group conv2d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == "group_conv2d_nchw":
@@ -115,21 +116,21 @@ def _schedule_group_conv2d_nchw_direct(cfg, s, conv):
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
     s[output].reorder(bn, bg, bf, by, bx, vn, vg, vf, vy, vx, tn, tf, ty, tx, ni, fi, yi, xi)
-    s[output].bind(bn, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(s[output].fuse(bg, bf), tvm.thread_axis("blockIdx.y"))
-    s[output].bind(s[output].fuse(by, bx), tvm.thread_axis("blockIdx.x"))
-    s[output].bind(vn, tvm.thread_axis("vthread"))
-    s[output].bind(vg, tvm.thread_axis("vthread"))
-    s[output].bind(vf, tvm.thread_axis("vthread"))
-    s[output].bind(vy, tvm.thread_axis("vthread"))
-    s[output].bind(vx, tvm.thread_axis("vthread"))
+    s[output].bind(bn, te.thread_axis("blockIdx.z"))
+    s[output].bind(s[output].fuse(bg, bf), te.thread_axis("blockIdx.y"))
+    s[output].bind(s[output].fuse(by, bx), te.thread_axis("blockIdx.x"))
+    s[output].bind(vn, te.thread_axis("vthread"))
+    s[output].bind(vg, te.thread_axis("vthread"))
+    s[output].bind(vf, te.thread_axis("vthread"))
+    s[output].bind(vy, te.thread_axis("vthread"))
+    s[output].bind(vx, te.thread_axis("vthread"))
 
     cfg.define_knob("fuse_yx", [0, 1])  # fuse ty,tx or tn,tf
     if cfg["fuse_yx"].val:
-        s[output].bind(tn, tvm.thread_axis("threadIdx.z"))
-        s[output].bind(tf, tvm.thread_axis("threadIdx.y"))
+        s[output].bind(tn, te.thread_axis("threadIdx.z"))
+        s[output].bind(tf, te.thread_axis("threadIdx.y"))
         tyx = s[output].fuse(ty, tx)
-        s[output].bind(tyx, tvm.thread_axis("threadIdx.x"))
+        s[output].bind(tyx, te.thread_axis("threadIdx.x"))
         s[OL].compute_at(s[output], tyx)
 
         # number of threads
@@ -137,9 +138,9 @@ def _schedule_group_conv2d_nchw_direct(cfg, s, conv):
         n_ty = cfg["tile_f"].size[2]
         n_tx = cfg["tile_y"].size[2] * cfg["tile_x"].size[2]
     else:
-        s[output].bind(s[output].fuse(tn, tf), tvm.thread_axis("threadIdx.z"))
-        s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[output].bind(s[output].fuse(tn, tf), te.thread_axis("threadIdx.z"))
+        s[output].bind(ty, te.thread_axis("threadIdx.y"))
+        s[output].bind(tx, te.thread_axis("threadIdx.x"))
         s[OL].compute_at(s[output], tx)
 
         # number of threads
@@ -165,9 +166,9 @@ def _schedule_group_conv2d_nchw_direct(cfg, s, conv):
         fused, tx = s[load].split(fused, factor=n_tx)
         fused, ty = s[load].split(fused, factor=n_ty)
         fused, tz = s[load].split(fused, factor=n_tz)
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(ty, te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
@@ -185,11 +186,11 @@ def group_conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, groups
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width] or
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel // groups, filter_height, filter_width] or
         6-D with shape [num_filter_chunk, in_channel_chunk // groups, filter_height,
         filter_width, num_filter_block, in_channel_block]
@@ -211,7 +212,7 @@ def group_conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, groups
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_height, out_width, out_channel_block]
     """
     ic_block_factor = 4
@@ -230,11 +231,11 @@ def group_conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, groups
         assert out_channels % oc_block_factor == 0, \
             "Number of output channels per group must divide {}".format(oc_block_factor)
 
-        packed_data = tvm.compute((batch, channels // ic_block_factor, height, width,
-                                   ic_block_factor),
-                                  lambda n, c, h, w, vc: data[n, c*ic_block_factor + vc, h, w],
-                                  name="packed_data")
-        packed_kernel = tvm.compute(
+        packed_data = te.compute((batch, channels // ic_block_factor, height, width,
+                                  ic_block_factor),
+                                 lambda n, c, h, w, vc: data[n, c*ic_block_factor + vc, h, w],
+                                 name="packed_data")
+        packed_kernel = te.compute(
             (out_channels // oc_block_factor, in_channels // ic_block_factor, kernel_h, kernel_w,
              oc_block_factor, ic_block_factor),
             lambda oc_chunk, ic_chunk, kh, kw, oc_block, ic_block:
@@ -286,10 +287,10 @@ def group_conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, groups
 
     oshape = (batch, oc_chunk, out_height, out_width, oc_block)
 
-    icc = tvm.reduce_axis((0, ic_chunk // groups), name='ic_chunk')
-    icb = tvm.reduce_axis((0, ic_block_factor), name='ic_block')
-    kh = tvm.reduce_axis((0, kernel_h), name='kh')
-    kw = tvm.reduce_axis((0, kernel_w), name='kw')
+    icc = te.reduce_axis((0, ic_chunk // groups), name='ic_chunk')
+    icb = te.reduce_axis((0, ic_block_factor), name='ic_block')
+    kh = te.reduce_axis((0, kernel_h), name='kh')
+    kw = te.reduce_axis((0, kernel_w), name='kw')
 
     # NOTE(kumasento): explanation of this snippet -
     # oc_chunk//groups and ic_chunk//groups give you the number of blocks,
@@ -302,20 +303,20 @@ def group_conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, groups
     #
     # Compared with a normal convolution, group convolution only sums
     # input channels from the group that an output channel resides in.
-    conv = tvm.compute(
+    conv = te.compute(
         oshape, lambda n, occ, oh, ow, ocb:
-        tvm.sum(pad_data[n, occ//(oc_chunk//groups)*(ic_chunk//groups)+icc,
-                         oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
-                .astype('int32') *
-                packed_kernel[occ, icc, kh, kw, ocb, icb].astype('int32'),
-                axis=[icc, kh, kw, icb]))
+        te.sum(pad_data[n, occ//(oc_chunk//groups)*(ic_chunk//groups)+icc,
+                        oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
+               .astype('int32') *
+               packed_kernel[occ, icc, kh, kw, ocb, icb].astype('int32'),
+               axis=[icc, kh, kw, icb]))
 
     # Type conversion
-    output = tvm.compute(oshape, lambda *index: conv(*index).astype(out_dtype),
-                         tag='group_conv2d_NCHWc_int8')
+    output = te.compute(oshape, lambda *index: conv(*index).astype(out_dtype),
+                        tag='group_conv2d_NCHWc_int8')
 
     num_flop = batch * oc_chunk * oc_block * out_height * out_width * \
-               ic_chunk * ic_block * kernel_h * kernel_w * 2 // groups
+        ic_chunk * ic_block * kernel_h * kernel_w * 2 // groups
     cfg.add_flop(num_flop)
 
     return output
@@ -339,8 +340,8 @@ def schedule_group_conv2d_NCHWc_int8(cfg, outs):
     s: Schedule
         The computation schedule for group conv2d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == "group_conv2d_NCHWc_int8":
@@ -361,7 +362,7 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     conv = output.op.input_tensors[0]
     packed_data, packed_kernel = conv.op.input_tensors
 
-    if isinstance(packed_data.op, tvm.tensor.ComputeOp) and "pad" in packed_data.op.tag:
+    if isinstance(packed_data.op, tvm.te.ComputeOp) and "pad" in packed_data.op.tag:
         pad_data = packed_data
         packed_data = pad_data.op.input_tensors[0]
     else:
@@ -374,7 +375,7 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
         s[packed_kernel].pragma(
             s[packed_kernel].op.axis[0], "debug_skip_region")
     else:
-        if isinstance(packed_kernel.op, tvm.tensor.ComputeOp) and \
+        if isinstance(packed_kernel.op, tvm.te.ComputeOp) and \
                 packed_kernel.name == 'packed_kernel':
             # data and kernel are not pre-computed, schedule layout transform here
             schedule_injective_from_existing(s, packed_data)
@@ -407,7 +408,7 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     kernel_scope, n = s[output].split(n, nparts=1)
 
     g, f = s[output].split(f, nparts=groups)
-    s[output].bind(n, tvm.thread_axis('blockIdx.z'))
+    s[output].bind(n, te.thread_axis('blockIdx.z'))
     bn, vn, tn, ni = cfg["tile_n"].apply(s, output, n)
     bg, vg = cfg["tile_g"].apply(s, output, g)
     bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
@@ -416,20 +417,20 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
 
     s[output].reorder(bn, bg, bf, by, bx, vn, vg, vf, vy,
                       vx, tn, tf, ty, tx, ni, fi, yi, xi)
-    s[output].bind(bn, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(s[output].fuse(bg, bf), tvm.thread_axis("blockIdx.y"))
-    s[output].bind(s[output].fuse(by, bx), tvm.thread_axis("blockIdx.x"))
-    s[output].bind(vn, tvm.thread_axis("vthread"))
-    s[output].bind(vg, tvm.thread_axis("vthread"))
-    s[output].bind(vf, tvm.thread_axis("vthread"))
-    s[output].bind(vy, tvm.thread_axis("vthread"))
-    s[output].bind(vx, tvm.thread_axis("vthread"))
+    s[output].bind(bn, te.thread_axis("blockIdx.z"))
+    s[output].bind(s[output].fuse(bg, bf), te.thread_axis("blockIdx.y"))
+    s[output].bind(s[output].fuse(by, bx), te.thread_axis("blockIdx.x"))
+    s[output].bind(vn, te.thread_axis("vthread"))
+    s[output].bind(vg, te.thread_axis("vthread"))
+    s[output].bind(vf, te.thread_axis("vthread"))
+    s[output].bind(vy, te.thread_axis("vthread"))
+    s[output].bind(vx, te.thread_axis("vthread"))
     cfg.define_knob("fuse_yx", [0, 1])  # fuse ty,tx or tn,tf
     if cfg["fuse_yx"].val:
-        s[output].bind(tn, tvm.thread_axis("threadIdx.z"))
-        s[output].bind(tf, tvm.thread_axis("threadIdx.y"))
+        s[output].bind(tn, te.thread_axis("threadIdx.z"))
+        s[output].bind(tf, te.thread_axis("threadIdx.y"))
         tyx = s[output].fuse(ty, tx)
-        s[output].bind(tyx, tvm.thread_axis("threadIdx.x"))
+        s[output].bind(tyx, te.thread_axis("threadIdx.x"))
         s[conv].compute_at(s[output], tyx)
 
         # number of threads
@@ -437,10 +438,10 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
         n_ty = cfg["tile_f"].size[2]
         n_tx = cfg["tile_y"].size[2] * cfg["tile_x"].size[2]
     else:
-        s[output].bind(tn, tvm.thread_axis("threadIdx.z"))
-        s[output].bind(s[output].fuse(tn, tf), tvm.thread_axis("threadIdx.z"))
-        s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[output].bind(tn, te.thread_axis("threadIdx.z"))
+        s[output].bind(s[output].fuse(tn, tf), te.thread_axis("threadIdx.z"))
+        s[output].bind(ty, te.thread_axis("threadIdx.y"))
+        s[output].bind(tx, te.thread_axis("threadIdx.x"))
         s[conv].compute_at(s[output], tx)
 
         # number of threads
@@ -476,9 +477,9 @@ def _schedule_group_conv2d_NCHWc_int8(cfg, s, output):
         fused, tx = s[load].split(fused, factor=n_tx)
         fused, ty = s[load].split(fused, factor=n_ty)
         fused, tz = s[load].split(fused, factor=n_tz)
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(ty, te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # double buffer
     cfg.define_knob('AA_double_buffer', [0, 1])

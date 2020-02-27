@@ -61,6 +61,7 @@ source_parsers = {
 os.environ['TVM_BUILD_DOC'] = '1'
 # Version information.
 import tvm
+from tvm import te
 version = tvm.__version__
 release = tvm.__version__
 

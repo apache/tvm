@@ -20,15 +20,16 @@ Should be removed once we fix OpenGL testing on Jenkins.
 """
 import numpy as np
 import tvm
+from tvm import te
 import topi
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
 
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
-    A = tvm.placeholder((batch, in_dim), name='A')
-    B = tvm.placeholder((out_dim, in_dim), name='B')
-    C = tvm.placeholder((out_dim,), name='C')
+    A = te.placeholder((batch, in_dim), name='A')
+    B = te.placeholder((out_dim, in_dim), name='B')
+    C = te.placeholder((out_dim,), name='C')
     D = topi.nn.dense(A, B, C if use_bias else None)
     D = topi.nn.relu(D)
     dtype = A.dtype

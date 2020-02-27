@@ -21,7 +21,6 @@ from tvm.driver import lower, build
 
 from ..base import register_relay_node
 from ..expr import RelayExpr
-from ...api import register_func
 from ...target import get_native_generic_func, GenericFunc
 from ...runtime import Object
 from . import _make
@@ -155,7 +154,7 @@ class OpImplementation(Object):
         attrs : Attrs
             Op attributes.
 
-        inputs : list[tvm.tensor.Tensor]
+        inputs : list[te.tensor.Tensor]
             The input tensors.
 
         out_type : relay.Type
@@ -163,7 +162,7 @@ class OpImplementation(Object):
 
         Returns
         -------
-        outs : list[tvm.tensor.Tensor]
+        outs : list[te.tensor.Tensor]
             The output tensors.
         """
         return _OpImplementationCompute(self, attrs, inputs, out_type)
@@ -176,7 +175,7 @@ class OpImplementation(Object):
         attrs : Attrs
             Op attributes.
 
-        outs : list[tvm.tensor.Tensor]
+        outs : list[te.tensor.Tensor]
             The output tensors.
 
         target : tvm.target.Target
@@ -184,7 +183,7 @@ class OpImplementation(Object):
 
         Returns
         -------
-        schedule : tvm.Schedule
+        schedule : tvm.te.Schedule
             The schedule.
         """
         return _OpImplementationSchedule(self, attrs, outs, target)
@@ -454,11 +453,11 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     return register(op_name, "FShapeFunc", shape_func, level)
 
-@register_func("relay.op.compiler._lower")
+@tvm._ffi.register_func("relay.op.compiler._lower")
 def _lower(name, schedule, inputs, outputs):
     return lower(schedule, list(inputs) + list(outputs), name=name)
 
-@register_func("relay.op.compiler._build")
+@tvm._ffi.register_func("relay.op.compiler._build")
 def _build(lowered_funcs):
     return build(lowered_funcs, target="llvm")
 
@@ -473,7 +472,7 @@ def debug(expr, debug_func=None):
 
     if debug_func:
         name = "debugger_func{}".format(__DEBUG_COUNTER__)
-        register_func(name, debug_func)
+        tvm._ffi.register_func(name, debug_func)
         __DEBUG_COUNTER__ += 1
     else:
         name = ''

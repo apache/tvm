@@ -16,7 +16,7 @@
 # under the License.
 """Generic opertors in TVM.
 We follow the numpy naming convention for this interface
-(e.g., tvm.generic.multitply ~ numpy.multiply).
+(e.g., tvm.tir.generic.multitply ~ numpy.multiply).
 The default implementation is used by tvm.ExprOp.
 """
 # pylint: disable=unused-argument

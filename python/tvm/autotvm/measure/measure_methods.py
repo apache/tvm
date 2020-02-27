@@ -33,9 +33,13 @@ import tempfile
 
 import numpy as np
 
-from ... import ir_pass, build, build_config, nd, TVMError, register_func, \
-    rpc as _rpc, target as _target
-from ...contrib import nvcc, ndk, tar
+import tvm._ffi
+from tvm import nd, rpc as _rpc, target as _target
+from tvm.tir import ir_pass
+from tvm.error import TVMError
+from tvm.target import build_config
+from tvm.driver import build
+from tvm.contrib import nvcc, ndk, tar
 
 from ..util import get_const_tuple
 from ..env import AutotvmGlobalScope
@@ -581,7 +585,7 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     return not t.is_alive()
 
 
-@register_func
+@tvm._ffi.register_func
 def tvm_callback_cuda_compile(code):
     """use nvcc to generate ptx code for better optimization"""
     curr_cuda_target_arch = AutotvmGlobalScope.current.cuda_target_arch

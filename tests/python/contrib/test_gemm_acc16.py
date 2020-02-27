@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
 import tvm
+from tvm import te
 import numpy as np
 from topi.x86.tensor_intrin import dot_16x1x16_uint8_int8_int16
 
@@ -25,8 +26,8 @@ def benchmark_fc_int8_acc16():
     n = 128
     k = 128
 
-    X = tvm.placeholder((m, k), name='X', dtype="uint8")
-    W = tvm.placeholder((n, k), name='W', dtype="int8")
+    X = te.placeholder((m, k), name='X', dtype="uint8")
+    W = te.placeholder((n, k), name='W', dtype="int8")
 
     peak = 512/16*2*2*2
     gops_per_mm = 2*n*m*k
@@ -38,15 +39,15 @@ def benchmark_fc_int8_acc16():
             return
 
         ctx = tvm.context(target, 0)
-        X = tvm.placeholder((m, k), name='X', dtype="uint8")
-        W = tvm.placeholder((n, k), name='W', dtype="int8")
+        X = te.placeholder((m, k), name='X', dtype="uint8")
+        W = te.placeholder((n, k), name='W', dtype="int8")
         pc = dot_16x1x16_uint8_int8_int16()
-        ak = tvm.reduce_axis((0, k), name='k')
+        ak = te.reduce_axis((0, k), name='k')
 
-        packedW = tvm.placeholder((n//128, 128*(k//2), 2), name='packedW', dtype="int8")
-        t_fc = tvm.compute((m, n), lambda i, j: tvm.sum(X[i, ak].astype("int16") * packedW[j//128, (ak//2)*128+j%128, ak%2].astype("int16"), axis=ak), name="F")
+        packedW = te.placeholder((n//128, 128*(k//2), 2), name='packedW', dtype="int8")
+        t_fc = te.compute((m, n), lambda i, j: te.sum(X[i, ak].astype("int16") * packedW[j//128, (ak//2)*128+j%128, ak%2].astype("int16"), axis=ak), name="F")
 
-        t_sch = tvm.create_schedule(t_fc.op)
+        t_sch = te.create_schedule(t_fc.op)
         a_x, a_y = t_fc.op.axis
         a_k, = t_fc.op.reduce_axis
 

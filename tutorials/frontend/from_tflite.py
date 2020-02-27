@@ -151,6 +151,7 @@ with relay.build_config(opt_level=3):
 # Execute on TVM
 # --------------
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime as runtime
 
 # Create a runtime executor module

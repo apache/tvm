@@ -15,27 +15,28 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm.tir import Buffer
 import numpy as np
 
 def test_buffer():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    l = tvm.size_var('l')
-    Ab = tvm.decl_buffer((m, n), tvm.float32)
-    Bb = tvm.decl_buffer((n, l), tvm.float32)
+    m = te.size_var('m')
+    n = te.size_var('n')
+    l = te.size_var('l')
+    Ab = tvm.tir.decl_buffer((m, n), "float32")
+    Bb = tvm.tir.decl_buffer((n, l), "float32")
 
     assert isinstance(Ab, tvm.tir.Buffer)
-    assert Ab.dtype == tvm.float32
+    assert Ab.dtype == "float32"
     assert tuple(Ab.shape) == (m, n)
 
 
 def test_buffer_access_ptr():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((m, n), tvm.float32, strides=[n + 1 , 1])
+    m = te.size_var('m')
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1 , 1])
     aptr = Ab.access_ptr("rw")
-    assert tvm.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m)
+    assert tvm.tir.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m)
     assert aptr.args[0].dtype == Ab.dtype
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     aptr = Ab.access_ptr("w")
@@ -43,59 +44,59 @@ def test_buffer_access_ptr():
 
 
 def test_buffer_access_ptr_offset():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((m, n), tvm.float32)
+    m = te.size_var('m')
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw", offset=100)
-    offset = tvm.ir_pass.Simplify(aptr.args[2])
-    assert tvm.ir_pass.Equal(offset, 100)
+    offset = tvm.tir.ir_pass.Simplify(aptr.args[2])
+    assert tvm.tir.ir_pass.Equal(offset, 100)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
-    v = tvm.size_var('int32')
+    v = te.size_var('int32')
     aptr = Ab.access_ptr("rw", offset=100 + 100 + v)
-    offset = tvm.ir_pass.Simplify(aptr.args[2])
-    assert tvm.ir_pass.Equal(offset, 200 + v)
+    offset = tvm.tir.ir_pass.Simplify(aptr.args[2])
+    assert tvm.tir.ir_pass.Equal(offset, 200 + v)
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
-    aptr = Ab.access_ptr("rw", offset=tvm.call_extern('int32', "test_call", 100 + 100 + v))
-    offset = tvm.ir_pass.Simplify(aptr.args[2])
-    assert tvm.ir_pass.Equal(offset, tvm.call_extern('int32', "test_call", 200 + v))
+    aptr = Ab.access_ptr("rw", offset=tvm.tir.call_extern('int32', "test_call", 100 + 100 + v))
+    offset = tvm.tir.ir_pass.Simplify(aptr.args[2])
+    assert tvm.tir.ir_pass.Equal(offset, tvm.tir.call_extern('int32', "test_call", 200 + v))
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
 
 
 def test_buffer_access_ptr_extent():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((m, n), tvm.float32)
+    m = te.size_var('m')
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw")
-    assert tvm.ir_pass.Equal(aptr.args[3], m * n)
+    assert tvm.tir.ir_pass.Equal(aptr.args[3], m * n)
     aptr = Ab.access_ptr("rw", offset=100)
-    assert tvm.ir_pass.Equal(aptr.args[3], m * n - 100)
-    Ab = tvm.decl_buffer((m, n), tvm.float32, strides=[n + 1 , 1])
+    assert tvm.tir.ir_pass.Equal(aptr.args[3], m * n - 100)
+    Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1 , 1])
     aptr = Ab.access_ptr("rw", offset=100)
-    assert tvm.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m - 100)
+    assert tvm.tir.ir_pass.Equal(aptr.args[3], Ab.strides[0] * m - 100)
 
 
 def test_buffer_vload():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((m, n), tvm.float32, elem_offset=100)
+    m = te.size_var('m')
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
-    offset = tvm.ir_pass.Simplify(load.index)
-    assert tvm.ir_pass.Equal(offset, n * 2 + 103)
+    offset = tvm.tir.ir_pass.Simplify(load.index)
+    assert tvm.tir.ir_pass.Equal(offset, n * 2 + 103)
 
 
 def test_buffer_index_merge_mult_mod():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    s = tvm.size_var('s')
-    k0 = tvm.size_var('k0')
-    k1 = tvm.size_var('k1')
-    A = tvm.decl_buffer((m, n), tvm.float32)
-    A_stride = tvm.decl_buffer((m, n), tvm.float32, strides=(s, 1))
+    m = te.size_var('m')
+    n = te.size_var('n')
+    s = te.size_var('s')
+    k0 = te.size_var('k0')
+    k1 = te.size_var('k1')
+    A = tvm.tir.decl_buffer((m, n), "float32")
+    A_stride = tvm.tir.decl_buffer((m, n), "float32", strides=(s, 1))
     def assert_simplified_equal(index_simplified, index_direct):
-        assert tvm.ir_pass.Equal(index_simplified, index_direct),\
+        assert tvm.tir.ir_pass.Equal(index_simplified, index_direct),\
         "index_simplified=%s, index_direct=%s" %(index_simplified, index_direct)
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
     # Test Case1
     index_simplified = A_stride.vload(
         (idxd(idxm(k0, k1), s), idxm(idxm(k0, k1), s) + idxd(k0, k1) * k1))
@@ -123,18 +124,18 @@ def test_buffer_index_merge_mult_mod():
 
 
 def test_buffer_broadcast():
-    m0, m1, m2 = tvm.size_var("m0"), tvm.size_var("m1"), tvm.size_var("m2")
-    n0, n1, n2 = tvm.size_var("n0"), tvm.size_var("n1"), tvm.size_var("n2")
-    o0, o1, o2 = tvm.size_var("o0"), tvm.size_var("o1"), tvm.size_var("o2")
+    m0, m1, m2 = te.size_var("m0"), te.size_var("m1"), te.size_var("m2")
+    n0, n1, n2 = te.size_var("n0"), te.size_var("n1"), te.size_var("n2")
+    o0, o1, o2 = te.size_var("o0"), te.size_var("o1"), te.size_var("o2")
 
-    A = tvm.placeholder((m0, m1, m2), name='A')
-    B = tvm.placeholder((n0, n1, n2), name='B')
+    A = te.placeholder((m0, m1, m2), name='A')
+    B = te.placeholder((n0, n1, n2), name='B')
 
-    C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
+    C = te.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
 
-    Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-    Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-    s = tvm.create_schedule(C.op)
+    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
+    s = te.create_schedule(C.op)
 
     def check():
         if not tvm.runtime.enabled("llvm"):
@@ -151,18 +152,18 @@ def test_buffer_broadcast():
 
 
 def test_buffer_broadcast_expr():
-    n0, m0, x = tvm.size_var('n0'), tvm.size_var('m0'), tvm.size_var('x')
-    n1, m1 = tvm.size_var('n1'), tvm.size_var('m1')
-    o0, o1 = tvm.size_var('o0'), tvm.size_var('o1')
+    n0, m0, x = te.size_var('n0'), te.size_var('m0'), te.size_var('x')
+    n1, m1 = te.size_var('n1'), te.size_var('m1')
+    o0, o1 = te.size_var('o0'), te.size_var('o1')
 
-    A = tvm.placeholder((m0, n0), name='A')
-    B = tvm.placeholder((m1, n1), name='B')
-    C = tvm.compute((o0, o1//x), lambda i, j: A[i, j] + B[i, j], name='C')
+    A = te.placeholder((m0, n0), name='A')
+    B = te.placeholder((m1, n1), name='B')
+    C = te.compute((o0, o1//x), lambda i, j: A[i, j] + B[i, j], name='C')
 
-    Ab = tvm.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-    Bb = tvm.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-    Cc = tvm.decl_buffer(C.shape, C.dtype, name="Cc", buffer_type="auto_broadcast")
-    s = tvm.create_schedule(C.op)
+    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
+    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
+    Cc = tvm.tir.decl_buffer(C.shape, C.dtype, name="Cc", buffer_type="auto_broadcast")
+    s = te.create_schedule(C.op)
 
     def check_stride():
         if not tvm.runtime.enabled("llvm"):

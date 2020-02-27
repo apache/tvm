@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 1D convolution operators (sometimes called Deconvolution)."""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from .dilate import dilate
 from .pad import pad
 from ..util import simplify
@@ -29,10 +28,10 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         3-D with shape [batch, in_channel, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         3-D with shape [in_channel, num_filter, filter_width]
 
     stride : ints
@@ -46,7 +45,7 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         3-D with shape [batch, out_channel, out_width]
     """
 
@@ -63,18 +62,18 @@ def conv1d_transpose_ncw(data, kernel, stride, padding, out_dtype):
     data = pad(data, [0, 0, pad_left], [0, 0, pad_right], name='data_pad')
 
     # transpose kernel, switch kernel layout to IOW
-    kernel = tvm.compute((channels_out, channels_in, kernel_width), \
-                         lambda o, i, w: kernel[i][o][kernel_width-1-w],\
-                         name='kernel')
+    kernel = te.compute((channels_out, channels_in, kernel_width), \
+                        lambda o, i, w: kernel[i][o][kernel_width-1-w],\
+                        name='kernel')
 
     # convolution
     _, _, data_width = data.shape
     out_w = simplify(data_width - kernel_width + 1)
-    dc = tvm.reduce_axis((0, channels_in), name='dc')
-    dw = tvm.reduce_axis((0, kernel_width), name='dw')
-    output = tvm.compute(
+    dc = te.reduce_axis((0, channels_in), name='dc')
+    dw = te.reduce_axis((0, kernel_width), name='dw')
+    output = te.compute(
         (batch, channels_out, out_w),
-        lambda b, c, w: tvm.sum(
+        lambda b, c, w: te.sum(
             data[b, dc, w+dw].astype(out_dtype) *
             kernel[c, dc, dw].astype(out_dtype),
             axis=[dc, dw]), tag="conv1d_transpose_ncw")

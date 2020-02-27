@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.relay import transform

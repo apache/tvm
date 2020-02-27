@@ -17,6 +17,7 @@
 """Test code for broadcasting operators."""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from common import get_all_backend
@@ -24,7 +25,7 @@ from common import get_all_backend
 
 def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
     # Build the logic and compile the function
-    A = tvm.placeholder(shape=in_shape, name="A")
+    A = te.placeholder(shape=in_shape, name="A")
     B = fbcast(A, out_shape)
 
     def check_device(device):
@@ -54,13 +55,13 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
                                 rhs_min=-100, rhs_max=100,
                                 dtype="float32"):
     # Build the logic and compile the function
-    A = (tvm.var("A", dtype=dtype) if lhs_shape is None
-         else tvm.placeholder(shape=lhs_shape, name="A", dtype=dtype))
-    B = (tvm.var("B", dtype=dtype) if rhs_shape is None
-         else tvm.placeholder(shape=rhs_shape, name="B", dtype=dtype))
+    A = (te.var("A", dtype=dtype) if lhs_shape is None
+         else te.placeholder(shape=lhs_shape, name="A", dtype=dtype))
+    B = (te.var("B", dtype=dtype) if rhs_shape is None
+         else te.placeholder(shape=rhs_shape, name="B", dtype=dtype))
     C = ftopi(A, B)
-    if isinstance(A, tvm.expr.PrimExpr) and isinstance(B, tvm.expr.PrimExpr):
-        assert(isinstance(C, tvm.expr.PrimExpr))
+    if isinstance(A, tvm.tir.PrimExpr) and isinstance(B, tvm.tir.PrimExpr):
+        assert(isinstance(C, tvm.tir.PrimExpr))
         return
 
     def gen_operand(shape, low, high, ctx):
@@ -240,10 +241,10 @@ def test_logical_single_ele():
             dtype="bool",
     ):
         # Build the logic and compile the function
-        A = tvm.placeholder(shape=indata.shape, name="A", dtype=dtype)
+        A = te.placeholder(shape=indata.shape, name="A", dtype=dtype)
         B = func(A)
-        if isinstance(A, tvm.expr.PrimExpr):
-            assert (isinstance(B, tvm.expr.PrimExpr))
+        if isinstance(A, tvm.tir.PrimExpr):
+            assert (isinstance(B, tvm.tir.PrimExpr))
             return
 
         def check_device(device):
@@ -280,11 +281,11 @@ def test_bitwise_not():
             dtype="int32",
     ):
         # Build the logic and compile the function
-        A = tvm.placeholder(shape=shape, name="A", dtype=dtype)
+        A = te.placeholder(shape=shape, name="A", dtype=dtype)
         B = func(A)
 
-        if isinstance(A, tvm.expr.PrimExpr):
-            assert (isinstance(B, tvm.expr.PrimExpr))
+        if isinstance(A, tvm.tir.PrimExpr):
+            assert (isinstance(B, tvm.tir.PrimExpr))
             return
 
         def check_device(device):
@@ -322,11 +323,11 @@ def test_logical_binary_ele():
             dtype="bool",
     ):
         # Build the logic and compile the function
-        A = (tvm.var("A", dtype=dtype))
-        B = (tvm.var("B", dtype=dtype))
+        A = (te.var("A", dtype=dtype))
+        B = (te.var("B", dtype=dtype))
         C = func(A, B)
-        if isinstance(A, tvm.expr.PrimExpr) and isinstance(B, tvm.expr.PrimExpr):
-            assert (isinstance(C, tvm.expr.PrimExpr))
+        if isinstance(A, tvm.tir.PrimExpr) and isinstance(B, tvm.tir.PrimExpr):
+            assert (isinstance(C, tvm.tir.PrimExpr))
             return
 
         def check_device(device):

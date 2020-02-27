@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """Schedule for dense operator"""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from .. import tag
 
 def schedule_dense(outs):
@@ -34,8 +33,8 @@ def schedule_dense(outs):
     s: Schedule
         The computation schedule for dense.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def _schedule(Dense):
@@ -53,7 +52,7 @@ def schedule_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule dense
         elif OP.tag == 'dense':

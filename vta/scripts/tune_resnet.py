@@ -24,6 +24,7 @@ from PIL import Image
 
 import topi
 import tvm
+from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
@@ -60,13 +61,13 @@ def parse_arguments():
 def register_vta_tuning_tasks():
     from tvm.autotvm.task.topi_integration import TaskExtractEnv, deserialize_args
 
-    @tvm.tag_scope(tag=topi.tag.ELEMWISE)
+    @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
     def my_clip(x, a_min, a_max):
         """Unlike topi's current clip, put min and max into two stages."""
-        const_min = tvm.const(a_min, x.dtype)
-        const_max = tvm.const(a_max, x.dtype)
-        x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-        x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+        const_min = tvm.tir.const(a_min, x.dtype)
+        const_max = tvm.tir.const(a_max, x.dtype)
+        x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+        x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
         return x
 
     # init autotvm env to register VTA operator
@@ -87,7 +88,7 @@ def register_vta_tuning_tasks():
         if tvm.target.Target.current().device_name == 'vta':
             s = topi.generic.schedule_conv2d_nchw([res])
         else:
-            s = tvm.create_schedule([res.op])
+            s = te.create_schedule([res.op])
         return s, [A, W, res]
 
     @autotvm.task.register("topi_nn_dense", override=True)
@@ -105,7 +106,7 @@ def register_vta_tuning_tasks():
         if tvm.target.Target.current().device_name == 'vta':
             s = topi.generic.schedule_dense([res])
         else:
-            s = tvm.create_schedule([res.op])
+            s = te.create_schedule([res.op])
 
         return s, [A, W, res]
 

@@ -16,22 +16,20 @@
 # under the License.
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
-from __future__ import absolute_import
-from ..api import register_func
-
+import tvm._ffi
 
 # pylint: disable=unused-argument, import-outside-toplevel
 def _debugger_init(expr, stack):
     import pdb
     pdb.set_trace()
 
-@register_func("relay.debug")
+@tvm._ffi.register_func("relay.debug")
 def _debug(*args):
     import pdb
     pdb.set_trace()
 
 # pylint: disable=unused-argument
-@register_func("relay.debug_interp")
+@tvm._ffi.register_func("relay.debug_interp")
 def _debug_interp(*args):
     _, _, _, ist = args
     print("Relay Debugger")

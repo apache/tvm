@@ -55,7 +55,7 @@ def _cook_toom_convolution(a, n, r):
         f = lambda j, i: reduce(mul, ((a[i]-a[k] if k != i else 1) for k in range(0, n-1)), 1)
         Ff = np.fromfunction(np.vectorize(f), (1, n-1), dtype=int)
         f = lambda i, nth: (reduce(mul, [(np.poly1d([1, -a[k]]) if k != i else 1) \
-                            for k in range(0, n-1)], 1)).coef[n-1-nth-1]/Ff[0, i]
+                                         for k in range(0, n-1)], 1)).coef[n-1-nth-1]/Ff[0, i]
         F = np.fromfunction(np.vectorize(f), (n-1, n-1), dtype=int)
         f = lambda i, j: -a[i]**(n-1)
         t = np.fromfunction(np.vectorize(f), (n-1, 1), dtype=int)

@@ -15,38 +15,39 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_verify_compute():
-  n = tvm.size_var("n")
-  m = tvm.size_var("m")
-  A = tvm.placeholder((n, m), name='A')
-  k = tvm.reduce_axis((0, m), "k")
-  k_ = tvm.reduce_axis((0, m-1), "k_")
-  f1 = lambda i: tvm.sum(A[i, k], axis=k)
+  n = te.size_var("n")
+  m = te.size_var("m")
+  A = te.placeholder((n, m), name='A')
+  k = te.reduce_axis((0, m), "k")
+  k_ = te.reduce_axis((0, m-1), "k_")
+  f1 = lambda i: te.sum(A[i, k], axis=k)
   f2 = lambda i: A[i,0] + 1
-  f3 = lambda i: tvm.sum(A[i, k], axis=k) + 1
-  f4 = lambda i: A[i,0] * (tvm.sum(A[i, k], axis=k) + 1)
-  f5 = lambda i: (tvm.sum(A[i, k], axis=k), A[i,0] + 1)
-  f6 = lambda i: (tvm.sum(A[i, k], axis=k), tvm.sum(A[i, k_], axis=k_))
+  f3 = lambda i: te.sum(A[i, k], axis=k) + 1
+  f4 = lambda i: A[i,0] * (te.sum(A[i, k], axis=k) + 1)
+  f5 = lambda i: (te.sum(A[i, k], axis=k), A[i,0] + 1)
+  f6 = lambda i: (te.sum(A[i, k], axis=k), te.sum(A[i, k_], axis=k_))
 
   #
   # Valid compute
   try:
-    B = tvm.compute((n,), f1, name="B")
+    B = te.compute((n,), f1, name="B")
   except tvm._ffi.base.TVMError as ex:
     assert False
 
   #
   # Valid compute
   try:
-    B = tvm.compute((n,), f2, name="B")
+    B = te.compute((n,), f2, name="B")
   except tvm._ffi.base.TVMError as ex:
     assert False
 
   #
   # Invalid compute with non top level reduction
   try:
-    B = tvm.compute((n,), f3, name="B")
+    B = te.compute((n,), f3, name="B")
     assert False
   except tvm._ffi.base.TVMError as ex:
     pass
@@ -54,7 +55,7 @@ def test_verify_compute():
   #
   # Invalid compute with non top level reduction
   try:
-    B = tvm.compute((n,), f4, name="B")
+    B = te.compute((n,), f4, name="B")
     assert False
   except tvm._ffi.base.TVMError as ex:
     pass
@@ -62,7 +63,7 @@ def test_verify_compute():
   #
   # Invalid compute with reduction and non-reduction batch ops
   try:
-    B0, B1 = tvm.compute((n,), f5, name="B")
+    B0, B1 = te.compute((n,), f5, name="B")
     assert False
   except tvm._ffi.base.TVMError as ex:
     pass
@@ -70,7 +71,7 @@ def test_verify_compute():
   #
   # Invalid compute with unequal batch reduction ops
   try:
-    B0, B1 = tvm.compute((n,), f6, name="B")
+    B0, B1 = te.compute((n,), f6, name="B")
     assert False
   except tvm._ffi.base.TVMError as ex:
     pass

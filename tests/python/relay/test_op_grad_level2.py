@@ -19,6 +19,7 @@ import numpy as np
 import topi
 import topi.testing
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
@@ -92,8 +93,8 @@ def verify_global_avg_pool2d_grad(x_shape):
     data = np.random.rand(*x_shape).astype("float32")
     y_shape = topi.util.get_const_tuple(fwd_func.ret_type.shape)
     out_grad = np.ones(shape=y_shape)
-    ref_grad = topi.testing.pool_grad_nchw(data, out_grad, pool_size=(x_shape[2], x_shape[3]), 
-                                            strides=(1, 1), padding=[0, 0, 0, 0], pool_type='avg', 
+    ref_grad = topi.testing.pool_grad_nchw(data, out_grad, pool_size=(x_shape[2], x_shape[3]),
+                                            strides=(1, 1), padding=[0, 0, 0, 0], pool_type='avg',
                                             ceil_mode=False)
 
     for target, ctx in ctx_list():

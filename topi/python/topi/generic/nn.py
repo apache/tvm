@@ -16,19 +16,19 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 
 def _default_schedule(outs, auto_inline):
     """Default schedule for llvm."""
     target = tvm.target.Target.current(allow_none=False)
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     if target.target_name not in ("llvm", "c"):
         raise RuntimeError("schedule not registered for '%s'" % target)
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     if auto_inline:
         x = outs[0]
-        tvm.schedule.AutoInlineInjective(s)
+        te.schedule.AutoInlineInjective(s)
         s[x].fuse(s[x].op.axis)
     return s
 
@@ -187,7 +187,7 @@ def schedule_conv2d_winograd_weight_transform(outs):
     """
     # Typically this is computed in PreCompute pass
     # so we make a schedule here for cpu llvm
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     output = outs[0]
     _, G = s[output].op.input_tensors
     s[G].compute_inline()
@@ -230,7 +230,7 @@ def schedule_conv2d_winograd_nnpack_weight_transform(outs):
         The computation schedule for the op.
     """
     # Typically this is computed in PreCompute pass
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     return s
 
 

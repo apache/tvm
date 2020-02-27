@@ -18,6 +18,7 @@
 import math
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -48,7 +49,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
     sw = sh
     pt, pl, pb, pr = padding
     layout = "NCHW"
-    A = tvm.placeholder((n, ic, ih, iw), name='A')
+    A = te.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                      pool_type=pool_type, ceil_mode=ceil_mode,
                      layout="NCHW", count_include_pad=count_include_pad)
@@ -112,7 +113,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
     sw = sh
     pt, pl, pb, pr = padding
     layout = "NCHW"
-    A = tvm.placeholder((n, ic, ih, iw), name='A')
+    A = te.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                      pool_type=pool_type, ceil_mode=ceil_mode,
                      layout="NCHW", count_include_pad=count_include_pad)
@@ -126,7 +127,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
     else:
         assert bshape[2] == int(math.floor(float(ashape[2] - kh + pt + pb) / sh) + 1)
         assert bshape[3] == int(math.floor(float(ashape[3] - kw + pl + pr) / sw) + 1)
-    OutGrad = tvm.placeholder(bshape, name='OutGrad')
+    OutGrad = te.placeholder(bshape, name='OutGrad')
     PoolGrad = topi.nn.pool_grad(OutGrad, A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                                  pool_type=pool_type, ceil_mode=ceil_mode,
                                  layout="NCHW", count_include_pad=count_include_pad)
@@ -202,7 +203,7 @@ def test_pool_grad():
 def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
 
     assert layout in ["NCHW", "NHWC"]
-    A = tvm.placeholder((n, c, h, w), name='A')
+    A = te.placeholder((n, c, h, w), name='A')
     B = topi.nn.global_pool(A, pool_type=pool_type, layout=layout)
     B = topi.nn.relu(B)
 
@@ -268,7 +269,7 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
                     l_sl = slice(l_start, l_end)
                     np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
 
-    data = tvm.placeholder(dshape, name="data", dtype=dtype)
+    data = te.placeholder(dshape, name="data", dtype=dtype)
     out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -302,7 +303,7 @@ def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
     input_shape = (n, ic, id, ih, iw)
     kernel = [kd, kh, kw]
     stride = [sd, sh, sw]
-    A = tvm.placeholder(input_shape, name='A')
+    A = te.placeholder(input_shape, name='A')
     B = topi.nn.pool3d(A, kernel=kernel, stride=stride, padding=padding,
                        pool_type=pool_type, ceil_mode=ceil_mode,
                        layout=layout, count_include_pad=count_include_pad)
@@ -355,7 +356,7 @@ def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
     input_shape = (n, ic, iw)
     kernel = [kw]
     stride = [sw]
-    A = tvm.placeholder(input_shape, name='A')
+    A = te.placeholder(input_shape, name='A')
     B = topi.nn.pool1d(A, kernel=kernel, stride=stride, padding=padding,
                        pool_type=pool_type, ceil_mode=ceil_mode,
                        layout=layout, count_include_pad=count_include_pad)

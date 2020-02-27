@@ -18,6 +18,7 @@ import os
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
@@ -46,7 +47,7 @@ def relay_micro_build(func, dev_config, params=None):
     mod : tvm.runtime.Module
         graph runtime module for the target device
     """
-    with tvm.build_config(disable_vectorize=True):
+    with tvm.target.build_config(disable_vectorize=True):
         graph, c_mod, params = relay.build(func, target="c", params=params)
     micro_mod = create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)
@@ -76,11 +77,11 @@ def test_add():
     dtype = "float32"
 
     # Construct TVM expression.
-    tvm_shape = tvm.convert(shape)
-    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
-    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = tvm.create_schedule(C.op)
+    tvm_shape = tvm.runtime.convert(shape)
+    A = te.placeholder(tvm_shape, name="A", dtype=dtype)
+    B = te.placeholder(tvm_shape, name="B", dtype=dtype)
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
+    s = te.create_schedule(C.op)
 
     func_name = "fadd"
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
@@ -105,12 +106,12 @@ def test_workspace_add():
     dtype = "float32"
 
     # Construct TVM expression.
-    tvm_shape = tvm.convert(shape)
-    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
-    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name="B")
-    C = tvm.compute(A.shape, lambda *i: B(*i) + 1, name="C")
-    s = tvm.create_schedule(C.op)
+    tvm_shape = tvm.runtime.convert(shape)
+    A = te.placeholder(tvm_shape, name="A", dtype=dtype)
+    B = te.placeholder(tvm_shape, name="B", dtype=dtype)
+    B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
+    C = te.compute(A.shape, lambda *i: B(*i) + 1, name="C")
+    s = te.create_schedule(C.op)
 
     func_name = "fadd_two_workspace"
     c_mod = tvm.build(s, [A, C], target="c", name=func_name)

@@ -18,6 +18,7 @@
 """
 import numpy as np
 import tvm
+from tvm import te
 import topi.testing
 from tvm import relay
 from tvm.relay import transform
@@ -250,7 +251,7 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 def test_slice_like():
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     verify_slice_like(data=(d1, d2, d3), slice_like=(1, 2, 3), axes=None, output=(1, 2, 3))
     verify_slice_like(data=(1, 2, 3), slice_like=(d1, d2, d3), axes=None, output=(d1, d2, d3))
     verify_slice_like(data=(d2, d3, d4), slice_like=(d1, d2, d3), axes=(1,2), output=(d2, d2, d3))
@@ -304,7 +305,7 @@ def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
             tvm.testing.assert_allclose(z.asnumpy(), z_np, rtol=1e-5)
 
 def test_batch_matmul():
-    b, m, n, k = tvm.size_var("b"), tvm.size_var("m"), tvm.size_var("n"), tvm.size_var("k")
+    b, m, n, k = te.size_var("b"), te.size_var("m"), te.size_var("n"), te.size_var("k")
     x = relay.var("x", relay.TensorType((b, m, k), "float32"))
     y = relay.var("y", relay.TensorType((b, n, k), "float32"))
     z = relay.nn.batch_matmul(x, y)

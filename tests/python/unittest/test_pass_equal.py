@@ -15,39 +15,40 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_equal_expr():
-    x = tvm.var('x')
-    y = tvm.var('y')
+    x = te.var('x')
+    y = te.var('y')
 
     def func1():
         return x + y + 1
 
     def func2():
-        return tvm.exp(tvm.truncdiv((x + y + 1) * y, 4))
+        return te.exp(tvm.tir.truncdiv((x + y + 1) * y, 4))
 
-    assert tvm.ir_pass.Equal(func1(), func1())
-    assert tvm.ir_pass.Equal(func2(), func2())
-    assert not tvm.ir_pass.Equal(func2(), func1())
+    assert tvm.tir.ir_pass.Equal(func1(), func1())
+    assert tvm.tir.ir_pass.Equal(func2(), func2())
+    assert not tvm.tir.ir_pass.Equal(func2(), func1())
 
 
 def test_equal_compute():
-    x = tvm.var('x')
-    y = tvm.var('y')
+    x = te.var('x')
+    y = te.var('y')
     n = 128
-    A = tvm.placeholder((n, n), name='A')
-    B = tvm.placeholder((n, n), name='B')
-    ii = tvm.var('i')
-    jj = tvm.var('j')
+    A = te.placeholder((n, n), name='A')
+    B = te.placeholder((n, n), name='B')
+    ii = te.var('i')
+    jj = te.var('j')
 
     def func1():
-        k = tvm.reduce_axis((0, n), name='k')
-        return tvm.sum(A[ii, k] * B[jj, k], axis=k)
+        k = te.reduce_axis((0, n), name='k')
+        return te.sum(A[ii, k] * B[jj, k], axis=k)
 
-    Ab = tvm.decl_buffer((n,), name='A')
-    n = tvm.var("n")
+    Ab = tvm.tir.decl_buffer((n,), name='A')
+    n = te.var("n")
     def func2():
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         A = ib.buffer_ptr(Ab)
         with ib.for_range(0, n, name="i") as i:
             A[i] = A[i] + 1
@@ -56,8 +57,8 @@ def test_equal_compute():
                 A[j] = A[j] + 2
         return ib.get()
 
-    assert tvm.ir_pass.Equal(func1(), func1())
-    assert tvm.ir_pass.Equal(func2(), func2())
+    assert tvm.tir.ir_pass.Equal(func1(), func1())
+    assert tvm.tir.ir_pass.Equal(func2(), func2())
 
 
 if __name__ == "__main__":

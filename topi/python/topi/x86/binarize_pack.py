@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """Schedule for binarization and bit-packing."""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 
 
 def schedule_binarize_pack(outs):
@@ -34,8 +33,8 @@ def schedule_binarize_pack(outs):
     s: Schedule
         The computation schedule for binarize_pack.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _schedule(Out):
         s[Out].parallel(Out.op.axis[0])

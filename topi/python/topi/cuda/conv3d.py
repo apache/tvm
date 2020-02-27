@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Compute definition for conv3d with cuda backend"""
-import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.contrib import cudnn
 
@@ -34,10 +34,10 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype='float
     cfg: ConfigEntity
         The config for this template
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         5-D with shape [batch, in_channel, in_depth, in_height, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
 
     strides : int or a list/tuple of three ints
@@ -54,7 +54,7 @@ def conv3d_ncdhw(cfg, data, kernel, strides, padding, dilation, out_dtype='float
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
     return nn.conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
@@ -78,8 +78,8 @@ def schedule_conv3d_ncdhw(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'conv3d_ncdhw':
@@ -96,10 +96,10 @@ def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         5-D with shape [batch, in_depth, in_height, in_width, in_channel]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         5-D with shape [filter_depth, filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of three ints
@@ -113,7 +113,7 @@ def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         5-D with shape [batch, out_depth, out_height, out_width, out_channel]
     """
     return nn.conv3d_ndhwc(data, kernel, strides, padding, dilation, out_dtype)
@@ -137,8 +137,8 @@ def schedule_conv3d_ndhwc(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'conv3d_ndhwc':
@@ -159,10 +159,10 @@ def conv3d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCDHW',
     cfg: ConfigEntity
         The config for this template
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         5-D with shape [batch, in_channel, in_depth, in_height, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
 
     strides : int or a list/tuple of three ints
@@ -182,7 +182,7 @@ def conv3d_cudnn(cfg, data, kernel, strides, padding, dilation, layout='NCDHW',
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
     if layout == 'NCDHW':

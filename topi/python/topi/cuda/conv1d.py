@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, unused-argument
 """Compute definition for conv1d with cuda backend"""
 import tvm
+from tvm import te
 from tvm import autotvm
 
 from .. import nn
@@ -52,8 +53,8 @@ def schedule_conv1d_ncw(cfg, outs):
     s : Schedule
         The computation schedule for conv1d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'conv1d_ncw':
@@ -79,7 +80,7 @@ def schedule_conv1d_ncw(cfg, outs):
             ##### space definition end #####
 
             if isinstance(kernel.op,
-                          tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+                          tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
@@ -103,14 +104,14 @@ def schedule_conv1d_ncw(cfg, outs):
             bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
             s[output].reorder(bn, bf, bx, vn, vf, vx, tn, tf, tx, ni, fi, xi)
-            s[output].bind(bn, tvm.thread_axis("blockIdx.z"))
-            s[output].bind(bf, tvm.thread_axis("blockIdx.y"))
-            s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-            s[output].bind(vn, tvm.thread_axis("vthread"))
-            s[output].bind(vf, tvm.thread_axis("vthread"))
-            s[output].bind(vx, tvm.thread_axis("vthread"))
+            s[output].bind(bn, te.thread_axis("blockIdx.z"))
+            s[output].bind(bf, te.thread_axis("blockIdx.y"))
+            s[output].bind(bx, te.thread_axis("blockIdx.x"))
+            s[output].bind(vn, te.thread_axis("vthread"))
+            s[output].bind(vf, te.thread_axis("vthread"))
+            s[output].bind(vx, te.thread_axis("vthread"))
 
-            s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+            s[output].bind(tx, te.thread_axis("threadIdx.x"))
             s[OL].compute_at(s[output], tx)
             # number of threads
             n_tz = cfg["tile_n"].size[2] * cfg["tile_f"].size[2]
@@ -131,8 +132,8 @@ def schedule_conv1d_ncw(cfg, outs):
                 fused = s[load].fuse(f, x)
                 tz, fused = s[load].split(fused, nparts=n_tz)
                 tx, fused = s[load].split(fused, nparts=n_tx)
-                s[load].bind(tz, tvm.thread_axis("threadIdx.y"))
-                s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+                s[load].bind(tz, te.thread_axis("threadIdx.y"))
+                s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
             s[output].pragma(kernel_scope, 'auto_unroll_max_step',
                              cfg['auto_unroll_max_step'].val)
@@ -177,8 +178,8 @@ def schedule_conv1d_nwc(cfg, outs):
     s : Schedule
         The computation schedule for conv1d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'conv1d_nwc':
@@ -204,7 +205,7 @@ def schedule_conv1d_nwc(cfg, outs):
             ##### space definition end #####
 
             if isinstance(kernel.op,
-                          tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+                          tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
@@ -228,14 +229,14 @@ def schedule_conv1d_nwc(cfg, outs):
             bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
 
             s[output].reorder(bn, bx, bf, vn, vx, vf, tn, tx, tf, ni, xi, fi)
-            s[output].bind(bn, tvm.thread_axis("blockIdx.z"))
-            s[output].bind(bx, tvm.thread_axis("blockIdx.y"))
-            s[output].bind(bf, tvm.thread_axis("blockIdx.x"))
-            s[output].bind(vn, tvm.thread_axis("vthread"))
-            s[output].bind(vx, tvm.thread_axis("vthread"))
-            s[output].bind(vf, tvm.thread_axis("vthread"))
+            s[output].bind(bn, te.thread_axis("blockIdx.z"))
+            s[output].bind(bx, te.thread_axis("blockIdx.y"))
+            s[output].bind(bf, te.thread_axis("blockIdx.x"))
+            s[output].bind(vn, te.thread_axis("vthread"))
+            s[output].bind(vx, te.thread_axis("vthread"))
+            s[output].bind(vf, te.thread_axis("vthread"))
 
-            s[output].bind(tf, tvm.thread_axis("threadIdx.x"))
+            s[output].bind(tf, te.thread_axis("threadIdx.x"))
             s[OL].compute_at(s[output], tf)
             # number of threads
             n_tz = cfg["tile_n"].size[2] * cfg["tile_x"].size[2]
@@ -256,8 +257,8 @@ def schedule_conv1d_nwc(cfg, outs):
                 fused = s[load].fuse(x, f)
                 tz, fused = s[load].split(fused, nparts=n_tz)
                 tx, fused = s[load].split(fused, nparts=n_tx)
-                s[load].bind(tz, tvm.thread_axis("threadIdx.y"))
-                s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+                s[load].bind(tz, te.thread_axis("threadIdx.y"))
+                s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
             s[output].pragma(kernel_scope, 'auto_unroll_max_step',
                              cfg['auto_unroll_max_step'].val)

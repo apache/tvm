@@ -22,14 +22,13 @@ import logging
 import sys
 import numpy
 
+import tvm.runtime
 from tvm._ffi.base import numeric_types
 from tvm.ir.container import Array
 
 from tvm.tir import expr as _expr
 from tvm.tir import stmt as _stmt
 from tvm.te.tensor import Tensor
-
-from .. import api as _api
 
 
 #pylint: disable=invalid-name
@@ -47,7 +46,7 @@ def _internal_assert(cond, err):
 # Useful constants. In avoid of runtime dependences, we use function calls to return them.
 def make_nop():
     """Returns a 'no operation' node in HalideIR."""
-    return _stmt.Evaluate(_api.const(0, dtype='int32'))
+    return _stmt.Evaluate(tvm.runtime.const(0, dtype='int32'))
 
 
 def is_docstring(node):
@@ -73,7 +72,7 @@ def _pruned_source(func):
 def replace_io(body, rmap):
     """Replacing tensors usage according to the dict given"""
     # pylint: disable=import-outside-toplevel
-    from .. import ir_pass
+    from tvm.tir import ir_pass
 
     def replace(op):
         if isinstance(op, _stmt.Provide) and op.func in rmap.keys():

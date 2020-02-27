@@ -116,6 +116,7 @@ def override_native_generic_func(func_name):
     .. code-block:: python
 
       import tvm
+from tvm import te
       # wrap function as target generic
       @tvm.target.override_native_generic_func("my_func")
       def my_func(a):
@@ -210,6 +211,7 @@ def generic_func(fdefault):
     .. code-block:: python
 
       import tvm
+from tvm import te
       # wrap function as target generic
       @tvm.target.generic_func
       def my_func(a):

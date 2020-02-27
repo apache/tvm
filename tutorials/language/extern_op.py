@@ -32,13 +32,14 @@ or pointer to DLTensor as argument.
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import cblas
 
 ######################################################################
 # Use Extern Tensor Function
 # --------------------------
-# In the example below, we use :any:`tvm.extern` to add an extern
+# In the example below, we use :any:`te.extern` to add an extern
 # array function call. In the extern call, we declare the shape
 # of output tensors. In the second argument we provide the list of inputs.
 #
@@ -53,15 +54,15 @@ from tvm.contrib import cblas
 n = 1024
 l = 128
 m = 235
-bias = tvm.var('bias', dtype=tvm.float32)
-A = tvm.placeholder((n, l), name='A')
-B = tvm.placeholder((l, m), name='B')
-C = tvm.extern((n, m), [A, B],
-               lambda ins, outs: tvm.call_packed(
+bias = te.var('bias', dtype="float32")
+A = te.placeholder((n, l), name='A')
+B = te.placeholder((l, m), name='B')
+C = te.extern((n, m), [A, B],
+               lambda ins, outs: tvm.tir.call_packed(
                    "tvm.contrib.cblas.matmul",
                    ins[0], ins[1], outs[0], False, False), name="C")
-D = tvm.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
-s = tvm.create_schedule(D.op)
+D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+s = te.create_schedule(D.op)
 
 ######################################################################
 # Verify the Result
@@ -86,8 +87,8 @@ tvm.testing.assert_allclose(
 #
 from tvm.contrib import cblas
 C = cblas.matmul(A, B)
-D = tvm.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
-s = tvm.create_schedule(D.op)
+D = te.compute(C.shape, lambda i, j: C[i,j] + bias, name="D")
+s = te.create_schedule(D.op)
 
 ######################################################################
 # Hook Python Function as Extern
@@ -106,10 +107,10 @@ def my_tvm_addone(x, y):
     print("my_tvm_addone signatures: %s, %s" % (type(x), type(y)))
     tvm.nd.array(x.asnumpy() + 1).copyto(y)
 
-A = tvm.placeholder((n,), name='A')
-B = tvm.extern(A.shape, [A], lambda ins, outs: tvm.call_packed(
+A = te.placeholder((n,), name='A')
+B = te.extern(A.shape, [A], lambda ins, outs: tvm.tir.call_packed(
     "tvm.contrib.my_tvm_addone", ins[0], outs[0]), name="C")
-s = tvm.create_schedule(B.op)
+s = te.create_schedule(B.op)
 f = tvm.build(s, [A, B], "llvm")
 a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
 b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
@@ -119,7 +120,7 @@ tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1, rtol=1e-5)
 ######################################################################
 # Summary
 # -------
-# - TVM calls extern tensor function via :any:`tvm.extern`
+# - TVM calls extern tensor function via :any:`te.extern`
 # - Use contrib wrappers for short sugars of extern tensor calls.
 # - We can hook front-end function as extern tensor callbacks.
 #

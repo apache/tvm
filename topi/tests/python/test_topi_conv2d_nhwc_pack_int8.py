@@ -19,6 +19,7 @@ import pytest
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import FallbackConfigEntity
 import topi
@@ -30,8 +31,8 @@ from topi.util import get_const_tuple
 def verify_conv2d_1x1_nhwc_pack_int8(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='uint8')
-    W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W', dtype='int8')
+    A = te.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='uint8')
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W', dtype='int8')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
