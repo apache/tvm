@@ -23,6 +23,9 @@ def invoke_tvm_op(func, inputs, outputs):
 
     Parameters
     ----------
+    func : tvm.relay.Expr
+        The input expr.
+
     inputs : tvm.relay.Expr
         A tuple of the inputs to pass to the TVM function.
 

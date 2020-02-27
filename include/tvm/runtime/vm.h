@@ -239,6 +239,8 @@ struct Instruction {
       RegName alignment;
       /*! \brief The hint of the dtype. */
       DLDataType dtype_hint;
+      /*! \brief The device type of the allocation. */
+      Index device_type;
     } alloc_storage;
   };
 
@@ -376,11 +378,12 @@ struct Instruction {
    * \param size The size of the allocation.
    * \param alignment The allocation's alignment.
    * \param dtype_hint The data type hint for the allocator.
+   * \param device_type The device type for the allocator.
    * \param dst The destination to place the storage.
    * \return The alloc storage instruction.
    */
-  static Instruction AllocStorage(RegName size, RegName alignment,
-                                  DLDataType dtype_hint, RegName dst);
+  static Instruction AllocStorage(RegName size, RegName alignment, DLDataType dtype_hint,
+                                  Index device_type, RegName dst);
 
   Instruction();
   Instruction(const Instruction& instr);
@@ -405,14 +408,18 @@ struct VMFunction {
   std::vector<Instruction> instructions;
   /*! \brief The size of the frame for this function */
   Index register_file_size;
+  /*! \brief The function parameter device types. */
+  std::vector<Index> params_device_type;
 
   VMFunction(const std::string& name, std::vector<std::string> params,
              const std::vector<Instruction>& instructions,
-             Index register_file_size)
+             Index register_file_size,
+             const std::vector<Index> params_device_type = {})
       : name(name),
         params(params),
         instructions(instructions),
-        register_file_size(register_file_size) {}
+        register_file_size(register_file_size),
+        params_device_type(params_device_type) {}
 
   VMFunction() {}
 
@@ -576,6 +583,8 @@ class Executable : public ModuleNode {
   std::unordered_map<std::string, Index> primitive_map;
   /*! \brief The virtual machine's function table. */
   std::vector<VMFunction> functions;
+  /*! \brief The device type for each constant. */
+  std::vector<Index> const_device_type;
 
  private:
   /*!
@@ -688,6 +697,8 @@ class VirtualMachine : public runtime::ModuleNode {
  protected:
   /*! \brief The virtual machine's packed function table. */
   std::vector<PackedFunc> packed_funcs_;
+  /*! \brief The virtual machine's packed function name table. */
+  std::vector<std::string> packed_names_;
   /*! \brief The current stack of call frames. */
   std::vector<VMFrame> frames_;
   /*! \brief The fuction table index of the current function. */
@@ -781,6 +792,8 @@ class VirtualMachine : public runtime::ModuleNode {
   /*! \brief Get device context for params. */
   TVMContext GetParamsContext() const;
 
+  /*! \brief Get context from the context list based on a given device type. */
+  TVMContext GetContext(Index device_type) const;
  private:
   /*!
    * \brief Invoke a global setting up the VM state to execute.
@@ -794,6 +807,12 @@ class VirtualMachine : public runtime::ModuleNode {
    * object to avoid rellocation of constants during inference.
    */
   std::vector<ObjectRef> const_pool_;
+
+  /*!
+   * \brief Record the index for device copy operators. These ops don't have
+   * lowered IRs. We need to directly copy data from one device to another.
+   */
+  std::unordered_set<Index> device_copy_index_;
 };
 
 }  // namespace vm

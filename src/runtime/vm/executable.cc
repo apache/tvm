@@ -356,6 +356,7 @@ VMInstructionSerializer SerializeInstruction(const Instruction& instr) {
       fields.push_back(dtype.code);
       fields.push_back(dtype.bits);
       fields.push_back(dtype.lanes);
+      fields.push_back(instr.alloc_storage.device_type);
       fields.push_back(instr.dst);
       break;
     }
@@ -632,12 +633,14 @@ Instruction DeserializeInstruction(const VMInstructionSerializer& instr) {
       dtype.bits = instr.fields[3];
       dtype.lanes = instr.fields[4];
 
-      RegName dst = instr.fields[5];
+      Index device_type = instr.fields[5];
+      RegName dst = instr.fields[6];
 
       return Instruction::AllocStorage(
         allocation_size,
         alignment,
         dtype,
+        device_type,
         dst);
     }
     case Opcode::If: {

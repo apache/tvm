@@ -209,10 +209,20 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
-    .set_body_typed(
-        [](Expr func, Expr inputs, Expr outputs) {
-          return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
-        });
+.set_body_typed(
+  [](Expr func, Expr inputs, Expr outputs) {
+    Attrs attrs;
+    // Record the attribute of the input expression. The attribute of the master
+    // op in a fused function is used.
+    if (const auto* fn = func.as<FunctionNode>()) {
+      if (const auto* cn = fn->body.as<CallNode>()) {
+        attrs = cn->attrs;
+      }
+    } else if (const auto* cn = func.as<CallNode>()) {
+      attrs = cn->attrs;
+    }
+    return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, attrs);
+  });
 
 RELAY_REGISTER_OP("memory.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)

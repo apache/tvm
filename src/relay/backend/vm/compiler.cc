@@ -24,6 +24,7 @@
 
 #include <tvm/te/operation.h>
 #include <tvm/ir/error.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/qnn/transform.h>
@@ -226,6 +227,17 @@ std::vector<int64_t> ToAllocTensorShape32(NDArray shape) {
   return raw_shape;
 }
 
+/*!
+ * \brief Create a default type.
+ * \param device_type The device type index.
+ * \return the default target for the device.
+ */
+Target CreateDefaultTarget(int device_type) {
+  std::string name = runtime::DeviceName(device_type);
+  if (name == "cpu") return Target::Create("llvm");
+  if (name == "gpu") return Target::Create("cuda");
+  return Target::Create(name);
+}
 
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
@@ -234,10 +246,19 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         registers_num_(0),
         engine_(CompileEngine::Global()),
         context_(context),
-        targets_(targets),
-        target_host_(target_host) {}
+        target_host_(target_host) {
+          for (const auto& it : targets) {
+            targets_[it.first->value] = it.second;
+          }
+        }
 
   VMFunction Compile(const GlobalVar& var, const Function& func) {
+    // Collect the annotated device information.
+    // This indicates where each Relay expr should be executed.
+    if (targets_.size() > 1) {
+      expr_device_map_ = relay::CollectDeviceInfo(func);
+    }
+
     size_t i = 0;
     // We then assign register num to the free variables
     for (auto param : func->params) {
@@ -262,7 +283,18 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       this->VisitExpr(func->body);
     }
     instructions_.push_back(Instruction::Ret(last_register_));
-    return VMFunction(var->name_hint, params_, instructions_, registers_num_);
+
+    std::vector<Index> params_device_type;
+    for (const auto& it : func->params) {
+      if (targets_.size() > 1) {
+        CHECK_GT(expr_device_map_.count(it), 0U);
+        params_device_type.push_back(expr_device_map_[it]->value);
+      } else {
+        params_device_type.push_back((targets_.begin())->first);
+      }
+    }
+
+    return VMFunction(var->name_hint, params_, instructions_, registers_num_, params_device_type);
   }
 
  protected:
@@ -298,6 +330,13 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void VisitExpr_(const ConstantNode* const_node) {
     size_t konst_idx = context_->constants.size();
+    if (expr_device_map_.empty()) {
+      context_->const_device_type.push_back(targets_.begin()->first);
+    } else {
+      auto con = GetRef<Constant>(const_node);
+      CHECK_GT(expr_device_map_.count(con), 0U);
+      context_->const_device_type.push_back(expr_device_map_[con]->value);
+    }
     context_->constants.push_back(const_node->data);
     Emit(Instruction::LoadConst(konst_idx, NewRegister()));
   }
@@ -485,7 +524,18 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
         target = (*it).second;
       } else {
         // heterogeneous execution.
-        LOG(FATAL) << "Currently VM compiler doesn't support heterogeneous compilation";
+        if (expr_device_map_.count(func) == 0 ||
+            targets_.count(expr_device_map_[func]->value) == 0) {
+          transform::PassContext pass_ctx = PassContext::Current();
+          auto dev_name = runtime::DeviceName(pass_ctx->fallback_device);
+          LOG(INFO) << AsText(func, false);
+          LOG(WARNING)
+              << "The function is not annotated or no target is provided. Fallback to "
+              << dev_name;
+          target = CreateDefaultTarget(pass_ctx->fallback_device);
+        } else {
+          target = targets_[expr_device_map_[func]->value];
+        }
       }
     }
 
@@ -494,6 +544,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     auto op_index = -1;
     if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+      op_index = context_->cached_funcs.size();
+      context_->cached_funcs.push_back(cfunc);
+    } else if (cfunc->funcs->functions.empty()) {
+      const CallNode* call_node = func->body.as<CallNode>();
+      CHECK(call_node && call_node->attrs.as<DeviceCopyAttrs>())
+          << "Only device copy node can have no schedule";
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
@@ -569,7 +625,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
               NewRegister()));
           }
       }).Match("memory.alloc_storage",
-        [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
+        [this, call_node](const Array<Expr>& args, const Attrs& attrs,
+                          const Array<Type>& type_arg) {
           CHECK_EQ(args.size(), 2);
           // Compute the size of the allocation.
           this->VisitExpr(args[0]);
@@ -584,7 +641,21 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
               << "must be the alloc tensor attrs";
           auto dtype = alloc_attrs->dtype;
 
-          Emit(Instruction::AllocStorage(size_register, alignment_register, dtype, NewRegister()));
+          Index device_type;
+          // There is bug if all expression are annotated with the device that
+          // other than the first one in the target list.
+          if (expr_device_map_.empty()) {
+            device_type = (targets_.begin())->first;
+          } else {
+            CHECK_GT(expr_device_map_.count(GetRef<Call>(call_node)), 0U)
+                << " The alloc_storage node is not annotated";
+            device_type = expr_device_map_[GetRef<Call>(call_node)]->value;
+            LOG(INFO) << "storage:: " << device_type << "\n" << AsText(GetRef<Call>(call_node), false);
+            LOG(INFO) << size_register << " " << alignment_register;
+          }
+
+          Emit(Instruction::AllocStorage(size_register, alignment_register, dtype, device_type,
+                                         NewRegister()));
       }).Match("memory.shape_func",
         [this](const Array<Expr>& args, const Attrs& attrs, const Array<Type>& type_arg) {
           CHECK_EQ(args.size(), 3);
@@ -742,6 +813,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   std::vector<std::string> params_;
   /*! \brief Map from var to register number. */
   std::unordered_map<Var, RegName, ObjectHash, ObjectEqual> var_register_map_;
+  /*! \brief Map from Relay expr to device type. */
+  tvm::Map<Expr, Integer> expr_device_map_;
   /*! \brief Last used register number. */
   size_t last_register_;
   /*! \brief Total number of virtual registers allocated. */
@@ -751,7 +824,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   /*! \brief Global shared meta data */
   VMCompilerContext* context_;
   /*! \brief Target devices. */
-  TargetsMap targets_;
+  std::unordered_map<int, tvm::Target> targets_;
   /*! \brief Host target. */
   Target target_host_;
 };
@@ -807,8 +880,6 @@ void VMCompiler::SetParam(const std::string& name, runtime::NDArray data_in) {
 void VMCompiler::Lower(IRModule mod,
                        const TargetsMap& targets,
                        const tvm::Target& target_host) {
-  CHECK_EQ(targets.size(), 1)
-    << "Currently VM compiler doesn't support heterogeneous compilation";
   if (params_.size()) {
     BaseFunc base_func = mod->Lookup("main");
     CHECK(base_func->IsInstance<FunctionNode>())
@@ -824,6 +895,7 @@ void VMCompiler::Lower(IRModule mod,
 
   // Run the optimizations necessary to target the VM.
   context_.module = OptimizeModule(mod, targets_);
+  LOG(INFO) << AsText(context_.module, false);
 
   // Populate the global map.
   //
@@ -858,6 +930,10 @@ void VMCompiler::Lower(IRModule mod,
   for (auto data : context_.constants) {
     exec_->constants.push_back(data);
   }
+  for (auto i : context_.const_device_type) {
+    LOG(INFO) << "device type:: " << i;
+    exec_->const_device_type.push_back(i);
+  }
 
   // update global function map
   for (auto gv : context_.global_map) {
@@ -868,11 +944,12 @@ void VMCompiler::Lower(IRModule mod,
   size_t primitive_index = 0;
   for (const auto& cfunc : context_.cached_funcs) {
     exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
+    LOG(INFO) << cfunc->func_name;
   }
 }
 
 IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
-  Array<Pass> pass_seqs;
+  std::vector<Pass> pass_seqs;
   Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
@@ -919,6 +996,12 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
 
   pass_seqs.push_back(transform::FoldConstant());
 
+  transform::PassContext pass_ctx = PassContext::Current();
+  if (targets_.size() > 1) {
+    // Handle heterogeneous compilation.
+    pass_seqs.push_back(transform::RewriteAnnotatedOps(pass_ctx->fallback_device));
+  }
+
   pass_seqs.push_back(transform::FuseOps());
   pass_seqs.push_back(transform::ToANormalForm());
   pass_seqs.push_back(transform::LambdaLift());
@@ -941,8 +1024,6 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
 
   transform::Sequential seq(pass_seqs);
-  transform::PassContext pass_ctx = PassContext::Current();
-  // TODO(wweic): Support heterogenous execution
   tvm::With<relay::transform::PassContext> ctx(pass_ctx);
   if (targets.size() == 1) {
     const auto& it = targets.begin();
@@ -979,8 +1060,11 @@ void VMCompiler::Codegen() {
     IRModule mod = cfunc->funcs;
     mod.CopyOnWrite();
 
+    LOG(INFO) << "1026: " << target_str << "  " << cfunc->func_name;
     if (target_str == "ext_dev") {
       continue;
+    } else if (cfunc->func_name.find("__copy") == 0) {
+      funcs.emplace(target_str, mod);
     } else if (funcs.count(target_str) == 0) {
       funcs.emplace(target_str, mod);
     } else {

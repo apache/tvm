@@ -288,10 +288,18 @@ class VirtualMachine(object):
 
         Parameters
         ----------
-        ctx : :py:class:`TVMContext`
+        ctx : Union[:py:class:`TVMContext`, List[:py:class:`TVMContext`]]
             The runtime context to run the code on.
         """
-        args = [ctx.device_type, ctx.device_id]
+        args = []
+        if isinstance(ctx, (list, tuple)):
+            for c in ctx:
+                assert isinstance(c, tvm.runtime.TVMContext)
+                args.append(c.device_type)
+                args.append(c.device_id)
+        else:
+            assert isinstance(ctx, tvm.runtime.TVMContext)
+            args = [ctx.device_type, ctx.device_id]
         self._init(*args)
 
     def set_input(self, func_name, *args, **kwargs):

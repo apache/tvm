@@ -1,14 +1,11 @@
-# Generated from /Users/doobs/Code/repo/sampl/tvm/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.7.2
+# Generated from /home/ubuntu/workspace/tvm/python/tvm/relay/grammar/Relay.g4 by ANTLR 4.5.1
 # encoding: utf-8
 from antlr4 import *
 from io import StringIO
-from typing.io import TextIO
-import sys
-
 
 def serializedATN():
     with StringIO() as buf:
-        buf.write("\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\62")
+        buf.write("\3\u0430\ud6d1\u8206\uad2d\u4417\uaef1\u8d80\uaadd\3\62")
         buf.write("\u0200\4\2\t\2\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7")
         buf.write("\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t\13\4\f\t\f\4\r\t\r\4\16")
         buf.write("\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22\4\23\t\23")
@@ -61,12 +58,12 @@ def serializedATN():
         buf.write("!\3\"\3\"\3\"\5\"\u01f8\n\"\3#\3#\3#\3#\5#\u01fe\n#\3")
         buf.write("#\2\3\20$\2\4\6\b\n\f\16\20\22\24\26\30\32\34\36 \"$&")
         buf.write("(*,.\60\62\64\668:<>@BD\2\b\4\2\6\6//\3\2$%\3\2&\'\3\2")
-        buf.write("(+\3\2,-\3\2\32\33\2\u0234\2F\3\2\2\2\4U\3\2\2\2\6]\3")
-        buf.write("\2\2\2\b`\3\2\2\2\nc\3\2\2\2\fn\3\2\2\2\16z\3\2\2\2\20")
-        buf.write("\u00c2\3\2\2\2\22\u00e0\3\2\2\2\24\u010c\3\2\2\2\26\u010e")
-        buf.write("\3\2\2\2\30\u0110\3\2\2\2\32\u011b\3\2\2\2\34\u0129\3")
-        buf.write("\2\2\2\36\u0134\3\2\2\2 \u013d\3\2\2\2\"\u013f\3\2\2\2")
-        buf.write("$\u0155\3\2\2\2&\u0157\3\2\2\2(\u015b\3\2\2\2*\u0168\3")
+        buf.write("(+\3\2,-\3\2\32\33\u0234\2F\3\2\2\2\4U\3\2\2\2\6]\3\2")
+        buf.write("\2\2\b`\3\2\2\2\nc\3\2\2\2\fn\3\2\2\2\16z\3\2\2\2\20\u00c2")
+        buf.write("\3\2\2\2\22\u00e0\3\2\2\2\24\u010c\3\2\2\2\26\u010e\3")
+        buf.write("\2\2\2\30\u0110\3\2\2\2\32\u011b\3\2\2\2\34\u0129\3\2")
+        buf.write("\2\2\36\u0134\3\2\2\2 \u013d\3\2\2\2\"\u013f\3\2\2\2$")
+        buf.write("\u0155\3\2\2\2&\u0157\3\2\2\2(\u015b\3\2\2\2*\u0168\3")
         buf.write("\2\2\2,\u0174\3\2\2\2.\u017e\3\2\2\2\60\u0180\3\2\2\2")
         buf.write("\62\u0185\3\2\2\2\64\u018d\3\2\2\2\66\u01c4\3\2\2\28\u01c6")
         buf.write("\3\2\2\2:\u01de\3\2\2\2<\u01e0\3\2\2\2>\u01ee\3\2\2\2")
@@ -83,8 +80,8 @@ def serializedATN():
         buf.write("\2\2\2p{\5\f\7\2qr\5\20\t\2rs\7\7\2\2su\3\2\2\2tq\3\2")
         buf.write("\2\2ux\3\2\2\2vt\3\2\2\2vw\3\2\2\2wy\3\2\2\2xv\3\2\2\2")
         buf.write("y{\5\62\32\2zp\3\2\2\2zv\3\2\2\2{\17\3\2\2\2|}\b\t\1\2")
-        buf.write("}~\7\b\2\2~\177\5\20\t\2\177\u0080\7\t\2\2\u0080\u00c3")
-        buf.write("\3\2\2\2\u0081\u0082\7\'\2\2\u0082\u00c3\5\20\t\26\u0083")
+        buf.write("}~\7\'\2\2~\u00c3\5\20\t\26\177\u0080\7\b\2\2\u0080\u0081")
+        buf.write("\5\20\t\2\u0081\u0082\7\t\2\2\u0082\u00c3\3\2\2\2\u0083")
         buf.write("\u00c3\5\22\n\2\u0084\u0085\7\b\2\2\u0085\u00c3\7\t\2")
         buf.write("\2\u0086\u0087\7\b\2\2\u0087\u0088\5\20\t\2\u0088\u0089")
         buf.write("\7\7\2\2\u0089\u008a\7\t\2\2\u008a\u00c3\3\2\2\2\u008b")
@@ -105,131 +102,131 @@ def serializedATN():
         buf.write("\u00ae\3\2\2\2\u00ae\u00af\3\2\2\2\u00af\u00b0\7\17\2")
         buf.write("\2\u00b0\u00c3\3\2\2\2\u00b1\u00b2\7\20\2\2\u00b2\u00b3")
         buf.write("\5\60\31\2\u00b3\u00b4\7\21\2\2\u00b4\u00b5\5\20\t\2\u00b5")
-        buf.write("\u00b6\7\22\2\2\u00b6\u00b7\5\20\t\t\u00b7\u00c3\3\2\2")
+        buf.write("\u00b6\7\22\2\2\u00b6\u00b7\5\20\t\2\u00b7\u00c3\3\2\2")
         buf.write("\2\u00b8\u00b9\5\n\6\2\u00b9\u00ba\7\21\2\2\u00ba\u00bb")
-        buf.write("\5\20\t\2\u00bb\u00bc\7\22\2\2\u00bc\u00bd\5\20\t\7\u00bd")
+        buf.write("\5\20\t\2\u00bb\u00bc\7\22\2\2\u00bc\u00bd\5\20\t\2\u00bd")
         buf.write("\u00c3\3\2\2\2\u00be\u00c3\5D#\2\u00bf\u00c3\5B\"\2\u00c0")
         buf.write("\u00c3\5<\37\2\u00c1\u00c3\7#\2\2\u00c2|\3\2\2\2\u00c2")
-        buf.write("\u0081\3\2\2\2\u00c2\u0083\3\2\2\2\u00c2\u0084\3\2\2\2")
-        buf.write("\u00c2\u0086\3\2\2\2\u00c2\u008b\3\2\2\2\u00c2\u0095\3")
-        buf.write("\2\2\2\u00c2\u00a1\3\2\2\2\u00c2\u00a9\3\2\2\2\u00c2\u00b1")
-        buf.write("\3\2\2\2\u00c2\u00b8\3\2\2\2\u00c2\u00be\3\2\2\2\u00c2")
-        buf.write("\u00bf\3\2\2\2\u00c2\u00c0\3\2\2\2\u00c2\u00c1\3\2\2\2")
-        buf.write("\u00c3\u00dd\3\2\2\2\u00c4\u00c5\f\25\2\2\u00c5\u00c6")
-        buf.write("\t\3\2\2\u00c6\u00dc\5\20\t\26\u00c7\u00c8\f\24\2\2\u00c8")
-        buf.write("\u00c9\t\4\2\2\u00c9\u00dc\5\20\t\25\u00ca\u00cb\f\23")
-        buf.write("\2\2\u00cb\u00cc\t\5\2\2\u00cc\u00dc\5\20\t\24\u00cd\u00ce")
-        buf.write("\f\22\2\2\u00ce\u00cf\t\6\2\2\u00cf\u00dc\5\20\t\23\u00d0")
-        buf.write("\u00d1\f\b\2\2\u00d1\u00d2\7\23\2\2\u00d2\u00dc\5\20\t")
-        buf.write("\t\u00d3\u00d4\f\27\2\2\u00d4\u00d5\7\b\2\2\u00d5\u00d6")
-        buf.write("\5\16\b\2\u00d6\u00d7\7\t\2\2\u00d7\u00dc\3\2\2\2\u00d8")
-        buf.write("\u00d9\f\n\2\2\u00d9\u00da\7\3\2\2\u00da\u00dc\7\61\2")
-        buf.write("\2\u00db\u00c4\3\2\2\2\u00db\u00c7\3\2\2\2\u00db\u00ca")
-        buf.write("\3\2\2\2\u00db\u00cd\3\2\2\2\u00db\u00d0\3\2\2\2\u00db")
-        buf.write("\u00d3\3\2\2\2\u00db\u00d8\3\2\2\2\u00dc\u00df\3\2\2\2")
-        buf.write("\u00dd\u00db\3\2\2\2\u00dd\u00de\3\2\2\2\u00de\21\3\2")
-        buf.write("\2\2\u00df\u00dd\3\2\2\2\u00e0\u00e2\7\24\2\2\u00e1\u00e3")
-        buf.write("\58\35\2\u00e2\u00e1\3\2\2\2\u00e2\u00e3\3\2\2\2\u00e3")
-        buf.write("\u00e4\3\2\2\2\u00e4\u00e5\7\b\2\2\u00e5\u00e6\5,\27\2")
-        buf.write("\u00e6\u00e9\7\t\2\2\u00e7\u00e8\7\25\2\2\u00e8\u00ea")
-        buf.write("\5\66\34\2\u00e9\u00e7\3\2\2\2\u00e9\u00ea\3\2\2\2\u00ea")
-        buf.write("\u00eb\3\2\2\2\u00eb\u00ec\5@!\2\u00ec\23\3\2\2\2\u00ed")
-        buf.write("\u00ee\7\26\2\2\u00ee\u00f0\5\6\4\2\u00ef\u00f1\58\35")
-        buf.write("\2\u00f0\u00ef\3\2\2\2\u00f0\u00f1\3\2\2\2\u00f1\u00f2")
-        buf.write("\3\2\2\2\u00f2\u00f3\7\b\2\2\u00f3\u00f4\5,\27\2\u00f4")
-        buf.write("\u00f7\7\t\2\2\u00f5\u00f6\7\25\2\2\u00f6\u00f8\5\66\34")
-        buf.write("\2\u00f7\u00f5\3\2\2\2\u00f7\u00f8\3\2\2\2\u00f8\u00f9")
-        buf.write("\3\2\2\2\u00f9\u00fa\5@!\2\u00fa\u010d\3\2\2\2\u00fb\u00fc")
-        buf.write("\7\27\2\2\u00fc\u00fd\7\30\2\2\u00fd\u00ff\5\4\3\2\u00fe")
-        buf.write("\u0100\58\35\2\u00ff\u00fe\3\2\2\2\u00ff\u0100\3\2\2\2")
-        buf.write("\u0100\u010d\3\2\2\2\u0101\u0102\7\30\2\2\u0102\u0104")
-        buf.write("\5\4\3\2\u0103\u0105\58\35\2\u0104\u0103\3\2\2\2\u0104")
-        buf.write("\u0105\3\2\2\2\u0105\u0106\3\2\2\2\u0106\u0108\7\16\2")
-        buf.write("\2\u0107\u0109\5\30\r\2\u0108\u0107\3\2\2\2\u0108\u0109")
-        buf.write("\3\2\2\2\u0109\u010a\3\2\2\2\u010a\u010b\7\17\2\2\u010b")
-        buf.write("\u010d\3\2\2\2\u010c\u00ed\3\2\2\2\u010c\u00fb\3\2\2\2")
-        buf.write("\u010c\u0101\3\2\2\2\u010d\25\3\2\2\2\u010e\u010f\7/\2")
-        buf.write("\2\u010f\27\3\2\2\2\u0110\u0115\5\32\16\2\u0111\u0112")
-        buf.write("\7\7\2\2\u0112\u0114\5\32\16\2\u0113\u0111\3\2\2\2\u0114")
-        buf.write("\u0117\3\2\2\2\u0115\u0113\3\2\2\2\u0115\u0116\3\2\2\2")
-        buf.write("\u0116\u0119\3\2\2\2\u0117\u0115\3\2\2\2\u0118\u011a\7")
-        buf.write("\7\2\2\u0119\u0118\3\2\2\2\u0119\u011a\3\2\2\2\u011a\31")
-        buf.write("\3\2\2\2\u011b\u0127\5\26\f\2\u011c\u011d\7\b\2\2\u011d")
-        buf.write("\u0122\5\66\34\2\u011e\u011f\7\7\2\2\u011f\u0121\5\66")
-        buf.write("\34\2\u0120\u011e\3\2\2\2\u0121\u0124\3\2\2\2\u0122\u0120")
-        buf.write("\3\2\2\2\u0122\u0123\3\2\2\2\u0123\u0125\3\2\2\2\u0124")
-        buf.write("\u0122\3\2\2\2\u0125\u0126\7\t\2\2\u0126\u0128\3\2\2\2")
-        buf.write("\u0127\u011c\3\2\2\2\u0127\u0128\3\2\2\2\u0128\33\3\2")
-        buf.write("\2\2\u0129\u012e\5\36\20\2\u012a\u012b\7\7\2\2\u012b\u012d")
-        buf.write("\5\36\20\2\u012c\u012a\3\2\2\2\u012d\u0130\3\2\2\2\u012e")
-        buf.write("\u012c\3\2\2\2\u012e\u012f\3\2\2\2\u012f\u0132\3\2\2\2")
-        buf.write("\u0130\u012e\3\2\2\2\u0131\u0133\7\7\2\2\u0132\u0131\3")
-        buf.write("\2\2\2\u0132\u0133\3\2\2\2\u0133\35\3\2\2\2\u0134\u0135")
-        buf.write("\5$\23\2\u0135\u013b\7\31\2\2\u0136\u0137\7\16\2\2\u0137")
-        buf.write("\u0138\5\20\t\2\u0138\u0139\7\17\2\2\u0139\u013c\3\2\2")
-        buf.write("\2\u013a\u013c\5\20\t\2\u013b\u0136\3\2\2\2\u013b\u013a")
-        buf.write("\3\2\2\2\u013c\37\3\2\2\2\u013d\u013e\t\7\2\2\u013e!\3")
-        buf.write("\2\2\2\u013f\u0140\7\b\2\2\u0140\u0145\5$\23\2\u0141\u0142")
-        buf.write("\7\7\2\2\u0142\u0144\5$\23\2\u0143\u0141\3\2\2\2\u0144")
-        buf.write("\u0147\3\2\2\2\u0145\u0143\3\2\2\2\u0145\u0146\3\2\2\2")
-        buf.write("\u0146\u0148\3\2\2\2\u0147\u0145\3\2\2\2\u0148\u0149\7")
-        buf.write("\t\2\2\u0149#\3\2\2\2\u014a\u0156\7\6\2\2\u014b\u014e")
-        buf.write("\5\b\5\2\u014c\u014d\7\34\2\2\u014d\u014f\5\66\34\2\u014e")
-        buf.write("\u014c\3\2\2\2\u014e\u014f\3\2\2\2\u014f\u0156\3\2\2\2")
-        buf.write("\u0150\u0152\5\26\f\2\u0151\u0153\5\"\22\2\u0152\u0151")
-        buf.write("\3\2\2\2\u0152\u0153\3\2\2\2\u0153\u0156\3\2\2\2\u0154")
-        buf.write("\u0156\5\"\22\2\u0155\u014a\3\2\2\2\u0155\u014b\3\2\2")
-        buf.write("\2\u0155\u0150\3\2\2\2\u0155\u0154\3\2\2\2\u0156%\3\2")
-        buf.write("\2\2\u0157\u0159\5\26\f\2\u0158\u015a\5(\25\2\u0159\u0158")
-        buf.write("\3\2\2\2\u0159\u015a\3\2\2\2\u015a\'\3\2\2\2\u015b\u015c")
-        buf.write("\7\b\2\2\u015c\u0161\5*\26\2\u015d\u015e\7\7\2\2\u015e")
-        buf.write("\u0160\5*\26\2\u015f\u015d\3\2\2\2\u0160\u0163\3\2\2\2")
-        buf.write("\u0161\u015f\3\2\2\2\u0161\u0162\3\2\2\2\u0162\u0164\3")
-        buf.write("\2\2\2\u0163\u0161\3\2\2\2\u0164\u0165\7\t\2\2\u0165)")
-        buf.write("\3\2\2\2\u0166\u0169\5\b\5\2\u0167\u0169\5\26\f\2\u0168")
-        buf.write("\u0166\3\2\2\2\u0168\u0167\3\2\2\2\u0169+\3\2\2\2\u016a")
-        buf.write("\u0175\5.\30\2\u016b\u016c\5\60\31\2\u016c\u016d\7\7\2")
-        buf.write("\2\u016d\u016f\3\2\2\2\u016e\u016b\3\2\2\2\u016f\u0172")
-        buf.write("\3\2\2\2\u0170\u016e\3\2\2\2\u0170\u0171\3\2\2\2\u0171")
-        buf.write("\u0173\3\2\2\2\u0172\u0170\3\2\2\2\u0173\u0175\5\62\32")
-        buf.write("\2\u0174\u016a\3\2\2\2\u0174\u0170\3\2\2\2\u0175-\3\2")
-        buf.write("\2\2\u0176\u017b\5\60\31\2\u0177\u0178\7\7\2\2\u0178\u017a")
-        buf.write("\5\60\31\2\u0179\u0177\3\2\2\2\u017a\u017d\3\2\2\2\u017b")
-        buf.write("\u0179\3\2\2\2\u017b\u017c\3\2\2\2\u017c\u017f\3\2\2\2")
-        buf.write("\u017d\u017b\3\2\2\2\u017e\u0176\3\2\2\2\u017e\u017f\3")
-        buf.write("\2\2\2\u017f/\3\2\2\2\u0180\u0183\5\b\5\2\u0181\u0182")
-        buf.write("\7\34\2\2\u0182\u0184\5\66\34\2\u0183\u0181\3\2\2\2\u0183")
-        buf.write("\u0184\3\2\2\2\u0184\61\3\2\2\2\u0185\u018a\5\64\33\2")
-        buf.write("\u0186\u0187\7\7\2\2\u0187\u0189\5\64\33\2\u0188\u0186")
-        buf.write("\3\2\2\2\u0189\u018c\3\2\2\2\u018a\u0188\3\2\2\2\u018a")
-        buf.write("\u018b\3\2\2\2\u018b\63\3\2\2\2\u018c\u018a\3\2\2\2\u018d")
-        buf.write("\u018e\7/\2\2\u018e\u018f\7\21\2\2\u018f\u0190\5\20\t")
-        buf.write("\2\u0190\65\3\2\2\2\u0191\u0192\7\b\2\2\u0192\u01c5\7")
-        buf.write("\t\2\2\u0193\u0194\7\b\2\2\u0194\u0195\5\66\34\2\u0195")
-        buf.write("\u0196\7\t\2\2\u0196\u01c5\3\2\2\2\u0197\u0198\7\b\2\2")
-        buf.write("\u0198\u0199\5\66\34\2\u0199\u019a\7\7\2\2\u019a\u019b")
-        buf.write("\7\t\2\2\u019b\u01c5\3\2\2\2\u019c\u019d\7\b\2\2\u019d")
-        buf.write("\u01a0\5\66\34\2\u019e\u019f\7\7\2\2\u019f\u01a1\5\66")
-        buf.write("\34\2\u01a0\u019e\3\2\2\2\u01a1\u01a2\3\2\2\2\u01a2\u01a0")
-        buf.write("\3\2\2\2\u01a2\u01a3\3\2\2\2\u01a3\u01a4\3\2\2\2\u01a4")
-        buf.write("\u01a5\7\t\2\2\u01a5\u01c5\3\2\2\2\u01a6\u01a7\5\4\3\2")
-        buf.write("\u01a7\u01a8\58\35\2\u01a8\u01c5\3\2\2\2\u01a9\u01c5\5")
-        buf.write("\4\3\2\u01aa\u01ab\7\35\2\2\u01ab\u01ac\7\n\2\2\u01ac")
-        buf.write("\u01ad\5:\36\2\u01ad\u01ae\7\7\2\2\u01ae\u01af\5\66\34")
-        buf.write("\2\u01af\u01b0\7\13\2\2\u01b0\u01c5\3\2\2\2\u01b1\u01b3")
-        buf.write("\7\24\2\2\u01b2\u01b4\58\35\2\u01b3\u01b2\3\2\2\2\u01b3")
-        buf.write("\u01b4\3\2\2\2\u01b4\u01b5\3\2\2\2\u01b5\u01be\7\b\2\2")
-        buf.write("\u01b6\u01bb\5\66\34\2\u01b7\u01b8\7\7\2\2\u01b8\u01ba")
-        buf.write("\5\66\34\2\u01b9\u01b7\3\2\2\2\u01ba\u01bd\3\2\2\2\u01bb")
-        buf.write("\u01b9\3\2\2\2\u01bb\u01bc\3\2\2\2\u01bc\u01bf\3\2\2\2")
-        buf.write("\u01bd\u01bb\3\2\2\2\u01be\u01b6\3\2\2\2\u01be\u01bf\3")
-        buf.write("\2\2\2\u01bf\u01c0\3\2\2\2\u01c0\u01c1\7\t\2\2\u01c1\u01c2")
-        buf.write("\7\25\2\2\u01c2\u01c5\5\66\34\2\u01c3\u01c5\7\6\2\2\u01c4")
-        buf.write("\u0191\3\2\2\2\u01c4\u0193\3\2\2\2\u01c4\u0197\3\2\2\2")
-        buf.write("\u01c4\u019c\3\2\2\2\u01c4\u01a6\3\2\2\2\u01c4\u01a9\3")
-        buf.write("\2\2\2\u01c4\u01aa\3\2\2\2\u01c4\u01b1\3\2\2\2\u01c4\u01c3")
-        buf.write("\3\2\2\2\u01c5\67\3\2\2\2\u01c6\u01c7\7\n\2\2\u01c7\u01cc")
-        buf.write("\5\66\34\2\u01c8\u01c9\7\7\2\2\u01c9\u01cb\5\66\34\2\u01ca")
+        buf.write("\177\3\2\2\2\u00c2\u0083\3\2\2\2\u00c2\u0084\3\2\2\2\u00c2")
+        buf.write("\u0086\3\2\2\2\u00c2\u008b\3\2\2\2\u00c2\u0095\3\2\2\2")
+        buf.write("\u00c2\u00a1\3\2\2\2\u00c2\u00a9\3\2\2\2\u00c2\u00b1\3")
+        buf.write("\2\2\2\u00c2\u00b8\3\2\2\2\u00c2\u00be\3\2\2\2\u00c2\u00bf")
+        buf.write("\3\2\2\2\u00c2\u00c0\3\2\2\2\u00c2\u00c1\3\2\2\2\u00c3")
+        buf.write("\u00dd\3\2\2\2\u00c4\u00c5\f\25\2\2\u00c5\u00c6\t\3\2")
+        buf.write("\2\u00c6\u00dc\5\20\t\26\u00c7\u00c8\f\24\2\2\u00c8\u00c9")
+        buf.write("\t\4\2\2\u00c9\u00dc\5\20\t\25\u00ca\u00cb\f\23\2\2\u00cb")
+        buf.write("\u00cc\t\5\2\2\u00cc\u00dc\5\20\t\24\u00cd\u00ce\f\22")
+        buf.write("\2\2\u00ce\u00cf\t\6\2\2\u00cf\u00dc\5\20\t\23\u00d0\u00d1")
+        buf.write("\f\b\2\2\u00d1\u00d2\7\23\2\2\u00d2\u00dc\5\20\t\t\u00d3")
+        buf.write("\u00d4\f\27\2\2\u00d4\u00d5\7\b\2\2\u00d5\u00d6\5\16\b")
+        buf.write("\2\u00d6\u00d7\7\t\2\2\u00d7\u00dc\3\2\2\2\u00d8\u00d9")
+        buf.write("\f\n\2\2\u00d9\u00da\7\3\2\2\u00da\u00dc\7\61\2\2\u00db")
+        buf.write("\u00c4\3\2\2\2\u00db\u00c7\3\2\2\2\u00db\u00ca\3\2\2\2")
+        buf.write("\u00db\u00cd\3\2\2\2\u00db\u00d0\3\2\2\2\u00db\u00d3\3")
+        buf.write("\2\2\2\u00db\u00d8\3\2\2\2\u00dc\u00df\3\2\2\2\u00dd\u00db")
+        buf.write("\3\2\2\2\u00dd\u00de\3\2\2\2\u00de\21\3\2\2\2\u00df\u00dd")
+        buf.write("\3\2\2\2\u00e0\u00e2\7\24\2\2\u00e1\u00e3\58\35\2\u00e2")
+        buf.write("\u00e1\3\2\2\2\u00e2\u00e3\3\2\2\2\u00e3\u00e4\3\2\2\2")
+        buf.write("\u00e4\u00e5\7\b\2\2\u00e5\u00e6\5,\27\2\u00e6\u00e9\7")
+        buf.write("\t\2\2\u00e7\u00e8\7\25\2\2\u00e8\u00ea\5\66\34\2\u00e9")
+        buf.write("\u00e7\3\2\2\2\u00e9\u00ea\3\2\2\2\u00ea\u00eb\3\2\2\2")
+        buf.write("\u00eb\u00ec\5@!\2\u00ec\23\3\2\2\2\u00ed\u00ee\7\26\2")
+        buf.write("\2\u00ee\u00f0\5\6\4\2\u00ef\u00f1\58\35\2\u00f0\u00ef")
+        buf.write("\3\2\2\2\u00f0\u00f1\3\2\2\2\u00f1\u00f2\3\2\2\2\u00f2")
+        buf.write("\u00f3\7\b\2\2\u00f3\u00f4\5,\27\2\u00f4\u00f7\7\t\2\2")
+        buf.write("\u00f5\u00f6\7\25\2\2\u00f6\u00f8\5\66\34\2\u00f7\u00f5")
+        buf.write("\3\2\2\2\u00f7\u00f8\3\2\2\2\u00f8\u00f9\3\2\2\2\u00f9")
+        buf.write("\u00fa\5@!\2\u00fa\u010d\3\2\2\2\u00fb\u00fc\7\27\2\2")
+        buf.write("\u00fc\u00fd\7\30\2\2\u00fd\u00ff\5\4\3\2\u00fe\u0100")
+        buf.write("\58\35\2\u00ff\u00fe\3\2\2\2\u00ff\u0100\3\2\2\2\u0100")
+        buf.write("\u010d\3\2\2\2\u0101\u0102\7\30\2\2\u0102\u0104\5\4\3")
+        buf.write("\2\u0103\u0105\58\35\2\u0104\u0103\3\2\2\2\u0104\u0105")
+        buf.write("\3\2\2\2\u0105\u0106\3\2\2\2\u0106\u0108\7\16\2\2\u0107")
+        buf.write("\u0109\5\30\r\2\u0108\u0107\3\2\2\2\u0108\u0109\3\2\2")
+        buf.write("\2\u0109\u010a\3\2\2\2\u010a\u010b\7\17\2\2\u010b\u010d")
+        buf.write("\3\2\2\2\u010c\u00ed\3\2\2\2\u010c\u00fb\3\2\2\2\u010c")
+        buf.write("\u0101\3\2\2\2\u010d\25\3\2\2\2\u010e\u010f\7/\2\2\u010f")
+        buf.write("\27\3\2\2\2\u0110\u0115\5\32\16\2\u0111\u0112\7\7\2\2")
+        buf.write("\u0112\u0114\5\32\16\2\u0113\u0111\3\2\2\2\u0114\u0117")
+        buf.write("\3\2\2\2\u0115\u0113\3\2\2\2\u0115\u0116\3\2\2\2\u0116")
+        buf.write("\u0119\3\2\2\2\u0117\u0115\3\2\2\2\u0118\u011a\7\7\2\2")
+        buf.write("\u0119\u0118\3\2\2\2\u0119\u011a\3\2\2\2\u011a\31\3\2")
+        buf.write("\2\2\u011b\u0127\5\26\f\2\u011c\u011d\7\b\2\2\u011d\u0122")
+        buf.write("\5\66\34\2\u011e\u011f\7\7\2\2\u011f\u0121\5\66\34\2\u0120")
+        buf.write("\u011e\3\2\2\2\u0121\u0124\3\2\2\2\u0122\u0120\3\2\2\2")
+        buf.write("\u0122\u0123\3\2\2\2\u0123\u0125\3\2\2\2\u0124\u0122\3")
+        buf.write("\2\2\2\u0125\u0126\7\t\2\2\u0126\u0128\3\2\2\2\u0127\u011c")
+        buf.write("\3\2\2\2\u0127\u0128\3\2\2\2\u0128\33\3\2\2\2\u0129\u012e")
+        buf.write("\5\36\20\2\u012a\u012b\7\7\2\2\u012b\u012d\5\36\20\2\u012c")
+        buf.write("\u012a\3\2\2\2\u012d\u0130\3\2\2\2\u012e\u012c\3\2\2\2")
+        buf.write("\u012e\u012f\3\2\2\2\u012f\u0132\3\2\2\2\u0130\u012e\3")
+        buf.write("\2\2\2\u0131\u0133\7\7\2\2\u0132\u0131\3\2\2\2\u0132\u0133")
+        buf.write("\3\2\2\2\u0133\35\3\2\2\2\u0134\u0135\5$\23\2\u0135\u013b")
+        buf.write("\7\31\2\2\u0136\u0137\7\16\2\2\u0137\u0138\5\20\t\2\u0138")
+        buf.write("\u0139\7\17\2\2\u0139\u013c\3\2\2\2\u013a\u013c\5\20\t")
+        buf.write("\2\u013b\u0136\3\2\2\2\u013b\u013a\3\2\2\2\u013c\37\3")
+        buf.write("\2\2\2\u013d\u013e\t\7\2\2\u013e!\3\2\2\2\u013f\u0140")
+        buf.write("\7\b\2\2\u0140\u0145\5$\23\2\u0141\u0142\7\7\2\2\u0142")
+        buf.write("\u0144\5$\23\2\u0143\u0141\3\2\2\2\u0144\u0147\3\2\2\2")
+        buf.write("\u0145\u0143\3\2\2\2\u0145\u0146\3\2\2\2\u0146\u0148\3")
+        buf.write("\2\2\2\u0147\u0145\3\2\2\2\u0148\u0149\7\t\2\2\u0149#")
+        buf.write("\3\2\2\2\u014a\u0156\7\6\2\2\u014b\u014e\5\b\5\2\u014c")
+        buf.write("\u014d\7\34\2\2\u014d\u014f\5\66\34\2\u014e\u014c\3\2")
+        buf.write("\2\2\u014e\u014f\3\2\2\2\u014f\u0156\3\2\2\2\u0150\u0152")
+        buf.write("\5\26\f\2\u0151\u0153\5\"\22\2\u0152\u0151\3\2\2\2\u0152")
+        buf.write("\u0153\3\2\2\2\u0153\u0156\3\2\2\2\u0154\u0156\5\"\22")
+        buf.write("\2\u0155\u014a\3\2\2\2\u0155\u014b\3\2\2\2\u0155\u0150")
+        buf.write("\3\2\2\2\u0155\u0154\3\2\2\2\u0156%\3\2\2\2\u0157\u0159")
+        buf.write("\5\26\f\2\u0158\u015a\5(\25\2\u0159\u0158\3\2\2\2\u0159")
+        buf.write("\u015a\3\2\2\2\u015a\'\3\2\2\2\u015b\u015c\7\b\2\2\u015c")
+        buf.write("\u0161\5*\26\2\u015d\u015e\7\7\2\2\u015e\u0160\5*\26\2")
+        buf.write("\u015f\u015d\3\2\2\2\u0160\u0163\3\2\2\2\u0161\u015f\3")
+        buf.write("\2\2\2\u0161\u0162\3\2\2\2\u0162\u0164\3\2\2\2\u0163\u0161")
+        buf.write("\3\2\2\2\u0164\u0165\7\t\2\2\u0165)\3\2\2\2\u0166\u0169")
+        buf.write("\5\b\5\2\u0167\u0169\5\26\f\2\u0168\u0166\3\2\2\2\u0168")
+        buf.write("\u0167\3\2\2\2\u0169+\3\2\2\2\u016a\u0175\5.\30\2\u016b")
+        buf.write("\u016c\5\60\31\2\u016c\u016d\7\7\2\2\u016d\u016f\3\2\2")
+        buf.write("\2\u016e\u016b\3\2\2\2\u016f\u0172\3\2\2\2\u0170\u016e")
+        buf.write("\3\2\2\2\u0170\u0171\3\2\2\2\u0171\u0173\3\2\2\2\u0172")
+        buf.write("\u0170\3\2\2\2\u0173\u0175\5\62\32\2\u0174\u016a\3\2\2")
+        buf.write("\2\u0174\u0170\3\2\2\2\u0175-\3\2\2\2\u0176\u017b\5\60")
+        buf.write("\31\2\u0177\u0178\7\7\2\2\u0178\u017a\5\60\31\2\u0179")
+        buf.write("\u0177\3\2\2\2\u017a\u017d\3\2\2\2\u017b\u0179\3\2\2\2")
+        buf.write("\u017b\u017c\3\2\2\2\u017c\u017f\3\2\2\2\u017d\u017b\3")
+        buf.write("\2\2\2\u017e\u0176\3\2\2\2\u017e\u017f\3\2\2\2\u017f/")
+        buf.write("\3\2\2\2\u0180\u0183\5\b\5\2\u0181\u0182\7\34\2\2\u0182")
+        buf.write("\u0184\5\66\34\2\u0183\u0181\3\2\2\2\u0183\u0184\3\2\2")
+        buf.write("\2\u0184\61\3\2\2\2\u0185\u018a\5\64\33\2\u0186\u0187")
+        buf.write("\7\7\2\2\u0187\u0189\5\64\33\2\u0188\u0186\3\2\2\2\u0189")
+        buf.write("\u018c\3\2\2\2\u018a\u0188\3\2\2\2\u018a\u018b\3\2\2\2")
+        buf.write("\u018b\63\3\2\2\2\u018c\u018a\3\2\2\2\u018d\u018e\7/\2")
+        buf.write("\2\u018e\u018f\7\21\2\2\u018f\u0190\5\20\t\2\u0190\65")
+        buf.write("\3\2\2\2\u0191\u0192\7\b\2\2\u0192\u01c5\7\t\2\2\u0193")
+        buf.write("\u0194\7\b\2\2\u0194\u0195\5\66\34\2\u0195\u0196\7\t\2")
+        buf.write("\2\u0196\u01c5\3\2\2\2\u0197\u0198\7\b\2\2\u0198\u0199")
+        buf.write("\5\66\34\2\u0199\u019a\7\7\2\2\u019a\u019b\7\t\2\2\u019b")
+        buf.write("\u01c5\3\2\2\2\u019c\u019d\7\b\2\2\u019d\u01a0\5\66\34")
+        buf.write("\2\u019e\u019f\7\7\2\2\u019f\u01a1\5\66\34\2\u01a0\u019e")
+        buf.write("\3\2\2\2\u01a1\u01a2\3\2\2\2\u01a2\u01a0\3\2\2\2\u01a2")
+        buf.write("\u01a3\3\2\2\2\u01a3\u01a4\3\2\2\2\u01a4\u01a5\7\t\2\2")
+        buf.write("\u01a5\u01c5\3\2\2\2\u01a6\u01a7\5\4\3\2\u01a7\u01a8\5")
+        buf.write("8\35\2\u01a8\u01c5\3\2\2\2\u01a9\u01c5\5\4\3\2\u01aa\u01ab")
+        buf.write("\7\35\2\2\u01ab\u01ac\7\n\2\2\u01ac\u01ad\5:\36\2\u01ad")
+        buf.write("\u01ae\7\7\2\2\u01ae\u01af\5\66\34\2\u01af\u01b0\7\13")
+        buf.write("\2\2\u01b0\u01c5\3\2\2\2\u01b1\u01b3\7\24\2\2\u01b2\u01b4")
+        buf.write("\58\35\2\u01b3\u01b2\3\2\2\2\u01b3\u01b4\3\2\2\2\u01b4")
+        buf.write("\u01b5\3\2\2\2\u01b5\u01be\7\b\2\2\u01b6\u01bb\5\66\34")
+        buf.write("\2\u01b7\u01b8\7\7\2\2\u01b8\u01ba\5\66\34\2\u01b9\u01b7")
+        buf.write("\3\2\2\2\u01ba\u01bd\3\2\2\2\u01bb\u01b9\3\2\2\2\u01bb")
+        buf.write("\u01bc\3\2\2\2\u01bc\u01bf\3\2\2\2\u01bd\u01bb\3\2\2\2")
+        buf.write("\u01be\u01b6\3\2\2\2\u01be\u01bf\3\2\2\2\u01bf\u01c0\3")
+        buf.write("\2\2\2\u01c0\u01c1\7\t\2\2\u01c1\u01c2\7\25\2\2\u01c2")
+        buf.write("\u01c5\5\66\34\2\u01c3\u01c5\7\6\2\2\u01c4\u0191\3\2\2")
+        buf.write("\2\u01c4\u0193\3\2\2\2\u01c4\u0197\3\2\2\2\u01c4\u019c")
+        buf.write("\3\2\2\2\u01c4\u01a6\3\2\2\2\u01c4\u01a9\3\2\2\2\u01c4")
+        buf.write("\u01aa\3\2\2\2\u01c4\u01b1\3\2\2\2\u01c4\u01c3\3\2\2\2")
+        buf.write("\u01c5\67\3\2\2\2\u01c6\u01c7\7\n\2\2\u01c7\u01cc\5\66")
+        buf.write("\34\2\u01c8\u01c9\7\7\2\2\u01c9\u01cb\5\66\34\2\u01ca")
         buf.write("\u01c8\3\2\2\2\u01cb\u01ce\3\2\2\2\u01cc\u01ca\3\2\2\2")
         buf.write("\u01cc\u01cd\3\2\2\2\u01cd\u01cf\3\2\2\2\u01ce\u01cc\3")
         buf.write("\2\2\2\u01cf\u01d0\7\13\2\2\u01d09\3\2\2\2\u01d1\u01d2")
@@ -385,12 +382,11 @@ class RelayParser ( Parser ):
     NAT=47
     METADATA=48
 
-    def __init__(self, input:TokenStream, output:TextIO = sys.stdout):
-        super().__init__(input, output)
-        self.checkVersion("4.7.2")
+    def __init__(self, input:TokenStream):
+        super().__init__(input)
+        self.checkVersion("4.5.1")
         self._interp = ParserATNSimulator(self, self.atn, self.decisionsToDFA, self.sharedContextCache)
         self._predicates = None
-
 
 
 
@@ -442,7 +438,6 @@ class RelayParser ( Parser ):
             self.state = 68
             self.match(RelayParser.SEMVER)
             self.state = 76
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.EOF, RelayParser.T__19, RelayParser.T__20, RelayParser.T__21, RelayParser.METADATA]:
                 self.state = 72
@@ -455,16 +450,15 @@ class RelayParser ( Parser ):
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
-                pass
+
             elif token in [RelayParser.T__1, RelayParser.T__2, RelayParser.T__5, RelayParser.T__7, RelayParser.T__9, RelayParser.T__13, RelayParser.T__17, RelayParser.T__23, RelayParser.T__24, RelayParser.T__27, RelayParser.QUOTED_STRING, RelayParser.SUB, RelayParser.BOOL_LIT, RelayParser.CNAME, RelayParser.FLOAT, RelayParser.NAT]:
                 self.state = 75
                 self.expr(0)
-                pass
+
             else:
                 raise NoViableAltException(self)
 
             self.state = 79
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.METADATA:
                 self.state = 78
@@ -480,7 +474,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class GeneralIdentContext(ParserRuleContext):
 
@@ -535,7 +528,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class GlobalVarContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -575,7 +567,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class LocalVarContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -611,7 +602,6 @@ class RelayParser ( Parser ):
             if not(_la==RelayParser.T__3 or _la==RelayParser.CNAME):
                 self._errHandler.recoverInline(self)
             else:
-                self._errHandler.reportMatch(self)
                 self.consume()
         except RecognitionException as re:
             localctx.exception = re
@@ -620,7 +610,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class GraphVarContext(ParserRuleContext):
 
@@ -661,7 +650,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class ExprListContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -695,7 +683,6 @@ class RelayParser ( Parser ):
         try:
             self.enterOuterAlt(localctx, 1)
             self.state = 108
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__1) | (1 << RelayParser.T__2) | (1 << RelayParser.T__5) | (1 << RelayParser.T__7) | (1 << RelayParser.T__9) | (1 << RelayParser.T__13) | (1 << RelayParser.T__17) | (1 << RelayParser.T__23) | (1 << RelayParser.T__24) | (1 << RelayParser.T__27) | (1 << RelayParser.QUOTED_STRING) | (1 << RelayParser.SUB) | (1 << RelayParser.BOOL_LIT) | (1 << RelayParser.CNAME) | (1 << RelayParser.FLOAT) | (1 << RelayParser.NAT))) != 0):
                 self.state = 100
@@ -721,7 +708,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class CallListContext(ParserRuleContext):
 
@@ -786,7 +772,6 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 12, self.RULE_callList)
         try:
             self.state = 120
-            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,7,self._ctx)
             if la_ == 1:
                 localctx = RelayParser.CallNoAttrContext(self, localctx)
@@ -823,7 +808,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ExprContext(ParserRuleContext):
 
@@ -999,8 +983,6 @@ class RelayParser ( Parser ):
             super().__init__(parser)
             self.copyFrom(ctx)
 
-        def SUB(self):
-            return self.getToken(RelayParser.SUB, 0)
         def expr(self):
             return self.getTypedRuleContext(RelayParser.ExprContext,0)
 
@@ -1144,26 +1126,6 @@ class RelayParser ( Parser ):
             else:
                 return self.getTypedRuleContext(RelayParser.ExprContext,i)
 
-        def MUL(self):
-            return self.getToken(RelayParser.MUL, 0)
-        def DIV(self):
-            return self.getToken(RelayParser.DIV, 0)
-        def ADD(self):
-            return self.getToken(RelayParser.ADD, 0)
-        def SUB(self):
-            return self.getToken(RelayParser.SUB, 0)
-        def LT(self):
-            return self.getToken(RelayParser.LT, 0)
-        def GT(self):
-            return self.getToken(RelayParser.GT, 0)
-        def LE(self):
-            return self.getToken(RelayParser.LE, 0)
-        def GE(self):
-            return self.getToken(RelayParser.GE, 0)
-        def EQ(self):
-            return self.getToken(RelayParser.EQ, 0)
-        def NE(self):
-            return self.getToken(RelayParser.NE, 0)
 
         def accept(self, visitor:ParseTreeVisitor):
             if hasattr( visitor, "visitBinOp" ):
@@ -1184,29 +1146,28 @@ class RelayParser ( Parser ):
         try:
             self.enterOuterAlt(localctx, 1)
             self.state = 192
-            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,12,self._ctx)
             if la_ == 1:
-                localctx = RelayParser.ParenContext(self, localctx)
+                localctx = RelayParser.NegContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
 
                 self.state = 123
-                self.match(RelayParser.T__5)
+                self.match(RelayParser.SUB)
                 self.state = 124
-                self.expr(0)
-                self.state = 125
-                self.match(RelayParser.T__6)
+                self.expr(20)
                 pass
 
             elif la_ == 2:
-                localctx = RelayParser.NegContext(self, localctx)
+                localctx = RelayParser.ParenContext(self, localctx)
                 self._ctx = localctx
                 _prevctx = localctx
+                self.state = 125
+                self.match(RelayParser.T__5)
+                self.state = 126
+                self.expr(0)
                 self.state = 127
-                self.match(RelayParser.SUB)
-                self.state = 128
-                self.expr(20)
+                self.match(RelayParser.T__6)
                 pass
 
             elif la_ == 3:
@@ -1274,7 +1235,6 @@ class RelayParser ( Parser ):
                 self.state = 147
                 self.match(RelayParser.T__7)
                 self.state = 156
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__1) | (1 << RelayParser.T__2) | (1 << RelayParser.T__5) | (1 << RelayParser.T__7) | (1 << RelayParser.T__9) | (1 << RelayParser.T__13) | (1 << RelayParser.T__17) | (1 << RelayParser.T__23) | (1 << RelayParser.T__24) | (1 << RelayParser.T__27) | (1 << RelayParser.QUOTED_STRING) | (1 << RelayParser.SUB) | (1 << RelayParser.BOOL_LIT) | (1 << RelayParser.CNAME) | (1 << RelayParser.FLOAT) | (1 << RelayParser.NAT))) != 0):
                     self.state = 148
@@ -1328,7 +1288,6 @@ class RelayParser ( Parser ):
                 self.state = 169
                 self.match(RelayParser.T__11)
                 self.state = 171
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__2) | (1 << RelayParser.T__3) | (1 << RelayParser.T__5) | (1 << RelayParser.CNAME))) != 0):
                     self.state = 170
@@ -1354,7 +1313,7 @@ class RelayParser ( Parser ):
                 self.state = 179
                 self.match(RelayParser.T__15)
                 self.state = 180
-                self.expr(7)
+                self.expr(0)
                 pass
 
             elif la_ == 11:
@@ -1370,7 +1329,7 @@ class RelayParser ( Parser ):
                 self.state = 185
                 self.match(RelayParser.T__15)
                 self.state = 186
-                self.expr(5)
+                self.expr(0)
                 pass
 
             elif la_ == 12:
@@ -1416,7 +1375,6 @@ class RelayParser ( Parser ):
                         self.triggerExitRuleEvent()
                     _prevctx = localctx
                     self.state = 217
-                    self._errHandler.sync(self)
                     la_ = self._interp.adaptivePredict(self._input,13,self._ctx)
                     if la_ == 1:
                         localctx = RelayParser.BinOpContext(self, RelayParser.ExprContext(self, _parentctx, _parentState))
@@ -1431,7 +1389,6 @@ class RelayParser ( Parser ):
                         if not(_la==RelayParser.MUL or _la==RelayParser.DIV):
                             localctx.op = self._errHandler.recoverInline(self)
                         else:
-                            self._errHandler.reportMatch(self)
                             self.consume()
                         self.state = 196
                         self.expr(20)
@@ -1450,7 +1407,6 @@ class RelayParser ( Parser ):
                         if not(_la==RelayParser.ADD or _la==RelayParser.SUB):
                             localctx.op = self._errHandler.recoverInline(self)
                         else:
-                            self._errHandler.reportMatch(self)
                             self.consume()
                         self.state = 199
                         self.expr(19)
@@ -1469,7 +1425,6 @@ class RelayParser ( Parser ):
                         if not((((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.LT) | (1 << RelayParser.GT) | (1 << RelayParser.LE) | (1 << RelayParser.GE))) != 0)):
                             localctx.op = self._errHandler.recoverInline(self)
                         else:
-                            self._errHandler.reportMatch(self)
                             self.consume()
                         self.state = 202
                         self.expr(18)
@@ -1488,7 +1443,6 @@ class RelayParser ( Parser ):
                         if not(_la==RelayParser.EQ or _la==RelayParser.NE):
                             localctx.op = self._errHandler.recoverInline(self)
                         else:
-                            self._errHandler.reportMatch(self)
                             self.consume()
                         self.state = 205
                         self.expr(17)
@@ -1548,7 +1502,6 @@ class RelayParser ( Parser ):
             self.unrollRecursionContexts(_parentctx)
         return localctx
 
-
     class FuncContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -1593,7 +1546,6 @@ class RelayParser ( Parser ):
             self.state = 222
             self.match(RelayParser.T__17)
             self.state = 224
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__7:
                 self.state = 223
@@ -1607,7 +1559,6 @@ class RelayParser ( Parser ):
             self.state = 228
             self.match(RelayParser.T__6)
             self.state = 231
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__18:
                 self.state = 229
@@ -1625,7 +1576,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class DefnContext(ParserRuleContext):
 
@@ -1723,7 +1673,6 @@ class RelayParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.state = 266
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.T__19]:
                 localctx = RelayParser.FuncDefnContext(self, localctx)
@@ -1733,7 +1682,6 @@ class RelayParser ( Parser ):
                 self.state = 236
                 self.globalVar()
                 self.state = 238
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__7:
                     self.state = 237
@@ -1747,7 +1695,6 @@ class RelayParser ( Parser ):
                 self.state = 242
                 self.match(RelayParser.T__6)
                 self.state = 245
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__18:
                     self.state = 243
@@ -1758,7 +1705,7 @@ class RelayParser ( Parser ):
 
                 self.state = 247
                 self.body()
-                pass
+
             elif token in [RelayParser.T__20]:
                 localctx = RelayParser.ExternAdtDefnContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
@@ -1769,14 +1716,13 @@ class RelayParser ( Parser ):
                 self.state = 251
                 self.generalIdent()
                 self.state = 253
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__7:
                     self.state = 252
                     self.typeParamList()
 
 
-                pass
+
             elif token in [RelayParser.T__21]:
                 localctx = RelayParser.AdtDefnContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
@@ -1785,7 +1731,6 @@ class RelayParser ( Parser ):
                 self.state = 256
                 self.generalIdent()
                 self.state = 258
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__7:
                     self.state = 257
@@ -1795,7 +1740,6 @@ class RelayParser ( Parser ):
                 self.state = 260
                 self.match(RelayParser.T__11)
                 self.state = 262
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.CNAME:
                     self.state = 261
@@ -1804,7 +1748,7 @@ class RelayParser ( Parser ):
 
                 self.state = 264
                 self.match(RelayParser.T__12)
-                pass
+
             else:
                 raise NoViableAltException(self)
 
@@ -1815,7 +1759,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ConstructorNameContext(ParserRuleContext):
 
@@ -1853,7 +1796,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class AdtConsDefnListContext(ParserRuleContext):
 
@@ -1903,7 +1845,6 @@ class RelayParser ( Parser ):
                 _alt = self._interp.adaptivePredict(self._input,23,self._ctx)
 
             self.state = 279
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__4:
                 self.state = 278
@@ -1917,7 +1858,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class AdtConsDefnContext(ParserRuleContext):
 
@@ -1958,7 +1898,6 @@ class RelayParser ( Parser ):
             self.state = 281
             self.constructorName()
             self.state = 293
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__5:
                 self.state = 282
@@ -1988,7 +1927,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class MatchClauseListContext(ParserRuleContext):
 
@@ -2038,7 +1976,6 @@ class RelayParser ( Parser ):
                 _alt = self._interp.adaptivePredict(self._input,27,self._ctx)
 
             self.state = 304
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__4:
                 self.state = 303
@@ -2052,7 +1989,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class MatchClauseContext(ParserRuleContext):
 
@@ -2091,7 +2027,6 @@ class RelayParser ( Parser ):
             self.state = 307
             self.match(RelayParser.T__22)
             self.state = 313
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.T__11]:
                 self.state = 308
@@ -2100,11 +2035,11 @@ class RelayParser ( Parser ):
                 self.expr(0)
                 self.state = 310
                 self.match(RelayParser.T__12)
-                pass
+
             elif token in [RelayParser.T__1, RelayParser.T__2, RelayParser.T__5, RelayParser.T__7, RelayParser.T__9, RelayParser.T__13, RelayParser.T__17, RelayParser.T__23, RelayParser.T__24, RelayParser.T__27, RelayParser.QUOTED_STRING, RelayParser.SUB, RelayParser.BOOL_LIT, RelayParser.CNAME, RelayParser.FLOAT, RelayParser.NAT]:
                 self.state = 312
                 self.expr(0)
-                pass
+
             else:
                 raise NoViableAltException(self)
 
@@ -2115,7 +2050,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class MatchTypeContext(ParserRuleContext):
 
@@ -2148,7 +2082,6 @@ class RelayParser ( Parser ):
             if not(_la==RelayParser.T__23 or _la==RelayParser.T__24):
                 self._errHandler.recoverInline(self)
             else:
-                self._errHandler.reportMatch(self)
                 self.consume()
         except RecognitionException as re:
             localctx.exception = re
@@ -2157,7 +2090,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class PatternListContext(ParserRuleContext):
 
@@ -2216,7 +2148,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class PatternContext(ParserRuleContext):
 
@@ -2313,21 +2244,19 @@ class RelayParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.state = 339
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.T__3]:
                 localctx = RelayParser.WildcardPatternContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 328
                 self.match(RelayParser.T__3)
-                pass
+
             elif token in [RelayParser.T__2]:
                 localctx = RelayParser.VarPatternContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
                 self.state = 329
                 self.localVar()
                 self.state = 332
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__25:
                     self.state = 330
@@ -2336,27 +2265,26 @@ class RelayParser ( Parser ):
                     self.typeExpr()
 
 
-                pass
+
             elif token in [RelayParser.CNAME]:
                 localctx = RelayParser.ConstructorPatternContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
                 self.state = 334
                 self.constructorName()
                 self.state = 336
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__5:
                     self.state = 335
                     self.patternList()
 
 
-                pass
+
             elif token in [RelayParser.T__5]:
                 localctx = RelayParser.TuplePatternContext(self, localctx)
                 self.enterOuterAlt(localctx, 4)
                 self.state = 338
                 self.patternList()
-                pass
+
             else:
                 raise NoViableAltException(self)
 
@@ -2367,7 +2295,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class AdtConsContext(ParserRuleContext):
 
@@ -2405,7 +2332,6 @@ class RelayParser ( Parser ):
             self.state = 341
             self.constructorName()
             self.state = 343
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__5:
                 self.state = 342
@@ -2419,7 +2345,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class AdtConsParamListContext(ParserRuleContext):
 
@@ -2479,7 +2404,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class AdtConsParamContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -2512,18 +2436,17 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 40, self.RULE_adtConsParam)
         try:
             self.state = 358
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.T__2]:
                 self.enterOuterAlt(localctx, 1)
                 self.state = 356
                 self.localVar()
-                pass
+
             elif token in [RelayParser.CNAME]:
                 self.enterOuterAlt(localctx, 2)
                 self.state = 357
                 self.constructorName()
-                pass
+
             else:
                 raise NoViableAltException(self)
 
@@ -2534,7 +2457,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ArgListContext(ParserRuleContext):
 
@@ -2600,7 +2522,6 @@ class RelayParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.state = 370
-            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,38,self._ctx)
             if la_ == 1:
                 localctx = RelayParser.ArgNoAttrContext(self, localctx)
@@ -2637,7 +2558,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class VarListContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -2671,7 +2591,6 @@ class RelayParser ( Parser ):
         try:
             self.enterOuterAlt(localctx, 1)
             self.state = 380
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__2:
                 self.state = 372
@@ -2697,7 +2616,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class VarContext(ParserRuleContext):
 
@@ -2735,7 +2653,6 @@ class RelayParser ( Parser ):
             self.state = 382
             self.localVar()
             self.state = 385
-            self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==RelayParser.T__25:
                 self.state = 383
@@ -2751,7 +2668,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class AttrSeqContext(ParserRuleContext):
 
@@ -2807,7 +2723,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class AttrContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -2852,7 +2767,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class TypeExprContext(ParserRuleContext):
 
@@ -3009,7 +2923,6 @@ class RelayParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.state = 450
-            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,47,self._ctx)
             if la_ == 1:
                 localctx = RelayParser.TupleTypeContext(self, localctx)
@@ -3108,7 +3021,6 @@ class RelayParser ( Parser ):
                 self.state = 431
                 self.match(RelayParser.T__17)
                 self.state = 433
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==RelayParser.T__7:
                     self.state = 432
@@ -3118,7 +3030,6 @@ class RelayParser ( Parser ):
                 self.state = 435
                 self.match(RelayParser.T__5)
                 self.state = 444
-                self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if (((_la) & ~0x3f) == 0 and ((1 << _la) & ((1 << RelayParser.T__3) | (1 << RelayParser.T__5) | (1 << RelayParser.T__17) | (1 << RelayParser.T__26) | (1 << RelayParser.CNAME))) != 0):
                     self.state = 436
@@ -3160,7 +3071,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class TypeParamListContext(ParserRuleContext):
 
@@ -3220,7 +3130,6 @@ class RelayParser ( Parser ):
             self.exitRule()
         return localctx
 
-
     class ShapeListContext(ParserRuleContext):
 
         def __init__(self, parser, parent:ParserRuleContext=None, invokingState:int=-1):
@@ -3253,7 +3162,6 @@ class RelayParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.state = 476
-            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,50,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)
@@ -3301,7 +3209,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class MetaContext(ParserRuleContext):
 
@@ -3354,7 +3261,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ShapeContext(ParserRuleContext):
 
@@ -3429,14 +3335,13 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 60, self.RULE_shape)
         try:
             self.state = 492
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.T__27]:
                 localctx = RelayParser.MetaShapeContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 486
                 self.meta()
-                pass
+
             elif token in [RelayParser.T__5]:
                 localctx = RelayParser.ParensShapeContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
@@ -3446,13 +3351,13 @@ class RelayParser ( Parser ):
                 self.shape()
                 self.state = 489
                 self.match(RelayParser.T__6)
-                pass
+
             elif token in [RelayParser.NAT]:
                 localctx = RelayParser.IntShapeContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
                 self.state = 491
                 self.match(RelayParser.NAT)
-                pass
+
             else:
                 raise NoViableAltException(self)
 
@@ -3463,7 +3368,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class BodyContext(ParserRuleContext):
 
@@ -3506,7 +3410,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class ScalarContext(ParserRuleContext):
 
@@ -3579,26 +3482,25 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 64, self.RULE_scalar)
         try:
             self.state = 501
-            self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [RelayParser.FLOAT]:
                 localctx = RelayParser.ScalarFloatContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
                 self.state = 498
                 self.match(RelayParser.FLOAT)
-                pass
+
             elif token in [RelayParser.NAT]:
                 localctx = RelayParser.ScalarIntContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
                 self.state = 499
                 self.match(RelayParser.NAT)
-                pass
+
             elif token in [RelayParser.BOOL_LIT]:
                 localctx = RelayParser.ScalarBoolContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
                 self.state = 500
                 self.match(RelayParser.BOOL_LIT)
-                pass
+
             else:
                 raise NoViableAltException(self)
 
@@ -3609,7 +3511,6 @@ class RelayParser ( Parser ):
         finally:
             self.exitRule()
         return localctx
-
 
     class IdentContext(ParserRuleContext):
 
@@ -3651,7 +3552,6 @@ class RelayParser ( Parser ):
         self.enterRule(localctx, 66, self.RULE_ident)
         try:
             self.state = 507
-            self._errHandler.sync(self)
             la_ = self._interp.adaptivePredict(self._input,53,self._ctx)
             if la_ == 1:
                 self.enterOuterAlt(localctx, 1)

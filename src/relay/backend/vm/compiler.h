@@ -73,6 +73,8 @@ struct VMCompilerContext {
   GlobalMap global_map;
   // List of constants
   std::vector<NDArray> constants;
+  // Device type for constants
+  std::vector<Index> const_device_type;
   // List of cached functions
   std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
@@ -116,6 +118,8 @@ class VMCompiler : public runtime::ModuleNode {
 
  protected:
   IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
+  void UpdateHeterogeneousInputs(int fallback_device);
+  IRModule RunDeviceAnnotationPass(const IRModule& relay_module, int fallback_device);
 
   void PopulateGlobalMap();
 

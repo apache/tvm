@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
+ * 
  *   http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,6 +18,8 @@
  */
 
 /*!
+ * Copyright (c) 2018 by Contributors
+ *
  * \file deivce_annotation.cc
  * \brief Passes to rewrite annotated program and retrieve the device allocation
  * of expression.
@@ -28,7 +30,6 @@
  *  3. Collect the device allocation of each expression.
  */
 
-#include <tvm/tir/expr.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
@@ -39,21 +40,24 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "../../support/arena.h"
+#include "../analysis/dependency_graph.h"
+
 namespace tvm {
 namespace relay {
 
 namespace {
 
 bool IsOnDeviceNode(const ExprNode* node) {
-  if (!node->IsInstance<CallNode>()) return false;
-  const auto* call_node = static_cast<const CallNode*>(node);
-  return call_node->attrs.as<OnDeviceAttrs>();
+  Expr expr = GetRef<Expr>(node);
+  const auto* call_node = expr.as<CallNode>();
+  return call_node != nullptr && call_node->attrs.as<OnDeviceAttrs>();
 }
 
 bool IsDeviceCopyNode(const ExprNode* node) {
-  if (!node->IsInstance<CallNode>()) return false;
-  const auto* call_node = static_cast<const CallNode*>(node);
-  return call_node->attrs.as<DeviceCopyAttrs>();
+  Expr expr = GetRef<Expr>(node);
+  const auto* call_node = expr.as<CallNode>();
+  return call_node != nullptr && call_node->attrs.as<DeviceCopyAttrs>();
 }
 
 }  // namespace
@@ -350,93 +354,180 @@ class AnnotatationVisitor : private ExprVisitor {
  *           ancestors until encountering another copy op. For example, this way
  *           provides add, x, and y device types from the copy operator, `copy1`.
  *  -Pass 2: Propagating the destination device type of "the last" copy op to the
- *           remain nodes. For instance, this offers `subtract` and `exp` the
+ *           remain nodes. For instance, this offers `subtract` and `exp` the 
  *           same device type as `copy3`.
  */
 
 class DeviceInfo {
  public:
   static Map<Expr, Integer> GetDeviceMap(const Expr& expr) {
-    DeviceInfo device_info;
-    device_info.post_visitor_ = PostDfsOrderVisitor();
-    device_info.post_visitor_.Visit(expr);
-    if (device_info.post_visitor_.num_device_copy_ops_ > 0) {
-      device_info.PropagateDeviceId();
-      return device_info.device_map_;
+    BottomUpVisitor bottomup_visitor;
+    auto device_map = bottomup_visitor.Visit(expr);
+    if (bottomup_visitor.root_device_copy) {
+      TopDownVisitor topdown_visitor;
+      return topdown_visitor.Visit(
+          expr, bottomup_visitor.root_device_copy, device_map);
     } else {
       return Map<Expr, Integer>();
     }
   }
 
  private:
-  class PostDfsOrderVisitor : private ExprVisitor {
-   public:
-    void Visit(const Expr& expr) {
+  struct BottomUpVisitor : private ExprVisitor {
+
+    Map<Expr, Integer> Visit(const Expr& expr) {
       if (const auto* fn = expr.as<FunctionNode>()) {
-        for (const auto& param : fn->params) {
-          this->VisitExpr(param);
-        }
         this->VisitExpr(fn->body);
       } else {
         this->VisitExpr(expr);
       }
+      return device_map;
     }
 
-   private:
-    // Post order traversal.
-    void VisitExpr_(const FunctionNode* fn) final {
-      // TODO(zhiics) Skip annotation of function node for now.
-    }
+    void VisitExpr(const Expr& expr) final {
+      ExprVisitor::VisitExpr(expr);
 
-    void VisitExpr_(const ConstantNode* cn) final {
-      post_dfs_order_.push_back(std::make_pair(cn, has_copy_));
-    }
-
-    void VisitExpr_(const CallNode* call) final {
-      // Skip annotation nodes.
-      if (!IsOnDeviceNode(call)) {
-        if (GetDeviceCopyNode(call)) {
-          num_device_copy_ops_++;
-          bool has_copy_prev = has_copy_;
-          has_copy_ = true;
-          ExprVisitor::VisitExpr_(call);
-          post_dfs_order_.push_back(std::make_pair(call, has_copy_));
-          has_copy_ = has_copy_prev;
-        } else {
-          ExprVisitor::VisitExpr_(call);
-          post_dfs_order_.push_back(std::make_pair(call, has_copy_));
+      if (last_device_copy) {
+        if (device_map.count(expr) == 0) {
+          device_map.Set(expr, SourceDeviceType(last_device_copy));
         }
       }
     }
 
-    void VisitExpr_(const TupleNode* tn) final {
-      ExprVisitor::VisitExpr_(tn);
-      // TODO(zhiics) Skip annotation of tuple node for now.
+    int SourceDeviceType(const CallNode* device_copy) const {
+      CHECK(device_copy);
+      const auto* attrs = device_copy->attrs.as<DeviceCopyAttrs>();
+      CHECK(attrs);
+      return attrs->src_dev_type;
     }
 
-    void VisitExpr_(const TupleGetItemNode* op) final {
-      ExprVisitor::VisitExpr_(op);
+    int DestionationDeviceType(const CallNode* device_copy) const {
+      CHECK(device_copy);
+      const auto* attrs = device_copy->attrs.as<DeviceCopyAttrs>();
+      CHECK(attrs);
+      return attrs->dst_dev_type;
     }
 
-    void VisitExpr_(const VarNode* vn) final {
-      post_dfs_order_.push_back(std::make_pair(vn, has_copy_));
+    void PropagateDeviceCopyScope(const CallNode* call) {
+      // Use a utility function to propagte the device information to all the
+      // nodes that are reachable to the current call.
+      struct Propagater : public ExprVisitor {
+        Propagater(Map<Expr, Integer>* m, int dev_type)
+            : device_map(m), dev_type(dev_type) {}
+
+        void Run(const Expr& expr) {
+          VisitExpr(expr);
+        }
+
+        void VisitExpr(const Expr& expr) {
+          // Skip the the nodes that are reacheable to other device copy nodes.
+          // This check is only needed for the graph form. ANF doesn't have this
+          // problem since each device copy node is scoped.
+          if (device_map->count(expr) == 0) {
+            (*device_map).Set(expr, dev_type);
+            ExprVisitor::VisitExpr(expr);
+          }
+        }
+
+        Map<Expr, Integer> *device_map;
+        int dev_type;
+      };
+
+      // All the nodes that are reachable to the current call node should have
+      // the same device type to the current device copy node.
+      int dev_type = DestionationDeviceType(call);
+      Propagater p(&device_map, dev_type);
+      p.Run(GetRef<Call>(call));
+    }
+
+    void VisitExpr_(const FunctionNode* fn) final {
+      // TODO(zhiics) Skip annotation of function node for now.
+    }
+
+    void VisitExpr_(const CallNode* call) final {
+      CHECK(!IsOnDeviceNode(call)) << "On device annotation nodes should have been removed"
+                                   << "\n";
+
+      if (const auto* cur_copy_call = GetDeviceCopyNode(call)) {
+        ExprVisitor::VisitExpr_(call);
+        // Propagate the device information to the nodes that are reachable to
+        // this device copy  node.
+        PropagateDeviceCopyScope(call);
+        // This is buggy. Consider both branches have device copy ops. Need
+        // a way to pop the used ones and only keep the only that dominates the
+        // current backtracking tree.
+        //
+        // For example, if a and d are copy nodes, c and e should have used the
+        // device information from a, here we may get it from d.
+        /*
+        //     a
+        //    / \
+        //   b   c
+        //  /     \
+        // d       e
+        */
+        last_device_copy = cur_copy_call;
+        if (!root_device_copy) {
+          root_device_copy = cur_copy_call;
+        }
+      } else {
+        ExprVisitor::VisitExpr_(call);
+        // The device type of alloc_tensor and alloc_storage should be
+        // the same as the associated call.
+        if (call->op == Op::Get("memory.alloc_tensor") ||
+            call->op == Op::Get("memory.alloc_storage")) {
+          auto last = GetRef<Call>(last_call);
+          CHECK(last_call);
+          if(device_map.count(last)) {
+            device_map.Set(GetRef<Call>(call), device_map[last]);
+            return;
+          }
+        }
+
+        if (last_device_copy && device_map.count(GetRef<Call>(call)) == 0) {
+          device_map.Set(GetRef<Call>(call), SourceDeviceType(last_device_copy));
+        }
+      }
+      last_call = call;
     }
 
     void VisitExpr_(const LetNode* ln) final {
-      ExprVisitor::VisitExpr_(ln);
-      post_dfs_order_.push_back(std::make_pair(ln, has_copy_));
+      this->VisitExpr(ln->body);
+      this->VisitExpr(ln->value);
+      this->VisitExpr(ln->var);
     }
 
-    void VisitExpr_(const IfNode* in) final {
-      ExprVisitor::VisitExpr_(in);
-      post_dfs_order_.push_back(std::make_pair(in, has_copy_));
+    const CallNode* last_device_copy = nullptr;
+    const CallNode* root_device_copy = nullptr;
+    const CallNode* last_call = nullptr;
+    Map<Expr, Integer> device_map;
+  };
+
+  struct TopDownVisitor : private ExprVisitor {
+    Map<Expr, Integer> Visit(const Expr& expr,
+                             const CallNode* root_device_copy,
+                             const Map<Expr, Integer>& device_map) {
+      this->root_device_copy = root_device_copy;
+      this->device_map = device_map;
+      VisitExpr(expr);
+      return this->device_map;
     }
 
+    void VisitExpr(const Expr& expr) final {
+      ExprVisitor::VisitExpr(expr);
+      if (const auto* device_copy_call = GetDeviceCopyNode(expr.operator->())) {
+        root_device_copy = device_copy_call;
+      }
+      if (root_device_copy) {
+        const auto* attrs = root_device_copy->attrs.as<DeviceCopyAttrs>();
+        if (device_map.count(expr) == 0) {
+          device_map.Set(expr, attrs->dst_dev_type);
+        }
+      }
+    }
 
-    int num_device_copy_ops_{0};
-    bool has_copy_ = false;
-    std::vector<std::pair<const ExprNode*, bool>> post_dfs_order_;
-    friend DeviceInfo;
+    const CallNode* root_device_copy = nullptr;
+    Map<Expr, Integer> device_map;
   };
 
   /*
@@ -445,111 +536,25 @@ class DeviceInfo {
    * node or the current expr node is a function node whose body is a device
    * copy node (i.e. the fused function of a device copy call node).
    */
-  static const ExprNode* GetDeviceCopyNode(const ExprNode* node) {
+  static const CallNode* GetDeviceCopyNode(const ExprNode* node) {
+    Expr expr = GetRef<Expr>(node);
     if (IsDeviceCopyNode(node)) {
-      return node;
-    } else if (node->IsInstance<CallNode>()) {
-      const auto* call_node = static_cast<const CallNode*>(node);
+      return expr.as<CallNode>();
+    } else if (const auto* call_node = expr.as<CallNode>()) {
       if (const auto* fn = call_node->op.as<FunctionNode>()) {
-        const ExprNode* body = fn->body.operator->();
-        if (IsDeviceCopyNode(body)) {
-          return body;
+        Expr body = fn->body;
+        if (IsDeviceCopyNode(body.operator->())) {
+          return body.as<CallNode>();
         }
       }
     }
     return nullptr;
   }
-
-  void PropagateDeviceId() {
-    // Bottom-up propagation.
-    int out_dev_type = BottomUpPropagation();
-    // propagation for remained nodes.
-    FillPropagation(out_dev_type);
-  }
-
-  int BottomUpPropagation() {
-    const CallNode* last_copy_node = nullptr;
-    int cur_dev_type = -1;
-    int out_dev_type = -1;
-    for (auto it = post_visitor_.post_dfs_order_.crbegin();
-         it != post_visitor_.post_dfs_order_.crend(); ++it) {
-      if (const auto* node = GetDeviceCopyNode(it->first)) {
-        CHECK(node->IsInstance<CallNode>());
-        last_copy_node = static_cast<const CallNode*>(node);
-        const auto* attrs = last_copy_node->attrs.as<DeviceCopyAttrs>();
-        cur_dev_type = attrs->src_dev_type;
-        if (out_dev_type == -1) out_dev_type = attrs->dst_dev_type;
-        if (it->second) device_map_.Set(GetRef<Expr>(it->first),
-                                        attrs->dst_dev_type);
-      } else if (last_copy_node) {
-        Expr expr = GetRef<Expr>(it->first);
-        CHECK_EQ(device_map_.count(expr), 0U);
-        if (it->second) device_map_.Set(expr, cur_dev_type);
-      }
-    }
-      return out_dev_type;
-  }
-
-  void FillPropagation(int out_dev_type) {
-    for (const auto& it : post_visitor_.post_dfs_order_) {
-        Expr expr = GetRef<Expr>(it.first);
-        if (!it.second) device_map_.Set(expr, out_dev_type);
-    }
-  }
-
-
-  PostDfsOrderVisitor post_visitor_;
-  Map<Expr, Integer> device_map_;
 };
 
 Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
   RewriteAnnotation rewrote = RewriteAnnotation();
-  Expr new_expr = rewrote.Rewrite(expr, fallback_device);
-
-  // Remove OnDevice operators. Note that these operators are only present at the
-  // leaves after annotation. Therefore, we can simply reconstruct the
-  // Function/Expr by removing them directly.
-  if (const FunctionNode* fn = new_expr.as<FunctionNode>()) {
-    auto params = fn->params;
-    auto body = fn->body;
-    std::vector<Expr> new_body;
-    if (const TupleNode* tuple = body.as<TupleNode>()) {
-      for (const auto& field : tuple->fields) {
-        if (!IsOnDeviceNode(field.operator->())) {
-          new_body.push_back(field);
-        }
-      }
-      CHECK_GT(new_body.size(), 0U);
-      if (new_body.size() == 1) {
-        return Function(params, new_body[0], Type(nullptr),
-                                  fn->type_params, fn->attrs);
-      } else if (tuple->fields.size() == new_body.size()) {
-          return new_expr;
-      } else {
-        Tuple tuple_body = Tuple(new_body);
-        return Function(params, tuple_body, Type(nullptr),
-                                  fn->type_params, fn->attrs);
-      }
-    } else {
-      return new_expr;
-    }
-  } else if (const TupleNode* tuple = new_expr.as<TupleNode>()) {
-    std::vector<Expr> new_fields;
-    for (const auto& field : tuple->fields) {
-      if (!IsOnDeviceNode(field.operator->())) {
-        new_fields.push_back(field);
-      }
-    }
-    CHECK_GT(new_fields.size(), 0U);
-    if (tuple->fields.size() == new_fields.size()) {
-      return new_fields.size() == 1 ? new_fields[0] : new_expr;
-    } else {
-      return new_fields.size() == 1 ? new_fields[0]
-                                    : Tuple(new_fields);
-    }
-  } else {
-    return new_expr;
-  }
+  return rewrote.Rewrite(expr, fallback_device);
 }
 
 Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) {
@@ -574,7 +579,7 @@ Pass RewriteAnnotatedOps(int fallback_device) {
     return Downcast<Function>(relay::RewriteAnnotatedOps(f, fallback_device));
   };
   return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",
-                            {tir::StringImmNode::make("InferType")});
+                            {tvm::tir::StringImmNode::make("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation")

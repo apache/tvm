@@ -44,6 +44,7 @@ class DependencyGraph {
  public:
   /*! \brief A node in the graph. */
   struct Node {
+    Expr expr;
     // Determine scope boundaries. Used for calculating scopes, not for
     // constructing dependency graph.
     bool new_scope = false;

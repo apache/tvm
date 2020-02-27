@@ -25,6 +25,7 @@
 #include <dmlc/memory_io.h>
 #include <tvm/support/logging.h>
 #include <tvm/runtime/container.h>
+#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/vm.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
@@ -343,6 +344,7 @@ Instruction Instruction::AllocTensorReg(
 Instruction Instruction::AllocStorage(RegName size,
                                       Index alignment,
                                       DLDataType dtype_hint,
+                                      Index device_type,
                                       Index dst) {
   Instruction instr;
   instr.op = Opcode::AllocStorage;
@@ -350,6 +352,7 @@ Instruction Instruction::AllocStorage(RegName size,
   instr.alloc_storage.allocation_size = size;
   instr.alloc_storage.alignment = alignment;
   instr.alloc_storage.dtype_hint = dtype_hint;
+  instr.alloc_storage.device_type = device_type;
   return instr;
 }
 
@@ -593,7 +596,8 @@ void InstructionPrint(std::ostream& os, const Instruction& instr) {
         instr.dst << " $" <<
         instr.alloc_storage.allocation_size << " $" <<
         instr.alloc_storage.alignment << " " <<
-        DLDataType2String(instr.alloc_storage.dtype_hint);
+        DLDataType2String(instr.alloc_storage.dtype_hint) << " " <<
+        instr.alloc_storage.device_type;
       break;
     }
     default:
@@ -670,12 +674,11 @@ PackedFunc VirtualMachine::GetFunction(const std::string& name,
       auto func_index = gvit->second;
       const auto& vm_func = exec_->functions[func_index];
       const auto& param_names = vm_func.params;
-      // TODO(icemelon9): For heterogeneous execution, get input device information
-      TVMContext ctx = ctxs_[0];
       CHECK_EQ(args.size() - 1, param_names.size()) <<
           "The number of provided parameters doesn't match the number of arguments";
       std::vector<ObjectRef> func_args(param_names.size());
       for (int i = 1; i < args.size(); ++i) {
+        TVMContext ctx = GetContext(vm_func.params_device_type[i - 1]);
         ObjectRef obj = CopyTo(args[i], ctx);
         func_args[i - 1] = obj;
       }
@@ -700,6 +703,18 @@ TVMContext VirtualMachine::GetParamsContext() const {
         return fallback_device_type == static_cast<int>(c.device_type);
       });
   return (cit == ctxs_.end() ? ctxs_[0] : *cit);
+}
+
+TVMContext VirtualMachine::GetContext(Index device_type) const {
+  CHECK(!ctxs_.empty()) << "Context has not been initialized yet.";
+
+  const auto& cit =
+      std::find_if(ctxs_.begin(), ctxs_.end(), [&device_type](const TVMContext& c) {
+        return device_type == static_cast<Index>(c.device_type);
+      });
+  CHECK(cit != ctxs_.end()) << "device type " << device_type
+                            << " not found int the context list.";
+  return *cit;
 }
 
 void VirtualMachine::PushFrame(Index arg_count, Index ret_pc, const VMFunction& vm_func) {
@@ -736,9 +751,11 @@ ObjectRef VirtualMachine::Invoke(const VMFunction& func, const std::vector<Objec
 
   InvokeGlobal(func, args);
   RunLoop();
-  // TODO(wweic) ctx could be obtained from the ctxs list.
-  auto alloc = MemoryManager::Global()->GetAllocator(ctxs_[0]);
-  DLOG(INFO) << "Memory used: " << alloc->UsedMemory() << " B";
+  for (const auto ctx : ctxs_) {
+    auto alloc = MemoryManager::Global()->GetAllocator(ctx);
+    DLOG(INFO) << DeviceName(ctx.device_type) << " memory used: "
+               << alloc->UsedMemory() << " B";
+  }
   return return_register_;
 }
 
@@ -755,6 +772,9 @@ ObjectRef VirtualMachine::Invoke(const std::string& name, const std::vector<Obje
 void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
                                   Index arg_count, Index output_size,
                                   const std::vector<ObjectRef>& args) {
+  if (func == nullptr) {
+    CHECK_EQ(arg_count, 2U) << "Device copy op exepcts 2 args (input, output)";
+  }
   size_t arity = 0;
   for (Index i = 0; i < arg_count; i++) {
     if (const auto* obj = args[i].as<ADTObj>()) {
@@ -781,8 +801,24 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func,
     }
   }
 
-  TVMRetValue rv;
-  func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+  // Use runtime facility functions to handle device copy.
+  if (func == nullptr) {
+    CHECK_EQ(arity & 0x1, 0U)
+      << "The number of buffers should be even for device copy";
+    // The first half of the buffer is input and second half is output.
+    size_t mid = arity / 2;
+    for (size_t i = 0; i < mid; i++) {
+      DLTensor* from = static_cast<DLTensor*>(values[i].v_handle);
+      DLTensor* to = static_cast<DLTensor*>(values[i + mid].v_handle);
+      LOG(INFO) << "copy from: " << from->ctx.device_type << " to " << to->ctx.device_type;
+      int ret = TVMArrayCopyFromTo(from, to, nullptr);
+      CHECK_EQ(ret, 0) << TVMGetLastError();
+    }
+  } else {
+    // Invoke the packedfunc for other ops.
+    TVMRetValue rv;
+    func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+  }
 }
 
 void VirtualMachine::LoadExecutable(const Executable* exec) {
@@ -799,13 +835,19 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     auto packed_index = static_cast<size_t>(it.second);
     if (packed_funcs_.size() <= packed_index) {
       packed_funcs_.resize(packed_index + 1);
+      packed_names_.resize(packed_index + 1);
     }
     tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
-    CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
+    // For device copy operation, data should be directly moved from input to
+    // output.
+    if (pf == nullptr) {
+      CHECK(packed_name == "__copy") << "Only device copy is allowed to have no schedule."
+                                     << " Cannot find function in module: " << packed_name;
+    }
     packed_funcs_[packed_index] = pf;
+    packed_names_[packed_index] = packed_name;
   }
 }
-
 
 void VirtualMachine::Init(const std::vector<TVMContext>& ctxs) {
   ctxs_ = ctxs;
@@ -869,8 +911,8 @@ void VirtualMachine::RunLoop() {
         }
 
         if (!const_pool_[instr.const_index].defined()) {
-          // TODO(wweic) ctx could be obtained from the ctxs list.
-          const_pool_[instr.const_index] = CopyTo(constant_obj, ctxs_[0]);
+          TVMContext ctx = GetContext(exec_->const_device_type[instr.const_index]);
+          const_pool_[instr.const_index] = CopyTo(constant_obj, ctx);
         }
         WriteRegister(instr.dst, const_pool_[instr.const_index]);
         pc_++;
@@ -893,7 +935,9 @@ void VirtualMachine::RunLoop() {
         goto main_loop;
       }
       case Opcode::InvokePacked: {
-        DLOG(INFO) << "InvokedPacked " << "arity=" << instr.arity;
+        DLOG(INFO) << "InvokedPacked: " << instr.packed_index
+                   << "-th function: " << packed_names_[instr.packed_index]
+                   << " arity=" << instr.arity;
         const auto& func = packed_funcs_[instr.packed_index];
         const auto& arity = instr.arity;
         std::vector<ObjectRef> args;
@@ -1024,10 +1068,12 @@ void VirtualMachine::RunLoop() {
 
         DLOG(INFO) <<
           "AllocStorage: allocation_size=" << size <<
-          "alignment=" << alignment <<
-          "dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint);
+          ", alignment=" << alignment <<
+          ", dtype_hint=" << DLDataType2String(instr.alloc_storage.dtype_hint) <<
+          ", device_type=" << instr.alloc_storage.device_type;
 
-        auto storage = make_storage(size, alignment, instr.alloc_storage.dtype_hint, ctxs_[0]);
+        auto ctx = GetContext(instr.alloc_storage.device_type);
+        auto storage = make_storage(size, alignment, instr.alloc_storage.dtype_hint, ctx);
         WriteRegister(instr.dst, storage);
         pc_++;
         goto main_loop;
