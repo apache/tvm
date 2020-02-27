@@ -19,11 +19,6 @@
 
 #include "graph_runtime.h"
 
-extern unsigned char build_graph_json[];
-extern unsigned int build_graph_json_len;
-extern unsigned char build_params_bin[];
-extern unsigned int build_params_bin_len;
-
 TVM_DLL TVMGraphRuntime * tvm_runtime_create(const char * json_data,
                                              const char * params_data,
                                              const uint64_t params_size) {

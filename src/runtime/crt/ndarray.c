@@ -24,8 +24,8 @@
 
 #include "ndarray.h"
 
-TVMNDArray TVMNDArray_Create(uint32_t ndim, int64_t * shape,
-                                     DLDataType dtype, DLContext ctx) {
+TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t * shape,
+                             DLDataType dtype, DLContext ctx) {
   TVMNDArray ret;
   memset(&ret, 0, sizeof(TVMNDArray));
   ret.dl_tensor.ndim = ndim;
@@ -37,8 +37,8 @@ TVMNDArray TVMNDArray_Create(uint32_t ndim, int64_t * shape,
   return ret;
 }
 
-TVMNDArray TVMNDArray_Empty(uint32_t ndim, int64_t * shape,
-                                    DLDataType dtype, DLContext ctx) {
+TVMNDArray TVMNDArray_Empty(uint32_t ndim, const tvm_index_t * shape,
+                            DLDataType dtype, DLContext ctx) {
   TVMNDArray ret = TVMNDArray_Create(ndim, shape, dtype, ctx);
   int64_t num_elems = 1;
   int elem_bytes = (dtype.bits + 7) / 8;
@@ -101,9 +101,14 @@ int TVMNDArray_Load(TVMNDArray * ret, const char ** strm) {
   return status;
 }
 
-TVMNDArray TVMNDArray_CreateView(TVMNDArray * arr, int64_t * shape,
+TVMNDArray TVMNDArray_CreateView(TVMNDArray * arr, const tvm_index_t * shape,
                                  uint32_t ndim, DLDataType dtype) {
   TVMNDArray ret = TVMNDArray_Create(ndim, shape, dtype, arr->dl_tensor.ctx);
   ret.dl_tensor.data = arr->dl_tensor.data;
   return ret;
+}
+
+int TVMNDArray_Release(TVMNDArray * arr) {
+  free(arr->dl_tensor.data);
+  free(arr->dl_tensor.shape);
 }

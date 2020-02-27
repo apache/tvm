@@ -17,8 +17,10 @@
 
 # Makefile Example to bundle TVM modules.
 
-# Configure runtime
+# Preserve debug feature for MISRA C
 DEBUG = 0
+
+# Configure runtime
 MAX_NDIM = 6
 MAX_ARGS = 10
 GRAPH_RUNTIME_NODE_MAX_INPUTS = 300

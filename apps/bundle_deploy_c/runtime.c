@@ -17,11 +17,14 @@
  * under the License.
  */
 
-#include <dlpack/dlpack.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/c_backend_api.h>
+/* Explicitly declare posix_memalign function */
+#if _POSIX_C_SOURCE < 200112L
+#undef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
 
-#include "../../src/runtime/crt/c_backend_api.c"
+#include "../../src/runtime/crt/crt_runtime_api.c"
+#include "../../src/runtime/crt/crt_backend_api.c"
 #include "../../src/runtime/crt/graph_runtime.c"
 #include "../../src/runtime/crt/load_json.c"
 #include "../../src/runtime/crt/ndarray.c"

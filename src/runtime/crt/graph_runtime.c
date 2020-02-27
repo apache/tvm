@@ -677,8 +677,7 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
   int32_t idx;
   TVMGraphRuntime * runtime = *pptr;
   for (idx = 0; idx < runtime->storage_pool_count; ++idx) {
-    free(runtime->storage_pool[idx].dl_tensor.data);
-    free(runtime->storage_pool[idx].dl_tensor.shape);
+    TVMNDArray_Release(&(runtime->storage_pool[idx]));
   }
   free(*pptr);
 }

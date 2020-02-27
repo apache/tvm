@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/c_backend_api.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,14 +43,6 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
   free(ptr);
   return 0;
 }
-
-static char g_last_error[1024];
-
-void TVMAPISetLastError(const char* msg) {
-  snprintf(g_last_error, sizeof(g_last_error), "%s", msg);
-}
-
-const char* TVMGetLastError(void) { return g_last_error; }
 
 int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task) {
   TVMParallelGroupEnv env;
