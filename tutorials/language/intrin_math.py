@@ -66,7 +66,7 @@ print(f.imported_modules[0].get_source())
 # TVM intrinsic provides the user a mechanism to achieve this, and this
 # is the recommended way to solve the problem.
 # The following code use te.exp instead, which create an intrinsic call
-# :any:`te.exp` to do the exponential.
+# :py::func:`tvm.te.exp` to do the exponential.
 #
 n = te.var("n")
 A = te.placeholder((n,), name='A')
@@ -88,7 +88,7 @@ print(fopencl.imported_modules[0].get_source())
 ######################################################################
 # Intrinsic Lowering Rule
 # -----------------------
-# When :any:`te.exp` is called, TVM creates an intrinsic Call Expr.
+# When :py:func:`tvm.te.exp` is called, TVM creates an intrinsic Call Expr.
 # TVM uses transformation rules to transform the intrinsic
 # call to device specific extern calls.
 #
