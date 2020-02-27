@@ -247,6 +247,16 @@ reg.register_schedule("nn.global_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
+# adaptive_max_pool2d
+reg.register_schedule("nn.adaptive_max_pool2d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_avg_pool2d
+reg.register_schedule("nn.adaptive_avg_pool2d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
 # leaky_relu
 reg.register_broadcast_schedule("nn.leaky_relu")
 reg.register_pattern("nn.leaky_relu", OpPattern.ELEMWISE)

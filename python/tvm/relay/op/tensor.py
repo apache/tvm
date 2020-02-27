@@ -974,3 +974,22 @@ def shape_of(data, dtype="int32"):
         The shape tensor.
     """
     return _make.shape_of(data, dtype)
+
+
+def ndarray_size(data, dtype="int32"):
+    """Get number of elements of input tensor.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The number of elements of input tensor.
+    """
+    return _make.ndarray_size(data, dtype)

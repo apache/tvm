@@ -32,7 +32,6 @@ from . import annotation
 from . import memory
 from . import image
 from . import vision
-from . import contrib
 from . import op_attrs
 
 

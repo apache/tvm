@@ -359,15 +359,15 @@ Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs,
   return Array<te::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")
+TVM_REGISTER_GLOBAL("relay.op._make.ndarray_size")
 .set_body_typed([](Expr data, DataType dtype) {
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
-  static const Op& op = Op::Get("contrib.ndarray_size");
+  static const Op& op = Op::Get("ndarray_size");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
-RELAY_REGISTER_OP("contrib.ndarray_size")
+RELAY_REGISTER_OP("ndarray_size")
 .describe(R"code(Returns a tensor representing the number of elements of input tensor.
 
 )code" TVM_ADD_FILELINE)
