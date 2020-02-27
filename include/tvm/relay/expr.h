@@ -226,7 +226,7 @@ class FunctionNode : public BaseFuncNode {
    *
    * \return Whether the function should be inlined or not.
    */
-  bool IsInline() const;
+  bool IsMarkedInline() const;
 
   /*!
    * \brief Check whether the function should use the TVM default compiler to build, or

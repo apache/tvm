@@ -145,7 +145,7 @@ bool FunctionNode::IsPrimitive() const {
   return pval && pval->value != 0;
 }
 
-bool FunctionNode::IsInline() const {
+bool FunctionNode::IsMarkedInline() const {
   ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kInline);
   const tir::IntImmNode* pval = res.as<tir::IntImmNode>();
   return pval && pval->value != 0;

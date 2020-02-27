@@ -101,7 +101,7 @@ class Inliner : ExprMutator {
     if (!func->body.defined()) return false;
 
     // The function must be annotated with the inline attribute.
-    if (!func->IsInline()) return false;
+    if (!func->IsMarkedInline()) return false;
 
     // The function is not abled to be inlined if any callee under the CallGraph
     // of this function cannot be inlined.
@@ -196,7 +196,7 @@ IRModule Inline(const IRModule& module) {
     auto base_func = cg->GetGlobalFunction(cgn->GetGlobalVar());
     if (const auto* fn = base_func.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
-      if (func->IsInline()) {
+      if (func->IsMarkedInline()) {
         CHECK_EQ(cgn->GetRefCount(), 0U)
             << cgn->GetNameHint() << " is marked as inline but not inlined.";
         cgn->CleanCallGraphEntries();
