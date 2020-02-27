@@ -242,12 +242,11 @@ def test_forward_add():
                 ones = ones.cuda()
             return args[0] + ones
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Add1().float().eval(), input_data=input_data)
-        verify_model(Add2().float().eval(), input_data=input_data)
-        verify_model(Add3().float().eval(), input_data=input_data)
-        verify_model(Add4().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Add1().float().eval(), input_data=input_data)
+    verify_model(Add2().float().eval(), input_data=input_data)
+    verify_model(Add3().float().eval(), input_data=input_data)
+    verify_model(Add4().float().eval(), input_data=input_data)
 
 def test_forward_subtract():
     torch.set_grad_enabled(False)
@@ -275,12 +274,11 @@ def test_forward_subtract():
                 ones = ones.cuda()
             return args[0] - ones
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Subtract1().float().eval(), input_data=input_data)
-        verify_model(Subtract2().float().eval(), input_data=input_data)
-        verify_model(Subtract3().float().eval(), input_data=input_data)
-        verify_model(Subtract4().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Subtract1().float().eval(), input_data=input_data)
+    verify_model(Subtract2().float().eval(), input_data=input_data)
+    verify_model(Subtract3().float().eval(), input_data=input_data)
+    verify_model(Subtract4().float().eval(), input_data=input_data)
 
 def test_forward_multiply():
     torch.set_grad_enabled(False)
@@ -308,12 +306,11 @@ def test_forward_multiply():
                 ones = ones.cuda()
             return args[0] * ones
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Multiply1().float().eval(), input_data=input_data)
-        verify_model(Multiply2().float().eval(), input_data=input_data)
-        verify_model(Multiply3().float().eval(), input_data=input_data)
-        verify_model(Multiply4().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Multiply1().float().eval(), input_data=input_data)
+    verify_model(Multiply2().float().eval(), input_data=input_data)
+    verify_model(Multiply3().float().eval(), input_data=input_data)
+    verify_model(Multiply4().float().eval(), input_data=input_data)
 
 def test_forward_unsqueeze():
     torch.set_grad_enabled(False)
@@ -341,10 +338,9 @@ def test_forward_concatenate():
             c = (args[0][:, :, 2] + 5) * 13
             return torch.cat([t.unsqueeze(2) for t in [a, b, c]], 2)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Concatenate1().float().eval(), input_data=input_data)
-        verify_model(Concatenate2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Concatenate1().float().eval(), input_data=input_data)
+    verify_model(Concatenate2().float().eval(), input_data=input_data)
 
 def test_forward_relu():
     torch.set_grad_enabled(False)
@@ -354,9 +350,8 @@ def test_forward_relu():
         def forward(self, *args):
             return torch.nn.ReLU()(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(ReLU1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(ReLU1().float().eval(), input_data=input_data)
 
 def test_forward_adaptiveavgpool():
     torch.set_grad_enabled(False)
@@ -370,10 +365,9 @@ def test_forward_adaptiveavgpool():
         def forward(self, *args):
             return torch.nn.AdaptiveAvgPool2d([10, 10])(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
-        verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
+    verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
 
 def test_forward_maxpool():
     torch.set_grad_enabled(False)
@@ -387,10 +381,9 @@ def test_forward_maxpool():
         def forward(self, *args):
             return torch.nn.MaxPool2d(kernel_size=[10, 10])(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(MaxPool2D1().float().eval(), input_data=input_data)
-        verify_model(MaxPool2D2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(MaxPool2D1().float().eval(), input_data=input_data)
+    verify_model(MaxPool2D2().float().eval(), input_data=input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
@@ -400,9 +393,8 @@ def test_forward_avgpool():
         def forward(self, *args):
             return torch.nn.AvgPool2d(kernel_size=[10, 10])(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(AvgPool2D1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(AvgPool2D1().float().eval(), input_data=input_data)
 
 def test_forward_hardtanh():
     torch.set_grad_enabled(False)
@@ -412,9 +404,8 @@ def test_forward_hardtanh():
         def forward(self, *args):
             return torch.nn.Hardtanh()(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(HardTanh1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(HardTanh1().float().eval(), input_data=input_data)
 
 def test_forward_conv():
     torch.set_grad_enabled(False)
@@ -447,11 +438,10 @@ def test_forward_conv():
         def forward(self, *args):
             return self.softmax(self.conv(args[0]))
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Conv2D1().float().eval(), input_data=input_data)
-        verify_model(Conv2D2().float().eval(), input_data=input_data)
-        verify_model(Conv2D3().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Conv2D1().float().eval(), input_data=input_data)
+    verify_model(Conv2D2().float().eval(), input_data=input_data)
+    verify_model(Conv2D3().float().eval(), input_data=input_data)
 
 def test_forward_threshold():
     torch.set_grad_enabled(False)
@@ -461,9 +451,8 @@ def test_forward_threshold():
         def forward(self, *args):
             return torch.nn.Threshold(0, 0)(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Threshold1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Threshold1().float().eval(), input_data=input_data)
 
 def test_forward_contiguous():
     torch.set_grad_enabled(False)
@@ -473,9 +462,8 @@ def test_forward_contiguous():
         def forward(self, *args):
             return args[0].contiguous()
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Contiguous1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Contiguous1().float().eval(), input_data=input_data)
 
 def test_forward_batchnorm():
     torch.set_grad_enabled(False)
@@ -495,10 +483,9 @@ def test_forward_batchnorm():
         def forward(self, *args):
             return self.batch_norm(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(BatchNorm1().float().eval(), input_data=input_data)
-        verify_model(BatchNorm2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(BatchNorm1().float().eval(), input_data=input_data)
+    verify_model(BatchNorm2().float().eval(), input_data=input_data)
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
@@ -512,10 +499,9 @@ def test_forward_transpose():
         def forward(self, *args):
             return args[0].transpose(-2, -1)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Transpose1().float().eval(), input_data=input_data)
-        verify_model(Transpose2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Transpose1().float().eval(), input_data=input_data)
+    verify_model(Transpose2().float().eval(), input_data=input_data)
 
 def test_forward_size():
     torch.set_grad_enabled(False)
@@ -525,9 +511,8 @@ def test_forward_size():
         def forward(self, *args):
             return float(args[0].size(0)) * args[0]
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Size1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Size1().float().eval(), input_data=input_data)
 
 def test_forward_view():
     torch.set_grad_enabled(False)
@@ -541,10 +526,9 @@ def test_forward_view():
         def forward(self, *args):
             return args[0].view(args[0].shape[0], -1)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(View1().float().eval(), input_data=input_data)
-        verify_model(View2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(View1().float().eval(), input_data=input_data)
+    verify_model(View2().float().eval(), input_data=input_data)
 
 def test_forward_select():
     torch.set_grad_enabled(False)
@@ -554,9 +538,8 @@ def test_forward_select():
         def forward(self, *args):
             return args[0].select(1, 1)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Select1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Select1().float().eval(), input_data=input_data)
 
 def test_forward_clone():
     torch.set_grad_enabled(False)
@@ -566,9 +549,8 @@ def test_forward_clone():
         def forward(self, *args):
             return args[0].clone()
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Clone1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Clone1().float().eval(), input_data=input_data)
 
 def test_forward_logsoftmax():
     torch.set_grad_enabled(False)
@@ -578,9 +560,8 @@ def test_forward_logsoftmax():
         def forward(self, *args):
             return torch.nn.LogSoftmax(dim=1)(args[0][0, 0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(LogSoftmax1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(LogSoftmax1().float().eval(), input_data=input_data)
 
 def test_forward_sigmoid():
     torch.set_grad_enabled(False)
@@ -590,9 +571,8 @@ def test_forward_sigmoid():
         def forward(self, *args):
             return torch.nn.Sigmoid()(args[0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Sigmoid1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Sigmoid1().float().eval(), input_data=input_data)
 
 def test_forward_dense():
     torch.set_grad_enabled(False)
@@ -612,10 +592,9 @@ def test_forward_dense():
         def forward(self, *args):
             return self.linear(args[0][0, 0])
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Dense1().float().eval(), input_data=input_data)
-        verify_model(Dense2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Dense1().float().eval(), input_data=input_data)
+    verify_model(Dense2().float().eval(), input_data=input_data)
 
 def test_forward_dropout():
     torch.set_grad_enabled(False)
@@ -625,9 +604,8 @@ def test_forward_dropout():
         def forward(self, *args):
             return torch.nn.functional.dropout(args[0][0, 0], 0.5, False)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Dropout1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Dropout1().float().eval(), input_data=input_data)
 
 def test_forward_slice():
     torch.set_grad_enabled(False)
@@ -641,10 +619,9 @@ def test_forward_slice():
         def forward(self, *args):
             return args[0][0, :, :, :]
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Slice1().float().eval(), input_data=input_data)
-        verify_model(Slice2().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Slice1().float().eval(), input_data=input_data)
+    verify_model(Slice2().float().eval(), input_data=input_data)
 
 def test_forward_mean():
     torch.set_grad_enabled(False)
@@ -654,9 +631,8 @@ def test_forward_mean():
         def forward(self, *args):
             return args[0].mean(2)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Mean1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Mean1().float().eval(), input_data=input_data)
 
 def test_forward_expand():
     torch.set_grad_enabled(False)
@@ -666,9 +642,8 @@ def test_forward_expand():
         def forward(self, *args):
             return args[0].expand((3, -1, -1, -1))
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Expand1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Expand1().float().eval(), input_data=input_data)
 
 def test_forward_pow():
     torch.set_grad_enabled(False)
@@ -678,9 +653,8 @@ def test_forward_pow():
         def forward(self, *args):
             return args[0] ** 2
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Pow1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Pow1().float().eval(), input_data=input_data)
 
 def test_forward_chunk():
     torch.set_grad_enabled(False)
@@ -691,9 +665,17 @@ def test_forward_chunk():
             chunks = args[0].chunk(7, 2)
             return torch.cat(chunks, 2)
 
-    with torch.no_grad():
-        input_data = torch.rand(input_shape).float()
-        verify_model(Chunk1().float().eval(), input_data=input_data)
+    input_data = torch.rand(input_shape).float()
+    verify_model(Chunk1().float().eval(), input_data=input_data)
+
+# def test_upsample():
+#     class Upsample(nn.Module):
+#         def __init__(self):
+#             super().__init__()
+
+#         def forward(self, x):
+#             return nn.functional.interpolate(x, scale_factor=2,
+#                                              mode='bilinear', align_corners=True)
 
 # Model tests
 def test_resnet18():
