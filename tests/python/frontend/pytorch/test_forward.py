@@ -730,6 +730,56 @@ def test_vgg11_bn():
 """
 
 
+def test_custom_conversion_map():
+    def get_roi_align():
+        pool_size = 5
+        n_channels = 2 * (pool_size ** 2)
+        x = torch.rand(2, n_channels, 10, 10)
+        rois = torch.tensor([[0, 0, 0, 9, 9],  # format is (xyxy)
+                             [0, 0, 5, 4, 9],
+                             [0, 5, 5, 9, 9],
+                             [1, 0, 0, 9, 9]], dtype=torch.float)
+        roi_align = torchvision.ops.RoIAlign(pool_size, spatial_scale=1,
+                                             sampling_ratio=-1)
+        return roi_align.eval(), [x, rois]
+
+    def convert_roi_align():
+        def _impl(inputs, input_types):
+            spatial_scale = inputs[2]
+            pooled_size = (inputs[3], inputs[4])
+            sampling_ratio = inputs[5]
+            return relay.op.vision.roi_align(inputs[0], inputs[1],
+                                             pooled_size, spatial_scale,
+                                             sampling_ratio)
+        return _impl
+
+    custom_map = {'torchvision::roi_align': convert_roi_align()}
+    model, inputs = get_roi_align()
+
+    with torch.no_grad():
+        pt_result = model(*inputs).numpy()
+
+    script_module = torch.jit.trace(model, inputs).eval()
+    input_names = get_graph_input_names(script_module)
+    input_shapes = dict(zip(input_names, [inp.shape for inp in inputs]))
+    mod, params = relay.frontend.from_pytorch(script_module, input_shapes,
+                                              custom_map)
+    target = "llvm"
+    with relay.build_config(opt_level=3):
+        json, lib, params = relay.build(mod, target=target, params=params)
+
+    ctx = tvm.context(target, 0)
+    runtime = tvm.contrib.graph_runtime.create(json, lib, ctx)
+    runtime.set_input(**params)
+    for name, inp in zip(input_names, inputs):
+        runtime.set_input(name, inp.numpy())
+    runtime.run()
+    tvm_result = runtime.get_output(0).asnumpy()
+
+    tvm.testing.assert_allclose(tvm_result, pt_result,
+                                rtol=1e-5, atol=1e-5)
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -770,3 +820,5 @@ if __name__ == "__main__":
     test_googlenet()
     test_mnasnet0_5()
     test_mobilenet_v2()
+
+    test_custom_conversion_map()

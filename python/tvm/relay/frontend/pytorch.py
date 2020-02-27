@@ -997,7 +997,7 @@ def get_graph_input_names(script_module):
     return ir_inputs[1:]  # remove self at the 0th arg
 
 
-def from_pytorch(script_module, input_shapes, custom_convert_map):
+def from_pytorch(script_module, input_shapes, custom_convert_map={}):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -1012,7 +1012,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map):
         The keys should be the same one returned by get_graph_input_names(...) above
 
     custom_convert_map: Dictionary of str to Relay op
-        A custom op conversion map
+        A custom op conversion map in the same format as _convert_map above
 
     Returns
     -------
