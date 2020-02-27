@@ -153,7 +153,9 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
             if err < thresh:
                 return est
 
-def verify_model(model_name, input_data=[], custom_convert_map={}):
+def verify_model(model_name, input_data=[],
+                 custom_convert_map={},
+                 ctx_list=ctx_list()):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
     if len(input_data) == 0:
@@ -194,7 +196,7 @@ def verify_model(model_name, input_data=[], custom_convert_map={}):
                               [inp.cpu().numpy() for inp in baseline_input]))
 
     with relay.build_config(opt_level=3):
-        for target, ctx in ctx_list():
+        for target, ctx in ctx_list:
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
@@ -771,6 +773,26 @@ def test_custom_conversion_map():
     verify_model(model, inputs, custom_map)
 
 
+def test_segmentaton_models():
+    class SegmentationModelWrapper(torch.nn.Module):
+        def __init__(self, model):
+            super().__init__()
+            self.model = model
+
+        def forward(self, inp):
+            out = self.model(inp)
+            return out["out"]
+
+    fcn = torchvision.models.segmentation.fcn_resnet101(pretrained=True)
+    deeplab = torchvision.models.segmentation.deeplabv3_resnet101(pretrained=True)
+
+    inp = [torch.rand((1, 3, 300, 300), dtype=torch.float)]
+
+    for model in [fcn, deeplab]:
+        verify_model(SegmentationModelWrapper(model.eval()), inp,
+                     ctx_list=[("cuda", tvm.gpu(0))])  # dilated covolution not supported on x86
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -813,3 +835,5 @@ if __name__ == "__main__":
     test_mobilenet_v2()
 
     test_custom_conversion_map()
+
+    test_segmentaton_models()

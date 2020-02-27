@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import op as _op
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
+from .common import infer_value as _infer_value
 
 __all__ = ["from_pytorch"]
 
@@ -614,6 +615,27 @@ def _sqrt():
         return _op.tensor.sqrt(data)
     return _impl
 
+def _upsample(method):
+    def _impl(inputs, input_types):
+        if isinstance(inputs[1], _expr.Var):
+            out_size = _infer_shape(inputs[1])
+        elif isinstance(inputs[1], list):
+            infer_res = [_infer_value(size, {}) for size in inputs[1]]
+            out_size = [np.asscalar(res.asnumpy().astype(np.int))
+                        for res in infer_res]
+
+        data = inputs[0]
+        align_corners = inputs[2]
+
+        if align_corners:
+            coord_trans = "align_corners"
+        else:
+            coord_trans = "half_pixel"
+
+        return _op.image.resize(data, out_size, "NCHW", method, coord_trans)
+
+    return _impl
+
 # Helper functions for operator implementation
 
 def _convert_data_type(input_type):
@@ -729,7 +751,9 @@ _convert_map = {
     "aten::permute"                         : _transpose(),
     "aten::sum"                             : _reduce("sum"),
     "aten::prod"                            : _reduce("prod"),
-    "aten::sqrt"                            : _sqrt()
+    "aten::sqrt"                            : _sqrt(),
+    'aten::upsample_bilinear2d'             : _upsample("bilinear"),
+    'aten::upsample_nearest2d'              : _upsample("nearest"),
 }
 
 
@@ -1012,7 +1036,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map={}):
         The keys should be the same one returned by get_graph_input_names(...) above
 
     custom_convert_map: Dictionary of str to Relay op
-        A custom op conversion map in the same format as _convert_map above
+        A custom op conversion map in the same format as _convert_map above[
 
     Returns
     -------
