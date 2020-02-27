@@ -151,7 +151,7 @@ def _adaptive_avg_2d():
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
 
-        return _op.contrib.contrib.adaptive_avg_pool2d(
+        return _op.nn.adaptive_avg_pool2d(
             data,
             output_size=output_size)
     return _impl
@@ -161,7 +161,7 @@ def _adaptive_max_2d():
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
 
-        return _op.contrib.contrib.adaptive_max_pool2d(
+        return _op.nn.adaptive_max_pool2d(
             data,
             output_size=output_size)
     return _impl

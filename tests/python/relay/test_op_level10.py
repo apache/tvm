@@ -335,7 +335,7 @@ def test_shape_of():
 def test_ndarray_size():
     def verify_ndarray_size(shape):
         x = relay.var("x", shape=shape)
-        func = relay.Function([x], relay.op.contrib.ndarray_size(x))
+        func = relay.Function([x], relay.op.ndarray_size(x))
         func = run_infer_type(func)
 
         x_data = np.random.uniform(size=shape).astype("float32")
@@ -374,7 +374,7 @@ def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="fl
                     l_sl = slice(l_start, l_end)
                     np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
 
-    opfunc = relay.contrib.adaptive_avg_pool2d if pool_type == "avg" else relay.contrib.adaptive_max_pool2d
+    opfunc = relay.nn.adaptive_avg_pool2d if pool_type == "avg" else relay.nn.adaptive_max_pool2d
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x, out_size, layout)
     func = relay.Function([x], y)

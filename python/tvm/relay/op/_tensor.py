@@ -70,6 +70,8 @@ register_injective_schedule("minimum")
 register_injective_schedule("right_shift")
 register_injective_schedule("left_shift")
 register_injective_schedule("shape_of")
+register_injective_schedule("ndarray_size")
+
 
 # zeros
 @register_compute("zeros")

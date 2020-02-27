@@ -313,7 +313,7 @@ def _mx_pooling(inputs, attrs):
 
 def _mx_adaptive_avg_pooling(inputs, attrs):
     output_size = attrs.get_int_tuple("output_size", [])
-    return _op.contrib.adaptive_avg_pool2d(inputs[0], output_size)
+    return _op.nn.adaptive_avg_pool2d(inputs[0], output_size)
 
 
 def _mx_dropout(inputs, attrs):
