@@ -52,9 +52,9 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   dtype.bits = dtype_bits;
   dtype.lanes = dtype_lanes;
   DLContext ctx;
-  ctx.device_type = device_type;
+  ctx.device_type = (DLDeviceType)device_type;
   ctx.device_id = device_id;
-  TVMNDArray arr = TVMNDArray_Create(ndim, shape, dtype, ctx);
+  TVMNDArray arr = TVMNDArray_Empty(ndim, shape, dtype, ctx);
   **out = arr.dl_tensor;
   return 0;
 }

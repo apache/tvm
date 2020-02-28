@@ -111,4 +111,5 @@ TVMNDArray TVMNDArray_CreateView(TVMNDArray * arr, const tvm_index_t * shape,
 int TVMNDArray_Release(TVMNDArray * arr) {
   free(arr->dl_tensor.data);
   free(arr->dl_tensor.shape);
+  return 0;
 }

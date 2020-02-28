@@ -75,7 +75,7 @@ static inline DLDataType String2DLDataType(const char * s) {
 
 typedef struct TVMArgs {
   TVMValue values[TVM_CRT_MAX_ARGS];
-  uint32_t tcodes[TVM_CRT_MAX_ARGS];
+  int tcodes[TVM_CRT_MAX_ARGS];  /* Data type should be identical to type_codes in TVMPackedCFunc */
   uint32_t values_count;
 } TVMArgs;
 

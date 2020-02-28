@@ -30,7 +30,7 @@ TVM_DLL TVMGraphRuntime * tvm_runtime_create(const char * json_data,
   params.size = params_size;
 
   TVMContext ctx;
-  ctx.device_type = device_type;
+  ctx.device_type = (DLDeviceType)device_type;
   ctx.device_id = device_id;
   TVMGraphRuntime * runtime = TVMGraphRuntimeCreate(json_data, 0, &ctx);
 
