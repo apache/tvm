@@ -3040,6 +3040,7 @@ if __name__ == '__main__':
     test_forward_sign()
     test_forward_log()
     test_forward_log1p()
+    test_forward_tan()
     test_forward_cos()
     test_forward_sin()
     test_forward_negative()
