@@ -99,8 +99,12 @@ tflite_model_file = os.path.join(model_dir, "mobilenet_v1_1.0_224.tflite")
 tflite_model_buf = open(tflite_model_file, "rb").read()
 
 # Get TFLite model from buffer
-import tflite.Model
-tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+try:
+    import tflite
+    tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
+except AttributeError:
+    import tflite.Model
+    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
 ######################################################################
 # Load a test image

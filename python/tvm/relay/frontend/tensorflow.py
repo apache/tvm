@@ -1259,7 +1259,7 @@ def _broadcast(name):
     def _impl(inputs, attr, params):
         return AttrCvt(
             op_name=name,
-            ignores=['name', 'Tidx']
+            ignores=['name', 'incompatible_shape_error', 'Tidx']
         )(inputs, attr)
     return _impl
 
