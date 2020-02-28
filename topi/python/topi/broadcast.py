@@ -27,7 +27,7 @@ def broadcast_to(data, shape):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         The input data
 
     shape : list or tuple
@@ -35,7 +35,7 @@ def broadcast_to(data, shape):
 
     Returns
     -------
-    ret : tvm.Tensor
+    ret : tvm.te.Tensor
     """
     return _cpp.broadcast_to(data, shape)
 
@@ -45,14 +45,14 @@ def add(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -64,14 +64,14 @@ def subtract(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -83,14 +83,14 @@ def multiply(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -102,14 +102,14 @@ def divide(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -121,14 +121,14 @@ def floor_divide(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -140,14 +140,14 @@ def mod(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -159,14 +159,14 @@ def floor_mod(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -178,14 +178,14 @@ def maximum(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -197,14 +197,14 @@ def minimum(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -216,14 +216,14 @@ def power(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -235,14 +235,14 @@ def left_shift(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -254,14 +254,14 @@ def right_shift(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -273,14 +273,14 @@ def greater(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -292,14 +292,14 @@ def less(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -311,14 +311,14 @@ def equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -330,14 +330,14 @@ def not_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -349,14 +349,14 @@ def greater_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -368,14 +368,14 @@ def less_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
         The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
         The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
@@ -387,14 +387,14 @@ def logical_and(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
           The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
           The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if both operands are Expr.
           Otherwise returns Tensor.
     """
@@ -406,14 +406,14 @@ def logical_or(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
           The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
           The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if both operands are Expr.
           Otherwise returns Tensor.
     """
@@ -425,14 +425,14 @@ def bitwise_and(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
           The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
           The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if both operands are Expr.
           Otherwise returns Tensor.
     """
@@ -444,14 +444,14 @@ def bitwise_or(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
           The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
           The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if both operands are Expr.
           Otherwise returns Tensor.
     """
@@ -463,14 +463,14 @@ def bitwise_xor(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.Tensor or Expr
+    lhs : tvm.te.Tensor or Expr
           The left operand
-    rhs : tvm.Tensor or Expr
+    rhs : tvm.te.Tensor or Expr
           The right operand
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if both operands are Expr.
           Otherwise returns Tensor.
     """
@@ -482,11 +482,11 @@ def logical_not(data):
 
     Parameters
     ----------
-    data : tvm.Tensor or Expr
+    data : tvm.te.Tensor or Expr
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if the operand are Expr.
           Otherwise returns Tensor.
     """
@@ -498,11 +498,11 @@ def bitwise_not(data):
 
     Parameters
     ----------
-    data : tvm.Tensor or Expr
+    data : tvm.te.Tensor or Expr
 
     Returns
     -------
-    ret : tvm.Tensor or Expr
+    ret : tvm.te.Tensor or Expr
           Returns Expr if the operand are Expr.
           Otherwise returns Tensor.
     """

@@ -20,3 +20,5 @@
 from __future__ import absolute_import as _abs
 
 from .conv2d import *
+from . import conv2d_alter_op
+from .depthwise_conv2d import *

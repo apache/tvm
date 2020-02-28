@@ -83,7 +83,10 @@ class AlterTransformMemorizer : public TransformMemorizer {
         auto ttype = expr->type_as<TensorTypeNode>();
         tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
       }
-      Expr altered_value = falter_layout[op](ref_call->attrs, new_args, tinfos);
+      // TODO(@kevinthesun, @icemelon9): This won't work if inputs/outputs are dynamic shapes.
+      //   Probably we need to disable the AlterOpLayout when compiling dynamic models.
+      Expr altered_value = falter_layout[op](ref_call->attrs, new_args, tinfos,
+                                             ref_call->checked_type());
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;

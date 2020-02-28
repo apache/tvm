@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
-
 """Tensorflow lite frontend."""
 import math
 import numpy as np
@@ -121,7 +120,8 @@ class OperatorConverter(object):
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
             'LOGICAL_AND': self.convert_logical_and,
             'LOGICAL_OR': self.convert_logical_or,
-            'DETECTION_POSTPROCESS': self.convert_detection_postprocess
+            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'SQUARE': self.convert_square,
         }
 
     def check_unsupported_ops(self):
@@ -635,6 +635,32 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NEG operator is not supported yet.')
         return self._convert_unary_elemwise(_op.negative, op)
+
+    def convert_square(self, op):
+        """Convert TFLite SQUARE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized SQUARE operator is not supported yet.')
+
+        exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
+        out = _op.power(in_expr, relay.const(2, exp_type))
+
+        return out
 
     def _convert_elemwise(self, relay_op, op):
         """Generic method to Convert TFLite elemwise"""
@@ -1156,7 +1182,7 @@ class OperatorConverter(object):
 
         if is_depthwise_conv:
             params['channels'] = int(in_channels)
-            params['groups'] = int(in_channels)
+            params['groups'] = int(input_c)
             params['kernel_layout'] = 'HWOI'
         else:
             params['channels'] = int(output_channels)

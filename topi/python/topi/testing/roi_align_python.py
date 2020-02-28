@@ -45,8 +45,8 @@ def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_rati
         lx = x - x_low
         return (1 - ly) * (1 - lx) * a_np[b, c, y_low, x_low] + \
                (1 - ly) * lx * a_np[b, c, y_low, x_high] + \
-               ly * (1 - lx) * a_np[b, c, y_high, x_low] + \
-               ly * lx * a_np[b, c, y_high, x_high]
+            ly * (1 - lx) * a_np[b, c, y_high, x_low] + \
+            ly * lx * a_np[b, c, y_high, x_high]
 
     for i in range(num_roi):
         roi = rois_np[i]

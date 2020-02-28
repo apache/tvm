@@ -73,19 +73,19 @@ def tag_scope(tag):
     -------
     .. code-block:: python
 
-        n = tvm.var('n')
-        m = tvm.var('m')
-        l = tvm.var('l')
-        A = tvm.placeholder((n, l), name='A')
-        B = tvm.placeholder((m, l), name='B')
-        k = tvm.reduce_axis((0, l), name='k')
+        n = te.var('n')
+        m = te.var('m')
+        l = te.var('l')
+        A = te.placeholder((n, l), name='A')
+        B = te.placeholder((m, l), name='B')
+        k = te.reduce_axis((0, l), name='k')
 
-        with tvm.tag_scope(tag='matmul'):
-            C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k))
+        with tvm.te.tag_scope(tag='matmul'):
+            C = te.compute((n, m), lambda i, j: te.sum(A[i, k] * B[j, k], axis=k))
 
         # or use tag_scope as decorator
-        @tvm.tag_scope(tag="conv")
+        @tvm.te.tag_scope(tag="conv")
         def compute_relu(data):
-            return tvm.compute(data.shape, lambda *i: tvm.select(data(*i) < 0, 0.0, data(*i)))
+            return te.compute(data.shape, lambda *i: tvm.select(data(*i) < 0, 0.0, data(*i)))
     """
     return TagScope(tag)

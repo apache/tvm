@@ -17,7 +17,9 @@
 """Test code for tensor operator"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
+import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.contrib.nvcc import have_fp16
 
@@ -27,9 +29,9 @@ def verify_elemwise_sum(num_args, dtype):
     tvm_placeholders = []
     for i in range(num_args):
         tvm_placeholders.append(
-            tvm.placeholder(shape, name="data"+str(i), dtype=dtype))
+            te.placeholder(shape, name="data"+str(i), dtype=dtype))
     esum = topi.elemwise_sum(tvm_placeholders)
-    s = tvm.create_schedule([esum.op])
+    s = te.create_schedule([esum.op])
 
     @memoize("topi.tests.test_topi_elemwise_sum")
     def get_ref_data():
@@ -56,11 +58,11 @@ def verify_elemwise_sum(num_args, dtype):
 
 
 def verify_full(shape, dtype, fill_value):
-    A = tvm.placeholder(shape, dtype=dtype, name="A")
+    A = te.placeholder(shape, dtype=dtype, name="A")
     B = topi.full_like(A, fill_value=fill_value)
     C = topi.full(shape=shape, dtype=dtype, fill_value=fill_value)
-    s1 = tvm.create_schedule([B.op])
-    s2 = tvm.create_schedule([C.op])
+    s1 = te.create_schedule([B.op])
+    s2 = te.create_schedule([C.op])
 
     @memoize("topi.tests.test_topi_full")
     def get_ref_data():
@@ -95,10 +97,10 @@ def verify_vectorization(n, m, dtype):
             return
         with tvm.target.create(device):
             ctx = tvm.context(device, 0)
-            A = tvm.placeholder((n, m), name='A', dtype=dtype)
-            B = tvm.compute((n, m), lambda i, j:
-                             A[i, j] + tvm.const(1, A.dtype), name='B')
-            S = topi.generic.schedule_elemwise(B)
+            A = te.placeholder((n, m), name='A', dtype=dtype)
+            B = te.compute((n, m), lambda i, j:
+                             A[i, j] + tvm.tir.const(1, A.dtype), name='B')
+            S = topi.testing.get_elemwise_schedule(device)(B)
 
             fun = tvm.build(S, [A, B], device)
             np_A = tvm.nd.empty((n, m), A.dtype, ctx).copyfrom(

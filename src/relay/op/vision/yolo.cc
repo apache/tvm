@@ -83,8 +83,7 @@ Its function is mostly shape transform.")doc" TVM_ADD_FILELINE)
 .add_type_rel("YoloReorg", YoloReorgRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<te::Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
+                                         const Type& out_type) {
   const auto* params = attrs.as<YoloReorgAttrs>();
   CHECK(params != nullptr);
   return Array<te::Tensor>{ topi::vision::reorg(inputs[0], params->stride) };

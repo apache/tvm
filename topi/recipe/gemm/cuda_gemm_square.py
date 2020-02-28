@@ -16,6 +16,7 @@
 # under the License.
 """Example code to do square matrix multiplication."""
 import tvm
+from tvm import te
 import os
 from tvm.contrib import nvcc
 from tvm.contrib import spirv
@@ -46,19 +47,19 @@ def tvm_callback_cuda_postproc(code):
 def test_gemm():
     # graph
     nn = 2048
-    n = tvm.var('n')
-    n = tvm.convert(nn)
+    n = te.var('n')
+    n = tvm.runtime.convert(nn)
     m, l = n, n
-    A = tvm.placeholder((l, n), name='A')
-    B = tvm.placeholder((l, m), name='B')
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute(
+    A = te.placeholder((l, n), name='A')
+    B = te.placeholder((l, m), name='B')
+    k = te.reduce_axis((0, l), name='k')
+    C = te.compute(
         (m, n),
-        lambda ii, jj: tvm.sum(A[k, jj] * B[k, ii], axis=k),
+        lambda ii, jj: te.sum(A[k, jj] * B[k, ii], axis=k),
         name='C')
 
     # schedule
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     AA = s.cache_read(A, "shared", [C])
     BB = s.cache_read(B, "shared", [C])
     AL = s.cache_read(AA, "local", [C])
@@ -68,12 +69,12 @@ def test_gemm():
     scale = 8
     num_thread = 8
     block_factor = scale * num_thread
-    block_x = tvm.thread_axis("blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-    block_y = tvm.thread_axis("blockIdx.y")
-    thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
-    thread_xz = tvm.thread_axis((0, 2), "vthread", name="vx")
-    thread_yz = tvm.thread_axis((0, 2), "vthread", name="vy")
+    block_x = te.thread_axis("blockIdx.x")
+    thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    thread_y = te.thread_axis((0, num_thread), "threadIdx.y")
+    thread_xz = te.thread_axis((0, 2), "vthread", name="vx")
+    thread_yz = te.thread_axis((0, 2), "vthread", name="vy")
 
     by, yi = s[C].split(C.op.axis[0], factor=block_factor)
     bx, xi = s[C].split(C.op.axis[1], factor=block_factor)
@@ -145,7 +146,7 @@ def test_gemm():
         print("average time cost of %d runs = %g ms, %g GFLOPS." % (num_runs, t * 1e3, GFLOPS))
 
     for device in ["cuda", "opencl", "rocm", "nvptx", "vulkan"]:
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.target.build_config(auto_unroll_max_step=128,
                               unroll_explicit=(device != "cuda")):
             check_device(device)
 

@@ -17,61 +17,22 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 
 from .pad import pad
 from .util import get_pad_tuple3d
 from ..util import simplify
 
 
-@tvm.target.generic_func
-def conv3d(input, filter, strides, padding, dilation, layout='NCDHW', out_dtype=None):
-    """Conv3D operator.
-
-    Parameters
-    ----------
-    input : tvm.Tensor
-        5-D with shape [batch, in_depth, in_channel, in_height, in_width]
-
-    filter : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
-
-    strides : int or a list/tuple of three ints
-        stride size, or [stride_depth, stride_height, stride_width]
-
-    padding : int or a list/tuple of three ints
-        padding size, or [pad_depth, pad_height, pad_width]
-
-    dilation: int or a list/tuple of three ints
-        dilation size, or [dilation_depth, dilation_height, dilation_width]
-
-    layout : str
-        layout of data
-
-    Returns
-    -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_depth, out_channel, out_height, out_width]
-    """
-    # search platform specific declaration first
-    # default declaration
-    if layout == 'NCDHW':
-        return conv3d_ncdhw(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'NDHWC':
-        return conv3d_ndhwc(input, filter, strides, padding, dilation, out_dtype)
-    raise ValueError("not support this layout {} yet".format(layout))
-
-
 def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
-    """Convolution operator in NCDHW layout.
+    """Conv3D operator in NCDHW layout.
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         5-D with shape [batch, in_channel, in_depth, in_height, in_width]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
 
     stride : int or a list/tuple of three ints
@@ -85,7 +46,7 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
     if out_dtype is None:
@@ -118,14 +79,14 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
     pad_before = [0, 0, pad_front, pad_top, pad_left]
     pad_after = [0, 0, pad_back, pad_down, pad_right]
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    rz = tvm.reduce_axis((0, kernel_d), name='rz')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    rz = te.reduce_axis((0, kernel_d), name='rz')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
 
-    return tvm.compute(
+    return te.compute(
         (batch, out_channel, out_depth, out_height, out_width),
-        lambda nn, ff, zz, yy, xx: tvm.sum(
+        lambda nn, ff, zz, yy, xx: te.sum(
             temp[nn, rc, zz * stride_d + rz * dilation_d, yy * stride_h + ry * dilation_h,
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, rz, ry, rx].astype(out_dtype),
@@ -137,14 +98,14 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
 
     Parameters
     ----------
-    Input : tvm.Tensor
-        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+    Input : tvm.te.Tensor
+        5-D with shape [batch, in_depth, in_height, in_width, in_channel]
 
-    Filter : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
+    Filter : tvm.te.Tensor
+        5-D with shape [filter_depth, filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of three ints
-        Stride size, or [strid_depth, stride_height, stride_width]
+        Stride size, or [stride_depth, stride_height, stride_width]
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
@@ -154,8 +115,8 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
 
     Returns
     -------
-    Output : tvm.Tensor
-        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
+    Output : tvm.te.Tensor
+        5-D with shape [batch, out_depth, out_height, out_width, out_channel]
     """
     assert isinstance(stride, int) or len(stride) == 3
     assert isinstance(dilation, int) or len(dilation) == 3
@@ -186,13 +147,13 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     pad_before = [0, pad_front, pad_top, pad_left, 0]
     pad_after = [0, pad_back, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rd = tvm.reduce_axis((0, kernel_d), name='rd')
-    rh = tvm.reduce_axis((0, kernel_h), name='rh')
-    rw = tvm.reduce_axis((0, kernel_w), name='rw')
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    Output = tvm.compute(
+    rd = te.reduce_axis((0, kernel_d), name='rd')
+    rh = te.reduce_axis((0, kernel_h), name='rh')
+    rw = te.reduce_axis((0, kernel_w), name='rw')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    Output = te.compute(
         (batch, out_depth, out_height, out_width, out_channel),
-        lambda nn, dd, hh, ww, cc: tvm.sum(
+        lambda nn, dd, hh, ww, cc: te.sum(
             PaddedInput[nn, dd * stride_d + rd * dilation_d, hh * stride_h + rh * dilation_h,
                         ww * stride_w + rw * dilation_w, rc].astype(out_dtype) *
             Filter[rd, rh, rw, rc, cc].astype(out_dtype), axis=[rd, rh, rw, rc]),

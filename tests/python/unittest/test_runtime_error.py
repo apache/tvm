@@ -16,6 +16,7 @@
 # under the License.
 """Test runtime error handling"""
 import tvm
+from tvm import te
 import tvm.testing
 
 def test_op_translation():

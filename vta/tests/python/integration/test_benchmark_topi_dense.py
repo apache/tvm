@@ -24,6 +24,7 @@ from collections import namedtuple
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
@@ -35,13 +36,13 @@ import vta.testing
 from vta.testing import simulator
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
-    const_min = tvm.const(a_min, x.dtype)
-    const_max = tvm.const(a_max, x.dtype)
-    x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-    x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+    const_min = tvm.tir.const(a_min, x.dtype)
+    const_max = tvm.tir.const(a_max, x.dtype)
+    x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+    x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
 def run_gemm(env, remote, target,
@@ -63,21 +64,25 @@ def run_gemm(env, remote, target,
                       env.BATCH, env.BLOCK_IN)
         kernel_shape = (out_feat//env.BLOCK_OUT, in_feat//env.BLOCK_IN,
                         env.BLOCK_OUT, env.BLOCK_IN)
+        fcompute = vta.top.dense_packed
+        fschedule = vta.top.schedule_dense_packed
     else:
         data_shape = a_shape
         kernel_shape = w_shape
-    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+        fcompute = topi.x86.dense_nopack
+        fschedule = topi.x86.schedule_dense_nopack
+    data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = te.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
 
     # Define base computation schedule
     with target:
-        res = topi.nn.dense(
-            data, kernel, out_dtype=env.acc_dtype)
+        res = fcompute(
+            data, kernel, None, env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
         # Derive base schedule
-        s = topi.generic.schedule_dense([res])
+        s = fschedule([res])
         if print_ir:
             print(vta.lower(s, [data, kernel, res], simple_mode=True))
 

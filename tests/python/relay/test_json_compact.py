@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 from tvm import relay
 import json
 

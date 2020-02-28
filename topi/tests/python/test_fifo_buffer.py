@@ -17,14 +17,17 @@
 """Test code for FIFO buffer"""
 
 import tvm
+from tvm import te
 import topi
+import topi.testing
 import numpy as np
-from common import get_all_backend
 from tvm.contrib.pickle_memoize import memoize
 
+from common import get_all_backend
+
 def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
-    buffer = tvm.placeholder(buffer_shape, name='buffer', dtype=dtype)
-    data = tvm.placeholder(data_shape, name='data', dtype=dtype)
+    buffer = te.placeholder(buffer_shape, name='buffer', dtype=dtype)
+    data = te.placeholder(data_shape, name='data', dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
     @memoize('topi.tests.test_fifo_buffer')
@@ -52,7 +55,7 @@ def verify_fifo_buffer(buffer_shape, data_shape, axis, dtype='float32'):
 
         with tvm.target.create(device):
             out = topi.nn.fifo_buffer(data, buffer, axis=axis)
-            s = topi.generic.schedule_injective([out])
+            s = topi.testing.get_injective_schedule(device)([out])
 
         buffer_tvm = tvm.nd.array(buffer_np, ctx=ctx)
         data_tvm = tvm.nd.array(data_np, ctx=ctx)
@@ -96,12 +99,12 @@ def verify_conv1d_integration():
 
     dtype = 'float32'
 
-    inc_input = tvm.placeholder(inc_input_shape, name='inc_input', dtype=dtype)
-    input_window = tvm.placeholder(input_window_shape, name='input_window', dtype=dtype)
-    context = tvm.placeholder(context_shape, name='context', dtype=dtype)
-    kernel = tvm.placeholder(kernel_shape, name='kernel', dtype=dtype)
-    inc_output = tvm.placeholder(inc_input_shape, name='inc_output', dtype=dtype)
-    output_window = tvm.placeholder(output_window_shape, name='output_window', dtype=dtype)
+    inc_input = te.placeholder(inc_input_shape, name='inc_input', dtype=dtype)
+    input_window = te.placeholder(input_window_shape, name='input_window', dtype=dtype)
+    context = te.placeholder(context_shape, name='context', dtype=dtype)
+    kernel = te.placeholder(kernel_shape, name='kernel', dtype=dtype)
+    inc_output = te.placeholder(inc_input_shape, name='inc_output', dtype=dtype)
+    output_window = te.placeholder(output_window_shape, name='output_window', dtype=dtype)
 
     # Use memoize, pickle the test data for next time use
     @memoize('topi.tests.test_fifo_buffer_conv1d_integration')
@@ -126,29 +129,29 @@ def verify_conv1d_integration():
             return
         print('  Running on target: {}'.format(device))
 
+        conv2d_nchw, schedule_conv2d_nchw = topi.testing.get_conv2d_nchw_implement(device)
+
         with tvm.target.create(device):
             out = topi.nn.fifo_buffer(inc_input, context, axis=buffer_axis)
-            s = topi.generic.schedule_injective([out])
+            s = topi.testing.get_injective_schedule(device)([out])
             update_context = tvm.build(s, [inc_input, context, out], device, name='update_context')
 
-            out = topi.nn.conv2d(context, kernel, strides=stride, padding=padding, dilation=dilate,
-                                 layout='NCHW', out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_nchw([out])
+            out = conv2d_nchw(context, kernel, stride, padding, dilate, dtype)
+            s = schedule_conv2d_nchw([out])
             conv2d_inc = tvm.build(s, [context, kernel, out], device, name='conv2d_inc')
 
             out = topi.nn.fifo_buffer(inc_output, output_window, axis=buffer_axis)
-            s = topi.generic.schedule_injective([out])
+            s = topi.testing.get_injective_schedule(device)([out])
             update_output_window = tvm.build(s, [inc_output, output_window, out], device,
                  name='update_output_window')
 
             out = topi.nn.fifo_buffer(inc_input, input_window, axis=buffer_axis)
-            s = topi.generic.schedule_injective([out])
+            s = topi.testing.get_injective_schedule(device)([out])
             update_input_window = tvm.build(s, [inc_input, input_window, out], device,
                                             name='update_input_window')
 
-            out = topi.nn.conv2d(input_window, kernel, strides=stride, padding=padding,
-                                 dilation=dilate, layout='NCHW', out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_nchw([out])
+            out = conv2d_nchw(input_window, kernel, stride, padding, dilate, dtype)
+            s = schedule_conv2d_nchw([out])
             conv2d = tvm.build(s, [input_window, kernel, out], device, name='conv2d')
 
         input_window_tvm = tvm.nd.array(input_window_np, ctx=ctx)

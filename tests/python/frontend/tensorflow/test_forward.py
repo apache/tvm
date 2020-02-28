@@ -34,6 +34,7 @@ from tensorflow.python.ops import variables
 from tensorflow.python.ops import init_ops
 from distutils.version import LooseVersion
 import tvm
+from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 
@@ -2717,7 +2718,7 @@ def test_forward_reduce_any():
     in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
     tf.reduce_any(in_data, name="any")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'any:0')
-    
+
 def test_forward_reduce_max():
     def check_max(ishape, axis, keepdims, dtype):
         tf.reset_default_graph()

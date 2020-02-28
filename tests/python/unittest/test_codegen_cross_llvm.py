@@ -16,6 +16,7 @@
 # under the License.
 """Test cross compilation"""
 import tvm
+from tvm import te
 import os
 import struct
 from tvm import rpc
@@ -24,11 +25,11 @@ import numpy as np
 
 def test_llvm_add_pipeline():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=4)
     s[C].parallel(xo)
     s[C].vectorize(xi)

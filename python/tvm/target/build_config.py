@@ -35,7 +35,7 @@ class DumpIR(object):
     -----------
     .. code-block:: python
 
-        with tvm.build_config(dump_pass_ir=True)
+        with tvm.target.build_config(dump_pass_ir=True)
             run()
     """
     scope_level = 0

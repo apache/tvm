@@ -18,6 +18,7 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 import topi.testing
@@ -71,9 +72,9 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
             ic_block = bn
             break
 
-    A = tvm.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='A')
-    W = tvm.placeholder((num_filter//oc_block, in_channel//ic_block, kernel, kernel, ic_block, oc_block), name='W')
-    bias = tvm.placeholder((num_filter//oc_block, 1, 1, oc_block), name='bias')
+    A = te.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='A')
+    W = te.placeholder((num_filter//oc_block, in_channel//ic_block, kernel, kernel, ic_block, oc_block), name='W')
+    bias = te.placeholder((num_filter//oc_block, 1, 1, oc_block), name='bias')
 
     @memoize("topi.tests.test_topi_conv2d_NCHWc.verify_conv2d_NCHWc")
     def get_ref_data():
@@ -98,16 +99,16 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.nn.conv2d_NCHWc(A, W, (stride, stride), padding,
-                                     (dilation, dilation),
-                                     layout='NCHW%dc'%ic_block,
-                                     out_layout="NCHW%dc"%oc_block,
-                                     out_dtype=dtype)
+            C = topi.x86.conv2d_NCHWc(A, W, (stride, stride), padding,
+                                      (dilation, dilation),
+                                      'NCHW%dc'%ic_block,
+                                      "NCHW%dc"%oc_block,
+                                      dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv2d_NCHWc([C])
+            s = topi.x86.schedule_conv2d_NCHWc([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

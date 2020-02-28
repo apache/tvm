@@ -21,6 +21,7 @@ import time
 import numpy as np
 
 import tvm
+from tvm import te
 from test_autotvm_common import DummyRunner, bad_matmul, get_sample_task
 from tvm import autotvm
 from tvm.autotvm.measure.measure import MeasureErrorNo, MeasureResult
@@ -64,7 +65,7 @@ def test_check_correctness():
     # a bad template
     n = 128
     target = tvm.target.create("llvm -device=bad_device")
-    task = autotvm.task.create(bad_matmul, args=(n, n, n, 'float32'), target=target)
+    task = autotvm.task.create("testing/bad_matmul", args=(n, n, n, 'float32'), target=target)
 
     def _callback_wrong(tuner, measure_inputs, measure_results):
         for _, res in zip(measure_inputs, measure_results):

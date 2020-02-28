@@ -18,12 +18,25 @@
 import numpy as np
 import itertools
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from common import get_all_backend
 
+
+_conv1d_ncw_implement = {
+    "generic": (topi.nn.conv1d_ncw, topi.generic.schedule_conv1d_ncw),
+    "cpu": (topi.nn.conv1d_ncw, topi.x86.schedule_conv1d_ncw),
+    "gpu": (topi.cuda.conv1d_ncw, topi.cuda.schedule_conv1d_ncw)
+}
+
+_conv1d_nwc_implement = {
+    "generic": (topi.nn.conv1d_nwc, topi.generic.schedule_conv1d_nwc),
+    "cpu": (topi.nn.conv1d_nwc, topi.x86.schedule_conv1d_nwc),
+    "gpu": (topi.cuda.conv1d_nwc, topi.cuda.schedule_conv1d_nwc)
+}
 
 def verify_conv1d(batch,
                   in_channels,
@@ -42,8 +55,8 @@ def verify_conv1d(batch,
         kernel_shape = [kernel_size, in_channels, filters]
 
     dtype = 'float32'
-    A = tvm.placeholder(in_shape, name='A', dtype=dtype)
-    W = tvm.placeholder(kernel_shape, name='W', dtype=dtype)
+    A = te.placeholder(in_shape, name='A', dtype=dtype)
+    W = te.placeholder(kernel_shape, name='W', dtype=dtype)
 
     def get_ref_data(layout):
         a_np = np.random.uniform(size=in_shape).astype(dtype)
@@ -66,12 +79,13 @@ def verify_conv1d(batch,
         if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
+        if layout == "NCW":
+            fcompute, fschedule = topi.testing.dispatch(device, _conv1d_ncw_implement)
+        else:
+            fcompute, fschedule = topi.testing.dispatch(device, _conv1d_nwc_implement)
         with tvm.target.create(device):
-            B = topi.nn.conv1d(A, W, stride, padding, dilation, layout, 'float32')
-            if layout == 'NCW':
-                s = topi.generic.schedule_conv1d_ncw([B])
-            else:
-                s = topi.generic.schedule_conv1d_nwc([B])
+            B = fcompute(A, W, stride, padding, dilation, 'float32')
+            s = fschedule([B])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

@@ -34,3 +34,5 @@ tvm.relay.frontend
 .. autofunction:: tvm.relay.frontend.from_caffe2
 
 .. autofunction:: tvm.relay.frontend.from_tensorflow
+
+.. autofunction:: tvm.relay.frontend.from_pytorch

@@ -15,24 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_scan():
-    m = tvm.size_var("m")
-    n = tvm.size_var("n")
-    X = tvm.placeholder((m, n), name="X")
-    s_state = tvm.placeholder((m, n))
-    s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-    s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
-    scan = tvm.scan(s_init, s_update, s_state)
+    m = te.size_var("m")
+    n = te.size_var("n")
+    X = te.placeholder((m, n), name="X")
+    s_state = te.placeholder((m, n))
+    s_init = te.compute((1, n), lambda _, i: X[0, i])
+    s_update = te.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+    scan = tvm.te.scan(s_init, s_update, s_state)
     # test scan + compute case
-    res = tvm.compute((m, n), lambda i, j: scan[i, j])
+    res = te.compute((m, n), lambda i, j: scan[i, j])
 
     # schedule
-    s = tvm.create_schedule(res.op)
+    s = te.create_schedule(res.op)
     num_thread = 256
-    block_x = tvm.thread_axis(None, "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
+    block_x = te.thread_axis(None, "blockIdx.x")
+    thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
     xo, xi = s[s_init].split(s_init.op.axis[1], factor=num_thread)
     s[s_init].bind(xo, block_x)
     s[s_init].bind(xi, thread_x)

@@ -53,7 +53,7 @@ def pool_grad_nchw(a_np, out_grad_np,
                     # take the first element, as they are the same across batch and channel
                     pad_count = pad_count.ravel()[0]
                 pad_pool_grad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw] += \
-                        out_grad_np[:, :, i, j].reshape(n, ic, 1, 1) / np.maximum(pad_count, 1)
+                    out_grad_np[:, :, i, j].reshape(n, ic, 1, 1) / np.maximum(pad_count, 1)
     elif pool_type == 'max':
         for i in range(oh):
             for j in range(ow):

@@ -201,15 +201,15 @@ def decl_buffer(shape,
 
     .. code-block:: python
 
-        m0, m1, m2 = tvm.var("m0"), tvm.var("m1"), tvm.var("m2")
-        n0, n1, n2 = tvm.var("n0"), tvm.var("n1"), tvm.var("n2")
-        o0, o1, o2 = tvm.var("o0"), tvm.var("o1"), tvm.var("o2")
-        A = tvm.placeholder((m0, m1, m2), name='A')
-        B = tvm.placeholder((n0, n1, n2), name='B')
-        C = tvm.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
+        m0, m1, m2 = te.var("m0"), te.var("m1"), te.var("m2")
+        n0, n1, n2 = te.var("n0"), te.var("n1"), te.var("n2")
+        o0, o1, o2 = te.var("o0"), te.var("o1"), te.var("o2")
+        A = te.placeholder((m0, m1, m2), name='A')
+        B = te.placeholder((n0, n1, n2), name='B')
+        C = te.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
         Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
         Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-        s = tvm.create_schedule(C.op)
+        s = te.create_schedule(C.op)
         fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
         ctx = tvm.cpu(0)
         a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), ctx)

@@ -19,168 +19,112 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import te
 import topi
 
 from tvm.relay.op import op as reg
-from tvm.relay.op.op import OpPattern
-from tvm.relay.op.nn import _nn
+from tvm.relay.op import strategy as _strategy
+from tvm.relay.op.op import OpPattern, OpStrategy
 
 from .util import is_packed_layout
+from .vta_conv2d import conv2d_packed, schedule_conv2d_packed
+from .vta_conv2d_transpose import conv2d_transpose_packed, schedule_conv2d_transpose_packed
+from .vta_group_conv2d import group_conv2d_packed, schedule_group_conv2d_packed
+from .vta_dense import dense_packed, schedule_dense_packed
 from ..environment import get_env
 
 
 # override to force partition at copy
 reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
 
-
-@reg.register_compute("clip", level=15)
-def compute_clip(attrs, inputs, output_type, target):
+# add clip vta strategy
+def compute_clip_vta(attrs, inputs, output_type):
     """ Clip operator. """
     x = inputs[0]
     a_min = attrs.a_min
     a_max = attrs.a_max
-    const_min = tvm.const(a_min, x.dtype)
-    const_max = tvm.const(a_max, x.dtype)
-    with tvm.tag_scope(topi.tag.ELEMWISE):
-        x = tvm.compute(
-            x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-        x = tvm.compute(
-            x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+    const_min = tvm.tir.const(a_min, x.dtype)
+    const_max = tvm.tir.const(a_max, x.dtype)
+    with tvm.te.tag_scope(topi.tag.ELEMWISE):
+        x = te.compute(
+            x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+        x = te.compute(
+            x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return [x]
 
+def clip_strategy_vta(attrs, inputs, out_type, target):
+    strategy = OpStrategy()
+    strategy.add_implementation(
+        compute_clip_vta,
+        _strategy.wrap_topi_schedule(topi.generic.schedule_injective),
+        name="clip.vta")
+    return strategy
 
-@reg.register_compute("nn.conv2d", level=15)
-def compute_conv2d(attrs, inputs, output_type, target):
-    """ Compute definition of conv2d """
-    padding = topi.util.get_const_tuple(attrs.padding)
-    strides = topi.util.get_const_tuple(attrs.strides)
-    dilation = tuple([int(d) for d in attrs.dilation])
-    groups = attrs.groups
-    layout = attrs.data_layout
-    out_dtype = attrs.out_dtype
+reg.get("clip").get_attr("FTVMStrategy").register(clip_strategy_vta, "vta")
 
-    if target.device_name == "vta":
-        assert dilation == (1, 1), "support for dilation limited to (1, 1)"
-        if is_packed_layout(layout):
-            if groups == 1:
-                assert groups == 1
-                env = get_env()
-                assert env.LOG_INP_WIDTH == 3, "only support 8bit inp for now"
-                assert env.LOG_WGT_WIDTH == 3, "only support 8bit wgt for now"
-                inputs = list(inputs)
-                assert inputs[1].dtype == "int8"
-                return [topi.nn.conv2d(inputs[0],
-                                       inputs[1],
-                                       strides,
-                                       padding,
-                                       dilation,
-                                       layout,
-                                       out_dtype)]
-            return [topi.nn.group_conv2d_nchw(inputs[0],
-                                              inputs[1],
-                                              strides,
-                                              padding,
-                                              dilation,
-                                              groups,
-                                              out_dtype)]
-        # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.Target.current().model):
-            return _nn.compute_conv2d(attrs, inputs, output_type, target)
-
-    # If VTA is not the target, default to _nn def
-    return _nn.compute_conv2d(attrs, inputs, output_type, target)
-
-
-@reg.register_schedule("nn.conv2d", level=15)
-def schedule_conv2d(attrs, outs, target):
-    """ Schedule definition of conv2d """
+@_strategy.conv2d_strategy.register("vta")
+def conv2d_strategy_vta(attrs, inputs, out_type, target):
+    """conv2d vta strategy"""
+    strategy = OpStrategy()
+    kernel = inputs[1]
+    dilation = topi.util.get_const_tuple(attrs.dilation)
     groups = attrs.groups
     layout = attrs.data_layout
 
-    if target.device_name == "vta":
-        if is_packed_layout(layout):
-            target = tvm.target.create(target)
-            assert target.device_name == "vta"
-            if groups == 1:
-                return topi.generic.schedule_conv2d_nchw(outs)
-            return topi.generic.schedule_group_conv2d_nchw(outs)
-        # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.Target.current().model):
-            return _nn.schedule_conv2d(attrs, outs, tvm.target.Target.current())
+    assert dilation == (1, 1), "support for dilation limited to (1, 1)"
+    if is_packed_layout(layout):
+        if groups == 1:
+            env = get_env()
+            assert env.LOG_INP_WIDTH == 3, "only support 8bit inp for now"
+            assert env.LOG_WGT_WIDTH == 3, "only support 8bit wgt for now"
+            assert kernel.dtype == "int8"
 
-    # If VTA is not the target, default to _nn def
-    return _nn.schedule_conv2d(attrs, outs, target)
+            strategy.add_implementation(
+                _strategy.wrap_compute_conv2d(conv2d_packed, True),
+                _strategy.wrap_topi_schedule(schedule_conv2d_packed),
+                name="conv2d_packed.vta")
+        else: # group_conv2d
+            strategy.add_implementation(
+                _strategy.wrap_compute_conv2d(group_conv2d_packed, has_groups=True),
+                _strategy.wrap_topi_schedule(schedule_group_conv2d_packed),
+                name="group_conv2d_packed.vta")
+        return strategy
+
+    # If it's not packed, run on ARM CPU
+    arm_tgt = tvm.target.arm_cpu(target.model)
+    return _strategy.arm_cpu.conv2d_strategy_arm_cpu(attrs, inputs, out_type, arm_tgt)
 
 
-@reg.register_compute("nn.conv2d_transpose", level=15)
-def compute_conv2d_transpose(attrs, inputs, output_type, target):
-    """ 2D convolution algorithm.
-    """
-    padding = topi.util.get_const_tuple(attrs.padding)
-    strides = topi.util.get_const_tuple(attrs.strides)
-    dilation = tuple([int(d) for d in attrs.dilation])
+@_strategy.conv2d_transpose_strategy.register("vta")
+def conv2d_transpose_strategy_vta(attrs, inputs, out_type, target):
+    """conv2d_transpose vta strategy"""
+    dilation = topi.util.get_const_tuple(attrs.dilation)
     layout = attrs.data_layout
-    out_dtype = attrs.out_dtype
+    assert dilation == (1, 1), "support for dilation limited to (1, 1)"
 
-    if target.device_name == "vta":
-        assert dilation == (1, 1), "support for dilation limited to (1, 1)"
-        if is_packed_layout(layout):
-            return [topi.nn.conv2d_transpose_nchw(
-                inputs[0], inputs[1], strides, padding, out_dtype)]
-        # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.Target.current().model):
-            return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
+    if is_packed_layout(layout):
+        strategy = OpStrategy()
+        strategy.add_implementation(
+            _strategy.wrap_compute_conv2d_transpose(conv2d_transpose_packed),
+            _strategy.wrap_topi_schedule(schedule_conv2d_transpose_packed),
+            name="conv2d_transpose_packed.vta")
+        return strategy
 
-    # If VTA is not the target, default to _nn def
-    return _nn.compute_conv2d_transpose(attrs, inputs, output_type, target)
-
-
-@reg.register_schedule("nn.conv2d_transpose", level=15)
-def schedule_conv2d_transpose(attrs, outputs, target):
-    """ 2D convolution schedule.
-    """
-    layout = attrs.data_layout
-
-    if target.device_name == "vta":
-        if is_packed_layout(layout):
-            return topi.nn.schedule_conv2d_transpose_nchw(outputs)
-        # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.Target.current().model):
-            return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.Target.current())
-
-    # If VTA is not the target, default to _nn def
-    return _nn.schedule_conv2d_transpose(attrs, outputs, tvm.target.Target.current())
+    # If it's not packed, run on ARM CPU
+    arm_tgt = tvm.target.arm_cpu(target.model)
+    return _strategy.arm_cpu.conv2d_transpose_strategy_arm_cpu(attrs, inputs, out_type, arm_tgt)
 
 
-@reg.register_compute("nn.dense", level=15)
-def compute_dense(attrs, inputs, out_type, target):
-    """Compute definition of dense"""
-    out_dtype = attrs.out_dtype
-    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
-
-    if target.device_name == "vta":
-        if inputs[0].shape == 4: # this implies the layout is packed
-            target = tvm.target.create(target)
-            return [topi.nn.dense(inputs[0], inputs[1], None, out_dtype)]
-        # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.Target.current().model):
-            return _nn.compute_dense(attrs, inputs, out_type, target)
-
-    # If VTA is not the target, default to _nn def
-    return _nn.compute_dense(attrs, inputs, out_type, target)
-
-
-@reg.register_schedule("nn.dense", level=15)
-def schedule_dense(attrs, outs, target):
-    """Schedule definition of dense"""
-    if target.device_name == "vta":
-        if outs[0].shape == 4: # this implies the layout is packed
-            target = tvm.target.create(target)
-            assert target.device_name == "vta"
-            return topi.generic.schedule_dense(outs)
-        # If it's not packed, run on ARM CPU
-        with tvm.target.arm_cpu(tvm.target.Target.current().model):
-            return _nn.schedule_dense(attrs, outs, tvm.target.Target.current())
-
-    # If VTA is not the target, default to _nn def
-    return _nn.schedule_dense(attrs, outs, target)
+@_strategy.dense_strategy.register("vta")
+def dense_strategy_vta(attrs, inputs, out_type, target):
+    """dense vta strategy"""
+    if inputs[0].shape == 4: # this implies the layout is packed
+        strategy = OpStrategy()
+        strategy.add_implementation(
+            _strategy.wrap_compute_dense(dense_packed),
+            _strategy.wrap_topi_schedule(schedule_dense_packed),
+            name="dense_packed.vta")
+        return strategy
+    # If it's not packed, run on ARM CPU
+    arm_tgt = tvm.target.arm_cpu(target.model)
+    return _strategy.x86.dense_strategy_cpu(attrs, inputs, out_type, arm_tgt)

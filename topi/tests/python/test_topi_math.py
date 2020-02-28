@@ -17,6 +17,7 @@
 import numpy as np
 import scipy
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi import util
@@ -24,7 +25,7 @@ from common import get_all_backend
 
 
 def test_util():
-    x = tvm.const(100, "int32")
+    x = tvm.tir.const(100, "int32")
     assert util.get_const_int(x) == 100
     assert util.get_const_tuple((x, x)) == (100, 100)
 
@@ -37,13 +38,13 @@ def test_ewise():
         low,
         high,
         shape=(20, 3),
-        dtype=tvm.float32,
+        dtype="float32",
         check_round=False,
         skip_name_check=False,
     ):
-        m = tvm.var("m")
-        l = tvm.var("l")
-        A = tvm.placeholder((m, l), dtype=dtype, name="A")
+        m = te.var("m")
+        l = te.var("l")
+        A = te.placeholder((m, l), dtype=dtype, name="A")
 
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
@@ -62,35 +63,27 @@ def test_ewise():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(B)
+                s = topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name=name)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        check_device('llvm')
-        check_device('cuda')
-        check_device('opencl')
-        check_device('metal')
-        check_device('rocm')
-        check_device('vulkan')
-        check_device('nvptx')
-        check_device('llvm -device=arm-cpu')
-        check_device('opencl -device=mali')
-        check_device('aocl_sw_emu')
+        for target in get_all_backend():
+            check_device(target)
 
     def test_isnan(
         low,
         high,
         shape=(20, 3),
-        dtype=tvm.float32,
+        dtype="float32",
         check_round=False,
         skip_name_check=False,
     ):
-        m = tvm.var("m")
-        l = tvm.var("l")
-        A = tvm.placeholder((m, l), dtype=dtype, name="A")
+        m = te.var("m")
+        l = te.var("l")
+        A = te.placeholder((m, l), dtype=dtype, name="A")
 
         B = topi.isnan(A)
         assert tuple(B.shape) == tuple(A.shape)
@@ -110,23 +103,15 @@ def test_ewise():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(B)
+                s = topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device, name="isnan")
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
             foo(a, b)
             tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        check_device('llvm')
-        check_device('cuda')
-        check_device('opencl')
-        check_device('metal')
-        check_device('rocm')
-        check_device('vulkan')
-        check_device('nvptx')
-        check_device('llvm -device=arm-cpu')
-        check_device('opencl -device=mali')
-        check_device('aocl_sw_emu')
+        for target in get_all_backend():
+            check_device(target)
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
@@ -150,7 +135,7 @@ def test_ewise():
 def test_cast():
     def verify(from_dtype, to_dtype, low=-100, high=100):
         shape = (5, 4)
-        A = tvm.placeholder(shape, dtype=from_dtype, name="A")
+        A = te.placeholder(shape, dtype=from_dtype, name="A")
         B = topi.cast(A, to_dtype)
 
         if from_dtype == "bool":
@@ -168,7 +153,7 @@ def test_cast():
                 continue
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.generic.schedule_injective(B)
+                s = topi.testing.get_injective_schedule(device)(B)
             foo = tvm.build(s, [A, B], device)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.empty(shape=shape, dtype=to_dtype, ctx=ctx)
@@ -193,11 +178,11 @@ def test_fastmath():
         low,
         high,
         step,
-        dtype=tvm.float32
+        dtype="float32"
     ):
         a_np = np.arange(low, high, step).astype(dtype)
         b_np = f_numpy(a_np)
-        A = tvm.placeholder(a_np.shape, dtype=dtype, name="A")
+        A = te.placeholder(a_np.shape, dtype=dtype, name="A")
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
 

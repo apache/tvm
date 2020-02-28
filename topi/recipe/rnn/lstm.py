@@ -16,6 +16,7 @@
 # under the License.
 """LSTM Example, still work in progress.."""
 import tvm
+from tvm import te
 import os
 from tvm.contrib import nvcc
 import numpy as np
@@ -58,52 +59,52 @@ def lstm():
     num_thread_x = 16 * 3 // 2
     num_sm = 24
     n_num_step = 128
-    num_step = tvm.var('num_step')
+    num_step = te.var('num_step')
     num_hidden = 1152 // 2
     batch_size = 1
     # Global transition matrix
     # Input hidden channel can be pre-caculated by a gemm
-    Xi2h = tvm.placeholder((num_step, batch_size, 4, num_hidden), name="Xi2h")
+    Xi2h = te.placeholder((num_step, batch_size, 4, num_hidden), name="Xi2h")
     # Only handle hidden transition, saves space.
-    Wh2h = tvm.placeholder((4, num_hidden, num_hidden), name="Wh2h")
+    Wh2h = te.placeholder((4, num_hidden, num_hidden), name="Wh2h")
     # h: output hidden state, c: cell state.
-    s_state_h = tvm.placeholder((num_step, batch_size, num_hidden))
-    s_state_c = tvm.placeholder((num_step, batch_size, num_hidden))
-    s_init_c = tvm.compute((1, batch_size, num_hidden),
+    s_state_h = te.placeholder((num_step, batch_size, num_hidden))
+    s_state_c = te.placeholder((num_step, batch_size, num_hidden))
+    s_init_c = te.compute((1, batch_size, num_hidden),
                            lambda *i: 0.0, name="init_c")
-    s_init_h = tvm.compute((1, batch_size, num_hidden),
+    s_init_h = te.compute((1, batch_size, num_hidden),
                            lambda *i: 0.0, name="init_h")
     # LSTM transition
-    k = tvm.reduce_axis((0, num_hidden), name="ki2h")
-    s_h2h = tvm.compute(
+    k = te.reduce_axis((0, num_hidden), name="ki2h")
+    s_h2h = te.compute(
         (num_step, batch_size, 4, num_hidden),
-        lambda t, i, x, j: tvm.sum(s_state_h[t - 1, i, k] * Wh2h[x, j, k], axis=k),
+        lambda t, i, x, j: te.sum(s_state_h[t - 1, i, k] * Wh2h[x, j, k], axis=k),
         name="s_h2h")
     # Gate rules
-    gates = tvm.compute(Xi2h.shape, lambda *i:
+    gates = te.compute(Xi2h.shape, lambda *i:
                         Xi2h(*i) + s_h2h(*i), name="gates")
     gshape = (num_step, batch_size, num_hidden)
-    in_gate = tvm.compute(gshape, lambda t, i, j: tvm.sigmoid(gates[t, i, 0, j]), name="in_gate")
-    in_transform = tvm.compute(gshape, lambda t, i, j: tvm.tanh(gates[t, i, 1, j]), name="in_transform")
-    forget_gate = tvm.compute(gshape, lambda t, i, j: tvm.sigmoid(gates[t, i, 2, j]), name="forget_gate")
-    out_gate = tvm.compute(gshape, lambda t, i, j: tvm.sigmoid(gates[t, i, 3, j]), name="out_gate")
-    next_c = tvm.compute(gshape,
+    in_gate = te.compute(gshape, lambda t, i, j: te.sigmoid(gates[t, i, 0, j]), name="in_gate")
+    in_transform = te.compute(gshape, lambda t, i, j: te.tanh(gates[t, i, 1, j]), name="in_transform")
+    forget_gate = te.compute(gshape, lambda t, i, j: te.sigmoid(gates[t, i, 2, j]), name="forget_gate")
+    out_gate = te.compute(gshape, lambda t, i, j: te.sigmoid(gates[t, i, 3, j]), name="out_gate")
+    next_c = te.compute(gshape,
                          lambda t, i, j:
                          forget_gate[t, i, j] * s_state_c[t - 1, i, j] +
                          in_gate[t, i, j] * in_transform[t, i, j], name="next_c")
-    next_h = tvm.compute(gshape,
-                         lambda t, i, j: out_gate[t, i, j] * tvm.tanh(next_c[t, i, j]), name="next_h")
-    update_c = tvm.compute(gshape, lambda *i: next_c(*i), name="update_c")
-    update_h = tvm.compute(gshape, lambda *i: next_h(*i), name="update_h")
+    next_h = te.compute(gshape,
+                         lambda t, i, j: out_gate[t, i, j] * te.tanh(next_c[t, i, j]), name="next_h")
+    update_c = te.compute(gshape, lambda *i: next_c(*i), name="update_c")
+    update_h = te.compute(gshape, lambda *i: next_h(*i), name="update_h")
     # schedule
-    scan_h, scan_c = tvm.scan(
+    scan_h, scan_c = tvm.te.scan(
         [s_init_h, s_init_c],
         [update_h, update_c],
         [s_state_h, s_state_c],
         inputs=[Xi2h],
         name="lstm_scan")
     # schedule
-    s = tvm.create_schedule(scan_h.op)
+    s = te.create_schedule(scan_h.op)
     # Inline gate computations
     s[gates].compute_inline()
     s[in_gate].compute_inline()
@@ -111,9 +112,9 @@ def lstm():
     s[forget_gate].compute_inline()
     s[out_gate].compute_inline()
 
-    block_x = tvm.thread_axis((0, num_sm), "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
-    thread_y = tvm.thread_axis((0, num_thread_y), "threadIdx.y")
+    block_x = te.thread_axis((0, num_sm), "blockIdx.x")
+    thread_x = te.thread_axis((0, num_thread_x), "threadIdx.x")
+    thread_y = te.thread_axis((0, num_thread_y), "threadIdx.y")
 
     s_state_h_S = s.cache_read(s_state_h, "shared", [s_h2h])
     s_state_c_S = s.cache_read(s_state_c, "shared", [next_c])
@@ -187,7 +188,7 @@ def lstm():
         print("Time cost=%g" % eval_result.mean)
 
     # set unroll_explicit for more readable code.
-    with tvm.build_config(
+    with tvm.target.build_config(
             detect_global_barrier=DETECT_GLOBAL_BARRIER,
             auto_unroll_max_step=128,
             unroll_explicit=False):

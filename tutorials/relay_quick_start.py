@@ -42,6 +42,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay import testing
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 
 ######################################################################
@@ -55,7 +56,7 @@ from tvm.contrib import graph_runtime
 #
 # In this tutorial, we assume we will do inference on our device
 # and the batch size is set to be 1. Input images are RGB color
-# images of size 224 * 224. We can call the :any:`tvm.relay.expr.astext()`
+# images of size 224 * 224. We can call the :any:`tvm.relay.expr.TupleWrapper.astext()`
 # to show the network structure.
 
 batch_size = 1

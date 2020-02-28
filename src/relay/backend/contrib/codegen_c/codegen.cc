@@ -41,9 +41,11 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
   void VisitExpr_(const VarNode* node) {
-    ext_func_args_.push_back(node->name_hint());
+    ext_func_args_.push_back(GetRef<Var>(node));
     out_.clear();
-    out_.push_back({node->name_hint(), 0});
+    Output output;
+    output.name = node->name_hint();
+    out_.push_back(output);
   }
 
   void VisitExpr_(const CallNode* call) final {
@@ -70,6 +72,12 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
     for (size_t i = 0; i < in_shape.size(); ++i) {
       macro_stream << ", " << in_shape[i];
     }
+
+    const auto* type_node = call->checked_type().as<TensorTypeNode>();
+    CHECK(type_node);
+    const auto& dtype = GetDtypeString(type_node);
+    macro_stream << ", " << dtype;
+
     macro_stream << ");";
     func_decl_.push_back(macro_stream.str());
 
@@ -83,20 +91,18 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
           decl_stream << ", ";
         }
         first = false;
-        decl_stream << out.first;
+        decl_stream << out.name;
       }
     }
 
-    auto type_node = call->checked_type().as<TensorTypeNode>();
-    CHECK(type_node != nullptr && runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
-        << "Only support single output tensor with float type";
     std::string out = "buf_" + std::to_string(buf_idx_++);
     auto out_shape = GetShape(call->checked_type());
     int out_size = 1;
     for (size_t i = 0; i < out_shape.size(); ++i) {
       out_size *= out_shape[i];
     }
-    buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
+    buf_stream << dtype << "* " << out <<
+      " = (" << dtype << "*)std::malloc(4 * " << out_size << ");";
     buf_decl_.push_back(buf_stream.str());
 
     decl_stream << ", " << out << ");";
@@ -104,7 +110,12 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
 
     // Update output buffer
     out_.clear();
-    out_.push_back({out, out_size});
+    Output output;
+    output.name = out;
+    output.dtype = dtype;
+    output.need_copy = true;
+    output.size = out_size;
+    out_.push_back(output);
   }
 
   /*!
@@ -128,7 +139,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   /*! \brief The index of allocated buffers. */
   int buf_idx_ = 0;
   /*! \brief The arguments of a C compiler compatible function. */
-  std::vector<std::string> ext_func_args_;
+  Array<Var> ext_func_args_;
   /*! \brief The statements of a C compiler compatible function. */
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration statements of a C compiler compatible function. */
@@ -136,7 +147,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
   /*! \brief The name and index pairs for output. */
-  std::vector<std::pair<std::string, int>> out_;
+  std::vector<Output> out_;
 };
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
@@ -161,21 +172,21 @@ class CSourceCodegen : public CSourceModuleCodegenBase {
 
     // Append some common macro for operator definition.
     const char* operator_macro = R"op_macro(
-    #define CSOURCE_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_)       \
-      extern "C" void p_ID_(float* a, float* b, float* out) { \
-        for (int64_t i = 0; i < p_DIM1_; ++i) {               \
-          out[i] = a[i] p_OP_ b[i];                           \
-        }                                                     \
+    #define CSOURCE_BINARY_OP_1D(p_ID_, p_OP_, p_DIM1_, p_DTYPE)       \
+      extern "C" void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {    \
+        for (int64_t i = 0; i < p_DIM1_; ++i) {                        \
+          out[i] = a[i] p_OP_ b[i];                                    \
+        }                                                              \
       }
 
-    #define CSOURCE_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_)  \
-      extern "C" void p_ID_(float* a, float* b, float* out) {     \
-        for (int64_t i = 0; i < p_DIM1_; ++i) {                   \
-          for (int64_t j = 0; j < p_DIM2_; ++j) {                 \
-            int64_t k = i * p_DIM2_ + j;                          \
-            out[k] = a[k] p_OP_ b[k];                             \
-          }                                                       \
-        }                                                         \
+    #define CSOURCE_BINARY_OP_2D(p_ID_, p_OP_, p_DIM1_, p_DIM2_, p_DTYPE)  \
+      extern "C" void p_ID_(p_DTYPE* a, p_DTYPE* b, p_DTYPE* out) {        \
+        for (int64_t i = 0; i < p_DIM1_; ++i) {                            \
+          for (int64_t j = 0; j < p_DIM2_; ++j) {                          \
+            int64_t k = i * p_DIM2_ + j;                                   \
+            out[k] = a[k] p_OP_ b[k];                                      \
+          }                                                                \
+        }                                                                  \
       }
     )op_macro";
 

@@ -19,7 +19,6 @@
 DarkNet symbol frontend for Relay.
 """
 
-from __future__ import absolute_import as _abs
 from enum import Enum
 import numpy as np
 import tvm

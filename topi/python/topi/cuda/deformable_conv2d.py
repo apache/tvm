@@ -14,20 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-argument
 """Schedule template of deformable conv2d with cuda backend"""
 import tvm
+from tvm import te
 from tvm import autotvm
-from .. import nn, generic
+from .. import nn
 from ..util import traverse_inline
 
 
-autotvm.register_topi_compute(nn.deformable_conv2d_nchw, ["cuda", "gpu"], "direct",
-                              nn.deformable_conv2d_nchw.fdefault)
+@autotvm.register_topi_compute("deformable_conv2d_nchw.cuda")
+def deformable_conv2d_nchw(cfg, data, offset, kernel, strides, padding, dilation,
+                           deformable_groups, groups, out_dtype):
+    return nn.deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation,
+                                     deformable_groups, groups, out_dtype)
 
-
-@autotvm.register_topi_schedule(generic.schedule_deformable_conv2d_nchw, ["cuda", "gpu"], "direct")
-def schedule_deformable_conv2d_nchw_cuda(cfg, outs):
+@autotvm.register_topi_schedule("deformable_conv2d_nchw.cuda")
+def schedule_deformable_conv2d_nchw(cfg, outs):
     """TOPI schedule callback of deformable conv2d for cuda gpu
 
     Parameters
@@ -44,18 +47,18 @@ def schedule_deformable_conv2d_nchw_cuda(cfg, outs):
     s: Schedule
         The computation schedule for conv2d.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'deformable_conv2d_nchw':
-            schedule_direct_cuda(cfg, s, op.output(0))
+            _schedule_direct_cuda(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
 
 
-def schedule_direct_cuda(cfg, s, conv):
+def _schedule_direct_cuda(cfg, s, conv):
     """Schedule template of deformable conv2d"""
     n, f, y, x = s[conv].op.axis
     rc, ry, rx = s[conv].op.reduce_axis
@@ -76,7 +79,7 @@ def schedule_direct_cuda(cfg, s, conv):
     data_deform, kernel = s[conv].op.input_tensors
 
     s[data_deform].compute_inline()
-    if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+    if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
         s[kernel].compute_inline()
 
     if conv.op in s.outputs:
@@ -100,15 +103,15 @@ def schedule_direct_cuda(cfg, s, conv):
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
     bf = s[output].fuse(n, bf)
-    s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(by, tvm.thread_axis("blockIdx.y"))
-    s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[output].bind(vf, tvm.thread_axis("vthread"))
-    s[output].bind(vy, tvm.thread_axis("vthread"))
-    s[output].bind(vx, tvm.thread_axis("vthread"))
-    s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
-    s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[output].bind(bf, te.thread_axis("blockIdx.z"))
+    s[output].bind(by, te.thread_axis("blockIdx.y"))
+    s[output].bind(bx, te.thread_axis("blockIdx.x"))
+    s[output].bind(vf, te.thread_axis("vthread"))
+    s[output].bind(vy, te.thread_axis("vthread"))
+    s[output].bind(vx, te.thread_axis("vthread"))
+    s[output].bind(tf, te.thread_axis("threadIdx.z"))
+    s[output].bind(ty, te.thread_axis("threadIdx.y"))
+    s[output].bind(tx, te.thread_axis("threadIdx.x"))
     s[output].reorder(bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
     s[OL].compute_at(s[output], tx)
 
@@ -133,9 +136,9 @@ def schedule_direct_cuda(cfg, s, conv):
         tz, fused = s[load].split(fused, nparts=cfg["tile_f"].size[2])
         ty, fused = s[load].split(fused, nparts=cfg["tile_y"].size[2])
         tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(ty, te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)

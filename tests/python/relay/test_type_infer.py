@@ -18,6 +18,7 @@
    for expressions.
 """
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import op, transform, analysis
 from tvm.relay.analysis import assert_alpha_equal

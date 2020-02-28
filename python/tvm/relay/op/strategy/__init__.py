@@ -14,6 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint:disable=unused-wildcard-import, wildcard-import, redefined-builtin
-"""Backwared compatible layer for intrin."""
-from .tir.op import *
+
+# pylint: disable=wildcard-import
+"""Relay op strategies."""
+from __future__ import absolute_import as _abs
+
+from .generic import *
+from . import x86
+from . import arm_cpu
+from . import cuda
+from . import hls
+from . import mali
+from . import bifrost
+from . import opengl
+from . import rocm
+from . import intel_graphics

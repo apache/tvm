@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_coproc_lift():
-    ib = tvm.ir_builder.create()
-    n = tvm.var("n")
-    cp = tvm.thread_axis((0, 1), "cop")
+    ib = tvm.tir.ir_builder.create()
+    n = te.var("n")
+    cp = te.thread_axis((0, 1), "cop")
     value = tvm.tir.StringImm("xxx")
 
     A = ib.allocate("float32", n, name="A", scope="global")
@@ -34,11 +35,11 @@ def test_coproc_lift():
                 A[j] = A[j] + 3
                 A[j] = A[j] + 3
     body = ib.get()
-    body = tvm.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
+    body = tvm.tir.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
     assert body.body.body.node == cp
 
     # only able to lift to the common pattern of the last two fors.
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
         with ib.for_range(0, 10, name="j") as j:
@@ -51,7 +52,7 @@ def test_coproc_lift():
             A[i] = A[i] + 2
 
     body = ib.get()
-    body = tvm.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
+    body = tvm.tir.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
     assert body.body.body.body[1].node == cp
     assert len(body.body.body.body) == 2
 

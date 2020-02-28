@@ -18,6 +18,7 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import FallbackConfigEntity
 import topi
@@ -25,6 +26,13 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.nn.util import get_pad_tuple
 from topi.util import get_const_tuple
+
+
+_conv2d_nchw_winograd_implement = {
+    "arm_cpu": (topi.arm_cpu.conv2d_nchw_winograd, topi.arm_cpu.schedule_conv2d_nchw_winograd),
+    "cuda": (topi.cuda.conv2d_nchw_winograd, topi.cuda.schedule_conv2d_nchw_winograd),
+    "mali": (topi.mali.conv2d_nchw_winograd, topi.mali.schedule_conv2d_nchw_winograd),
+}
 
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False,
@@ -35,9 +43,9 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-    bias = tvm.placeholder((num_filter, 1, 1), name='bias')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+    bias = te.placeholder((num_filter, 1, 1), name='bias')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -67,12 +75,13 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.nn.conv2d(A, W, stride, padding, dilation, layout='NCHW', out_dtype=dtype)
+            fcompute, fschedule = topi.testing.dispatch(device, _conv2d_nchw_winograd_implement)
+            C = fcompute(A, W, stride, padding, dilation, dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv2d_nchw([C])
+            s = fschedule([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
@@ -93,61 +102,45 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         check_device(device)
 
 
-class WinogradFallback(autotvm.FallbackContext):
-    def _query_inside(self, target, workload):
-        key = (target, workload)
-        if key in self.memory:
-            return self.memory[key]
-        cfg = FallbackConfigEntity()
-        cfg.template_key = 'winograd'
-        self.memory[key] = cfg
-        cfg.is_fallback = False
-        return cfg
-
-
 def test_conv2d_nchw():
-    autotvm.DispatchContext.current.silent = True
+    # inception v3 workloads
+    verify_conv2d_nchw(1, 128, 17, 192, 7, 1, 3, devices=['cuda'])
+    verify_conv2d_nchw(1, 128, 17, 128, 7, 1, 3, devices=['cuda'])
+    verify_conv2d_nchw(1, 160, 17, 160, 7, 1, 3, devices=['cuda'])
 
-    with WinogradFallback():
+    # resnet 18 workloads
+    verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
+    verify_conv2d_nchw(1, 128, 28, 128, 3, 1, 1)
+    verify_conv2d_nchw(1, 256, 14, 256, 3, 1, 1)
+    verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
+    verify_conv2d_nchw(1, 48,  35, 64, 5, 1, 2, devices=['cuda'])
 
-        # inception v3 workloads
-        verify_conv2d_nchw(1, 128, 17, 192, 7, 1, 3, devices=['cuda'])
-        verify_conv2d_nchw(1, 128, 17, 128, 7, 1, 3, devices=['cuda'])
-        verify_conv2d_nchw(1, 160, 17, 160, 7, 1, 3, devices=['cuda'])
+    # batch size = 2
+    verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1)
 
-        # resnet 18 workloads
-        verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
-        verify_conv2d_nchw(1, 128, 28, 128, 3, 1, 1)
-        verify_conv2d_nchw(1, 256, 14, 256, 3, 1, 1)
-        verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
-        verify_conv2d_nchw(1, 48,  35, 64, 5, 1, 2, devices=['cuda'])
+    # relu, bias
+    verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_bias=True)
+    verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_relu=True)
+    verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_relu=True, add_bias=True)
 
-        # batch size = 2
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1)
+    # weird workloads
+    verify_conv2d_nchw(1, 1, 1, 1, 3, 1, 1)
+    verify_conv2d_nchw(3, 3, 3, 3, 3, 1, 1)
+    verify_conv2d_nchw(2, 13, 71, 59, 3, 1, 1)
 
-        # relu, bias
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_bias=True)
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_relu=True)
-        verify_conv2d_nchw(2, 64, 56, 64, 3, 1, 1, add_relu=True, add_bias=True)
-
-        # werid workloads
-        verify_conv2d_nchw(1, 1, 1, 1, 3, 1, 1)
-        verify_conv2d_nchw(3, 3, 3, 3, 3, 1, 1)
-        verify_conv2d_nchw(2, 13, 71, 59, 3, 1, 1)
-
-        # Asymmetric padding
-        verify_conv2d_nchw(1,  48, 56,  48, 3, 1, (1, 1, 1, 1))
-        verify_conv2d_nchw(1,  64, 28,  64, 3, 1, (1, 1, 1, 1))
-        verify_conv2d_nchw(1, 128, 14, 128, 3, 1, (1, 1))
-        verify_conv2d_nchw(1, 512,  7, 512, 3, 1, "SAME")
-        verify_conv2d_nchw(2, 13,  71,  59, 3, 1, (1, 1, 1, 1))
-        verify_conv2d_nchw(2,  48, 56,  48, 3, 1, (1, 1, 1, 1), add_bias=True)
-        verify_conv2d_nchw(2,  48, 56,  48, 3, 1, (1, 1), add_relu=True)
-        verify_conv2d_nchw(2,  48, 56,  48, 3, 1, "SAME", add_relu=True, add_bias=True)
-        verify_conv2d_nchw(1,  64, 17, 192, 7, 1, (3, 1), devices=['cuda'])
-        verify_conv2d_nchw(1,  64, 17,  64, 7, 1, (3, 3, 2, 2), devices=['cuda'])
-        verify_conv2d_nchw(1, 160, 17, 160, 7, 1, "SAME", devices=['cuda'])
-        verify_conv2d_nchw(1,  48, 35,  48, 5, 1, "VALID", devices=['cuda'])
+    # Asymmetric padding
+    verify_conv2d_nchw(1,  48, 56,  48, 3, 1, (1, 1, 1, 1))
+    verify_conv2d_nchw(1,  64, 28,  64, 3, 1, (1, 1, 1, 1))
+    verify_conv2d_nchw(1, 128, 14, 128, 3, 1, (1, 1))
+    verify_conv2d_nchw(1, 512,  7, 512, 3, 1, "SAME")
+    verify_conv2d_nchw(2, 13,  71,  59, 3, 1, (1, 1, 1, 1))
+    verify_conv2d_nchw(2,  48, 56,  48, 3, 1, (1, 1, 1, 1), add_bias=True)
+    verify_conv2d_nchw(2,  48, 56,  48, 3, 1, (1, 1), add_relu=True)
+    verify_conv2d_nchw(2,  48, 56,  48, 3, 1, "SAME", add_relu=True, add_bias=True)
+    verify_conv2d_nchw(1,  64, 17, 192, 7, 1, (3, 1), devices=['cuda'])
+    verify_conv2d_nchw(1,  64, 17,  64, 7, 1, (3, 3, 2, 2), devices=['cuda'])
+    verify_conv2d_nchw(1, 160, 17, 160, 7, 1, "SAME", devices=['cuda'])
+    verify_conv2d_nchw(1,  48, 35,  48, 5, 1, "VALID", devices=['cuda'])
 
 
 if __name__ == "__main__":

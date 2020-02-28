@@ -20,6 +20,7 @@ Should be removed once we fix OpenGL testing on Jenkins."""
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
@@ -27,8 +28,8 @@ from topi.util import get_const_tuple
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
     B = topi.nn.conv2d_nchw(A, W, stride, padding)
     C = topi.nn.relu(B)
 
@@ -59,7 +60,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
-        with tvm.build_config(auto_unroll_max_step=1400,
+        with tvm.target.build_config(auto_unroll_max_step=1400,
                               unroll_explicit=(device != "cuda")):
             func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
             func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))

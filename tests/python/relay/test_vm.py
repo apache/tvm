@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm import te
 from tvm import runtime
 from tvm import relay
 from tvm.relay.scope_builder import ScopeBuilder

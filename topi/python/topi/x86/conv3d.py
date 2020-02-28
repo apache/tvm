@@ -19,11 +19,10 @@
 """Conv3D operators"""
 from collections import namedtuple
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
-from .. import generic
 from ..util import traverse_inline
-from ..nn.conv3d import conv3d, conv3d_ncdhw
 from ..nn.util import get_pad_tuple3d, infer_pad3d
 from ..nn.pad import pad
 from ..util import get_const_tuple, simplify, get_const_int
@@ -35,19 +34,18 @@ Workload3D = namedtuple('Workload',
                          'hkernel', 'wkernel', 'dpad', 'hpad', 'wpad',
                          'dstride', 'hstride', 'wstride'])
 
-@autotvm.register_topi_compute(conv3d, 'cpu', ['direct'])
-def _declaration_conv3d(cfg, data, kernel, strides, padding, dilation,
-                        layout, out_dtype):
+@autotvm.register_topi_compute("conv3d_ndhwc.x86")
+def conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """3D convolution forward operator.
 
     Parameters
     ----------
-    input : tvm.Tensor
+    input : tvm.te.Tensor
         5-D input data with shapes:
         [batch, in_channel, in_depth, in_height, in_width] for NCDHW layout
         [batch, in_depth, in_height, in_width, in_channel] for NDHWC layout
 
-    filter : tvm.Tensor
+    filter : tvm.te.Tensor
         5-D filter with shape [kernel_depth, kernel_height, kernel_width, in_channels, out_channels]
 
     strides : int or a list/tuple of three ints
@@ -59,30 +57,24 @@ def _declaration_conv3d(cfg, data, kernel, strides, padding, dilation,
     dilation: int or a list/tuple of three ints
         dilation size, or [dilation_depth, dilation_height, dilation_width]
 
-    layout : str
-        layout of data
-
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         5-D with shape [batch, out_depth, out_height, out_width, out_channel] for NDHWC layout
         5-D with shape [batch, out_channel, out_depth, out_height, out_width] for NCDHW layout
     """
+    layout = "NDHWC"
     out_dtype = data.dtype if out_dtype is None else out_dtype
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides, strides)
     dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation, dilation)
 
-    if layout == 'NDHWC':
-        _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
-        if cfg.is_fallback:
-            _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout)
-        return _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
-    elif layout == 'NCDHW':
-        return conv3d_ncdhw(data, kernel, strides, padding, dilation, out_dtype)
-    raise ValueError("Layout {} is not supported".format(layout))
+    _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
+    if cfg.is_fallback:
+        _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout)
+    return _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv3d_ndhwc, 'cpu', ['direct'])
+@autotvm.register_topi_schedule("conv3d_ndhwc.x86")
 def schedule_conv3d_ndhwc(cfg, outs):
     """TOPI schedule callback for conv3d
     Parameters
@@ -95,7 +87,7 @@ def schedule_conv3d_ndhwc(cfg, outs):
     s: Schedule
         The computation schedule for conv3d.
     """
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _traverse(op):
         if 'conv3d_ndhwc' in op.tag:
@@ -103,12 +95,12 @@ def schedule_conv3d_ndhwc(cfg, outs):
             conv_out = op.input_tensors[0]
             kernel_vec = conv_out.op.input_tensors[1]
             kernel = kernel_vec.op.input_tensors[0]
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
             data_vec = conv_out.op.input_tensors[0]
             data = data_vec.op.input_tensors[0]
             data_pad = None
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
@@ -120,7 +112,7 @@ def schedule_conv3d_ndhwc(cfg, outs):
     return s
 
 
-def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
 
     assert isinstance(dilation, int) or len(dilation) == 3
@@ -163,47 +155,47 @@ def _conv3d_ndhwc(cfg, data, kernel, strides, padding, dilation, layout, out_dty
     # fetch schedule
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     shape = (batch_size, in_channel // ic_bn, pad_depth, pad_height, ic_bn, pad_width)
-    data_vec = tvm.compute(shape,
-                           lambda n, C, d, h, c, w: data_pad[n, d, h, w, C * ic_bn + c],
-                           name='data_vec')
+    data_vec = te.compute(shape,
+                          lambda n, C, d, h, c, w: data_pad[n, d, h, w, C * ic_bn + c],
+                          name='data_vec')
 
     # pack kernel
     shape = (num_filter//oc_bn, in_channel//ic_bn,
              kernel_depth, kernel_height, kernel_width, ic_bn, oc_bn)
-    kernel_vec = tvm.compute(shape,
-                             lambda CO, CI, d, h, w, ci, co:
-                             kernel[d, h, w, CI * ic_bn + ci, CO * oc_bn + co],
-                             name='kernel_vec')
+    kernel_vec = te.compute(shape,
+                            lambda CO, CI, d, h, w, ci, co:
+                            kernel[d, h, w, CI * ic_bn + ci, CO * oc_bn + co],
+                            name='kernel_vec')
 
     # convolution
     oshape = (batch_size, num_filter//oc_bn, out_depth, out_height, out_width, oc_bn)
     unpack_shape = (batch_size, out_depth, out_height, out_width, num_filter)
 
-    ic = tvm.reduce_axis((0, in_channel), name='ic')
-    kh = tvm.reduce_axis((0, kernel_height), name='kh')
-    kw = tvm.reduce_axis((0, kernel_width), name='kw')
-    kd = tvm.reduce_axis((0, kernel_depth), name='kd')
-    idxmod = tvm.indexmod
-    idxdiv = tvm.indexdiv
+    ic = te.reduce_axis((0, in_channel), name='ic')
+    kh = te.reduce_axis((0, kernel_height), name='kh')
+    kw = te.reduce_axis((0, kernel_width), name='kw')
+    kd = te.reduce_axis((0, kernel_depth), name='kd')
+    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tir.indexdiv
 
-    conv = tvm.compute(oshape, lambda n, oc_chunk, od, oh, ow, oc_block:
-                       tvm.sum(data_vec[n,
-                                        idxdiv(ic, ic_bn),
-                                        od*DSTR+kd*dilation_d,
-                                        oh*HSTR+kh*dilation_h,
+    conv = te.compute(oshape, lambda n, oc_chunk, od, oh, ow, oc_block:
+                      te.sum(data_vec[n,
+                                      idxdiv(ic, ic_bn),
+                                      od*DSTR+kd*dilation_d,
+                                      oh*HSTR+kh*dilation_h,
+                                      idxmod(ic, ic_bn),
+                                      ow*WSTR+kw*dilation_w].astype(out_dtype) *
+                             kernel_vec[oc_chunk, idxdiv(ic, ic_bn), kd, kh, kw,
                                         idxmod(ic, ic_bn),
-                                        ow*WSTR+kw*dilation_w].astype(out_dtype) *
-                               kernel_vec[oc_chunk, idxdiv(ic, ic_bn), kd, kh, kw,
-                                          idxmod(ic, ic_bn),
-                                          oc_block].astype(out_dtype),
-                               axis=[kd, kh, kw, ic]), name='conv')
-    conv_unpacked = tvm.compute(unpack_shape,
-                                lambda n, d, h, w, c: conv[n, idxdiv(c, oc_bn),
-                                                           d, h, w,
-                                                           idxmod(c, oc_bn)]
-                                .astype(out_dtype),
-                                name='output_unpack',
-                                tag='conv3d_ndhwc')
+                                        oc_block].astype(out_dtype),
+                             axis=[kd, kh, kw, ic]), name='conv')
+    conv_unpacked = te.compute(unpack_shape,
+                               lambda n, d, h, w, c: conv[n, idxdiv(c, oc_bn),
+                                                          d, h, w,
+                                                          idxmod(c, oc_bn)]
+                               .astype(out_dtype),
+                               name='output_unpack',
+                               tag='conv3d_ndhwc')
     return conv_unpacked
 
 
@@ -240,11 +232,11 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, layout):
 
     static_data_shape = []
     for dim in get_const_tuple(data.shape):
-        if isinstance(dim, tvm.expr.Var):
+        if isinstance(dim, tvm.tir.Var):
             static_data_shape.append(1)
         else:
             static_data_shape.append(dim)
-    data = tvm.placeholder(static_data_shape, dtype=data.dtype)
+    data = te.placeholder(static_data_shape, dtype=data.dtype)
     wkl = _get_conv3d_workload(data, kernel, strides, padding, out_dtype, layout)
     _fallback_schedule(cfg, wkl)
 

@@ -15,50 +15,51 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_stmt_simplify():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
-    n = tvm.size_var("n")
+    n = te.size_var("n")
     with ib.for_range(0, n, name="i") as i:
         with ib.if_scope(i < 12):
             A[i] = C[i]
 
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    body = tvm.ir_pass.CanonicalSimplify(body)
+    body = tvm.tir.ir_pass.CanonicalSimplify(body)
     assert isinstance(body.body, tvm.tir.Store)
 
 
 def test_thread_extent_simplify():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
-    n = tvm.size_var("n")
-    tx = tvm.thread_axis("threadIdx.x")
-    ty = tvm.thread_axis("threadIdx.y")
+    n = te.size_var("n")
+    tx = te.thread_axis("threadIdx.x")
+    ty = te.thread_axis("threadIdx.y")
     ib.scope_attr(tx, "thread_extent", n)
     ib.scope_attr(tx, "thread_extent", n)
     ib.scope_attr(ty, "thread_extent", 1)
     with ib.if_scope(tx + ty < 12):
         A[tx] = C[tx + ty]
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    body = tvm.ir_pass.CanonicalSimplify(body)
+    body = tvm.tir.ir_pass.CanonicalSimplify(body)
     assert isinstance(body.body.body.body, tvm.tir.Store)
 
 
 def test_basic_likely_elimination():
-    n = tvm.size_var('n')
-    X = tvm.placeholder(shape=(n,), name="x")
-    W = tvm.placeholder(shape=(n + 1,), dtype="int32", name="w")
+    n = te.size_var('n')
+    X = te.placeholder(shape=(n,), name="x")
+    W = te.placeholder(shape=(n + 1,), dtype="int32", name="w")
 
     def f(i):
         start = W[i]
         extent = W[i+1] - W[i]
-        rv = tvm.reduce_axis((0, extent))
-        return tvm.sum(X[rv + start], axis=rv)
-    Y = tvm.compute(X.shape, f, name="y")
-    s = tvm.create_schedule([Y.op])
+        rv = te.reduce_axis((0, extent))
+        return te.sum(X[rv + start], axis=rv)
+    Y = te.compute(X.shape, f, name="y")
+    s = te.create_schedule([Y.op])
     stmt = tvm.lower(s, [X, W, Y], simple_mode=True)
     assert('if' not in str(stmt))
 
@@ -68,10 +69,10 @@ def test_complex_likely_elimination():
         Y[i] = sum(X[:i])
         """
         (m, ) = X.shape
-        s_state = tvm.placeholder((m + 1, ), dtype="int32", name="state")
-        s_init = tvm.compute((1, ), lambda _: tvm.const(0, "int32"))
-        s_update = tvm.compute((m + 1, ), lambda l: s_state[l - 1] + X[l - 1])
-        return tvm.scan(s_init, s_update, s_state, inputs=[X], name="cumsum")
+        s_state = te.placeholder((m + 1, ), dtype="int32", name="state")
+        s_init = te.compute((1, ), lambda _: tvm.tir.const(0, "int32"))
+        s_update = te.compute((m + 1, ), lambda l: s_state[l - 1] + X[l - 1])
+        return tvm.te.scan(s_init, s_update, s_state, inputs=[X], name="cumsum")
 
     def sparse_lengths_sum(data, indices, lengths):
         oshape = list(data.shape)
@@ -79,21 +80,21 @@ def test_complex_likely_elimination():
         length_offsets = cumsum(lengths)
 
         def sls(n, d):
-            gg = tvm.reduce_axis((0, lengths[n]))
+            gg = te.reduce_axis((0, lengths[n]))
             indices_idx = length_offsets[n] + gg
             data_idx = indices[indices_idx]
             data_val = data[data_idx, d]
-            return tvm.sum(data_val, axis=gg)
+            return te.sum(data_val, axis=gg)
 
-        return tvm.compute(oshape, sls)
+        return te.compute(oshape, sls)
 
-    m, n, d, i, l = tvm.size_var('m'), tvm.size_var('n'), tvm.size_var('d'),\
-                    tvm.size_var('i'), tvm.size_var('l')
-    data_ph = tvm.placeholder((m, d * 32), name="data")
-    indices_ph = tvm.placeholder((i,), name="indices", dtype="int32")
-    lengths_ph = tvm.placeholder((n,), name="lengths", dtype="int32")
+    m, n, d, i, l = te.size_var('m'), te.size_var('n'), te.size_var('d'),\
+                    te.size_var('i'), te.size_var('l')
+    data_ph = te.placeholder((m, d * 32), name="data")
+    indices_ph = te.placeholder((i,), name="indices", dtype="int32")
+    lengths_ph = te.placeholder((n,), name="lengths", dtype="int32")
     Y = sparse_lengths_sum(data_ph, indices_ph, lengths_ph)
-    s = tvm.create_schedule([Y.op])
+    s = te.create_schedule([Y.op])
     (n, d) = s[Y].op.axis
     (do, di) = s[Y].split(d, factor=32)
     (gg,) = s[Y].op.reduce_axis

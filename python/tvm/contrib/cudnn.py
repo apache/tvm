@@ -19,8 +19,9 @@
 import ctypes
 import numpy as np
 import tvm
-from .. import api as _api
-from .. import get_global_func as _get_global_func
+
+import tvm._ffi
+from tvm import te
 
 # algos can be read from cudnn.h
 _FWD_ALGOS = [
@@ -217,7 +218,7 @@ def conv_output_shape(tensor_format,
         _prepare_global_func_params(dims - 2, pad, stride, dilation, x_shape, w_shape)
     oshape = np.zeros((dims), dtype=np.int32)
 
-    func = _get_global_func("tvm.contrib.cudnn.conv.output_shape")
+    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.output_shape")
     func(tensor_format,
          dims - 2,
          _get_np_int32_array_handle(pad),
@@ -276,7 +277,7 @@ def conv_find_algo(tensor_format,
     pad, stride, dilation, xshape, wshape = \
         _prepare_global_func_params(dims - 2, pad, stride, dilation, x_shape, w_shape)
     yshape = np.array(y_shape, dtype=np.int32)
-    func = _get_global_func("tvm.contrib.cudnn.conv.find_algo")
+    func = tvm._ffi.get_global_func("tvm.contrib.cudnn.conv.find_algo")
     return func(tensor_format,
                 dims - 2,
                 _get_np_int32_array_handle(pad),
@@ -363,7 +364,7 @@ def conv_forward(x,
                                   conv_dtype)
 
     if dims == 4:
-        return _api.extern(
+        return te.extern(
             oshape, [x, w],
             lambda ins, outs: tvm.tir.call_packed(
                 "tvm.contrib.cudnn.conv2d.forward",
@@ -381,7 +382,7 @@ def conv_forward(x,
                 outs[0],
                 conv_dtype), name="y")
 
-    return _api.extern(
+    return te.extern(
         oshape, [x, w],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cudnn.conv3d.forward",

@@ -16,32 +16,34 @@
 # under the License.
 import json
 import tvm
+from tvm import te
+from tvm import te
 
-@tvm.tag_scope(tag="conv")
+@tvm.te.tag_scope(tag="conv")
 def compute_conv(data, weight):
     N, IC, H, W = data.shape
     OC, IC, KH, KW = weight.shape
     OH = H - KH + 1
     OW = W - KW + 1
 
-    ic = tvm.reduce_axis((0, IC), name='ic')
-    dh = tvm.reduce_axis((0, KH), name='dh')
-    dw = tvm.reduce_axis((0, KW), name='dw')
+    ic = te.reduce_axis((0, IC), name='ic')
+    dh = te.reduce_axis((0, KH), name='dh')
+    dw = te.reduce_axis((0, KW), name='dw')
 
-    return tvm.compute((N, OC, OH, OW), lambda i, oc, h, w: \
-        tvm.sum(data[i, ic, h+dh, w+dw] * weight[oc, ic, dh, dw],
+    return te.compute((N, OC, OH, OW), lambda i, oc, h, w: \
+        te.sum(data[i, ic, h+dh, w+dw] * weight[oc, ic, dh, dw],
                 axis=[ic, dh, dw]))
 
 def test_with():
-    n = tvm.size_var('n')
-    m = tvm.size_var('m')
-    l = tvm.size_var('l')
+    n = te.size_var('n')
+    m = te.size_var('m')
+    l = te.size_var('l')
 
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((m, l), name='B')
-    with tvm.tag_scope(tag="gemm"):
-        k = tvm.reduce_axis((0, l), name='k')
-        C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k] * B[j, k], axis=k),
+    A = te.placeholder((n, l), name='A')
+    B = te.placeholder((m, l), name='B')
+    with tvm.te.tag_scope(tag="gemm"):
+        k = te.reduce_axis((0, l), name='k')
+        C = te.compute((n, m), lambda i, j: te.sum(A[i, k] * B[j, k], axis=k),
                         attrs={"hello" : 1, "arr": [10, 12]})
 
     assert C.op.tag == 'gemm'
@@ -56,31 +58,31 @@ def test_with():
 
 
 def test_decorator():
-    n = tvm.size_var('n')
-    c = tvm.size_var('c')
-    h = tvm.size_var('h')
-    w = tvm.size_var('w')
-    kh = tvm.size_var('kh')
-    kw = tvm.size_var('kw')
+    n = te.size_var('n')
+    c = te.size_var('c')
+    h = te.size_var('h')
+    w = te.size_var('w')
+    kh = te.size_var('kh')
+    kw = te.size_var('kw')
 
-    A = tvm.placeholder((n, c, h, w), name='A')
-    B = tvm.placeholder((c, c, kh, kw), name='B')
+    A = te.placeholder((n, c, h, w), name='A')
+    B = te.placeholder((c, c, kh, kw), name='B')
     C = compute_conv(A, B)
     assert C.op.tag == 'conv'
     assert len(C.op.attrs) == 0
 
 def test_nested():
-    n = tvm.size_var('n')
-    c = tvm.size_var('c')
-    h = tvm.size_var('h')
-    w = tvm.size_var('w')
-    kh = tvm.size_var('kh')
-    kw = tvm.size_var('kw')
+    n = te.size_var('n')
+    c = te.size_var('c')
+    h = te.size_var('h')
+    w = te.size_var('w')
+    kh = te.size_var('kh')
+    kw = te.size_var('kw')
 
-    A = tvm.placeholder((n, c, h, w), name='A')
-    B = tvm.placeholder((c, c, kh, kw), name='B')
+    A = te.placeholder((n, c, h, w), name='A')
+    B = te.placeholder((c, c, kh, kw), name='B')
     try:
-        with tvm.tag_scope(tag='conv'):
+        with te.tag_scope(tag='conv'):
             C = compute_conv(A, B)
         assert False
     except ValueError:

@@ -19,6 +19,7 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 
@@ -32,12 +33,8 @@ def is_packed_layout(layout):
         return True
     return False
 
-@autotvm.register_topi_compute(topi.nn.dense, 'vta', 'direct')
-def _declaration_dense(cfg,
-                       data,
-                       weight,
-                       bias=None,
-                       out_dtype=None):
+@autotvm.register_topi_compute("dense_packed.vta")
+def dense_packed(cfg, data, weight, bias=None, out_dtype=None):
     """Dense function declaration."""
 
     # Make sure that the dense operator is packed
@@ -52,11 +49,11 @@ def _declaration_dense(cfg,
     # Reduction axes (input channel)
     assert ishape[1] == wshape[1]
     assert ishape[3] == wshape[3]
-    k_o = tvm.reduce_axis((0, ishape[1]), name='k_o')
-    k_i = tvm.reduce_axis((0, ishape[3]), name='k_i')
-    res = tvm.compute(
+    k_o = te.reduce_axis((0, ishape[1]), name='k_o')
+    k_i = te.reduce_axis((0, ishape[3]), name='k_i')
+    res = te.compute(
         oshape,
-        lambda b_o, c_o, b_i, c_i: tvm.sum(
+        lambda b_o, c_o, b_i, c_i: te.sum(
             data[b_o, k_o, b_i, k_i].astype(out_dtype) *
             weight[c_o, k_o, c_i, k_i].astype(out_dtype),
             axis=[k_o, k_i]),
@@ -67,8 +64,8 @@ def _declaration_dense(cfg,
 
     return res
 
-@autotvm.register_topi_schedule(topi.generic.schedule_dense, 'vta', 'direct')
-def _schedule_dense(cfg, outs):
+@autotvm.register_topi_schedule("dense_packed.vta")
+def schedule_dense_packed(cfg, outs):
     """Packed dense schedule."""
 
     assert len(outs) == 1
@@ -87,7 +84,7 @@ def _schedule_dense(cfg, outs):
                 else:
                     ewise_ops.append(op)
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.PlaceholderOp):
+                if isinstance(tensor.op, tvm.te.PlaceholderOp):
                     ewise_inputs.append((op, tensor))
                 else:
                     _traverse(tensor.op)
@@ -98,7 +95,7 @@ def _schedule_dense(cfg, outs):
     _traverse(output.op)
     assert len(dense_res) == 1
     dense_stage = dense_res[0].output(0)
-    s = tvm.create_schedule(output.op)
+    s = te.create_schedule(output.op)
 
     ##### space definition begin #####
     b, c_o, _, _ = s[dense_stage].op.axis
@@ -151,7 +148,7 @@ def _schedule_dense(cfg, outs):
     if cfg['oc_nthread'].val > 1:
         _, v_t = s[output].split(x_co, factor=cfg['oc_nthread'].val)
         s[output].reorder(v_t, x_bo)
-        s[output].bind(v_t, tvm.thread_axis("cthread"))
+        s[output].bind(v_t, te.thread_axis("cthread"))
 
     x_bo, x_co, x_bi, _ = s[dense_stage].op.axis
     k_o, _ = s[dense_stage].op.reduce_axis

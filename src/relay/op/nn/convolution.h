@@ -153,6 +153,16 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
       << " But got " << out_layout;
 
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
+  bool is_depthwise = false;
+  if (param->groups > 1) {
+    CHECK(weight && weight->shape.defined()) <<
+        "Weight shape must be specified when groups is greater than 1.";
+    Array<IndexExpr> wshape_oihw = trans_kernel_layout.ForwardShape(weight->shape);
+    if (tvm::tir::Equal(param->groups, dshape_nchw[1]) &&
+        tvm::tir::Equal(param->groups, wshape_oihw[0])) {
+      is_depthwise = true;
+    }
+  }
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
   // infer weight if the kernel_size and channels are defined
@@ -161,9 +171,9 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->dilation.size(), 2);
     Array<IndexExpr> wshape;
 
-    if (tvm::tir::Equal(param->channels, param->groups) && !tvm::tir::Equal(param->channels, 1)) {
+    if (is_depthwise) {
       // infer weight's shape for depthwise convolution
-      wshape = {{dshape_nchw[1], indexdiv(param->groups, dshape_nchw[1]), param->kernel_size[0],
+      wshape = {{dshape_nchw[1], indexdiv(param->channels, dshape_nchw[1]), param->kernel_size[0],
                  param->kernel_size[1]}};
     } else {
       wshape = {{param->channels, indexdiv(dshape_nchw[1], param->groups), param->kernel_size[0],

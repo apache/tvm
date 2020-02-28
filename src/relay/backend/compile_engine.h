@@ -30,6 +30,7 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
+#include <tvm/relay/op_strategy.h>
 #include <string>
 #include <functional>
 
@@ -44,6 +45,28 @@ enum ShapeFuncParamState {
   kNeedBoth = 3,
 };
 
+struct LoweredOutputNode : public Object {
+  /*! \brief The outputs to the function */
+  tvm::Array<te::Tensor> outputs;
+  /*! \brief The implementation used to compute the output */
+  OpImplementation implementation;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("outputs", &outputs);
+    v->Visit("implementation", &implementation);
+  }
+
+  static constexpr const char* _type_key = "relay.LoweredOutput";
+  TVM_DECLARE_FINAL_OBJECT_INFO(LoweredOutputNode, Object);
+};
+
+class LoweredOutput : public ObjectRef {
+ public:
+  TVM_DLL LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(LoweredOutput, ObjectRef, LoweredOutputNode);
+};
+
 /*! \brief Node container to represent a cached function. */
 struct CachedFuncNode : public Object {
   /* \brief compiled target */
@@ -54,6 +77,8 @@ struct CachedFuncNode : public Object {
   tvm::Array<te::Tensor> inputs;
   /* \brief The outputs to the function */
   tvm::Array<te::Tensor> outputs;
+  /*! \brief The schedule to the function */
+  te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
   tvm::Array<tir::LoweredFunc> funcs;
   /*! \brief Parameter usage states in the shape function. */
@@ -64,6 +89,7 @@ struct CachedFuncNode : public Object {
     v->Visit("func_name", &func_name);
     v->Visit("inputs", &inputs);
     v->Visit("outputs", &outputs);
+    v->Visit("schedule", &schedule);
     v->Visit("funcs", &funcs);
     v->Visit("shape_func_param_states", &shape_func_param_states);
   }

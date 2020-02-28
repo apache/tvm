@@ -18,14 +18,24 @@
 from __future__ import print_function
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
+_argsort_implement = {
+    "generic": (topi.argsort, topi.generic.schedule_argsort),
+    "gpu": (topi.cuda.argsort, topi.cuda.schedule_argsort),
+}
+
+_topk_implement = {
+    "generic": (topi.topk, topi.generic.schedule_topk),
+    "gpu": (topi.cuda.topk, topi.cuda.schedule_topk),
+}
 
 def verify_argsort(axis, is_ascend):
     dshape = (20, 100)
     data_dtype = "float32"
-    data = tvm.placeholder(dshape, name="data", dtype=data_dtype)
+    data = te.placeholder(dshape, name="data", dtype=data_dtype)
 
     perm = np.arange(dshape[0] * dshape[1], dtype=data_dtype)
     np.random.shuffle(perm)
@@ -48,8 +58,9 @@ def verify_argsort(axis, is_ascend):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.argsort(data, axis=axis, is_ascend=is_ascend)
-            s = topi.generic.schedule_argsort(out)
+            fcompute, fschedule = topi.testing.dispatch(device, _argsort_implement)
+            out = fcompute(data, axis=axis, is_ascend=is_ascend)
+            s = fschedule(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
@@ -64,7 +75,7 @@ def verify_argsort(axis, is_ascend):
 def verify_topk(k, axis, ret_type, is_ascend, dtype):
     shape = (20, 100)
     data_dtype = "float32"
-    data = tvm.placeholder(shape, name="data", dtype=data_dtype)
+    data = te.placeholder(shape, name="data", dtype=data_dtype)
 
     np_data = np.random.uniform(size=shape).astype(data_dtype)
     if is_ascend:
@@ -91,9 +102,10 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            outs = topi.topk(data, k, axis, ret_type, is_ascend, dtype)
+            fcompute, fschedule = topi.testing.dispatch(device, _topk_implement)
+            outs = fcompute(data, k, axis, ret_type, is_ascend, dtype)
             outs = outs if isinstance(outs, list) else [outs]
-            s = topi.generic.schedule_topk(outs)
+            s = fschedule(outs)
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_res = []
         for t in outs:

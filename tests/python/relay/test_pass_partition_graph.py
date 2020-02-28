@@ -21,6 +21,7 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm import te
 import tvm.relay.testing
 import tvm.relay.transform as transform
 from tvm import relay

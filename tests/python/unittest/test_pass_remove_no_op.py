@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def nop():
     return tvm.tir.Evaluate(0)
 
 def test_remove_no_op():
-    i = tvm.var('i')
-    j = tvm.var('j')
-    k = tvm.var('k')
-    m = tvm.var('m')
-    n = tvm.var('n')
+    i = te.var('i')
+    j = te.var('j')
+    k = te.var('k')
+    m = te.var('m')
+    n = te.var('n')
     dtype = 'int64'
-    Ab = tvm.decl_buffer((n, ), dtype)
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
     stmt = tvm.tir.For(
         i, 0, 4, 0, 0,
         tvm.tir.For(
@@ -35,16 +36,16 @@ def test_remove_no_op():
                 k, 0, m, 0, 0,
                 tvm.tir.IfThenElse(
                     (i*m+j+k < n), tvm.tir.Evaluate(m), tvm.tir.Evaluate(n)))))
-    ret = tvm.ir_pass.RemoveNoOp(stmt)
+    ret = tvm.tir.ir_pass.RemoveNoOp(stmt)
     assert(isinstance(ret, tvm.tir.Evaluate))
     store = tvm.tir.Store(Ab.data,
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1)
     stmt2 = tvm.tir.SeqStmt([nop(), tvm.tir.SeqStmt([store, nop()])])
-    assert(tvm.ir_pass.RemoveNoOp(stmt2) == store)
+    assert(tvm.tir.ir_pass.RemoveNoOp(stmt2) == store)
     # remove zero extent loop
     stmt3 = tvm.tir.For(i, 0, 0, 0, 0, store)
-    ret = tvm.ir_pass.RemoveNoOp(stmt3)
+    ret = tvm.tir.ir_pass.RemoveNoOp(stmt3)
     assert(isinstance(ret, tvm.tir.Evaluate))
 
 

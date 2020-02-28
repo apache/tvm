@@ -20,6 +20,7 @@ from __future__ import absolute_import, print_function
 
 import os, shutil, SimpleHTTPServer, SocketServer
 import tvm
+from tvm import te
 from tvm.contrib import emscripten, util
 import numpy as np
 
@@ -30,11 +31,11 @@ def try_static_webgl_library():
     os.chdir(os.path.join(curr_path, "../../lib"))
 
     # Create OpenGL module.
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A', dtype="float")
-    B = tvm.compute((n,), lambda *i: A[i], name="B")
+    n = te.var("n")
+    A = te.placeholder((n,), name='A', dtype="float")
+    B = te.compute((n,), lambda *i: A[i], name="B")
 
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     s[B].opengl()
 
     target_host = "llvm -target=asmjs-unknown-emscripten -system-lib"

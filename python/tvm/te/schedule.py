@@ -517,4 +517,39 @@ class Stage(Object):
         _ffi_api.StageOpenGL(self)
 
 
+@tvm._ffi.register_object
+class SpecializedCondition(Object):
+    """Specialized condition to enable op specialization."""
+    def __init__(self, conditions):
+        """Create a specialized condition.
+
+        .. note::
+            Conditions are represented in conjunctive joint form (CNF).
+            Each condition should be a simple expression, e.g., n > 16,
+            m % 8 == 0, etc., where n, m are tvm.Var that represents a
+            dimension in the tensor shape.
+
+        Parameters
+        ----------
+        conditions : List of tvm.Expr
+            List of conditions in conjunctive joint form (CNF).
+        """
+        if not isinstance(conditions, (list, _container.Array)):
+            conditions = [conditions]
+        self.__init_handle_by_constructor__(
+            _ffi_api.CreateSpecializedCondition, conditions)
+
+    @staticmethod
+    def current():
+        """Returns the current specialized condition"""
+        return _ffi_api.GetCurrentSpecialization()
+
+    def __enter__(self):
+        _ffi_api.EnterSpecializationScope(self)
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        _ffi_api.ExitSpecializationScope(self)
+
+
 tvm._ffi._init_api("schedule", __name__)
