@@ -802,12 +802,27 @@ def test_segmentaton_models():
                      ctx_list=[("cuda", tvm.gpu(0))])
 
 
-def run_and_compare_vm(mod, params, pt_result):
+def verify_script_model(pt_model, ishapes):
+    script_module = torch.jit.script(pt_model)
+    input_names = get_graph_input_names(script_module)
+    input_shapes = dict(zip(input_names, ishapes))
+
+    inputs = [torch.randn(input_shapes[input_name], dtype=torch.float)
+              for input_name in input_names]
+
+    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+
     executor = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0),
                                      target="llvm")
     evaluator = executor.evaluate()
 
+    for name, inp in zip(input_names, inputs):
+        params[name] = inp.numpy()
+
     op_res = evaluator(**params)
+
+    with torch.no_grad():
+        pt_result = pt_model(*inputs)
 
     if not isinstance(pt_result, torch.Tensor):
         tvm_res = op_res.asnumpy().item()
@@ -917,24 +932,13 @@ def test_control_flow():
         NestedLoop(),
     ]
 
-    for raw_model in models:
-        raw_model.eval()
-        script_module = torch.jit.script(raw_model)
-        input_name = get_graph_input_names(script_module)[0]
-        input_shapes = {input_name: (10, 20)}
-        mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
-
-        for i in range(5):
-            inp = torch.randn(input_shapes[input_name], dtype=torch.float)
-            with torch.no_grad():
-                pt_result = raw_model(inp.clone())
-
-            params[input_name] = inp.numpy()
-
-            run_and_compare_vm(mod, params, pt_result)
+    for pt_model in models:
+        verify_script_model(pt_model.eval(), [(10, 20)])
 
 
 def test_simple_rnn():
+    # The mixed tracing and scripting example from
+    # https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html#mixing-scripting-and-tracing
     class DecisionGate(torch.nn.Module):
         def forward(self, x):
             if x.sum() > 0:
@@ -952,8 +956,6 @@ def test_simple_rnn():
             new_h = torch.tanh(self.dg(self.linear(x)) + h)
             return new_h, new_h
 
-    # The mixed tracing and scripting example from
-    # https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html#mixing-scripting-and-tracing
     class RNNLoop(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -968,21 +970,7 @@ def test_simple_rnn():
                 y, h = self.cell(xs[i], h)
             return y
 
-    raw_model = RNNLoop().eval()
-    script_module = torch.jit.script(raw_model)
-    input_name = get_graph_input_names(script_module)[0]
-    input_shapes = {input_name: (10, 10, 4)}
-
-    mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
-
-    for i in range(5):
-        inp = torch.randn(input_shapes[input_name], dtype=torch.float)
-        with torch.no_grad():
-            pt_result = raw_model(inp.clone())
-
-        params[input_name] = inp.numpy()
-
-        run_and_compare_vm(mod, params, pt_result)
+    verify_script_model(RNNLoop().eval(), [(10, 10, 4)])
 
 
 if __name__ == "__main__":

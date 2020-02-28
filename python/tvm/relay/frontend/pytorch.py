@@ -983,9 +983,13 @@ def _get_input_types(op_node):
         input_node_kind = in_ty.kind()
         if input_node_kind == 'TensorType':
             if in_ty.scalarType() is None:
-                input_list_types.append(None)
+                # Tensor's type can be unknown if we use torch.jit.script(...)
+                # Defaults to float for now
+                logging.warn("Untyped Tensor found, assume it is float")
+                input_list_types.append("float")
             else:
                 input_list_types.append(in_ty.scalarType().lower())
+
         elif input_node_kind == 'ListType':
             input_list_types.append(str(in_ty.getElementType()).lower())
         elif input_node_kind in ['IntType', 'FloatType', 'BoolType',
@@ -1135,8 +1139,8 @@ def parse_params(graph, state_dict):
 
 
 def parse_block(block, outputs, output_index_map):
-    ops = get_operator_nodes(block.nodes())
-    ret_name = get_input_names(block.returnNode())[0]
+    ops = _get_operator_nodes(block.nodes())
+    ret_name = _get_input_names(block.returnNode())[0]
     return parse_operators(ops, outputs, output_index_map, ret_name)
 
 
@@ -1145,7 +1149,7 @@ def parse_loop(op_node, outputs, output_index_map):
     def get_input(index):
         inode = op_node.inputsAt(index).node()
         if inode.kind() == "prim::Constant":
-            return _expr.const(get_constant(inode))
+            return _expr.const(_get_constant(inode))
         var_name = op_node.inputsAt(index).debugName()
         assert var_name in output_index_map
         output_ind = output_index_map[var_name]
@@ -1169,10 +1173,10 @@ def parse_loop(op_node, outputs, output_index_map):
         init_loop_iter_val = init_cond
 
     body_block = list(op_node.blocks())[0]
-    inames = get_input_names(body_block)
+    inames = _get_input_names(body_block)
     loop_input_vals = [init_loop_iter_val] + init_vals
     name_val_pairs = list(zip(inames, loop_input_vals))
-    update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
+    _update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
 
     def get_outputs(outputs, output_index_map, names):
         return [_wrap_const(outputs[output_index_map[name]])
@@ -1192,7 +1196,7 @@ def parse_loop(op_node, outputs, output_index_map):
 
         parse_block(body_block, outputs, output_index_map)
 
-        block_output_names = get_output_names(body_block)
+        block_output_names = _get_output_names(body_block)
         block_outputs = get_outputs(outputs, output_index_map,
                                     block_output_names)
         if is_for_loop:
