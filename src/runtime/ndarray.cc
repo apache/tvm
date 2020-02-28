@@ -188,7 +188,7 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
 void NDArray::CopyToBytes(void* data, size_t nbytes) const {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-  CHECK_EQ(TVMArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes), 0);
+  CHECK_EQ(TVMArrayCopyToBytes(&get_mutable()->dl_tensor, data, nbytes), 0);
 }
 
 void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
