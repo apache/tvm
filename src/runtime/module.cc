@@ -198,5 +198,17 @@ TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
 .set_body_typed([](Module mod, std::string name, std::string fmt) {
   mod->SaveToFile(name, fmt);
 });
+
+TVM_REGISTER_GLOBAL("runtime._IsEmpty")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = args[0].operator Module().IsEmpty();
+});
+
+TVM_REGISTER_GLOBAL("runtime._CreateEmptyModule")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Module m;
+    *ret = m;
+});
+
 }  // namespace runtime
 }  // namespace tvm
