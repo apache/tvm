@@ -50,6 +50,3 @@ python3 -m pytest -v tests/python/frontend/caffe2
 
 echo "Running relay DarkNet frontend test..."
 python3 -m pytest -v tests/python/frontend/darknet
-
-echo "Running relay PyTorch frontend test..."
-python3 -m pytest -v tests/python/frontend/pytorch_neo
