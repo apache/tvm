@@ -39,8 +39,6 @@ namespace relay {
 namespace backend {
 
 using tir::LoweredFunc;
-using tir::MakeAPI;
-using tir::EvaluateNode;
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
@@ -442,39 +440,25 @@ class RelayBuildModule : public runtime::ModuleNode {
 
     auto lowered_funcs = graph_codegen_->GetLoweredFunc();
 
-    // When there is no lowered_funcs due to reasons such as optimization,
-    // we first try to generate a dummy one if the target host is "llvm".
+    // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
-      // Decide first the target host
-      Target target_host_val = target_host_;
-      if (!target_host_.defined()) {
-        for (const auto &it : targets_) {
-          if (it.second->device_type == kDLCPU) {
-            target_host_val = it.second;
-            break;
-          }
-        }
-      }
+      Target target_host = GetTargetHost();
 
       // If no target_host has been set, we choose a default one, which is
-      // llvm if "codegen.build_llvm" is accessible.
-      const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.build_llvm");
-      if (!target_host_val.defined())
-        target_host_val = (pf != nullptr) ? target::llvm() : target::stackvm();
+      // llvm if "codegen.LLVMModuleCreate" is accessible.
+      const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
+      if (!target_host.defined())
+        target_host = (pf != nullptr) ? target::llvm() : target::stackvm();
 
-      if (target_host_val.defined() && target_host_val->target_name == "llvm")
-        lowered_funcs.Set(
-          target_host_val->str(),
-          Array<LoweredFunc>({
-             MakeAPI(EvaluateNode::make(0), "__dummy__", Array<ObjectRef>(), 0, false) }));
-    }
-
-    if (lowered_funcs.size() == 0) {
-      // If there is still no lowered_funcs, a fallback solution is to create a module
-      // with empty code content.
-      // The code content is initialized with ";" to prevent complaining
-      // from CSourceModuleNode::SaveToFile.
-      ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
+      if (target_host.defined() && target_host->target_name == "llvm") {
+        // If we can decide the target is LLVM, we then create an empty LLVM module.
+        ret_.mod = (*pf)(target_host->str());
+      } else {
+        // If we cannot decide the target is LLVM, we create an empty CSourceModule.
+        // The code content is initialized with ";" to prevent complaining
+        // from CSourceModuleNode::SaveToFile.
+        ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
+      }
     } else {
       ret_.mod = tvm::build(
         lowered_funcs,
@@ -486,6 +470,20 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Import all external runtime modules.
     for (const auto& it : ext_mods)
       ret_.mod.Import(it);
+  }
+
+ private:
+  Target GetTargetHost() {
+    Target target_host = target_host_;
+    if (!target_host_.defined()) {
+      for (const auto &it : targets_) {
+        if (it.second->device_type == kDLCPU) {
+          target_host = it.second;
+          break;
+        }
+      }
+    }
+    return target_host;
   }
 
  protected:
