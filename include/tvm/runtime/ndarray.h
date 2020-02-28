@@ -327,7 +327,6 @@ inline void NDArray::CopyFrom(const NDArray& other) {
 inline void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-  CHECK(nbytes > 0);
 
   // Make a temporary copy of the dltensor
   DLTensor input = get_mutable()->dl_tensor;
