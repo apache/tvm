@@ -91,7 +91,7 @@ class NDArray : public ObjectRef {
   inline void CopyTo(DLTensor* other) const;
   inline void CopyTo(const NDArray& other) const;
   /*!
-   * \brief Copy data content into a byte buffer
+   * \brief Copy data content into another array.
    * \param data The source bytes to be copied from.
    * \param nbytes The size of the data buffer.
    *        Must be equal to the size of the NDArray.
@@ -327,21 +327,7 @@ inline void NDArray::CopyFrom(const NDArray& other) {
 inline void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-
-  // Make a temporary copy of the dltensor
-  DLTensor input = get_mutable()->dl_tensor;
-
-  CHECK_EQ(nbytes, GetDataSize(input))
-      << "CopyFromBytes: The size must exactly match";
-
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
-  // Overwrite our temporary dltensor with a CPU context
-  input.ctx = cpu_ctx;
-  input.data = const_cast<void*>(data);
-  
-  CopyFrom(&input);
+  CHECK_EQ(TVMArrayCopyFromBytes(&get_mutable()->dl_tensor, const_cast<void*>(data), nbytes), 0);
 }
 
 inline void NDArray::CopyTo(DLTensor* other) const {
@@ -358,21 +344,7 @@ inline void NDArray::CopyTo(const NDArray& other) const {
 inline void NDArray::CopyToBytes(void* data, size_t nbytes) const {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-
-  // Make a temporary copy of the dltensor
-  DLTensor output = get_mutable()->dl_tensor;
-  
-  CHECK_EQ(nbytes, GetDataSize(output))
-    << "CopyToBytes: The size must exactly match";
-  
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
-  // Overwrite our temporary dltensor with a CPU context
-  output.ctx = cpu_ctx;
-  output.data = data;
-  
-  CopyTo(&output);
+  CHECK_EQ(TVMArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes), 0);
 }
 
 inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
