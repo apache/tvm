@@ -59,7 +59,7 @@ void Update(std::unordered_map<IterVar, Range>* p_state,
  * \param p_state The propagation result of each IterVar.
  */
 void PassUpThreadBinding(const Stage& stage, std::unordered_map<IterVar, bool>* p_state) {
-  auto bound_to_thread = [stage](const IterVar& iv) {
+  auto bound_to_thread = [&stage](const IterVar& iv) {
     bool bound = false;
     auto it = stage->iter_var_attrs.find(iv);
     if (it != stage->iter_var_attrs.end()) {
@@ -70,7 +70,7 @@ void PassUpThreadBinding(const Stage& stage, std::unordered_map<IterVar, bool>* 
 
   auto& state = *p_state;
   // Fill p_state with leaf itervars
-  for (IterVar iv : stage->leaf_iter_vars) {
+  for (const IterVar& iv : stage->leaf_iter_vars) {
     state[iv] = bound_to_thread(iv);
   }
   // Traverse the graph bottom-up to propagate thread binding information
@@ -94,14 +94,14 @@ void PassDownDomain(const Stage& stage,
                     std::unordered_map<IterVar, Range>* p_state,
                     arith::Analyzer* actx,
                     bool allow_missing) {
-  auto ceil_div = [actx](PrimExpr a, PrimExpr b) {
+  auto ceil_div = [actx](const PrimExpr& a, const PrimExpr& b) {
     if (actx->CanProve(indexmod(a, b) == 0)) {
       return actx->Simplify(indexdiv(a, b));
     }
     return actx->Simplify(indexdiv(a + (b - 1), b));
   };
 
-  auto minimum_or_later  = [actx](PrimExpr a, PrimExpr b) {
+  auto minimum_or_later  = [actx](const PrimExpr& a, const PrimExpr& b) {
     if (actx->CanProve(a < b)) {
       return actx->Simplify(a);
     }
@@ -132,7 +132,7 @@ void PassDownDomain(const Stage& stage,
       // 3. range_parent's extent is not 0.  At lest one Topi test has a case where a tensor has one
       // zero-sized dimension.  Split creates iv with a positive extent to avoid zero-extent
       // IterVar.  We don't touch it.
-      auto resolve_min_extent_for_split = [&](IterVar iv, PrimExpr factor_or_nparts) {
+      auto resolve_min_extent_for_split = [&](const IterVar& iv, const PrimExpr& factor_or_nparts) {
         return dominating_thread[iv] || allow_missing || is_zero(range_parent->extent)
                    ? factor_or_nparts
                    : minimum_or_later(range_parent->extent, factor_or_nparts);
