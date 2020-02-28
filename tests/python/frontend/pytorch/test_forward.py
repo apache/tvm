@@ -31,6 +31,8 @@ import torchvision
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
+from tvm.relay.frontend.pytorch import get_graph_input_names
+
 
 sys.setrecursionlimit(10000)
 
@@ -94,6 +96,7 @@ def load_model(model_name):
     if hasattr(torchvision.models, model_name):
         return load_torchvision(model_name)
     try:
+        import pretrainedmodels
         if hasattr(pretrainedmodels, model_name):
             return load_pretrainedmodels(model_name)
     except ModuleNotFoundError:
@@ -167,16 +170,15 @@ def verify_model(model_name, input_data=[]):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
         baseline_outputs = (baseline_outputs.float().cpu().numpy(),)
-    output_shapes = [out.shape for out in baseline_outputs]
-    dtype = "float32"
-    input_name = "input0"
-    input_shapes = {input_name: list(baseline_input.shape)}
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
+
     if torch.cuda.is_available():
         trace = trace.cuda()
     else:
         trace = trace.cpu()
 
+    input_name = get_graph_input_names(trace)[0]  # only one input
+    input_shapes = {input_name: list(baseline_input.shape)}
     mod, params = relay.frontend.from_pytorch(trace, input_shapes)
     compiled_input = {input_name: tvm.nd.array(baseline_input.cpu().numpy())}
 
@@ -276,7 +278,7 @@ def test_forward_multiply():
 
     class Multiply2(Module):
         def forward(self, *args):
-            return args[0] * 1
+            return args[0] * 1.0
 
     class Multiply3(Module):
         def forward(self, *args):
@@ -507,7 +509,7 @@ def test_forward_size():
 
     class Size1(Module):
         def forward(self, *args):
-            return args[0].size(0) * args[0]
+            return float(args[0].size(0)) * args[0]
 
     with torch.no_grad():
         input_data = torch.rand(input_shape).float()
@@ -708,6 +710,10 @@ def test_mnasnet0_5():
     torch.set_grad_enabled(False)
     verify_model("mnasnet0_5")
 
+def test_mobilenet_v2():
+    torch.set_grad_enabled(False)
+    verify_model("mobilenet_v2")
+
 """
 #TODO: Fix VGG and AlexNet issues (probably due to pooling)
 def test_alexnet():
@@ -721,12 +727,8 @@ def test_vgg11():
 def test_vgg11_bn():
     torch.set_grad_enabled(False)
     verify_model("vgg11_bn")
-
-#TODO: Need to update schedule in tophub file after PR #4787 updated workloads
-def test_mobilenet_v2():
-    torch.set_grad_enabled(False)
-    verify_model("mobilenet_v2")
 """
+
 
 if __name__ == "__main__":
     # Single operator tests
@@ -767,3 +769,4 @@ if __name__ == "__main__":
     test_inception_v3()
     test_googlenet()
     test_mnasnet0_5()
+    test_mobilenet_v2()

@@ -41,14 +41,13 @@ Currently, TVM supports PyTorch 1.4, 1.3, and 1.2. Other versions may
 be unstable.
 """
 
-# tvm, relay
 import tvm
 from tvm import relay
 
-# numpy, packaging
 import numpy as np
-from packaging import version
+
 from tvm.contrib.download import download_testdata
+from tvm.relay.frontend.pytorch import get_graph_input_names
 
 # PyTorch imports
 import torch
@@ -91,7 +90,8 @@ img = np.expand_dims(img, 0)
 # Import the graph to Relay
 # -------------------------
 # Convert PyTorch graph to Relay graph.
-shape_dict = {'img': img.shape}
+input_name = get_graph_input_names(scripted_model)[0]  # only one input
+shape_dict = {input_name: img.shape}
 mod, params = relay.frontend.from_pytorch(scripted_model,
                                           shape_dict)
 
@@ -116,12 +116,12 @@ from tvm.contrib import graph_runtime
 dtype = 'float32'
 m = graph_runtime.create(graph, lib, ctx)
 # Set inputs
-m.set_input('img', tvm.nd.array(img.astype(dtype)))
+m.set_input(input_name, tvm.nd.array(img.astype(dtype)))
 m.set_input(**params)
 # Execute
 m.run()
 # Get outputs
-tvm_output = m.get_output(0, tvm.nd.empty(((1, 1000)), 'float32'))
+tvm_output = m.get_output(0)
 
 #####################################################################
 # Look up synset name
