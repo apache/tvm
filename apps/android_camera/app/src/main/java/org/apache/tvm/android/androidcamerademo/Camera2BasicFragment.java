@@ -96,7 +96,7 @@ public class Camera2BasicFragment extends Fragment implements
     private static final String MODEL_CPU_LIB_FILE = "file:///android_asset/deploy_lib_cpu.so";
     private static final String MODEL_GRAPH_FILE = "file:///android_asset/deploy_graph.json";
     private static final String MODEL_PARAM_FILE = "file:///android_asset/deploy_param.params";
-    private static final String MODEL_LABEL_FILE = "file:///android_asset/imagenet.txt";
+    private static final String MODEL_LABEL_FILE = "file:///android_asset/imagenet.shortnames.list";
     private static String[] MODELS;
     private static String mCurModel = "";
     private boolean mRunClassifier = false;
@@ -136,9 +136,6 @@ public class Camera2BasicFragment extends Fragment implements
             return null;
         }
         for (String asset : assetList) {
-            System.err.println("asset: " + asset);
-            // hack
-            // hack
             if (asset.contains("deploy_lib")) {
                 modelAssets.add(asset);
             }
@@ -198,7 +195,7 @@ public class Camera2BasicFragment extends Fragment implements
     }
 
     private void updateActiveModel() {
-        System.err.println("updating active model...");
+        Log.i(TAG, "updating active model...");
         new LoadModelAsyncTask().execute();
     }
 
@@ -219,7 +216,6 @@ public class Camera2BasicFragment extends Fragment implements
 
         mModelView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
         MODELS = getModelAssets();
-        System.err.println(MODELS);
 
         ArrayAdapter<String> modelAdapter =
                 new ArrayAdapter<>(
@@ -230,19 +226,16 @@ public class Camera2BasicFragment extends Fragment implements
                 (parent, view1, position, id) -> updateActiveModel());
 
         new LoadModelAsyncTask().execute();
-        System.err.println("view created...");
     }
 
     @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
-        System.err.println("activity created...");
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        System.err.println("on resume...");
     }
 
     @Override
@@ -333,7 +326,7 @@ public class Camera2BasicFragment extends Fragment implements
 
         YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, image.getWidth(), image.getHeight(), null);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        yuvImage.compressToJpeg(new Rect(0, 0, yuvImage.getWidth(), yuvImage.getHeight()), 75, out);
+        yuvImage.compressToJpeg(new Rect(0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE), 100, out);
 
         byte[] imageBytes = out.toByteArray();
         return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
@@ -342,7 +335,7 @@ public class Camera2BasicFragment extends Fragment implements
     private float[] getFrame(ImageProxy imageProxy) {
         int pixel = 0;
         @SuppressLint("UnsafeExperimentalUsageError") Image image = imageProxy.getImage();
-        if(image!=null) {
+        if (image != null) {
             Bitmap bitmap = toBitmap(image);
             bitmap.getPixels(mRGBValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
         }
@@ -419,9 +412,11 @@ public class Camera2BasicFragment extends Fragment implements
                 }
                 msg += "getFrame(): " + (t2 - t1) + "ms" + "\n";
                 msg += "inference(): " + (t3 - t2) + "ms" + "\n";
-
-                mResultView.setText("model: " + mCurModel + "\n" + results[0]);
-                mInfoView.setText(msg);
+                String finalMsg = msg;
+                this.getActivity().runOnUiThread(()-> {
+                            mResultView.setText(String.format("model: %s \n %s", mCurModel, results[0]));
+                            mInfoView.setText(finalMsg);
+                        });
                 isProcessingDone.release();
             }
             image.close();
@@ -462,25 +457,25 @@ public class Camera2BasicFragment extends Fragment implements
             String model = MODELS[modelIndex];
 
             String labelFilename = MODEL_LABEL_FILE.split("file:///android_asset/")[1];
-            System.err.println("Reading synset name from: " + labelFilename);
+            Log.i(TAG, "Reading synset name from: " + labelFilename);
             try {
                 String labelsContent = new String(getBytesFromFile(assetManager, labelFilename));
                 for (String line : labelsContent.split("\\r?\\n")) {
                     labels.add(line);
                 }
             } catch (IOException e) {
-                System.err.println("Problem reading synset name file!" + e);
+                Log.e(TAG, "Problem reading synset name file!",  e);
                 return -1;//failure
             }
 
             // load json graph
             String modelGraph = null;
             String graphFilename = MODEL_GRAPH_FILE.split("file:///android_asset/")[1];
-            System.err.println("Reading json graph from: " + graphFilename);
+            Log.i(TAG, "Reading json graph from: " + graphFilename);
             try {
                 modelGraph = new String(getBytesFromFile(assetManager, graphFilename));
             } catch (IOException e) {
-                System.err.println("Problem reading json graph file!" + e);
+                Log.e(TAG, "Problem reading json graph file!", e);
                 return -1;//failure
             }
 
@@ -488,7 +483,7 @@ public class Camera2BasicFragment extends Fragment implements
             String libCacheFilePath = null;
             String libFilename = EXE_GPU ? MODEL_CL_LIB_FILE.split("file:///android_asset/")[1] :
                     MODEL_CPU_LIB_FILE.split("file:///android_asset/")[1];
-            System.err.println("Uploading compiled function to cache folder");
+            Log.i(TAG, "Uploading compiled function to cache folder");
             try {
                 libCacheFilePath = getTempLibFilePath(libFilename);
                 byte[] modelLibByte = getBytesFromFile(assetManager, libFilename);
@@ -496,7 +491,7 @@ public class Camera2BasicFragment extends Fragment implements
                 fos.write(modelLibByte);
                 fos.close();
             } catch (IOException e) {
-                System.err.println("Problem uploading compiled function!" + e);
+                Log.e(TAG, "Problem uploading compiled function!", e);
                 return -1;//failure
             }
 
@@ -506,28 +501,28 @@ public class Camera2BasicFragment extends Fragment implements
             try {
                 modelParams = getBytesFromFile(assetManager, paramFilename);
             } catch (IOException e) {
-                System.err.println("Problem reading params file!" + e);
+                Log.e(TAG, "Problem reading params file!", e);
                 return -1;//failure
             }
 
-            System.err.println("creating java tvm context...");
+            Log.i(TAG, "creating java tvm context...");
             // create java tvm context
             TVMContext tvmCtx = EXE_GPU ? TVMContext.opencl() : TVMContext.cpu();
 
-            System.err.println("loading compiled functions...");
-            System.err.println(libCacheFilePath);
+            Log.i(TAG, "loading compiled functions...");
+            Log.i(TAG, libCacheFilePath);
             // tvm module for compiled functions
             Module modelLib = Module.load(libCacheFilePath);
 
 
             // get global function module for graph runtime
-            System.err.println("getting graph runtime create handle...");
+            Log.i(TAG, "getting graph runtime create handle...");
 
             Function runtimeCreFun = Function.getFunction("tvm.graph_runtime.create");
-            System.err.println("creating graph runtime...");
+            Log.i(TAG, "creating graph runtime...");
 
-            System.err.println("ctx type: " + tvmCtx.deviceType);
-            System.err.println("ctx id: " + tvmCtx.deviceId);
+            Log.i(TAG, "ctx type: " + tvmCtx.deviceType);
+            Log.i(TAG, "ctx id: " + tvmCtx.deviceId);
 
             TVMValue runtimeCreFunRes = runtimeCreFun.pushArg(modelGraph)
                     .pushArg(modelLib)
@@ -535,12 +530,12 @@ public class Camera2BasicFragment extends Fragment implements
                     .pushArg(tvmCtx.deviceId)
                     .invoke();
 
-            System.err.println("as module...");
+            Log.i(TAG, "as module...");
             graphRuntimeModule = runtimeCreFunRes.asModule();
-            System.err.println("getting graph runtime load params handle...");
+            Log.i(TAG, "getting graph runtime load params handle...");
             // get the function from the module(load parameters)
             Function loadParamFunc = graphRuntimeModule.getFunction("load_params");
-            System.err.println("loading params...");
+            Log.i(TAG, "loading params...");
             loadParamFunc.pushArg(modelParams).invoke();
             // release tvm local variables
             modelLib.release();

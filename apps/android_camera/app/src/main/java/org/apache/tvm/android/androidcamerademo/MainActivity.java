@@ -15,13 +15,11 @@
  * limitations under the License.
  */
 
-
 package org.apache.tvm.android.androidcamerademo;
 
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
-
 
 public class MainActivity extends AppCompatActivity {
     @Override
@@ -34,7 +32,6 @@ public class MainActivity extends AppCompatActivity {
                     .beginTransaction()
                     .replace(R.id.container, Camera2BasicFragment.newInstance())
                     .commit();
-            System.err.println("done getfragmentmanager...");
         }
     }
 }
