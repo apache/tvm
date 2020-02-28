@@ -139,15 +139,16 @@ def verify_model(model_name, input_data=[],
                  ctx_list=ctx_list()):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
-    if len(input_data) == 0:
+    if isinstance(model_name, str):
         baseline_model, baseline_input = load_model(model_name)
-    elif isinstance(input_data, torch.Tensor):
+    elif isinstance(input_data, list):
+        baseline_model = model_name
+        baseline_input = input_data
+    elif isinstance(input_data, torch.Tensor) or len(input_data.shape) == 0:
         baseline_model = model_name
         baseline_input = [input_data]
     else:
-        assert isinstance(input_data, list)
-        baseline_model = model_name
-        baseline_input = input_data
+        assert False, "Unexpected input format"
 
     if torch.cuda.is_available():
         baseline_model = baseline_model.cuda()
@@ -672,6 +673,36 @@ def test_upsample():
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
 
+def test_to():
+    """ test for aten::to(...) """
+    class ToCPU(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x.to("cpu")
+
+    class ToFloat(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x.float()
+
+    class ToInt(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x.int()
+
+    verify_model(ToCPU().eval(), torch.rand((1, 3, 32, 32)))
+    verify_model(ToFloat().eval(), torch.zeros((1, 3, 32, 32), dtype=torch.int))
+    verify_model(ToFloat().eval(), torch.tensor(2, dtype=torch.int))
+    verify_model(ToInt().eval(), torch.zeros((1, 3, 32, 32)))
+    verify_model(ToInt().eval(), torch.tensor(2.0))
+
+
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
@@ -801,6 +832,7 @@ if __name__ == "__main__":
     test_forward_pow()
     test_forward_chunk()
     test_upsample()
+    test_to()
 
     # Model tests
     test_resnet18()

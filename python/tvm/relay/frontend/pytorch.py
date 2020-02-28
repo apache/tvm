@@ -623,15 +623,25 @@ def _floor():
 def _to():
     def _impl(inputs, input_types):
         data = inputs[0]
+        if inputs[3] in ["cpu", "cuda"]:
+            return data
         # special handling for aten::to(data, 6, _, _, _) case
         # 6 means dtype = float
         # this happens when converting upsampling with scale factor
         cast_func = {
             6: float,
+            3: int,
+        }
+        cast_func_expr = {
+            6: lambda x: _op.cast(x, "float32"),
+            3: lambda x: _op.cast(x, "int32"),
         }
         if inputs[1] in cast_func and not isinstance(data, _expr.Expr):
             return cast_func[inputs[1]](data)
+        elif inputs[1] in cast_func and isinstance(data, _expr.Expr):
+            return cast_func_expr[inputs[1]](data)
         return data
+
     return _impl
 
 def _upsample(method):
