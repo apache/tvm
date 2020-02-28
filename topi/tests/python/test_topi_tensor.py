@@ -114,6 +114,8 @@ def verify_vectorization(n, m, dtype):
 
 def test_vectorization():
     verify_vectorization(128, 64, "float16")
+    verify_vectorization(128, 64, "float32")
+    verify_vectorization(128, 64, "int32")
 
 def test_elemwise_sum():
     verify_elemwise_sum(1, "float32")

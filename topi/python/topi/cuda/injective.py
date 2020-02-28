@@ -39,9 +39,13 @@ def schedule_injective_from_existing(sch, out):
     num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
     max_block = 256
 
-    # vectorize on fp16 data type. This allows to better utilize the memory
-    # bandwidth.
-    vector_width = 4 if out.dtype == "float16" else 1
+    # vectorize on fp16 and fp32 data types. This allows to better utilize
+    # the memory bandwidth.
+    vector_width = 1
+    if out.dtype == "float16":
+        vector_width = 8
+    elif out.dtype == "float32" or out.dtype == "int32":
+        vector_width = 4
 
     try:
         const_size = util.get_const_int(util.prod(out.shape))
