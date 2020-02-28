@@ -765,7 +765,7 @@ def _Bool():
 def _Float():
     def _impl(inputs, input_types):
         assert len(inputs) == 1
-        return _op.cast(inputs[0], "float")
+        return _op.cast(inputs[0], "float32")
     return _impl
 
 # Helper functions for operator implementation
@@ -1144,20 +1144,16 @@ def parse_block(block, outputs, output_index_map):
 
 def parse_loop(op_node, outputs, output_index_map):
     """ Translate Torch prim::Loop to Relay while_loop """
-    # Refer to the spec for prim::Loop below
-    # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
     def get_input(index):
         inode = op_node.inputsAt(index).node()
         if inode.kind() == "prim::Constant":
             return _expr.const(_get_constant(inode))
         var_name = op_node.inputsAt(index).debugName()
         assert var_name in output_index_map
-        output_ind = output_index_map[var_name]
-        out = outputs[output_ind]
-        if isinstance(out, (_expr.Expr, list)):
-            return out
-        return _expr.const(out)
+        return _wrap_const(outputs[output_index_map[var_name]])
 
+    # Refer to the spec for prim::Loop below
+    # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
     # The first input: %max_trip_count
     # The second input: %initial_condition
     # The rest of input: loop variables
@@ -1196,7 +1192,7 @@ def parse_loop(op_node, outputs, output_index_map):
         return _op.equal(i, _expr.const(True, 'bool'))
 
     def body(*current_vals):
-        # Update loop variables
+        # Update loop variables using the prev iteration outputs
         for (i, iname) in enumerate(inames):
             outputs[output_index_map[iname]] = current_vals[i]
 
@@ -1206,7 +1202,6 @@ def parse_loop(op_node, outputs, output_index_map):
         block_outputs = get_outputs(outputs, output_index_map,
                                     block_output_names)
         if is_for_loop:
-            # this assumes the step is always 1
             incr = _expr.const(1, dtype="int32")
             block_outputs[0] = current_vals[0] + incr
 
@@ -1215,10 +1210,6 @@ def parse_loop(op_node, outputs, output_index_map):
     def get_var(name, val):
         if isinstance(val, _expr.Constant):
             return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
-        if isinstance(val, _expr.Var):
-            return _expr.var(name, type_annotation=val.type_annotation)
-        if isinstance(val, list):
-            assert False
         return _expr.var(name)
 
     loop_iter_var = _expr.var(inames[0], shape=(), dtype=loop_iter_dtype)
