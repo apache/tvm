@@ -25,21 +25,22 @@ import numbers
 
 from enum import Enum
 from tvm.ir import Array, Range
+import tvm.runtime
 import tvm.tir
+import tvm.te
+import tvm.te._ffi_api
+
 from tvm.tir import expr as _expr
 from tvm.tir import stmt as _stmt
 from tvm.tir import ir_pass as _ir_pass
+from tvm.te.tensor import Tensor, Operation
+from tvm.tir import all as _all
+from tvm.tir import any as _any
 
 from .util import _internal_assert
 from . import calls
 from . import util
 from .preprocessor import determine_variable_usage
-from ..api import all as _all
-from ..api import any as _any
-
-from ..tensor import Tensor, Operation
-from .. import _api_internal as _tvm_internal
-from .. import api  as _api
 
 
 def concat_list_to_block(lst):
@@ -124,7 +125,7 @@ class HybridParser(ast.NodeVisitor):
         """
         Parameters
         ----------
-        args: A list of tvm.placeholder or tvm.var
+        args: A list of tvm.te.placeholder or te.var
             Provided by the user, the argument list of the function to be lowered.
 
         usage: A dict of variables used in last in this function
@@ -209,9 +210,9 @@ class HybridParser(ast.NodeVisitor):
 
             _domain = [Range.make_by_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
-            _true = _api.convert(True)
+            _true = tvm.runtime.convert(True)
             body = tvm.tir.Realize(_buf.op, 0, _dtype, _domain, _true, body)
-            body = tvm.tir.AttrStmt(_buf.op, 'realize_scope', _api.convert(_scope), body)
+            body = tvm.tir.AttrStmt(_buf.op, 'realize_scope', tvm.runtime.convert(_scope), body)
 
         for elem in to_pop:
             self.symbols.pop(elem)
@@ -255,10 +256,10 @@ class HybridParser(ast.NodeVisitor):
     def visit_Name(self, node):
         name = node.id
         if sys.version_info[0] == 2 and name in ['True', 'False']:
-            return _api.convert(ast.literal_eval(name))
+            return tvm.runtime.convert(ast.literal_eval(name))
 
         if name in self.closure_vars:
-            return _api.convert(self.closure_vars[name])
+            return tvm.runtime.convert(self.closure_vars[name])
 
         ty, entry = self.symbols[name]
         _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
@@ -270,9 +271,9 @@ class HybridParser(ast.NodeVisitor):
             return entry if isinstance(node.ctx, ast.Load) else None
         if ty is Symbol.BufferVar:
             if isinstance(node.ctx, ast.Load):
-                return tvm.tir.Call(entry.dtype, entry.name, [_api.const(0, 'int32')], \
+                return tvm.tir.Call(entry.dtype, entry.name, [tvm.runtime.const(0, 'int32')], \
                                   _expr.Call.Halide, entry.op, entry.value_index)
-            return entry, [_api.const(0, 'int32')]
+            return entry, [tvm.runtime.const(0, 'int32')]
         # Do I need any assertion here?
         return entry
 
@@ -286,11 +287,11 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(isinstance(node.n, bool),
                              "The data type should be one of (int, float, bool)")
             dtype = "bool"
-        return _api.const(node.n, dtype)
+        return tvm.runtime.const(node.n, dtype)
 
 
     def visit_NameConstant(self, node):
-        return _api.convert(node.value)
+        return tvm.runtime.convert(node.value)
 
 
     def visit_AugAssign(self, node):
@@ -300,7 +301,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(len(buf) == 2, "LHS is supposed to be (buf, args)!")
             buf, args = buf
         else:
-            args = [_api.const(0, 'int32')]
+            args = [tvm.runtime.const(0, 'int32')]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
         read = tvm.tir.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
@@ -340,7 +341,7 @@ class HybridParser(ast.NodeVisitor):
                                  "This value should not be defined before this point!")
                 if isinstance(rhs, tuple):
                     shape, dtype, scope = rhs
-                    ph = _api.placeholder(shape, dtype=dtype, name=lhs)
+                    ph = tvm.te.placeholder(shape, dtype=dtype, name=lhs)
                     self.add_symbol(lhs, getattr(Symbol, scope.title() + "Buffer"), ph)
                     if scope == 'output':
                         self.outputs.append(lhs)
@@ -352,7 +353,7 @@ class HybridParser(ast.NodeVisitor):
                                      "Single variable not supported in devices' side!\n" + \
                                      "If you are using GPU, please allocate a 'local' spad " + \
                                      "outside the bind body")
-                    ph = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
+                    ph = tvm.te.placeholder((1, ), dtype=rhs.dtype, name=lhs)
                     self.add_symbol(lhs, Symbol.BufferVar, ph)
             lhs = self.visit(lhs_)
             if lhs is not None:
@@ -523,8 +524,8 @@ class HybridParser(ast.NodeVisitor):
 
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop iterating function parse error!")
-            offset = iter_var = _api.var(_name)
-            if not _ir_pass.Equal(low, _api.const(0, 'int32')):
+            offset = iter_var = tvm.te.var(_name)
+            if not _ir_pass.Equal(low, tvm.runtime.const(0, 'int32')):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)
             _body = visit_list_to_block(self.visit, node.body)
@@ -542,7 +543,7 @@ class HybridParser(ast.NodeVisitor):
         else:
             _internal_assert(not isinstance(for_type, tuple), \
                             "Micro expansion should be handled before!")
-            res = tvm.tir.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
+            res = tvm.tir.For(iter_var, tvm.runtime.const(0, 'int32'), ext, for_type, 0, _body)
 
         self.symbols.pop(_name)
         return res
@@ -578,7 +579,7 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Assert(self, node):
         test = self.visit(node.test)
-        mesg = _api.convert(self.visit(node.msg))
+        mesg = tvm.runtime.convert(self.visit(node.msg))
         return tvm.tir.AssertStmt(test, mesg, util.make_nop())
 
 
@@ -653,7 +654,7 @@ def source_to_op(src, args, symbols, closure_vars):
 
     for i in args:
         get_input_tensors(i)
-    op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
-                                 parser.outputs, parser.parsed_body)
+    op = tvm.te._ffi_api.HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+                                  parser.outputs, parser.parsed_body)
     res = [op.output(i) for i in range(len(parser.outputs))]
     return res[0] if len(res) == 1 else res

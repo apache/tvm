@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import re
 import numpy as np
 
@@ -28,18 +29,18 @@ def test_vector_comparison():
 
     def check_correct_assembly(dtype):
         n = (1024,)
-        A = tvm.placeholder(n, dtype=dtype, name='A')
-        B = tvm.compute(
+        A = te.placeholder(n, dtype=dtype, name='A')
+        B = te.compute(
             A.shape,
             lambda i: tvm.tir.Select(
-                A[i] >= 0, A[i] + tvm.const(1, dtype),
-                tvm.const(0, dtype)), name='B')
-        s = tvm.create_schedule(B.op)
+                A[i] >= 0, A[i] + tvm.tir.const(1, dtype),
+                tvm.tir.const(0, dtype)), name='B')
+        s = te.create_schedule(B.op)
 
         (bx, tx) = s[B].split(s[B].op.axis[0], factor=128)
         (tx, vx) = s[B].split(tx, factor=4)
-        s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(bx, te.thread_axis("blockIdx.x"))
+        s[B].bind(tx, te.thread_axis("threadIdx.x"))
         s[B].vectorize(vx)
         f = tvm.build(s, [A, B], target)
 
@@ -55,8 +56,8 @@ def test_vector_comparison():
     check_correct_assembly('float16')
 
 
-tx = tvm.thread_axis("threadIdx.x")
-bx = tvm.thread_axis("blockIdx.x")
+tx = te.thread_axis("threadIdx.x")
+bx = te.thread_axis("blockIdx.x")
 
 
 def test_vulkan_copy():
@@ -65,7 +66,7 @@ def test_vulkan_copy():
         if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
             print("skip because vulkan is not enabled..")
             return
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        A = te.placeholder((n,), name='A', dtype=dtype)
         ctx = tvm.vulkan(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(a_np)
@@ -87,9 +88,9 @@ def test_vulkan_vectorize_add():
         if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
             print("skip because vulkan is not enabled..")
             return
-        A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
-        B = tvm.compute((n,), lambda i: A[i]+tvm.const(1, A.dtype), name='B')
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
+        B = te.compute((n,), lambda i: A[i]+tvm.tir.const(1, A.dtype), name='B')
+        s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
         s[B].bind(xo, bx)
         s[B].bind(xi, tx)
@@ -120,21 +121,21 @@ def test_vulkan_stress():
             if not tvm.vulkan(0).exist or not tvm.runtime.enabled("vulkan"):
                 print("skip because vulkan is not enabled..")
                 return
-            A = tvm.placeholder((n,), name='A', dtype="float32")
-            B = tvm.placeholder((n,), name='B', dtype="float32")
+            A = te.placeholder((n,), name='A', dtype="float32")
+            B = te.placeholder((n,), name='B', dtype="float32")
             functions = [
-                (lambda: tvm.compute((n,), lambda i: 2 * A[i] + 3 * B[i]),
+                (lambda: te.compute((n,), lambda i: 2 * A[i] + 3 * B[i]),
                  lambda a, b: 2 * a + 3 * b),
-                (lambda: tvm.compute((n,), lambda i: A[i]+B[i]),
+                (lambda: te.compute((n,), lambda i: A[i]+B[i]),
                  lambda a, b: a + b),
-                (lambda: tvm.compute((n,), lambda i: A[i]+2 * B[i]),
+                (lambda: te.compute((n,), lambda i: A[i]+2 * B[i]),
                  lambda a, b: a + 2 * b),
             ]
 
             def build_f(f_ref):
                 (C_f, ref) = f_ref
                 C = C_f()
-                s = tvm.create_schedule(C.op)
+                s = te.create_schedule(C.op)
                 xo, xi = s[C].split(C.op.axis[0], factor=num_thread)
                 s[C].bind(xo, bx)
                 s[C].bind(xi, tx)

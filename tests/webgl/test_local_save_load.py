@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import rpc
 from tvm.contrib import util, emscripten
 
@@ -25,11 +26,11 @@ def test_local_save_load():
     if not tvm.runtime.enabled("llvm"):
         return
 
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A', dtype='int32')
-    B = tvm.placeholder((n,), name='B', dtype='int32')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = tvm.create_schedule(C.op)
+    n = te.var("n")
+    A = te.placeholder((n,), name='A', dtype='int32')
+    B = te.placeholder((n,), name='B', dtype='int32')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
     s[C].opengl()
 
     f = tvm.build(s, [A, B, C], "opengl", target_host="llvm", name="myadd")

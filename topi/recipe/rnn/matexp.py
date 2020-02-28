@@ -24,6 +24,7 @@ X[t] = dot(X[t-1], W)
 ```
 """
 import tvm
+from tvm import te
 import time
 import os
 import argparse
@@ -62,25 +63,25 @@ def rnn_matexp():
     n_batch_size = 4
     detect_global_barrier = DETECT_GLOBAL_BARRIER
 
-    num_step = tvm.var("num_step")
-    num_hidden = tvm.convert(n_num_hidden)
-    batch_size = tvm.convert(n_batch_size)
+    num_step = te.var("num_step")
+    num_hidden = tvm.runtime.convert(n_num_hidden)
+    batch_size = tvm.runtime.convert(n_batch_size)
     num_thread_y = 8
     num_thread_x = 16 * 3
     num_sm = 24
 
-    Whh = tvm.placeholder((num_hidden, num_hidden), name="Whh")
-    s_init = tvm.compute((1, batch_size, num_hidden),
+    Whh = te.placeholder((num_hidden, num_hidden), name="Whh")
+    s_init = te.compute((1, batch_size, num_hidden),
                          lambda _, i, j: 1.0, name="init")
-    s_state = tvm.placeholder((num_step, batch_size, num_hidden))
-    kh = tvm.reduce_axis((0, num_hidden), name="kh")
-    s_update = tvm.compute(
+    s_state = te.placeholder((num_step, batch_size, num_hidden))
+    kh = te.reduce_axis((0, num_hidden), name="kh")
+    s_update = te.compute(
         (num_step, batch_size, num_hidden),
-        lambda t, i, j: tvm.sum(s_state[t-1, i, kh] * Whh[kh, j], axis=kh),
+        lambda t, i, j: te.sum(s_state[t-1, i, kh] * Whh[kh, j], axis=kh),
         name="update")
-    s_scan = tvm.scan(s_init, s_update, s_state)
+    s_scan = tvm.te.scan(s_init, s_update, s_state)
     # schedule
-    s = tvm.create_schedule(s_scan.op)
+    s = te.create_schedule(s_scan.op)
     CL = s_update
     SS = s.cache_read(s_state, "shared", [CL])
     SL = s.cache_read(SS, "local", [CL])
@@ -88,9 +89,9 @@ def rnn_matexp():
     ko, ki = s[CL].split(s[CL].op.reduce_axis[0], nparts=num_thread_y)
     CLF = s.rfactor(CL, ko)
 
-    block_x = tvm.thread_axis((0, num_sm), "blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
-    thread_y = tvm.thread_axis((0, num_thread_y), "threadIdx.y")
+    block_x = te.thread_axis((0, num_sm), "blockIdx.x")
+    thread_x = te.thread_axis((0, num_thread_x), "threadIdx.x")
+    thread_y = te.thread_axis((0, num_thread_y), "threadIdx.y")
     if PERSIST_KERNEL:
         s[s_scan.op].env_threads([block_x, thread_y, thread_x])
 
@@ -126,7 +127,7 @@ def rnn_matexp():
     s[SS].bind(tx, thread_x)
 
     def check_device(target):
-        with tvm.build_config(
+        with tvm.target.build_config(
                 detect_global_barrier=detect_global_barrier,
                 auto_unroll_max_step=128,
                 unroll_explicit=False):

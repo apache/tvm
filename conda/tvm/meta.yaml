@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = "0.7.dev0" %}
+{% set version = "0.7.dev1" %}
 
 package:
   name: tvm

@@ -18,9 +18,6 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 # pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
-from __future__ import absolute_import as _abs
-from __future__ import print_function
-
 import warnings
 from collections import defaultdict
 
@@ -311,6 +308,7 @@ def _conv(opname):
             flip_layout = True
 
         if attr['data_format'] == 'NHWC':
+            in_channels = input_shape[3]
             kernel_h, kernel_w, _, depth_mult = weights_shape
             attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
             if opname == 'conv':
@@ -324,6 +322,7 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
+            in_channels = input_shape[1]
             _, depth_mult, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
@@ -344,7 +343,7 @@ def _conv(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
         if opname == 'depthwise':
-            attr['groups'] = attr['channels']
+            attr['groups'] = in_channels
 
         # Fix padding
         attr['padding'] = attr['padding'].decode("utf-8")
@@ -897,6 +896,7 @@ def _fused_batch_norm():
                       disables=['momentum'])(inputs, attr)
 
         if need_cast:
+            out = _expr.TupleGetItem(out.astuple(), 0)
             out = _op.cast(out, dtype=attr['T'].name)
         return out
     return _impl
@@ -1009,7 +1009,7 @@ def _gather():
                 'Attribute batch_dims is not supported')
         new_input = inputs[0:2]
         return AttrCvt(op_name="take",
-                       extras={'axis': tvm.const(axis, 'int32')},
+                       extras={'axis': tvm.tir.const(axis, 'int32')},
                        ignores=['Tindices', 'Tparams', 'validate_indices',
                                 'Taxis', '_class', 'batch_dims'])(new_input, attr)
     return _impl

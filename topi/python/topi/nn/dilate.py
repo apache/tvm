@@ -16,18 +16,18 @@
 # under the License.
 # pylint: disable=invalid-name
 """Dilation operators"""
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import util
 from .. import tag
 
-@tvm.tag_scope(tag=tag.INJECTIVE+",dilate")
+@te.tag_scope(tag=tag.INJECTIVE+",dilate")
 def dilate(data, strides, name="DilatedInput"):
     """Dilate data with zeros.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D, can be any layout.
 
     strides : list / tuple of n ints
@@ -38,7 +38,7 @@ def dilate(data, strides, name="DilatedInput"):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         n-D, the same layout as data.
     """
     n = len(data.shape)
@@ -47,13 +47,13 @@ def dilate(data, strides, name="DilatedInput"):
             n, len(strides)))
 
     out_shape = tuple(
-        tvm.ir_pass.Simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
+        tvm.tir.ir_pass.Simplify((data.shape[i] - 1) * strides[i] + 1) for i in range(n))
 
     def _dilate(*indices):
         not_zero = []
         index_tuple = []
-        idxdiv = tvm.indexdiv
-        idxmod = tvm.indexmod
+        idxdiv = tvm.tir.indexdiv
+        idxmod = tvm.tir.indexmod
         for i in range(n):
             if not util.equal_const_int(strides[i], 1):
                 index_tuple.append(idxdiv(indices[i], strides[i]))
@@ -61,8 +61,9 @@ def dilate(data, strides, name="DilatedInput"):
             else:
                 index_tuple.append(indices[i])
         if not_zero:
-            not_zero = tvm.all(*not_zero)
-            return tvm.if_then_else(not_zero, data(*index_tuple), tvm.const(0.0, data.dtype))
+            not_zero = tvm.tir.all(*not_zero)
+            return tvm.tir.if_then_else(
+                not_zero, data(*index_tuple), tvm.tir.const(0.0, data.dtype))
         return data(*index_tuple)
 
-    return tvm.compute(out_shape, _dilate, name=name)
+    return te.compute(out_shape, _dilate, name=name)

@@ -17,6 +17,7 @@
 """Unit tests for MAC counter."""
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import analysis, transform
 
@@ -39,7 +40,7 @@ def test_gemm():
     data2 = relay.var("data2", shape=dshape2)
     gemm = relay.nn.dense(data1, data2)
     func = relay.Function([data1, data2],
-                            relay.Tuple(tvm.convert([gemm])))
+                            relay.Tuple(tvm.runtime.convert([gemm])))
     func = run_opt_pass(func, transform.InferType())
     compute_count = analysis.get_total_mac_number(func)
     expect_count = n * m * k
@@ -66,7 +67,7 @@ def test_conv():
         channels=output_channel,
         kernel_size=(kh, kw),
         padding=(h_padding, w_padding))
-    func = relay.Function([data, weight], relay.Tuple(tvm.convert([conv2d])))
+    func = relay.Function([data, weight], relay.Tuple(tvm.runtime.convert([conv2d])))
     func = run_opt_pass(func, transform.InferType())
     compute_count = analysis.get_total_mac_number(func)
     expect_count = batch_size * input_channel * oh * ow * output_channel * kh * kw
@@ -99,7 +100,7 @@ def test_simple_network():
         weight_dense)
 
     func = relay.Function([data1, data2, weight_conv, weight_dense],
-                            relay.Tuple(tvm.convert([conv2d_1, conv2d_2,
+                            relay.Tuple(tvm.runtime.convert([conv2d_1, conv2d_2,
                                                     dense_1, add, flattened])))
     # alter the CONV 2D data layout to test
     func = run_opt_pass(func, transform.AlterOpLayout())
@@ -127,7 +128,7 @@ def test_depthwise_conv2d():
         groups=64)
     add = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
     func = relay.Function([data1, data2, weight_conv],
-                            relay.Tuple(tvm.convert([depthwise_conv2d_1,
+                            relay.Tuple(tvm.runtime.convert([depthwise_conv2d_1,
                                                     depthwise_conv2d_2,
                                                     add])))
     func = run_opt_pass(func, transform.InferType())
@@ -156,7 +157,7 @@ def test_conv_2d_transpose():
         kernel_size=(kh, kw),
         padding=(h_padding, w_padding))
     func = relay.Function([data, weight],
-                            relay.Tuple(tvm.convert([conv2d_transpose])))
+                            relay.Tuple(tvm.runtime.convert([conv2d_transpose])))
     func = run_opt_pass(func, transform.InferType())
     compute_count = analysis.get_total_mac_number(func)
     expect_count = batch_size * input_channel * oh * ow * output_channel * kh * kw

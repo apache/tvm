@@ -19,6 +19,7 @@
 # file python_deploy.py
 
 import tvm
+from tvm import te
 import numpy as np
 
 def verify(mod, fname):

@@ -19,6 +19,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm.runtime import vm as _vm
 from tvm.relay import vm as rly_vm
 from tvm import relay

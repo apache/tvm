@@ -145,21 +145,21 @@ def all(data, axis=None, keepdims=False, exclude=False):
     --------
     .. code-block:: python
 
-    data = relay.Constant(tvm.nd.array([[[ True,  True,  True],
-                                         [ True,  True,  True],
-                                         [False,  True, False]],
-                                        [[ True, False, False],
-                                         [ True,  True, False],
-                                         [False,  True,  True]]]))
+        data = relay.Constant(tvm.nd.array([[[ True,  True,  True],
+                                           [ True,  True,  True],
+                                           [False,  True, False]],
+                                          [[ True, False, False],
+                                           [ True,  True, False],
+                                           [False,  True,  True]]]))
 
-    relay.all(data, axis=1)
-    # [[False,  True, False],
-    # [False, False, False]]
+        relay.all(data, axis=1)
+        # [[False,  True, False],
+        # [False, False, False]]
 
-    relay.all(data, axis=0)
-    # [[ True, False, False],
-    # [ True,  True, False],
-    # [False,  True, False]]
+        relay.all(data, axis=0)
+        # [[ True, False, False],
+        # [ True,  True, False],
+        # [False,  True, False]]
 
     """
     axis = [axis] if isinstance(axis, int) else axis
@@ -197,21 +197,21 @@ def any(data, axis=None, keepdims=False, exclude=False):
     --------
     .. code-block:: python
 
-    data = relay.Constant(tvm.nd.array([[[ True,  True,  True],
-                                         [ True,  True,  True],
-                                         [False,  True, False]],
-                                        [[ True, False, False],
-                                         [ True,  True, False],
-                                         [False,  True,  True]]]))
+        data = relay.Constant(tvm.nd.array([[[ True,  True,  True],
+                                            [ True,  True,  True],
+                                            [False,  True, False]],
+                                            [[ True, False, False],
+                                            [ True,  True, False],
+                                            [False,  True,  True]]]))
 
-    relay.any(data, axis=1)
-    # [[True, True, True],
-    # [True,  True, True]]
+        relay.any(data, axis=1)
+        # [[True, True, True],
+        # [True,  True, True]]
 
-    relay.any(data, axis=0)
-    # [[ True, True, True],
-    # [ True,  True, True],
-    # [False,  True, True]]
+        relay.any(data, axis=0)
+        # [[ True, True, True],
+        # [ True,  True, True],
+        # [False,  True, True]]
 
     """
     axis = [axis] if isinstance(axis, int) else axis

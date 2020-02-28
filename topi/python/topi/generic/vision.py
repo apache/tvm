@@ -18,22 +18,22 @@
 """Generic vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import cpp
 
 def _default_schedule(outs, auto_inline):
     """Default schedule for llvm."""
     target = tvm.target.Target.current(allow_none=False)
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     if target.target_name != "llvm":
         raise RuntimeError("schedule not registered for '%s'" % target)
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     if auto_inline:
         x = outs[0]
-        tvm.schedule.AutoInlineInjective(s)
+        te.schedule.AutoInlineInjective(s)
         s[x].fuse(s[x].op.axis)
     return s
 
-@tvm.target.generic_func
 def schedule_reorg(outs):
     """Schedule for reorg
 
@@ -52,7 +52,6 @@ def schedule_reorg(outs):
     cpp_target = cpp.TEST_create_target(target.target_name)
     return cpp.generic.default_schedule(cpp_target, outs, False)
 
-@tvm.target.generic_func
 def schedule_get_valid_counts(outs):
     """Schedule for get_valid_counts
 
@@ -69,7 +68,6 @@ def schedule_get_valid_counts(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_nms(outs):
     """Schedule for non-maximum suppression
 
@@ -86,7 +84,6 @@ def schedule_nms(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_multibox_prior(outs):
     """Schedule for multibox_prior
 
@@ -103,7 +100,6 @@ def schedule_multibox_prior(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_multibox_transform_loc(outs):
     """Schedule for multibox_transform_loc
 
@@ -121,7 +117,6 @@ def schedule_multibox_transform_loc(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_multibox_detection(outs):
     """Schedule for multibox_detection
 
@@ -138,7 +133,6 @@ def schedule_multibox_detection(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_roi_align(outs):
     """Schedule for roi_align
 
@@ -155,7 +149,6 @@ def schedule_roi_align(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_roi_pool(outs):
     """Schedule for roi_align
 
@@ -172,7 +165,6 @@ def schedule_roi_pool(outs):
     """
     return _default_schedule(outs, False)
 
-@tvm.target.generic_func
 def schedule_proposal(outs):
     """Schedule for proposal operator.
 

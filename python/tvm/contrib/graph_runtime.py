@@ -25,19 +25,23 @@ from ..rpc import base as rpc_base
 
 def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
+
     Parameters
     ----------
     graph_json_str : str or graph class
         The graph to be deployed in json format output by json graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
-    libmod : tvm.Module
+
+    libmod : tvm.runtime.Module
         The module of the corresponding function
+
     ctx : TVMContext or list of TVMContext
         The context to deploy the module. It can be local or remote when there
         is only one TVMContext. Otherwise, the first context in the list will
         be used as this purpose. All context should be given for heterogeneous
         execution.
+
     Returns
     -------
     graph_module : GraphModule
@@ -61,11 +65,14 @@ def create(graph_json_str, libmod, ctx):
 
 def get_device_ctx(libmod, ctx):
     """Parse and validate all the device context(s).
+
     Parameters
     ----------
-    libmod : tvm.Module
+    libmod : tvm.runtime.Module
         The module of the corresponding function
+
     ctx : TVMContext or list of TVMContext
+
     Returns
     -------
     ctx : list of TVMContext
@@ -113,12 +120,12 @@ class GraphModule(object):
 
     Parameters
     ----------
-    module : Module
+    module : tvm.runtime.Module
         The internal tvm module that holds the actual graph functions.
 
     Attributes
     ----------
-    module : Module
+    module : tvm.runtime.Module
         The internal tvm module that holds the actual graph functions.
     """
 

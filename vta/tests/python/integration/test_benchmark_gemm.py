@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import util
 import vta.testing
@@ -38,37 +39,37 @@ def test_gemm():
         # To compute number of ops, use a x2 factor for FMA
         num_ops = 2 * channel * channel * batch_size
 
-        ko = tvm.reduce_axis((0, channel // env.BLOCK_IN), name='ko')
-        ki = tvm.reduce_axis((0, env.BLOCK_IN), name='ki')
+        ko = te.reduce_axis((0, channel // env.BLOCK_IN), name='ko')
+        ki = te.reduce_axis((0, env.BLOCK_IN), name='ki')
 
-        data = tvm.placeholder(data_shape,
+        data = te.placeholder(data_shape,
                                name="data",
                                dtype=env.inp_dtype)
-        weight = tvm.placeholder(weight_shape,
+        weight = te.placeholder(weight_shape,
                                  name="weight",
                                  dtype=env.wgt_dtype)
-        data_buf = tvm.compute(data_shape,
+        data_buf = te.compute(data_shape,
                                lambda *i: data(*i),
                                "data_buf")
-        weight_buf = tvm.compute(weight_shape,
+        weight_buf = te.compute(weight_shape,
                                  lambda *i: weight(*i),
                                  "weight_buf")
-        res_gem = tvm.compute(res_shape,
-                              lambda bo, co, bi, ci: tvm.sum(
+        res_gem = te.compute(res_shape,
+                              lambda bo, co, bi, ci: te.sum(
                                   data_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
                                   weight_buf[co, ko, ci, ki].astype(env.acc_dtype),
                                   axis=[ko, ki]),
                               name="res_gem")
-        res_shf = tvm.compute(res_shape,
+        res_shf = te.compute(res_shape,
                               lambda *i: res_gem(*i)>>8,
                             name="res_shf")
-        res_max = tvm.compute(res_shape,
-                              lambda *i: tvm.max(res_shf(*i), 0),
+        res_max = te.compute(res_shape,
+                              lambda *i: tvm.te.max(res_shf(*i), 0),
                               "res_max") #relu
-        res_min = tvm.compute(res_shape,
-                              lambda *i: tvm.min(res_max(*i), (1<<(env.INP_WIDTH-1))-1),
+        res_min = te.compute(res_shape,
+                              lambda *i: tvm.te.min(res_max(*i), (1<<(env.INP_WIDTH-1))-1),
                               "res_min") #relu
-        res = tvm.compute(res_shape,
+        res = te.compute(res_shape,
                           lambda *i: res_min(*i).astype(env.inp_dtype),
                           name="res")
 
@@ -128,7 +129,7 @@ def test_gemm():
                          store_out,
                          print_ir,
                          check_correctness):
-            s = tvm.create_schedule(res.op)
+            s = te.create_schedule(res.op)
             s[data_buf].set_scope(env.inp_scope)
             s[weight_buf].set_scope(env.wgt_scope)
             s[res_gem].set_scope(env.acc_scope)

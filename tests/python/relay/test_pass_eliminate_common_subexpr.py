@@ -16,6 +16,7 @@
 # under the License.
 """Test eliminate common subexpr pass"""
 import tvm
+from tvm import te
 
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout

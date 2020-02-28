@@ -18,14 +18,39 @@
 from __future__ import print_function
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
-def test_argsort():
+_argsort_implement = {
+    "generic": (topi.argsort, topi.generic.schedule_argsort),
+    "gpu": (topi.cuda.argsort, topi.cuda.schedule_argsort),
+}
+
+_topk_implement = {
+    "generic": (topi.topk, topi.generic.schedule_topk),
+    "gpu": (topi.cuda.topk, topi.cuda.schedule_topk),
+}
+
+def verify_argsort(axis, is_ascend):
     dshape = (20, 100)
-    data = tvm.placeholder(dshape, name="data", dtype="float32")
-    np_data = np.random.rand(dshape[0], dshape[1]).astype(data.dtype)
-    np_result = np.argsort(-np_data)
+    data_dtype = "float32"
+    data = te.placeholder(dshape, name="data", dtype=data_dtype)
+
+    perm = np.arange(dshape[0] * dshape[1], dtype=data_dtype)
+    np.random.shuffle(perm)
+    np_data = perm.reshape(dshape)
+
+    if is_ascend:
+        np_indices = np.argsort(np_data, axis=axis)
+    else:
+        np_indices = np.argsort(-np_data, axis=axis)
+
+    if axis == 0:
+        np_indices = np_indices[:dshape[axis], :]
+    else:
+        np_indices = np_indices[:, :dshape[axis]]
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -33,22 +58,24 @@ def test_argsort():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            out = topi.argsort(data, axis=-1, is_ascend=False)
-            s = topi.generic.schedule_argsort(out)
+            fcompute, fschedule = topi.testing.dispatch(device, _argsort_implement)
+            out = fcompute(data, axis=axis, is_ascend=is_ascend)
+            s = fschedule(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
-        tvm_out = tvm.nd.array(np.zeros(dshape, dtype="float32"), ctx)
+        tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data_dtype), ctx)
         f = tvm.build(s, [data, out], device)
         f(tvm_data, tvm_out)
-        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result.astype("float32"), rtol=1e0)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_indices.astype(data_dtype), rtol=1e0)
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
 
+
 def verify_topk(k, axis, ret_type, is_ascend, dtype):
     shape = (20, 100)
     data_dtype = "float32"
-    data = tvm.placeholder(shape, name="data", dtype=data_dtype)
+    data = te.placeholder(shape, name="data", dtype=data_dtype)
 
     np_data = np.random.uniform(size=shape).astype(data_dtype)
     if is_ascend:
@@ -75,9 +102,10 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            outs = topi.topk(data, k, axis, ret_type, is_ascend, dtype)
+            fcompute, fschedule = topi.testing.dispatch(device, _topk_implement)
+            outs = fcompute(data, k, axis, ret_type, is_ascend, dtype)
             outs = outs if isinstance(outs, list) else [outs]
-            s = topi.generic.schedule_topk(outs)
+            s = fschedule(outs)
         tvm_data = tvm.nd.array(np_data, ctx)
         tvm_res = []
         for t in outs:
@@ -94,6 +122,14 @@ def verify_topk(k, axis, ret_type, is_ascend, dtype):
 
     for device in ['llvm', 'cuda', 'opencl']:
         check_device(device)
+
+
+def test_argsort():
+    np.random.seed(0)
+    for axis in [0, -1, 1]:
+        verify_argsort(axis, True)
+        verify_argsort(axis, False)
+
 
 def test_topk():
     np.random.seed(0)

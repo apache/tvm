@@ -20,6 +20,7 @@ import argparse
 import os
 from tvm import relay
 import tvm
+from tvm import te
 import logging
 
 

@@ -677,7 +677,7 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_softmax")
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_lrn(args[0], args[1]);
+  *rv = topi::rocm::schedule_lrn(args[0]);
   });
 
 /* CUDA schedules */
@@ -723,7 +723,7 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_lrn(args[0], args[1]);
+  *rv = topi::cuda::schedule_lrn(args[0]);
   });
 
 /* Utility functions */

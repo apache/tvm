@@ -79,7 +79,7 @@ TVM_ADD_FILELINE)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -105,7 +105,7 @@ TVM_ADD_FILELINE)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -123,7 +123,7 @@ Mark the start of bitpacking.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -140,7 +140,7 @@ Mark the end of bitpacking.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -163,7 +163,7 @@ Mark a checkpoint for checkpointing memory optimization.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          Array<te::Tensor> outputs;
                          for (size_t i = 0; i < inputs.size(); ++i) {
                            outputs.push_back(topi::identity(inputs[i]));
@@ -184,7 +184,7 @@ Beginning of a region that is handled by a given compiler.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -209,7 +209,7 @@ End of a region that is handled by a given compiler.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 

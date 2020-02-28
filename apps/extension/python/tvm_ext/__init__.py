@@ -21,6 +21,7 @@ import os
 import ctypes
 # Import TVM first to get library symbols
 import tvm
+from tvm import te
 
 def load_lib():
     """Load library, the functions will be registered into TVM"""

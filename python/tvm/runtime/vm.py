@@ -106,6 +106,7 @@ class Executable(object):
 
             import numpy as np
             import tvm
+from tvm import te
             from tvm import relay
             # define a simple network.
             x = relay.var('x', shape=(10, 10))

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 @tvm.register_extension
@@ -29,16 +30,16 @@ class MyTensorView(object):
 
 def test_dltensor_compatible():
     dtype = 'int64'
-    n = tvm.var('n')
-    Ab = tvm.decl_buffer((n,), dtype)
-    i = tvm.var('i')
-    ib = tvm.ir_builder.create()
+    n = te.var('n')
+    Ab = tvm.tir.decl_buffer((n,), dtype)
+    i = te.var('i')
+    ib = tvm.tir.ir_builder.create()
     A = ib.buffer_ptr(Ab)
     with ib.for_range(0, n - 1, "i") as i:
         A[i + 1] = A[i] + 1
     stmt = ib.get()
-    fapi = tvm.ir_pass.MakeAPI(stmt, "arange", [Ab], 0, True)
-    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "arange", [Ab], 0, True)
+    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     f = tvm.target.codegen.build_module(fapi, "stackvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     aview = MyTensorView(a)

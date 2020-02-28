@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import re
 
 
@@ -26,10 +27,10 @@ def test_fp16_to_fp32():
 
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
-        n = tvm.convert(elements)
-        A = tvm.placeholder((n, width), dtype="float16", name='A')
-        B = tvm.compute(A.shape, lambda *i: A(*i).astype("float32"), name='B')
-        s = tvm.create_schedule(B.op)
+        n = tvm.runtime.convert(elements)
+        A = te.placeholder((n, width), dtype="float16", name='A')
+        B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name='B')
+        s = te.create_schedule(B.op)
         s[B].vectorize(s[B].op.axis[1])
         f = tvm.build(s, [A, B], target)
 

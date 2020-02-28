@@ -20,10 +20,13 @@
 import json
 import os
 
+import pytest
 import numpy as np
 from collections import namedtuple
 
 import tvm
+from tvm import te
+from tvm import relay
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
@@ -59,13 +62,13 @@ resnet_wkls = [
 ]
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
-    const_min = tvm.const(a_min, x.dtype)
-    const_max = tvm.const(a_max, x.dtype)
-    x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-    x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+    const_min = tvm.tir.const(a_min, x.dtype)
+    const_max = tvm.tir.const(a_max, x.dtype)
+    x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+    x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
 def run_conv2d(env, remote, wl, target,
@@ -79,9 +82,13 @@ def run_conv2d(env, remote, wl, target,
     if "arm_cpu" in target.keys:
         data_pack = False
         layout = "NCHW"
+        conv2d_fcompute = topi.arm_cpu.conv2d_nchw_spatial_pack
+        conv2d_fschedule = topi.arm_cpu.schedule_conv2d_nchw_spatial_pack
     elif "vta" in target.keys:
         data_pack = True
         layout = "NCHW%dn%dc" % (env.BATCH, env.BLOCK_IN)
+        conv2d_fcompute = vta.top.conv2d_packed
+        conv2d_fschedule = vta.top.schedule_conv2d_packed
 
     # Derive shapes depending upon packing
     a_shape = (wl.batch, wl.in_filter, wl.height, wl.width)
@@ -98,21 +105,27 @@ def run_conv2d(env, remote, wl, target,
         data_shape = a_shape
         kernel_shape = w_shape
         bias_shape = b_shape
-    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
-    bias = tvm.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
+    data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = te.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    bias = te.placeholder(bias_shape, name="bias", dtype=env.acc_dtype)
+    padding = relay.nn.get_pad_tuple2d((wl.hpad, wl.wpad))
 
     # Define base computation schedule
     with target:
-        res = topi.nn.conv2d(
-            data, kernel, (wl.hstride, wl.wstride), (wl.hpad, wl.wpad), (1, 1),
-            layout, env.acc_dtype)
+        if data_pack:
+            res = conv2d_fcompute(
+                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
+                layout, env.acc_dtype)
+        else:
+            res = conv2d_fcompute(
+                data, kernel, (wl.hstride, wl.wstride), padding, (1, 1),
+                env.acc_dtype)
         res = topi.right_shift(res, 8)
         res = topi.add(res, bias)
         res = my_clip(res, 0, (1 << env.OUT_WIDTH - 1) - 1)
         res = topi.cast(res, env.out_dtype)
         # Derive base schedule
-        s = topi.generic.schedule_conv2d_nchw([res])
+        s = conv2d_fschedule([res])
         if print_ir:
             print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
 
@@ -222,7 +235,8 @@ def run_conv2d(env, remote, wl, target,
 
     return correct, cost, stats
 
-def test_conv2d(device="vta"):
+@pytest.mark.parametrize("device", ["vta", "arm_cpu"])
+def test_conv2d(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target

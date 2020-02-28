@@ -15,20 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 from topi import util
 
 
 def test_util():
-    x = tvm.const(100, "int32")
+    x = tvm.tir.const(100, "int32")
     assert util.get_const_int(x) == 100
     assert util.get_const_tuple((x, x)) == (100, 100)
 
 
 def test_ewise():
-    m = tvm.var('m')
-    l = tvm.var('l')
-    A = tvm.placeholder((m, l), name='A')
+    m = te.var('m')
+    l = te.var('l')
+    A = te.placeholder((m, l), name='A')
 
     def test_apply(func, name):
         B = func(A)

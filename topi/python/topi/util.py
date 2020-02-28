@@ -20,7 +20,8 @@ from __future__ import absolute_import as _abs
 from numbers import Integral
 
 import tvm
-from tvm.api import layout, bijective_layout
+from tvm import te
+from tvm.tir import layout, bijective_layout
 from . import tag, cpp
 
 class InvalidShapeError(ValueError):
@@ -56,7 +57,7 @@ def traverse_inline(s, final_op, callback):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if isinstance(tensor.op, tvm.te.ComputeOp):
                     _traverse(tensor.op)
         callback(op)
 
@@ -77,7 +78,7 @@ def prod(x):
         The result value
     """
     if not x:
-        return tvm.const(1, "int32")
+        return tvm.tir.const(1, "int32")
     res = x[0]
     for i in range(1, len(x)):
         res = res * x[i]
@@ -99,9 +100,9 @@ def get_const_int(expr):
     """
     if isinstance(expr, Integral):
         return expr
-    if not isinstance(expr, tvm.expr.IntImm):
-        expr = tvm.ir_pass.Simplify(expr)
-    if not isinstance(expr, tvm.expr.IntImm):
+    if not isinstance(expr, tvm.tir.IntImm):
+        expr = tvm.tir.ir_pass.Simplify(expr)
+    if not isinstance(expr, tvm.tir.IntImm):
         raise ValueError("Expect value to be constant int")
     return int(expr.value)
 
@@ -121,9 +122,9 @@ def get_const_float(expr):
     """
     if isinstance(expr, float):
         return float(expr)
-    if not isinstance(expr, tvm.expr.FloatImm):
-        expr = tvm.ir_pass.Simplify(expr)
-    if not isinstance(expr, tvm.expr.FloatImm):
+    if not isinstance(expr, tvm.tir.FloatImm):
+        expr = tvm.tir.ir_pass.Simplify(expr)
+    if not isinstance(expr, tvm.tir.FloatImm):
         raise ValueError("Expect value to be constant float")
     return float(expr.value)
 
@@ -143,9 +144,9 @@ def equal_const_int(expr, value):
     """
     if isinstance(expr, Integral):
         return expr == value
-    if not isinstance(expr, tvm.expr.IntImm):
-        expr = tvm.ir_pass.Simplify(expr)
-    if not isinstance(expr, tvm.expr.IntImm):
+    if not isinstance(expr, tvm.tir.IntImm):
+        expr = tvm.tir.ir_pass.Simplify(expr)
+    if not isinstance(expr, tvm.tir.IntImm):
         return False
     return expr.value == value
 
@@ -165,11 +166,11 @@ def get_const_tuple(in_tuple):
     """
     ret = []
     for elem in in_tuple:
-        if isinstance(elem, tvm.expr.Var):
+        if isinstance(elem, tvm.tir.Var):
             ret.append(elem)
-        elif not isinstance(elem, (tvm.expr.IntImm, int)):
-            elem = tvm.ir_pass.Simplify(elem)
-            if not isinstance(elem, tvm.expr.IntImm):
+        elif not isinstance(elem, (tvm.tir.IntImm, int)):
+            elem = tvm.tir.ir_pass.Simplify(elem)
+            if not isinstance(elem, tvm.tir.IntImm):
                 ret.append(elem)
         else:
             ret.append(get_const_int(elem))
@@ -205,7 +206,7 @@ def simplify(expr):
     out : Expr or int
         The simplified output
     """
-    return tvm.ir_pass.Simplify(expr) if isinstance(expr, tvm.expr.PrimExpr) else expr
+    return tvm.tir.ir_pass.Simplify(expr) if isinstance(expr, tvm.tir.PrimExpr) else expr
 
 
 def ravel_index(indices, shape):
@@ -213,7 +214,7 @@ def ravel_index(indices, shape):
 
     Parameters
     ----------
-    indices : tuple of int or tvm.expr.IntImm
+    indices : tuple of int or tvm.tir.IntImm
         The input coordinates
 
     shape : tuple of int
@@ -238,7 +239,7 @@ def unravel_index(idx, shape):
 
     Parameters
     ----------
-    idx : int or tvm.expr.IntImm
+    idx : int or tvm.tir.IntImm
         The 1D index
 
     shape : tuple of int
@@ -246,11 +247,11 @@ def unravel_index(idx, shape):
 
     Returns
     -------
-    indices : tuple of int or tvm.expr.IntImm
+    indices : tuple of int or tvm.tir.IntImm
         Corresponding coordinate of the 1D index
     """
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
     indices = []
     for i in range(len(shape) - 1, -1, -1):
         indices.append(idxm(idx, shape[i]))
@@ -276,18 +277,18 @@ def const_matrix(matrix, name="const_matrix"):
     """
     row, col = matrix.shape
     dtype = str(matrix.dtype)
-    idxm = tvm.indexmod
+    idxm = tvm.tir.indexmod
 
     def select_array(i, j):
-        now = tvm.const(0.0, dtype)
+        now = tvm.tir.const(0.0, dtype)
         for ii in range(row):
             for jj in range(col):
-                now = tvm.expr.Select(tvm.all(idxm(i, row) == ii, idxm(j, col) == jj),
-                                      tvm.const(matrix[ii][jj], dtype),
-                                      now)
+                now = tvm.tir.Select(tvm.tir.all(idxm(i, row) == ii, idxm(j, col) == jj),
+                                     tvm.tir.const(matrix[ii][jj], dtype),
+                                     now)
         return now
 
-    return tvm.compute(matrix.shape, select_array, name=name)
+    return te.compute(matrix.shape, select_array, name=name)
 
 
 def get_max_power2_factor(n, max_value=None):
@@ -349,7 +350,7 @@ def get_shape(src_shape, src_layout, dst_layout):
 
     layout_mapping = bijective_layout(src_layout, dst_layout)
     dst_indices = layout_mapping.forward_index(
-        tvm.convert(list(range(len(src_layout)))))
+        tvm.runtime.convert(list(range(len(src_layout)))))
 
     return get_const_tuple(tuple([src_shape[i.value] for i in dst_indices]))
 
@@ -377,12 +378,12 @@ def within_index(b, e, s, i):
         bool expression that is True is the array position would be selected
         by the index and False otherwise
     """
-    bc = tvm.expr.Select(s < 0, i <= e, i < b)
-    ec = tvm.expr.Select(s < 0, i > b, i >= e)
-    ss = tvm.if_then_else(s < 0,
-                          ((i - e) + (e % tvm.abs(s)) + 1) % tvm.abs(s),
-                          (i - b) % s)
-    return tvm.expr.Select(tvm.expr.Or(bc, ec), tvm.const(False), ss.equal(0))
+    bc = tvm.tir.Select(s < 0, i <= e, i < b)
+    ec = tvm.tir.Select(s < 0, i > b, i >= e)
+    ss = te.if_then_else(s < 0,
+                         ((i - e) + (e % te.abs(s)) + 1) % te.abs(s),
+                         (i - b) % s)
+    return tvm.tir.Select(tvm.tir.Or(bc, ec), tvm.tir.const(False), ss.equal(0))
 
 
 def make_idx(b, e, s, z, i):
@@ -414,16 +415,16 @@ def make_idx(b, e, s, z, i):
     postion: Expr
         int expression that corresponds to an array position in the selection.
     """
-    bc = tvm.expr.Select(s < 0, i <= e, i < b)
-    ec = tvm.expr.Select(s < 0, i > b, i >= e)
+    bc = tvm.tir.Select(s < 0, i <= e, i < b)
+    ec = tvm.tir.Select(s < 0, i > b, i >= e)
 
     # Clamp to array size
-    b = tvm.expr.Select(z < b, z - 1, b)
+    b = tvm.tir.Select(z < b, z - 1, b)
 
-    ss = tvm.if_then_else(s < 0,
-                          (b - i) // tvm.abs(s),
-                          (i - b) // s)
-    return tvm.if_then_else(tvm.expr.Or(bc, ec), 88, ss)
+    ss = tvm.tir.if_then_else(s < 0,
+                              (b - i) // te.abs(s),
+                              (i - b) // s)
+    return tvm.tir.if_then_else(tvm.tir.Or(bc, ec), 88, ss)
 
 
 def is_empty_shape(shape):

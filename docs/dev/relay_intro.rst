@@ -39,7 +39,6 @@ compile for heterogeneous execution environments (e.g., executing parts of the g
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow.png
     :align: center
-    :scale: 70%
 
 
 You can use Relay to build a computational (dataflow) graph. Specifically, the above code shows how to
@@ -130,7 +129,6 @@ The code example below shows one program with two forms side by side.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow_vs_func.png
     :align: center
-    :scale: 70%
 
 
 The nested let binding is called A-normal form, and it is commonly used as IRs in functional programming languages.
@@ -155,7 +153,6 @@ which does not use let bindings.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/let_scope.png
     :align: center
-    :scale: 70%
 
 The problem comes when we try to decide where we should evaluate node ``%1``. In particular, while the text format seems
 to suggest that we should evaluate node ``%1`` outside the if scope, the AST(as shown in the picture) does not suggest so.

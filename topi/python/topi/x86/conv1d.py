@@ -16,15 +16,13 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """Conv1D schedule on for Intel CPU"""
-from __future__ import absolute_import as _abs
-import tvm
-from .. import generic, tag
+from tvm import te
+from .. import tag
 
 
-@generic.schedule_conv1d_ncw.register(["cpu"])
 def schedule_conv1d_ncw(outs):
     """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     output_op = outs[0].op
     scheduled_ops = []
 
@@ -41,18 +39,18 @@ def schedule_conv1d_ncw(outs):
                     s[op].parallel(fused)
                     s[op].vectorize(w)
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'conv1d_ncw' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, te.tensor.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             data = op.input_tensors[0]
             data_pad = None
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, te.tensor.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
@@ -76,10 +74,9 @@ def schedule_conv1d_ncw(outs):
     return s
 
 
-@generic.schedule_conv1d_nwc.register(["cpu"])
 def schedule_conv1d_nwc(outs):
     """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     output_op = outs[0].op
     scheduled_ops = []
 
@@ -96,18 +93,18 @@ def schedule_conv1d_nwc(outs):
                     s[op].parallel(fused)
                     s[op].vectorize(c)
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'conv1d_nwc' in op.tag:
             conv = op.output(0)
             kernel = op.input_tensors[1]
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, te.tensor.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             data = op.input_tensors[0]
             data_pad = None
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, te.tensor.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 

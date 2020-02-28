@@ -19,20 +19,21 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm.autotvm import feature
 
 def test_iter_feature_gemm():
     N = 128
 
-    k = tvm.reduce_axis((0, N), 'k')
-    A = tvm.placeholder((N, N), name='A')
-    B = tvm.placeholder((N, N), name='B')
-    C = tvm.compute(
+    k = te.reduce_axis((0, N), 'k')
+    A = te.placeholder((N, N), name='A')
+    B = te.placeholder((N, N), name='B')
+    C = te.compute(
         A.shape,
-        lambda y, x: tvm.sum(A[y, k] * B[k, x], axis=k),
+        lambda y, x: te.sum(A[y, k] * B[k, x], axis=k),
         name='C')
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
 
     feas = feature.get_itervar_feature(s, [A, B, C], take_log=False)
 
@@ -64,15 +65,15 @@ def test_iter_feature_gemm():
 def test_curve_feature_gemm():
     N = 128
 
-    k = tvm.reduce_axis((0, N), 'k')
-    A = tvm.placeholder((N, N), name='A')
-    B = tvm.placeholder((N, N), name='B')
-    C = tvm.compute(
+    k = te.reduce_axis((0, N), 'k')
+    A = te.placeholder((N, N), name='A')
+    B = te.placeholder((N, N), name='B')
+    C = te.compute(
         A.shape,
-        lambda y, x: tvm.sum(A[y, k] * B[k, x], axis=k),
+        lambda y, x: te.sum(A[y, k] * B[k, x], axis=k),
         name='C')
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
 
     feas = feature.get_buffer_curve_sample_flatten(s, [A, B, C], sample_n=30)
     # sample_n * #buffers * #curves * 2 numbers per curve
@@ -85,13 +86,13 @@ def test_feature_shape():
     n_sample = 100
 
     def get_gemm_feature(target):
-        k = tvm.reduce_axis((0, N), 'k')
-        A = tvm.placeholder((N, N), name='A')
-        B = tvm.placeholder((N, N), name='B')
-        C = tvm.compute(A.shape, lambda y, x: tvm.sum(A[y, k] * B[k, x], axis=k),
+        k = te.reduce_axis((0, N), 'k')
+        A = te.placeholder((N, N), name='A')
+        B = te.placeholder((N, N), name='B')
+        C = te.compute(A.shape, lambda y, x: te.sum(A[y, k] * B[k, x], axis=k),
                         name='C')
 
-        s = tvm.create_schedule(C.op)
+        s = te.create_schedule(C.op)
 
         y, x = s[C].op.axis
         axes = list(s[C].tile(y, x, 8, 8)) + [k]
@@ -105,9 +106,9 @@ def test_feature_shape():
             for i in range(len(perm)):
                 if perm[i] != 4:
                     pick.append(axes[i])
-            s[C].bind(pick[0], tvm.thread_axis("blockIdx.x"))
-            s[C].bind(pick[1], tvm.thread_axis("vthread"))
-            s[C].bind(pick[2], tvm.thread_axis("threadIdx.y"))
+            s[C].bind(pick[0], te.thread_axis("blockIdx.x"))
+            s[C].bind(pick[1], te.thread_axis("vthread"))
+            s[C].bind(pick[2], te.thread_axis("threadIdx.y"))
 
         with target:
             feas = feature.get_itervar_feature(s, [A, B, C])

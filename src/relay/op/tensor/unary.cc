@@ -34,9 +34,8 @@ namespace relay {
 
 #define RELAY_UNARY_COMPUTE(FTOPI)                      \
   [] (const Attrs& attrs,                               \
-      const Array<te::Tensor>& inputs,                      \
-      const Type& out_type,                             \
-      const Target& target) -> Array<te::Tensor> {          \
+      const Array<te::Tensor>& inputs,                  \
+      const Type& out_type) -> Array<te::Tensor> {      \
     return {FTOPI(inputs[0])};                          \
   }                                                     \
 
@@ -302,9 +301,8 @@ bool ShapeOfRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs,
-                             const Array<te::Tensor>& inputs,
-                             const Type& out_type,
-                             const Target& target) {
+                                 const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
@@ -353,24 +351,23 @@ bool NdarraySizeRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs,
-                          const Array<te::Tensor>& inputs,
-                          const Type& out_type,
-                          const Target& target) {
+                                     const Array<te::Tensor>& inputs,
+                                     const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
   return Array<te::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")
+TVM_REGISTER_GLOBAL("relay.op._make.ndarray_size")
 .set_body_typed([](Expr data, DataType dtype) {
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
-  static const Op& op = Op::Get("contrib.ndarray_size");
+  static const Op& op = Op::Get("ndarray_size");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
-RELAY_REGISTER_OP("contrib.ndarray_size")
+RELAY_REGISTER_OP("ndarray_size")
 .describe(R"code(Returns a tensor representing the number of elements of input tensor.
 
 )code" TVM_ADD_FILELINE)

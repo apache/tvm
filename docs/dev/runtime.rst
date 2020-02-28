@@ -1,19 +1,19 @@
-.. Licensed to the Apache Software Foundation (ASF) under one
-.. or more contributor license agreements.  See the NOTICE file
-.. distributed with this work for additional information
-.. regarding copyright ownership.  The ASF licenses this file
-.. to you under the Apache License, Version 2.0 (the
-.. "License"); you may not use this file except in compliance
-.. with the License.  You may obtain a copy of the License at
-..
-..   http://www.apache.org/licenses/LICENSE-2.0
-..
-.. Unless required by applicable law or agreed to in writing,
-.. software distributed under the License is distributed on an
-.. "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-.. KIND, either express or implied.  See the License for the
-.. specific language governing permissions and limitations
-.. under the License.
+..  Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+..    http://www.apache.org/licenses/LICENSE-2.0
+
+..  Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
 
 .. _tvm-runtime-system:
 
@@ -183,7 +183,7 @@ RPC server on iPhone/android/raspberry pi or even the browser. The cross compila
 This instant feedback gives us a lot of advantages. For example, to test the correctness of generated code on iPhone, we no longer have to write test-cases in swift/objective-c from scratch -- We can use RPC to execute on iPhone, copy the result back and do verification on the host via numpy. We can also do the profiling using the same script.
 
 TVM Object and Compiler Stack
----------------------------
+-----------------------------
 
 As we mentioned earlier, we build compiler stack API on top of the PackedFunc runtime system.
 We faced a constant changing of the compiler API for the need of research. We need a new language object or IR node whenever we want to test out new primitives.
@@ -258,6 +258,7 @@ It also allows us to get members of an object easily in front-end language.
 For example, in the following code, we accessed the op field of the TensorNode.
 
 .. code:: python
+
     import tvm
 
     x = tvm.placeholder((3,4), name="x")

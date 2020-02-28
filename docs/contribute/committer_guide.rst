@@ -59,7 +59,7 @@ Here are some example applications of this principle:
 
 
 Shepherd a Pull Request
-----------------------
+-----------------------
 
 Here are some tips to shepherd a pull request.
 You can also take a look at the :ref:`code_review_guide`.

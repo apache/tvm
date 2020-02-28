@@ -403,7 +403,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   p->stream << ")";
 });
 
-TVM_REGISTER_GLOBAL("_GetCurrentBuildConfig")
+TVM_REGISTER_GLOBAL("target.GetCurrentBuildConfig")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = BuildConfig::Current();
   });
@@ -418,13 +418,13 @@ class BuildConfig::Internal {
   }
 };
 
-TVM_REGISTER_GLOBAL("_EnterBuildConfigScope")
+TVM_REGISTER_GLOBAL("target.EnterBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("_ExitBuildConfigScope")
+TVM_REGISTER_GLOBAL("target.ExitBuildConfigScope")
 .set_body_typed(BuildConfig::Internal::ExitScope);
 
-TVM_REGISTER_GLOBAL("_BuildConfigSetAddLowerPass")
+TVM_REGISTER_GLOBAL("target.BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   BuildConfig cfg = args[0];
   std::vector< std::pair<int, PackedFunc> > add_lower_pass;
@@ -437,7 +437,7 @@ TVM_REGISTER_GLOBAL("_BuildConfigSetAddLowerPass")
   cfg->add_lower_pass = add_lower_pass;
   });
 
-TVM_REGISTER_GLOBAL("_BuildConfigGetAddLowerPassInfo")
+TVM_REGISTER_GLOBAL("target.BuildConfigGetAddLowerPassInfo")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   // Return one of the following:
   //  * Size of add_lower_pass if num_args == 1

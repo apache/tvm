@@ -17,6 +17,7 @@
 """Test code for dense operator"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -24,10 +25,23 @@ from tvm.contrib.pickle_memoize import memoize
 
 from common import get_all_backend, Int8Fallback
 
+_dense_implement = {
+    "generic": [(topi.nn.dense, topi.generic.schedule_dense)],
+    "cpu": [(topi.x86.dense_nopack, topi.x86.schedule_dense_nopack),
+            (topi.x86.dense_pack, topi.x86.schedule_dense_pack)],
+    "gpu": [(topi.cuda.dense_small_batch, topi.cuda.schedule_dense_small_batch),
+            (topi.cuda.dense_large_batch, topi.cuda.schedule_dense_large_batch)],
+    "mali": [(topi.mali.dense, topi.mali.schedule_dense)],
+    "bifrost": [(topi.bifrost.dense, topi.bifrost.schedule_dense)],
+    "opengl": [(topi.nn.dense, topi.opengl.schedule_dense)],
+    "rocm": [(topi.rocm.dense, topi.rocm.schedule_dense)],
+    "hls": [(topi.nn.dense, topi.hls.schedule_dense)],
+}
+
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
-    A = tvm.placeholder((batch, in_dim), name='A')
-    B = tvm.placeholder((out_dim, in_dim), name='B')
-    C = tvm.placeholder((out_dim,), name='C')
+    A = te.placeholder((batch, in_dim), name='A')
+    B = te.placeholder((out_dim, in_dim), name='B')
+    C = te.placeholder((out_dim,), name='C')
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
@@ -50,17 +64,18 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            D = topi.nn.dense(A, B, C if use_bias else None)
-            D = topi.nn.relu(D)
-            s = topi.generic.schedule_dense([D])
-        a = tvm.nd.array(a_np, ctx)
-        b = tvm.nd.array(b_np, ctx)
-        c = tvm.nd.array(c_np, ctx)
-        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B, C, D], device, name="dense")
-        f(a, b, c, d)
-        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
+        for fcompute, fschedule in topi.testing.dispatch(device, _dense_implement):
+            with tvm.target.create(device):
+                D = fcompute(A, B, C if use_bias else None)
+                D = topi.nn.relu(D)
+                s = fschedule([D])
+            a = tvm.nd.array(a_np, ctx)
+            b = tvm.nd.array(b_np, ctx)
+            c = tvm.nd.array(c_np, ctx)
+            d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+            f = tvm.build(s, [A, B, C, D], device, name="dense")
+            f(a, b, c, d)
+            tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
     for device in get_all_backend():
         check_device(device)
@@ -69,9 +84,9 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
 def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
     dtype = 'int8'
     out_dtype = 'int32'
-    A = tvm.placeholder((batch, in_dim), name='A', dtype=dtype)
-    B = tvm.placeholder((out_dim, in_dim), name='B', dtype=dtype)
-    C = tvm.placeholder((out_dim,), name='C', dtype=out_dtype)
+    A = te.placeholder((batch, in_dim), name='A', dtype=dtype)
+    B = te.placeholder((out_dim, in_dim), name='B', dtype=dtype)
+    C = te.placeholder((out_dim,), name='C', dtype=out_dtype)
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_dense_int8")
@@ -99,9 +114,9 @@ def verify_dense_int8(batch, in_dim, out_dim, use_bias=True):
 
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            D = topi.nn.dense(A, B, C if use_bias else None, out_dtype=out_dtype)
+            D = topi.cuda.dense_int8(A, B, C if use_bias else None, out_dtype)
             D = topi.nn.relu(D)
-            s = topi.generic.schedule_dense([D])
+            s = topi.cuda.schedule_dense_int8([D])
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)

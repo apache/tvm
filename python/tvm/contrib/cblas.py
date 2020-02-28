@@ -16,33 +16,32 @@
 # under the License.
 """External function interface to BLAS libraries."""
 import tvm
-from .. import api as _api
+from tvm import te
 
 
 def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
     """Create an extern op that compute matrix mult of A and rhs with CrhsLAS
-
     This function serves as an example on how to call external libraries.
 
     Parameters
     ----------
-    lhs : Tensor
+    lhs: Tensor
         The left matrix operand
-    rhs : Tensor
+    rhs: Tensor
         The right matrix operand
-    transa : bool
+    transa: bool
         Whether transpose lhs
-    transb : bool
+    transb: bool
         Whether transpose rhs
 
     Returns
     -------
-    C : Tensor
+    C: Tensor
         The result tensor.
     """
     n = lhs.shape[1] if transa else lhs.shape[0]
     m = rhs.shape[0] if transb else rhs.shape[1]
-    return _api.extern(
+    return te.extern(
         (n, m),
         [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
@@ -55,26 +54,28 @@ def matmul(lhs, rhs, transa=False, transb=False, **kwargs):
 
 def batch_matmul(lhs, rhs, transa=False, transb=False, iterative=False, **kwargs):
     """Create an extern op that compute batched matrix mult of A and rhs with CBLAS
-     This function serves as an example on how to call external libraries.
-     Parameters
+    This function serves as an example on how to call external libraries.
+
+    Parameters
     ----------
-    lhs : Tensor
+    lhs: Tensor
         The left matrix operand
-    rhs : Tensor
+    rhs: Tensor
         The right matrix operand
-    transa : bool
+    transa: bool
         Whether transpose lhs
-    transb : bool
+    transb: bool
         Whether transpose rhs
-     Returns
+
+    Returns
     -------
-    C : Tensor
+    C: Tensor
         The result tensor.
     """
     b = lhs.shape[0]
     n = lhs.shape[2] if transa else lhs.shape[1]
     m = rhs.shape[1] if transb else rhs.shape[2]
-    return _api.extern(
+    return te.extern(
         (b, n, m),
         [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(

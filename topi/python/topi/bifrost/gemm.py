@@ -16,9 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """GEMM schedules for Mali Bifrost"""
-
-import tvm
-
 from .transforms import tile_and_bind, tile_and_bind3d, interleave_transpose, \
     transpose_interleave
 from .. import util
@@ -31,15 +28,15 @@ def decl_gemm(cfg, A, B):
     cfg : Config
         Schedule configuration
 
-    A : tvm.Tensor
+    A : tvm.te.Tensor
         2D Tensor, shape [n, k]
 
-    B : tvm.Tensor
+    B : tvm.te.Tensor
         2D Tensor, shape [k, m]
 
     Returns
     -------
-    C : tvm.Tensor
+    C : tvm.te.Tensor
         2D Tensor, shape [n, m]
     """
 
@@ -60,35 +57,35 @@ def decl_gemm(cfg, A, B):
     if unroll_gemm == 1:
         # No unrolling case must have the same set of tensors to keep scheduling consistent
         # Create identity tensors to take the place of A_unrolled, B_unrolled and R
-        A_unrolled = tvm.compute((n, k_size), lambda i, j: A[i, j], name="A_unrolled")
-        B_unrolled = tvm.compute((k_size, m), lambda i, j: B[i, j], name="B_unrolled")
+        A_unrolled = te.compute((n, k_size), lambda i, j: A[i, j], name="A_unrolled")
+        B_unrolled = te.compute((k_size, m), lambda i, j: B[i, j], name="B_unrolled")
 
         # Declare standard GEMM
-        k = tvm.reduce_axis((0, A.shape[1]), name='k')
-        C = tvm.compute((n, m), lambda i, j:
-                        tvm.sum(A_unrolled[i, k] * B_unrolled[k, j], axis=k), name='C')
+        k = te.reduce_axis((0, A.shape[1]), name='k')
+        C = te.compute((n, m), lambda i, j:
+                       te.sum(A_unrolled[i, k] * B_unrolled[k, j], axis=k), name='C')
 
-        R = tvm.compute((n, m), lambda i, j: C[i, j], name="R")
+        R = te.compute((n, m), lambda i, j: C[i, j], name="R")
 
     else:
         unrolled_k_size = k_size // unroll_gemm
 
         # Unroll the two input matrices along the shared k axis
-        A_unrolled = tvm.compute((unroll_gemm, n, unrolled_k_size), lambda b, i, j:
-                                 A[i][unrolled_k_size * b + j], name='A_unrolled')
+        A_unrolled = te.compute((unroll_gemm, n, unrolled_k_size), lambda b, i, j:
+                                A[i][unrolled_k_size * b + j], name='A_unrolled')
 
-        B_unrolled = tvm.compute((unroll_gemm, unrolled_k_size, m), lambda b, i, j:
-                                 B[unrolled_k_size * b + i][j], name='B_unrolled')
+        B_unrolled = te.compute((unroll_gemm, unrolled_k_size, m), lambda b, i, j:
+                                B[unrolled_k_size * b + i][j], name='B_unrolled')
 
         # Declare a batched GEMM
-        k = tvm.reduce_axis((0, unrolled_k_size), name='k')
-        C = tvm.compute((unroll_gemm, n, m), lambda b, i, j:
-                        tvm.sum(A_unrolled[b][i][k] * B_unrolled[b][k][j], axis=k), name='C')
+        k = te.reduce_axis((0, unrolled_k_size), name='k')
+        C = te.compute((unroll_gemm, n, m), lambda b, i, j:
+                       te.sum(A_unrolled[b][i][k] * B_unrolled[b][k][j], axis=k), name='C')
 
         # Then declare a reduction to reduce the sub matrices
-        k = tvm.reduce_axis((0, unroll_gemm), name='k')
-        R = tvm.compute((n, m), lambda i, j:
-                        tvm.sum(C[k][i][j], axis=k), name='R')
+        k = te.reduce_axis((0, unroll_gemm), name='k')
+        R = te.compute((n, m), lambda i, j:
+                       te.sum(C[k][i][j], axis=k), name='R')
 
     return R
 
@@ -99,15 +96,15 @@ def decl_batched_gemm(cfg, A, B):
     cfg : Config
         Schedule configuration
 
-    A : tvm.Tensor
+    A : tvm.te.Tensor
         3D Tensor, shape [b, n, k]
 
-    B : tvm.Tensor
+    B : tvm.te.Tensor
         3D Tensor, shape [b, k, m]
 
     Returns
     -------
-    C : tvm.Tensor
+    C : tvm.te.Tensor
         3D Tensor, shape [b, n, m]
 
     """
@@ -127,9 +124,9 @@ def decl_batched_gemm(cfg, A, B):
     b_size = util.get_const_int(A.shape[0])
 
     # Declare a batched GEMM
-    k = tvm.reduce_axis((0, k_size), name='k')
-    C = tvm.compute((b_size, n, m), lambda b, i, j:
-                    tvm.sum(A[b][i][k] * B[b][k][j], axis=k), name='C')
+    k = te.reduce_axis((0, k_size), name='k')
+    C = te.compute((b_size, n, m), lambda b, i, j:
+                   te.sum(A[b][i][k] * B[b][k][j], axis=k), name='C')
 
     return C
 
@@ -143,10 +140,10 @@ def decl_winograd_gemm(cfg, A, B):
     cfg : Config
         Schedule configuration
 
-    A : tvm.Tensor
+    A : tvm.te.Tensor
         4D Tensor, shape [a, a, n, k]
 
-    B : tvm.Tensor
+    B : tvm.te.Tensor
         4D Tensor, shape [a * a, k, m]
 
     Returns
@@ -157,8 +154,8 @@ def decl_winograd_gemm(cfg, A, B):
     n = util.get_const_int(A.shape[2])
     k = util.get_const_int(A.shape[3])
 
-    A_3D = tvm.compute((alpha * alpha, n, k), lambda b, i, j:
-                       A[b // alpha][b % alpha][i][j], name='A_3D')
+    A_3D = te.compute((alpha * alpha, n, k), lambda b, i, j:
+                      A[b // alpha][b % alpha][i][j], name='A_3D')
 
     C = decl_batched_gemm(cfg, A_3D, B)
     return A_3D, C
@@ -171,16 +168,16 @@ def schedule_gemm(cfg, s, A, B, C, batched=False, schedule_transforms=True):
     cfg : Config
         Schedule configuration
 
-    s : tvm.schedule.Schedule
+    s : tvm.te.schedule.Schedule
         Operator schedule
 
-    A : tvm.Tensor
+    A : tvm.te.Tensor
         2D/3D Tensor, shape [n, k]/[b, n, k]
 
-    B : tvm.Tensor
+    B : tvm.te.Tensor
         2D/3D Tensor, shape [k, m]/[b, k, m]
 
-    C : tvm.Tensor
+    C : tvm.te.Tensor
         2D/3D Tensor, shape [n, m]/[b, n, m]
 
     batched : bool
@@ -287,19 +284,19 @@ def schedule_unrollable_gemm(cfg, s, A, B, C, R):
     cfg : Config
         Schedule configuration
 
-    s : tvm.schedule.Schedule
+    s : tvm.te.schedule.Schedule
         Operator schedule
 
-    A : tvm.Tensor
+    A : tvm.te.Tensor
         2D/3D Tensor, shape [n, k]/[b, n, k]
 
-    B : tvm.Tensor
+    B : tvm.te.Tensor
         2D/3D Tensor, shape [k, m]/[b, k, m]
 
-    C : tvm.Tensor
+    C : tvm.te.Tensor
         2D/3D Tensor, shape [n, m]/[b, n, m]
 
-    R : tvm.Tensor
+    R : tvm.te.Tensor
         2D Tensor, shape [n, m]
 
     """
@@ -340,21 +337,21 @@ def get_unrollable_gemm_ops(R):
 
     Parameters
     ----------
-    R : tvm.Tensor
+    R : tvm.te.Tensor
         Reduced tensor, final stage of GEMM
 
     Returns
     -------
-    A_unrolled : tvm.Tensor
+    A_unrolled : tvm.te.Tensor
         Matrix A unrolled along k
 
-    B_unrolled: tvm.Tensor
+    B_unrolled: tvm.te.Tensor
         Matrix B unrolled along k
 
-    C : tvm.Tensor
+    C : tvm.te.Tensor
         Result of batched GEMM
 
-    R : tvm.Tensor
+    R : tvm.te.Tensor
         Reduction of C, result of unrollable GEMM
 
     """

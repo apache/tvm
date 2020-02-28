@@ -35,13 +35,10 @@ using namespace tvm::te;
 namespace cuda {
 /*!
 * \brief Create a CUDA schedule for LRN
-*
-* \param target The target to generate a schedule for.
 * \param outs The output tensors.
-*
 * \return A schedule for the given ops.
 */
-inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_lrn(const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);

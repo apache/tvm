@@ -164,9 +164,8 @@ bool Pool2DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -331,9 +330,8 @@ bool GlobalPool2DRel(const Array<Type>& types,
 
 template<topi::nn::PoolType mode>
 Array<te::Tensor> GlobalPool2DCompute(const Attrs& attrs,
-                                  const Array<te::Tensor>& inputs,
-                                  const Type& out_type,
-                                  const Target& target) {
+                                      const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
@@ -465,9 +463,8 @@ bool AdaptivePool2DRel(const Array<Type>& types,
 
 template<topi::nn::PoolType mode>
 Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
-                                    const Array<te::Tensor>& inputs,
-                                    const Type& out_type,
-                                    const Target& target) {
+                                        const Array<te::Tensor>& inputs,
+                                        const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
@@ -502,21 +499,21 @@ Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
                             mode, layout.name()) };
 }
 
-// relay.contrib.adaptive_avg_pool2d
+// relay.nn.adaptive_avg_pool2d
 Expr MakeAdaptiveAvgPool2D(Expr data,
                            Array<IndexExpr> output_size,
                            std::string layout) {
   auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
-  static const Op& op = Op::Get("contrib.adaptive_avg_pool2d");
+  static const Op& op = Op::Get("nn.adaptive_avg_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.contrib._make.adaptive_avg_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool2d")
 .set_body_typed(MakeAdaptiveAvgPool2D);
 
-RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
+RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
   .describe(R"code(Adaptive average pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
@@ -541,21 +538,21 @@ RELAY_REGISTER_OP("contrib.adaptive_avg_pool2d")
 .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
 
 
-// relay.contrib.adaptive_max_pool2d
+// relay.nn.adaptive_max_pool2d
 Expr MakeAdaptiveMaxPool2D(Expr data,
                            Array<IndexExpr> output_size,
                            std::string layout) {
   auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
-  static const Op& op = Op::Get("contrib.adaptive_max_pool2d");
+  static const Op& op = Op::Get("nn.adaptive_max_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op.contrib._make.adaptive_max_pool2d")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool2d")
 .set_body_typed(MakeAdaptiveMaxPool2D);
 
-RELAY_REGISTER_OP("contrib.adaptive_max_pool2d")
+RELAY_REGISTER_OP("nn.adaptive_max_pool2d")
   .describe(R"code(Adaptive max pooling operation for 2D data.
 
 - **data**: This depends on the `layout` parameter. Input is 4D array of shape
@@ -593,8 +590,9 @@ bool Pool2DGradRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 }
 
 template <typename AttrType, topi::nn::PoolType mode>
-Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs, const Array<te::Tensor>& inputs,
-                                const Type& out_type, const Target& target) {
+Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs,
+                                    const Array<te::Tensor>& inputs,
+                                    const Type& out_type) {
   static const Layout kNCHW("NCHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -793,9 +791,8 @@ bool Pool1DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCW("NCW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);
@@ -985,9 +982,8 @@ bool Pool3DRel(const Array<Type>& types,
 
 template<typename AttrType, topi::nn::PoolType mode>
 Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
-                            const Array<te::Tensor>& inputs,
-                            const Type& out_type,
-                            const Target& target) {
+                                const Array<te::Tensor>& inputs,
+                                const Type& out_type) {
   static const Layout kNCDHW("NCDHW");
   const auto* param = attrs.as<AttrType>();
   CHECK(param != nullptr);

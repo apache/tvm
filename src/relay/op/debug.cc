@@ -36,9 +36,8 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(DebugAttrs);
 
 Array<te::Tensor> DebugCompute(const Attrs& attrs,
-                           const Array<te::Tensor>& inputs,
-                           const Type& out_type,
-                           const Target& target) {
+                               const Array<te::Tensor>& inputs,
+                               const Type& out_type) {
   return Array<te::Tensor>{ topi::identity(inputs[0]) };
 }
 

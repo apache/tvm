@@ -170,8 +170,13 @@ std::string CodeGenC::GetBufferRef(
     } else {
       os << vid;
     }
-    os << '[';
+    os << "[(";
     PrintExpr(index, os);
+    os << ")";
+    if (t.bits() == 4 ||
+        (t.bits() == 1 && t.is_int())) {
+      os << " / " << (32 / t.bits());
+    }
     os << ']';
   } else {
     // Buffer declared as vector type.
@@ -205,8 +210,13 @@ std::string CodeGenC::GetBufferRef(
       PrintType(t.element_of(), os);
       os << "*)";
     }
-    os << vid << " + ";
+    os << vid << " + (";
     PrintExpr(index, os);
+    os << ")";
+    if (t.bits() == 4 ||
+        (t.bits() == 1 && t.is_int())) {
+      os << " / " << (32 / t.bits());
+    }
     os << "))[0]";
   }
   return os.str();

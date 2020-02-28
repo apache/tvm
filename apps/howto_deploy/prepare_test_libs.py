@@ -16,13 +16,14 @@
 # under the License.
 """Script to prepare test_addone.so"""
 import tvm
+from tvm import te
 import os
 
 def prepare_test_libs(base_path):
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = te.var("n")
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
     # Compile library as dynamic library
     fadd_dylib = tvm.build(s, [A, B], "llvm", name="addone")
     dylib_path = os.path.join(base_path, "test_addone_dll.so")

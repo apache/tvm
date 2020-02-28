@@ -98,8 +98,8 @@ class IRBuilder(object):
     --------
     .. code-block:: python
 
-        ib = tvm.ir_builder.create()
-        n = tvm.var("n")
+        ib = tvm.tir.ir_builder.create()
+        n = te.var("n")
         A = ib.allocate("float32", n, name="A")
         with ib.for_range(0, n, name="i") as i:
             with ib.if_scope((i % 2) == 0):
@@ -158,8 +158,8 @@ class IRBuilder(object):
         --------
         .. code-block:: python
 
-            ib = tvm.ir_builder.create()
-            i = tvm.var("i")
+            ib = tvm.tir.ir_builder.create()
+            i = te.var("i")
             x = ib.pointer("float32")
             ib.scope_attr(x, "storage_scope", "global")
             x[i] = x[i - 1] + 1
@@ -200,7 +200,7 @@ class IRBuilder(object):
         --------
         .. code-block:: python
 
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             x = ib.pointer("float32")
             with ib.for_range(1, 10, name="i") as i:
                 x[i] = x[i - 1] + 1
@@ -243,8 +243,8 @@ class IRBuilder(object):
         --------
         .. code-block:: python
 
-            ib = tvm.ir_builder.create()
-            i = tvm.var("i")
+            ib = tvm.tir.ir_builder.create()
+            i = te.var("i")
             x = ib.pointer("float32")
             with ib.if_scope((i % 2) == 0):
                 x[i] = x[i - 1] + 1
@@ -268,8 +268,8 @@ class IRBuilder(object):
         --------
         .. code-block:: python
 
-            ib = tvm.ir_builder.create()
-            i = tvm.var("i")
+            ib = tvm.tir.ir_builder.create()
+            i = te.var("i")
             x = ib.pointer("float32")
             with ib.if_scope((i % 2) == 0):
                 x[i] = x[i - 1] + 1

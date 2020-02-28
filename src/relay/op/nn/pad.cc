@@ -161,9 +161,8 @@ bool PadRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> PadCompute(const Attrs& attrs,
-                         const Array<te::Tensor>& inputs,
-                         const Type& out_type,
-                         const Target& target) {
+                             const Array<te::Tensor>& inputs,
+                             const Type& out_type) {
   const auto* param = attrs.as<PadAttrs>();
   CHECK(param != nullptr);
 

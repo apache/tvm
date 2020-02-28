@@ -45,8 +45,8 @@
 //
 
 ci_lint = "tvmai/ci-lint:v0.60"
-ci_gpu = "tvmai/ci-gpu:v0.60"
-ci_cpu = "tvmai/ci-cpu:v0.55"
+ci_gpu = "tvmai/ci-gpu:v0.61"
+ci_cpu = "tvmai/ci-cpu:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -256,6 +256,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration.sh"
         }

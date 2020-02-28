@@ -19,6 +19,7 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 import topi.testing
@@ -61,8 +62,8 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
 
     ic_block = 8
     autotvm.DispatchContext.current.silent = True
-    A = tvm.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='A', dtype='uint8')
-    W = tvm.placeholder((num_filter//oc_block, in_channel//ic_block//groups, kernel, kernel, ic_block//4, oc_block, 4), name='W', dtype='int8')
+    A = te.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='A', dtype='uint8')
+    W = te.placeholder((num_filter//oc_block, in_channel//ic_block//groups, kernel, kernel, ic_block//4, oc_block, 4), name='W', dtype='int8')
 
     @memoize("topi.tests.test_topi_conv2d_NCHWc_int8.verify_conv2d_NCHWc_int8")
     def get_ref_data():
@@ -81,12 +82,12 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, groups, in_size, num_filte
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            C = topi.nn.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
-                                     (dilation, dilation),
-                                     layout='NCHW%dc'%ic_block,
-                                     out_layout="NCHW%dc"%oc_block,
-                                     out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_NCHWc([C])
+            C = topi.x86.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
+                                      (dilation, dilation),
+                                      'NCHW%dc'%ic_block,
+                                      "NCHW%dc"%oc_block,
+                                      dtype)
+            s = topi.x86.schedule_conv2d_NCHWc([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

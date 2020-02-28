@@ -23,14 +23,5 @@ tvm.runtime.ndarray
     :members:
     :inherited-members:
 
-
-.. autoclass:: tvm.runtime.TVMContext
-    :members:
-
-.. autofunction:: tvm.context
-.. autofunction:: tvm.cpu
-.. autofunction:: tvm.gpu
-.. autofunction:: tvm.opencl
-.. autofunction:: tvm.metal
 .. autofunction:: tvm.nd.array
 .. autofunction:: tvm.nd.empty

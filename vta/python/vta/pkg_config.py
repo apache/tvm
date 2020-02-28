@@ -193,7 +193,7 @@ class PkgConfig(object):
         self.inp_mem_size = 1 << cfg["LOG_INP_BUFF_SIZE"]  # bytes
         self.inp_mem_banks = (inp_mem_bus_width + \
                               max_bus_width - 1) // \
-                              max_bus_width
+            max_bus_width
         self.inp_mem_width = min(inp_mem_bus_width, max_bus_width)
         self.inp_mem_depth = self.inp_mem_size * 8 // inp_mem_bus_width
         self.inp_mem_axi_ratio = self.inp_mem_width // mem_bus_width
@@ -204,7 +204,7 @@ class PkgConfig(object):
         self.wgt_mem_size = 1 << cfg["LOG_WGT_BUFF_SIZE"]  # bytes
         self.wgt_mem_banks = (wgt_mem_bus_width + \
                               max_bus_width - 1) // \
-                              max_bus_width
+            max_bus_width
         self.wgt_mem_width = min(wgt_mem_bus_width, max_bus_width)
         self.wgt_mem_depth = self.wgt_mem_size * 8 // wgt_mem_bus_width
         self.wgt_mem_axi_ratio = self.wgt_mem_width // mem_bus_width
@@ -215,7 +215,7 @@ class PkgConfig(object):
         self.out_mem_size = 1 << cfg["LOG_OUT_BUFF_SIZE"]  # bytes
         self.out_mem_banks = (out_mem_bus_width + \
                               max_bus_width - 1) // \
-                              max_bus_width
+            max_bus_width
         self.out_mem_width = min(out_mem_bus_width, max_bus_width)
         self.out_mem_depth = self.out_mem_size * 8 // out_mem_bus_width
         self.out_mem_axi_ratio = self.out_mem_width // mem_bus_width
@@ -235,23 +235,23 @@ class PkgConfig(object):
         self.macro_defs.append("-DVTA_STORE_ADDR=%s" % (self.store_base_addr))
         # IP register offsets
         self.macro_defs.append("-DVTA_FETCH_INSN_COUNT_OFFSET=%s" % \
-                (self.fetch_insn_count_offset))
+                               (self.fetch_insn_count_offset))
         self.macro_defs.append("-DVTA_FETCH_INSN_ADDR_OFFSET=%s" % \
-                (self.fetch_insn_addr_offset))
+                               (self.fetch_insn_addr_offset))
         self.macro_defs.append("-DVTA_LOAD_INP_ADDR_OFFSET=%s" % \
-                (self.load_inp_addr_offset))
+                               (self.load_inp_addr_offset))
         self.macro_defs.append("-DVTA_LOAD_WGT_ADDR_OFFSET=%s" % \
-                (self.load_wgt_addr_offset))
+                               (self.load_wgt_addr_offset))
         self.macro_defs.append("-DVTA_COMPUTE_DONE_WR_OFFSET=%s" % \
-                (self.compute_done_wr_offet))
+                               (self.compute_done_wr_offet))
         self.macro_defs.append("-DVTA_COMPUTE_DONE_RD_OFFSET=%s" % \
-                (self.compute_done_rd_offet))
+                               (self.compute_done_rd_offet))
         self.macro_defs.append("-DVTA_COMPUTE_UOP_ADDR_OFFSET=%s" % \
-                (self.compute_uop_addr_offset))
+                               (self.compute_uop_addr_offset))
         self.macro_defs.append("-DVTA_COMPUTE_BIAS_ADDR_OFFSET=%s" % \
-                (self.compute_bias_addr_offset))
+                               (self.compute_bias_addr_offset))
         self.macro_defs.append("-DVTA_STORE_OUT_ADDR_OFFSET=%s" % \
-                (self.store_out_addr_offset))
+                               (self.store_out_addr_offset))
         # Coherency
         if coherent:
             self.macro_defs.append("-DVTA_COHERENT_ACCESSES=true")

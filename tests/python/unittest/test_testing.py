@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm.testing import check_numerical_grads
 
 def test_check_numerical_grads():

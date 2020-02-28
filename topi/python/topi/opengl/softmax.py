@@ -16,10 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
-import tvm
-from .. import generic
+from tvm import te
 
-@generic.schedule_softmax.register(["opengl"])
 def schedule_softmax(outs):
     """Schedule for softmax op.
 
@@ -34,8 +32,8 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     softmax = outs[0]
 
     op_tag = softmax.op.tag

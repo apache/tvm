@@ -15,21 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm.contrib import nvcc
 import numpy as np
 import time
 
 def test_exp():
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: tvm.exp(A(*i)), name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: te.exp(A(*i)), name='B')
+    s = te.create_schedule(B.op)
     # create iter var and assign them tags.
     num_thread = 8
     bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
-    s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[B].bind(bx, te.thread_axis("blockIdx.x"))
+    s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
     # one line to build the function.
     def check_device(device, host="stackvm"):
@@ -57,11 +58,11 @@ def test_exp():
 def test_fmod():
     # graph
     def run(dtype):
-        n = tvm.size_var('n')
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
-        B = tvm.placeholder((n,), name='B', dtype=dtype)
-        C = tvm.compute(A.shape, lambda *i: tvm.fmod(A(*i), B(*i)), name='C')
-        s = tvm.create_schedule(C.op)
+        n = te.size_var('n')
+        A = te.placeholder((n,), name='A', dtype=dtype)
+        B = te.placeholder((n,), name='B', dtype=dtype)
+        C = te.compute(A.shape, lambda *i: te.fmod(A(*i), B(*i)), name='C')
+        s = te.create_schedule(C.op)
         # create iter var and assign them tags.
         num_thread = 8
         bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
@@ -73,8 +74,8 @@ def test_fmod():
                 return
             target = tvm.target.create(device)
             if "cpu" not in target.keys:
-                s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-                s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+                s[C].bind(bx, te.thread_axis("blockIdx.x"))
+                s[C].bind(tx, te.thread_axis("threadIdx.x"))
             fmod = tvm.build(s, [A, B, C], device, name="myfmod")
 
             # launch the kernel.
@@ -96,23 +97,23 @@ def test_fmod():
 
 def test_multiple_cache_write():
     # graph
-    n = tvm.convert(1024)
-    A0 = tvm.placeholder((n,), name='A0', dtype = "float32")
-    A1 = tvm.placeholder((n,), name='A1', dtype = "float32")
-    B0, B1 = tvm.compute((n,),
+    n = tvm.runtime.convert(1024)
+    A0 = te.placeholder((n,), name='A0', dtype = "float32")
+    A1 = te.placeholder((n,), name='A1', dtype = "float32")
+    B0, B1 = te.compute((n,),
             lambda *i: (A0(*i) + A1(*i), A0(*i) * A1(*i)),
             name='B')
-    C = tvm.compute((n,), lambda *i: B0(*i) + B1(*i),
+    C = te.compute((n,), lambda *i: B0(*i) + B1(*i),
             name='C')
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     # create iter var and assign them tags.
     num_thread = 8
     B0_cache, B1_cache = s.cache_write([B0, B1], "local")
     bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
     s[B0].compute_at(s[C], bx)
     s[B0_cache].compute_at(s[C], bx)
-    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
     # one line to build the function.
     def check_device(device, host="stackvm"):
         if not tvm.runtime.enabled(host):
@@ -140,10 +141,10 @@ def test_multiple_cache_write():
 
 def test_log_pow_llvm():
     # graph
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: tvm.power(tvm.log(A(*i)), 2.0), name='B')
-    s = tvm.create_schedule(B.op)
+    n = te.size_var('n')
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: te.power(te.log(A(*i)), 2.0), name='B')
+    s = te.create_schedule(B.op)
     # create iter var and assign them tags.
     bx, tx = s[B].split(B.op.axis[0], factor=32)
     # one line to build the function.
@@ -168,10 +169,10 @@ def test_log_pow_llvm():
 def test_popcount():
     def run(dtype):
         # graph
-        n = tvm.convert(1024)
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
-        B = tvm.compute(A.shape, lambda *i: tvm.popcount(A(*i)), name='B')
-        s = tvm.create_schedule(B.op)
+        n = tvm.runtime.convert(1024)
+        A = te.placeholder((n,), name='A', dtype=dtype)
+        B = te.compute(A.shape, lambda *i: tvm.tir.popcount(A(*i)), name='B')
+        s = te.create_schedule(B.op)
         # simple schedule
         num_thread = 8
         bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
@@ -183,8 +184,8 @@ def test_popcount():
                 return
             target = tvm.target.create(device)
             if "cpu" not in target.keys:
-                s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-                s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+                s[B].bind(bx, te.thread_axis("blockIdx.x"))
+                s[B].bind(tx, te.thread_axis("threadIdx.x"))
             func = tvm.build(s, [A, B], device)
             # launch the kernel.
             n = 1024
@@ -207,21 +208,21 @@ def test_popcount():
 def test_add():
     def run(dtype):
         # graph
-        n = tvm.size_var('n')
-        A = tvm.placeholder((n,), name='A', dtype=dtype)
-        B = tvm.placeholder((n,), name='B', dtype=dtype)
-        bias = tvm.var("bias", dtype=dtype)
-        scale = tvm.var("scale", dtype=dtype)
-        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        n = te.size_var('n')
+        A = te.placeholder((n,), name='A', dtype=dtype)
+        B = te.placeholder((n,), name='B', dtype=dtype)
+        bias = te.var("bias", dtype=dtype)
+        scale = te.var("scale", dtype=dtype)
+        C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         # schedule
-        s = tvm.create_schedule(C.op)
+        s = te.create_schedule(C.op)
         # create iter var and assign them tags.
         num_thread = 16
         bx, x = s[C].split(C.op.axis[0], factor=num_thread*4)
         tx, x = s[C].split(x, nparts=num_thread)
         _, x = s[C].split(x, factor=4)
-        s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[C].bind(bx, te.thread_axis("blockIdx.x"))
+        s[C].bind(tx, te.thread_axis("threadIdx.x"))
         s[C].vectorize(x)
 
         # one line to build the function.
@@ -259,16 +260,16 @@ def test_add():
 def try_warp_memory():
     """skip this in default test because it require higher arch"""
     m = 128
-    A = tvm.placeholder((m,), name='A')
-    B = tvm.compute((m,), lambda i: A[i] + 3, name='B')
+    A = te.placeholder((m,), name='A')
+    B = te.compute((m,), lambda i: A[i] + 3, name='B')
     warp_size = 32
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     AA = s.cache_read(A, "warp", [B])
     xo, xi = s[B].split(B.op.axis[0], warp_size * 2)
     xi0, xi1 = s[B].split(xi, factor=warp_size)
-    tx = tvm.thread_axis("threadIdx.x")
+    tx = te.thread_axis("threadIdx.x")
     s[B].bind(xi1, tx)
-    s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
+    s[B].bind(xo, te.thread_axis("blockIdx.x"))
     s[AA].compute_at(s[B], xo)
     xo, xi = s[AA].split(s[AA].op.axis[0], warp_size)
     s[AA].bind(xi, tx)

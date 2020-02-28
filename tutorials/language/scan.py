@@ -25,6 +25,7 @@ Recurrent computing is a typical pattern in neural networks.
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import numpy as np
 
 ######################################################################
@@ -46,13 +47,13 @@ import numpy as np
 # The result of the scan is a tensor, giving the result of :code:`s_state` after the
 # update over the time domain.
 #
-m = tvm.var("m")
-n = tvm.var("n")
-X = tvm.placeholder((m, n), name="X")
-s_state = tvm.placeholder((m, n))
-s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
-s_scan = tvm.scan(s_init, s_update, s_state, inputs=[X])
+m = te.var("m")
+n = te.var("n")
+X = te.placeholder((m, n), name="X")
+s_state = te.placeholder((m, n))
+s_init = te.compute((1, n), lambda _, i: X[0, i])
+s_update = te.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
+s_scan = tvm.te.scan(s_init, s_update, s_state, inputs=[X])
 
 ######################################################################
 # Schedule the Scan Cell
@@ -62,10 +63,10 @@ s_scan = tvm.scan(s_init, s_update, s_state, inputs=[X])
 # first iteration dimension of the update part.
 # To split on the time iteration, user can schedule on scan_op.scan_axis instead.
 #
-s = tvm.create_schedule(s_scan.op)
+s = te.create_schedule(s_scan.op)
 num_thread = 256
-block_x = tvm.thread_axis("blockIdx.x")
-thread_x = tvm.thread_axis("threadIdx.x")
+block_x = te.thread_axis("blockIdx.x")
+thread_x = te.thread_axis("threadIdx.x")
 xo, xi = s[s_init].split(s_init.op.axis[1], factor=num_thread)
 s[s_init].bind(xo, block_x)
 s[s_init].bind(xi, thread_x)
@@ -100,21 +101,21 @@ tvm.testing.assert_allclose(b.asnumpy(), np.cumsum(a_np, axis=0))
 # The following lines demonstrate a scan with two stage operations
 # in the scan cell.
 #
-m = tvm.var("m")
-n = tvm.var("n")
-X = tvm.placeholder((m, n), name="X")
-s_state = tvm.placeholder((m, n))
-s_init = tvm.compute((1, n), lambda _, i: X[0, i])
-s_update_s1 = tvm.compute((m, n), lambda t, i: s_state[t-1, i] * 2, name="s1")
-s_update_s2 = tvm.compute((m, n), lambda t, i: s_update_s1[t, i] + X[t, i], name="s2")
-s_scan = tvm.scan(s_init, s_update_s2, s_state, inputs=[X])
+m = te.var("m")
+n = te.var("n")
+X = te.placeholder((m, n), name="X")
+s_state = te.placeholder((m, n))
+s_init = te.compute((1, n), lambda _, i: X[0, i])
+s_update_s1 = te.compute((m, n), lambda t, i: s_state[t-1, i] * 2, name="s1")
+s_update_s2 = te.compute((m, n), lambda t, i: s_update_s1[t, i] + X[t, i], name="s2")
+s_scan = tvm.te.scan(s_init, s_update_s2, s_state, inputs=[X])
 
 ######################################################################
 # These intermediate tensors can also be scheduled normally.
 # To ensure correctness, TVM creates a group constraint to forbid
 # the body of scan to be compute_at locations outside the scan loop.
 #
-s = tvm.create_schedule(s_scan.op)
+s = te.create_schedule(s_scan.op)
 xo, xi = s[s_update_s2].split(s_update_s2.op.axis[1], factor=32)
 s[s_update_s1].compute_at(s[s_update_s2], xo)
 print(tvm.lower(s, [X, s_scan], simple_mode=True))
@@ -126,20 +127,20 @@ print(tvm.lower(s, [X, s_scan], simple_mode=True))
 # recurrent state. Scan support multiple recurrent states.
 # The following example demonstrates how we can build recurrence with two states.
 #
-m = tvm.var("m")
-n = tvm.var("n")
-l = tvm.var("l")
-X = tvm.placeholder((m, n), name="X")
-s_state1 = tvm.placeholder((m, n))
-s_state2 = tvm.placeholder((m, l))
-s_init1 = tvm.compute((1, n), lambda _, i: X[0, i])
-s_init2 = tvm.compute((1, l), lambda _, i: 0.0)
-s_update1 = tvm.compute((m, n), lambda t, i: s_state1[t-1, i] + X[t, i])
-s_update2 = tvm.compute((m, l), lambda t, i: s_state2[t-1, i] + s_state1[t-1, 0])
-s_scan1, s_scan2 = tvm.scan([s_init1, s_init2],
+m = te.var("m")
+n = te.var("n")
+l = te.var("l")
+X = te.placeholder((m, n), name="X")
+s_state1 = te.placeholder((m, n))
+s_state2 = te.placeholder((m, l))
+s_init1 = te.compute((1, n), lambda _, i: X[0, i])
+s_init2 = te.compute((1, l), lambda _, i: 0.0)
+s_update1 = te.compute((m, n), lambda t, i: s_state1[t-1, i] + X[t, i])
+s_update2 = te.compute((m, l), lambda t, i: s_state2[t-1, i] + s_state1[t-1, 0])
+s_scan1, s_scan2 = tvm.te.scan([s_init1, s_init2],
                             [s_update1, s_update2],
                             [s_state1, s_state2], inputs=[X])
-s = tvm.create_schedule(s_scan1.op)
+s = te.create_schedule(s_scan1.op)
 print(tvm.lower(s, [X, s_scan1, s_scan2], simple_mode=True))
 
 ######################################################################

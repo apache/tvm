@@ -54,7 +54,7 @@ IntervalSet MakeIntervalSet(PrimExpr min_value, PrimExpr max_value) {
   return IntervalSet(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith._make_IntervalSet")
+TVM_REGISTER_GLOBAL("arith.IntervalSet")
 .set_body_typed(MakeIntervalSet);
 
 
@@ -820,5 +820,28 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
               << "[" << op->min_value << ", "
               << op->max_value << ']';
   });
+
+
+TVM_REGISTER_GLOBAL("arith.intset_single_point")
+.set_body_typed(IntSet::single_point);
+
+TVM_REGISTER_GLOBAL("arith.intset_vector")
+.set_body_typed(IntSet::vector);
+
+TVM_REGISTER_GLOBAL("arith.intset_interval")
+.set_body_typed(IntSet::interval);
+
+TVM_REGISTER_GLOBAL("arith.IntervalSetGetMin")
+.set_body_method(&IntSet::min);
+
+TVM_REGISTER_GLOBAL("arith.IntervalSetGetMax")
+.set_body_method(&IntSet::max);
+
+TVM_REGISTER_GLOBAL("arith.IntSetIsNothing")
+.set_body_method(&IntSet::is_nothing);
+
+TVM_REGISTER_GLOBAL("arith.IntSetIsEverything")
+.set_body_method(&IntSet::is_everything);
+
 }  // namespace arith
 }  // namespace tvm

@@ -21,6 +21,7 @@
  * \file graph.cc
  * \brief Utilities to get information about schedule graph.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/te/operation.h>
@@ -428,6 +429,25 @@ Map<IterVar, PrimExpr> ScanFixPointAnalysis(const Operation& scan_op) {
   }
   return ret;
 }
+
+
+TVM_REGISTER_GLOBAL("schedule.CreateReadGraph")
+.set_body_typed(CreateReadGraph);
+
+TVM_REGISTER_GLOBAL("schedule.PostDFSOrder")
+.set_body_typed([](const Array<Operation>& roots,
+                   const ReadGraph& g) {
+  return PostDFSOrder(roots, g);
+});
+
+TVM_REGISTER_GLOBAL("schedule.CreateAttachPath")
+.set_body_typed(CreateAttachPath);
+
+TVM_REGISTER_GLOBAL("schedule.ScanGetBody")
+.set_body_typed(ScanGetBody);
+
+TVM_REGISTER_GLOBAL("schedule.ScanFixPointAnalysis")
+.set_body_typed(ScanFixPointAnalysis);
 
 }  // namespace te
 }  // namespace tvm

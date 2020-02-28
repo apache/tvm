@@ -735,58 +735,6 @@ weight transformation in advance.
 .add_type_rel("Conv2DWinogradWeightTransform", Conv2DWinogradWeightTransformRel);
 
 
-// Positional relay function to create conv2d winograd nnpack operator
-// used by frontend FFI.
-Expr MakeConv2DWinogradNNPACK(Expr data,
-                              Expr weight,
-                              Array<IndexExpr> strides,
-                              Array<IndexExpr> padding,
-                              Array<IndexExpr> dilation,
-                              int groups,
-                              IndexExpr channels,
-                              Array<IndexExpr> kernel_size,
-                              std::string data_layout,
-                              std::string kernel_layout,
-                              std::string out_layout,
-                              DataType out_dtype) {
-  auto attrs = make_object<Conv2DAttrs>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = channels;
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.contrib_conv2d_winograd_nnpack_without_weight_transform");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_without_weight_transform")
-.set_body_typed(MakeConv2DWinogradNNPACK);
-
-RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_without_weight_transform")
-.describe(R"code(Compute conv2d with winograd nnpack. Only supports NCHW layout.
-              This operator assumes the weight tensor is already pre-transformed by
-              nn.contrib_conv2d_winograd_nnpack_weight_transform.
-
-- **data**: Input is 4D array of shape  (batch_size, in_channels, height, width)
-- **weight**: Any shape
-            We do not check the shape for this input tensor. Since different backend
-            has different layout strategy.
-
-- **out**:  Output is 4D array of shape (batch_size, channels, out_height, out_width)
-)code" TVM_ADD_FILELINE)
-.set_attrs_type<Conv2DAttrs>()
-.set_num_inputs(2)
-.add_argument("data", "Tensor", "The input tensor.")
-.add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(10)
-.add_type_rel("Conv2DWinogradNNPACKRel", Conv2DWinogradRel<Conv2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConvInferCorrectLayout<Conv2DAttrs>);
-
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradNNPACKWeightTransformAttrs);
 
@@ -847,55 +795,6 @@ weight transformation in advance.
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
 .add_type_rel("Conv2DWinogradNNPACKWeightTransform", Conv2DWinogradNNPACKWeightTransformRel);
-
-// Positional relay function to create conv2d NCHWc operator
-// used by frontend FFI.
-Expr MakeConv2DNCHWcInt8(Expr data,
-                         Expr kernel,
-                         Array<IndexExpr> strides,
-                         Array<IndexExpr> padding,
-                         Array<IndexExpr> dilation,
-                         int groups,
-                         IndexExpr channels,
-                         Array<IndexExpr> kernel_size,
-                         std::string data_layout,
-                         std::string kernel_layout,
-                         std::string out_layout,
-                         DataType out_dtype) {
-  auto attrs = make_object<Conv2DAttrs>();
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = channels;
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.contrib_conv2d_NCHWc_int8");
-  return CallNode::make(op, {data, kernel}, Attrs(attrs), {});
-}
-
-TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc_int8")
-.set_body_typed(MakeConv2DNCHWcInt8);
-
-
-RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc_int8")
-.describe(R"code(Compute conv2d with NCHWc data layout with int8 inputs.
-- **data**: Input is 5D packed tensor.
-- **weight**: 7D packed tensor.
-
-- **out**:  Output is 5D packed tensor
-)code" TVM_ADD_FILELINE)
-.set_attrs_type<Conv2DAttrs>()
-.set_num_inputs(2)
-.add_argument("data", "Tensor", "The input tensor.")
-.add_argument("weight", "Tensor", "The weight tensor.")
-.set_support_level(10)
-.add_type_rel("Conv2DNCHWcInt8", Conv2DWinogradRel<Conv2DAttrs>)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-        ConvInferCorrectLayout<Conv2DAttrs>);
 
 // Positional relay function to create conv2d NCHWc operator
 // used by frontend FFI.

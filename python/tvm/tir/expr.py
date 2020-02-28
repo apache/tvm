@@ -25,7 +25,7 @@ For example, you can use addexp.a to get the left operand of an Add node.
 
 .. code-block:: python
 
-  x = tvm.var("n")
+  x = te.var("n")
   y = x + 2
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
@@ -52,6 +52,11 @@ def _dtype_is_int(value):
     return (isinstance(value, ExprOp) and
             DataType(value.dtype).type_code == TypeCode.INT)
 
+def _dtype_is_float(value):
+    if isinstance(value, float):
+        return True
+    return (isinstance(value, ExprOp) and
+            DataType(value.dtype).type_code == TypeCode.FLOAT)
 
 class ExprOp(object):
     """Operator overloading for Expr like expressions."""
@@ -102,6 +107,9 @@ class ExprOp(object):
     def __mod__(self, other):
         return _ffi_api._OpFloorMod(self, other)
 
+    def __rmod__(self, other):
+        return _ffi_api._OpFloorMod(other, self)
+
     def __neg__(self):
         neg_one = const(-1, self.dtype)
         return self.__mul__(neg_one)
@@ -109,8 +117,14 @@ class ExprOp(object):
     def __lshift__(self, other):
         return _ffi_api.left_shift(self, other)
 
+    def __rlshift__(self, other):
+        return _ffi_api.left_shift(other, self)
+
     def __rshift__(self, other):
         return _ffi_api.right_shift(self, other)
+
+    def __rrshift__(self, other):
+        return _ffi_api.right_shift(other, self)
 
     def __and__(self, other):
         return _ffi_api.bitwise_and(self, other)
@@ -131,6 +145,8 @@ class ExprOp(object):
         return _ffi_api.bitwise_xor(other, self)
 
     def __invert__(self):
+        if _dtype_is_float(self):
+            raise RuntimeError("Cannot use ~ operator on float type Expr.")
         return _ffi_api.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
@@ -153,7 +169,7 @@ class ExprOp(object):
 
     def __nonzero__(self):
         raise ValueError("Cannot use and / or / not operator to Expr, hint: " +
-                         "use tvm.all / tvm.any instead")
+                         "use tvm.tir.all / tvm.tir.any instead")
 
     def __bool__(self):
         return self.__nonzero__()
@@ -306,6 +322,57 @@ class SizeVar(Var):
     def __init__(self, name, dtype):
         self.__init_handle_by_constructor__(
             _ffi_api.SizeVar, name, dtype)
+
+
+@tvm._ffi.register_object
+class IterVar(Object, ExprOp):
+    """Represent iteration variable.
+
+    IterVar represents axis iterations in the computation.
+
+    Parameters
+    ----------
+    dom : Range
+        The domain of the iteration.
+
+    var : Union[Var, str]
+        The internal variable that is used for iteration.
+
+    iter_type : int
+        The iteration type.
+
+    thread_tag : str
+        The thread type tag.
+
+    See Also
+    --------
+    te.thread_axis: Create thread axis IterVar.
+    te.reduce_axis: Create reduce axis IterVar.
+    """
+    DataPar = 0
+    ThreadIndex = 1
+    CommReduce = 2
+    Ordered = 3
+    DimInfo = 4
+    Unrolled = 5
+    Vectorized = 6
+    Parallelized = 7
+    Tensorized = 8
+
+    def __init__(self, dom, var, iter_type, thread_tag=""):
+        if dom is not None:
+            if isinstance(dom, (list, tuple)):
+                if len(dom) != 2:
+                    raise TypeError("need to be list of ranges")
+                dom = tvm.ir.Range(dom[0], dom[1])
+
+            if not isinstance(dom, tvm.ir.Range):
+                raise TypeError("dom need to be Range")
+
+        name = var if var is not None else "iter"
+        var = Var(name, dtype="int32") if not isinstance(var, Var) else var
+        self.__init_handle_by_constructor__(
+            _ffi_api.IterVar, dom, var, iter_type, thread_tag)
 
 
 @tvm._ffi.register_object
@@ -745,7 +812,7 @@ class Select(PrimExprWithOp):
     Note
     ----
     Select may compute both true_value and false_value.
-    Use :any:`tvm.if_then_else` instead if you want to
+    Use :py:class:`tvm.tir.if_then_else` instead if you want to
     get a conditional expression that only evaluates
     the correct branch.
 
@@ -897,3 +964,11 @@ class Let(PrimExprWithOp):
     def __init__(self, var, value, body):
         self.__init_handle_by_constructor__(
             _ffi_api.Let, var, value, body)
+
+
+@tvm._ffi.register_object
+class Any(PrimExpr):
+    """Any node.
+    """
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.Any)

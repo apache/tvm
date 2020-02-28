@@ -18,21 +18,22 @@
 """Conv1d transpose template for cuda backend"""
 
 import tvm
+from tvm import te
 from tvm import autotvm
-from .. import nn, generic
+from .. import nn
 from ..util import get_const_tuple, traverse_inline
 
-@autotvm.task.register_topi_compute(nn.conv1d_transpose_ncw, ['cuda', 'gpu'], "direct")
-def conv1d_transpose_ncw_cuda(cfg, data, kernel, stride, padding, out_dtype):
+@autotvm.task.register_topi_compute("conv1d_transpose_nchw.cuda")
+def conv1d_transpose_ncw(cfg, data, kernel, stride, padding, out_dtype):
     """Transposed 1D convolution ncw forward operator.
 
     Parameters
     ----------
     cfg: ConfigEntity
         The config for this template
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         3-D with shape [batch, in_channel, inp_width]
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         3-D with shape [in_channel, num_filter, kernel_size]
     stride : tuple of one int
         The spatial stride along width
@@ -45,7 +46,7 @@ def conv1d_transpose_ncw_cuda(cfg, data, kernel, stride, padding, out_dtype):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
     u    3-D with shape [batch, out_channel, out_width]
     """
     if isinstance(stride, (tuple, list)):
@@ -58,30 +59,29 @@ def conv1d_transpose_ncw_cuda(cfg, data, kernel, stride, padding, out_dtype):
     pad_left = kernel_size - 1 - pad_left
     pad_right = kernel_size - 1 - pad_right
     dilated_width = stride * (inp_width - 1) + 1
-    data = tvm.compute(
+    data = te.compute(
         (batch, inp_channels, pad_left + dilated_width + pad_right),
-        lambda n, c, x: tvm.if_then_else(
-            tvm.all(x >= pad_left,
-                    x < pad_left + dilated_width,
-                    tvm.indexmod(x - pad_left, stride).equal(0)),
-            data[n, c, tvm.indexdiv(x - pad_left, stride)],
-            tvm.const(0., "float32")),
+        lambda n, c, x: tvm.tir.if_then_else(
+            tvm.tir.all(x >= pad_left,
+                        x < pad_left + dilated_width,
+                        tvm.tir.indexmod(x - pad_left, stride).equal(0)),
+            data[n, c, tvm.tir.indexdiv(x - pad_left, stride)],
+            tvm.tir.const(0., "float32")),
         name='data_pad')
 
-    dc = tvm.reduce_axis((0, inp_channels), name='dc')
-    dw = tvm.reduce_axis((0, kernel_size), name='dw')
-    data_out = tvm.compute(
+    dc = te.reduce_axis((0, inp_channels), name='dc')
+    dw = te.reduce_axis((0, kernel_size), name='dw')
+    data_out = te.compute(
         (batch, out_channels, out_width),
-        lambda b, c, w: tvm.sum(
+        lambda b, c, w: te.sum(
             data[b, dc, w + dw].astype(out_dtype) *
             kernel[dc, c, kernel_size - 1 - dw].astype(out_dtype),
             axis=[dc, dw]), tag="conv1d_transpose_ncw")
 
     return data_out
 
-@autotvm.task.register_topi_schedule(generic.schedule_conv1d_transpose_ncw,
-                                     ['cuda', 'gpu'], 'direct')
-def schedule_conv1d_transpose_ncw_cuda(cfg, outs):
+@autotvm.task.register_topi_schedule("conv1d_transpose_nchw.cuda")
+def schedule_conv1d_transpose_ncw(cfg, outs):
     """TOPI Schedule callback for conv1d_transpose operator.
 
     Parameters
@@ -98,8 +98,8 @@ def schedule_conv1d_transpose_ncw_cuda(cfg, outs):
     s: Schedule
         The computation schedule for conv1d transpose.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'conv1d_transpose_ncw':
@@ -124,7 +124,7 @@ def schedule_conv1d_transpose_ncw_cuda(cfg, outs):
 
             ##### space definition end #####
 
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
 
             if conv.op in s.outputs:
@@ -148,14 +148,14 @@ def schedule_conv1d_transpose_ncw_cuda(cfg, outs):
             bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
             s[output].reorder(bn, bf, bx, vn, vf, vx, tn, tf, tx, ni, fi, xi)
-            s[output].bind(bn, tvm.thread_axis("blockIdx.z"))
-            s[output].bind(bf, tvm.thread_axis("blockIdx.y"))
-            s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-            s[output].bind(vn, tvm.thread_axis("vthread"))
-            s[output].bind(vf, tvm.thread_axis("vthread"))
-            s[output].bind(vx, tvm.thread_axis("vthread"))
+            s[output].bind(bn, te.thread_axis("blockIdx.z"))
+            s[output].bind(bf, te.thread_axis("blockIdx.y"))
+            s[output].bind(bx, te.thread_axis("blockIdx.x"))
+            s[output].bind(vn, te.thread_axis("vthread"))
+            s[output].bind(vf, te.thread_axis("vthread"))
+            s[output].bind(vx, te.thread_axis("vthread"))
 
-            s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+            s[output].bind(tx, te.thread_axis("threadIdx.x"))
             s[OL].compute_at(s[output], tx)
             # number of threads
             n_tz = cfg["tile_n"].size[2] * cfg["tile_f"].size[2]
@@ -176,8 +176,8 @@ def schedule_conv1d_transpose_ncw_cuda(cfg, outs):
                 fused = s[load].fuse(f, x)
                 tz, fused = s[load].split(fused, nparts=n_tz)
                 tx, fused = s[load].split(fused, nparts=n_tx)
-                s[load].bind(tz, tvm.thread_axis("threadIdx.y"))
-                s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+                s[load].bind(tz, te.thread_axis("threadIdx.y"))
+                s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
             s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
             s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
