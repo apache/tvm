@@ -81,7 +81,7 @@ class NDArray : public ObjectRef {
  * \note The copy may happen asynchronously if it involves a GPU context.
  *       TVMSynchronize is necessary.
  */
-  inline void CopyFromBytes(const void* data, size_t nbytes);
+  TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
   /*!
    * \brief Copy data content into another array.
    * \param other The source array to be copied from.
@@ -98,7 +98,7 @@ class NDArray : public ObjectRef {
    * \note The copy may happen asynchronously if it involves a GPU context.
    *       TVMSynchronize is necessary.
    */
-  inline void CopyToBytes(void* data, size_t nbytes) const;
+  TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
   /*!
    * \brief Copy the data to another context.
    * \param ctx The target context.
