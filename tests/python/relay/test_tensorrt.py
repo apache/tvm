@@ -25,7 +25,7 @@ import pytest
 from tvm.contrib import graph_runtime
 
 def should_skip():
-    if not tvm.module.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
         print("skip because cuda is not enabled.")
         return True
     if not relay.tensorrt.IsTrtRuntimeAvailable():
@@ -523,7 +523,7 @@ def test_tensorrt_serialize():
         graph = f_graph_json.read()
     with open('compiled.params', 'rb') as f_params:
         params = bytearray(f_params.read())
-    lib = tvm.module.load("compiled.tensorrt")
+    lib = tvm.runtime.load("compiled.tensorrt")
     # Run
     mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
     mod.load_params(params)

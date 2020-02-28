@@ -77,7 +77,7 @@ def test_conv_network():
                   conv2d
     """
     def compile_run_graph(device, target):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip test because %s is not enabled." % device)
             return
 
@@ -129,7 +129,7 @@ def test_fusible_network():
                 tanh
     """
     def compile_run_graph(device, target):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip test because %s is not enabled." % device)
             return
 
@@ -265,7 +265,7 @@ def check_graph(sym, target, op_name_device, fallback_device, data_shape,
             fo.write(nnvm.compiler.save_param_dict(params))
 
         # Load lib, json, and params back.
-        loaded_lib = tvm.module.load(path_lib)
+        loaded_lib = tvm.runtime.load(path_lib)
         loaded_json = open(temp.relpath("deploy.json")).read()
         loaded_json = graph.load_json(loaded_json)
         loaded_params = bytearray(open(temp.relpath("deploy.params"),
@@ -315,7 +315,7 @@ def check_graph(sym, target, op_name_device, fallback_device, data_shape,
 #                 conv2d  (acc)
 #     """
 #     def compile_run_graph(device, target):
-#         if not tvm.module.enabled(device):
+#         if not tvm.runtime.enabled(device):
 #             print("Skip test because %s is not enabled." % device)
 #             return
 # 
