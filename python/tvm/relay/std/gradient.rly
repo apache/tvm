@@ -28,7 +28,7 @@ type GradCell[T] {
   Zero(fn() -> T)
 }
 
-def @FromGradCell[T](%g: GradCell[T]) {
+def @FromGradCell[T](%g: GradCell[T]) -> T {
   match (%g) {
     Raw(%x) => %x,
     One(%x) => %x(),
@@ -40,6 +40,6 @@ def @AddGradCell[T](%add: fn(T, T) -> T, %l: GradCell[T], %r: GradCell[T]) -> Gr
   match ((%l, %r)) {
     (Zero(_), _) => %r,
     (_, Zero(_)) => %l,
-    _ => %add(@FromGradCell(%l), @FromGradCell(%r))
+    _ => Raw(%add(@FromGradCell(%l), @FromGradCell(%r)))
   }
 }
