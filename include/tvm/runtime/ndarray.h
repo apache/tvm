@@ -324,12 +324,6 @@ inline void NDArray::CopyFrom(const NDArray& other) {
   CopyFromTo(&(other.get_mutable()->dl_tensor), &(get_mutable()->dl_tensor));
 }
 
-inline void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
-  CHECK(data != nullptr);
-  CHECK(data_ != nullptr);
-  CHECK_EQ(TVMArrayCopyFromBytes(&get_mutable()->dl_tensor, const_cast<void*>(data), nbytes), 0);
-}
-
 inline void NDArray::CopyTo(DLTensor* other) const {
   CHECK(data_ != nullptr);
   CopyFromTo(&(get_mutable()->dl_tensor), other);
@@ -339,12 +333,6 @@ inline void NDArray::CopyTo(const NDArray& other) const {
   CHECK(data_ != nullptr);
   CHECK(other.data_ != nullptr);
   CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
-}
-
-inline void NDArray::CopyToBytes(void* data, size_t nbytes) const {
-  CHECK(data != nullptr);
-  CHECK(data_ != nullptr);
-  CHECK_EQ(TVMArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes), 0);
 }
 
 inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
