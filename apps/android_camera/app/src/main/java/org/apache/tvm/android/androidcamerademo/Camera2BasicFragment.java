@@ -410,7 +410,6 @@ public class Camera2BasicFragment extends Fragment implements
             if (mRunClassifier && isProcessingDone.tryAcquire()) {
                 long t1 = SystemClock.uptimeMillis();
                 float[] chw = getFrame(image);
-                image.close();
                 long t2 = SystemClock.uptimeMillis();
                 String[] results = inference(chw);
                 long t3 = SystemClock.uptimeMillis();
@@ -425,6 +424,7 @@ public class Camera2BasicFragment extends Fragment implements
                 mInfoView.setText(msg);
                 isProcessingDone.release();
             }
+            image.close();
         });
         return v;
     }
