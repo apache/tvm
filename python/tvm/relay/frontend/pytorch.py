@@ -19,7 +19,6 @@
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
 """PT: PyTorch frontend."""
 import itertools
-from packaging import version
 
 import numpy as np
 
@@ -786,8 +785,7 @@ _convert_map = {
 def _run_jit_passes(graph):
     """ The inline pass is necessary to unwrap prim::CallMethod """
     import torch
-    if version.parse(torch.__version__) >= version.parse("1.4.0"):
-        torch._C._jit_pass_inline(graph)
+    torch._C._jit_pass_inline(graph)
 
 
 def _is_int_seq(seq):

@@ -17,16 +17,12 @@
 # pylint: disable=import-self, invalid-name, unused-argument
 """Unit tests for various models and operators"""
 from time import time
-import os
 import sys
-from tempfile import TemporaryDirectory
 from scipy.stats import t as tdistr
 import numpy as np
 import torch
-from torch import nn
 from torch.nn import Module
 import tvm
-from tvm import te
 import torchvision
 
 from tvm import relay
@@ -37,22 +33,6 @@ from tvm.relay.frontend.pytorch import get_graph_input_names
 
 sys.setrecursionlimit(10000)
 
-def _vectorize(ten):
-    return ten.reshape(-1)
-
-def atol(tru, est):
-    def _atol_elt(tru, est):
-        return abs(tru - est)
-    tru = _vectorize(tru)
-    est = _vectorize(est)
-    return max([_atol_elt(x, y) for x, y in zip(tru, est)])
-
-def rtol(tru, est):
-    def _rtol_elt(tru, est):
-        return abs(tru - est) / min(abs(tru), abs(est))
-    tru = _vectorize(tru)
-    est = _vectorize(est)
-    return max([_rtol_elt(x, y) for x, y in zip(tru, est)])
 
 def assert_shapes_match(tru, est):
     if tru.shape != est.shape:
@@ -117,7 +97,7 @@ def measure_latency(model, input_shapes, output_shapes, thresh, dryruns=40):
     latencies = []
     count = 0
     while True:
-        if isinstance(model, torch.nn.Module):
+        if isinstance(model, Module):
             input_data = [torch.rand(shape).float() for shape in input_shapes]
             if torch.cuda.is_available():
                 input_data = list(map(lambda x: x.cuda(), input_data))
@@ -670,7 +650,7 @@ def test_forward_chunk():
     verify_model(Chunk1().float().eval(), input_data=input_data)
 
 def test_upsample():
-    class Upsample(nn.Module):
+    class Upsample(Module):
         def __init__(self, size=None, scale=None,
                      mode="nearest", align_corners=None):
             super().__init__()
@@ -680,15 +660,17 @@ def test_upsample():
             self.align_corners = align_corners
 
         def forward(self, x):
-            return nn.functional.interpolate(x, size=self.size,
-                                             scale_factor=self.scale,
-                                             mode=self.mode,
-                                             align_corners=self.align_corners)
+            return torch.nn.functional.interpolate(x, size=self.size,
+                                                   scale_factor=self.scale,
+                                                   mode=self.mode,
+                                                   align_corners=self.align_corners)
     inp = torch.rand((1, 3, 32, 32))
     verify_model(Upsample(size=(64, 64), mode="nearest"), inp)
     verify_model(Upsample(scale=2, mode="nearest"), inp)
+    verify_model(Upsample(size=(50, 50), mode="nearest"), inp)
     verify_model(Upsample(size=(64, 64), mode="bilinear", align_corners=True), inp)
     verify_model(Upsample(scale=2, mode="bilinear", align_corners=True), inp)
+    verify_model(Upsample(size=(50, 50), mode="bilinear", align_corners=True), inp)
 
 # Model tests
 def test_resnet18():
@@ -769,7 +751,7 @@ def test_custom_conversion_map():
 
 
 def test_segmentaton_models():
-    class SegmentationModelWrapper(torch.nn.Module):
+    class SegmentationModelWrapper(Module):
         def __init__(self, model):
             super().__init__()
             self.model = model
