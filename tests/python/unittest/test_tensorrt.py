@@ -24,9 +24,9 @@ def test_empty_library_export():
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_file_path = os.path.join(temp_dir, "tmp_lib")
         print(temp_file_path)
-        with mock.patch.object(tvm.module.Module, "is_empty") as is_empty_mock:
+        with mock.patch.object(tvm.runtime.Module, "is_empty") as is_empty_mock:
             is_empty_mock.return_value = True
-            module = tvm.module.Module(None)
+            module = tvm.runtime.Module(None)
             module.export_library(temp_file_path)
         assert(os.path.isfile(temp_file_path))
        
