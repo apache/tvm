@@ -148,7 +148,7 @@ class Module(object):
         return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
 
     def is_empty(self):
-        return _IsEmpty(self)
+        return _ffi_api.IsEmpty(self)
 
     def save(self, file_name, fmt=""):
         """Save the module to file.
@@ -406,7 +406,7 @@ def load_module(path, fmt=""):
                      "external accelerator at runtime. Therefore, the NNVM compiler skipped "
                      "optimizing them at the compile time. The TVM runtime "
                      "will create an empty Module as a dummy module.")
-        return _CreateEmptyModule()
+        return _ffi_api.CreateEmptyModule()
 
     # High level handling for .o and .tar file.
     # We support this to be consistent with RPC module load.
