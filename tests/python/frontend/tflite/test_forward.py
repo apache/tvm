@@ -944,16 +944,16 @@ def _test_squared_difference(data):
     return _test_elemwise(math_ops.squared_difference, data)
 
 #######################################################################
-# floor_divide
-# ------------------
+# Floor_divide
+# ------------
 
 def _test_floor_divide(data):
     """ One iteration of floor_div"""
     return _test_elemwise(math_ops.floordiv, data)
 
 #######################################################################
-# floor_mod
-# ------------------
+# Floor_mod
+# ---------
 
 def _test_floor_mod(data):
     """ One iteration of floor_mod"""
