@@ -214,15 +214,13 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
 void NDArray::CopyToBytes(void* data, size_t nbytes) const {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-  DLTensor* handle = &get_mutable()->dl_tensor;
-  ArrayCopyToBytes(handle, data, nbytes);
+  ArrayCopyToBytes(&get_mutable()->dl_tensor, data, nbytes);
 }
 
 void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-  DLTensor* handle = &get_mutable()->dl_tensor;
-  ArrayCopyFromBytes(handle, data, nbytes);
+  ArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes);
 }
 
 void NDArray::CopyFromTo(const DLTensor* from,
