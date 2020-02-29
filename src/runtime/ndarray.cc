@@ -60,6 +60,32 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
+void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
+  TVMContext cpu_ctx;
+  cpu_ctx.device_type = kDLCPU;
+  cpu_ctx.device_id = 0;
+  size_t arr_size = GetDataSize(*handle);
+  CHECK_EQ(arr_size, nbytes)
+      << "ArrayCopyFromBytes: size mismatch";
+  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
+      data, 0,
+      handle->data, static_cast<size_t>(handle->byte_offset),
+      nbytes, cpu_ctx, handle->ctx, handle->dtype, nullptr);
+}
+
+void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
+  TVMContext cpu_ctx;
+  cpu_ctx.device_type = kDLCPU;
+  cpu_ctx.device_id = 0;
+  size_t arr_size = GetDataSize(*handle);
+  CHECK_EQ(arr_size, nbytes)
+      << "ArrayCopyToBytes: size mismatch";
+  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
+      handle->data, static_cast<size_t>(handle->byte_offset),
+      data, 0,
+      nbytes, handle->ctx, cpu_ctx, handle->dtype, nullptr);
+}
+
 struct NDArray::Internal {
   // Default deleter for the container
   static void DefaultDeleter(Object* ptr_obj) {
@@ -185,6 +211,18 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   return NDArray(GetObjectPtr<Object>(data));
 }
 
+void NDArray::CopyToBytes(void* data, size_t nbytes) const {
+  CHECK(data != nullptr);
+  CHECK(data_ != nullptr);
+  ArrayCopyToBytes(&get_mutable()->dl_tensor, data, nbytes);
+}
+
+void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
+  CHECK(data != nullptr);
+  CHECK(data_ != nullptr);
+  ArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes);
+}
+
 void NDArray::CopyFromTo(const DLTensor* from,
                          DLTensor* to,
                          TVMStreamHandle stream) {
@@ -286,16 +324,7 @@ int TVMArrayCopyFromBytes(TVMArrayHandle handle,
                           void* data,
                           size_t nbytes) {
   API_BEGIN();
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
-  size_t arr_size = GetDataSize(*handle);
-  CHECK_EQ(arr_size, nbytes)
-      << "TVMArrayCopyFromBytes: size mismatch";
-  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
-      data, 0,
-      handle->data, static_cast<size_t>(handle->byte_offset),
-      nbytes, cpu_ctx, handle->ctx, handle->dtype, nullptr);
+  ArrayCopyFromBytes(handle, data, nbytes);
   API_END();
 }
 
@@ -303,15 +332,6 @@ int TVMArrayCopyToBytes(TVMArrayHandle handle,
                         void* data,
                         size_t nbytes) {
   API_BEGIN();
-  TVMContext cpu_ctx;
-  cpu_ctx.device_type = kDLCPU;
-  cpu_ctx.device_id = 0;
-  size_t arr_size = GetDataSize(*handle);
-  CHECK_EQ(arr_size, nbytes)
-      << "TVMArrayCopyToBytes: size mismatch";
-  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
-      handle->data, static_cast<size_t>(handle->byte_offset),
-      data, 0,
-      nbytes, handle->ctx, cpu_ctx, handle->dtype, nullptr);
+  ArrayCopyToBytes(handle, data, nbytes);
   API_END();
 }
