@@ -219,6 +219,14 @@ def test_constant_alpha_equal():
     assert not alpha_equal(x, y)
     assert alpha_equal(x, relay.const(1))
 
+def test_type_node_alpha_equal():
+    v1 = relay.TypeVar('v1', 6)
+    v2 = relay.TypeVar('v2', 6)
+    assert not alpha_equal(v1, v2)
+
+    v1 = relay.TypeVar('v1', 0)
+    v2 = relay.TypeVar('v2', 6)
+    assert not alpha_equal(v1, v2)
 
 def test_var_alpha_equal():
     v1 = relay.Var("v1")
@@ -676,6 +684,7 @@ if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
     test_constant_alpha_equal()
+    test_type_node_alpha_equal()
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
