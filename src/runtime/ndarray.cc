@@ -73,7 +73,7 @@ void ArrayCopyFromBytes(DLTensor* handle, const void* data, size_t nbytes) {
       nbytes, cpu_ctx, handle->ctx, handle->dtype, nullptr);
 }
 
-void ArrayCopyToBytes(DLTensor* handle, void* data, size_t nbytes) {
+void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   TVMContext cpu_ctx;
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
