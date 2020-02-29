@@ -447,8 +447,8 @@ class OperatorConverter(object):
                 out = self.convert_fused_activation_function(out, fused_activation_fn)
             else:
                 raise tvm.error.OpNotImplemented(
-                    'Operator {} with fused activation is not supported yet.'
-                    .format('qnn.op.l2_normalization'))
+                    'TFLite quantized L2_NORMALIZATION operator\
+                    with fused activation function is not supported yet.')
 
         return out
 
