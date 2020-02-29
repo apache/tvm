@@ -1265,7 +1265,14 @@ def convert_operators(operators, outputs, output_index_map, ret_name):
 
 def get_all_op_names(graph):
     """ Return all operator names in the input graph """
-    return set(node.kind() for node in graph.nodes())
+    nodes = list(graph.nodes())
+    prim_with_blocks = ["prim::If", "prim::Loop"]
+    for prim in prim_with_blocks:
+        prim_nodes = graph.findAllNodes(prim, recurse=True)
+        for prim_node in prim_nodes:
+            for block in prim_node.blocks():
+                nodes += block.nodes()
+    return set([node.kind() for node in nodes])
 
 
 def get_graph_input_names(script_module):
