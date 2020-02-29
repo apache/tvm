@@ -1138,17 +1138,28 @@ def convert_params(graph, state_dict):
 def convert_block(block, outputs, output_index_map):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
-    ret_name = _get_input_names(block.returnNode())[0]
-    return convert_operators(ops, outputs, output_index_map, ret_name)
+    ret_names = _get_input_names(block.returnNode())
+    return convert_operators(ops, outputs, output_index_map, ret_names)
 
 
-def convert_loop(op_node, outputs, output_index_map):
+def convert_if(if_node, outputs, output_index_map):
+    """ Translate Torch prim::If to Relay If """
+    cond = outputs[output_index_map[if_node.inputsAt(0).debugName()]]
+    blocks = list(if_node.blocks())
+    true_branch = convert_block(blocks[0], outputs, output_index_map)
+    false_branch = convert_block(blocks[1], outputs, output_index_map)
+    assert len(true_branch) == 1 and len(false_branch) == 1
+    return _expr.If(cond, true_branch[0], false_branch[0])
+
+
+def convert_loop(loop_node, outputs, output_index_map):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
-        inode = op_node.inputsAt(index).node()
+        ivalue = loop_node.inputsAt(index)
+        inode = ivalue.node()
         if inode.kind() == "prim::Constant":
             return _expr.const(_get_constant(inode))
-        var_name = op_node.inputsAt(index).debugName()
+        var_name = ivalue.debugName()
         assert var_name in output_index_map
         return _wrap_const(outputs[output_index_map[var_name]])
 
@@ -1159,7 +1170,7 @@ def convert_loop(op_node, outputs, output_index_map):
     # The rest of input: loop variables
     max_loop_count = get_input(0)
     init_cond = get_input(1)
-    num_loop_var = len(list(op_node.inputs())) - 2
+    num_loop_var = len(list(loop_node.inputs())) - 2
     init_vals = [get_input(i + 2) for i in range(num_loop_var)]
 
     # For loop (not while loop) has always %initial_condition being 1
@@ -1173,15 +1184,11 @@ def convert_loop(op_node, outputs, output_index_map):
         loop_iter_dtype = "bool"
         init_loop_iter_val = init_cond
 
-    body_block = list(op_node.blocks())[0]
+    body_block = list(loop_node.blocks())[0]
     inames = _get_input_names(body_block)
     loop_input_vals = [init_loop_iter_val] + init_vals
     name_val_pairs = list(zip(inames, loop_input_vals))
     _update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
-
-    def get_outputs(outputs, output_index_map, names):
-        return [_wrap_const(outputs[output_index_map[name]])
-                for name in names]
 
     def cond(*current_vals):
         i = current_vals[0]
@@ -1196,12 +1203,12 @@ def convert_loop(op_node, outputs, output_index_map):
         for (i, iname) in enumerate(inames):
             outputs[output_index_map[iname]] = current_vals[i]
 
-        convert_block(body_block, outputs, output_index_map)
+        block_outputs = convert_block(body_block, outputs, output_index_map)
 
-        block_output_names = _get_output_names(body_block)
-        block_outputs = get_outputs(outputs, output_index_map,
-                                    block_output_names)
         if is_for_loop:
+            # iter var increment implicit in torch, so do it manually
+            # for while loop, block_outputs[0] is already a boolean,
+            # the result of termination check
             incr = _expr.const(1, dtype="int32")
             block_outputs[0] = current_vals[0] + incr
 
@@ -1221,7 +1228,7 @@ def convert_loop(op_node, outputs, output_index_map):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, outputs, output_index_map, ret_name):
+def convert_operators(operators, outputs, output_index_map, ret_names):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
@@ -1242,25 +1249,22 @@ def convert_operators(operators, outputs, output_index_map, ret_name):
             _update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
                                        outputs, output_index_map)
         elif operator == "prim::If":
-            cond = outputs[output_index_map[op_node.inputsAt(0).debugName()]]
-            blocks = list(op_node.blocks())
-            true_branch = convert_block(blocks[0], outputs, output_index_map)
-            false_branch = convert_block(blocks[1], outputs, output_index_map)
+            if_out = convert_if(op_node, outputs, output_index_map)
             output_index_map[node_name] = len(outputs)
-            outputs.append(_expr.If(cond, true_branch, false_branch))
+            outputs.append(if_out)
         elif operator == "prim::Loop":
-            loop = convert_loop(op_node, outputs, output_index_map)
+            loop_out = convert_loop(op_node, outputs, output_index_map)
             unpacked_names = _get_output_names(op_node)
-            assert len(loop) == len(unpacked_names)
-            _update_outputs_from_pairs(zip(unpacked_names, loop),
+            assert len(loop_out) == len(unpacked_names)
+            _update_outputs_from_pairs(zip(unpacked_names, loop_out),
                                        outputs, output_index_map)
         else:
             output_index_map[node_name] = len(outputs)
             relay_op = _convert_map[operator]
             outputs.append(relay_op(inputs, _get_input_types(op_node)))
 
-    ret = outputs[output_index_map[ret_name]]
-    return _wrap_const(ret)
+    return [_wrap_const(outputs[output_index_map[ret_name]])
+            for ret_name in ret_names]
 
 
 def get_all_op_names(graph):
@@ -1272,7 +1276,7 @@ def get_all_op_names(graph):
         for prim_node in prim_nodes:
             for block in prim_node.blocks():
                 nodes += block.nodes()
-    return set([node.kind() for node in nodes])
+    return set(node.kind() for node in nodes)
 
 
 def get_graph_input_names(script_module):
@@ -1325,7 +1329,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     input_vars.update(param_vars)
     outputs = list(input_vars.values())
     output_index_map = dict(zip(input_vars.keys(), range(len(outputs))))
-    ret_name = _get_input_names(graph.return_node())[0]
+    ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
