@@ -126,8 +126,10 @@ def _ones():
         else:
             assert "data type {} could not be parsed in ones op" % (type(data))
 
-        dtype = "float32"
-        return _op.full(_expr.const(1), shape, dtype=dtype)
+        dtype_map = {6: "float32", 3: "int32"}
+        dtype_id = inputs[1]
+        assert dtype_id in dtype_map, "Unsupported dtype %d" % dtype_id
+        return _op.full(_expr.const(1), shape, dtype=dtype_map[dtype_id])
     return _impl
 
 def _zeros():
@@ -144,8 +146,10 @@ def _zeros():
         else:
             assert "data type {} could not be parsed in zeros op" % (type(data))
 
-        dtype = "float32"
-        return _op.full(_expr.const(0), shape, dtype=dtype)
+        dtype_map = {6: "float32", 3: "int32"}
+        dtype_id = inputs[1]
+        assert dtype_id in dtype_map, "Unsupported dtype %d" % dtype_id
+        return _op.full(_expr.const(0), shape, dtype=dtype_map[dtype_id])
     return _impl
 
 def _relu():
