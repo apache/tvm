@@ -1049,7 +1049,7 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def parse_inputs(graph_inputs, input_shapes):
+def convert_inputs(graph_inputs, input_shapes):
     """ Return Relay vars from torch input vars """
     ir_inputs = list(graph_inputs)
     input_vars = {}
@@ -1100,7 +1100,7 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
-def parse_params(graph, state_dict):
+def convert_params(graph, state_dict):
     """
     Return Relay vars and TVM NDArrays for input parameters
     A chain of prim::GetAttr nodes is processed one at a time
@@ -1135,14 +1135,14 @@ def parse_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def parse_block(block, outputs, output_index_map):
+def convert_block(block, outputs, output_index_map):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_name = _get_input_names(block.returnNode())[0]
-    return parse_operators(ops, outputs, output_index_map, ret_name)
+    return convert_operators(ops, outputs, output_index_map, ret_name)
 
 
-def parse_loop(op_node, outputs, output_index_map):
+def convert_loop(op_node, outputs, output_index_map):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
         inode = op_node.inputsAt(index).node()
@@ -1196,7 +1196,7 @@ def parse_loop(op_node, outputs, output_index_map):
         for (i, iname) in enumerate(inames):
             outputs[output_index_map[iname]] = current_vals[i]
 
-        parse_block(body_block, outputs, output_index_map)
+        convert_block(body_block, outputs, output_index_map)
 
         block_output_names = _get_output_names(body_block)
         block_outputs = get_outputs(outputs, output_index_map,
@@ -1221,7 +1221,7 @@ def parse_loop(op_node, outputs, output_index_map):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def parse_operators(operators, outputs, output_index_map, ret_name):
+def convert_operators(operators, outputs, output_index_map, ret_name):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
@@ -1244,12 +1244,12 @@ def parse_operators(operators, outputs, output_index_map, ret_name):
         elif operator == "prim::If":
             cond = outputs[output_index_map[op_node.inputsAt(0).debugName()]]
             blocks = list(op_node.blocks())
-            true_branch = parse_block(blocks[0], outputs, output_index_map)
-            false_branch = parse_block(blocks[1], outputs, output_index_map)
+            true_branch = convert_block(blocks[0], outputs, output_index_map)
+            false_branch = convert_block(blocks[1], outputs, output_index_map)
             output_index_map[node_name] = len(outputs)
             outputs.append(_expr.If(cond, true_branch, false_branch))
         elif operator == "prim::Loop":
-            loop = parse_loop(op_node, outputs, output_index_map)
+            loop = convert_loop(op_node, outputs, output_index_map)
             unpacked_names = _get_output_names(op_node)
             assert len(loop) == len(unpacked_names)
             _update_outputs_from_pairs(zip(unpacked_names, loop),
@@ -1311,8 +1311,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     _report_missing_conversion(op_names)
 
     params = script_module.state_dict()
-    input_vars = parse_inputs(graph.inputs(), input_shapes)
-    param_vars, tensors, packed_param_map = parse_params(graph, params)
+    input_vars = convert_inputs(graph.inputs(), input_shapes)
+    param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     input_vars.update(param_vars)
@@ -1330,8 +1330,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
-    body = parse_operators(_get_operator_nodes(graph.nodes()), outputs,
-                           output_index_map, ret_name)
+    body = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
+                             output_index_map, ret_name)
     func = tvm.relay.Function(_analysis.free_vars(body), body)
 
     return _module.IRModule.from_expr(func), tvm_params
