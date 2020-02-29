@@ -32,7 +32,7 @@ TEST(Relay, AlphaTestEmptyTypeNodes) {
 
   runtime::PackedFunc *packed_func = new tvm::runtime::PackedFunc();
   TVMRetValue rv;
-  (void)TVMFuncGetGlobal("relay._make._alpha_equal", (void**)&packed_func);
+  TVMFuncGetGlobal("relay._make._alpha_equal", reinterpret_cast<TVMFunctionHandle*>(&packed_func));
   std::vector<TVMValue> values(2);
   std::vector<int> codes(2);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
@@ -49,7 +49,7 @@ TEST(Relay, AlphaTestSameTypeNodes) {
 
   runtime::PackedFunc *packed_func = new tvm::runtime::PackedFunc();
   TVMRetValue rv;
-  (void)TVMFuncGetGlobal("relay._make._alpha_equal", (void**)&packed_func);
+  TVMFuncGetGlobal("relay._make._alpha_equal", reinterpret_cast<TVMFunctionHandle*>(&packed_func));
   std::vector<TVMValue> values(2);
   std::vector<int> codes(2);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
@@ -65,7 +65,7 @@ TEST(Relay, AlphaTestIncompatibleTypeNodes) {
   auto y = relay::VarNode::make("y", relay::Type());
   runtime::PackedFunc *packed_func = new tvm::runtime::PackedFunc();
   TVMRetValue rv;
-  (void)TVMFuncGetGlobal("relay._make._alpha_equal", (void**)&packed_func);
+  TVMFuncGetGlobal("relay._make._alpha_equal", reinterpret_cast<TVMFunctionHandle*>(&packed_func));
   std::vector<TVMValue> values(2);
   std::vector<int> codes(2);
   runtime::TVMArgsSetter setter(values.data(), codes.data());
