@@ -188,13 +188,33 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
 void NDArray::CopyToBytes(void* data, size_t nbytes) const {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-  CHECK_EQ(TVMArrayCopyToBytes(&get_mutable()->dl_tensor, data, nbytes), 0);
+  TVMContext cpu_ctx;
+  cpu_ctx.device_type = kDLCPU;
+  cpu_ctx.device_id = 0;
+  DLTensor* handle = &get_mutable()->dl_tensor;
+  size_t arr_size = GetDataSize(*handle);
+  CHECK_EQ(arr_size, nbytes)
+      << "NDArray::CopyToBytes: size mismatch";
+  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
+      handle->data, static_cast<size_t>(handle->byte_offset),
+      data, 0,
+      nbytes, handle->ctx, cpu_ctx, handle->dtype, nullptr);
 }
 
 void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
   CHECK(data != nullptr);
   CHECK(data_ != nullptr);
-  CHECK_EQ(TVMArrayCopyFromBytes(&get_mutable()->dl_tensor, const_cast<void*>(data), nbytes), 0);
+  TVMContext cpu_ctx;
+  cpu_ctx.device_type = kDLCPU;
+  cpu_ctx.device_id = 0;
+  DLTensor* handle = &get_mutable()->dl_tensor;
+  size_t arr_size = GetDataSize(*handle);
+  CHECK_EQ(arr_size, nbytes)
+      << "NDArray::CopyFromBytes: size mismatch";
+  DeviceAPI::Get(handle->ctx)->CopyDataFromTo(
+      data, 0,
+      handle->data, static_cast<size_t>(handle->byte_offset),
+      nbytes, cpu_ctx, handle->ctx, handle->dtype, nullptr);
 }
 
 void NDArray::CopyFromTo(const DLTensor* from,
