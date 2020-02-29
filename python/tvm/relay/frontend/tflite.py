@@ -122,6 +122,7 @@ class OperatorConverter(object):
             'LOGICAL_OR': self.convert_logical_or,
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'SQUARE': self.convert_square,
+            'L2_NORMALIZATION': self.convert_l2_normalization,
         }
 
     def check_unsupported_ops(self):
@@ -404,6 +405,52 @@ class OperatorConverter(object):
     def convert_resize_nearest_neighbor(self, op):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
         return self._convert_resize("nearest_neighbor", op)
+
+    def convert_l2_normalization(self, op):
+        """Convert TFLite L2_NORMALIZATION """
+        try:
+            from tflite.Operator import Operator
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.L2NormOptions import L2NormOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.L2NormOptions
+        op_options = op.BuiltinOptions()
+        l2_norm_options = L2NormOptions()
+        l2_norm_options.Init(op_options.Bytes, op_options.Pos)
+        fused_activation_fn = l2_norm_options.FusedActivationFunction()
+
+        # TFLite supports normalization only over the last dim
+        input_tensor_rank = len(input_tensor.tensor.ShapeAsNumpy())
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFLite quantized L2_NORMALIZATION operator is not supported yet.')
+        # TFL uses only the default epsilon value
+        out = _op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
+
+        # if we have fused activation fn
+        if fused_activation_fn != ActivationFunctionType.NONE:
+            if not output_tensor.qnn_params:
+                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            else:
+                raise tvm.error.OpNotImplemented(
+                    'TFLite quantized L2_NORMALIZATION operator\
+                    with fused activation function is not supported yet.')
+
+        return out
 
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""

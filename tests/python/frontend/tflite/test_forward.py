@@ -33,6 +33,7 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
+from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -1264,6 +1265,24 @@ def test_forward_unpack():
         _test_unpack(np.array(np.random.uniform(0, 5, (2, 3, 4)), dtype=np.int32), axis=-3, num_unpacks=2)
 
 #######################################################################
+# L2 normalization
+# ----------------
+
+def _test_l2_normalization(data, axis, fused_activation_function=None):
+    """ One iteration of L2_NORMALIZATION """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_impl.l2_normalize(in_data, axis)
+        out = with_fused_activation_function(out, fused_activation_function)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_l2_normalization():
+    """ L2_NORMALIZATION """
+    data = np.random.uniform(size=(3, 6, 4)).astype('float32')
+    _test_l2_normalization(data, axis=2)
+    _test_l2_normalization(data, axis=2, fused_activation_function="RELU")
+
+#######################################################################
 # Logistic
 # --------
 
@@ -1649,6 +1668,7 @@ if __name__ == '__main__':
     test_forward_relu()
     test_forward_prelu()
     test_forward_fully_connected()
+    test_forward_l2_normalization()
 
     # Elemwise
     test_all_elemwise()
