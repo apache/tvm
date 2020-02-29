@@ -114,11 +114,12 @@ class Inliner : ExprMutator {
     return true;
   }
 
-  // Make a new Relay expression to replace the caller.
+  // Make a new Relay expression to replace the callee.
   Expr MakeNewExpr(const GlobalVar& global,
                    const Array<Expr>& args,
-                   const Expr& expr) {
-    CHECK(expr->IsInstance<CallNode>() || expr->IsInstance<GlobalVarNode>());
+                   const Expr& callee) {
+    CHECK(callee->IsInstance<CallNode>() ||
+          callee->IsInstance<GlobalVarNode>());
     auto base_func = call_graph_->GetGlobalFunction(global);
     const auto* fn = base_func.as<FunctionNode>();
     CHECK(fn) << "Expected to work on a Relay function.";
@@ -138,7 +139,7 @@ class Inliner : ExprMutator {
       for (size_t i = 0; i < args.size(); i++) {
         bind_map.Set(fn->params[i], args[i]);
       }
-      if (const auto* gvn = expr.as<GlobalVarNode>()) {
+      if (const auto* gvn = callee.as<GlobalVarNode>()) {
         auto ret_type = gvn->checked_type();
         // Cannot replace TensorType/TensorTupleType with FuncType. Therefore,
         // we simply inline the function as a closure instead of directly using
@@ -146,9 +147,10 @@ class Inliner : ExprMutator {
         return ret_type->IsInstance<FuncTypeNode>() ? std::move(func)
                                                     : func->body;
       } else {
+        CHECK(callee->IsInstance<CallNode>());
         return Bind(func->body, bind_map);
       }
-    } else if (const auto* call_node = expr.as<CallNode>()) {
+    } else if (const auto* call_node = callee.as<CallNode>()) {
         return CallNode::make(func, args, call_node->attrs, call_node->type_args);
     } else {
       return std::move(func);
