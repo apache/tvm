@@ -1174,13 +1174,9 @@ def convert_loop(loop_node, outputs, output_index_map):
     init_vals = [get_input(i + 2) for i in range(num_loop_var)]
 
     # while loop has always max_loop_count being int64 max
+    # max_loop_count.data (tvm.runtime.NDArray) is -1, so _get_constant again
     is_while_loop = (isinstance(max_loop_count, _expr.Constant) and
                      _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize)
-
-    # while loop with non input dependent condition such as while i < 10:
-    # init_cond is int, need to cast to bool to type check
-    if is_while_loop and isinstance(init_cond, _expr.Constant):
-        init_cond = _op.cast(init_cond, "bool")
 
     body_block = list(loop_node.blocks())[0]
     block_input_names = _get_input_names(body_block)
@@ -1217,6 +1213,10 @@ def convert_loop(loop_node, outputs, output_index_map):
 
     if is_while_loop:
         loop_iter_dtype = "bool"
+        # while loop with non input dependent condition such as while i < 10:
+        # init_cond is int, need to cast to bool to type check
+        if isinstance(init_cond, _expr.Constant):
+            init_cond = _op.cast(init_cond, "bool")
         init_loop_iter_val = init_cond
     else:
         loop_iter_dtype = "int32"
