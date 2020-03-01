@@ -1195,6 +1195,7 @@ def convert_loop(loop_node, outputs, output_index_map):
 
     def body(*current_vals):
         # Update loop variables using the prev iteration outputs
+        assert len(current_vals) == len(block_input_names)
         for (i, iname) in enumerate(block_input_names):
             outputs[output_index_map[iname]] = current_vals[i]
 
