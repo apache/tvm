@@ -1053,15 +1053,10 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def convert_inputs(graph_inputs, input_shapes):
-    """ Return Relay vars from torch input vars """
-    ir_inputs = list(graph_inputs)
-    input_vars = {}
-
-    for input_name, ir_input in zip(input_shapes, ir_inputs[1:]):
-        input_vars[input_name] = _expr.var(input_name,
-                                           shape=input_shapes[input_name])
-    return input_vars
+def _get_relay_input_vars(input_shapes):
+    """ Return Relay vars from input shapes """
+    return {iname: _expr.var(iname, shape=ishape)
+            for iname, ishape in input_shapes.items()}
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -1180,19 +1175,8 @@ def convert_loop(loop_node, outputs, output_index_map):
     # For loop (not while loop) has always %initial_condition being 1
     is_for_loop = isinstance(init_cond, _expr.Constant)
 
-    if is_for_loop:
-        loop_iter_dtype = "int32"
-        # always count from 0
-        init_loop_iter_val = _expr.const(0, dtype="int32")
-    else:
-        loop_iter_dtype = "bool"
-        init_loop_iter_val = init_cond
-
     body_block = list(loop_node.blocks())[0]
-    inames = _get_input_names(body_block)
-    loop_input_vals = [init_loop_iter_val] + init_vals
-    name_val_pairs = list(zip(inames, loop_input_vals))
-    _update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
+    block_input_names = _get_input_names(body_block)
 
     def cond(*current_vals):
         i = current_vals[0]
@@ -1204,7 +1188,7 @@ def convert_loop(loop_node, outputs, output_index_map):
 
     def body(*current_vals):
         # Update loop variables using the prev iteration outputs
-        for (i, iname) in enumerate(inames):
+        for (i, iname) in enumerate(block_input_names):
             outputs[output_index_map[iname]] = current_vals[i]
 
         block_outputs = convert_block(body_block, outputs, output_index_map)
@@ -1223,7 +1207,20 @@ def convert_loop(loop_node, outputs, output_index_map):
             return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
         return _expr.var(name)
 
-    loop_iter_var = _expr.var(inames[0], shape=(), dtype=loop_iter_dtype)
+    if is_for_loop:
+        loop_iter_dtype = "int32"
+        # always count from 0
+        init_loop_iter_val = _expr.const(0, dtype="int32")
+    else:
+        loop_iter_dtype = "bool"
+        init_loop_iter_val = init_cond
+
+    name_val_pairs = list(zip(block_input_names,
+                              [init_loop_iter_val] + init_vals))
+    _update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
+
+    loop_iter_var = _expr.var(block_input_names[0], shape=(),
+                              dtype=loop_iter_dtype)
     loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
     loop = while_loop(cond, [loop_iter_var] + loop_vars, body)
     loop_val = loop(init_loop_iter_val, *init_vals)
@@ -1326,7 +1323,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     _report_missing_conversion(op_names)
 
     params = script_module.state_dict()
-    input_vars = convert_inputs(graph.inputs(), input_shapes)
+    input_vars = _get_relay_input_vars(input_shapes)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
