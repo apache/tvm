@@ -910,6 +910,11 @@ def test_control_flow():
             while i < inp.size(0):
                 a += i
                 i += 2
+            i = 0
+            # also test constant init cond
+            while i < 10:
+                a += i
+                i += 3
             return a
 
     class SimpleWhileLoop(torch.nn.Module):

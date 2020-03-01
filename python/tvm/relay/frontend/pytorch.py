@@ -20,6 +20,7 @@
 """PT: PyTorch frontend."""
 import itertools
 import logging
+import sys
 
 import numpy as np
 
@@ -1172,8 +1173,14 @@ def convert_loop(loop_node, outputs, output_index_map):
     num_loop_var = len(list(loop_node.inputs())) - 2
     init_vals = [get_input(i + 2) for i in range(num_loop_var)]
 
-    # For loop (not while loop) has always %initial_condition being 1
-    is_for_loop = isinstance(init_cond, _expr.Constant)
+    # while loop has always max_loop_count being int64 max
+    is_while_loop = (isinstance(max_loop_count, _expr.Constant) and
+                     _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize)
+
+    # while loop with non input dependent condition such as while i < 10:
+    # init_cond is int, need to cast to bool to type check
+    if is_while_loop and isinstance(init_cond, _expr.Constant):
+        init_cond = _op.cast(init_cond, "bool")
 
     body_block = list(loop_node.blocks())[0]
     block_input_names = _get_input_names(body_block)
@@ -1181,10 +1188,10 @@ def convert_loop(loop_node, outputs, output_index_map):
     def cond(*current_vals):
         i = current_vals[0]
 
-        if is_for_loop:
-            return _op.less(i, max_loop_count)
+        if is_while_loop:
+            return _op.equal(i, _expr.const(True, 'bool'))
 
-        return _op.equal(i, _expr.const(True, 'bool'))
+        return _op.less(i, max_loop_count)
 
     def body(*current_vals):
         # Update loop variables using the prev iteration outputs
@@ -1193,7 +1200,7 @@ def convert_loop(loop_node, outputs, output_index_map):
 
         block_outputs = convert_block(body_block, outputs, output_index_map)
 
-        if is_for_loop:
+        if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
             # for while loop, block_outputs[0] is already a boolean,
             # the result of termination check
@@ -1207,13 +1214,13 @@ def convert_loop(loop_node, outputs, output_index_map):
             return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
         return _expr.var(name)
 
-    if is_for_loop:
+    if is_while_loop:
+        loop_iter_dtype = "bool"
+        init_loop_iter_val = init_cond
+    else:
         loop_iter_dtype = "int32"
         # always count from 0
         init_loop_iter_val = _expr.const(0, dtype="int32")
-    else:
-        loop_iter_dtype = "bool"
-        init_loop_iter_val = init_cond
 
     name_val_pairs = list(zip(block_input_names,
                               [init_loop_iter_val] + init_vals))
