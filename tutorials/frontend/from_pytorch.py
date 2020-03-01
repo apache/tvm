@@ -37,7 +37,7 @@ https://pytorch.org/get-started/locally/
 PyTorch versions should be backwards compatible but should be used
 with the proper TorchVision version.
 
-Currently, TVM supports PyTorch 1.4, 1.3, and 1.2. Other versions may
+Currently, TVM supports PyTorch 1.4 and 1.3. Other versions may
 be unstable.
 """
 
