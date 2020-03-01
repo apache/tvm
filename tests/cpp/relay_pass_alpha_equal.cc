@@ -24,60 +24,68 @@
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 
+using namespace tvm;
+
+class TestAlphaEquals {
+  runtime::PackedFunc *_packed_func;
+ public:
+  TestAlphaEquals(const char* func_name) {
+    _packed_func = new runtime::PackedFunc();
+    TVMFuncGetGlobal(func_name, reinterpret_cast<TVMFunctionHandle*>(&_packed_func));
+  }
+
+  void UpdatePackedFunc(const char* func_name) {
+    TVMFuncGetGlobal(func_name, reinterpret_cast<TVMFunctionHandle*>(&_packed_func));
+  }
+
+  bool operator()(ObjectRef input_1, ObjectRef input_2) {
+    TVMRetValue rv;
+    std::vector<TVMValue> values(2);
+    std::vector<int> codes(2);
+    runtime::TVMArgsSetter setter(values.data(), codes.data());
+    setter(0, input_1);
+    setter(1, input_2);
+    _packed_func->CallPacked(TVMArgs(values.data(), codes.data(), 2), &rv);
+    return bool(rv);
+  };
+
+};
+
 TEST(Relay, AlphaTestEmptyTypeNodes) {
-  using namespace tvm;
   auto x = TypeVar("x", kTypeData);
   auto y = TypeVar();
   EXPECT_FALSE(relay::AlphaEqual(x, y));
 
-  runtime::PackedFunc *packed_func = new tvm::runtime::PackedFunc();
-  TVMRetValue rv;
-  TVMFuncGetGlobal("relay._make._alpha_equal", reinterpret_cast<TVMFunctionHandle*>(&packed_func));
-  std::vector<TVMValue> values(2);
-  std::vector<int> codes(2);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-  setter(0, x);
-  setter(1, y);
-  packed_func->CallPacked(TVMArgs(values.data(), codes.data(), 2), &rv);
-  EXPECT_FALSE(bool(rv));
+  TestAlphaEquals test_equals("relay._make._alpha_equal");
+  EXPECT_FALSE(test_equals(x, y));
 }
 
 TEST(Relay, AlphaTestSameTypeNodes) {
-  using namespace tvm;
   auto x = TypeVar("x", kTypeData);
   EXPECT_TRUE(relay::AlphaEqual(x, x));
 
-  runtime::PackedFunc *packed_func = new tvm::runtime::PackedFunc();
-  TVMRetValue rv;
-  TVMFuncGetGlobal("relay._make._alpha_equal", reinterpret_cast<TVMFunctionHandle*>(&packed_func));
-  std::vector<TVMValue> values(2);
-  std::vector<int> codes(2);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-  setter(0, x);
-  setter(1, x);
-  packed_func->CallPacked(TVMArgs(values.data(), codes.data(), 2), &rv);
-  EXPECT_TRUE(bool(rv));
+  TestAlphaEquals test_equals("relay._make._alpha_equal");
+  EXPECT_TRUE(test_equals(x, x));
 }
 
 TEST(Relay, AlphaTestIncompatibleTypeNodes) {
-  using namespace tvm;
   auto x = TypeVar("x", kTypeData);
   auto y = relay::VarNode::make("y", relay::Type());
-  runtime::PackedFunc *packed_func = new tvm::runtime::PackedFunc();
-  TVMRetValue rv;
-  TVMFuncGetGlobal("relay._make._alpha_equal", reinterpret_cast<TVMFunctionHandle*>(&packed_func));
-  std::vector<TVMValue> values(2);
-  std::vector<int> codes(2);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-  setter(0, x);
-  setter(1, y);
-  packed_func->CallPacked(TVMArgs(values.data(), codes.data(), 2), &rv);
-  EXPECT_FALSE(bool(rv));
-  
-  setter(0, y);
-  setter(1, x);
-  packed_func->CallPacked(TVMArgs(values.data(), codes.data(), 2), &rv);
-  EXPECT_FALSE(bool(rv));
+
+  TestAlphaEquals test_equals("relay._make._alpha_equal");
+  EXPECT_FALSE(test_equals(x, y));
+  EXPECT_TRUE(test_equals(x, y) == test_equals(y, x));
+
+}
+
+TEST(Relay, AlphaTestIncompatibleExprNodes) {
+  auto x = relay::VarNode::make("x", relay::Type());
+  auto y = ObjectRef(make_object<IRModuleNode>());
+
+  TestAlphaEquals test_equals("relay._make._alpha_equal");
+  EXPECT_FALSE(test_equals(x, y));
+  EXPECT_TRUE(test_equals(x, y) == test_equals(y, x));
+
 }
 
 int main(int argc, char ** argv) {
