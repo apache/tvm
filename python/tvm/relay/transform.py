@@ -57,7 +57,8 @@ def build_config(opt_level=2,
                 "CanonicalizeCast": 3,
                 "EliminateCommonSubexpr": 3,
                 "CombineParallelConv2D": 4,
-                "CombineParallelDense": 4
+                "CombineParallelDense": 4,
+                "FastMath": 4
             }
 
     fallback_device : int, str, or tvmContext, optional
@@ -175,9 +176,20 @@ def SimplifyInference():
     Returns
     -------
     ret: tvm.relay.Pass
-        The registered to perform operator simplification.
+        The registered pass to perform operator simplification.
     """
     return _transform.SimplifyInference()
+
+
+def FastMath():
+    """ Converts the expensive non linear functions to their fast but approximate counterparts.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass to perform fast math operations.
+    """
+    return _transform.FastMath()
 
 
 def CanonicalizeOps():

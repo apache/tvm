@@ -164,6 +164,13 @@ TVM_DLL Pass PartialEval();
 TVM_DLL Pass SimplifyInference();
 
 /*!
+ * \brief Replaces non linear activation functions with their fast but approximate counterparts.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FastMath();
+
+/*!
  * \brief Infer the type of an expression.
  *
  * The result of type checking is a new expression with unambigous

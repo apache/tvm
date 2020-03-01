@@ -316,6 +316,16 @@ inline Expr Exp(Expr e) {
   return CallNode::make(op, {e});
 }
 
+inline Expr FastExp(Expr e) {
+  static const Op& op = Op::Get("fast_exp");
+  return CallNode::make(op, {e});
+}
+
+inline Expr FastTanh(Expr e) {
+  static const Op& op = Op::Get("fast_tanh");
+  return CallNode::make(op, {e});
+}
+
 inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
   return CallNode::make(op, {e});
