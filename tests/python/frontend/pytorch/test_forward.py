@@ -795,11 +795,13 @@ def test_segmentaton_models():
 
     inp = [torch.rand((1, 3, 300, 300), dtype=torch.float)]
 
-    for model in [fcn, deeplab]:
-        # depthwise + dilated covolution not supported on x86
-        # see https://github.com/apache/incubator-tvm/issues/4962
-        verify_model(SegmentationModelWrapper(model.eval()), inp,
-                     ctx_list=[("cuda", tvm.gpu(0))])
+    verify_model(SegmentationModelWrapper(fcn.eval()), inp)
+
+    # depthwise + dilated covolution not supported on x86
+    # see https://github.com/apache/incubator-tvm/issues/4962
+    cuda_ctx = ("cuda", tvm.gpu(0))
+    if cuda_ctx[1].exist:
+        verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx])
 
 
 def verify_script_model(pt_model, ishapes):
