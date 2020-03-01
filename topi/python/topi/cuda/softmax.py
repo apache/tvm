@@ -26,7 +26,7 @@ def schedule_softmax(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of softmax in the format
           of an array of tensors.
 
     Returns

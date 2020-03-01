@@ -42,7 +42,7 @@ def schedule_injective(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of injective in the format
           of an array of tensors.
 
     Returns
