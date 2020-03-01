@@ -305,6 +305,9 @@ class RelayBuildModule : public runtime::ModuleNode {
     if (targets.size() == 1) {
       pass_seqs.push_back(transform::AlterOpLayout());
     }
+
+    // Fast math optimizations.
+    pass_seqs.push_back(transform::FastMath());
     pass_seqs.push_back(transform::FoldConstant());
 
     // Create a sequential pass and perform optimizations.

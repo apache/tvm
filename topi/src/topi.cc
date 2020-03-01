@@ -188,7 +188,10 @@ TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
   });
-
+TVM_REGISTER_GLOBAL("topi.fast_tanh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = fast_tanh(args[0]);
+  });
 TVM_REGISTER_GLOBAL("topi.atan")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = atan(args[0]);
