@@ -123,6 +123,8 @@ class OperatorConverter(object):
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'SQUARE': self.convert_square,
             'L2_NORMALIZATION': self.convert_l2_normalization,
+            'FLOOR_DIV': self.convert_floor_div,
+            'FLOOR_MOD': self.convert_floor_mod,
         }
 
     def check_unsupported_ops(self):
@@ -1578,6 +1580,20 @@ class OperatorConverter(object):
 
         out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
+
+    def convert_floor_div(self, op):
+        """Convert TFLite FLOOR_DIV"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized FLOOR DIV operator is not supported yet.')
+        return self._convert_elemwise(_op.floor_divide, op)
+
+    def convert_floor_mod(self, op):
+        """Convert TFLite FLOOR_MOD"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized FLOOR MOD operator is not supported yet.')
+        return self._convert_elemwise(_op.floor_mod, op)
 
     def convert_mirror_pad(self, op):
         """Convert TFLite MIRROR_PAD"""
