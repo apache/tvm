@@ -1093,8 +1093,7 @@ def test_read_variable_op():
                                                          shape=shape_dict,
                                                          outputs=None)
 
-        assert exexcinfo.value.args[0] == "Found ReadVariableOp operator in the graph. " \
-                                          "Graph is not frozen. Provide a frozen graph."
+        assert exexcinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph.")
 
         # Now convert the variables to constant and run inference on the converted graph
         final_graph_def = tf.graph_util.convert_variables_to_constants(
