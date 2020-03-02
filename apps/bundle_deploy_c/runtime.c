@@ -23,6 +23,8 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 
+#define TVM_CRT_DEBUG 0
+
 #define TVM_CRT_MAX_NDIM 6
 #define TVM_CRT_MAX_ARGS 10
 #define GRAPH_RUNTIME_NODE_MAX_INPUTS 300
