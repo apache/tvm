@@ -324,6 +324,14 @@ TVM_DLL Pass PrintIR(bool show_meta_data = true);
  */
 TVM_DLL Pass PartitionGraph();
 
+/*!
+ * \brief Inline the global functions marked as `inline` in a given Relay
+ * IRModule.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass Inline();
+
 }  // namespace transform
 
 /*!

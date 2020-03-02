@@ -124,10 +124,14 @@ class CallGraphNode : public Object {
     return (*this)[module->GetGlobalVar(gvar_name)];
   }
 
-  /*! \brief Return the IR module. */
-  IRModule GetModule() const {
-    return module;
-  }
+  /*!
+   * \brief Get the global function corresponding to the variable.
+   *
+   * \param var The global variable.
+   *
+   * \return The found global function.
+   */
+  BaseFunc GetGlobalFunction(const GlobalVar& var) const;
 
   /*!
    * \brief Get the entries/root nodes of CallGraphNode.
