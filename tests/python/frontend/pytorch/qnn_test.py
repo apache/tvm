@@ -27,6 +27,7 @@ def get_tvm_runtime(script_module, input_name, ishape):
 
     with relay.build_config(opt_level=3):
         # test on only cpu for now, torch cannot run quant models on cuda
+        # also not to make CI too slow
         json, lib, params = relay.build(mod, target="llvm", params=params)
 
     runtime = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
@@ -180,6 +181,7 @@ class SqueezeExcite(nn.Module):
         fuse_modules(self.fc, ["0", "1"], inplace=True)
 
 
+# test on quantized::mul_scalar with negative scale
 class MulScalarNegative(nn.Module):
     def __init__(self, ):
         super().__init__()
@@ -263,6 +265,7 @@ def test_quantized_modules():
         runtime.run()
         tvm_result = runtime.get_output(0).asnumpy()
 
+        # we cannot make any guarantee on how close the raw output is to torch
         # tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-1, atol=1e-1)
 
         max_abs_diff = np.max(np.abs(tvm_result - pt_result))
@@ -341,10 +344,13 @@ def test_quantized_imagenet():
 
         results.append((model_name, pt_result[0], tvm_result[0]))
 
-        pt_top3_labels = np.argsort(pt_result)[::-1][:3]
-        tvm_top3_labels = np.argsort(pt_result)[::-1][:3]
+        pt_top3_labels = np.argsort(pt_result[0])[::-1][:3]
+        tvm_top3_labels = np.argsort(pt_result[0])[::-1][:3]
 
         assert set(pt_top3_labels) == set(tvm_top3_labels)
+
+        print("Torch top3 label:", pt_top3_labels)
+        print("TVM top3 label:", tvm_top3_labels)
 
     for (model_name, pt_result, tvm_result) in results:
         max_abs_diff = np.max(np.abs(tvm_result - pt_result))
@@ -352,12 +358,8 @@ def test_quantized_imagenet():
         num_identical = np.sum(tvm_result == pt_result)
 
         print("\nModel name: %s" % model_name)
-        print("PyTorch top5 label:", np.argsort(pt_result)[::-1][:5])
-        print("TVM top5 label:", np.argsort(tvm_result)[::-1][:5])
+        print("PyTorch top3 label:", np.argsort(pt_result)[::-1][:3])
+        print("TVM top3 label:", np.argsort(tvm_result)[::-1][:3])
         print("max abs diff:", max_abs_diff)
         print("mean abs_diff:", mean_abs_diff)
         print("%d in 1000 raw outputs identical." % num_identical)
-
-
-test_quantized_modules()
-#test_quantized_imagenet()
