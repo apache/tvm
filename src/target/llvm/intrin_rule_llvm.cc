@@ -93,31 +93,15 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.popcount")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tan")
 .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
-  using tir::make_const;
   PrimExpr e = targs[0];
   const tir::CallNode* call = e.as<tir::CallNode>();
   CHECK(call != nullptr);
-  PrimExpr x = call->args[0];
-  PrimExpr y = x;
-  DataType dtype = x.dtype();
-  const char* opName = nullptr;
-
-  if (!dtype.is_float()) {
-    LOG(FATAL) << "tan expects floating input";
-  }
-
-  if (dtype.bits() == 64) {
-    opName = "tan";
-  } else if (dtype.bits() == 32) {
-    opName = "tanf";
-  } else if (dtype.bits() == 16) {
-    opName = "tanf";
-    y = cast(DataType::Float(32, dtype.lanes()), x);
-  } else {
-    LOG(FATAL) << "tan cannot handle float" << dtype.bits();
-  }
-
-  PrimExpr tan_x = tir::CallNode::make(x.dtype(), opName, {y}, tir::CallNode::Extern);
+  const PrimExpr& x = call->args[0];
+  PrimExpr sin_x = tir::CallNode::make(
+      x.dtype(), "sin", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr cos_x = tir::CallNode::make(
+      x.dtype(), "cos", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr tan_x = sin_x / cos_x;
   *rv = tan_x;
 });
 
