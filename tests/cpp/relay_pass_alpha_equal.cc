@@ -60,34 +60,6 @@ TEST(Relay, AlphaTestEmptyTypeNodes) {
   EXPECT_FALSE(test_equals(x, y));
 }
 
-TEST(Relay, AlphaTestSameTypeNodes) {
-  auto x = TypeVar("x", kTypeData);
-  EXPECT_TRUE(relay::AlphaEqual(x, x));
-
-  TestAlphaEquals test_equals("relay._make._alpha_equal");
-  EXPECT_TRUE(test_equals(x, x));
-}
-
-TEST(Relay, AlphaTestIncompatibleTypeNodes) {
-  auto x = TypeVar("x", kTypeData);
-  auto y = relay::VarNode::make("y", relay::Type());
-
-  TestAlphaEquals test_equals("relay._make._alpha_equal");
-  EXPECT_FALSE(test_equals(x, y));
-  EXPECT_TRUE(test_equals(x, y) == test_equals(y, x));
-
-}
-
-TEST(Relay, AlphaTestIncompatibleExprNodes) {
-  auto x = relay::VarNode::make("x", relay::Type());
-  auto y = ObjectRef(make_object<IRModuleNode>());
-
-  TestAlphaEquals test_equals("relay._make._alpha_equal");
-  EXPECT_FALSE(test_equals(x, y));
-  EXPECT_TRUE(test_equals(x, y) == test_equals(y, x));
-
-}
-
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

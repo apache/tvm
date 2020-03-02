@@ -28,6 +28,15 @@ def alpha_equal(x, y):
     """
     return analysis.alpha_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
 
+def alpha_equal_commutative(x, y):
+    """
+    Check for commutative property of equality
+    """
+    xy = analysis.alpha_equal(x, y)
+    yx = analysis.alpha_equal(y, x)
+    assert xy == yx
+    return analysis.alpha_equal(x, y)
+
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
     t2 = relay.TensorType((3, 4), "float32")
@@ -227,6 +236,18 @@ def test_type_node_alpha_equal():
     v1 = relay.TypeVar('v1', 0)
     v2 = relay.TypeVar('v2', 6)
     assert not alpha_equal(v1, v2)
+
+    assert alpha_equal_commutative(v1, v1)
+
+def test_type_node_incompatible_alpha_equal():
+    v1 = relay.TypeVar('v1', 6)
+    v2 = relay.Var("v2")
+    assert not alpha_equal_commutative(v1, v2)
+
+def test_expr_node_incompatible_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.PatternVar(relay.Var("v2"))
+    assert not alpha_equal_commutative(v1, v2)
 
 def test_var_alpha_equal():
     v1 = relay.Var("v1")
@@ -685,6 +706,8 @@ if __name__ == "__main__":
     test_incomplete_type_alpha_equal()
     test_constant_alpha_equal()
     test_type_node_alpha_equal()
+    test_type_node_incompatible_alpha_equal()
+    test_expr_node_incompatible_alpha_equal()
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
