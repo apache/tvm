@@ -78,7 +78,7 @@ def schedule_concatenate(outs):
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of concatenate in the format
           of an array of tensors.
 
     Returns

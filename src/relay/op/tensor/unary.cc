@@ -95,6 +95,17 @@ RELAY_REGISTER_UNARY_OP("exp")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
 
 
+RELAY_REGISTER_UNARY_OP("fast_exp")
+.describe(R"code(Returns the fast_exp input array, computed element-wise.
+
+.. math::
+   \fast_exp(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_exp));
+
+
 RELAY_REGISTER_UNARY_OP("erf")
 .describe(R"code(Returns the error function value for input array, computed element-wise.
 
@@ -248,6 +259,17 @@ RELAY_REGISTER_UNARY_OP("tanh")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::tanh));
+
+
+RELAY_REGISTER_UNARY_OP("fast_tanh")
+.describe(R"code(Returns the fast_tanh of input array, computed element-wise.
+
+.. math::
+   Y = sinh(X) / cosh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_tanh));
 
 
 RELAY_REGISTER_UNARY_OP("negative")
