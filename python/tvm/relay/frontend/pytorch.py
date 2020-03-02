@@ -688,10 +688,20 @@ def _upsample(method):
             coord_trans = "half_pixel"
 
         def func(x):
-            return _op.image.resize(x, out_size, "NCHW", "bilinear", coord_trans)
+            return _op.image.resize(x, out_size, "NCHW", method, coord_trans)
 
         if input_types[0] == "quint8":
-            assert len(inputs) == 7, "Input quant param not found in op inputs"
+            import torch
+            from packaging import version
+
+            # Torch version > 1.4 changed upsampling API
+            if version.parse(torch.__version__) > version.parse("1.4.0"):
+                num_inputs = 7
+            else:
+                num_inputs = 5
+
+            assert len(inputs) == num_inputs, "Input quant param not found in op inputs"
+
             input_scale = _expr.const(inputs[-2])
             input_zero_point = _expr.const(inputs[-1])
             return qnn_torch.quantized_upsample(data, input_scale,
