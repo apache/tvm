@@ -35,7 +35,7 @@ def alpha_equal_commutative(x, y):
     xy = analysis.alpha_equal(x, y)
     yx = analysis.alpha_equal(y, x)
     assert xy == yx
-    return analysis.alpha_equal(x, y)
+    return xy
 
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
