@@ -48,6 +48,8 @@ class QuantParam:
 
 
 def _unpack_quant_params(param_name, packed_params, unpack_func):
+    # Torch stores quantized params in a custom packed format,
+    # need to unpack and retrieve them as numpy arrays
     qweight, bias = unpack_func(packed_params)
     weight_np = qweight.dequantize().numpy()
 
@@ -96,7 +98,10 @@ def get_weight_quant_params(script_module):
 
 def add_quant_params_to_outputs(outputs, output_index_map,
                                 packed_param_map, quant_params):
-    """ Add quant params to outputs so that they can be referenced later """
+    """
+    Add quant params to outputs so that they can be referenced by other
+    ops later. Weights are quantized here.
+    """
     for node_name, packed_param_name in packed_param_map.items():
         qparam = quant_params[packed_param_name]
         output_index_map[node_name] = len(outputs)
@@ -108,6 +113,17 @@ def add_quant_params_to_outputs(outputs, output_index_map,
 
 
 def _get_quant_param_for_input(input_value):
+    """
+    We want to know the input scale and zp of this input_value, since
+    input quant params are not explicitly passed around in torch (they
+    are embeded in a QTensor data structure, not visible statically).
+    We know that it is quantized using output scale and zp
+    of some previous quantized op. The purpose of this function
+    is to find that pair of paramters.
+    """
+    # Indices for output scale and zp
+    # For example, in quantized::conv2d(%input, %1, %2, %3, %4, %5, %6, %7),
+    # 6th and 7th arg are output scale and zp respectively.
     output_quant_param_indices = {
         "aten::quantize_per_tensor": (1, 2),
         "quantized::conv2d": (6, 7),
@@ -132,10 +148,12 @@ def _get_quant_param_for_input(input_value):
             zp = current_node.inputsAt(indices[1])
             return scale, zp
 
+        # Trace back eariler nodes, dfs order
         # Assume quantized tensor comes earlier in the args
         for arg in current_node.inputs():
             return dfs(arg.node())
 
+        # shouldn't happen
         assert False, "No producer for %s" % (str(current_node))
 
     return dfs(input_value.node())
@@ -143,7 +161,11 @@ def _get_quant_param_for_input(input_value):
 
 def _get_add_scalar_output_quant_param(input_scale, input_zero_point,
                                        scalar):
-    # refer to aten/src/ATen/native/quantized/cpu/qadd.cpp
+    """
+    Determine the output scale and zp of quantized::add_scalar op
+    This is used for mobilenet v3
+    Refer to aten/src/ATen/native/quantized/cpu/qadd.cpp
+    """
     q_min = 0
     q_max = 255
     s = input_scale
@@ -166,7 +188,11 @@ def _get_add_scalar_output_quant_param(input_scale, input_zero_point,
 
 def _get_mul_scalar_output_quant_param(input_scale, input_zero_point,
                                        scalar):
-    # refer to aten/src/ATen/native/quantized/cpu/qmul.cpp
+    """
+    Determine the output scale and zp of quantized::mul_scalar op
+    This is used for mobilenet v3
+    Refer to aten/src/ATen/native/quantized/cpu/qmul.cpp
+    """
     q_min = 0
     q_max = 255
     self_scale = input_scale
@@ -189,6 +215,24 @@ def _get_mul_scalar_output_quant_param(input_scale, input_zero_point,
 def _add_output_quant_params_to_scalar_op(node, graph,
                                           input_scale, input_zero_point,
                                           scalar):
+    """
+    The output scale and zp of {add,mul}_scalar op are not explicit in the IR
+    They are required for _get_quant_param_for_input above to work correctly
+    So calculate these params using the same way torch does, and make new
+    constant nodes in the input IR. Also add these params to the inputs of
+    scalar op.
+
+    For example,
+       %6 : float = prim::Constant[value=3.]()
+       %input : QUInt8(1, 3, 224, 224) = quantized::add_scalar(%x.1, %6)
+    becomes
+       %6 : float = prim::Constant[value=3.]()
+       %7 : float = prim::Constant[value=0.015686161816120148]()
+       %8 : int = prim::Constant[value=0]()
+       %input : UInt8(1, 3, 224, 224) = quantized::add_scalar(%x.1, %6, %7, %8)
+
+    %7 and %8 are newly created output scale and zp constant nodes
+    """
     import torch
     operator = node.kind()
 
@@ -218,12 +262,31 @@ def _add_output_quant_params_to_scalar_op(node, graph,
 
 def add_input_quant_params_to_op_inputs(graph):
     """
-    Quantized operators in PyTorch do not take input quant params as
-    arguments. But QNN expects them to be passed in as arguements.
-    To simplify the translation of inputs, we add input quant params
-    to inputs of PyTorch quantized operator nodes. See _impl in
-    _quantized_conv2d() below for example of why this is helpful.
+    In Torch, input quant params are not explicitly passed around
+    Instead, they are stored in QTensor data structure, and retrieved
+    at runtime by each quantized ops.
+    However, they need to be known statically for QNN translation.
+    To workaround and simplify the translation of inputs, we manually add
+    input quant params to inputs of Torch quantized operators listed below.
+    See _quantized_conv2d() below for example of why this is helpful.
+
+    For example,
+      %input : QUInt8(1, 512, 7, 7) = quantized::add(%x.8, %x.9, %434, %435)
+    becomes
+      %395 : float = prim::Constant[value=0.036212071776390076]()
+      %396 : int = prim::Constant[value=0]()
+      %430 : float = prim::Constant[value=0.16080744564533234]()
+      %431 : int = prim::Constant[value=42]()
+      %input : QUInt8(1, 512, 7, 7) = quantized::add(%x.8, %x.9, %434, %435,
+                                                     %430, %431, %395, %396)
+
+    %434, %435 are output scale and zp of quantized::add op
+    %430, %431, %395, %396 are two pairs of input (scale, zp) for two tensors
+    added by this function
     """
+    # How many quantized tensors each op takes as inputs?
+    # A pair of (scale, zp) for each input quantized tensor will be added
+    # to the input nodes
     num_quantized_inputs = {"quantized::conv2d": 1,
                             "quantized::conv2d_relu": 1,
                             "quantized::linear": 1,
@@ -293,6 +356,7 @@ def quantized_adaptive_avg_2d(data, func):
 
 
 def quantized_mean(data, input_scale, input_zero_point, func):
+    # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
     dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
     out = func(dequantized)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point,
@@ -300,6 +364,7 @@ def quantized_mean(data, input_scale, input_zero_point, func):
 
 
 def quantized_upsample(data, input_scale, input_zero_point, func):
+    # currently piggy backs to fp32, it gets identical output as torch
     data = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
     out = func(data)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point,
@@ -307,6 +372,7 @@ def quantized_upsample(data, input_scale, input_zero_point, func):
 
 
 def quantized_relu(data, input_zero_point):
+    # refer to aten/src/ATen/native/quantized/cpu/qrelu.cpp
     zp = _op.cast(input_zero_point, dtype="uint8")
     return _op.tensor.maximum(data, zp)
 
@@ -353,6 +419,8 @@ def _quantized_conv2d(with_relu=False):
         output_zero_point = _expr.const(inputs[7])
 
         assert len(inputs) == 10, "Input quant params not found in op inputs"
+        # These are manually added by add_input_quant_params_to_op_inputs above
+        # In torch, they are retrieved from QTensor data structure at runtime
         input_scale = _expr.const(inputs[8])
         input_zero_point = _expr.const(inputs[9])
 
@@ -412,10 +480,13 @@ def _quantized_conv2d(with_relu=False):
 
 
 def _binop(relay_op, with_relu=False):
+    # refer to aten/src/ATen/native/quantized/cpu/{qadd, qmul}.cpp
+    # they piggy backs to fp32 math by dequantize -> fp32 math -> quantize
     def _impl(inputs, _):
         output_scale = _expr.const(inputs[2])
         output_zero_point = _expr.const(inputs[3])
         assert len(inputs) == 8, "Input quant params not found in op inputs"
+        # Manually added by add_input_quant_params_to_op_inputs above
         input_scale_lhs = _expr.const(inputs[4])
         input_zero_point_lhs = _expr.const(inputs[5])
         input_scale_rhs = _expr.const(inputs[6])
@@ -450,6 +521,7 @@ def _binop(relay_op, with_relu=False):
 
 
 def _linear(with_relu=False):
+    # similar to conv
     def _impl(inputs, _):
         weight = inputs[1][0]
         weight_scale = inputs[1][1]
@@ -457,6 +529,7 @@ def _linear(with_relu=False):
         output_scale = _expr.const(inputs[2])
         output_zero_point = _expr.const(inputs[3])
         assert len(inputs) == 6, "Input quant params not found in op inputs"
+        # Manually added by add_input_quant_params_to_op_inputs above
         input_scale = _expr.const(inputs[4])
         input_zero_point = _expr.const(inputs[5])
 
@@ -493,6 +566,9 @@ def _linear(with_relu=False):
 
 
 def _cat():
+    # refer to aten/src/ATen/native/quantized/cpu/qconcat.cpp
+    # for concat they also piggy backs to fp32(!)
+    # dequantize -> fp32 math -> quantize
     def _impl(inputs, _):
         axis = inputs[1]
         output_scale = _expr.const(inputs[2])
@@ -516,6 +592,8 @@ def _cat():
 def _add_scalar():
     def _impl(inputs, _):
         # refer to aten/src/ATen/native/quantized/cpu/qadd.cpp
+        # math for calculating output scale and zp are already done
+        # during _add_output_quant_params_to_scalar_op above
         assert len(inputs) == 6, "Input quant params not found in op inputs"
         s = inputs[4]
         z = inputs[5]
@@ -545,6 +623,7 @@ def quantize_scalar(data, scale, zero_point):
 
 
 def _relu6():
+    # refer to src/ATen/native/quantized/cpu/qrelu.cpp
     def _impl(inputs, _):
         assert len(inputs) == 4, "Input quant params not found in op inputs"
         input_scale = inputs[2]
@@ -557,6 +636,8 @@ def _relu6():
 def _mul_scalar():
     def _impl(inputs, _):
         # refer to aten/src/ATen/native/quantized/cpu/qmul.cpp
+        # math for calculating output scale and zp are already done
+        # during _add_output_quant_params_to_scalar_op above
         assert len(inputs) == 6, "Input quant params not found in op inputs"
         other_val = inputs[1]  # scalar
 
