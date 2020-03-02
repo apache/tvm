@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel, simplifiable-if-expression, unnecessary-comprehension
 """PT: PyTorch frontend."""
 import itertools
+import logging
 
 import numpy as np
 
@@ -710,6 +711,17 @@ def _upsample(method):
 
     return _impl
 
+
+def _expand_as():
+    def _impl(inputs, input_types):
+        # TODO: maybe fix this
+        # This assumes expand_as can be removed because TVM has broadcast op
+        msg = "aten::expand_as(...) found, assume it is part of broadcast op"
+        logging.warning(msg)
+        return inputs[0]
+    return _impl
+
+
 # Helper functions for operator implementation
 
 def _convert_data_type(input_type):
@@ -830,6 +842,7 @@ _convert_map = {
     "aten::detach"                          : _identity(),
     "aten::upsample_bilinear2d"             : _upsample("bilinear"),
     "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+    "aten::expand_as"                       : _expand_as()
 }
 
 

@@ -20,9 +20,9 @@ def torch_version_check():
     return version.parse(torch.__version__) > version.parse("1.4.0")
 
 
-def get_tvm_runtime(script_module, input_name):
+def get_tvm_runtime(script_module, input_name, ishape):
 
-    input_shapes = {input_name: (1, 3, 224, 224)}
+    input_shapes = {input_name: ishape}
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
     with relay.build_config(opt_level=3):
@@ -218,20 +218,22 @@ def test_quantized_modules():
     imagenet_ishape = (1, 3, 224, 224)
 
     qmodules = [
-       ("conv_bn", imagenet_ishape, ConvBn(), False),
-       ("conv_bn_relu", imagenet_ishape, ConvBn(with_relu=True), False),
        ("relu", imagenet_ishape, ReLU(), False),
-       ("linear", (16, 16), Linear(), False),
-       ("linear_relu", (16, 16), Linear(with_relu=True), False),
        ("upsample bilinear", (1, 3, 64, 64), UpsamplingBilinear(), False),
     ]
 
-    qmodules += [
-       ("conv_bn, per_channel", imagenet_ishape, ConvBn(), True),
-       ("conv_bn_relu, per_channel", imagenet_ishape, ConvBn(with_relu=True), True),
-       ("linear, per_channel", (16, 16), Linear(), False),
-       ("linear_relu, per_channel", (16, 16), Linear(with_relu=True), True)
-    ]
+    for per_channel in [False, True]:
+        if per_channel:
+            postfix = ", per_channel"
+        else:
+            postfix = ""
+
+        qmodules += [
+           ("conv_bn" + postfix, imagenet_ishape, ConvBn(), per_channel),
+           ("conv_bn_relu" + postfix, imagenet_ishape, ConvBn(with_relu=True), per_channel),
+           ("linear" + postfix, (16, 16), Linear(), per_channel),
+           ("linear_relu" + postfix, (16, 16), Linear(with_relu=True), per_channel)
+        ]
 
     if torch_version_check():
         qmodules += [
@@ -242,7 +244,7 @@ def test_quantized_modules():
            ("mul_scalar negative", imagenet_ishape, MulScalarNegative(), False)
         ]
     else:
-        print("Skipping tests that requires nightly torch build (newer than 1.4)")
+        print("Skipping tests that require torch > 1.4")
 
     for (module_name, ishape, raw_module, per_channel) in qmodules:
         raw_module.eval()
@@ -256,7 +258,7 @@ def test_quantized_modules():
 
         input_name = get_graph_input_names(script_module)[0]
 
-        runtime = get_tvm_runtime(script_module, input_name)
+        runtime = get_tvm_runtime(script_module, input_name, ishape)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()
         tvm_result = runtime.get_output(0).asnumpy()
@@ -272,7 +274,6 @@ def test_quantized_modules():
 
 
 def test_quantized_imagenet():
-
     def get_transform():
         import torchvision.transforms as transforms
         normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -332,7 +333,7 @@ def test_quantized_imagenet():
             pt_result = script_module(pt_inp).numpy()
 
         input_name = get_graph_input_names(script_module)[0]
-        runtime = get_tvm_runtime(script_module, input_name)
+        runtime = get_tvm_runtime(script_module, input_name, (1, 3, 224, 224))
         runtime.set_input(input_name, inp)
         runtime.run()
 
@@ -359,4 +360,4 @@ def test_quantized_imagenet():
 
 
 test_quantized_modules()
-test_quantized_imagenet()
+#test_quantized_imagenet()
