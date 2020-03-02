@@ -112,7 +112,51 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
     double low = args[0];
     double high = args[1];
     DLTensor* out = args[2];
+    // this check is also necessary to maintain
+    // compatibility with existing implementation
+    if (args.size() > 3) {
+      int seed = args[3];
+      // Only set seed if it is non-zero..
+      if (seed > 0)
+        entry->random_engine.Seed(seed);
+    }
     entry->random_engine.SampleUniform(out, low, high);
+  });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform.real")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    RandomThreadLocalEntry *entry = RandomThreadLocalEntry::ThreadLocal();
+    double low = args[0];
+    double high = args[1];
+    DLTensor* out = args[2];
+    // This check is also necessary to maintain
+    // compatibility with existing implementation
+    if (args.size() > 3) {
+      int seed = args[3];
+      // Only set seed if it is non-zero..
+      if (seed > 0)
+        entry->random_engine.Seed(seed);
+    }
+    entry->random_engine.SampleUniformReal(out, low, high);
+  });
+
+TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform.int")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    RandomThreadLocalEntry *entry = RandomThreadLocalEntry::ThreadLocal();
+    int low = args[0];
+    int high = args[1];
+    DLTensor* out = args[2];
+    // This check is also necessary to maintain
+    // compatibility with existing implementation
+    if (args.size() > 3) {
+      int seed = args[3];
+      // Only set seed if it is non-zero..
+      if (seed > 0)
+        entry->random_engine.Seed(seed);
+    }
+    // Making high as exclusive as default C++ std implementation
+    // treats high also as inclusive
+    entry->random_engine.SampleUniformInt(out, low, high-1);
   });
 
 

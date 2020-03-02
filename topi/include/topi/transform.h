@@ -30,6 +30,7 @@
 #include <topi/detail/ravel_unravel.h>
 #include <topi/detail/constant_utils.h>
 #include <topi/detail/tensor_utils.h>
+#include <topi/contrib/random.h>
 
 #include <string>
 #include <vector>
@@ -42,6 +43,7 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::te;
 using namespace topi::detail;
+using namespace topi::contrib;
 
 /*!
 * \brief Creates an operation to insert new dimensions of length 1
@@ -1319,6 +1321,29 @@ inline Tensor one_hot(const Tensor& indices,
     auto idx = iter_vars[true_axis];
     return tir::SelectNode::make(indices(indices_indices) == idx, on_value_cast, off_value_cast);
   }, name, tag);
+}
+
+// random uniform operator
+/*!
+ * \brief Returns a random uniform tensor
+ * \param shape The shape of the output tensor array.
+ * \param minval low bound of interval.
+ * \param maxval upper bound of interval.
+ * \param dtype The target data type.
+ * \param seed A seed value for generating pseudo random numbers.
+ * \param dtype data type of the output tensor.
+ * \param name output tensor name. 
+ * \return random uniform tensor.
+ */
+inline Array<Tensor> random_uniform(const Array<PrimExpr>& shape,
+                                        const PrimExpr& minval,
+                                        const PrimExpr& maxval,
+                                        DataType dtype,
+                                        Integer seed,
+                                        std::string name = "random.uniform") {
+  auto mm = topi::contrib::random_uniform
+            (shape, minval, maxval, dtype, seed, name);
+  return {mm};
 }
 
 }  // namespace topi

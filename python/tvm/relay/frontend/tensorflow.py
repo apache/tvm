@@ -1496,6 +1496,28 @@ def _add_n():
         return  _res
     return _impl
 
+def _random_uniform():
+    def _impl(inputs, attr, params):
+        shape = _get_param(params, inputs[0])
+        minval = attr.get('minval', 0)
+        maxval = attr.get('maxval', 1)
+        seed = attr.get('seed', 0)
+        seed2 = attr.get('seed2', 0)
+        if seed2 is not None:
+            seed = seed2
+        dtype = attr.get('dtype', 'DT_FLOAT').name
+        name = attr.get('name', "random_uniform")
+
+        return AttrCvt(
+            op_name="random_uniform",
+            ignores=['seed2'],
+            extras={'shape': shape.tolist(),
+                    'minval': minval,
+                    'maxval': maxval,
+                    'dtype': dtype,
+                    'seed': seed,
+                    'name': name})([], attr)
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1635,6 +1657,7 @@ _convert_map = {
     'Unpack'                            : _unpack(),
     'Where'                             : _where(),
     'ZerosLike'                         : AttrCvt('zeros_like'),
+    'RandomUniform'                     : _random_uniform(),
 
 }
 

@@ -23,6 +23,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay import create_executor, transform
 from tvm.relay.testing import ctx_list, check_grad, run_infer_type
+from tvm import contrib
 
 
 def test_zeros_ones():
@@ -683,6 +684,53 @@ def test_gather_nd():
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
+def test_random_uniform():
+    def verify_random_uniform(shape, minval=0, maxval=None, dtype="float32", seed=None, name=None):
+        x = relay.random_uniform(shape, minval, maxval, dtype, seed, name)
+        func = relay.Function([], x)
+        device_list = ["llvm"]
+        res = [(device, tvm.context(device, 0)) for device in device_list]
+        ctx_list_local = [x for x in res if x[1].exist]
+        for target, ctx in ctx_list_local:
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)()
+                na = op_res.asnumpy()
+                minval1, maxval1 = minval, maxval
+
+                if minval is None:
+                    if dtype.startswith("int"):
+                        minval1 = 0
+                    else:
+                        minval1 = 0.0
+
+                if maxval is None and dtype.startswith("float"):
+                    maxval1 = 1.0
+                assert abs(np.min(na) - minval1) < 1e-3
+                if dtype.startswith("int"):
+                    maxval1 = maxval -1
+                assert abs(np.max(na) - maxval1) < 1e-3
+
+    verify_random_uniform((1024, 1024), -1, 1, "int32", 3, "")
+    verify_random_uniform((1024, 1024), minval=None, maxval=2, dtype="int64", seed=3, name="")
+
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "int64", 3, "")
+    verify_random_uniform((1024, 1024), minval=None, maxval=5, dtype="int64", seed=3, name="")
+    verify_random_uniform((1024, 1024), minval=-2.0, maxval=None, dtype="float64", seed=3, name="")
+    verify_random_uniform((1024, 1024), minval=None, maxval=None, dtype="float64", seed=3, name="")
+
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float32", 0, "")
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float32", 0, "")
+
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float64", 1, "")
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float64", 3, "")
+
+    verify_random_uniform((1024, 1024), -3, 5, "int32", 0, "")
+    verify_random_uniform((1024, 1024), -3, 5, "int32", 0, "")
+
+    verify_random_uniform((1024, 1024), -3, 5, "int64", 1, "")
+    verify_random_uniform((1024, 1024), -3, 5, "int32", 1, "")
+
 if __name__ == "__main__":
     test_arange()
     test_cast()
@@ -713,3 +761,4 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
+    test_random_uniform()

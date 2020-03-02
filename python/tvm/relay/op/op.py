@@ -332,6 +332,19 @@ def register_broadcast_schedule(op_name, level=10):
     """
     return register_schedule(op_name, _schedule_injective, level)
 
+def register_extern_schedule(op_name, level=10):
+    """Register extern schedule function for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the op.
+
+    level : int
+        The priority level
+    """
+    return register_schedule(op_name, _schedule_extern, level)
+
 
 def register_reduce_schedule(op_name, level=10):
     """Register reduce schedule function for an op.
@@ -463,6 +476,7 @@ def _build(lowered_funcs):
 
 _schedule_injective = None
 _schedule_reduce = None
+_schedule_extern = None
 
 __DEBUG_COUNTER__ = 0
 

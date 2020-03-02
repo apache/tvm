@@ -75,8 +75,15 @@ def schedule_reduce(attrs, outs, target):
     with target:
         return topi.generic.schedule_reduce(outs)
 
+@generic_func
+def schedule_extern(attrs, outs, target):
+    """Schedule extern ops"""
+    with target:
+        return topi.generic.schedule_extern(outs)
+
 _op._schedule_injective = schedule_injective
 _op._schedule_reduce = schedule_reduce
+_op._schedule_extern = schedule_extern
 
 # concatenate
 @generic_func

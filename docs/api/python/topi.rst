@@ -109,6 +109,7 @@ List of operators
    topi.topk
    topi.sequence_mask
    topi.one_hot
+   topi.random_uniform
 
 
 List of schedules
@@ -186,6 +187,7 @@ topi
 .. autofunction:: topi.logical_and
 .. autofunction:: topi.logical_or
 .. autofunction:: topi.logical_not
+.. autofunction:: topi.random_uniform
 
 topi.nn
 ~~~~~~~

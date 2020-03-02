@@ -562,6 +562,39 @@ def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
     for device in get_all_backend():
         check_device(device)
 
+def verify_random_uniform(shape, minval=0, maxval=None, dtype="float32", seed=None, name=None):
+    A = topi.random_uniform(shape, minval, maxval, dtype, seed, name)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_extern(A)
+        f = tvm.build(s, A, device)
+        a_nd = tvm.nd.array(np.zeros((shape[0], shape[1]), dtype=dtype), ctx)
+        f(a_nd)
+        na = a_nd.asnumpy()
+
+        minval1, maxval1 = minval, maxval
+        if minval is None:
+            if dtype.startswith("int"):
+                minval1 = 0
+            else:
+                minval1 = 0.0
+
+        if maxval is None and dtype.startswith("float"):
+            maxval1 = 1.0
+        assert abs(np.min(na) - minval1) < 1e-3
+        if dtype.startswith("int"):
+            maxval1 = maxval - 1
+        assert abs(np.max(na) - maxval1) < 1e-3
+
+    for device in ['llvm', 'llvm -device=arm_cpu']:
+        check_device(device)
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -882,7 +915,36 @@ def test_one_hot():
     verify_one_hot((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     verify_one_hot((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
+def test_random_uniform():
+    # Uncomment the following test case to check that we raise error for integral values when dtype is integer
+    # verify_random_uniform((1024, 1024), minval=-3, maxval=None, dtype="int32", seed=0, name="")
+
+    # Uncomment the following test case to check that we raise error for integer values
+    # when (maxval-minval == 1) as maxval range is exclusive and we always check that (high > low)
+    # verify_random_uniform((1024, 1024), minval=None, maxval=None, dtype="int64", seed=3, name="")
+
+    verify_random_uniform((1024, 1024), -1, 1, "int32", 3, "")
+    verify_random_uniform((1024, 1024), minval=None, maxval=2, dtype="int64", seed=3, name="")
+
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "int64", 3, "")
+    verify_random_uniform((1024, 1024), minval=None, maxval=5, dtype="int64", seed=3, name="")
+    verify_random_uniform((1024, 1024), minval=-2.0, maxval=None, dtype="float64", seed=3, name="")
+    verify_random_uniform((1024, 1024), minval=None, maxval=None, dtype="float64", seed=3, name="")
+
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float32", 0, "")
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float32", 0, "")
+
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float64", 1, "")
+    verify_random_uniform((1024, 1024), -3.0, 5.0, "float64", 3, "")
+
+    verify_random_uniform((1024, 1024), -3, 5, "int32", 0, "")
+    verify_random_uniform((1024, 1024), -3, 5, "int32", 0, "")
+
+    verify_random_uniform((1024, 1024), -3, 5, "int64", 1, "")
+    verify_random_uniform((1024, 1024), -3, 5, "int32", 1, "")
+
 if __name__ == "__main__":
+    test_random_uniform()
     test_strided_slice()
     test_concatenate()
     test_stack()

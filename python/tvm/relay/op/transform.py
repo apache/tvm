@@ -861,3 +861,64 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 0, 1]]
     """
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
+
+
+def random_uniform(shape, minval=0, maxval=None, dtype="float32", seed=None, name=""):
+    """Return pseudo random numbers from a uniform distribution
+        within a given interval[minval,maxval).
+
+    .. note::
+        Similar to ``tf.random.uniform``
+
+    Parameters
+    ----------
+    shape:
+
+    minval : tvm.Expr, optional
+        low bound of interval. The interval includes this value. The default start
+        value is 0.0.
+
+    maxval : tvm.Expr
+        upper bound of interval. The interval does not include this value.
+        Default value is 1.0 for floats.
+        For integers, if maxval is not specified, then raises error
+
+    seed : integer, optional
+        Helpful in generating repetitive pseudo random sequences.
+        The default seed is 0 means random sequence.
+
+    dtype : str, optional
+        The target data type.
+
+    name : str, optional
+        The operation name.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        relay.random_uniform((2,2)) = [[0.23, 0.34],
+                                       [0.13, 0.24]]
+    """
+    if dtype is None:
+        dtype = "float32"
+
+    if maxval is None:
+        if dtype.find("float") != -1:
+            maxval = const(1, dtype)
+        else:
+            raise ValueError("maxval should be specified for integer datatype")
+    else:
+        maxval = const(maxval, dtype=dtype)
+
+    if minval is None:
+        minval = const(0, dtype=dtype)
+    else:
+        minval = const(minval, dtype=dtype)
+
+    return _make.random_uniform(shape, minval, maxval, dtype, seed, name)

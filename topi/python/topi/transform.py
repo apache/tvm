@@ -454,6 +454,66 @@ def arange(start, stop=None, step=1, dtype="float32"):
     return cpp.arange(start, stop, step, dtype)
 
 
+def random_uniform(req_shape, minval=0, maxval=None, dtype="float32", seed=None, name=""):
+    """Return pseudo random numbers from a uniform distribution in a given interval[minval,maxval).
+
+    .. note::
+        Similar to ``tf.random.uniform``
+
+    Parameters
+    ----------
+    req_shape: The shape of the output tensor array.
+
+    minval : tvm.Expr, optional
+        low bound of interval. The interval includes this value. The default start
+        value is 0.0.
+
+    maxval : tvm.Expr
+        upper bound of interval. The interval does not include this value.
+        Default value is 1.0 for floats. For integers, if maxval is not specified,
+        then raises ValueError
+
+    seed : integer, optional
+        Helpful in generating repetitive pseudo random sequences.
+        The default seed is 0 means random sequence.
+
+    dtype : str, optional
+        The target data type.
+
+    name : str, optional
+        The operation name.
+
+    Returns
+    -------
+    result : Array<tvm.Tensor>
+        The resulting array of tensors.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        relay.random_uniform((2,2)) = [[0.23, 0.34],
+                                       [0.13, 0.24]]
+    """
+    if dtype is None:
+        dtype = "float32"
+
+    if maxval is None:
+        if dtype.find("float") != -1:
+            maxval = tvm.tir.const(1, dtype)
+        else:
+            raise ValueError("maxval should be specified for integer datatype")
+    else:
+        maxval = tvm.tir.const(maxval, dtype=dtype)
+
+    if minval is None:
+        minval = tvm.tir.const(0, dtype=dtype)
+    else:
+        minval = tvm.tir.const(minval, dtype=dtype)
+
+    return cpp.random_uniform(req_shape, minval, maxval, dtype, seed, name)
+
+
 def repeat(a, repeats, axis):
     """Repeats elements of an array.
 

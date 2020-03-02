@@ -321,6 +321,41 @@ struct ArgWhereAttrs : public tvm::AttrsNode<ArgWhereAttrs> {
   }
 };  // struct ArgWhereAttrs
 
+/*! \brief Attributes used in RandomUniform operators */
+struct RandomUniformAttrs : public tvm::AttrsNode<RandomUniformAttrs> {
+  Array<IndexExpr> shape;
+  Expr minval;
+  Expr maxval;
+  DataType dtype;
+  int seed;
+  std::string name;
+
+  TVM_DECLARE_ATTRS(RandomUniformAttrs, "relay.attrs.RandomUniformAttrs") {
+    TVM_ATTR_FIELD(shape)
+        .describe("A 1-D array. The shape of the output tensor.");
+    TVM_ATTR_FIELD(minval)
+        .describe("The lower bound on the range of"
+                  "random values to generate."
+                  " Defaults to 0.");
+    if (dtype.is_float()) {
+      TVM_ATTR_FIELD(maxval)
+        .describe("The upper bound on the range of"
+                "random values to generate."
+                "Defaults to 1 if dtype is floating point.");
+    } else if (dtype.is_int()) {
+    TVM_ATTR_FIELD(maxval)
+        .describe("The upper bound on the range of random values to generate."
+                  " Should be explicitly specified in case of integers.");
+    }
+    TVM_ATTR_FIELD(dtype)
+        .describe("The data type of the output.");
+    TVM_ATTR_FIELD(seed)
+        .describe("Integer. Used to set a seed value.");
+    TVM_ATTR_FIELD(name).set_default("random_uniform")
+        .describe("name of the operation. Optional field.");
+  }
+};  // struct RandomUniformAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
