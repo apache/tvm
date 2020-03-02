@@ -15,11 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-""" Functions to convert quantized torch models to QNN"""
+""" Functions to convert quantized torch models to QNN """
 
 import numpy as np
-
-import torch
 
 import tvm
 from tvm import relay
@@ -53,6 +51,7 @@ def _unpack_quant_params(param_name, packed_params, unpack_func):
     qweight, bias = unpack_func(packed_params)
     weight_np = qweight.dequantize().numpy()
 
+    import torch
     if qweight.qscheme() == torch.per_tensor_affine:
         param = QuantParam(weight_np, bias, qweight.q_scale(),
                            int(qweight.q_zero_point()), param_name)
@@ -70,6 +69,7 @@ def get_weight_quant_params(script_module):
     conv_packed_params = []
     linear_packed_params = []
 
+    import torch
     for name, m in script_module.named_modules():
         if isinstance(m, torch.jit.RecursiveScriptModule):
             if "Conv" in m.original_name:
@@ -189,6 +189,7 @@ def _get_mul_scalar_output_quant_param(input_scale, input_zero_point,
 def _add_output_quant_params_to_scalar_op(node, graph,
                                           input_scale, input_zero_point,
                                           scalar):
+    import torch
     operator = node.kind()
 
     if operator == "quantized::mul_scalar":
