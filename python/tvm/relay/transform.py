@@ -552,6 +552,19 @@ def PartitionGraph():
     return _transform.PartitionGraph()
 
 
+def Inline():
+    """Perform inlining on the given Relay IR module. The global functions that
+    are marked as `inline` should be always inlined. A cost model will be
+    needed in the future to decide if it is profitable to inline the function.
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that performs inlining for a Relay IR module.
+    """
+    return _transform.Inline()
+
+
 def gradient(expr, mod=None, mode='higher_order'):
     """
     Transform the input function,

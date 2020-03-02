@@ -84,6 +84,13 @@ CallGraphEntry* CallGraphNode::operator[](const GlobalVar& gv) {
   return cit->second.get();
 }
 
+BaseFunc CallGraphNode::GetGlobalFunction(const GlobalVar& var) const {
+  CHECK(module->ContainGlobalVar(var->name_hint))
+      << "GlobalVar " << var->name_hint
+      << " not found in the current ir module";
+  return module->Lookup(var);
+}
+
 // Query the existence of a GlobalVar in the call graph. It creates an entry if
 // there is no such node available.
 CallGraphEntry* CallGraphNode::LookupGlobalVar(const GlobalVar& gv) {
@@ -306,7 +313,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.PrintCallGraph")
 
 TVM_REGISTER_GLOBAL("relay._analysis.GetModule")
 .set_body_typed([](CallGraph call_graph) {
-  return call_graph->GetModule();
+  return call_graph->module;
 });
 
 TVM_REGISTER_GLOBAL("relay._analysis.PrintCallGraphGlobalVar")
