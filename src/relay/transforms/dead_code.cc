@@ -92,7 +92,7 @@ class Eliminator : private ExprMutator {
 };
 
 // calculate the dependency graph from expression
-class CalcDep : private ExprVisitor {
+class CalcDep : private PostOrderGraphVisitor {
  public:
   static Expr Eliminate(const Expr& e, bool inline_once) {
     FindDef fd;
@@ -104,32 +104,26 @@ class CalcDep : private ExprVisitor {
   }
 
  private:
-  explicit CalcDep(const VarMap<Expr>& expr_map) : expr_map_(expr_map) { }
+  explicit CalcDep(const VarMap<Expr>& expr_map)
+      : PostOrderGraphVisitor([](const Expr&) {}, 2), expr_map_(expr_map) {}
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
 
-  void VisitExpr(const Expr& e) final {
-    visit_counter_[e.get()]++;
-    // The dce code seprate variable into three parts:
-    // used 0 times (remove)
-    // used 1 times (inline)
-    // used 2 times (dont do anything).
-    if (visit_counter_[e.get()] <= 2) {
-      using TParent = ExprFunctor<void(const Expr&)>;
-      TParent::VisitExpr(e);
-    }
+
+  bool VisitExpr_(const LetNode* l) final {
+    bool children_processed = true;
+    children_processed &= PushToStack(l->body);
+    return children_processed;
   }
 
-  void VisitExpr_(const LetNode* l) final {
-    VisitExpr(l->body);
-  }
-
-  void VisitExpr_(const VarNode* v) final {
+  bool VisitExpr_(const VarNode* v) final {
+    bool children_processed = true;
     Var var = GetRef<Var>(v);
     ++use_map_[var];
     if (use_map_[var] == 1 && expr_map_.count(var) > 0) {
-      VisitExpr(expr_map_[var]);
+      children_processed &= PushToStack(expr_map_[var]);
     }
+    return children_processed;
   }
 };
 
