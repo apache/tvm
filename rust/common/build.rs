@@ -46,6 +46,7 @@ fn main() {
         .header(format!("{}/include/tvm/runtime/c_runtime_api.h", tvm_home))
         .header(format!("{}/include/tvm/runtime/c_backend_api.h", tvm_home))
         .clang_arg(format!("-I{}/3rdparty/dlpack/include/", tvm_home))
+        .clang_arg(format!("-I{}/include/", tvm_home))
         .blacklist_type("max_align_t")
         .layout_tests(false)
         .derive_partialeq(true)

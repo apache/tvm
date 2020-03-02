@@ -27,7 +27,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use bounded_spsc_queue::{self, Producer};
+use crossbeam::channel::{Sender, Receiver, bounded};
 use tvm_common::ffi::TVMParallelGroupEnv;
 
 pub(crate) type FTVMParallelLambda =
@@ -99,17 +99,17 @@ impl FnOnce<()> for Task {
 struct Threads {
     #[allow(unused)]
     handles: Vec<JoinHandle<()>>,
-    queues: Vec<Producer<Task>>,
+    queues: Vec<Sender<Task>>,
 }
 
 impl<'a> Threads {
-    fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(
+    fn launch<F: Sync + Send + FnOnce(Receiver<Task>) + 'static + Copy>(
         num_threads: usize,
         cb: F,
     ) -> Self {
         let (handles, queues) = (0..num_threads)
             .map(|_| {
-                let (p, c) = bounded_spsc_queue::make(2);
+                let (p, c) = bounded(2);
                 let handle = thread::spawn(move || cb(c.into()));
                 (handle, p)
             })
@@ -146,7 +146,7 @@ impl ThreadPool {
         job.wait();
     }
 
-    fn run_worker(queue: Consumer<Task>) {
+    fn run_worker(queue: Receiver<Task>) {
         loop {
             let task = queue.pop();
             let result = task();
@@ -158,23 +158,6 @@ impl ThreadPool {
         }
     }
 }
-
-// Send + Sync wrapper for bounded_spsc_queue::Consumer
-struct Consumer<T> {
-    consumer: bounded_spsc_queue::Consumer<T>,
-}
-impl<T> From<bounded_spsc_queue::Consumer<T>> for Consumer<T> {
-    fn from(c: bounded_spsc_queue::Consumer<T>) -> Self {
-        Consumer { consumer: c }
-    }
-}
-impl<T> Consumer<T> {
-    fn pop(&self) -> T {
-        self.consumer.pop()
-    }
-}
-unsafe impl<T> Send for Consumer<T> {}
-unsafe impl<T> Sync for Consumer<T> {}
 
 #[cfg(not(target_arch = "wasm32"))]
 fn max_concurrency() -> usize {

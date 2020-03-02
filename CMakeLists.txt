@@ -281,9 +281,6 @@ else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
 
-  install(TARGETS tvm_t ARCHIVE DESTINATION lib${LIB_SUFFIX})
-endif()
-
 if(USE_THREADS)
   message(STATUS "Build with thread support...")
   set(CMAKE_THREAD_PREFER_PTHREAD TRUE)

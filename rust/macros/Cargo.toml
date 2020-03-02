@@ -26,11 +26,6 @@ keywords = ["tvm"]
 authors = ["TVM Contributors"]
 edition = "2018"
 
-[lib]
-proc-macro = true
 
 [dependencies]
-goblin = "0.0.24"
-proc-macro2 = "1.0"
-quote = "1.0"
-syn = "1.0"
+tvm-macros-raw = { path = "../macros_raw" }
