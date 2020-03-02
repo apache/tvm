@@ -950,6 +950,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 
                 # there are two way to use this {0} reducer:
                 # mode 1, accept (expr, axis, where) to produce an Reduce Expr
+                # tvm.{0} represents tvm.te.{0} or tvm.tir.{0}.
                 B = te.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
 
                 # mode 2, simply use it with multiple Exprs:
