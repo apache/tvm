@@ -58,9 +58,9 @@ build_dir := build
 test: $(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/cat.bin
 	$(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/cat.bin
 
-$(build_dir)/demo: demo.cc
+$(build_dir)/demo: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 	@mkdir -p $(@D)
-	g++ $(PKG_CXXFLAGS) -o $@  $^ -ldl
+	g++ $(PKG_CXXFLAGS) -o $@  demo.cc -ldl
 
 # Serialize our graph.json file.
 $(build_dir)/graph.json.c: $(build_dir)/graph.json
@@ -70,20 +70,14 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/bridge.c $(build_dir)/cat.bin: build_model.py
+$(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
 
 # Build our bundle against the serialized bundle.c API, the runtime.cc API, and
 # the serialized graph.json and params.bin
-$(build_dir)/bundle.so: runtime.c $(build_dir)/model.o $(build_dir)/bridge.c
+$(build_dir)/bundle.so: bundle.c runtime.c $(build_dir)/model.o
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
-
-$(build_dir)/graph.json.o: $(build_dir)/graph.json.c
-	gcc -c ${PKG_CFLAGS} -o $@ $^
-
-$(build_dir)/params.bin.o: $(build_dir)/params.bin.c
-	gcc -c ${PKG_CFLAGS} -o $@ $^
 
 clean:
 	rm -rf $(build_dir)/bundle.so

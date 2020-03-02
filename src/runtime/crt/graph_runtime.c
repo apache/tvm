@@ -647,7 +647,6 @@ void TVMGraphRuntime_Init(TVMGraphRuntime * runtime, const char * graph_json,
   runtime->Load(runtime, &reader);
   runtime->ctxs[0] = ctxs[0];
   runtime->SetupStorage(runtime);
-  TVMPackedFunc_SetupExecs();
   runtime->SetupOpExecs(runtime);
   JSONReader_Release(&reader);
 }

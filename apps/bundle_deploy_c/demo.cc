@@ -18,9 +18,9 @@
  */
 
 #include <tvm/runtime/c_runtime_api.h>
+
 #include <assert.h>
 #include <dlfcn.h> //dlopen
-#include <dlpack/dlpack.h>
 #include <iostream>
 #include <random>
 #include <vector>
@@ -62,6 +62,7 @@ int main(int argc, char **argv) {
   input.shape = input_shape.data();
   input.strides = nullptr;
   input.byte_offset = 0;
+
   getFunc<void(void *, const char *, void *)>(bundle, "tvm_runtime_set_input")(
       handle, "data", &input);
 

@@ -23,10 +23,18 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 
+#define TVM_CRT_MAX_NDIM 6
+#define TVM_CRT_MAX_ARGS 10
+#define GRAPH_RUNTIME_NODE_MAX_INPUTS 300
+#define GRAPH_RUNTIME_MAX_CONTEXTS 1
+#define GRAPH_RUNTIME_MAX_NODES 400
+#define GRAPH_RUNTIME_MAX_INPUT_NODES 300
+#define GRAPH_RUNTIME_MAX_NODE_ROW_PTR 300
+#define GRAPH_RUNTIME_MAX_OUTPUTS 300
+
 #include "../../src/runtime/crt/crt_runtime_api.c"
 #include "../../src/runtime/crt/crt_backend_api.c"
 #include "../../src/runtime/crt/graph_runtime.c"
 #include "../../src/runtime/crt/load_json.c"
 #include "../../src/runtime/crt/ndarray.c"
-#include "../../src/runtime/crt/bundle.c"
 

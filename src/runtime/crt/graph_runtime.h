@@ -189,9 +189,16 @@ typedef struct TVMGraphRuntime {
   uint32_t op_execs_count;
 } TVMGraphRuntime;
 
+// public functions
 TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json, const TVMModule * m,
                                         const TVMContext * ctxs);
-
 void TVMGraphRuntimeRelease(TVMGraphRuntime ** runtime);
+
+// private functions
+void TVMGraphRuntime_SetInput(TVMGraphRuntime * runtime, const char * name, DLTensor* data_in);
+int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blob,
+                               const uint32_t param_size);
+void TVMGraphRuntime_Run(TVMGraphRuntime * runtime);
+int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTensor * out);
 
 #endif  // TVM_RUNTIME_CRT_GRAPH_RUNTIME_H_

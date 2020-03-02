@@ -52,5 +52,8 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 }
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
+  snprintf(g_fexecs[g_fexecs_count].name, sizeof(g_fexecs[g_fexecs_count].name), name);
+  g_fexecs[g_fexecs_count].fexec = ptr;
+  g_fexecs_count++;
   return 0;
 }

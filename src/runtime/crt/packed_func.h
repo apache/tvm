@@ -112,7 +112,8 @@ static inline void TVMPackedFunc_SetArgs(TVMPackedFunc * pf, const TVMArgs * arg
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
 
-TVMPackedFunc fexecs[GRAPH_RUNTIME_MAX_NODES];
+TVMPackedFunc g_fexecs[GRAPH_RUNTIME_MAX_NODES];
+uint32_t g_fexecs_count = 0;
 
 void TVMPackedFunc_SetupExecs();
 
@@ -127,8 +128,8 @@ static inline void TVMModule_GetFunction(const char * name, TVMPackedFunc * pf) 
   pf->SetArgs = TVMPackedFunc_SetArgs;
   pf->fexec = &TVMNoOperation;
   for (idx = 0; idx < GRAPH_RUNTIME_MAX_NODES; idx++) {
-    if (!strcmp(fexecs[idx].name, name)) {
-      pf->fexec = fexecs[idx].fexec;
+    if (!strcmp(g_fexecs[idx].name, name)) {
+      pf->fexec = g_fexecs[idx].fexec;
       break;
     }
   }

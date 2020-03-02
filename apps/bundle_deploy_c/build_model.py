@@ -46,34 +46,6 @@ def build_module(opts):
     with open(os.path.join(build_dir, 'params.bin'), 'wb') as f_params:
         f_params.write(relay.save_param_dict(params))
 
-def build_bridge(opts):
-    build_dir = os.path.abspath(opts.out_dir)
-    json_data = {}
-    with open(os.path.join(build_dir, 'graph.json'), 'rt') as fp:
-        json_data = json.loads(fp.read())
-    if json_data == {}:
-        return
-    else:
-        nodes = [node['attrs']['func_name'] for node in json_data['nodes'] if node['op'] == "tvm_op"]
-    with open(os.path.join(build_dir, 'bridge.c'), 'w') as f_bridge:
-        f_bridge.write("#include \"../../../src/runtime/crt/packed_func.h\"\n")
-        f_bridge.write("\n")
-        f_bridge.write("#define REGISTER_PACKED_FUNC(func_name) \\\n")
-        f_bridge.write("  do { \\\n")
-        f_bridge.write("    strcpy(fexecs[idx].name, #func_name ); \\\n")
-        f_bridge.write("    fexecs[idx].fexec = func_name ; \\\n")
-        f_bridge.write("    idx ++; \\\n")
-        f_bridge.write("  } while (0)\n")
-        f_bridge.write("\n")
-        for node in nodes:
-            f_bridge.write("int %s(TVMValue * args, int * arg_type_ids, int num_args, TVMRetValueHandle ret, void * res);\n" % (node,))
-        f_bridge.write("\n")
-        f_bridge.write("void TVMPackedFunc_SetupExecs() {\n")
-        f_bridge.write("  int32_t idx = 0;\n")
-        for node in nodes:
-            f_bridge.write("  REGISTER_PACKED_FUNC(%s);\n" % (node,))
-        f_bridge.write("}\n")
-
 def build_inputs(opts):
     from tvm.contrib import download
     from PIL import Image
@@ -107,5 +79,4 @@ if __name__ == '__main__':
     opts = parser.parse_args()
 
     build_module(opts)
-    build_bridge(opts)
     build_inputs(opts)

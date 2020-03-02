@@ -25,6 +25,8 @@
 #include <string.h>
 
 #include "ndarray.h"
+#include "graph_runtime.h"
+#include "packed_func.h"
 
 // Handle internal errors
 
@@ -63,4 +65,44 @@ int TVMArrayFree(TVMArrayHandle handle) {
   TVMNDArray arr;
   arr.dl_tensor = *handle;
   return TVMNDArray_Release(&arr);
+}
+
+void * SystemLibraryCreate() {
+  return 0;
+}
+
+int TVMModGetFunction(TVMModuleHandle mod,
+                      const char* func_name,
+                      int query_imports,
+                      TVMFunctionHandle *out) {
+  int status = 0;
+  if (!strcmp(func_name, "load_params")) {
+    *out = &TVMGraphRuntime_LoadParams;
+  } else {
+    status -1;
+  }
+  return status;
+}
+
+int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
+  int status = 0;
+  if (!strcmp(name, "tvm.graph_runtime.create")){
+    *out = &TVMGraphRuntimeCreate;
+  } else if (!strcmp(name, "tvm.graph_runtime.set_input")){
+    *out = &TVMGraphRuntime_SetInput;
+  } else if (!strcmp(name, "tvm.graph_runtime.run")){
+    *out = &TVMGraphRuntime_Run;
+  } else if (!strcmp(name, "tvm.graph_runtime.get_output")){
+    *out = &TVMGraphRuntime_GetOutput;
+  } else if (!strcmp(name, "tvm.graph_runtime.release")){
+    *out = &TVMGraphRuntimeRelease;
+  } else if (!strcmp(name, "runtime.SystemLib")){
+    *out = &SystemLibraryCreate;
+  } else {
+    char msg[200];
+    snprintf(msg, sizeof(msg), "fail to get global: name=%s", name);
+    TVMAPISetLastError(msg);
+    status = -1;
+  }
+  return status;
 }
