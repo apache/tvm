@@ -32,7 +32,7 @@ from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
 
-import qnn_torch
+from . import qnn_torch
 
 __all__ = ["from_pytorch"]
 
@@ -880,6 +880,7 @@ def _report_missing_conversion(op_names):
                  "prim::ListConstruct", "prim::ListUnpack",
                  "prim::TupleConstruct", "prim::TupleUnpack"]
     known_ops += list(_convert_map.keys())
+    known_ops += list(qnn_torch.convert_map.keys())
 
     missing = [op_name for op_name in op_names
                if op_name not in known_ops]

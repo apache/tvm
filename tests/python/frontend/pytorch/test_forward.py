@@ -803,127 +803,6 @@ def test_segmentaton_models():
                      ctx_list=[("cuda", tvm.gpu(0))])
 
 
-def test_quantized_imagenet():
-    import os
-    from tvm.contrib.download import download_testdata
-    from PIL import Image
-
-    def get_transform():
-        import torchvision.transforms as transforms
-        normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                         std=[0.229, 0.224, 0.225])
-        return transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                normalize,
-            ])
-
-    def get_real_image(im_height, im_width):
-        repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
-        img_name = 'elephant-299.jpg'
-        image_url = os.path.join(repo_base, img_name)
-        img_path = download_testdata(image_url, img_name, module='data')
-        return Image.open(img_path).resize((im_height, im_width))
-
-    def get_imagenet_input():
-        im = get_real_image(224, 224)
-        preprocess = get_transform()
-        pt_tensor = preprocess(im)
-        return np.expand_dims(pt_tensor.numpy(), 0)
-
-    def get_tvm_runtime(script_module, input_name):
-
-        input_shapes = {input_name: (1, 3, 224, 224)}
-        mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
-
-        with relay.build_config(opt_level=3):
-            json, lib, params = relay.build(mod, target="llvm -mcpu=core-avx2",
-                                            params=params)
-
-        runtime = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
-        runtime.set_input(**params)
-        return runtime
-
-    def get_qconfig(per_channel):
-        from torch.quantization.observer import MovingAverageMinMaxObserver
-        from torch.quantization.observer import default_weight_observer
-
-        if per_channel:
-            return torch.quantization.get_default_qconfig('fbgemm')
-        else:
-            act = MovingAverageMinMaxObserver.with_args(reduce_range=False)
-            return torch.quantization.QConfig(activation=act,
-                                              weight=default_weight_observer)
-
-    def quantize_model(model, inp, per_channel=False, dummy=True):
-        model.fuse_model()
-        model.qconfig = get_qconfig(per_channel)
-        torch.quantization.prepare(model, inplace=True)
-        model(inp)
-        torch.quantization.convert(model, inplace=True)
-
-    from torchvision.models.quantization import resnet as qresnet
-    from torchvision.models.quantization import mobilenet as qmobilenet
-    from torchvision.models.quantization import inception as qinception
-    from torchvision.models.quantization import googlenet as qgooglenet
-
-    qmodels = []
-
-    for per_channel in [False, True]:
-        qmodels += [
-            ("resnet18", qresnet.resnet18(pretrained=True), per_channel),
-            ("mobilenet_v2", qmobilenet.mobilenet_v2(pretrained=True), per_channel),
-            ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
-            ("googlenet", qgooglenet(pretrained=True), per_channel),
-        ]
-
-    results = []
-
-    for (model_name, raw_model, per_channel) in qmodels:
-        raw_model.eval()
-
-        if per_channel:
-            model_name += ", per channel quantization"
-        else:
-            model_name += ", per tensor quantization"
-
-        inp = get_imagenet_input()
-        pt_inp = torch.from_numpy(inp)
-
-        quantize_model(raw_model, pt_inp, per_channel=per_channel, dummy=False)
-        script_module = torch.jit.trace(raw_model, pt_inp).eval()
-
-        with torch.no_grad():
-            pt_result = script_module(pt_inp).numpy()
-
-        input_name = get_graph_input_names(script_module)[0]
-        runtime = get_tvm_runtime(script_module, input_name)
-        runtime.set_input(input_name, inp)
-        runtime.run()
-
-        tvm_result = runtime.get_output(0).asnumpy()
-
-        results.append((model_name, pt_result[0], tvm_result[0]))
-
-        pt_top3_labels = np.argsort(pt_result)[::-1][:3]
-        tvm_top3_labels = np.argsort(pt_result)[::-1][:3]
-
-        assert set(pt_top3_labels) == set(tvm_top3_labels)
-
-    for (model_name, pt_result, tvm_result) in results:
-        max_abs_diff = np.max(np.abs(tvm_result - pt_result))
-        mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
-        num_correct = np.sum(tvm_result == pt_result)
-
-        print("\nModel name: %s" % model_name)
-        print("PyTorch top5 label:", np.argsort(pt_result)[::-1][:5])
-        print("TVM top5 label:", np.argsort(tvm_result)[::-1][:5])
-        print("max abs diff:", max_abs_diff)
-        print("mean abs_diff:", mean_abs_diff)
-        print("%d in 1000 raw outputs identical." % num_correct)
-
-
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -972,4 +851,7 @@ if __name__ == "__main__":
     test_segmentaton_models()
 
     # Quantization test
+    from qnn_test import test_quantized_imagenet, test_quantized_modules
+
+    test_quantized_modules()
     test_quantized_imagenet()
