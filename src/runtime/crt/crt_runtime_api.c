@@ -86,17 +86,17 @@ int TVMModGetFunction(TVMModuleHandle mod,
 
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   int status = 0;
-  if (!strcmp(name, "tvm.graph_runtime.create")){
+  if (!strcmp(name, "tvm.graph_runtime.create")) {
     *out = &TVMGraphRuntimeCreate;
-  } else if (!strcmp(name, "tvm.graph_runtime.set_input")){
+  } else if (!strcmp(name, "tvm.graph_runtime.set_input")) {
     *out = &TVMGraphRuntime_SetInput;
-  } else if (!strcmp(name, "tvm.graph_runtime.run")){
+  } else if (!strcmp(name, "tvm.graph_runtime.run")) {
     *out = &TVMGraphRuntime_Run;
-  } else if (!strcmp(name, "tvm.graph_runtime.get_output")){
+  } else if (!strcmp(name, "tvm.graph_runtime.get_output")) {
     *out = &TVMGraphRuntime_GetOutput;
-  } else if (!strcmp(name, "tvm.graph_runtime.release")){
+  } else if (!strcmp(name, "tvm.graph_runtime.release")) {
     *out = &TVMGraphRuntimeRelease;
-  } else if (!strcmp(name, "runtime.SystemLib")){
+  } else if (!strcmp(name, "runtime.SystemLib")) {
     *out = &SystemLibraryCreate;
   } else {
     char msg[200];
