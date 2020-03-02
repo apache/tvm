@@ -151,7 +151,7 @@ def _relu():
         data = inputs[0]
         if input_types[0] == "quint8":
             assert len(inputs) == 3, "Input quant param not found in op inputs"
-            input_zero_point = _expr.const(inputs[2])
+            input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
     return _impl

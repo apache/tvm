@@ -26,7 +26,7 @@ from tvm.relay import op as _op
 from tvm.relay.frontend.common import infer_shape
 
 
-class QuantParam:
+class QNNParam:
     """ A placeholder for weight quantization parameters """
 
     def __init__(self, weight, bias, scale, zero_point, param_key):
@@ -55,13 +55,13 @@ def _unpack_quant_params(param_name, packed_params, unpack_func):
 
     import torch
     if qweight.qscheme() == torch.per_tensor_affine:
-        param = QuantParam(weight_np, bias, qweight.q_scale(),
-                           int(qweight.q_zero_point()), param_name)
+        param = QNNParam(weight_np, bias, qweight.q_scale(),
+                         int(qweight.q_zero_point()), param_name)
     else:
         scales = qweight.q_per_channel_scales().numpy()
         zero_points = qweight.q_per_channel_zero_points().numpy()
         assert np.all(zero_points == 0)
-        param = QuantParam(weight_np, bias, scales, 0, param_name)
+        param = QNNParam(weight_np, bias, scales, 0, param_name)
 
     return param
 
@@ -119,7 +119,7 @@ def _get_quant_param_for_input(input_value):
     are embeded in a QTensor data structure, not visible statically).
     We know that it is quantized using output scale and zp
     of some previous quantized op. The purpose of this function
-    is to find that pair of paramters.
+    is to find that pair of parameters.
     """
     # Indices for output scale and zp
     # For example, in quantized::conv2d(%input, %1, %2, %3, %4, %5, %6, %7),
@@ -245,7 +245,7 @@ def _add_output_quant_params_to_scalar_op(node, graph,
           _get_add_scalar_output_quant_param(input_scale, input_zero_point,
                                              scalar)
     else:
-        assert False, "unsupported scalar op: %s" % operator
+        raise NotImplementedError("unsupported scalar op: %s" % operator)
 
     # create new constant nodes and add them to graph
     out_scale_node = graph.create("prim::Constant")
