@@ -359,32 +359,18 @@ TVM_REGISTER_GLOBAL("codegen.build_llvm")
 TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   auto n = make_object<LLVMModuleNode>();
-
-  // parse target triple from the first argument
   auto target = args[0].operator std::string();
-  std::string triple, mcpu, mattr;
-  llvm::TargetOptions opt;
-  ParseLLVMTargetOptions(target, &triple, &mcpu, &mattr, &opt);
+  auto module_name = args[1].operator std::string();
 
   // create a default data layout
+  InitializeLLVM();
   auto tm = GetLLVMTargetMachine(target);
-  llvm::DataLayout layout(tm->createDataLayout());
-
-  // initialize an IR code snippet from a simple template
-  std::string ir_str;
-  ir_str += "target triple = \"" + triple + "\"\n";
-  ir_str += "target datalayout = \"" + layout.getStringRepresentation() + "\"";
-
-  // use parseIR to create a LLVM Module.
+  auto triple = tm->getTargetTriple();
   auto ctx = std::make_shared<llvm::LLVMContext>();
-  llvm::SMDiagnostic err;
-  auto mem_buf = llvm::MemoryBuffer::getMemBuffer(ir_str);
-  auto module = llvm::parseIR(mem_buf->getMemBufferRef(), err, *ctx);
-  if (module == nullptr) {
-    std::string msg = std::string(err.getMessage());
-    LOG(FATAL) << "Failed to create a LLVM module from the generated IR code:"
-               << std::endl << ir_str << std::endl << "Error message: " << msg;
-  }
+  std::unique_ptr<llvm::Module> module(new llvm::Module(module_name, *ctx));
+  module->setTargetTriple(triple.str());
+  module->setDataLayout(tm->createDataLayout());
+
   n->Init(std::move(module), ctx);
 
   *rv = runtime::Module(n);
