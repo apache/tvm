@@ -37,7 +37,7 @@ extern "C"
   #include <sys/time.h>
 }
 
-// Register definition and address map taken from cv_5v4.pdf, 
+// Register definition and address map taken from cv_5v4.pdf,
 // Cyclone V Hard Processor System Technical Reference Manual,
 // chapter 5: FPGA Manager.
 struct de10nano_mgr
@@ -47,7 +47,7 @@ struct de10nano_mgr
   // class and ugly bit shift manipulations.
   struct reg32
   {
-    reg32 (uint32_t offset, uint32_t reset = 0) : 
+    reg32 (uint32_t offset, uint32_t reset = 0) :
       m_offset (offset),
       m_reset (reset)
     {}
@@ -57,7 +57,7 @@ struct de10nano_mgr
       m_reg = reinterpret_cast<uint32_t*>((uint8_t*)this+sizeof(reg32));
     }
     uint32_t read ()
-    { 
+    {
       *m_reg = *m_addr;
       return *m_reg;
     }
@@ -72,16 +72,16 @@ struct de10nano_mgr
       else
         printf ("DE10-Nano-Mgr: %16s: 0x%08x\n", name, read());
     }
-  
+
     uint32_t m_offset, m_reset, *m_reg;
     volatile uint32_t *m_addr;
-  
+
     private: // Do not use this class on its own.
     reg32 (const reg32 &rhs);
   };
 
   // Register definitions. All registers are of 32 bit size.
-  // Add one structure for each register, making sure that all 
+  // Add one structure for each register, making sure that all
   // bit fields come first and pack exactly into 32 bits.
 
   struct data : public reg32
@@ -130,7 +130,7 @@ struct de10nano_mgr
     }
 
     void print (bool addr = false, bool fields = true)
-    { 
+    {
       reg32::print ("stat", addr);
       if (fields)
       {
@@ -160,7 +160,7 @@ struct de10nano_mgr
     uint32_t         rsvd : 22; // 31:10
 
     void print (bool addr = false, bool fields = true)
-    { 
+    {
       reg32::print ("ctrl", addr);
       if (fields)
       {
@@ -226,7 +226,7 @@ struct de10nano_mgr
   {
     gpio_ext_porta () : reg32 (0x850, 0x0) {}
     void print (bool addr = false, bool fields = true)
-    { 
+    {
       reg32::print ("gpio_ext_porta", addr);
       if (fields)
       {
@@ -437,9 +437,9 @@ struct de10nano_mgr
       rbf_fd = open (rbf, (O_RDONLY | O_SYNC));
       mon.done (rbf_fd >= 0);
 
-      // 1. Set the cdratio and cfgwdth bits of the ctrl register in the 
+      // 1. Set the cdratio and cfgwdth bits of the ctrl register in the
       // FPGA manager registers (fpgamgrregs) to match the characteristics
-      // of the configuration image. Tese settings are dependent on the 
+      // of the configuration image. Tese settings are dependent on the
       // MSEL pins input.
       // 2. Set the nce bit of the ctrl register to 0 to enable HPS
       // configuration.
@@ -479,7 +479,7 @@ struct de10nano_mgr
       ctrl.nconfigpull = 0;
       ctrl.write();
       mon.done ();
-      
+
       // 7. Read the mode bit of the stat register and wait until
       // the FPGA enters the configuration phase.
       mon.init ("Wait for configuration phase");
@@ -497,7 +497,7 @@ struct de10nano_mgr
       gpio_porta_eoi.write();
       mon.done ();
 
-      // 9. Set the axicfgen bit of the ctrl register to 1 to enable 
+      // 9. Set the axicfgen bit of the ctrl register to 1 to enable
       // sending configuration data to the FPGA.
       mon.init ("Enable configuration on AXI");
       ctrl.axicfgen = 1;
