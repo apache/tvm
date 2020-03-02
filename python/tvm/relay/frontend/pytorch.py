@@ -987,7 +987,7 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def convert_inputs(graph_inputs, input_shapes):
+def parse_inputs(graph_inputs, input_shapes):
     """ Return Relay vars from torch input vars """
     ir_inputs = list(graph_inputs)
     input_vars = {}
@@ -1038,7 +1038,7 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
-def convert_params(graph, state_dict):
+def parse_params(graph, state_dict):
     """
     Return Relay vars and TVM NDArrays for input parameters
     A chain of prim::GetAttr nodes is processed one at a time
@@ -1072,7 +1072,7 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_operators(operators, outputs, output_index_map, ret_name):
+def parse_operators(operators, outputs, output_index_map, ret_name):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators.items():
         operator = op_node.kind()
@@ -1148,8 +1148,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     _report_missing_conversion(op_names)
 
     params = script_module.state_dict()
-    input_vars = convert_inputs(graph.inputs(), input_shapes)
-    param_vars, tensors, packed_param_map = convert_params(graph, params)
+    input_vars = parse_inputs(graph.inputs(), input_shapes)
+    param_vars, tensors, packed_param_map = parse_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     input_vars.update(param_vars)
@@ -1167,8 +1167,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
-    body = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
-                             output_index_map, ret_name)
+    body = parse_operators(_get_operator_nodes(graph.nodes()), outputs,
+                           output_index_map, ret_name)
     func = tvm.relay.Function(_analysis.free_vars(body), body)
 
     return _module.IRModule.from_expr(func), tvm_params
