@@ -20,6 +20,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import te
 from topi import util
 
 from tvm.relay.op.op import register_compute, register_injective_schedule
@@ -59,7 +60,7 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
 
     def _bitpack(*indices):
         ret = None
-        mask = tvm.const((1 << bits) - 1, pack_type)
+        mask = tvm.tir.const((1 << bits) - 1, pack_type)
         for k in range(lanes):
             idx = list(indices)
             idx[-1] = idx[-1] * lanes + k
@@ -67,11 +68,11 @@ def bitpack(data, bits, pack_type="int8", name="bitpack"):
             if k == 0:
                 ret = elem & mask
             else:
-                val = (elem & mask) << tvm.const(k * bits, pack_type)
+                val = (elem & mask) << tvm.tir.const(k * bits, pack_type)
                 ret = ret | val
         return ret
 
-    return tvm.compute(
+    return te.compute(
         oshape, _bitpack, name=name, tag='bitpack')
 
 

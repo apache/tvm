@@ -56,6 +56,7 @@ Intel i7-4770HQ CPU. The cache line size should be 64 bytes for all the x86 CPUs
 # Then we write a baseline implementation, the simplest way to write a matrix multiplication in TVM.
 
 import tvm
+from tvm import te
 import numpy
 import timeit
 
@@ -94,16 +95,16 @@ print("Numpy running time: %f" % (np_runing_time / np_repeat))
 answer = numpy.dot(a.asnumpy(), b.asnumpy())
 
 # Algorithm
-k = tvm.reduce_axis((0, K), 'k')
-A = tvm.placeholder((M, K), name='A')
-B = tvm.placeholder((K, N), name='B')
-C = tvm.compute(
+k = te.reduce_axis((0, K), 'k')
+A = te.placeholder((M, K), name='A')
+B = te.placeholder((K, N), name='B')
+C = te.compute(
            (M, N),
-           lambda x, y: tvm.sum(A[x, k] * B[k, y], axis=k),
+           lambda x, y: te.sum(A[x, k] * B[k, y], axis=k),
            name='C')
 
 # Default schedule
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 func = tvm.build(s, [A, B, C], target=target, name='mmult')
 assert func
 
@@ -129,7 +130,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # fill 32 * 32 * sizeof(float) which is 4KB in the cache whose total size is 32KB (L1 data cache)
 
 bn = 32
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 # Blocking by loop tiling
 xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
@@ -165,7 +166,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 #
 # In this tutorial, we chose to vectorize the inner loop row data since it is cache friendly.
 
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
 k, = s[C].op.reduce_axis
 ko, ki = s[C].split(k, factor=4)
@@ -199,7 +200,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # which is not cache friendly. If we change the nested loop order of ki and inner axes xi,
 # the access pattern for A matrix is more cache friendly.
 
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
 k, = s[C].op.reduce_axis
 ko, ki = s[C].split(k, factor=4)
@@ -244,12 +245,12 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 #
 
 # We have to re-write the algorithm slightly.
-packedB = tvm.compute((N / bn, K, bn), lambda x, y, z: B[y, x * bn + z], name='packedB')
-C = tvm.compute((M, N),
-                lambda x, y: tvm.sum(A[x, k] * packedB[y // bn, k, tvm.indexmod(y, bn)], axis=k),
+packedB = te.compute((N / bn, K, bn), lambda x, y, z: B[y, x * bn + z], name='packedB')
+C = te.compute((M, N),
+                lambda x, y: te.sum(A[x, k] * packedB[y // bn, k, tvm.tir.indexmod(y, bn)], axis=k),
                 name = 'C')
 
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 xo, yo, xi, yi = s[C].tile(C.op.axis[0], C.op.axis[1], bn, bn)
 k, = s[C].op.reduce_axis
@@ -285,7 +286,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # write to C when all the block results are ready.
 #
 
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 # Allocate write cache
 CC = s.cache_write(C, 'global')
@@ -328,7 +329,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # --------
 # Futhermore, we can also utilize multi-core processors to do the thread-level parallelization.
 
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 CC = s.cache_write(C, 'global')
 

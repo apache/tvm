@@ -18,13 +18,14 @@
 # pylint: disable=invalid-name,unused-argument, len-as-condition, too-many-nested-blocks, too-many-local-variables, too-many-arguments
 from __future__ import absolute_import
 import tvm
+from tvm import te
+from tvm.runtime import convert
 import topi
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
 from ...hybrid import script
-from ...api import convert
 
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
@@ -79,7 +80,7 @@ def compute_argwhere(attrs, inputs, output_type):
             output_shape.append(s)
         else:
             # see Any, replace it with a var
-            output_shape.append(tvm.var("any_dim", "int32"))
+            output_shape.append(te.var("any_dim", "int32"))
     new_output_type = tvm.relay.ty.TensorType(output_shape, "int32")
     return [topi.argwhere(new_output_type, inputs[0])]
 
@@ -473,7 +474,7 @@ def squeeze_shape_func(attrs, inputs, _):
     if keep_axes:
         out = _squeeze_shape_func(inputs[0], convert(keep_axes))
     else:
-        out = tvm.compute((), lambda *indices: 0)
+        out = te.compute((), lambda *indices: 0)
     return [out]
 
 @script

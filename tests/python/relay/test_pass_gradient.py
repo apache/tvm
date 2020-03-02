@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.analysis import free_vars, free_type_vars, assert_alpha_equal
 from tvm.relay import create_executor, transform

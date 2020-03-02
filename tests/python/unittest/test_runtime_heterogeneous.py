@@ -20,6 +20,7 @@ import json
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime, util
 import topi
 
@@ -132,9 +133,9 @@ def test_simplex_data_transferring():
         shape = (4,)
 
         # Create module for add whose target is the device.
-        tensor_a = tvm.placeholder(shape, name="A")
-        tensor_b = tvm.placeholder(shape, name="B")
-        elemwise_add = tvm.compute(shape, lambda *i: tensor_a(*i)
+        tensor_a = te.placeholder(shape, name="A")
+        tensor_b = te.placeholder(shape, name="B")
+        elemwise_add = te.compute(shape, lambda *i: tensor_a(*i)
                                    + tensor_b(*i), name="elemwise_add")
         target = topi.cpp.TEST_create_target(device)
         schedule_add = topi.cpp.cuda.schedule_injective(target, [elemwise_add])
@@ -144,13 +145,13 @@ def test_simplex_data_transferring():
         # Insert copy. Neither compute nor schedule is required for the copy
         # node. The compute will be performed at runtime which is just data
         # copy from the input to the output.
-        tensor_copy = tvm.placeholder(shape, name="__copy")
+        tensor_copy = te.placeholder(shape, name="__copy")
 
         # Create module for sub whose target is the host.
-        tensor_c = tvm.placeholder(shape, name="C")
-        elemwise_sub = tvm.compute(shape, lambda *i: tensor_copy(*i)
+        tensor_c = te.placeholder(shape, name="C")
+        elemwise_sub = te.compute(shape, lambda *i: tensor_copy(*i)
                                    - tensor_c(*i), name="elemwise_sub")
-        schedule_sub = tvm.create_schedule(elemwise_sub.op)
+        schedule_sub = te.create_schedule(elemwise_sub.op)
         lower_sub = tvm.lower(schedule_sub, [tensor_copy, tensor_c,
                                              elemwise_sub],
                               name="elemwise_sub")
@@ -321,17 +322,17 @@ def test_duplex_data_transferring():
 
         # Insert copy nodes for data transferring between add and sub nodes.
         # Transfers data from gpu to cpu.
-        copy_add_sub = tvm.placeholder(shape, name="__copy0")
+        copy_add_sub = te.placeholder(shape, name="__copy0")
         # Transfers data from cpu to gpu.
-        copy_sub_add = tvm.placeholder(shape, name="__copy1")
+        copy_sub_add = te.placeholder(shape, name="__copy1")
 
         # Create a module containing adds on the device.
-        tensor_a = tvm.placeholder(shape, name="A")
-        tensor_b = tvm.placeholder(shape, name="B")
-        tensor_d = tvm.placeholder(shape, name="D")
-        elemwise_add0 = tvm.compute(shape, lambda *i: tensor_a(*i)
+        tensor_a = te.placeholder(shape, name="A")
+        tensor_b = te.placeholder(shape, name="B")
+        tensor_d = te.placeholder(shape, name="D")
+        elemwise_add0 = te.compute(shape, lambda *i: tensor_a(*i)
                                     + tensor_b(*i), name="elemwise_add0")
-        elemwise_add1 = tvm.compute(shape, lambda *i: copy_sub_add(*i)
+        elemwise_add1 = te.compute(shape, lambda *i: copy_sub_add(*i)
                                     + tensor_d(*i), name="elemwise_add1")
         target = topi.cpp.TEST_create_target(device)
         add_schedule0 = topi.cpp.cuda.schedule_injective(
@@ -345,10 +346,10 @@ def test_duplex_data_transferring():
             add_schedule1, [tensor_d, copy_sub_add, elemwise_add1],
             name="elemwise_add1")
         # Create module for sub whose target is the host.
-        tensor_c = tvm.placeholder(shape, name="C")
-        elemwise_sub = tvm.compute(shape, lambda *i: copy_add_sub(*i)
+        tensor_c = te.placeholder(shape, name="C")
+        elemwise_sub = te.compute(shape, lambda *i: copy_add_sub(*i)
                                    - tensor_c(*i), name="elemwise_sub")
-        sub_schedule = tvm.create_schedule(elemwise_sub.op)
+        sub_schedule = te.create_schedule(elemwise_sub.op)
         lower_sub = tvm.lower(sub_schedule, [copy_add_sub, tensor_c,
                                              elemwise_sub],
                               name="elemwise_sub")

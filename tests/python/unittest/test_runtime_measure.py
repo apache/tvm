@@ -18,6 +18,7 @@ import time
 import ctypes
 
 import tvm
+from tvm import te
 from tvm.contrib.util import tempdir
 
 
@@ -32,8 +33,8 @@ def test_min_repeat_ms():
         with open(filename, "a") as fout:
             fout.write("c")
 
-    X = tvm.compute((), lambda : tvm.call_packed("my_debug", filename))
-    s = tvm.create_schedule(X.op)
+    X = te.compute((), lambda : tvm.tir.call_packed("my_debug", filename))
+    s = te.create_schedule(X.op)
     func = tvm.build(s, [X])
 
     x = tvm.nd.empty((), dtype="int32")

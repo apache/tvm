@@ -15,37 +15,38 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_add_pipeline():
     nn = 64
     max_threads = 4
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
 
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         with ib.for_range(0, (n+1) // 2) as i:
-            ib.emit(outs[0].vstore(i*2, ins[0].vload(i*2, "float32x2") + tvm.const(1, "float32x2")))
+            ib.emit(outs[0].vstore(i*2, ins[0].vload(i*2, "float32x2") + tvm.tir.const(1, "float32x2")))
         return ib.get()
 
     def extern_generator_gpu(ins, outs):
         """Manually write the IR for the extern function, add pipeline"""
-        ib = tvm.ir_builder.create()
-        bx = tvm.thread_axis("blockIdx.x")
-        tx = tvm.thread_axis("threadIdx.x")
+        ib = tvm.tir.ir_builder.create()
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(bx, "thread_extent", (nn+max_threads-1) // max_threads)
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
         with ib.if_scope(ib.likely(idx < n)):
-            ib.emit(outs[0].vstore(idx*2, ins[0].vload(idx*2, "float32x2") + tvm.const(1, "float32x2")))
+            ib.emit(outs[0].vstore(idx*2, ins[0].vload(idx*2, "float32x2") + tvm.tir.const(1, "float32x2")))
         return ib.get()
 
-    C_cpu = tvm.extern(A.shape, [A], extern_generator, name='C')
-    C_gpu = tvm.extern(A.shape, [A], extern_generator_gpu, name='C')
-    s_cpu = tvm.create_schedule(C_cpu.op)
-    s_gpu = tvm.create_schedule(C_gpu.op)
+    C_cpu = te.extern(A.shape, [A], extern_generator, name='C')
+    C_gpu = te.extern(A.shape, [A], extern_generator_gpu, name='C')
+    s_cpu = te.create_schedule(C_cpu.op)
+    s_gpu = te.create_schedule(C_gpu.op)
     print(tvm.lower(s_cpu, [A, C_cpu], simple_mode=True))
     print(tvm.lower(s_gpu, [A, C_gpu], simple_mode=True))
 
@@ -70,14 +71,14 @@ def test_add_pipeline():
 
 def test_pack_buffer_simple():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline."""
-        return tvm.call_packed("my_extern_array_func1", ins[0], outs[0])
+        return tvm.tir.call_packed("my_extern_array_func1", ins[0], outs[0])
 
-    C = tvm.extern(A.shape, [A], extern_generator, name='C')
-    s = tvm.create_schedule(C.op)
+    C = te.extern(A.shape, [A], extern_generator, name='C')
+    s = te.create_schedule(C.op)
 
     @tvm.register_func
     def my_extern_array_func1(aa, bb):
@@ -104,15 +105,15 @@ def test_pack_buffer_simple():
 
 def test_pack_buffer_intermediate():
     nn = 1024
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute((n,), lambda i: A[i] + 1, name="B")
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.compute((n,), lambda i: A[i] + 1, name="B")
     def extern_generator(ins, outs):
         """Manually write the IR for the extern function, add pipeline."""
-        return tvm.call_packed("my_extern_array_func2", ins[0], outs[0])
+        return tvm.tir.call_packed("my_extern_array_func2", ins[0], outs[0])
 
-    C = tvm.extern(B.shape, [B], extern_generator, name='C')
-    s = tvm.create_schedule(C.op)
+    C = te.extern(B.shape, [B], extern_generator, name='C')
+    s = te.create_schedule(C.op)
 
     def check_target(target):
         if not tvm.runtime.enabled(target):

@@ -19,20 +19,20 @@
 """Non-maximum suppression operator"""
 import math
 import tvm
+from tvm import te
 
-from tvm import api
-from tvm.intrin import if_then_else
+from tvm.tir import if_then_else
 from .sort import argsort
 from .. import tag
 
 
 def cuda_atomic_add_rule(op):
     if op.dtype == "float32":
-        return tvm.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
+        return tvm.tir.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
     if op.dtype == "float64":
-        return tvm.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
+        return tvm.tir.call_pure_extern("float64", "atomicAdd", op.args[0], op.args[1])
     if op.dtype == "int32":
-        return tvm.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
+        return tvm.tir.call_pure_extern("int32", "atomicAdd", op.args[0], op.args[1])
     raise RuntimeError("only support int32, float32 and float64")
 
 
@@ -41,7 +41,7 @@ tvm.target.intrin.register_intrin_rule(
 
 
 def atomic_add(x, y):
-    return tvm.call_pure_intrin(y.dtype, "atomic_add", x, y)
+    return tvm.tir.call_pure_intrin(y.dtype, "atomic_add", x, y)
 
 
 def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, score_index):
@@ -78,7 +78,7 @@ def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, scor
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
 
@@ -86,22 +86,22 @@ def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, scor
     flag = ib.buffer_ptr(flag)
     atomic_add_return = ib.allocate(
         valid_count.dtype, (1,), name='atomic_add_return', scope='local')
-    one_count = tvm.const(1, dtype=valid_count.dtype)
-    score_threshold = tvm.make.node(
+    one_count = tvm.tir.const(1, dtype=valid_count.dtype)
+    score_threshold = tvm.ir.make_node(
         "FloatImm", dtype="float32", value=score_threshold)
-    id_index = tvm.make.node("IntImm", dtype="int32", value=id_index)
-    score_index = tvm.make.node("IntImm", dtype="int32", value=score_index)
+    id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
+    score_index = tvm.ir.make_node("IntImm", dtype="int32", value=score_index)
 
     max_threads = int(tvm.target.Target.current(
         allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
-    idxd = tvm.indexdiv
+    idxd = tvm.tir.indexdiv
 
     # initialize valid_count
     with ib.if_scope(tid < batch_size):
@@ -111,11 +111,12 @@ def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, scor
         flag[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
-        with ib.if_scope(tvm.all(data[tid * elem_length + score_index] > score_threshold,
-                                 tvm.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
+        with ib.if_scope(
+                tvm.tir.all(data[tid * elem_length + score_index] > score_threshold,
+                            tvm.tir.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
             flag[tid] = 1
-            atomic_add_return[0] = atomic_add(tvm.call_pure_intrin("handle", "tvm_address_of",
-                                                                 valid_count[i]), one_count)
+            atomic_add_return[0] = atomic_add(tvm.tir.call_pure_intrin("handle", "tvm_address_of",
+                                                                       valid_count[i]), one_count)
 
     return ib.get()
 
@@ -140,7 +141,7 @@ def flag_scan(flag, prefix_sum):
     batch_size = flag.shape[0]
     num_anchors = flag.shape[1]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     flag = ib.buffer_ptr(flag)
     prefix_sum = ib.buffer_ptr(prefix_sum)
@@ -149,13 +150,13 @@ def flag_scan(flag, prefix_sum):
         allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
 
     # initialize prefix_sum
     with ib.if_scope(tid < batch_size * num_anchors):
@@ -200,9 +201,9 @@ def out_rewrite(data, flag, prefix_sum, valid_count, out):
     num_anchors = out.shape[1]
     elem_length = out.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
-    one = tvm.const(1, dtype=out.dtype)
+    one = tvm.tir.const(1, dtype=out.dtype)
     data = ib.buffer_ptr(data)
     flag = ib.buffer_ptr(flag)
     valid_count = ib.buffer_ptr(valid_count)
@@ -213,20 +214,20 @@ def out_rewrite(data, flag, prefix_sum, valid_count, out):
         allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = batch_size * num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
 
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         j = idxm(tid, num_anchors)
         base_idx = i * num_anchors * elem_length
-        with ib.if_scope(tvm.all(flag[tid] > 0, prefix_sum[tid] >= 0,
-                                 prefix_sum[tid] < num_anchors)):
+        with ib.if_scope(tvm.tir.all(flag[tid] > 0, prefix_sum[tid] >= 0,
+                                     prefix_sum[tid] < num_anchors)):
             with ib.for_range(0, elem_length) as k:
                 out[base_idx + prefix_sum[tid] * elem_length +
                     k] = data[tid * elem_length + k]
@@ -243,7 +244,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         Input data. 3-D tensor with shape [batch_size, num_anchors, elem_length].
 
     score_threshold : optional, float
@@ -257,28 +258,28 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
 
     Returns
     -------
-    valid_count : tvm.Tensor
+    valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
 
-    out_tensor : tvm.Tensor
+    out_tensor : tvm.te.Tensor
         Rearranged data tensor.
     """
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
-    data_buf = api.decl_buffer(
+    data_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
-    valid_count_buf = api.decl_buffer(
+    valid_count_buf = tvm.tir.decl_buffer(
         (batch_size,), "int32", "valid_count_buf", data_alignment=8)
-    temp_flag_buf = api.decl_buffer(
+    temp_flag_buf = tvm.tir.decl_buffer(
         (batch_size, num_anchors,), "int32", "temp_flag", data_alignment=8)
-    temp_partial_buf = api.decl_buffer(
+    temp_partial_buf = tvm.tir.decl_buffer(
         (batch_size, num_anchors), "int32", "temp_partial", data_alignment=8)
-    out_buf = api.decl_buffer(
+    out_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "out_buf", data_alignment=8)
 
     valid_count, temp_flag = \
-        tvm.extern([(batch_size,), (batch_size, num_anchors)], [data],
-                   lambda ins, outs: get_valid_counts_ir(
+        te.extern([(batch_size,), (batch_size, num_anchors)], [data],
+                  lambda ins, outs: get_valid_counts_ir(
             ins[0], outs[0], outs[1], score_threshold, id_index, score_index),
             dtype=["int32", "int32"],
             in_buffers=[data_buf],
@@ -287,8 +288,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             tag="get_valid_counts_gpu")
 
     temp_partial = \
-        tvm.extern([(batch_size, num_anchors)], [temp_flag],
-                   lambda ins, outs: flag_scan(
+        te.extern([(batch_size, num_anchors)], [temp_flag],
+                  lambda ins, outs: flag_scan(
             ins[0], outs[0]),
             dtype=["int32"],
             in_buffers=[temp_flag_buf],
@@ -296,8 +297,8 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
             name="flag_scan")
 
     out = \
-        tvm.extern([data.shape], [data, temp_flag, temp_partial, valid_count],
-                   lambda ins, outs: out_rewrite(
+        te.extern([data.shape], [data, temp_flag, temp_partial, valid_count],
+                  lambda ins, outs: out_rewrite(
             ins[0], ins[1], ins[2], ins[3], outs[0]),
             dtype=[data.dtype],
             in_buffers=[data_buf, temp_flag_buf,
@@ -357,22 +358,22 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
     def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
         """Calculate overlap of two boxes.
         """
-        w = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
-                    - tvm.max(out_tensor[box_a_idx], out_tensor[box_b_idx]))
-        h = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
-                    - tvm.max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]))
+        w = tvm.te.max(0.0, tvm.te.min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
+                       - tvm.te.max(out_tensor[box_a_idx], out_tensor[box_b_idx]))
+        h = tvm.te.max(0.0, tvm.te.min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
+                       - tvm.te.max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]))
         i = w * h
         u = (out_tensor[box_a_idx + 2] - out_tensor[box_a_idx]) * \
             (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1]) + \
             (out_tensor[box_b_idx + 2] - out_tensor[box_b_idx]) * \
             (out_tensor[box_b_idx + 3] - out_tensor[box_b_idx + 1]) - i
-        return tvm.expr.Select(u <= 0.0, 0.0, i / u)
+        return tvm.tir.Select(u <= 0.0, 0.0, i / u)
 
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
     sorted_index = ib.buffer_ptr(sorted_index)
@@ -386,27 +387,27 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
         tvm.target.Target.current(allow_none=False).max_num_threads)
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     j = bx * max_threads + tx
 
-    iou_threshold = tvm.make.node(
+    iou_threshold = tvm.ir.make_node(
         "FloatImm", dtype="float32", value=iou_threshold)
-    top_k = tvm.make.node("IntImm", dtype="int32", value=top_k)
-    coord_start = tvm.make.node("IntImm", dtype="int32", value=coord_start)
-    id_index = tvm.make.node("IntImm", dtype="int32", value=id_index)
-    score_index = tvm.make.node("IntImm", dtype="int32", value=score_index)
-    force_suppress = tvm.make.node(
+    top_k = tvm.ir.make_node("IntImm", dtype="int32", value=top_k)
+    coord_start = tvm.ir.make_node("IntImm", dtype="int32", value=coord_start)
+    id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
+    score_index = tvm.ir.make_node("IntImm", dtype="int32", value=score_index)
+    force_suppress = tvm.ir.make_node(
         "IntImm", dtype="int32", value=1 if force_suppress else 0)
 
     with ib.for_range(0, batch_size, for_type="unroll") as i:
         base_idx = i * num_anchors * box_data_length
-        with ib.if_scope(tvm.all(iou_threshold > 0, valid_count[i] > 0)):
+        with ib.if_scope(tvm.tir.all(iou_threshold > 0, valid_count[i] > 0)):
             # Reorder output
             nkeep = if_then_else(
-                tvm.all(top_k > 0, top_k < valid_count[i]),
+                tvm.tir.all(top_k > 0, top_k < valid_count[i]),
                 top_k, valid_count[i])
             with ib.if_scope(j < nkeep):
                 with ib.for_range(0, box_data_length) as k:
@@ -415,7 +416,7 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
                               * box_data_length + k)]
                 box_indices[i * num_anchors +
                             j] = sorted_index[i * num_anchors + j]
-            with ib.if_scope(tvm.all(top_k > 0, top_k < valid_count[i])):
+            with ib.if_scope(tvm.tir.all(top_k > 0, top_k < valid_count[i])):
                 with ib.if_scope(j < valid_count[i] - nkeep):
                     with ib.for_range(0, box_data_length) as k:
                         out[(base_idx + (j + nkeep) * box_data_length + k)] = -1.0
@@ -423,19 +424,21 @@ def nms_ir(data, sorted_index, valid_count, out, box_indices,
             # Apply nms
             with ib.for_range(0, valid_count[i]) as k:
                 offset_k = k * box_data_length
-                with ib.if_scope(tvm.all(out[base_idx + offset_k + score_index] > 0,
-                                         tvm.any(id_index < 0, out[base_idx +
-                                                                   offset_k + id_index] >= 0))):
+                with ib.if_scope(
+                        tvm.tir.all(out[base_idx + offset_k + score_index] > 0,
+                                    tvm.tir.any(id_index < 0, out[base_idx +
+                                                                  offset_k + id_index] >= 0))):
                     with ib.if_scope(j < valid_count[i]):
                         offset_j = j * box_data_length
-                        with ib.if_scope(tvm.all(j > k,
-                                                 out[base_idx + offset_j +
-                                                     score_index] > 0,
-                                                 tvm.any(id_index < 0,
-                                                         out[base_idx + offset_j + id_index] >= 0),
-                                                 tvm.any(force_suppress > 0, id_index < 0,
-                                                         out[base_idx + offset_k + id_index] ==
-                                                         out[base_idx + offset_j + id_index]))):
+                        with ib.if_scope(
+                                tvm.tir.all(j > k,
+                                            out[base_idx + offset_j +
+                                                score_index] > 0,
+                                            tvm.tir.any(id_index < 0,
+                                                        out[base_idx + offset_j + id_index] >= 0),
+                                            tvm.tir.any(force_suppress > 0, id_index < 0,
+                                                    out[base_idx + offset_k + id_index] ==
+                                                        out[base_idx + offset_j + id_index]))):
                             iou = calculate_overlap(out, base_idx + offset_j + coord_start,
                                                     base_idx + offset_k + coord_start)
                             with ib.if_scope(iou >= iou_threshold):
@@ -495,7 +498,7 @@ def invalid_to_bottom_pre(data, flag, idx):
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
     flag = ib.buffer_ptr(flag)
@@ -505,8 +508,8 @@ def invalid_to_bottom_pre(data, flag, idx):
         tvm.target.Target.current(allow_none=False).max_num_threads))
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     j = bx * max_threads + tx
@@ -554,7 +557,7 @@ def invalid_to_bottom_ir(data, flag, idx, out):
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
 
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     data = ib.buffer_ptr(data)
     flag = ib.buffer_ptr(flag)
@@ -565,8 +568,8 @@ def invalid_to_bottom_ir(data, flag, idx, out):
         tvm.target.Target.current(allow_none=False).max_num_threads))
     nthread_tx = max_threads
     nthread_bx = num_anchors // max_threads + 1
-    tx = tvm.thread_axis("threadIdx.x")
-    bx = tvm.thread_axis("blockIdx.x")
+    tx = te.thread_axis("threadIdx.x")
+    bx = te.thread_axis("blockIdx.x")
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     j = bx * max_threads + tx
@@ -591,12 +594,12 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, elem_length].
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
 
-    valid_count : tvm.Tensor
+    valid_count : tvm.te.Tensor
         1-D tensor for valid number of boxes.
 
     max_output_size : optional, int
@@ -629,7 +632,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         3-D tensor with shape [batch_size, num_anchors, elem_length].
 
     Example
@@ -638,8 +641,8 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
 
         # An example to use nms
         dshape = (1, 5, 6)
-        data = tvm.placeholder(dshape, name="data")
-        valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+        data = te.placeholder(dshape, name="data")
+        valid_count = te.placeholder((dshape[0],), dtype="int32", name="valid_count")
         iou_threshold = 0.7
         force_suppress = True
         top_k = -1
@@ -659,63 +662,63 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     num_anchors = data.shape[1]
 
     valid_count_dtype = "int32"
-    valid_count_buf = api.decl_buffer(valid_count.shape, valid_count_dtype,
-                                      "valid_count_buf", data_alignment=4)
+    valid_count_buf = tvm.tir.decl_buffer(valid_count.shape, valid_count_dtype,
+                                          "valid_count_buf", data_alignment=4)
     score_axis = score_index
     score_shape = (batch_size, num_anchors)
-    score_tensor = tvm.compute(
+    score_tensor = te.compute(
         score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
     sort_tensor = argsort(
         score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
 
-    sort_tensor_buf = api.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
-                                      "sort_tensor_buf", data_alignment=8)
+    sort_tensor_buf = tvm.tir.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
+                                          "sort_tensor_buf", data_alignment=8)
 
-    data_buf = api.decl_buffer(
+    data_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "data_buf", data_alignment=8)
 
-    out_buf = api.decl_buffer(
+    out_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "out_buf", data_alignment=8)
 
     out, box_indices = \
-        tvm.extern([data.shape, score_shape],
-                   [data, sort_tensor, valid_count],
-                   lambda ins, outs: nms_ir(
-                       ins[0], ins[1], ins[2], outs[0], outs[1],
-                       max_output_size, iou_threshold, force_suppress,
-                       top_k, coord_start, id_index, score_index),
-                   dtype=[data.dtype, "int32"],
-                   in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
-                   name="nms",
-                   tag="nms")
+        te.extern([data.shape, score_shape],
+                  [data, sort_tensor, valid_count],
+                  lambda ins, outs: nms_ir(
+            ins[0], ins[1], ins[2], outs[0], outs[1],
+            max_output_size, iou_threshold, force_suppress,
+            top_k, coord_start, id_index, score_index),
+            dtype=[data.dtype, "int32"],
+            in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
+            name="nms",
+            tag="nms")
 
     if return_indices:
         return box_indices
 
     if invalid_to_bottom:
-        output_buf = api.decl_buffer(
+        output_buf = tvm.tir.decl_buffer(
             data.shape, data.dtype, "output_buf", data_alignment=8)
-        temp_flag_buf = api.decl_buffer(
+        temp_flag_buf = tvm.tir.decl_buffer(
             score_shape, valid_count_dtype, "temp_flag", data_alignment=8)
-        temp_idx_buf = api.decl_buffer(
+        temp_idx_buf = tvm.tir.decl_buffer(
             score_shape, valid_count_dtype, "temp_idx", data_alignment=8)
-        temp_flag, temp_idx = tvm.extern([score_shape, score_shape], [out],
-                                         lambda ins, outs: invalid_to_bottom_pre(
-                                             ins[0], outs[0], outs[1]),
-                                         dtype=["int32", "int32"],
-                                         in_buffers=[out_buf],
-                                         out_buffers=[
-                                             temp_flag_buf, temp_idx_buf],
-                                         name="invalid_to_bottom_phase_one")
+        temp_flag, temp_idx = te.extern([score_shape, score_shape], [out],
+                                        lambda ins, outs: invalid_to_bottom_pre(
+            ins[0], outs[0], outs[1]),
+            dtype=["int32", "int32"],
+            in_buffers=[out_buf],
+            out_buffers=[
+            temp_flag_buf, temp_idx_buf],
+            name="invalid_to_bottom_phase_one")
 
-        output = tvm.extern([data.shape], [out, temp_flag, temp_idx],
-                            lambda ins, outs: invalid_to_bottom_ir(
-                                ins[0], ins[1], ins[2], outs[0]),
-                            dtype=[data.dtype],
-                            in_buffers=[out_buf, temp_flag_buf, temp_idx_buf],
-                            out_buffers=[output_buf],
-                            name="invalid_to_bottom",
-                            tag="invalid_to_bottom")
+        output = te.extern([data.shape], [out, temp_flag, temp_idx],
+                           lambda ins, outs: invalid_to_bottom_ir(
+            ins[0], ins[1], ins[2], outs[0]),
+            dtype=[data.dtype],
+            in_buffers=[out_buf, temp_flag_buf, temp_idx_buf],
+            out_buffers=[output_buf],
+            name="invalid_to_bottom",
+            tag="invalid_to_bottom")
         return output
 
     return out

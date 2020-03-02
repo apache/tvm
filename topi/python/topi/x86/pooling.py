@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
-import tvm
+from tvm import te
 from .. import tag
 
 def _parallel_sch(sch, oshape, do_vectorize=False):
@@ -75,12 +75,12 @@ def schedule_pool(outs, layout):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def _schedule(PaddedInput, Pool):
-        if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
+        if isinstance(PaddedInput.op, te.tensor.ComputeOp):
             s[PaddedInput].compute_inline()
         do_vectorize = layout[-1] not in "HWhw"
         _parallel_sch(s[Pool], outs[0].shape, do_vectorize)
@@ -92,7 +92,7 @@ def schedule_pool(outs, layout):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
@@ -129,8 +129,8 @@ def schedule_adaptive_pool(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def traverse(OP):
@@ -140,7 +140,7 @@ def schedule_adaptive_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('adaptive_pool'):

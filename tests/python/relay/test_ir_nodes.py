@@ -17,6 +17,7 @@
 """ test ir"""
 import pytest
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.tir.expr import *
 from tvm.relay import op
@@ -57,7 +58,7 @@ def test_span():
 # Types
 
 def test_tensor_type():
-    shape = tvm.convert([1, 2, 3])
+    shape = tvm.runtime.convert([1, 2, 3])
     dtype = 'float32'
     tt = relay.TensorType(shape, dtype)
     assert tt.dtype == dtype
@@ -76,9 +77,9 @@ def test_type_param():
 
 
 def test_func_type():
-    type_params = tvm.convert([])
-    type_constraints = tvm.convert([])  # TODO: fill me in
-    arg_types = tvm.convert([])
+    type_params = tvm.runtime.convert([])
+    type_constraints = tvm.runtime.convert([])  # TODO: fill me in
+    arg_types = tvm.runtime.convert([])
     ret_type = relay.TensorType((1, 2, 3), 'float32')
     tf = relay.FuncType(arg_types, ret_type, type_params, type_constraints)
     assert tf.type_params == type_params
@@ -93,9 +94,9 @@ def test_func_type():
 
 def test_tuple_type():
     tp = relay.TypeVar('tp', relay.TypeKind.Type)
-    tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
-    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
-    fields = tvm.convert([tp, tf, tt])
+    tf = relay.FuncType(tvm.runtime.convert([]), None, tvm.runtime.convert([]), tvm.runtime.convert([]))
+    tt = relay.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
+    fields = tvm.runtime.convert([tp, tf, tt])
 
     tup_ty = relay.TupleType(fields)
     assert tup_ty.fields == fields
@@ -105,9 +106,9 @@ def test_tuple_type():
 
 def test_type_relation():
     tp = relay.TypeVar('tp', relay.TypeKind.Type)
-    tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
-    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
-    args = tvm.convert([tp, tf, tt])
+    tf = relay.FuncType(tvm.runtime.convert([]), None, tvm.runtime.convert([]), tvm.runtime.convert([]))
+    tt = relay.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
+    args = tvm.runtime.convert([tp, tf, tt])
 
     num_inputs = 2
     func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
@@ -130,7 +131,7 @@ def test_constant():
 
 
 def test_tuple():
-    fields = tvm.convert([])
+    fields = tvm.runtime.convert([])
     tup = relay.Tuple(fields)
     assert tup.fields == fields
     assert tup.span == None
@@ -163,10 +164,10 @@ def test_global_var():
 
 def test_function():
     param_names = ['a', 'b', 'c', 'd']
-    params = tvm.convert([relay.Var(n) for n in param_names])
-    ret_type = relay.TupleType(tvm.convert([]))
-    body = relay.Tuple(tvm.convert([]))
-    type_params = tvm.convert([])
+    params = tvm.runtime.convert([relay.Var(n) for n in param_names])
+    ret_type = relay.TupleType(tvm.runtime.convert([]))
+    body = relay.Tuple(tvm.runtime.convert([]))
+    type_params = tvm.runtime.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
     fn = fn.set_attribute("test_attribute", tvm.tir.StringImm("value"))
     assert fn.params == params
@@ -180,10 +181,10 @@ def test_function():
 @pytest.mark.skip(reason="AttrsEqualHandler doesn't handle Map so far.")
 def test_function_attrs():
     param_names = ['a', 'b', 'c', 'd']
-    params = tvm.convert([relay.var(n, shape=(5, 2)) for n in param_names])
-    ret_type = relay.TupleType(tvm.convert([]))
-    body = relay.Tuple(tvm.convert([]))
-    type_params = tvm.convert([])
+    params = tvm.runtime.convert([relay.var(n, shape=(5, 2)) for n in param_names])
+    ret_type = relay.TupleType(tvm.runtime.convert([]))
+    body = relay.Tuple(tvm.runtime.convert([]))
+    type_params = tvm.runtime.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
     model_params = {}
     for param in params[:1]:
@@ -210,7 +211,7 @@ def test_function_attrs():
 def test_call():
     op = relay.Var('f')
     arg_names = ['a', 'b', 'c', 'd']
-    args = tvm.convert([relay.Var(n) for n in arg_names])
+    args = tvm.runtime.convert([relay.Var(n) for n in arg_names])
     call = relay.Call(op, args, None, None)
     assert call.op == op
     assert call.args == args

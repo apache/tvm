@@ -15,21 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_dtype_bound():
     analyzer = tvm.arith.Analyzer()
 
-    x = tvm.var("x", dtype="int64")
+    x = te.var("x", dtype="int64")
     bd = analyzer.const_int_bound(x)
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
 
-    x = tvm.var("x", dtype="int8")
+    x = te.var("x", dtype="int8")
     bd = analyzer.const_int_bound(x)
     assert bd.min_value == -128
     assert bd.max_value == 127
 
-    x = tvm.var("x", dtype="uint8")
+    x = te.var("x", dtype="uint8")
     bd = analyzer.const_int_bound(x)
     assert bd.min_value == 0
     assert bd.max_value == 255
@@ -37,8 +38,8 @@ def test_dtype_bound():
 
 def test_cast_bound():
     analyzer = tvm.arith.Analyzer()
-    x = tvm.var("x", dtype="int8")
-    tmod = tvm.truncmod
+    x = te.var("x", dtype="int8")
+    tmod = tvm.tir.truncmod
     bd = analyzer.const_int_bound(tmod(x, 3).astype("uint32"))
     assert bd.min_value == 0
     assert bd.max_value == 2
@@ -51,7 +52,7 @@ def test_cast_bound():
 
 def test_add_sub_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x", "int64"), tvm.var("y", "int64")
+    x, y = te.var("x", "int64"), te.var("y", "int64")
     bd = analyzer.const_int_bound(x + y)
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == bd.POS_INF
@@ -78,7 +79,7 @@ def test_add_sub_bound():
 
 def test_mul_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
 
     analyzer.update(x, tvm.arith.ConstIntBound(-2, 4))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
@@ -101,8 +102,8 @@ def test_mul_bound():
 
 def test_truncdiv_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
-    tdiv = tvm.truncdiv
+    x, y = te.var("x"), te.var("y")
+    tdiv = tvm.tir.truncdiv
 
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
@@ -124,9 +125,9 @@ def test_truncdiv_bound():
 
 def test_truncmod_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
 
-    tmod = tvm.truncmod
+    tmod = tvm.tir.truncmod
 
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
@@ -149,8 +150,8 @@ def test_truncmod_bound():
 
 def test_floordiv_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
-    fld = tvm.floordiv
+    x, y = te.var("x"), te.var("y")
+    fld = tvm.te.floordiv
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
     bd = analyzer.const_int_bound(fld(x, y))
@@ -171,8 +172,8 @@ def test_floordiv_bound():
 
 def test_floormod_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
-    flm = tvm.floormod
+    x, y = te.var("x"), te.var("y")
+    flm = tvm.te.floormod
 
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 4))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
@@ -195,34 +196,34 @@ def test_floormod_bound():
 
 def test_min_max_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
 
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
-    bd = analyzer.const_int_bound(tvm.min(x, y))
+    bd = analyzer.const_int_bound(tvm.te.min(x, y))
     assert bd.min_value == -9
     assert bd.max_value == 10
 
     analyzer.update(x, tvm.arith.ConstIntBound(bd.NEG_INF, bd.POS_INF), override=True)
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(tvm.min(x, y))
+    bd = analyzer.const_int_bound(tvm.te.min(x, y))
     assert bd.min_value == bd.NEG_INF
     assert bd.max_value == 10
 
-    bd = analyzer.const_int_bound(tvm.max(x, y))
+    bd = analyzer.const_int_bound(tvm.te.max(x, y))
     assert bd.min_value == 4
     assert bd.max_value == bd.POS_INF
 
     analyzer.update(x, tvm.arith.ConstIntBound(1, bd.POS_INF), override=True)
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10), override=True)
-    bd = analyzer.const_int_bound(tvm.max(x, y))
+    bd = analyzer.const_int_bound(tvm.te.max(x, y))
     assert bd.min_value == 4
     assert bd.max_value == bd.POS_INF
 
 
 def test_select_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
 
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
     analyzer.update(y, tvm.arith.ConstIntBound(4, 10))
@@ -235,7 +236,7 @@ def test_select_bound():
 
 def test_shift_and_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
+    x, y = te.var("x"), te.var("y")
 
     analyzer.update(x, tvm.arith.ConstIntBound(-9, 11))
     analyzer.update(y, tvm.arith.ConstIntBound(2, 10))
@@ -256,9 +257,9 @@ def test_shift_and_bound():
 
 def test_mix_index_bound():
     analyzer = tvm.arith.Analyzer()
-    x, y = tvm.var("x"), tvm.var("y")
-    tdiv = tvm.truncdiv
-    tmod = tvm.truncmod
+    x, y = te.var("x"), te.var("y")
+    tdiv = tvm.tir.truncdiv
+    tmod = tvm.tir.truncmod
 
     analyzer.update(x, tvm.arith.ConstIntBound(0, 24 - 1))
     analyzer.update(y, tvm.arith.ConstIntBound(0, 3 - 1))
@@ -277,7 +278,7 @@ def test_mix_index_bound():
 
 def test_size_var_bound():
     analyzer = tvm.arith.Analyzer()
-    x = tvm.size_var("x")
+    x = te.size_var("x")
     bd = analyzer.const_int_bound(x)
     assert bd.min_value == 0
     assert bd.max_value == bd.POS_INF

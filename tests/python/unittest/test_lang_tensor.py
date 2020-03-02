@@ -15,19 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from topi.nn.pooling import pool
 
 def test_tensor():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    l = tvm.size_var('l')
-    A = tvm.placeholder((m, l), name='A')
-    B = tvm.placeholder((n, l), name='B')
-    T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
+    m = te.size_var('m')
+    n = te.size_var('n')
+    l = te.size_var('l')
+    A = te.placeholder((m, l), name='A')
+    B = te.placeholder((n, l), name='B')
+    T = te.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
     print(T)
     print(T.op.body)
     assert(tuple(T.shape) == (m, n, l))
-    assert(isinstance(A.op, tvm.tensor.PlaceholderOp))
+    assert(isinstance(A.op, tvm.te.PlaceholderOp))
     assert(A == A)
     assert(T.op.output(0) == T)
     assert(T.op.output(0).__hash__() == T.__hash__())
@@ -37,68 +38,68 @@ def test_tensor():
 
 
 def test_rank_zero():
-    m = tvm.size_var('m')
-    A = tvm.placeholder((m,), name='A')
-    scale = tvm.placeholder((), name='s')
-    k = tvm.reduce_axis((0, m), name="k")
-    T = tvm.compute((), lambda : tvm.sum(A[k] * scale(), axis=k))
+    m = te.size_var('m')
+    A = te.placeholder((m,), name='A')
+    scale = te.placeholder((), name='s')
+    k = te.reduce_axis((0, m), name="k")
+    T = te.compute((), lambda : te.sum(A[k] * scale(), axis=k))
     print(T)
     print(T.op.body)
     assert(tuple(T.shape) == ())
 
 
 def test_conv1d():
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n+2), name='A')
+    n = te.size_var('n')
+    A = te.placeholder((n+2), name='A')
     def computeB(ii):
         i = ii + 1
         return A[i-1] + A[i] + A[i+1]
-    B = tvm.compute(n, computeB)
+    B = te.compute(n, computeB)
 
 
 def test_tensor_slice():
-    n = tvm.size_var('n')
-    A = tvm.compute((n, n), lambda i, j: 1)
-    B = tvm.compute((n,), lambda i: A[0][i] + A[0][i])
+    n = te.size_var('n')
+    A = te.compute((n, n), lambda i, j: 1)
+    B = te.compute((n,), lambda i: A[0][i] + A[0][i])
 
 
 def test_tensor_reduce_multi_axis():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    A = tvm.placeholder((m, n), name='A')
-    k1 = tvm.reduce_axis((0, n), "k")
-    k2 = tvm.reduce_axis((0, m), "k")
-    C = tvm.compute((1,), lambda _: tvm.sum(A[k1, k2], axis=(k1, k2)))
-    C = tvm.compute((1,), lambda _: tvm.sum(A[k1, k2], axis=[k1, k2]))
+    m = te.size_var('m')
+    n = te.size_var('n')
+    A = te.placeholder((m, n), name='A')
+    k1 = te.reduce_axis((0, n), "k")
+    k2 = te.reduce_axis((0, m), "k")
+    C = te.compute((1,), lambda _: te.sum(A[k1, k2], axis=(k1, k2)))
+    C = te.compute((1,), lambda _: te.sum(A[k1, k2], axis=[k1, k2]))
 
 
 def test_tensor_comm_reducer():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    A = tvm.placeholder((m, n), name='A')
-    k = tvm.reduce_axis((0, n), "k")
-    mysum = tvm.comm_reducer(lambda x, y: x+y, lambda t: tvm.const(0, dtype=t))
-    C = tvm.compute((m,), lambda i: mysum(A[i, k], axis=k))
+    m = te.size_var('m')
+    n = te.size_var('n')
+    A = te.placeholder((m, n), name='A')
+    k = te.reduce_axis((0, n), "k")
+    mysum = te.comm_reducer(lambda x, y: x+y, lambda t: tvm.tir.const(0, dtype=t))
+    C = te.compute((m,), lambda i: mysum(A[i, k], axis=k))
 
 def test_tensor_comm_reducer_overload():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    mysum = tvm.comm_reducer(lambda x, y: x+y, lambda t: tvm.const(0, dtype=t))
+    m = te.size_var('m')
+    n = te.size_var('n')
+    mysum = te.comm_reducer(lambda x, y: x+y, lambda t: tvm.tir.const(0, dtype=t))
     sum_res = mysum(m, n)
 
 def test_tensor_reduce():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    l = tvm.size_var('l')
-    A = tvm.placeholder((m, l), name='A')
-    B = tvm.placeholder((n, l), name='B')
-    T = tvm.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
-    rv = tvm.reduce_axis((0, A.shape[1]), "k")
-    C = tvm.compute((m, n), lambda i, j: tvm.sum(T(i, j, rv+1), axis=rv))
+    m = te.size_var('m')
+    n = te.size_var('n')
+    l = te.size_var('l')
+    A = te.placeholder((m, l), name='A')
+    B = te.placeholder((n, l), name='B')
+    T = te.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
+    rv = te.reduce_axis((0, A.shape[1]), "k")
+    C = te.compute((m, n), lambda i, j: te.sum(T(i, j, rv+1), axis=rv))
     # json load save
     C_json = tvm.ir.save_json(C)
     C_loaded = tvm.ir.load_json(C_json)
-    assert(isinstance(C_loaded, tvm.tensor.Tensor))
+    assert(isinstance(C_loaded, te.tensor.Tensor))
     assert(str(C_loaded) == str(C))
 
 def test_tensor_compute1():
@@ -107,26 +108,26 @@ def test_tensor_compute1():
     dtype = 'float32'
 
     def intrin_vadd(n):
-        x = tvm.placeholder((n,))
-        y = tvm.placeholder((n,))
-        z = tvm.compute(x.shape, lambda i: x[i] + y[i])
+        x = te.placeholder((n,))
+        y = te.placeholder((n,))
+        z = te.compute(x.shape, lambda i: x[i] + y[i])
 
         def intrin_func(ins, outs):
-            ib = tvm.ir_builder.create()
-            ib.emit(tvm.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(tvm.tir.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
             return ib.get()
 
-        with tvm.build_config(offset_factor=n):
-            return tvm.decl_tensor_intrin(z.op, intrin_func)
+        with tvm.target.build_config(offset_factor=n):
+            return te.decl_tensor_intrin(z.op, intrin_func)
 
     vadd = intrin_vadd(factor)
 
-    A = tvm.placeholder((m//factor, factor), name="A", dtype=dtype)
-    B = tvm.placeholder((m//factor, factor), name="B", dtype=dtype)
-    C = tvm.compute((m//factor, factor),
+    A = te.placeholder((m//factor, factor), name="A", dtype=dtype)
+    B = te.placeholder((m//factor, factor), name="B", dtype=dtype)
+    C = te.compute((m//factor, factor),
           lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
     assert isinstance(stmt.body.body, tvm.tir.Evaluate)
 
@@ -140,102 +141,102 @@ def test_tensor_compute2():
     dtype = 'float32'
 
     def intrin_gemm(m, n, l):
-        k = tvm.reduce_axis((0, l))
-        x = tvm.placeholder((m, l))
-        y = tvm.placeholder((n, l))
+        k = te.reduce_axis((0, l))
+        x = te.placeholder((m, l))
+        y = te.placeholder((n, l))
         # in theory, no relation
-        z = tvm.compute((m, n), lambda i, j: tvm.sum(x[i][k] * y[j][k], axis=k))
+        z = te.compute((m, n), lambda i, j: te.sum(x[i][k] * y[j][k], axis=k))
 
         def intrin_func(ins, outs):
             x_ptr = ins[0].access_ptr("r")
             y_ptr = ins[1].access_ptr("r")
             z_ptr = outs[0].access_ptr("w")
-            body = tvm.call_packed(
+            body = tvm.tir.call_packed(
                 "gemv", x_ptr, y_ptr, z_ptr, m, n, l)
-            reset = tvm.call_packed(
+            reset = tvm.tir.call_packed(
                 "fill_zero", z_ptr, m, n)
-            update = tvm.call_packed(
+            update = tvm.tir.call_packed(
                 "gemv_add", x_ptr, y_ptr, z_ptr, m, n, l)
             return body, reset, update
 
-        with tvm.build_config(offset_factor=n):
-            return tvm.decl_tensor_intrin(z.op, intrin_func)
+        with tvm.target.build_config(offset_factor=n):
+            return te.decl_tensor_intrin(z.op, intrin_func)
 
     vgemm = intrin_gemm(factor1, factor2, factor)
 
-    A = tvm.placeholder((M//factor1, L//factor, factor1, factor), name="A", dtype=dtype)
-    B = tvm.placeholder((N//factor2, L//factor, factor2, factor), name="B", dtype=dtype)
-    k = tvm.reduce_axis((0, L//factor), name='k')
-    C = tvm.compute((M//factor1, N//factor2, factor1, factor2),
+    A = te.placeholder((M//factor1, L//factor, factor1, factor), name="A", dtype=dtype)
+    B = te.placeholder((N//factor2, L//factor, factor2, factor), name="B", dtype=dtype)
+    k = te.reduce_axis((0, L//factor), name='k')
+    C = te.compute((M//factor1, N//factor2, factor1, factor2),
           lambda i, j: vgemm(A[i, k, 0:factor1, 0:factor], B[j, k, 0:factor2, 0:factor], reduce_axis=k))
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
     assert isinstance(stmt.body.body.body[0], tvm.tir.Evaluate)
     assert isinstance(stmt.body.body.body[1].body, tvm.tir.Evaluate)
 
 def test_tensor_scan():
-    m = tvm.size_var("m")
-    n = tvm.size_var("n")
-    x = tvm.placeholder((m, n))
-    s = tvm.placeholder((m, n))
-    res = tvm.scan(tvm.compute((1, n), lambda _, i: x[0, i]),
-                   tvm.compute((m, n), lambda t, i: s[t-1, i] + x[t, i]),
+    m = te.size_var("m")
+    n = te.size_var("n")
+    x = te.placeholder((m, n))
+    s = te.placeholder((m, n))
+    res = tvm.te.scan(te.compute((1, n), lambda _, i: x[0, i]),
+                   te.compute((m, n), lambda t, i: s[t-1, i] + x[t, i]),
                    s)
     assert tuple(res.shape) == (m, n)
 
 def test_scan_multi_out():
-    m = tvm.size_var("m")
-    n = tvm.size_var("n")
-    x1 = tvm.placeholder((m, n))
-    s1 = tvm.placeholder((m, n))
-    x2 = tvm.placeholder((m, n))
-    s2 = tvm.placeholder((m, n))
-    s1_init = tvm.compute((1, n), lambda _, i: x1[0, i])
-    s2_init = tvm.compute((1, n), lambda _, i: x2[0, i])
-    s1_update = tvm.compute((m, n), lambda t, i: s1[t-1, i] + s2[t-1, i] + x1[t, i])
-    s2_update = tvm.compute((m, n), lambda t, i: x2[t, i] + s2[t-1,i])
+    m = te.size_var("m")
+    n = te.size_var("n")
+    x1 = te.placeholder((m, n))
+    s1 = te.placeholder((m, n))
+    x2 = te.placeholder((m, n))
+    s2 = te.placeholder((m, n))
+    s1_init = te.compute((1, n), lambda _, i: x1[0, i])
+    s2_init = te.compute((1, n), lambda _, i: x2[0, i])
+    s1_update = te.compute((m, n), lambda t, i: s1[t-1, i] + s2[t-1, i] + x1[t, i])
+    s2_update = te.compute((m, n), lambda t, i: x2[t, i] + s2[t-1,i])
 
-    r0, r1 = tvm.scan([s1_init, s2_init],
+    r0, r1 = tvm.te.scan([s1_init, s2_init],
                       [s1_update, s2_update],
                       [s1, s2])
     assert(r0.value_index == 0)
     assert(r1.value_index == 1)
     json_str = tvm.ir.save_json(r0.op)
     zz = tvm.ir.load_json(json_str)
-    assert isinstance(zz, tvm.tensor.ScanOp)
+    assert isinstance(zz, tvm.te.ScanOp)
 
 def test_extern():
-    m = tvm.size_var('m')
-    A = tvm.placeholder((m,), name='A')
+    m = te.size_var('m')
+    A = te.placeholder((m,), name='A')
 
     def extern_func(ins, outs):
-        assert(isinstance(ins[0], tvm.schedule.Buffer))
-        return tvm.call_packed("myadd", ins[0].data, outs[0].data, m)
-    B = tvm.extern((m,), [A], extern_func)
+        assert(isinstance(ins[0], tvm.te.schedule.Buffer))
+        return tvm.tir.call_packed("myadd", ins[0].data, outs[0].data, m)
+    B = te.extern((m,), [A], extern_func)
     assert(tuple(B.shape) == (m,))
 
 
 def test_extern_multi_out():
-    m = tvm.size_var('m')
-    A = tvm.placeholder((m,), name='A')
-    B = tvm.compute((m,), lambda i: A[i] * 10)
+    m = te.size_var('m')
+    A = te.placeholder((m,), name='A')
+    B = te.compute((m,), lambda i: A[i] * 10)
 
     def extern_func(ins, outs):
-        assert(isinstance(ins[0], tvm.schedule.Buffer))
-        return tvm.call_packed(
+        assert(isinstance(ins[0], tvm.te.schedule.Buffer))
+        return tvm.tir.call_packed(
             "myadd", ins[0].data, outs[0].data, outs[1].data, m)
-    res = tvm.extern([A.shape, A.shape], [A, B], extern_func)
+    res = te.extern([A.shape, A.shape], [A, B], extern_func)
     assert(len(res) == 2)
     assert(res[1].value_index == 1)
 
 def test_tuple_inputs():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    A0 = tvm.placeholder((m, n), name='A0')
-    A1 = tvm.placeholder((m, n), name='A1')
-    T0, T1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='T')
-    s = tvm.create_schedule(T0.op)
+    m = te.size_var('m')
+    n = te.size_var('n')
+    A0 = te.placeholder((m, n), name='A0')
+    A1 = te.placeholder((m, n), name='A1')
+    T0, T1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='T')
+    s = te.create_schedule(T0.op)
 
     for i in range(len(T0.shape)):
       assert(T0.shape[i] == T1.shape[i])
@@ -244,58 +245,58 @@ def test_tuple_inputs():
     assert(T1.value_index == 1)
 
 def test_tuple_with_different_deps():
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    A0 = tvm.placeholder((m, n), name='A1')
-    A1 = tvm.placeholder((m, n), name='A2')
-    B0, B1 = tvm.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='B')
-    C = tvm.compute((m, n), lambda i, j: B0[i, j] + 4, name='C')
+    m = te.size_var('m')
+    n = te.size_var('n')
+    A0 = te.placeholder((m, n), name='A1')
+    A1 = te.placeholder((m, n), name='A2')
+    B0, B1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name='B')
+    C = te.compute((m, n), lambda i, j: B0[i, j] + 4, name='C')
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], factor=10)
     s[B0.op].compute_at(s[C], xo)
     sch = s.normalize()
-    bounds = tvm.schedule.InferBound(sch)
-    stmt = tvm.schedule.ScheduleOps(sch, bounds)
+    bounds = tvm.te.schedule.InferBound(sch)
+    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
 
     def get_B1_realize(x):
         if isinstance(x, tvm.tir.Realize) and \
            x.func == B1.op and x.value_index == 1:
             ret.append(x)
     ret = []
-    tvm.ir_pass.PostOrderVisit(stmt, get_B1_realize)
+    tvm.tir.ir_pass.PostOrderVisit(stmt, get_B1_realize)
 
     assert stmt.node == C.op and len(ret) == 1
 
 
 def test_tensor_inputs():
-    x = tvm.placeholder((1,), name='x')
-    y = tvm.compute(x.shape, lambda i: x[i] + x[i])
+    x = te.placeholder((1,), name='x')
+    y = te.compute(x.shape, lambda i: x[i] + x[i])
     assert tuple(y.op.input_tensors) == (x,)
 
 
 def test_tensor_pool():
     def intrin_pool():
-        A = tvm.placeholder((64, 16, 16), name='A')
-        kh = tvm.reduce_axis((0, 3), name='kh')
-        kw = tvm.reduce_axis((0, 3), name='kw')
-        P = tvm.compute((64, 14, 14),
-                        lambda c, oh, ow: tvm.max(A[c, oh + kh, ow + kw],
+        A = te.placeholder((64, 16, 16), name='A')
+        kh = te.reduce_axis((0, 3), name='kh')
+        kw = te.reduce_axis((0, 3), name='kw')
+        P = te.compute((64, 14, 14),
+                        lambda c, oh, ow: tvm.te.max(A[c, oh + kh, ow + kw],
                                                   axis=[kh, kw]),
                         name='p')
 
         def intrin_func(ins, outs):
             dinp = ins[0]
             dout = outs[0]
-            return tvm.call_packed("op", dinp, dout)
+            return tvm.tir.call_packed("op", dinp, dout)
 
-        with tvm.build_config(offset_factor=1):
-            return tvm.decl_tensor_intrin(P.op, intrin_func)
+        with tvm.target.build_config(offset_factor=1):
+            return te.decl_tensor_intrin(P.op, intrin_func)
 
-    A = tvm.placeholder((1, 64, 16, 16), name='A')
+    A = te.placeholder((1, 64, 16, 16), name='A')
     P = pool(data=A, kernel=(3, 3), stride=(1, 1), padding=(0, 0, 0, 0),
              pool_type='max')
-    s = tvm.create_schedule(P.op)
+    s = te.create_schedule(P.op)
     _, oh, _, _ = P.op.axis
     intrin = intrin_pool()
     s[P].tensorize(oh, intrin)

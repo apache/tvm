@@ -16,7 +16,7 @@
 # under the License.
 """External function interface to cuBLASlt libraries."""
 import tvm
-from .. import api as _api
+from tvm import te
 
 
 def matmul(lhs, rhs, transa=False, transb=False, n=0, m=0, dtype=None):
@@ -43,7 +43,7 @@ def matmul(lhs, rhs, transa=False, transb=False, n=0, m=0, dtype=None):
     if m == 0:
         m = rhs.shape[0] if transb else rhs.shape[1]
     dtype = dtype if dtype is not None else lhs.dtype
-    return _api.extern(
+    return te.extern(
         (n, m), [lhs, rhs],
         lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.cublaslt.matmul",

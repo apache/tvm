@@ -282,7 +282,7 @@ def dump_json(sch, need_range):
     def encode_itervar_relation(obj_manager, rel):
         """Extract and encode IterVar Relationship visualization data to a dictionary"""
         rel_type = type(rel)
-        if rel_type is tvm.schedule.Split:
+        if rel_type is tvm.te.schedule.Split:
             node_type = 'Split_Relation'
             rel_dict = {
                 "type": node_type,
@@ -290,7 +290,7 @@ def dump_json(sch, need_range):
                 "outer": obj_manager.get_dom_path(rel.outer),
                 "inner": obj_manager.get_dom_path(rel.inner),
             }
-        elif rel_type is tvm.schedule.Fuse:
+        elif rel_type is tvm.te.schedule.Fuse:
             node_type = 'Fuse_Relation'
             rel_dict = {
                 "type": node_type,
@@ -298,7 +298,7 @@ def dump_json(sch, need_range):
                 "outer": obj_manager.get_dom_path(rel.outer),
                 "inner": obj_manager.get_dom_path(rel.inner),
             }
-        elif rel_type is tvm.schedule.Singleton:
+        elif rel_type is tvm.te.schedule.Singleton:
             node_type = 'Singleton_Relation'
             rel_dict = {
                 "type": node_type,
@@ -377,12 +377,12 @@ def dump_json(sch, need_range):
             dict : dictionary
                 A nested dictionary
         """
-        assert isinstance(sch, tvm.schedule.Schedule
-                          ), 'Input is not a tvm.schedule.Schedule object.'
+        assert isinstance(sch, tvm.te.schedule.Schedule
+                          ), 'Input is not a tvm.te.schedule.Schedule object.'
         range_map = None
         if need_range:
             try:
-                range_map = tvm.schedule.InferBound(sch)
+                range_map = tvm.te.schedule.InferBound(sch)
             except tvm._ffi.base.TVMError as expt:
                 warnings.warn(
                     'Ranges are not available, because InferBound fails with the following error:\n'

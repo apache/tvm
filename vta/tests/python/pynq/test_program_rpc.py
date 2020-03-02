@@ -16,6 +16,7 @@
 # under the License.
 import os
 import tvm
+from tvm import te
 from tvm import rpc
 from vta import get_bitstream_path, download_bitstream, program_fpga, reconfig_runtime
 

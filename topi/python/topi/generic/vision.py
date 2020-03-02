@@ -18,18 +18,19 @@
 """Generic vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import cpp
 
 def _default_schedule(outs, auto_inline):
     """Default schedule for llvm."""
     target = tvm.target.Target.current(allow_none=False)
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     if target.target_name != "llvm":
         raise RuntimeError("schedule not registered for '%s'" % target)
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     if auto_inline:
         x = outs[0]
-        tvm.schedule.AutoInlineInjective(s)
+        te.schedule.AutoInlineInjective(s)
         s[x].fuse(s[x].op.axis)
     return s
 

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def lower(s, args, name="mydot"):
@@ -22,18 +23,18 @@ def lower(s, args, name="mydot"):
     arg_list = []
 
     for x in args:
-        assert isinstance(x, tvm.tensor.Tensor)
-        buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
+        assert isinstance(x, te.tensor.Tensor)
+        buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
         binds[x] = buf
         arg_list.append(buf)
     s = s.normalize()
-    bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 16)
-    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.ir_pass.Simplify(stmt)
-    fapi = tvm.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
-    fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 16)
+    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
+    fapi = tvm.tir.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
+    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     return fapi
 
 
@@ -43,12 +44,12 @@ def mybuild(fapi, target="llvm"):
 
 def test_dot():
     nn = 12
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    k = tvm.reduce_axis((0, n), 'k')
-    C = tvm.compute((1,), lambda _: tvm.sum(A[k] * B[k], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    k = te.reduce_axis((0, n), 'k')
+    C = te.compute((1,), lambda _: te.sum(A[k] * B[k], axis=k), name='C')
+    s = te.create_schedule(C.op)
     fapi = lower(s, [A, B, C])
 
     def verify(target):

@@ -16,7 +16,7 @@
 # under the License.
 """
 Deploy Pretrained Vision Detection Model from Darknet on VTA
-================================================
+============================================================
 **Author**: `Hua Jiang <https://github.com/huajsj>`_
 
 This tutorial provides an end-to-end demo, on how to run Darknet YoloV3-tiny

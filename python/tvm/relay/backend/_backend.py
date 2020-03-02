@@ -26,10 +26,10 @@ def lower(sch, inputs, func_name, source_func):
 
     Parameters
     ----------
-    sch : tvm.Schedule
+    sch : tvm.te.Schedule
         The schedule.
 
-    inputs : List[tvm.Tensor]
+    inputs : List[tvm.te.Tensor]
         The inputs to the function.
 
     func_name : str

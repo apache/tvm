@@ -95,6 +95,17 @@ RELAY_REGISTER_UNARY_OP("exp")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
 
 
+RELAY_REGISTER_UNARY_OP("fast_exp")
+.describe(R"code(Returns the fast_exp input array, computed element-wise.
+
+.. math::
+   \fast_exp(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_exp));
+
+
 RELAY_REGISTER_UNARY_OP("erf")
 .describe(R"code(Returns the error function value for input array, computed element-wise.
 
@@ -250,6 +261,17 @@ RELAY_REGISTER_UNARY_OP("tanh")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::tanh));
 
 
+RELAY_REGISTER_UNARY_OP("fast_tanh")
+.describe(R"code(Returns the fast_tanh of input array, computed element-wise.
+
+.. math::
+   Y = sinh(X) / cosh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_tanh));
+
+
 RELAY_REGISTER_UNARY_OP("negative")
 .describe(R"code(Returns the numeric negative of input array, computed element-wise.
 
@@ -359,15 +381,15 @@ Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs,
   return Array<te::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")
+TVM_REGISTER_GLOBAL("relay.op._make.ndarray_size")
 .set_body_typed([](Expr data, DataType dtype) {
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
-  static const Op& op = Op::Get("contrib.ndarray_size");
+  static const Op& op = Op::Get("ndarray_size");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 });
 
-RELAY_REGISTER_OP("contrib.ndarray_size")
+RELAY_REGISTER_OP("ndarray_size")
 .describe(R"code(Returns a tensor representing the number of elements of input tensor.
 
 )code" TVM_ADD_FILELINE)

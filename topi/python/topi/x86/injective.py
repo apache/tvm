@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from ..util import is_empty_shape
 
 def schedule_injective_from_existing(sch, out):
@@ -65,10 +64,10 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     x = outs[0]
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    s = te.create_schedule([x.op for x in outs])
+    te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):
         schedule_injective_from_existing(s, x)
@@ -104,10 +103,10 @@ def schedule_concatenate(outs):
                 _, inner_i = sch[tensor].split(inner_axis, split_factor)
                 sch[tensor].vectorize(inner_i)
 
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     x = outs[0]
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    s = te.create_schedule([x.op for x in outs])
+    te.schedule.AutoInlineInjective(s)
     if len(s[x].op.axis) >= 5:
         fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
         vectorize(s, x, 64)

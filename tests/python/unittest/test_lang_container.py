@@ -15,26 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_array():
-    a = tvm.convert([1,2,3])
+    a = tvm.runtime.convert([1,2,3])
     assert len(a) == 3
     assert a[-1].value == 3
     a_slice = a[-3:-1]
     assert (a_slice[0].value, a_slice[1].value) == (1, 2)
 
 def test_array_save_load_json():
-    a = tvm.convert([1,2,3])
+    a = tvm.runtime.convert([1,2,3])
     json_str = tvm.ir.save_json(a)
     a_loaded = tvm.ir.load_json(json_str)
     assert(a_loaded[1].value == 2)
 
 
 def test_map():
-    a = tvm.var('a')
-    b = tvm.var('b')
-    amap = tvm.convert({a: 2,
+    a = te.var('a')
+    b = te.var('b')
+    amap = tvm.runtime.convert({a: 2,
                         b: 3})
     assert a in amap
     assert len(amap) == 2
@@ -45,7 +46,7 @@ def test_map():
 
 
 def test_str_map():
-    amap = tvm.convert({'a': 2, 'b': 3})
+    amap = tvm.runtime.convert({'a': 2, 'b': 3})
     assert 'a' in amap
     assert len(amap) == 2
     dd = dict(amap.items())
@@ -55,9 +56,9 @@ def test_str_map():
 
 
 def test_map_save_load_json():
-    a = tvm.var('a')
-    b = tvm.var('b')
-    amap = tvm.convert({a: 2,
+    a = te.var('a')
+    b = te.var('b')
+    amap = tvm.runtime.convert({a: 2,
                         b: 3})
     json_str = tvm.ir.save_json(amap)
     amap = tvm.ir.load_json(json_str)
@@ -67,14 +68,14 @@ def test_map_save_load_json():
 
 
 def test_in_container():
-    arr = tvm.convert(['a', 'b', 'c'])
+    arr = tvm.runtime.convert(['a', 'b', 'c'])
     assert 'a' in arr
     assert tvm.tir.StringImm('a') in arr
     assert 'd' not in arr
 
 def test_ndarray_container():
     x = tvm.nd.array([1,2,3])
-    arr = tvm.convert([x, x])
+    arr = tvm.runtime.convert([x, x])
     assert arr[0].same_as(x)
     assert arr[1].same_as(x)
     assert isinstance(arr[0], tvm.nd.NDArray)

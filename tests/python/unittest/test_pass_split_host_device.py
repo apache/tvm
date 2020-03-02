@@ -16,13 +16,14 @@
 # under the License.
 import pytest
 import tvm
+from tvm import te
 
 @pytest.mark.xfail
 def test_loop_dependent_allocate():
-    N = tvm.size_var("N")
-    A = tvm.placeholder((2*N,), "float32", "A")
-    C = tvm.compute((N, ), lambda i: A[2*i] + A[i+1], name='C')
-    s = tvm.create_schedule(C.op)
+    N = te.size_var("N")
+    A = te.placeholder((2*N,), "float32", "A")
+    C = te.compute((N, ), lambda i: A[2*i] + A[i+1], name='C')
+    s = te.create_schedule(C.op)
     AA = s.cache_read(A, "local", [C])
     s[AA].compute_at(s[C], s[C].op.axis[0])
     # this line should fail due to IRUseDefAnalysis sees an allocate statement

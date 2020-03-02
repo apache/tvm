@@ -31,7 +31,7 @@ def lrn(data, size, axis=1, alpha=0.0001, beta=0.75, bias=2):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, channel, height, width]
 
     size : int
@@ -52,7 +52,7 @@ def lrn(data, size, axis=1, alpha=0.0001, beta=0.75, bias=2):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D output with same shape
     """
     return cpp.nn.lrn(data, size, axis, alpha, beta, bias)

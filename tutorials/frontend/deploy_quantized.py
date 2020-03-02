@@ -28,6 +28,7 @@ Relay, quantize the Relay model and then perform the inference.
 """
 
 import tvm
+from tvm import te
 from tvm import relay
 import mxnet as mx
 from tvm.contrib.download import download_testdata

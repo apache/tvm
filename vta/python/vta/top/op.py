@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import te
 import topi
 
 from tvm.relay.op import op as reg
@@ -42,13 +43,13 @@ def compute_clip_vta(attrs, inputs, output_type):
     x = inputs[0]
     a_min = attrs.a_min
     a_max = attrs.a_max
-    const_min = tvm.const(a_min, x.dtype)
-    const_max = tvm.const(a_max, x.dtype)
-    with tvm.tag_scope(topi.tag.ELEMWISE):
-        x = tvm.compute(
-            x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-        x = tvm.compute(
-            x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+    const_min = tvm.tir.const(a_min, x.dtype)
+    const_max = tvm.tir.const(a_max, x.dtype)
+    with tvm.te.tag_scope(topi.tag.ELEMWISE):
+        x = te.compute(
+            x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+        x = te.compute(
+            x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return [x]
 
 def clip_strategy_vta(attrs, inputs, out_type, target):

@@ -96,6 +96,7 @@ with relay.build_config(opt_level=3):
 # ---------------
 # The process is no different from other examples.
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 # context x86 CPU, use tvm.gpu(0) if you run on GPU
 ctx = tvm.cpu(0)

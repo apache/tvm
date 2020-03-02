@@ -39,6 +39,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import tvm
+from tvm import te
 import vta
 import numpy as np
 from tvm import rpc
@@ -119,45 +120,45 @@ output_shape = (batch_size // env.BATCH,
 num_ops = in_channels * out_channels * batch_size * 2
 
 # Reduction axes
-ic = tvm.reduce_axis((0, in_channels // env.BLOCK_IN), name='ic')
-ic_tns = tvm.reduce_axis((0, env.BLOCK_IN), name='ic_tns')
+ic = te.reduce_axis((0, in_channels // env.BLOCK_IN), name='ic')
+ic_tns = te.reduce_axis((0, env.BLOCK_IN), name='ic_tns')
 
 # Input placeholder tensors
-data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-weight = tvm.placeholder(weight_shape, name="weight", dtype=env.wgt_dtype)
+data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+weight = te.placeholder(weight_shape, name="weight", dtype=env.wgt_dtype)
 
 # Copy buffers
-data_buf = tvm.compute(data_shape,
+data_buf = te.compute(data_shape,
                        lambda *i: data(*i),
                        "data_buf")
-weight_buf = tvm.compute(weight_shape,
+weight_buf = te.compute(weight_shape,
                          lambda *i: weight(*i),
                          "weight_buf")
 
 # Declare matrix multiply computation
-res_gemm = tvm.compute(output_shape,
-                       lambda bo, co, bi, ci: tvm.sum(
+res_gemm = te.compute(output_shape,
+                       lambda bo, co, bi, ci: te.sum(
                             data_buf[bo, ic, bi, ic_tns].astype(env.acc_dtype) *
                             weight_buf[co, ic, ci, ic_tns].astype(env.acc_dtype),
                             axis=[ic, ic_tns]),
                        name="res_gem")
 
 # Add shift stage for fix-point normalization
-res_shr = tvm.compute(output_shape,
+res_shr = te.compute(output_shape,
                       lambda *i: res_gemm(*i) >> env.INP_WIDTH,
                       name="res_shr")
 
 # Apply clipping between (0, input max value)
 inp_max = (1<<(env.INP_WIDTH-1))-1
-res_max = tvm.compute(output_shape,
-                      lambda *i: tvm.max(res_shr(*i), 0),
+res_max = te.compute(output_shape,
+                      lambda *i: tvm.te.max(res_shr(*i), 0),
                       "res_max")
-res_min = tvm.compute(output_shape,
-                      lambda *i: tvm.min(res_max(*i), inp_max),
+res_min = te.compute(output_shape,
+                      lambda *i: tvm.te.min(res_max(*i), inp_max),
                       "res_min")
 
 # Apply typecast to input data type before sending results back
-res = tvm.compute(output_shape,
+res = te.compute(output_shape,
                   lambda *i: res_min(*i).astype(env.inp_dtype),
                   name="res")
 
@@ -173,7 +174,7 @@ res = tvm.compute(output_shape,
 
 
 # Create TVM schedule
-s = tvm.create_schedule(res.op)
+s = te.create_schedule(res.op)
 # Let's look at the default TVM schedule
 print(tvm.lower(s, [data, weight, res], simple_mode=True))
 

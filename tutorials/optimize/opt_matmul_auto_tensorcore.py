@@ -46,12 +46,13 @@ import sys
 
 import numpy as np
 import tvm
+from tvm import te
 
 from tvm import autotvm
 from tvm.contrib import nvcc
 
 def matmul_nn(A, B, L, dtype='float16', layout='NN'):
-    k = tvm.reduce_axis((0, L), name='k')
+    k = te.reduce_axis((0, L), name='k')
     if dtype == 'float16':
       out_type = 'float'
     elif dtype == 'int8':
@@ -59,13 +60,13 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
     elif dtype == 'int4' or dtype == 'int1':
       out_type = 'int'
     if (layout == 'NN'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k].astype(out_type) * B[k, j].astype(out_type), axis=k))
+      return te.compute((N, M), lambda i, j: te.sum(A[i, k].astype(out_type) * B[k, j].astype(out_type), axis=k))
     if (layout == 'NT'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum(A[k, i].astype(out_type) * B[k, j].astype(out_type), axis=k))
+      return te.compute((N, M), lambda i, j: te.sum(A[k, i].astype(out_type) * B[k, j].astype(out_type), axis=k))
     if (layout == 'TN'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k].astype(out_type) * B[j, k].astype(out_type), axis=k))
+      return te.compute((N, M), lambda i, j: te.sum(A[i, k].astype(out_type) * B[j, k].astype(out_type), axis=k))
     if (layout == 'TT'):
-      return tvm.compute((N, M), lambda i, j: tvm.sum(A[k, i].astype(out_type) * B[j, k].astype(out_type), axis=k))
+      return te.compute((N, M), lambda i, j: te.sum(A[k, i].astype(out_type) * B[j, k].astype(out_type), axis=k))
 
 ###############################################################################
 # Scheduling the Computation
@@ -85,7 +86,7 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
 #   (2) The warp tile size is not 16x16x16 on CUDA9, or not one of {16x16x16, 32x8x16, 8x32x16} on CUDA version >= 10.0.
 #
 # In this schedule, storage_align is used to reduce bank conflicts of shared memory. Please refer to this
-# `doc <https://docs.tvm.ai/api/python/schedule.html#tvm.schedule.Stage.storage_align>`_
+# `doc <https://docs.tvm.ai/api/python/schedule.html#tvm.te.schedule.Stage.storage_align>`_
 # for the usage of storage_align primitive. In short, we need to add an offset to some shared memory buffer
 # to reduce bank conflicts.
 # According to the `wmma doc <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-description>`_,
@@ -111,11 +112,11 @@ def test_gemm(N, L, M, dtype, layout):
     else:
       print ("Unsupported layout:", layout)
       sys.exit(1);
-    A = tvm.placeholder(shape_a, name='A', dtype=dtype)
-    B = tvm.placeholder(shape_b, name='B', dtype=dtype)
+    A = te.placeholder(shape_a, name='A', dtype=dtype)
+    B = te.placeholder(shape_b, name='B', dtype=dtype)
     C = matmul_nn(A, B, L, dtype, layout)
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
 
@@ -182,11 +183,11 @@ def test_gemm(N, L, M, dtype, layout):
     tz, xi = s[C].split(xi, WX)
     tx, xi = s[C].split(xi, TX)
     s[C].reorder(yo, xo, tz, ty, tx, yi, xi)
-    s[C].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[C].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[C].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[C].bind(yo, te.thread_axis("blockIdx.y"))
+    s[C].bind(xo, te.thread_axis("blockIdx.x"))
+    s[C].bind(ty, te.thread_axis("threadIdx.y"))
+    s[C].bind(tz, te.thread_axis("threadIdx.z"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
     # schedule for CL stage
     ko, ki = s[CL].split(k, step_k * warp_tile_k)
@@ -202,9 +203,9 @@ def test_gemm(N, L, M, dtype, layout):
     tx, vec = s[AA].split(tx, factor=v)
     fused = s[AA].fuse(s[AA].op.axis[0], xo)
     _, ty = s[AA].split(fused, factor=by)
-    s[AA].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[AA].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[AA].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[AA].bind(ty, te.thread_axis("threadIdx.y"))
+    s[AA].bind(tz, te.thread_axis("threadIdx.z"))
+    s[AA].bind(tx, te.thread_axis("threadIdx.x"))
     # vectorization is very important for float16/int8 inputs
     s[AA].vectorize(vec)
 
@@ -215,9 +216,9 @@ def test_gemm(N, L, M, dtype, layout):
     tx, vec = s[BB].split(tx, factor=v)
     fused = s[BB].fuse(s[BB].op.axis[0], xo)
     _, ty = s[BB].split(fused, factor=by)
-    s[BB].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[BB].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[BB].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[BB].bind(ty, te.thread_axis("threadIdx.y"))
+    s[BB].bind(tz, te.thread_axis("threadIdx.z"))
+    s[BB].bind(tx, te.thread_axis("threadIdx.x"))
     s[BB].vectorize(vec)
 
     s[AL].compute_at(s[CL], kl)
@@ -286,7 +287,7 @@ def tune_and_evaluate(M, N, L, dtype, layout):
   print(best_config)
   with autotvm.apply_history_best('matmul.log'):
     with tvm.target.create("cuda"):
-        with tvm.build_config():
+        with tvm.target.build_config():
             s, arg_bufs = test_gemm(N, L, M, dtype, layout)
             print(tvm.lower(s, arg_bufs, simple_mode=True))
             func = tvm.build(s, arg_bufs)

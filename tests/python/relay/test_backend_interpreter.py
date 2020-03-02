@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 import tvm.testing
 from tvm import nd
 from tvm import relay

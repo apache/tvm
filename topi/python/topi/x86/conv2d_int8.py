@@ -19,6 +19,7 @@
 """Conv2D int8 schedule on x86"""
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from ..nn.conv2d import _get_workload as _get_conv2d_workload
 from .. import tag
@@ -96,11 +97,11 @@ def _pack_data(cfg, data, kernel):
     ic_chunk = ic // ic_bn
     oc_chunk = oc // oc_bn
 
-    data = tvm.compute((n, ic_chunk, ih, iw, ic_bn),
-                       lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
-                       name="data_vec")
+    data = te.compute((n, ic_chunk, ih, iw, ic_bn),
+                      lambda bs, c, h, w, vc: data[bs, c*ic_bn + vc, h, w],
+                      name="data_vec")
 
-    kernel = tvm.compute(
+    kernel = te.compute(
         (oc_chunk, ic_chunk, kh, kw, ic_bn//n_elems, oc_bn, n_elems),
         lambda occ, icc, k_h, k_w, icbc, ocb, icbb:
         kernel[occ * oc_bn + ocb,
@@ -145,9 +146,9 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding,
     # If no config was set, we can fallback to default config.
     if cfg.is_fallback:
         _get_default_config_int8(
-            cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-            tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                            dtype=kernel.dtype),
+            cfg, te.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+            te.placeholder((num_filter, in_channel, kernel_height, kernel_width),
+                           dtype=kernel.dtype),
             strides, padding, out_dtype)
 
     # Pack data if raw 4-D data is provided.
@@ -168,7 +169,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, strides, padding,
 @autotvm.register_topi_schedule("conv2d_NCHWc_int8.x86")
 def schedule_conv2d_NCHWc_int8(cfg, outs):
     """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         """Traverse operators from computation graph"""
@@ -192,7 +193,7 @@ def schedule_conv2d_NCHWc_int8(cfg, outs):
 @autotvm.register_topi_schedule("conv2d_nhwc_pack_int8.x86")
 def schedule_conv2d_nhwc_pack_int8(cfg, outs):
     """Create schedule for tensors"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     output_op = outs[0].op
     scheduled_ops = []
 
@@ -209,7 +210,7 @@ def schedule_conv2d_nhwc_pack_int8(cfg, outs):
                     s[op].parallel(fused)
                     s[op].vectorize(c)
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'conv2d_nhwc_pack_int8' in op.tag:
@@ -217,9 +218,9 @@ def schedule_conv2d_nhwc_pack_int8(cfg, outs):
             kernel = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
             data = data_vec.op.input_tensors[0] \
-                if isinstance(data_vec.op, tvm.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
+                if isinstance(data_vec.op, te.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
                 else data_vec
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, te.tensor.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 

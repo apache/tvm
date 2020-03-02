@@ -18,6 +18,7 @@
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
@@ -46,7 +47,7 @@ def _my_npy_argmin(arr, axis, keepdims):
 
 def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32"):
     # Build the logic and compile the function
-    A = tvm.placeholder(shape=in_shape, name="A", dtype=dtype)
+    A = te.placeholder(shape=in_shape, name="A", dtype=dtype)
     A1 = topi.sqrt(topi.exp(A))
     out_dtype = dtype
     if type == "sum":

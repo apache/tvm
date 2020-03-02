@@ -18,6 +18,7 @@
 """
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm import relay
 from tvm.relay import transform
@@ -28,7 +29,7 @@ import topi.testing
 
 def test_conv1d_infer_type():
     # symbolic in batch dimension
-    n, c, w = tvm.var("n"), 10, 224
+    n, c, w = te.var("n"), 10, 224
     x = relay.var("x", relay.ty.TensorType((n, c, w), "float32"))
     w = relay.var("w")
     y = relay.nn.conv1d(x, w,
@@ -42,7 +43,7 @@ def test_conv1d_infer_type():
         (2, 10, 3), "float32")
 
     # infer by shape of w, mixed precision
-    n, c, w = tvm.var("n"), 10, 224
+    n, c, w = te.var("n"), 10, 224
     x = relay.var("x", relay.TensorType((n, c, w), "int8"))
     w = relay.var("w", relay.TensorType((2, 10, 3), "int8"))
     y = relay.nn.conv1d(x, w, out_dtype="int32")
@@ -52,7 +53,7 @@ def test_conv1d_infer_type():
         (n, 2, 222), "int32")
 
     # infer shape in case of different dtypes for input and weight.
-    n, c, w = tvm.var("n"), 10, 224
+    n, c, w = te.var("n"), 10, 224
     x = relay.var("x", relay.TensorType((n, c, w), "uint8"))
     w = relay.var("w", relay.TensorType((2, 10, 3), "int8"))
     y = relay.nn.conv1d(x, w, out_dtype="int32")
@@ -122,7 +123,7 @@ def test_conv1d_run():
 
 def test_conv2d_infer_type():
     # symbolic in batch dimension
-    n, c, h, w = tvm.size_var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", relay.ty.TensorType((n, c, h, w), "float32"))
     w = relay.var("w")
     y = relay.nn.conv2d(x, w,
@@ -136,7 +137,7 @@ def test_conv2d_infer_type():
         (2, 10, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-    n, c, h, w = tvm.size_var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
     w = relay.var("w", relay.TensorType((2, 10, 3, 3), "int8"))
     y = relay.nn.conv2d(x, w, out_dtype="int32")
@@ -146,7 +147,7 @@ def test_conv2d_infer_type():
         (n, 2, 222, 222), "int32")
 
     # infer shape in case of different dtypes for input and weight.
-    n, c, h, w = tvm.size_var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), "uint8"))
     w = relay.var("w", relay.TensorType((2, 10, 3, 3), "int8"))
     y = relay.nn.conv2d(x, w, out_dtype="int32")
@@ -385,7 +386,7 @@ def test_conv2d_winograd():
 
 def test_conv3d_infer_type():
     # symbolic in batch dimension
-    n, c, d, h, w = tvm.size_var("n"), 10, 224, 224, 224
+    n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
     x = relay.var("x", relay.ty.TensorType((n, c, d, h, w), "float32"))
     w = relay.var("w")
     y = relay.nn.conv3d(x, w,
@@ -399,7 +400,7 @@ def test_conv3d_infer_type():
         (2, 10, 3, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-    n, c, d, h, w = tvm.size_var("n"), 10, 224, 224, 224
+    n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "int8"))
     w = relay.var("w", relay.TensorType((2, 10, 3, 3, 3), "int8"))
     y = relay.nn.conv3d(x, w, out_dtype="int32")
@@ -409,7 +410,7 @@ def test_conv3d_infer_type():
         (n, 2, 222, 222, 222), "int32")
 
     # infer shape in case of different dtypes for input and weight.
-    n, c, d, h, w = tvm.size_var("n"), 10, 224, 224, 224
+    n, c, d, h, w = te.size_var("n"), 10, 224, 224, 224
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "uint8"))
     w = relay.var("w", relay.TensorType((2, 10, 3, 3, 3), "int8"))
     y = relay.nn.conv3d(x, w, out_dtype="int32")
@@ -524,7 +525,7 @@ def test_conv3d_ndhwc_run():
 
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension
-    n, c, h, w = tvm.size_var("n"), 10, 10, 12
+    n, c, h, w = te.size_var("n"), 10, 10, 12
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     w = relay.var("w", relay.IncompleteType())
     y = relay.nn.conv2d_transpose(x, w,
@@ -539,7 +540,7 @@ def test_conv2d_transpose_infer_type():
         (10, 15, 3, 3), "float32")
 
     # infer by shape of w, mixed precision
-    n, h, w, c = tvm.size_var("n"), 10, 10, 12
+    n, h, w, c = te.size_var("n"), 10, 10, 12
     x = relay.var("x", relay.TensorType((n, h, w, c), "float32"))
     w = relay.var("w", relay.TensorType((12, 11, 5, 5), "float32"))
     y = relay.nn.conv2d_transpose(x, w,
@@ -624,41 +625,41 @@ def test_conv1d_transpose_ncw_run():
 
 
 def test_upsampling_infer_type():
-    n, c , h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
-    scale = tvm.const(2.0, "float64")
+    n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
+    scale = tvm.tir.const(2.0, "float64")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     "method=\"BINLINEAR\"" in y.astext()
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", tvm.round(h*scale)),
-                                                tvm.tir.Cast("int32", tvm.round(w*scale))),
+    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", te.round(h*scale)),
+                                                tvm.tir.Cast("int32", te.round(w*scale))),
                                                 "float32")
-    n, c = tvm.size_var("n"), tvm.size_var("c")
+    n, c = te.size_var("n"), te.size_var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 200), "float32"))
     y = relay.nn.upsampling(x, scale_h=2, scale_w=2, layout="NCHW", method="bilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 400), "float32")
 
 def test_upsampling3d_infer_type():
-    n, c, d, h, w = tvm.size_var("n"), tvm.size_var("c"),\
-                    tvm.size_var("d"), tvm.size_var("h"), tvm.size_var("w")
-    scale = tvm.const(2.0, "float64")
+    n, c, d, h, w = te.size_var("n"), te.size_var("c"),\
+                    te.size_var("d"), te.size_var("h"), te.size_var("w")
+    scale = tvm.tir.const(2.0, "float64")
     x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
     y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
 
     yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", tvm.round(d*scale)),
-                                                tvm.tir.Cast("int32", tvm.round(h*scale)),
-                                                tvm.tir.Cast("int32", tvm.round(w*scale))),
+    assert yy.checked_type == relay.TensorType((n, c, tvm.tir.Cast("int32", te.round(d*scale)),
+                                                tvm.tir.Cast("int32", te.round(h*scale)),
+                                                tvm.tir.Cast("int32", te.round(w*scale))),
                                                 "float32")
-    n, c = tvm.size_var("n"), tvm.size_var("c")
+    n, c = te.size_var("n"), te.size_var("c")
     x = relay.var("x", relay.TensorType((n, c, 100, 100, 200), "float32"))
     y = relay.nn.upsampling3d(x, scale_d=2, scale_h=2, scale_w=2, layout="NCDHW", method="trilinear")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, 200, 200, 400), "float32")
 
 def _test_pool2d(opfunc, reffunc):
-    n, c, h, w = tvm.size_var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x, pool_size=(1, 1))
     assert "pool_size=" in y.astext()
@@ -678,7 +679,7 @@ def _test_pool2d(opfunc, reffunc):
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def _test_pool2d_int(opfunc, reffunc, dtype):
-    n, c, h, w = tvm.size_var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", relay.TensorType((n, c, h, w), dtype))
     y = opfunc(x, pool_size=(1, 1))
     assert "pool_size=" in y.astext()
@@ -698,13 +699,13 @@ def _test_pool2d_int(opfunc, reffunc, dtype):
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def _test_global_pool2d(opfunc, reffunc):
-    n, c, h, w = tvm.size_var("n"), tvm.size_var("c"), 224, 224
+    n, c, h, w = te.size_var("n"), te.size_var("c"), 224, 224
     x = relay.var("x", relay.TensorType((n, h, w, c), "float32"))
     y = opfunc(x, layout="NHWC")
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType((n, 1, 1, c), "float32")
 
-    n, c, h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
+    n, c, h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = opfunc(x)
     yy = run_infer_type(y)
@@ -735,7 +736,7 @@ def test_pool2d():
 def test_pool1d():
 
     def _test_pool1d(opfunc):
-        n, c, w = tvm.var("n"), 10, 224
+        n, c, w = te.var("n"), 10, 224
         x = relay.var("x", relay.TensorType((n, c, w), "float32"))
         y = opfunc(x, pool_size=(1,))
         assert "pool_size=" in y.astext()
@@ -763,7 +764,7 @@ def test_pool1d():
 def test_pool3d():
 
     def _test_pool3d(opfunc, padding=(0, 0, 0, 0, 0, 0), out_shape=(1, 3, 16, 16, 16)):
-        n, c, d, h, w = tvm.size_var("n"), 10, 5, 224, 224
+        n, c, d, h, w = te.size_var("n"), 10, 5, 224, 224
         x = relay.var("x", relay.TensorType((n, c, d, h, w), "float32"))
         y = opfunc(x, pool_size=(1, 1, 1))
         assert "pool_size=" in y.astext()
@@ -833,7 +834,7 @@ def test_avg_pool2d_no_count_pad():
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
 
 def test_flatten_infer_type():
-    d1, d2, d3, d4 = tvm.size_var("d1"), tvm.size_var("d2"), tvm.size_var("d3"), tvm.size_var("d4")
+    d1, d2, d3, d4 = te.size_var("d1"), te.size_var("d2"), te.size_var("d3"), te.size_var("d4")
     x = relay.var("x", relay.TensorType((d1, d2, d3, d4), "float32"))
     y = relay.nn.batch_flatten(x)
     yy = run_infer_type(y)
@@ -878,7 +879,7 @@ def test_pad_infer_type():
     assert yy.checked_type == relay.TensorType((3, 6, 9, 12), "float32")
 
     # some symbolic values
-    n, c, h, w = tvm.size_var("n"), 2, 3, tvm.size_var("w")
+    n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
     t = relay.var("t", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4)))
     yy = run_infer_type(y)
@@ -901,7 +902,7 @@ def test_pad_run():
     _test_run('int32')
 
 def test_lrn():
-    n, c , h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
+    n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c , h, w))
     y = relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=.00001, beta=0.75)
     "alpha=" in y.astext()
@@ -932,7 +933,7 @@ def test_lrn():
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 def test_l2_normalize():
-    n, c , h, w = tvm.size_var("n"), tvm.size_var("c"), tvm.size_var("h"), tvm.size_var("w")
+    n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", shape=(n, c , h, w))
     y = relay.nn.l2_normalize(x, eps=0.001, axis=[1])
     "axis=" in y.astext()
@@ -982,7 +983,7 @@ def test_batch_flatten():
 
 
 def _test_upsampling(layout, method, align_corners=False):
-    n, c, h, w = tvm.size_var("n"), 16, 32, 32
+    n, c, h, w = te.size_var("n"), 16, 32, 32
     scale_h = 2.0
     scale_w = 2.0
     dtype = "float32"
@@ -1021,7 +1022,7 @@ def test_upsampling():
     _test_upsampling("NHWC", "bilinear", True)
 
 def _test_upsampling3d(layout, method, coordinate_transformation_mode="half_pixel"):
-    n, c, d, h, w = tvm.size_var("n"), 8, 16, 16, 16
+    n, c, d, h, w = te.size_var("n"), 8, 16, 16, 16
     scale_d = 2.0
     scale_h = 2.0
     scale_w = 2.0
@@ -1220,7 +1221,7 @@ def test_depthwise_conv2d_int8():
 
 def test_bitserial_conv2d_infer_type():
     # Basic shape test with ambiguous batch.
-    n, c, h, w = tvm.size_var("n"), 32, 224, 224
+    n, c, h, w = te.size_var("n"), 32, 224, 224
     x = relay.var("x", relay.ty.TensorType((n, c, h, w), "int16"))
     w = relay.var("w", relay.ty.TensorType((32, 32, 3, 3), "int16"))
     y = relay.nn.bitserial_conv2d(

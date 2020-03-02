@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import logging
 import numpy as np
 import time

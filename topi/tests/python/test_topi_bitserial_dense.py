@@ -18,6 +18,7 @@
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -54,8 +55,8 @@ def verify_bitserial_dense(batch, in_dim, out_dim, activation_bits, weight_bits,
             print ("Skipped running code, not an arm device")
             continue
         input_dtype = 'uint8' if "arm_cpu" in target else "uint32"
-        A = tvm.placeholder((batch, in_dim), dtype=input_dtype, name='A')
-        B = tvm.placeholder((out_dim, in_dim), dtype=input_dtype, name='B')
+        A = te.placeholder((batch, in_dim), dtype=input_dtype, name='A')
+        B = te.placeholder((out_dim, in_dim), dtype=input_dtype, name='B')
         fcompute, fschedule = topi.testing.dispatch(target, _bitserial_dense_implement)
         C = fcompute(A, B, activation_bits, weight_bits,
                      input_dtype, out_dtype, unipolar)

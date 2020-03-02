@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 # The following DLDeviceType/TVMDeviceExtType values
 # are originally defined in dlpack.h and c_runtime_api.h.
@@ -26,19 +27,19 @@ def lower(sch, args):
     binds = {}
     arg_list = []
     for x in args:
-        if isinstance(x, tvm.tensor.Tensor):
-            buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
+        if isinstance(x, te.tensor.Tensor):
+            buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
             assert x not in binds
             binds[x] = buf
             arg_list.append(buf)
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
     sch = sch.normalize()
-    bounds = tvm.schedule.InferBound(sch)
-    stmt = tvm.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64)
-    func = tvm.ir_pass.MakeAPI(stmt, "myadd", arg_list, 0, True)
+    bounds = tvm.te.schedule.InferBound(sch)
+    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
+    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64)
+    func = tvm.tir.ir_pass.MakeAPI(stmt, "myadd", arg_list, 0, True)
     return func
 
 
@@ -46,63 +47,63 @@ def lower(sch, args):
 # So VerifyMemory pass is expected to succeed.
 #
 def test_verify_memory_all_bind():
-  n = tvm.var("n")
-  A = tvm.placeholder((n,), name='A')
-  B = tvm.compute(A.shape, lambda i: A[i] + 1.0, name="B")
+  n = te.var("n")
+  A = te.placeholder((n,), name='A')
+  B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
 
   # B is bound to threads.
-  s = tvm.create_schedule(B.op)
+  s = te.create_schedule(B.op)
   bx, tx = s[B].split(B.op.axis[0], factor=64)
-  s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-  s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+  s[B].bind(bx, te.thread_axis("blockIdx.x"))
+  s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
   func = lower(s, [A, B])
 
   for dev_type in gpu_devices + other_devices:
-    assert tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
 
 
 # Computations are not bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
 def test_verify_memory_not_bind():
-  n = tvm.var("n")
-  A = tvm.placeholder((n,), name='A')
-  B = tvm.compute(A.shape, lambda i: A[i] + 1.0, name="B")
+  n = te.var("n")
+  A = te.placeholder((n,), name='A')
+  B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
 
   # B is not bound to threads.
-  s = tvm.create_schedule(B.op)
+  s = te.create_schedule(B.op)
 
   func = lower(s, [A, B])
 
   for dev_type in gpu_devices:
-    assert not tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert not tvm.tir.ir_pass.VerifyMemory(func, dev_type)
   for dev_type in other_devices:
-    assert tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
 
 
 # Computations are partially bound.
 # So VerifyMemory pass fails when device type is GPU.
 #
 def test_verify_memory_partially_bind():
-  n = tvm.var("n")
-  A = tvm.placeholder((n,), name='A')
-  B = tvm.compute(A.shape, lambda i: A[i] + 1.0, name="B")
-  C = tvm.compute(B.shape, lambda i: B[i] + 2.0, name="C")
-  D = tvm.compute(C.shape, lambda i: C[i] + 2.0, name="D")
+  n = te.var("n")
+  A = te.placeholder((n,), name='A')
+  B = te.compute(A.shape, lambda i: A[i] + 1.0, name="B")
+  C = te.compute(B.shape, lambda i: B[i] + 2.0, name="C")
+  D = te.compute(C.shape, lambda i: C[i] + 2.0, name="D")
 
   # C is bound to threads, but B and D are not.
-  s = tvm.create_schedule([B.op, C.op, D.op])
+  s = te.create_schedule([B.op, C.op, D.op])
   bx, tx = s[C].split(C.op.axis[0], factor=64)
-  s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-  s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+  s[C].bind(bx, te.thread_axis("blockIdx.x"))
+  s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
   func = lower(s, [A, B, C, D])
 
   for dev_type in gpu_devices:
-    assert not tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert not tvm.tir.ir_pass.VerifyMemory(func, dev_type)
   for dev_type in other_devices:
-    assert tvm.ir_pass.VerifyMemory(func, dev_type)
+    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
 
 
 if __name__ == "__main__":

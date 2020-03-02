@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """1D convolution operators."""
-from __future__ import absolute_import as _abs
-import tvm
+from tvm import te
 from .pad import pad
 from ..util import simplify
 from .util import get_pad_tuple1d
@@ -34,11 +33,11 @@ def conv1d(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         3-D input shape [batch, in_channel, in_width] for layout == 'NCW'
         and [batch, in_width, in_channel] for layout == 'NWC'
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         3-D kernel with shape [num_filter, in_channel, filter_size] for layout == 'NCW'
         and [filter_size, in_channel, num_filter] for layout == 'NWC'
 
@@ -81,10 +80,10 @@ def conv1d_ncw(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         3-D with shape [batch, in_channel, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         3-D with shape [num_filter, in_channel, filter_size]
 
     strides : int or tuple
@@ -123,12 +122,12 @@ def conv1d_ncw(data,
     temp = pad(data, pad_before, pad_after, name='pad_temp')
 
     # Compute graph
-    rc = tvm.reduce_axis((0, in_channels), name='rc')
-    rw = tvm.reduce_axis((0, kernel_size), name='rw')
+    rc = te.reduce_axis((0, in_channels), name='rc')
+    rw = te.reduce_axis((0, kernel_size), name='rw')
 
-    return tvm.compute(
+    return te.compute(
         (batch, out_channels, out_width),
-        lambda b, c, w: tvm.sum(
+        lambda b, c, w: te.sum(
             temp[b, rc, w * strides + rw * dilation].astype(out_dtype)
             * kernel[c, rc, rw].astype(out_dtype),
             axis=[rc, rw]),
@@ -145,10 +144,10 @@ def conv1d_nwc(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         3-D with shape [batch, in_width, in_channel]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         3-D with shape [filter_size, in_channel, num_filter]
 
     strides : int or tuple
@@ -187,12 +186,12 @@ def conv1d_nwc(data,
     temp = pad(data, pad_before, pad_after, name='pad_temp')
 
     # Compute graph
-    rc = tvm.reduce_axis((0, in_channels), name='rc')
-    rw = tvm.reduce_axis((0, kernel_size), name='rw')
+    rc = te.reduce_axis((0, in_channels), name='rc')
+    rw = te.reduce_axis((0, kernel_size), name='rw')
 
-    return tvm.compute(
+    return te.compute(
         (batch, out_width, out_channels),
-        lambda b, w, c: tvm.sum(
+        lambda b, w, c: te.sum(
             temp[b, w * strides + rw * dilation, rc].astype(out_dtype)
             * kernel[rw, rc, c].astype(out_dtype),
             axis=[rc, rw]),

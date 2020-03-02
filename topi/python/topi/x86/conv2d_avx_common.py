@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """Conv2D schedule on for Intel CPU"""
-from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
@@ -89,7 +88,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
     _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
 
     # schedule pad
-    if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
+    if isinstance(s[data_vec].op, tvm.te.ComputeOp) \
             and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
@@ -102,7 +101,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
         # this part will be folded during Relay fold_constant pass.
         s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
         s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
-    elif isinstance(kernel_vec.op, tvm.tensor.ComputeOp) and \
+    elif isinstance(kernel_vec.op, tvm.te.ComputeOp) and \
             kernel_vec.name == 'kernel_vec':
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for

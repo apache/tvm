@@ -20,6 +20,7 @@ from __future__ import absolute_import as _abs
 import os
 import tvm
 
+
 def ctx_list():
     """Get context list for testcases"""
     device_list = os.environ.get("RELAY_TEST_TARGETS", "")

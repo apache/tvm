@@ -186,6 +186,7 @@ print("Test accuracy of DGL results: {:.2%}".format(acc))
 from tvm import relay
 from tvm.contrib import graph_runtime
 import tvm
+from tvm import te
 
 def GraphConv(layer_name,
               input_dim,

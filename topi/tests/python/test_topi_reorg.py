@@ -19,6 +19,7 @@ import numpy as np
 import topi
 from topi.util import get_const_tuple
 import tvm
+from tvm import te
 import topi.testing
 
 _reorg_schedule = {
@@ -30,7 +31,7 @@ def verify_reorg(batch, in_size, in_channel, stride):
     '''Verify reorg operator by comparing outputs from tvm and numpy implementation'''
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
     B = topi.vision.reorg(A, stride)
 
     a_shape = get_const_tuple(A.shape)

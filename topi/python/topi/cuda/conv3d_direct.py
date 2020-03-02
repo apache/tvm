@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name
 """The templates for cuda conv3d operators"""
 import tvm
+from tvm import te
 from tvm import autotvm
 from ..util import get_const_tuple
 
@@ -57,7 +58,7 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     pad_data, kernel = s[conv].op.input_tensors
 
     s[pad_data].compute_inline()
-    if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+    if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
         s[kernel].compute_inline()
 
     if conv.op in s.outputs:
@@ -84,16 +85,16 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
     bf = s[output].fuse(n, bf)
     s[output].reorder(bf, bd, by, bx, vf, vd, vy, vx, tf, td, ty, tx, fi, di, yi, xi)
 
-    s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(s[output].fuse(bd, by), tvm.thread_axis("blockIdx.y"))
-    s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[output].bind(vf, tvm.thread_axis("vthread"))
-    s[output].bind(vd, tvm.thread_axis("vthread"))
-    s[output].bind(vy, tvm.thread_axis("vthread"))
-    s[output].bind(vx, tvm.thread_axis("vthread"))
-    s[output].bind(s[output].fuse(td, tf), tvm.thread_axis("threadIdx.z"))
-    s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[output].bind(bf, te.thread_axis("blockIdx.z"))
+    s[output].bind(s[output].fuse(bd, by), te.thread_axis("blockIdx.y"))
+    s[output].bind(bx, te.thread_axis("blockIdx.x"))
+    s[output].bind(vf, te.thread_axis("vthread"))
+    s[output].bind(vd, te.thread_axis("vthread"))
+    s[output].bind(vy, te.thread_axis("vthread"))
+    s[output].bind(vx, te.thread_axis("vthread"))
+    s[output].bind(s[output].fuse(td, tf), te.thread_axis("threadIdx.z"))
+    s[output].bind(ty, te.thread_axis("threadIdx.y"))
+    s[output].bind(tx, te.thread_axis("threadIdx.x"))
     s[OL].compute_at(s[output], tx)
 
     # tile reduction axes
@@ -116,9 +117,9 @@ def schedule_direct_conv3d_cuda(cfg, s, conv, layout, workload_name):
         td, fused = s[load].split(fused, nparts=cfg["tile_d"].size[2])
         ty, fused = s[load].split(fused, nparts=cfg["tile_y"].size[2])
         tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(s[load].fuse(td, ty), tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(s[load].fuse(td, ty), te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
