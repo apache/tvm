@@ -60,7 +60,9 @@ def _unpack_quant_params(param_name, packed_params, unpack_func):
     else:
         scales = qweight.q_per_channel_scales().numpy()
         zero_points = qweight.q_per_channel_zero_points().numpy()
-        assert np.all(zero_points == 0)
+        # This is an assumption posed by QNN
+        msg = "The values of zero points should be all zero for per channel"
+        assert np.all(zero_points == 0), msg
         param = QNNParam(weight_np, bias, scales, 0, param_name)
 
     return param
@@ -72,6 +74,8 @@ def get_weight_quant_params(script_module):
     linear_packed_params = []
 
     import torch
+    # conv and linear requires different unpacking function
+    # extract all conv and linear parameters separately to distinguish them
     for name, m in script_module.named_modules():
         if isinstance(m, torch.jit.RecursiveScriptModule):
             if "Conv" in m.original_name:
@@ -165,6 +169,7 @@ def _get_add_scalar_output_quant_param(input_scale, input_zero_point,
     Determine the output scale and zp of quantized::add_scalar op
     This is used for mobilenet v3
     Refer to aten/src/ATen/native/quantized/cpu/qadd.cpp
+    The names of variables are the same as torch impl
     """
     q_min = 0
     q_max = 255
@@ -192,6 +197,7 @@ def _get_mul_scalar_output_quant_param(input_scale, input_zero_point,
     Determine the output scale and zp of quantized::mul_scalar op
     This is used for mobilenet v3
     Refer to aten/src/ATen/native/quantized/cpu/qmul.cpp
+    The names of variables are the same as torch impl
     """
     q_min = 0
     q_max = 255
@@ -316,6 +322,8 @@ def add_input_quant_params_to_op_inputs(graph):
         input_zero_points = []
 
         if operator == "quantized::cat":
+            # the number of inputs to concat is not constant
+            # so handle it separately
             inputs = node.inputsAt(0).node().inputs()
             for inp in inputs:
                 scale, zp = _get_quant_param_for_input(inp)
@@ -332,6 +340,7 @@ def add_input_quant_params_to_op_inputs(graph):
             inp_scale = input_scales[0].node().f("value")
             inp_zero_point = input_zero_points[0].node().i("value")
 
+            # see the comments in this function above
             _add_output_quant_params_to_scalar_op(node, graph,
                                                   inp_scale, inp_zero_point,
                                                   scalar)
@@ -349,24 +358,25 @@ def add_quant_params(params, quant_params):
             params[qparam.bias_var.name_hint] = tvm.nd.array(qparam.bias)
 
 
-def quantized_adaptive_avg_2d(data, func):
+def quantized_adaptive_avg_2d(data, func_fp32):
+    # this follows tflite impl
     inp = _op.cast(data, dtype="int32")
-    out = func(inp)
+    out = func_fp32(inp)
     return _op.cast(out, "uint8")
 
 
-def quantized_mean(data, input_scale, input_zero_point, func):
+def quantized_mean(data, input_scale, input_zero_point, func_fp32):
     # refer to aten/src/ATen/native/quantized/cpu/qreduction.cpp
     dequantized = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
-    out = func(dequantized)
+    out = func_fp32(dequantized)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point,
                                  out_dtype="uint8", axis=1)
 
 
-def quantized_upsample(data, input_scale, input_zero_point, func):
+def quantized_upsample(data, input_scale, input_zero_point, func_fp32):
     # currently piggy backs to fp32, it gets identical output as torch
     data = relay.qnn.op.dequantize(data, input_scale, input_zero_point)
-    out = func(data)
+    out = func_fp32(data)
     return relay.qnn.op.quantize(out, input_scale, input_zero_point,
                                  out_dtype="uint8", axis=1)
 
@@ -387,6 +397,7 @@ def _quantize_per_tensor():
 
 def _dequantize():
     def _impl(inputs, _):
+        assert len(inputs) == 3, "Input quant params not found in op inputs"
         inp_scale = _expr.const(inputs[1])
         inp_zero_point = _expr.const(inputs[2])
         return relay.qnn.op.dequantize(inputs[0], inp_scale, inp_zero_point)
@@ -444,6 +455,8 @@ def _quantized_conv2d(with_relu=False):
         else:
             inp = inputs[0]
 
+        # padding is (0, 0) because we did explicit pad op with
+        # pad value being zero point above
         conv_out = relay.qnn.op.conv2d(inp, weight,
                                        input_zero_point, weight_zero_point,
                                        input_scale, weight_scale,
@@ -456,6 +469,13 @@ def _quantized_conv2d(with_relu=False):
         requant_input_scale = _expr.const(inputs[8] * _get_numpy(weight_scale))
         bias_var = inputs[1][3]
 
+        # Torch does bias add and requanize scale in fp32
+        # refer to third_party/fbgemm/include/fbgemm/OutputProcessing-inl.h
+        # Instead, we do bias add in int32 and use qnn requantize, which needs
+        # integer input.
+        # We observed no loss in accuracy in doing this way, and it is better
+        # for tvm because bias quantization can be done at compile time
+        # Instead, the torch way requires rounding of activation at runtime
         if bias_var is not None:
             qbias = relay.qnn.op.quantize(bias_var, requant_input_scale,
                                           _expr.const(0, "int32"),
@@ -542,6 +562,7 @@ def _linear(with_relu=False):
         requant_input_scale = _expr.const(inputs[4] * _get_numpy(weight_scale))
         bias_var = inputs[1][3]
 
+        # See comments at quantized_conv above on the bias + requantize step
         if bias_var is not None:
             qbias = relay.qnn.op.quantize(bias_var, requant_input_scale,
                                           _expr.const(0, "int32"),
@@ -569,6 +590,7 @@ def _cat():
     # refer to aten/src/ATen/native/quantized/cpu/qconcat.cpp
     # for concat they also piggy backs to fp32(!)
     # dequantize -> fp32 math -> quantize
+    # we can also use QNN concat op. we observed no change in accuracy
     def _impl(inputs, _):
         axis = inputs[1]
         output_scale = _expr.const(inputs[2])
@@ -590,10 +612,9 @@ def _cat():
 
 
 def _add_scalar():
+    # this is used for mobilenet v3
     def _impl(inputs, _):
         # refer to aten/src/ATen/native/quantized/cpu/qadd.cpp
-        # math for calculating output scale and zp are already done
-        # during _add_output_quant_params_to_scalar_op above
         assert len(inputs) == 6, "Input quant params not found in op inputs"
         s = inputs[4]
         z = inputs[5]
@@ -602,6 +623,8 @@ def _add_scalar():
         q_min = 0
         q_max = 255
 
+        # math for calculating output scale and zp are already done
+        # during _add_output_quant_params_to_scalar_op above
         out_scale = _expr.const(inputs[2])
         out_zp = _expr.const(inputs[3])
 
@@ -618,6 +641,7 @@ def _add_scalar():
 
 
 def quantize_scalar(data, scale, zero_point):
+    # used to quantize 6., in mobilenet v3
     transformed = zero_point + data / scale
     return max(0, min(round(transformed), 255))
 
@@ -634,6 +658,7 @@ def _relu6():
 
 
 def _mul_scalar():
+    # this is used for mobilenet v3
     def _impl(inputs, _):
         # refer to aten/src/ATen/native/quantized/cpu/qmul.cpp
         # math for calculating output scale and zp are already done
@@ -648,6 +673,7 @@ def _mul_scalar():
             shape = infer_shape(inputs[0])
             return _op.full(_expr.const(0), shape, dtype="uint8")
 
+        # negative scale case
         q_min = 0
         q_max = 255
         bias = _expr.const(q_max + q_min, dtype="int8")
