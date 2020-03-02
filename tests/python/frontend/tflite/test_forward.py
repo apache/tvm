@@ -943,6 +943,22 @@ def _test_squared_difference(data):
     """ One iteration of squared difference """
     return _test_elemwise(math_ops.squared_difference, data)
 
+#######################################################################
+# Floor_divide
+# ------------
+
+def _test_floor_divide(data):
+    """ One iteration of floor_div"""
+    return _test_elemwise(math_ops.floordiv, data)
+
+#######################################################################
+# Floor_mod
+# ---------
+
+def _test_floor_mod(data):
+    """ One iteration of floor_mod"""
+    return _test_elemwise(math_ops.floormod, data)
+
 def _test_forward_elemwise(testop):
     """ Elewise"""
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
@@ -991,6 +1007,9 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_less_equal)
     _test_forward_elemwise(_test_equal)
     _test_forward_elemwise(_test_not_equal)
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_forward_elemwise(_test_floor_divide)
+        _test_forward_elemwise(_test_floor_mod)
 
 #######################################################################
 # Logical operators
