@@ -21,9 +21,7 @@
  * \file module_util.cc
  * \brief Utilities for module.
  */
-#ifndef _LIBCPP_SGX_CONFIG
 #include <dmlc/memory_io.h>
-#endif
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <string>
@@ -121,7 +119,6 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
  * \return Root Module.
  */
 runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
-#ifndef _LIBCPP_SGX_CONFIG
   CHECK(mblob != nullptr);
   uint64_t nbytes = 0;
   for (size_t i = 0; i < sizeof(nbytes); ++i) {
@@ -180,10 +177,6 @@ runtime::Module ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib) {
   // invariance: root module is always at location 0.
   // The module order is collected via DFS
   return modules[0];
-#else
-  LOG(FATAL) << "SGX does not support ImportModuleBlob";
-  return Module();
-#endif
 }
 
 Module CreateModuleFromLibrary(ObjectPtr<Library> lib) {
