@@ -32,16 +32,19 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-CONFIG = DefaultPynqConfig
+CONFIG = DefaultDe10Config
 TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build
 USE_TRACE = 0
+USE_TRACE_FST = 0
+USE_TRACE_DETAILED = 0
 USE_THREADS = $(shell nproc)
 VTA_LIBNAME = libvta_hw
 UNITTEST_NAME = all
 CXX = g++
 DEBUG = 0
+SANITIZE = 0
 
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
@@ -61,11 +64,12 @@ verilator_opt += -Mdir ${verilator_build_dir}
 verilator_opt += -I$(chisel_build_dir)
 
 ifeq ($(DEBUG), 0)
-  cxx_flags = -O2 -Wall
+  cxx_flags = -O2 -Wall -fvisibility=hidden
 else
   cxx_flags = -O0 -g -Wall
 endif
-cxx_flags += -fvisibility=hidden -std=c++11
+
+cxx_flags += -std=c++11 -faligned-new
 cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
 cxx_flags += -DVL_PRINTF=printf
 cxx_flags += -DVL_USER_FINISH
@@ -82,13 +86,33 @@ cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 
 ld_flags = -fPIC -shared
 
+ifeq ($(SANITIZE), 1)
+  ifeq ($(DEBUG), 1)
+    cxx_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
+     ld_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
+  endif
+endif
+
 cxx_objs = $(verilator_build_dir)/verilated.o $(verilator_build_dir)/verilated_dpi.o $(verilator_build_dir)/tsim_device.o
 
 ifneq ($(USE_TRACE), 0)
-  verilator_opt += --trace
   cxx_flags += -DVM_TRACE=1
-  cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
-  cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
+  ifeq ($(USE_TRACE_FST), 1)
+    cxx_flags += -DVM_TRACE_FST
+    verilator_opt += --trace-fst
+  else
+    verilator_opt += --trace
+  endif
+  ifeq ($(USE_TRACE_DETAILED), 1)
+    verilator_opt += --trace-underscore --trace-structs
+  endif
+  ifeq ($(USE_TRACE_FST), 1)
+    cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).fst
+    cxx_objs += $(verilator_build_dir)/verilated_fst_c.o
+  else
+    cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
+    cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
+  endif
 else
   cxx_flags += -DVM_TRACE=0
 endif
@@ -109,7 +133,7 @@ else
   lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 endif
 
-default: lint lib
+default: lib
 
 lint:
 	sbt scalastyle
