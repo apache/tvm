@@ -65,12 +65,14 @@ register_broadcast_schedule("less")
 register_broadcast_schedule("less_equal")
 register_broadcast_schedule("greater")
 register_broadcast_schedule("greater_equal")
+register_broadcast_schedule("isfinite")
 register_injective_schedule("maximum")
 register_injective_schedule("minimum")
 register_injective_schedule("right_shift")
 register_injective_schedule("left_shift")
 register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
+
 
 
 # zeros
