@@ -3032,7 +3032,7 @@ if __name__ == '__main__':
     test_forward_variable()
     test_placeholder()
 
-    NN
+    # NN
     test_forward_convolution()
     test_forward_pooling()
     test_forward_concat_v2()

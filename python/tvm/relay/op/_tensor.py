@@ -74,7 +74,6 @@ register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
 
 
-
 # zeros
 @register_compute("zeros")
 def zeros_compute(attrs, inputs, output_type):

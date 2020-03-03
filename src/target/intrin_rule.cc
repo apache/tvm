@@ -80,7 +80,6 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isfinite")
     PrimExpr e = args[0];
     const CallNode* call = e.as<CallNode>();
     CHECK(call != nullptr);
-
     *rv = isfinite(call->args[0]);
   });
 
