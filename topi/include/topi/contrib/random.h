@@ -20,9 +20,10 @@
 #ifndef TOPI_CONTRIB_RANDOM_H_
 #define TOPI_CONTRIB_RANDOM_H_
 
-#include <string>
+
 #include <tvm/te/operation.h>
-#include "topi/detail/extern.h"
+#include <topi/detail/extern.h>
+#include <string>
 
 namespace topi {
 namespace contrib {
