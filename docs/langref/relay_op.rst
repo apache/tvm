@@ -84,6 +84,7 @@ This level enables typical convnet models.
    tvm.relay.nn.l2_normalize
    tvm.relay.nn.contrib_conv2d_winograd_without_weight_transform
    tvm.relay.nn.contrib_conv2d_winograd_weight_transform
+   tvm.relay.isfinite
 
 
 **Level 3: Additional Math And Transform Operators**
@@ -297,7 +298,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.repeat
 .. autofunction:: tvm.relay.tile
 .. autofunction:: tvm.relay.reverse
-
+.. autofunction:: tvm.relay.isfinite
 
 Level 4 Definitions
 -------------------
