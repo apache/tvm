@@ -83,11 +83,9 @@ class OperatorConverter(object):
             'GREATER_EQUAL': self.convert_greater_equal,
             'GREATER': self.convert_greater,
             'L2_NORMALIZATION': self.convert_l2_normalization,
-            'LEAKY_RELU': self.convert_leaky_relu,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
             'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
-            'LOG_SOFTMAX': self.convert_log_softmax,
             'LOG': self.convert_log,
             'LOGICAL_AND': self.convert_logical_and,
             'LOGICAL_OR': self.convert_logical_or,
@@ -459,38 +457,6 @@ class OperatorConverter(object):
 
         return out
 
-    def convert_leaky_relu(self, op):
-        """Convert TFLite LEAKY_RELU """
-        try:
-            from tflite.Operator import Operator
-            from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.LeakyReluOptions import LeakyReluOptions
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized LEAKY_RELU operator is not supported yet.')
-
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
-        input_tensor = input_tensors[0]
-        in_expr = self.get_expr(input_tensor.tensor_idx)
-
-        output_tensors = self.get_output_tensors(op)
-        assert len(output_tensors) == 1, "output tensors length should be 1"
-
-        assert op.BuiltinOptionsType() == BuiltinOptions.LeakyReluOptions
-        op_options = op.BuiltinOptions()
-        leaky_relu_options = LeakyReluOptions()
-        leaky_relu_options.Init(op_options.Bytes, op_options.Pos)
-        alpha = leaky_relu_options.Alpha()
-
-        out = _op.nn.leaky_relu(in_expr, alpha=alpha)
-        return out
-
-
     def convert_lrn(self, op):
         """Convert TFLite LOCAL_RESPONSE_NORMALIZATION """
         try:
@@ -528,29 +494,6 @@ class OperatorConverter(object):
         input_tensor_rank = len(input_tensor.tensor.ShapeAsNumpy())
         axis = input_tensor_rank - 1
         out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
-        return out
-
-    def convert_log_softmax(self, op):
-        """Convert TFLite LOG_SOFTMAX """
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized LOG_SOFTMAX operator is not supported yet.')
-
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
-        input_tensor = input_tensors[0]
-        in_expr = self.get_expr(input_tensor.tensor_idx)
-
-        output_tensors = self.get_output_tensors(op)
-        assert len(output_tensors) == 1, "output tensors length should be 1"
-
-        out = _op.nn.log_softmax(in_expr, axis=-1)
         return out
 
     def convert_logistic(self, op):

@@ -1302,24 +1302,6 @@ def test_forward_unpack():
 
 
 #######################################################################
-# Leaky relu
-# ----------
-
-def _test_leaky_relu(data, alpha=None, quantized=False):
-    """ One iteration of LEAKY_RELU """
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
-        out = nn_ops.leaky_relu(in_data, alpha=alpha)
-        compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
-
-def test_forward_leaky_relu():
-    """ LEAKY_RELU """
-    data = np.random.uniform(size=(3, 6, 4)).astype('float32')
-    _test_leaky_relu(data)
-    _test_leaky_relu(data, alpha=0.155)
-
-
-#######################################################################
 # Local response normalization
 # ----------------------------
 
@@ -1335,22 +1317,6 @@ def test_forward_local_response_normalization():
     data = np.random.uniform(size=(1, 6, 4, 3)).astype('float32')
     _test_local_response_normalization(data, depth_radius=5, bias=1, alpha=1, beta=0.5)
 
-
-#######################################################################
-# Log softmax
-# -----------
-
-def _test_log_softmax(data, axis=None):
-    """ One iteration of LOG_SOFTMAX """
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
-        out = nn_ops.log_softmax(in_data, axis)
-        compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
-
-def test_forward_log_softmax():
-    """ LOG_SOFTMAX """
-    data = np.random.uniform(size=(9,11)).astype('float32')
-    _test_log_softmax(data)
 
 #######################################################################
 # L2 normalization
@@ -1759,9 +1725,7 @@ if __name__ == '__main__':
     test_forward_l2_normalization()
     # The below activations come with TFLite >= 1.14.0 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
-        test_forward_leaky_relu()
         test_forward_local_response_normalization()
-        test_forward_log_softmax()
 
     # Elemwise
     test_all_elemwise()
