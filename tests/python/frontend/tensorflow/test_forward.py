@@ -37,6 +37,8 @@ import tvm
 from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
+from tensorflow.python.framework import dtypes
+
 
 #######################################################################
 # Generic run functions for TVM & tensorflow
@@ -2924,6 +2926,27 @@ def test_forward_add_n():
 
 
 #######################################################################
+# isfinite
+# ------------
+def test_forward_isfinite():
+    """test operator Isfinite"""
+
+    # Only float types are allowed
+    tf_dtypes = [dtypes.float32, dtypes.float16, dtypes.float64]
+    np_dtypes = [np.float32, np.float16, np.float64]
+    for tf_dtype, np_dtype in zip(tf_dtypes, np_dtypes):
+        shape = (4, 4)
+        data = np.random.uniform(size=shape).astype(np_dtype)
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
+
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf_dtype, shape, name="in_data")
+        tf.math.is_finite(in_data, name="isfinite")
+        compare_tf_with_tvm([data], ['in_data:0'], 'isfinite:0')
+
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -2992,6 +3015,7 @@ if __name__ == '__main__':
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
+    test_forward_isfinite()
 
     # Reductions
     test_forward_argminmax()
@@ -3008,7 +3032,7 @@ if __name__ == '__main__':
     test_forward_variable()
     test_placeholder()
 
-    # NN
+    NN
     test_forward_convolution()
     test_forward_pooling()
     test_forward_concat_v2()
