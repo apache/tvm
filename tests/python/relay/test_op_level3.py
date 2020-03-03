@@ -683,6 +683,26 @@ def test_gather_nd():
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
+
+def test_isfinite():
+    for dtype in ['float32', 'float16', 'float64', 'int32', 'int16']:
+        shape = (2, 2, 2)
+        x = relay.var("x", relay.TensorType(shape, dtype))
+        y = relay.isfinite(x)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType(shape, "bool")
+
+        data = np.random.uniform(size=shape).astype(dtype)
+        if dtype.startswith('float'):
+            data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
+            data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
+
+        intrp = create_executor()
+        op_res = intrp.evaluate(y, {x: data})
+        ref_res = np.isfinite(data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+
 if __name__ == "__main__":
     test_arange()
     test_cast()
@@ -713,3 +733,4 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
+    test_isfinite()
