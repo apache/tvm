@@ -339,7 +339,7 @@ class StringObj : public Object {
  * ref = std::string{"hello world2"};
  *
  * // You can use the reference as hash map key
- * std::unordered<String, int32_t> m;
+ * std::unordered_map<String, int32_t> m;
  * m[ref] = 1;
  *
  * // You can compare the reference object with other string objects
