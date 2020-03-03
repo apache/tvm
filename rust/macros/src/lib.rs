@@ -17,11 +17,12 @@
  * under the License.
  */
 
+#[macro_use]
 extern crate tvm_macros_raw;
 
 #[macro_export]
 macro_rules! import_module {
     ($module_path:literal) => {
-        tvm_macros_raw::import_module_raw!(file!(), $module_path)
+        $crate::import_module_raw!(file!(), $module_path);
     };
 }
