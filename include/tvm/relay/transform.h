@@ -77,6 +77,8 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
  */
 TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
 
+TVM_DLL Pass GradientCell();
+
 /*!
  * \brief Fold constant expressions.
  *

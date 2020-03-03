@@ -219,6 +219,18 @@ def DeadCodeElimination(inline_once=False):
     """
     return _ffi_api.DeadCodeElimination(inline_once)
 
+def GradientCell():
+    """Condense tensors with all 0s or 1s
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    ret: tvm.relay.Pass
+        The registered pass that condenses tensors with all 0s or 1s
+    """
+    return _transform.GradientCell()
 
 def FoldConstant():
     """Fold the constant expressions in a Relay program.

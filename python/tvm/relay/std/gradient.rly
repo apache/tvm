@@ -36,6 +36,16 @@ def @FromGradCell[T](%g: GradCell[T]) -> T {
   }
 }
 
+def @MultiplyGradCell[T](%multiply: fn(T, T) -> T, %l: GradCell[T], %r: GradCell[T]) -> GradCell[T] {
+  match((%l, %r)) {
+    (Zero(_), _) => %l,
+    (_, Zero(_)) => %r,
+    (One(_), _) => %r,
+    (_, One(_)) => %l,
+    _ => Raw(%multiply(@FromGradCell(%l), @FromGradCell(%r)))
+  }
+}
+
 def @AddGradCell[T](%add: fn(T, T) -> T, %l: GradCell[T], %r: GradCell[T]) -> GradCell[T] {
   match ((%l, %r)) {
     (Zero(_), _) => %r,
