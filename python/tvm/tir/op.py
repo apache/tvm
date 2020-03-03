@@ -592,6 +592,22 @@ def isnan(x):
     return _ffi_api.isnan(x)
 
 
+def isfinite(x):
+    """Check if input value is finite.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return _ffi_api.isfinite(x)
+
+
 def power(x, y):
     """x power y
 
