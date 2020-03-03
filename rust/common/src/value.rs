@@ -21,7 +21,7 @@ use std::{os::raw::c_char, str::FromStr};
 
 use crate::ffi::*;
 
-impl TVMType {
+impl DLDataType {
     fn new(type_code: u8, bits: u8, lanes: u16) -> Self {
         Self {
             code: type_code,
@@ -41,11 +41,11 @@ pub enum ParseTvmTypeError {
 
 /// Implements TVMType conversion from `&str` of general format `{dtype}{bits}x{lanes}`
 /// such as "int32", "float32" or with lane "float32x1".
-impl FromStr for TVMType {
+impl FromStr for DLDataType {
     type Err = ParseTvmTypeError;
     fn from_str(type_str: &str) -> Result<Self, Self::Err> {
         if type_str == "bool" {
-            return Ok(TVMType::new(1, 1, 1));
+            return Ok(DLDataType::new(1, 1, 1));
         }
 
         let mut type_lanes = type_str.split('x');
@@ -74,11 +74,11 @@ impl FromStr for TVMType {
             _ => return Err(ParseTvmTypeError::UnknownType(type_name.to_string())),
         };
 
-        Ok(TVMType::new(type_code, bits, lanes))
+        Ok(DLDataType::new(type_code, bits, lanes))
     }
 }
 
-impl std::fmt::Display for TVMType {
+impl std::fmt::Display for DLDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if self.bits == 1 && self.lanes == 1 {
             return write!(f, "bool");
@@ -123,7 +123,7 @@ macro_rules! impl_pod_tvm_value {
 
 impl_pod_tvm_value!(v_int64, i64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 impl_pod_tvm_value!(v_float64, f64, f32, f64);
-impl_pod_tvm_value!(v_type, TVMType);
+impl_pod_tvm_value!(v_type, DLDataType);
 impl_pod_tvm_value!(v_ctx, TVMContext);
 
 #[derive(Debug, Fail)]
