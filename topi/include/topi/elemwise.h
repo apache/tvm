@@ -59,6 +59,7 @@ TOPI_DECLARE_UNARY_OP(sin);
 TOPI_DECLARE_UNARY_OP(atan);
 TOPI_DECLARE_UNARY_OP(isnan);
 TOPI_DECLARE_UNARY_OP(tanh);
+TOPI_DECLARE_UNARY_OP(isfinite);
 
 /*
  * \brief Fast_tanh_float implementation from Eigen
