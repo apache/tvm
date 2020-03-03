@@ -257,9 +257,9 @@ unsafe extern "C" fn tvm_callback(
     for i in 0..len {
         value = args_list[i];
         tcode = type_codes_list[i];
-        if tcode == ffi::TVMTypeCode_kObjectHandle as c_int
-            || tcode == ffi::TVMTypeCode_kFuncHandle as c_int
-            || tcode == ffi::TVMTypeCode_kModuleHandle as c_int
+        if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
+            || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
+            || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
         {
             check_call!(ffi::TVMCbArgToReturn(&mut value as *mut _, tcode));
         }

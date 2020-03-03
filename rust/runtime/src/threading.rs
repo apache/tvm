@@ -86,9 +86,8 @@ struct Task {
 unsafe impl Send for Task {}
 unsafe impl Sync for Task {}
 
-impl FnOnce<()> for Task {
-    type Output = i32;
-    extern "rust-call" fn call_once(self, _args: ()) -> Self::Output {
+impl Task {
+    fn run(self) -> i32 {
         let status = (self.flambda)(self.id, &self.penv as *const _, self.cdata);
         self.pending.fetch_sub(1, Ordering::AcqRel);
         status
@@ -139,17 +138,18 @@ impl ThreadPool {
         let mut tasks = job.tasks(self.num_workers + 1);
 
         for (i, task) in tasks.split_off(1).into_iter().enumerate() {
-            self.threads.queues[i].push(task);
+            self.threads.queues[i].send(task)
+                .expect("should send");
         }
 
-        tasks.pop().unwrap()();
+        tasks.pop().unwrap().run();
         job.wait();
     }
 
     fn run_worker(queue: Receiver<Task>) {
         loop {
-            let task = queue.pop();
-            let result = task();
+            let task = queue.recv().expect("should recv");
+            let result = task.run();
             if result == <i32>::min_value() {
                 break;
             } else if result != 0 {

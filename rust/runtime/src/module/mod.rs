@@ -36,7 +36,7 @@ pub trait Module {
 
 // @see `WrapPackedFunc` in `llvm_module.cc`.
 fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> Box<dyn PackedFunc> {
-    box move |args: &[TVMArgValue]| {
+    Box::new(move |args: &[TVMArgValue]| {
         let (values, type_codes): (Vec<TVMValue>, Vec<i32>) = args
             .iter()
             .map(|arg| {
@@ -52,5 +52,5 @@ fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> Box<
                 func_name.clone(),
             ))
         }
-    }
+    })
 }

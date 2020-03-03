@@ -29,6 +29,11 @@ use crate::allocator::Allocation;
 
 const WS_ALIGN: usize = 64; // taken from `kTempAllocaAlignment` in `device_api.h`
 
+pub fn remove_item<T: PartialEq>(vec: &mut Vec<T>, item: &T) -> Option<T> {
+    let pos = vec.iter().position(|x| *x == *item)?;
+    Some(vec.remove(pos))
+}
+
 struct WorkspacePool {
     workspaces: Vec<Allocation>,
     free: Vec<usize>,
@@ -69,7 +74,7 @@ impl WorkspacePool {
             });
         match idx {
             Some(idx) => {
-                self.free.remove_item(&idx).unwrap();
+                remove_item(&mut self.free, &idx).unwrap();
                 self.in_use.push(idx);
                 Ok(self.workspaces[idx].as_mut_ptr())
             }

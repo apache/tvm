@@ -28,15 +28,6 @@
 //! The main entrypoints to this crate are `GraphExecutor`
 //! For examples of use, please refer to the multi-file tests in the `tests` directory.
 
-#![feature(
-    allocator_api,
-    box_syntax,
-    fn_traits,
-    unboxed_closures,
-    vec_remove_item
-)]
-
-extern crate bounded_spsc_queue;
 #[macro_use]
 extern crate failure;
 #[macro_use]

@@ -281,13 +281,13 @@ impl<'m, 't> GraphExecutor<'m, 't> {
                 })
                 .collect::<Result<Vec<DLTensor>, Error>>()
                 .unwrap();
-            let op: Box<dyn Fn()> = box move || {
+            let op: Box<dyn Fn()> = Box::new(move || {
                 let args = dl_tensors
                     .iter()
                     .map(|t| t.into())
                     .collect::<Vec<TVMArgValue>>();
                 func(&args).unwrap();
-            };
+            });
             op_execs.push(op);
         }
         Ok(op_execs)
