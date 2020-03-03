@@ -412,6 +412,42 @@ def _get_scalar(relay_const_scalar):
     return np.asscalar(_get_numpy(relay_const_scalar))
 
 
+def _do_bias_and_requantize(output, bias, input_scale, weight_scale,
+                            output_scale, output_zero_point,
+                            with_relu):
+    """ Output processing for conv and linear """
+    # this is a vector for per channel case
+    requant_input_scale = _expr.const(_get_numpy(input_scale) *
+                                      _get_numpy(weight_scale))
+    # Torch does bias add and requanize scale in fp32
+    # refer to third_party/fbgemm/include/fbgemm/OutputProcessing-inl.h
+    # Instead, we do bias add in int32 and use qnn requantize, which needs
+    # integer input.
+    # We observed no loss in accuracy in doing this way, and it is better
+    # for tvm because bias quantization can be done at compile time
+    # Instead, the torch way requires rounding of activation at runtime
+
+    if bias is not None:
+        qbias = relay.qnn.op.quantize(bias, requant_input_scale,
+                                      _expr.const(0, "int32"),
+                                      out_dtype="int32", axis=0)
+        requantize_input = _op.nn.bias_add(output, qbias)
+    else:
+        requantize_input = output
+
+    requantized = relay.qnn.op.requantize(requantize_input,
+                                          requant_input_scale,
+                                          relay.const(0, 'int32'),
+                                          output_scale, output_zero_point,
+                                          out_dtype="int32", axis=1)
+    clip_min = 0
+    if with_relu:
+        clip_min = _get_scalar(output_zero_point)
+
+    clip = _op.tensor.clip(requantized, clip_min, 255.)
+    return _op.cast(clip, dtype="uint8")
+
+
 def _quantized_conv2d(with_relu=False):
     def _impl(inputs, _):
         # refer to src/ATen/native/quantized/cpu/qconv.cpp
@@ -464,37 +500,38 @@ def _quantized_conv2d(with_relu=False):
                                        dilation=dilation, strides=strides,
                                        padding=(0, 0), groups=groups,
                                        channels=out_channels)
-
-        # input scale * weight scale
-        requant_input_scale = _expr.const(inputs[8] * _get_numpy(weight_scale))
         bias_var = inputs[1][3]
 
-        # Torch does bias add and requanize scale in fp32
-        # refer to third_party/fbgemm/include/fbgemm/OutputProcessing-inl.h
-        # Instead, we do bias add in int32 and use qnn requantize, which needs
-        # integer input.
-        # We observed no loss in accuracy in doing this way, and it is better
-        # for tvm because bias quantization can be done at compile time
-        # Instead, the torch way requires rounding of activation at runtime
-        if bias_var is not None:
-            qbias = relay.qnn.op.quantize(bias_var, requant_input_scale,
-                                          _expr.const(0, "int32"),
-                                          out_dtype="int32", axis=0)
-            conv_res = _op.nn.bias_add(conv_out, qbias)
-        else:
-            conv_res = conv_out
+        return _do_bias_and_requantize(conv_out, bias_var, input_scale,
+                                       weight_scale, output_scale,
+                                       output_zero_point, with_relu)
 
-        requantized = relay.qnn.op.requantize(conv_res,
-                                              requant_input_scale,
-                                              _expr.const(0, "int32"),
-                                              output_scale, output_zero_point,
-                                              out_dtype="int32", axis=1)
-        clip_min = 0
-        if with_relu:
-            clip_min = _get_scalar(output_zero_point)
+    return _impl
 
-        clip = _op.tensor.clip(requantized, clip_min, 255.)
-        return _op.cast(clip, dtype="uint8")
+
+def _linear(with_relu=False):
+    # similar to conv
+    def _impl(inputs, _):
+        weight = inputs[1][0]
+        weight_scale = inputs[1][1]
+        weight_zero_point = inputs[1][2]
+        output_scale = _expr.const(inputs[2])
+        output_zero_point = _expr.const(inputs[3])
+        assert len(inputs) == 6, "Input quant params not found in op inputs"
+        # Manually added by add_input_quant_params_to_op_inputs above
+        input_scale = _expr.const(inputs[4])
+        input_zero_point = _expr.const(inputs[5])
+
+        weight_shape = infer_shape(weight)
+        dense = relay.qnn.op.dense(inputs[0], weight,
+                                   input_zero_point, weight_zero_point,
+                                   input_scale, weight_scale,
+                                   units=weight_shape[0])
+        bias_var = inputs[1][3]
+
+        return _do_bias_and_requantize(dense, bias_var, input_scale,
+                                       weight_scale, output_scale,
+                                       output_zero_point, with_relu)
 
     return _impl
 
@@ -537,52 +574,6 @@ def _binop(relay_op, with_relu=False):
                                      output_zero_point,
                                      axis=-1,
                                      out_dtype="uint8")
-    return _impl
-
-
-def _linear(with_relu=False):
-    # similar to conv
-    def _impl(inputs, _):
-        weight = inputs[1][0]
-        weight_scale = inputs[1][1]
-        weight_zero_point = inputs[1][2]
-        output_scale = _expr.const(inputs[2])
-        output_zero_point = _expr.const(inputs[3])
-        assert len(inputs) == 6, "Input quant params not found in op inputs"
-        # Manually added by add_input_quant_params_to_op_inputs above
-        input_scale = _expr.const(inputs[4])
-        input_zero_point = _expr.const(inputs[5])
-
-        weight_shape = infer_shape(weight)
-        dense = relay.qnn.op.dense(inputs[0], weight,
-                                   input_zero_point, weight_zero_point,
-                                   input_scale, weight_scale,
-                                   units=weight_shape[0])
-
-        requant_input_scale = _expr.const(inputs[4] * _get_numpy(weight_scale))
-        bias_var = inputs[1][3]
-
-        # See comments at quantized_conv above on the bias + requantize step
-        if bias_var is not None:
-            qbias = relay.qnn.op.quantize(bias_var, requant_input_scale,
-                                          _expr.const(0, "int32"),
-                                          out_dtype="int32", axis=0)
-            dense_res = _op.nn.bias_add(dense, qbias)
-        else:
-            dense_res = dense
-
-        requantized = relay.qnn.op.requantize(dense_res,
-                                              requant_input_scale,
-                                              relay.const(0, 'int32'),
-                                              output_scale, output_zero_point,
-                                              out_dtype="int32", axis=1)
-        clip_min = 0
-        if with_relu:
-            clip_min = _get_scalar(output_zero_point)
-
-        clip = _op.tensor.clip(requantized, clip_min, 255.)
-        return _op.cast(clip, dtype="uint8")
-
     return _impl
 
 

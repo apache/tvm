@@ -309,7 +309,6 @@ def test_quantized_modules():
 
         # we cannot make any guarantee on how close the raw output is to torch
         # tvm.testing.assert_allclose(tvm_result, pt_result, rtol=1e-1, atol=1e-1)
-        assert match_ratio > 0.6
 
 
 def test_quantized_imagenet():
