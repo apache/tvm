@@ -552,6 +552,25 @@ def PartitionGraph():
     return _transform.PartitionGraph()
 
 
+
+def AnnotateTarget(target):
+    """Annotate ops in an experession with a provied compiler/target and then
+    use it for codegen.
+
+    Parameters
+    ----------
+    target : String
+        The target compiler used for codegen.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The annotated pass that wrapps ops with subgraph_start and
+        subgraph_end.
+    """
+    return _transform.AnnotateTarget(target)
+
+
 def Inline():
     """Perform inlining on the given Relay IR module. The global functions that
     are marked as `inline` should be always inlined. A cost model will be
