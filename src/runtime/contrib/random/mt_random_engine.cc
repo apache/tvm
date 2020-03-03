@@ -152,7 +152,7 @@ class RandomEngine {
       LOG(FATAL) << "Do not support random.uniform on this device yet";
     }
   }
-  
+
    /*!
     * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
     */
