@@ -59,6 +59,13 @@ TVM_DLL PrimExpr max_value(const DataType& dtype);
 TVM_DLL PrimExpr min_value(const DataType& dtype);
 
 /*!
+ * Get the infinity.
+ * \param dtype The data type.
+ * \return the infinity value in this format.
+ */
+TVM_DLL PrimExpr infinity(const DataType& dtype);
+
+/*!
  * \brief cast value to type.
  *
  * \param t the target type.
@@ -413,6 +420,13 @@ TVM_DLL PrimExpr abs(PrimExpr x);
  * \return The result expression.
  */
 TVM_DLL PrimExpr isnan(PrimExpr x);
+
+/*!
+ * \brief Check if x is finite.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isfinite(PrimExpr x);
 
 /*!
  * \brief sum of of source expression over axis
