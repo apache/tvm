@@ -993,3 +993,17 @@ def ndarray_size(data, dtype="int32"):
         The number of elements of input tensor.
     """
     return _make.ndarray_size(data, dtype)
+
+
+def isfinite(data):
+    """Compute element-wise finiteness of data.
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.isfinite(data)
