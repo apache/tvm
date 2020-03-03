@@ -1315,7 +1315,9 @@ def _test_local_response_normalization(data, depth_radius, bias, alpha, beta):
 def test_forward_local_response_normalization():
     """ LOCAL_RESPONSE_NORMALIZATION """
     data = np.random.uniform(size=(1, 6, 4, 3)).astype('float32')
-    _test_local_response_normalization(data, depth_radius=5, bias=1, alpha=1, beta=0.5)
+    # LOCAL_RESPONSE_NORMALIZATION come with TFLite >= 1.14.0 fbs schema
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_local_response_normalization(data, depth_radius=5, bias=1, alpha=1, beta=0.5)
 
 
 #######################################################################
@@ -1723,9 +1725,7 @@ if __name__ == '__main__':
     test_forward_prelu()
     test_forward_fully_connected()
     test_forward_l2_normalization()
-    # The below activations come with TFLite >= 1.14.0 fbs schema
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
-        test_forward_local_response_normalization()
+    test_forward_local_response_normalization()
 
     # Elemwise
     test_all_elemwise()

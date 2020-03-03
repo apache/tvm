@@ -489,11 +489,9 @@ class OperatorConverter(object):
         beta = lrn_options.Beta()
         size = (radius * 2) + 1
         alpha = alpha * size
-
-        # TFLite supports lrn only over the last dim
-        input_tensor_rank = len(input_tensor.tensor.ShapeAsNumpy())
-        axis = input_tensor_rank - 1
+        axis = 3 # NHWC format
         out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+
         return out
 
     def convert_logistic(self, op):
@@ -736,6 +734,12 @@ class OperatorConverter(object):
 
     def convert_elu(self, op):
         """Convert TFLite ELU"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        assert isinstance(op, Operator)
+
         if self.is_quantized(op):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized ELU operator is not supported yet.')
@@ -748,6 +752,7 @@ class OperatorConverter(object):
         out = relay.const(-1.0, exp_type) * \
               _op.nn.relu(relay.const(1., exp_type) - _op.exp(in_expr)) + \
               _op.nn.relu(in_expr)
+
         return out
 
     def convert_square(self, op):
