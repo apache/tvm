@@ -111,6 +111,8 @@ class Core(implicit p: Parameters) extends Module {
   ecounters.io.launch := io.vcr.launch
   ecounters.io.finish := compute.io.finish
   io.vcr.ecnt <> ecounters.io.ecnt
+  io.vcr.ucnt <> ecounters.io.ucnt
+  ecounters.io.acc_wr_event := compute.io.acc_wr_event
 
   // Finish instruction is executed and asserts the VCR finish flag
   val finish = RegNext(compute.io.finish)

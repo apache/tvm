@@ -45,6 +45,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
     val wgt = new TensorMaster(tensorType = "wgt")
     val out = new TensorMaster(tensorType = "out")
     val finish = Output(Bool())
+    val acc_wr_event = Output(Bool())
   })
   val sIdle :: sSync :: sExe :: Nil = Enum(3)
   val state = RegInit(sIdle)
@@ -125,6 +126,7 @@ class Compute(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorAcc.io.tensor.rd.idx <> Mux(dec.io.isGemm, tensorGemm.io.acc.rd.idx, tensorAlu.io.acc.rd.idx)
   tensorAcc.io.tensor.wr <> Mux(dec.io.isGemm, tensorGemm.io.acc.wr, tensorAlu.io.acc.wr)
   io.vme_rd(1) <> tensorAcc.io.vme_rd
+  io.acc_wr_event := tensorAcc.io.tensor.wr.valid
 
   // gemm
   tensorGemm.io.start := state === sIdle & start & dec.io.isGemm
