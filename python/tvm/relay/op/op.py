@@ -453,13 +453,35 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
     return register(op_name, "FShapeFunc", shape_func, level)
 
+
+def register_external_compiler(op_name, fexternal=None, level=10):
+    """Register the external compiler for an op.
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator.
+
+    fexternal : function (attrs: Attrs, args: List[Expr], compiler: str)
+              -> new_expr: Expr
+        The function for wrapping a call expr with compiler_begin and
+        compiler_end.
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FTVMExternalCompiler", fexternal, level)
+
+
 @tvm._ffi.register_func("relay.op.compiler._lower")
 def _lower(name, schedule, inputs, outputs):
     return lower(schedule, list(inputs) + list(outputs), name=name)
 
+
 @tvm._ffi.register_func("relay.op.compiler._build")
 def _build(lowered_funcs):
     return build(lowered_funcs, target="llvm")
+
 
 _schedule_injective = None
 _schedule_reduce = None
