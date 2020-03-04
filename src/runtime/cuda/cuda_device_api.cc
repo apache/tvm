@@ -113,7 +113,7 @@ class CUDADeviceAPI final : public DeviceAPI {
                        size_t alignment,
                        DLDataType type_hint) final {
     void *ret;
-    if(ctx.device_type == kDLCPUPinned) {
+    if (ctx.device_type == kDLCPUPinned) {
         CUDA_CALL(cudaMallocHost(&ret, nbytes));
     } else {
       CUDA_CALL(cudaSetDevice(ctx.device_id));
@@ -126,7 +126,7 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    if(ctx.device_type == kDLCPUPinned) {
+    if (ctx.device_type == kDLCPUPinned) {
       CUDA_CALL(cudaFreeHost(ptr));
     } else {
       CUDA_CALL(cudaSetDevice(ctx.device_id));
@@ -147,11 +147,11 @@ class CUDADeviceAPI final : public DeviceAPI {
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
 
-    if(ctx_from.device_type == kDLCPUPinned) {
+    if (ctx_from.device_type == kDLCPUPinned) {
       ctx_from.device_type = kDLCPU;
     }
 
-    if(ctx_to.device_type == kDLCPUPinned) {
+    if (ctx_to.device_type == kDLCPUPinned) {
       ctx_to.device_type = kDLCPU;
     }
 
