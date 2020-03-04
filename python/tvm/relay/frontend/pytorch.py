@@ -927,7 +927,7 @@ def _get_operator_nodes(nodes):
             node_name = _get_output_name(node)
 
         if node.kind() != "prim::GetAttr":
-            ops.append((node_name,node))
+            ops.append((node_name, node))
 
     return ops
 
