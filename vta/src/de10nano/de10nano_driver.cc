@@ -28,6 +28,7 @@
 #include <tvm/runtime/registry.h>
 #include <dmlc/logging.h>
 #include <thread>
+#include <string>
 #include "cma_api.h"
 
 void* VTAMemAlloc(size_t size, int cached) {
@@ -82,7 +83,7 @@ void *VTAMapRegister(uint32_t addr) {
               MAP_SHARED,
               mmap_file,
               virt_base);
-  close (mmap_file);
+  close(mmap_file);
   return vmem;
 }
 
@@ -155,11 +156,10 @@ int VTADeviceRun(VTADeviceHandle handle,
       insn_phy_addr, insn_count, wait_cycles);
 }
 
-void VTAProgram (const char *rbf)
-{
+void VTAProgram(const char *rbf) {
   de10nano_mgr mgr;
   CHECK(mgr.mapped()) << "de10nano: mapping of /dev/mem failed";
-  CHECK(mgr.program_rbf (rbf)) << "Programming of the de10nano failed.\n"
+  CHECK(mgr.program_rbf(rbf)) << "Programming of the de10nano failed.\n"
   "This is usually due to the use of an RBF file that is incompatible "
   "with the MSEL switches on the DE10-Nano board. The recommended RBF "
   "format is FastPassiveParallel32 with compression enabled, "
