@@ -898,7 +898,7 @@ _convert_map = {
     "aten::detach"                          : _identity(),
     "aten::upsample_bilinear2d"             : _upsample("bilinear"),
     "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
-    "aten::expand_as"                       : _expand_as()
+    "aten::expand_as"                       : _expand_as(),
     'aten::lt'                              : _lt(),
     'aten::gt'                              : _gt(),
     'aten::Bool'                            : _Bool(),
@@ -1350,8 +1350,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
-    body = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
-                             output_index_map, ret_name)
-    func = tvm.relay.Function(_analysis.free_vars(body), body)
+    ret = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
+                            output_index_map, ret_name)
+    func = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
     return _module.IRModule.from_expr(func), tvm_params
