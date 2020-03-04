@@ -133,7 +133,7 @@ def test_ewise():
                     print("Skip because %s is not enabled" % device)
                     return
                 with tvm.target.create(device):
-                    s = topi.generic.schedule_injective(B)
+                    s = topi.testing.get_injective_schedule(B)
                 foo = tvm.build(s, [A, B], device, name="isfinite")
                 a = tvm.nd.array(a_np, ctx)
                 b = tvm.nd.array(np.zeros_like(b_np), ctx)
