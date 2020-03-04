@@ -375,8 +375,13 @@ def test_forward_avgpool():
         def forward(self, *args):
             return torch.nn.AvgPool2d(kernel_size=[10, 10])(args[0])
 
+    class AvgPool2D2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.avg_pool2d(args[0], kernel_size=[10, 10])
+
     input_data = torch.rand(input_shape).float()
     verify_model(AvgPool2D1().float().eval(), input_data=input_data)
+    verify_model(AvgPool2D2().float().eval(), input_data=input_data)
 
 def test_forward_hardtanh():
     torch.set_grad_enabled(False)
