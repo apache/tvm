@@ -114,7 +114,7 @@ def test_ewise():
             check_device(target)
 
     def test_isfinite():
-        for dtype in ['float32', 'float16', 'float64', 'int32', 'int16']:
+        for dtype in ['float32', 'float64', 'int32', 'int16']:
             m = te.var("m")
             l = te.var("l")
             A = te.placeholder((m, l), dtype=dtype, name="A")
@@ -133,7 +133,7 @@ def test_ewise():
                     print("Skip because %s is not enabled" % device)
                     return
                 with tvm.target.create(device):
-                    s = topi.testing.get_injective_schedule(B)
+                    s = topi.testing.get_injective_schedule(device)(B)
                 foo = tvm.build(s, [A, B], device, name="isfinite")
                 a = tvm.nd.array(a_np, ctx)
                 b = tvm.nd.array(np.zeros_like(b_np), ctx)
