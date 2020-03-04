@@ -51,7 +51,7 @@ def pynq_bitstream_program(bitstream_path):
 def de10nano_bitstream_program(bitstream_path):
     from tvm import get_global_func
     program = get_global_func("vta.de10nano.program")
-    program (bitstream_path)
+    program(bitstream_path)
 
 def bitstream_program(target, bitstream):
     if target in ['pynq', 'ultra96']:

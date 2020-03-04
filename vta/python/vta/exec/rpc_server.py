@@ -69,12 +69,12 @@ def server_start():
         # pylint: disable=import-outside-toplevel
         env = get_env()
         if env.TARGET == "pynq":
-          from pynq import xlnk
-          # Reset xilinx driver
-          xlnk.Xlnk().xlnk_reset()
+            from pynq import xlnk
+            # Reset xilinx driver
+            xlnk.Xlnk().xlnk_reset()
         elif env.TARGET == "de10nano":
-          # Load the de10nano program function.
-          load_vta_dll()
+            # Load the de10nano program function.
+            load_vta_dll()
         path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
         program_bitstream.bitstream_program(env.TARGET, path)
         logging.info("Program FPGA with %s ", file_name)
