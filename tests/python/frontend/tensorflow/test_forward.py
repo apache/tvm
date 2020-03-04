@@ -2931,12 +2931,12 @@ def test_forward_add_n():
 def test_forward_isfinite():
     """test operator Isfinite"""
 
-    # Only float types are allowed
+    # Only float types are allowed in Tensorflow for isfinite
     tf_dtypes = [dtypes.float32, dtypes.float16, dtypes.float64]
-    np_dtypes = [np.float32, np.float16, np.float64]
-    for tf_dtype, np_dtype in zip(tf_dtypes, np_dtypes):
+    for tf_dtype in tf_dtypes:
+        print("testing tf_dtype {}".format(tf_dtype))
         shape = (4, 4)
-        data = np.random.uniform(size=shape).astype(np_dtype)
+        data = np.random.uniform(size=shape).astype(tf_dtype.as_numpy_dtype)
         data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
         data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
 
