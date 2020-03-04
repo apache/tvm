@@ -123,7 +123,7 @@ void PassDownDomain(const Stage& stage,
       const Range& range_parent = state.at(r->parent);
       // Tighten iv's extent to min(parent_extent, factor_or_nparts), only if all of the
       // following conditions are met:
-      // 1. No leaf IterVar is derived from iv binds to any thread.  People may use split
+      // 1. No leaf IterVar derived from iv binds to any thread.  People may use split
       // to force an IterVar extent to match the number of allocated threads to fuse stages
       // that require different number of threads.  We don't want to change these extents.
       // 2. allow_missing is false, i.e. that PassDownDomain is called by the final InferBound,
