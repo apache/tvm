@@ -49,6 +49,7 @@ def pynq_bitstream_program(bitstream_path):
     bitstream.download()
 
 def de10nano_bitstream_program(bitstream_path):
+    # pylint: disable=import-outside-toplevel
     from tvm import get_global_func
     program = get_global_func("vta.de10nano.program")
     program(bitstream_path)
