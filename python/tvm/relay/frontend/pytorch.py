@@ -921,7 +921,7 @@ def _get_constant(node):
 
 def _get_operator_nodes(nodes):
     """ Returns torch IR nodes that need conversion to Relay """
-    ops = []
+    ops = {}
     # Traverse nodes and add to graph
     for node in nodes:
         if node.outputsSize() > 1:
@@ -930,7 +930,7 @@ def _get_operator_nodes(nodes):
             node_name = _get_output_name(node)
 
         if node.kind() != "prim::GetAttr":
-            ops.append((node_name, node))
+            ops[node_name] = node
 
     return ops
 
@@ -1018,7 +1018,7 @@ def parse_params(graph, state_dict):
 
 def parse_operators(operators, outputs, output_index_map, ret_name):
     """ Convert each Torch IR operators to Relay equivalent """
-    for node_name, op_node in operators:
+    for node_name, op_node in operators.items():
         operator = op_node.kind()
         inputs = _get_op_inputs(op_node, outputs, output_index_map)
 
