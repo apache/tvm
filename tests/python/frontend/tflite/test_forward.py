@@ -1182,7 +1182,7 @@ def test_all_reduce():
     _test_forward_reduce_quantized(_test_reduce_mean)
     _test_forward_reduce(_test_reduce_prod)
     _test_forward_reduce(_test_reduce_sum)
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_forward_reduce(_test_reduce_any, dtype="bool")
 
 
