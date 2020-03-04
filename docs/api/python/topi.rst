@@ -57,6 +57,7 @@ List of operators
    topi.nn.relu
    topi.nn.leaky_relu
    topi.nn.dilate
+   topi.nn.dilation2d
    topi.nn.pool
    topi.nn.global_pool
    topi.nn.adaptive_pool
@@ -197,6 +198,7 @@ topi.nn
 .. autofunction:: topi.nn.upsampling
 .. autofunction:: topi.nn.softmax
 .. autofunction:: topi.nn.dense
+.. autofunction:: topi.nn.dilation2d
 .. autofunction:: topi.nn.batch_matmul
 .. autofunction:: topi.nn.log_softmax
 .. autofunction:: topi.nn.conv2d_nchw
