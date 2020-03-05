@@ -24,13 +24,13 @@
 #define VTA_DE10NANO_DE10NANO_MGR_H_
 
 #include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/time.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/time.h>
 
 // Register definition and address map taken from cv_5v4.pdf,
 // Cyclone V Hard Processor System Technical Reference Manual,
