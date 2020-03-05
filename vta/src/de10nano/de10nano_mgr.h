@@ -23,33 +23,30 @@
 #ifndef VTA_DE10NANO_DE10NANO_MGR_H_
 #define VTA_DE10NANO_DE10NANO_MGR_H_
 
-extern "C" {
-  #include <fcntl.h>
-  #include <unistd.h>
-  #include <stddef.h>
-  #include <stdint.h>
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <sys/mman.h>
-  #include <sys/types.h>
-  #include <sys/time.h>
-}
+#include <fcntl.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/time.h>
 
 // Register definition and address map taken from cv_5v4.pdf,
 // Cyclone V Hard Processor System Technical Reference Manual,
 // chapter 5: FPGA Manager.
-struct de10nano_mgr {
-  // reg32 is a static base class interface and implementation
+struct De10NanoMgr {
+  // Reg32 is a static base class interface and implementation
   // of a generic 32 bit register that avoids the use of a virtual
   // class and ugly bit shift manipulations.
-  struct reg32 {
-    explicit reg32(uint32_t offset, uint32_t reset = 0) :
+  struct Reg32 {
+    explicit Reg32(uint32_t offset, uint32_t reset = 0) :
       m_offset(offset),
       m_reset(reset)
     {}
     void map(uint8_t *base) {
       m_addr = reinterpret_cast<uint32_t*>(base + m_offset);
-      m_reg  = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(this)+sizeof(reg32));
+      m_reg  = reinterpret_cast<uint32_t*>(reinterpret_cast<uint8_t*>(this)+sizeof(Reg32));
     }
     uint32_t read() {
       *m_reg = *m_addr;
@@ -70,20 +67,20 @@ struct de10nano_mgr {
     volatile uint32_t *m_addr;
 
    private:  // Do not use this class on its own.
-    reg32(const reg32 &rhs);
+    Reg32(const Reg32 &rhs);
   };
 
   // Register definitions. All registers are of 32 bit size.
   // Add one structure for each register, making sure that all
   // bit fields come first and pack exactly into 32 bits.
 
-  struct data : public reg32 {
-    data() : reg32(0x0, 0x0) {}
+  struct data : public Reg32 {
+    data() : Reg32(0x0, 0x0) {}
     uint32_t value;
   } data;
 
-  struct stat : public reg32 {
-    stat() : reg32(0x0, 0x45) {}
+  struct stat : public Reg32 {
+    stat() : Reg32(0x0, 0x45) {}
     enum mode_values {
       FPGA_POWER_OFF    = 0x0,
       FPGA_RESET_PHASE  = 0x1,
@@ -116,7 +113,7 @@ struct de10nano_mgr {
     }
 
     void print(bool addr = false, bool fields = true) {
-      reg32::print("stat", addr);
+      Reg32::print("stat", addr);
       if (fields) {
         printf("DE10-Nano-Mgr: %16s: %x\n", "msel", msel);
         printf("DE10-Nano-Mgr: %16s: %s\n", "mode", mode_str());
@@ -128,8 +125,8 @@ struct de10nano_mgr {
     uint32_t rsvd : 24;  // 31:8
   } stat;
 
-  struct ctrl : public reg32 {
-    ctrl() : reg32(0x4, 0x200) {}
+  struct ctrl : public Reg32 {
+    ctrl() : Reg32(0x4, 0x200) {}
 
     uint32_t           en :  1;  //     0 RW
     uint32_t          nce :  1;  //     1 RW
@@ -143,7 +140,7 @@ struct de10nano_mgr {
     uint32_t         rsvd : 22;  // 31:10
 
     void print(bool addr = false, bool fields = true) {
-      reg32::print("ctrl", addr);
+      Reg32::print("ctrl", addr);
       if (fields) {
         printf("DE10-Nano-Mgr: %16s: %x\n", "en"          , en);
         printf("DE10-Nano-Mgr: %16s: %x\n", "nce"         , nce);
@@ -158,31 +155,31 @@ struct de10nano_mgr {
     }
   } ctrl;
 
-  struct dclkcnt : public reg32 {
-    dclkcnt() : reg32(0x8, 0x0) {}
-    void print() { return reg32::print("dclkcnt"); }
+  struct dclkcnt : public Reg32 {
+    dclkcnt() : Reg32(0x8, 0x0) {}
+    void print() { return Reg32::print("dclkcnt"); }
 
     uint32_t cnt;  // RW
   } dclkcnt;
 
-  struct dclkstat : public reg32 {
-    dclkstat() : reg32(0xC, 0x0) {}
-    void print() { return reg32::print("dclkstat"); }
+  struct dclkstat : public Reg32 {
+    dclkstat() : Reg32(0xC, 0x0) {}
+    void print() { return Reg32::print("dclkstat"); }
 
     uint32_t dcntdone :  1;  // RW
     uint32_t     rsvd : 31;
   } dclkstat;
 
-  struct gpio_inten : public reg32 {
-    gpio_inten() : reg32(0x830, 0x0) {}
-    void print() { return reg32::print("gpio_inten"); }
+  struct gpio_inten : public Reg32 {
+    gpio_inten() : Reg32(0x830, 0x0) {}
+    void print() { return Reg32::print("gpio_inten"); }
 
     uint32_t    value : 32;  // RW
   } gpio_inten;
 
-  struct gpio_porta_eoi : public reg32 {
-    gpio_porta_eoi() : reg32(0x84C, 0x0) {}
-    void print() { return reg32::print("gpio_porta_eoi"); }
+  struct gpio_porta_eoi : public Reg32 {
+    gpio_porta_eoi() : Reg32(0x84C, 0x0) {}
+    void print() { return Reg32::print("gpio_porta_eoi"); }
 
     uint32_t   ns :  1;  //     0 WO
     uint32_t   cd :  1;  //     1 WO
@@ -199,10 +196,10 @@ struct de10nano_mgr {
     uint32_t rsvd : 20;  // 31:12
   } gpio_porta_eoi;
 
-  struct gpio_ext_porta : public reg32 {
-    gpio_ext_porta() : reg32(0x850, 0x0) {}
+  struct gpio_ext_porta : public Reg32 {
+    gpio_ext_porta() : Reg32(0x850, 0x0) {}
     void print(bool addr = false, bool fields = true) {
-      reg32::print("gpio_ext_porta", addr);
+      Reg32::print("gpio_ext_porta", addr);
       if (fields) {
         printf("DE10-Nano-Mgr: %16s: %x\n", "nSTATUS"       , ns);
         printf("DE10-Nano-Mgr: %16s: %x\n", "CONF_DONE"     , cd);
@@ -303,7 +300,7 @@ struct de10nano_mgr {
     DATA_BASE_ADDR = 0xFFB90000U
   };
 
-  de10nano_mgr() {
+  De10NanoMgr() {
     m_page_size = sysconf(_SC_PAGE_SIZE);
     #ifdef MOCK_DEVMEM
     m_regs_base = reinterpret_cast<uint8_t*>(malloc(m_page_size));
@@ -322,7 +319,7 @@ struct de10nano_mgr {
     gpio_ext_porta.map(m_regs_base);
   }
 
-  ~de10nano_mgr() {
+  ~De10NanoMgr() {
     #ifdef MOCK_DEVMEM
     free(m_regs_base);
     free(m_data_base);

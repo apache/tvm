@@ -157,7 +157,7 @@ int VTADeviceRun(VTADeviceHandle handle,
 }
 
 void VTAProgram(const char *rbf) {
-  de10nano_mgr mgr;
+  De10NanoMgr mgr;
   CHECK(mgr.mapped()) << "de10nano: mapping of /dev/mem failed";
   CHECK(mgr.program_rbf(rbf)) << "Programming of the de10nano failed.\n"
   "This is usually due to the use of an RBF file that is incompatible "

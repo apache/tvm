@@ -36,14 +36,28 @@ CONFIG = DefaultDe10Config
 TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build
+# Set USE_TRACE = 1 to generate a trace during simulation.
 USE_TRACE = 0
+# With USE_TRACE = 1, default trace format is VCD.
+# Set USE_TRACE_FST = 1 to use the FST format.
+# Note that although FST is around two orders of magnitude smaller than VCD
+# it is also currently much slower to produce (verilator limitation). But if
+# you are low on disk space it may be your only option.
 USE_TRACE_FST = 0
+# With USE_TRACE = 1, USE_TRACE_DETAILED = 1 will generate traces that also
+# include non-interface internal signal names starting with an underscore.
+# This will significantly increase the trace size and should only be used
+# on a per need basis for difficult debug problems.
 USE_TRACE_DETAILED = 0
 USE_THREADS = $(shell nproc)
 VTA_LIBNAME = libvta_hw
 UNITTEST_NAME = all
 CXX = g++
+# A debug build with DEBUG = 1 is useful to trace the simulation with a
+# debugger.
 DEBUG = 0
+# With DEBUG = 1, SANITIZE = 1 turns on address sanitizing to verify that
+# the verilator build is sane. To be used if you know what you are doing.
 SANITIZE = 0
 
 config_test = $(TOP_TEST)$(CONFIG)
