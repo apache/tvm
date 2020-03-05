@@ -23,6 +23,7 @@ import threading
 import numpy as np
 
 import tvm
+from tvm import te
 import tvm.contrib.graph_runtime as runtime
 from tvm import relay
 

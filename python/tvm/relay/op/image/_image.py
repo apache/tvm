@@ -20,13 +20,10 @@ from __future__ import absolute_import
 
 import topi
 from .. import op as reg
-from ..op import schedule_injective
 
 # resize
-reg.register_schedule("image.resize", schedule_injective)
-
 @reg.register_compute("image.resize")
-def compute_resize(attrs, inputs, out_type, target):
+def compute_resize(attrs, inputs, out_type):
     size = attrs.size
     layout = attrs.layout
     method = attrs.method
@@ -34,12 +31,12 @@ def compute_resize(attrs, inputs, out_type, target):
     out_dtype = attrs.out_dtype
     return [topi.image.resize(inputs[0], size, layout, method, coord_trans, out_dtype)]
 
+reg.register_injective_schedule("image.resize")
+
 
 # crop and resize
-reg.register_schedule("image.crop_and_resize", schedule_injective)
-
 @reg.register_compute("image.crop_and_resize")
-def compute_crop_and_resize(attrs, inputs, out_type, target):
+def compute_crop_and_resize(attrs, inputs, out_type):
     crop_size = attrs.crop_size
     layout = attrs.layout
     method = attrs.method
@@ -48,3 +45,5 @@ def compute_crop_and_resize(attrs, inputs, out_type, target):
     return [topi.image.crop_and_resize(inputs[0], inputs[1], inputs[2],
                                        crop_size, layout, method,
                                        extrapolation_value, out_dtype)]
+
+reg.register_injective_schedule("image.crop_and_resize")

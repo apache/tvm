@@ -16,8 +16,8 @@
 # under the License.
 """Implementation of generic operators in the presence of Tensor"""
 # pylint: disable=invalid-name, too-many-arguments
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from . import broadcast as _broadcast
 from . import math as _math
 
@@ -75,11 +75,11 @@ def _make_bop(broadcast_bop, orig_bop):
 
         Returns
         -------
-        ret : tvm.Tensor (if at least one operand is non-zero-rank Tensor)
+        ret : tvm.te.Tensor (if at least one operand is non-zero-rank Tensor)
               tvm.Expr (otherwise)
             The result of {op} operation.
         """
-        if not isinstance(lhs, tvm.tensor.Tensor) and not isinstance(rhs, tvm.tensor.Tensor):
+        if not isinstance(lhs, te.tensor.Tensor) and not isinstance(rhs, te.tensor.Tensor):
             return orig_bop(lhs, rhs)
         return broadcast_bop(lhs, rhs)
     _tensor_bop_impl.__doc__ = _tensor_bop_impl.__doc__.format(op=name)
@@ -90,12 +90,12 @@ def _bind_generic_ops():
     """Bind generic operators for Tensor."""
     # Check __op_priority__ to make sure the binding happens only once.
     __op_priority__ = 1
-    if __op_priority__ > tvm.generic.__op_priority__:
-        tvm.generic.__op_priority__ = __op_priority__
-        tvm.generic.add = _make_bop(_broadcast.add, tvm.generic.add)
-        tvm.generic.subtract = _make_bop(_broadcast.subtract, tvm.generic.subtract)
-        tvm.generic.multiply = _make_bop(_broadcast.multiply, tvm.generic.multiply)
-        tvm.generic.divide = _make_bop(_broadcast.divide, tvm.generic.divide)
-        tvm.generic.cast = _math.cast
+    if __op_priority__ > tvm.tir.generic.__op_priority__:
+        tvm.tir.generic.__op_priority__ = __op_priority__
+        tvm.tir.generic.add = _make_bop(_broadcast.add, tvm.tir.generic.add)
+        tvm.tir.generic.subtract = _make_bop(_broadcast.subtract, tvm.tir.generic.subtract)
+        tvm.tir.generic.multiply = _make_bop(_broadcast.multiply, tvm.tir.generic.multiply)
+        tvm.tir.generic.divide = _make_bop(_broadcast.divide, tvm.tir.generic.divide)
+        tvm.tir.generic.cast = _math.cast
 
 _bind_generic_ops()

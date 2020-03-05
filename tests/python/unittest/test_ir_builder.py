@@ -15,11 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_for():
-    ib = tvm.ir_builder.create()
-    n = tvm.size_var("n")
+    ib = tvm.tir.ir_builder.create()
+    n = te.size_var("n")
     A = ib.allocate("float32", n, name="A", scope="global")
     with ib.for_range(0, n, name="i") as i:
         A[i] = A[i] + 1
@@ -38,10 +39,10 @@ def test_for():
     assert isinstance(body[1], tvm.tir.For)
 
 def test_if():
-    ib = tvm.ir_builder.create()
-    n = tvm.size_var("n")
+    ib = tvm.tir.ir_builder.create()
+    n = te.size_var("n")
     A = ib.pointer("float32", name="A")
-    tmod = tvm.truncmod
+    tmod = tvm.tir.truncmod
     with ib.for_range(0, n, name="i") as i:
         with ib.if_scope(tmod(i, 2) == 0):
             A[i] = A[i] + 1
@@ -58,9 +59,9 @@ def test_if():
     assert body.else_case.index.value == 0
 
 def test_prefetch():
-    A = tvm.placeholder((10, 20), name="A")
-    ib = tvm.ir_builder.create()
-    n = tvm.size_var("n")
+    A = te.placeholder((10, 20), name="A")
+    ib = tvm.tir.ir_builder.create()
+    n = te.size_var("n")
 
     with ib.for_range(0, n, name="i") as i:
         ib.emit(
@@ -74,12 +75,12 @@ def test_prefetch():
 def test_cpu():
     n = 1024
     dtype = "float32"
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 8
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         Aptr = ib.buffer_ptr(A)
         Bptr = ib.buffer_ptr(B)
         Cptr = ib.buffer_ptr(C)
@@ -87,9 +88,9 @@ def test_cpu():
             Cptr[i] = Aptr[i] + Bptr[i]
         body = ib.get()
         return body
-    C = tvm.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+    C = te.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
                    name="vector_add", dtype=dtype)
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     def check_target(target):
         if not tvm.runtime.enabled(target):
             return
@@ -105,18 +106,18 @@ def test_cpu():
     check_target("llvm")
 
 def test_gpu():
-    n = tvm.size_var('n')
+    n = te.size_var('n')
     dtype = "float32"
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    idxd = tvm.indexdiv
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    idxd = tvm.tir.indexdiv
 
     def test_device_ir(A, B, C):
         n = A.shape[0]
         max_threads = 32
-        ib = tvm.ir_builder.create()
-        bx = tvm.thread_axis("blockIdx.x")
-        tx = tvm.thread_axis("threadIdx.x")
+        ib = tvm.tir.ir_builder.create()
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
         ib.scope_attr(bx, "thread_extent", idxd(n+max_threads-1, max_threads))
         ib.scope_attr(tx, "thread_extent", max_threads)
         idx = bx.var * max_threads + tx.var
@@ -127,11 +128,11 @@ def test_gpu():
             Cptr[idx] = Aptr[idx] + Bptr[idx]
         body = ib.get()
         return body
-    C = tvm.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
+    C = te.extern(A.shape, [A, B], lambda ins, outs: test_device_ir(ins[0], ins[1], outs[0]),
                    name="vector_add", dtype=dtype)
-    s = tvm.create_schedule(C.op)
-    bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    s = te.create_schedule(C.op)
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     def check_target(target):
         n = 1024
         if not tvm.runtime.enabled(target):

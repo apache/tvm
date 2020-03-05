@@ -19,7 +19,6 @@
 """FFI registry to register function and objects."""
 import sys
 import ctypes
-from .. import _api_internal
 
 from .base import _LIB, check_call, py_str, c_str, string_types, _FFI_MODE, _RUNTIME_ONLY
 
@@ -288,17 +287,11 @@ def _init_api_prefix(module_name, prefix):
     module = sys.modules[module_name]
 
     for name in list_global_func_names():
-        if prefix == "api":
-            fname = name
-            if name.startswith("_"):
-                target_module = sys.modules["tvm._api_internal"]
-            else:
-                target_module = module
-        else:
-            if not name.startswith(prefix):
-                continue
-            fname = name[len(prefix)+1:]
-            target_module = module
+        if not name.startswith(prefix):
+            continue
+
+        fname = name[len(prefix)+1:]
+        target_module = module
 
         if fname.find(".") != -1:
             continue

@@ -153,14 +153,15 @@ std::string CodeGenC::GetBufferRef(
   if (alloc_storage_scope_.count(buffer)) {
     scope = alloc_storage_scope_.at(buffer);
   }
-  bool is_vol = volatile_buf_.count(buffer) != 0;
+  bool is_vol = IsVolatile(buffer);
   if (t.lanes() == 1) {
     if (!HandleTypeMatch(buffer, t) || is_vol) {
       os << "((";
       if (is_vol) {
         os << "volatile ";
       }
-      if (scope.length() != 0) {
+      // Scope may not be part of type.
+      if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
       os << ' ';
@@ -169,8 +170,13 @@ std::string CodeGenC::GetBufferRef(
     } else {
       os << vid;
     }
-    os << '[';
+    os << "[(";
     PrintExpr(index, os);
+    os << ")";
+    if (t.bits() == 4 ||
+        (t.bits() == 1 && t.is_int())) {
+      os << " / " << (32 / t.bits());
+    }
     os << ']';
   } else {
     // Buffer declared as vector type.
@@ -189,7 +195,7 @@ std::string CodeGenC::GetBufferRef(
     if (is_vol) {
       os << "volatile ";
     }
-    if (scope.length() != 0) {
+    if (!scope.empty() && IsScopePartOfType()) {
       PrintStorageScope(scope, os);
     }
     os << ' ';
@@ -197,15 +203,20 @@ std::string CodeGenC::GetBufferRef(
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
       os << '(';
-      if (scope.length() != 0) {
+      if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
       os << ' ';
       PrintType(t.element_of(), os);
       os << "*)";
     }
-    os << vid << " + ";
+    os << vid << " + (";
     PrintExpr(index, os);
+    os << ")";
+    if (t.bits() == 4 ||
+        (t.bits() == 1 && t.is_int())) {
+      os << " / " << (32 / t.bits());
+    }
     os << "))[0]";
   }
   return os.str();
@@ -620,14 +631,14 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   // delcare type.
   if (op->dtype.lanes() == 1) {
     std::string ref = GetBufferRef(op->dtype, op->buffer_var.get(), op->index);
-    os << ref;
+    HandleVolatileLoads(ref, op, os);
   } else {
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
     PrimExpr base;
     if (GetRamp1Base(op->index, op->dtype.lanes(), &base)) {
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base);
-      os << ref;
+      HandleVolatileLoads(ref, op, os);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed

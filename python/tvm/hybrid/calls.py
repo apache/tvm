@@ -16,14 +16,15 @@
 # under the License.
 """Intrinsics of TVM-Python Hybrid Script for Python compilation time
 semantic support."""
+
+from tvm.runtime import const, convert
+import tvm.te
 from tvm.ir.container import Array
 from tvm import target as _tgt
 from tvm.tir import expr as _expr
 from tvm.tir import ir_pass
 from tvm.tir import call_pure_intrin
 from tvm.tir.stmt import For
-
-from .. import api as _api
 
 from .util import _internal_assert
 
@@ -42,11 +43,11 @@ def _range(annotation, args):
     """Handling TVM loop types"""
     n = args.__len__()
     if n == 1:
-        low, ext = _api.const(0, dtype='int32'), args[0]
+        low, ext = const(0, dtype='int32'), args[0]
     else:
         _internal_assert(n == 2, "A loop intrinsic should only have 1 or 2 arguments!")
         low, ext = args[0], args[1]
-    if not ir_pass.Equal(low, _api.const(0, dtype='int32')):
+    if not ir_pass.Equal(low, const(0, dtype='int32')):
         ext = ext - low
     for_type = LOOP_INTRIN[annotation]
     iter_var = None
@@ -62,16 +63,16 @@ def bind(func_id, args):
     _internal_assert(args.__len__() == 2, "A loop bind should only have 2 arguments!")
     _internal_assert(isinstance(args[0], str), \
                      "A loop bind's first argument should be a string!")
-    low, ext = _api.const(0, "int32"), args[1]
-    iter_var = _api.thread_axis((low, ext), args[0])
+    low, ext = const(0, "int32"), args[1]
+    iter_var = tvm.te.thread_axis((low, ext), args[0])
     for_type = None
     return iter_var, low, ext, for_type
 
 
 def _math_intrin(func_id, args):
     # pylint: disable=import-outside-toplevel
-    import tvm.tir.op
-    return getattr(tvm.tir.op, func_id)(*args)
+    from tvm.tir import op
+    return getattr(op, func_id)(*args)
 
 sqrt = log = exp = tanh = sigmoid = power = popcount = _math_intrin #pylint: disable=invalid-name
 
@@ -88,7 +89,7 @@ def _allocate_tensor(func_id, args):
     """Handling TVM tensor allocation.
     You may refer hybrid.intrin.allocate for more details."""
     n = args.__len__()
-    _internal_assert(isinstance(_api.convert(args[0]), Array), \
+    _internal_assert(isinstance(convert(args[0]), Array), \
                      "allocate's first argument should be a tuple of shape!")
     shape = args[0]
     for i in shape:
@@ -119,10 +120,10 @@ def len(func_id, args):
     _internal_assert(args.__len__() == 1, "Only 1 argument is expected!")
     _internal_assert(func_id == "len", "This function cannot be directly invoked!")
     try:
-        return _api.convert(args[0].__len__())
+        return convert(args[0].__len__())
     except: #pylint: disable=bare-except
         _internal_assert(args[0].shape.__len__() == 1, "Only one-dimension array can get len")
-        return _api.convert(args[0].shape[0])
+        return convert(args[0].shape[0])
 
 
 def _cast(func_id, args):
@@ -159,4 +160,4 @@ def max_num_threads(func_id, args):
     else:
         _internal_assert(isinstance(args[0], _expr.IntImm), "In tvm bool should be uint")
         res = _tgt.Target.current(args[0].value).max_num_threads
-    return _api.convert(res)
+    return convert(res)

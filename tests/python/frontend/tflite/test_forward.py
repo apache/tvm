@@ -24,6 +24,7 @@ from __future__ import print_function
 from functools import partial
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
@@ -32,6 +33,7 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
+from tensorflow.python.ops import nn_impl
 from tensorflow.python.ops import variables
 try:
     from tensorflow import lite as interpreter_wrapper
@@ -669,7 +671,7 @@ def _test_unary_elemwise(math_op, data):
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name='in')
         out = math_op(in_data)
-        compare_tflite_with_tvm(data, ['in:0'], in_data, [out])
+        compare_tflite_with_tvm(data, ['in:0'], [in_data], [out])
 
 #######################################################################
 # Abs
@@ -742,26 +744,34 @@ def _test_neg(data):
     """ One iteration of neg """
     return _test_unary_elemwise(math_ops.neg, data)
 #######################################################################
+# Square
+# ------
+
+def _test_square(data):
+    """ One iteration of square """
+    return _test_unary_elemwise(math_ops.square, data)
 
 def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
-    if test_op in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
-        test_op(np.arange(6.0, dtype=np.float32).reshape((2, 1, 3)))
-        test_op(np.arange(6.0, dtype=np.int32).reshape((2, 1, 3)))
+    if test_op.__name__ in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
+        test_op(np.arange(1.0, 7.0, dtype=np.float32).reshape((2, 1, 3)))
     else:
-        np.array(np.random.uniform(-5, 5, (3, 1)), dtype=np.int32)
+        test_op(np.random.uniform(-10, 10, (3, 2)).astype(np.float32))
 
 def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_abs)
-    _test_forward_unary_elemwise(_test_ceil)
     _test_forward_unary_elemwise(_test_floor)
     _test_forward_unary_elemwise(_test_exp)
     _test_forward_unary_elemwise(_test_log)
     _test_forward_unary_elemwise(_test_sin)
-    _test_forward_unary_elemwise(_test_cos)
     _test_forward_unary_elemwise(_test_sqrt)
     _test_forward_unary_elemwise(_test_rsqrt)
     _test_forward_unary_elemwise(_test_neg)
+    _test_forward_unary_elemwise(_test_square)
+    # ceil and cos come with TFLite 1.14.0.post1 fbs schema
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_forward_unary_elemwise(_test_ceil)
+        _test_forward_unary_elemwise(_test_cos)
 
 #######################################################################
 # Element-wise
@@ -933,6 +943,22 @@ def _test_squared_difference(data):
     """ One iteration of squared difference """
     return _test_elemwise(math_ops.squared_difference, data)
 
+#######################################################################
+# Floor_divide
+# ------------
+
+def _test_floor_divide(data):
+    """ One iteration of floor_div"""
+    return _test_elemwise(math_ops.floordiv, data)
+
+#######################################################################
+# Floor_mod
+# ---------
+
+def _test_floor_mod(data):
+    """ One iteration of floor_mod"""
+    return _test_elemwise(math_ops.floormod, data)
+
 def _test_forward_elemwise(testop):
     """ Elewise"""
     testop([np.arange(6.0, dtype=np.float32).reshape((2, 1, 1, 3)),
@@ -981,6 +1007,9 @@ def test_all_elemwise():
     _test_forward_elemwise(_test_less_equal)
     _test_forward_elemwise(_test_equal)
     _test_forward_elemwise(_test_not_equal)
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_forward_elemwise(_test_floor_divide)
+        _test_forward_elemwise(_test_floor_mod)
 
 #######################################################################
 # Logical operators
@@ -1253,6 +1282,24 @@ def test_forward_unpack():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_unpack(np.array(np.random.uniform(0, 5, (3, 6)), dtype=np.int32), axis=-2, num_unpacks=3)
         _test_unpack(np.array(np.random.uniform(0, 5, (2, 3, 4)), dtype=np.int32), axis=-3, num_unpacks=2)
+
+#######################################################################
+# L2 normalization
+# ----------------
+
+def _test_l2_normalization(data, axis, fused_activation_function=None):
+    """ One iteration of L2_NORMALIZATION """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_impl.l2_normalize(in_data, axis)
+        out = with_fused_activation_function(out, fused_activation_function)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_l2_normalization():
+    """ L2_NORMALIZATION """
+    data = np.random.uniform(size=(3, 6, 4)).astype('float32')
+    _test_l2_normalization(data, axis=2)
+    _test_l2_normalization(data, axis=2, fused_activation_function="RELU")
 
 #######################################################################
 # Logistic
@@ -1640,6 +1687,7 @@ if __name__ == '__main__':
     test_forward_relu()
     test_forward_prelu()
     test_forward_fully_connected()
+    test_forward_l2_normalization()
 
     # Elemwise
     test_all_elemwise()

@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, too-many-lines, import-outside-toplevel
-
 """Tensorflow lite frontend."""
 import math
 import numpy as np
@@ -121,7 +120,11 @@ class OperatorConverter(object):
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
             'LOGICAL_AND': self.convert_logical_and,
             'LOGICAL_OR': self.convert_logical_or,
-            'DETECTION_POSTPROCESS': self.convert_detection_postprocess
+            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'SQUARE': self.convert_square,
+            'L2_NORMALIZATION': self.convert_l2_normalization,
+            'FLOOR_DIV': self.convert_floor_div,
+            'FLOOR_MOD': self.convert_floor_mod,
         }
 
     def check_unsupported_ops(self):
@@ -166,7 +169,11 @@ class OperatorConverter(object):
 
         op_code_list_idx = op.OpcodeIndex()
         op_code_id = self.model.OperatorCodes(op_code_list_idx).BuiltinCode()
-        op_code_str = self.builtin_op_code[op_code_id]
+        try:
+            op_code_str = self.builtin_op_code[op_code_id]
+        except KeyError:
+            raise NotImplementedError('TFLite operator with code ' + str(op_code_id) + \
+                                      ' is not supported by this version of the fbs schema.')
         if op_code_id == BuiltinOperator.CUSTOM:
             # Custom operator
             custom_op_code_str = self.model.OperatorCodes(op_code_list_idx).CustomCode()
@@ -401,6 +408,52 @@ class OperatorConverter(object):
         """Convert TFLite RESIZE_NEAREST_NEIGHBOR"""
         return self._convert_resize("nearest_neighbor", op)
 
+    def convert_l2_normalization(self, op):
+        """Convert TFLite L2_NORMALIZATION """
+        try:
+            from tflite.Operator import Operator
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.L2NormOptions import L2NormOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.L2NormOptions
+        op_options = op.BuiltinOptions()
+        l2_norm_options = L2NormOptions()
+        l2_norm_options.Init(op_options.Bytes, op_options.Pos)
+        fused_activation_fn = l2_norm_options.FusedActivationFunction()
+
+        # TFLite supports normalization only over the last dim
+        input_tensor_rank = len(input_tensor.tensor.ShapeAsNumpy())
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFLite quantized L2_NORMALIZATION operator is not supported yet.')
+        # TFL uses only the default epsilon value
+        out = _op.nn.l2_normalize(in_expr, eps=1e-12, axis=[input_tensor_rank - 1])
+
+        # if we have fused activation fn
+        if fused_activation_fn != ActivationFunctionType.NONE:
+            if not output_tensor.qnn_params:
+                out = self.convert_fused_activation_function(out, fused_activation_fn)
+            else:
+                raise tvm.error.OpNotImplemented(
+                    'TFLite quantized L2_NORMALIZATION operator\
+                    with fused activation function is not supported yet.')
+
+        return out
+
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
         try:
@@ -631,6 +684,32 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NEG operator is not supported yet.')
         return self._convert_unary_elemwise(_op.negative, op)
+
+    def convert_square(self, op):
+        """Convert TFLite SQUARE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized SQUARE operator is not supported yet.')
+
+        exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
+        out = _op.power(in_expr, relay.const(2, exp_type))
+
+        return out
 
     def _convert_elemwise(self, relay_op, op):
         """Generic method to Convert TFLite elemwise"""
@@ -982,6 +1061,7 @@ class OperatorConverter(object):
 
         weight_value = self.get_tensor_value(weight_tensor)
         weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
+        weight_shape = _infer_shape(weight_expr)
 
         if input_tensor.qnn_params:
             out = _qnn.op.dense(in_expr, weight_expr,
@@ -989,6 +1069,7 @@ class OperatorConverter(object):
                                 kernel_zero_point=weight_tensor.qnn_params['zero_point'],
                                 input_scale=input_tensor.qnn_params['scale'],
                                 kernel_scale=weight_tensor.qnn_params['scale'],
+                                units=weight_shape[0],
                                 out_dtype='int32')
         else:
             out = _op.nn.dense(in_expr, weight_expr)
@@ -1150,7 +1231,7 @@ class OperatorConverter(object):
 
         if is_depthwise_conv:
             params['channels'] = int(in_channels)
-            params['groups'] = int(in_channels)
+            params['groups'] = int(input_c)
             params['kernel_layout'] = 'HWOI'
         else:
             params['channels'] = int(output_channels)
@@ -1499,6 +1580,20 @@ class OperatorConverter(object):
 
         out = _op.nn.pad(in_expr, pad_width=paddings, pad_value=pad_value)
         return out
+
+    def convert_floor_div(self, op):
+        """Convert TFLite FLOOR_DIV"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized FLOOR DIV operator is not supported yet.')
+        return self._convert_elemwise(_op.floor_divide, op)
+
+    def convert_floor_mod(self, op):
+        """Convert TFLite FLOOR_MOD"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized FLOOR MOD operator is not supported yet.')
+        return self._convert_elemwise(_op.floor_mod, op)
 
     def convert_mirror_pad(self, op):
         """Convert TFLite MIRROR_PAD"""

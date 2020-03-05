@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import tvm.relay as relay
 import tvm.relay.transform as _transform
 

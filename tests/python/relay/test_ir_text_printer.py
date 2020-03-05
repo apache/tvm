@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 import tvm.relay.testing
 import numpy as np
@@ -70,7 +71,7 @@ def test_env():
 
 
 def test_meta_data():
-    n, c, h, w = tvm.size_var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", shape=(n, c, h, w))
     w = relay.var("w")
     z = relay.nn.conv2d(x, w,

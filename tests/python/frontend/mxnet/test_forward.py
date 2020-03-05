@@ -18,6 +18,7 @@ import numpy as np
 import operator
 
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 from tvm import relay
@@ -198,6 +199,12 @@ def test_forward_zeros():
 def test_forward_ones_like():
     data = mx.sym.var('data')
     mx_sym = mx.sym.ones_like(data, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_make_loss():
+    data = mx.sym.var('data')
+    ones = mx.sym.ones(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.make_loss((data-ones)**2/2, dtype='float32')
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
 
 def test_forward_zeros_like():
@@ -852,17 +859,22 @@ def test_forward_slice():
 
 
 def test_forward_convolution():
-    def verify(data_shape, kernel_size, stride, pad, num_filter):
-        weight_shape=(num_filter, data_shape[1],) + kernel_size
+    def verify(data_shape, kernel_size, stride, pad, num_filter, is_depthwise=False):
+        if is_depthwise:
+            groups = data_shape[1]
+            weight_shape=(data_shape[1], num_filter // groups,) + kernel_size
+        else:
+            groups = 1
+            weight_shape=(num_filter, data_shape[1],) + kernel_size
         x = np.random.uniform(size=data_shape).astype("float32")
         weight = np.random.uniform(size=weight_shape).astype("float32")
         bias = np.random.uniform(size=num_filter).astype("float32")
         ref_res = mx.nd.Convolution(data=mx.nd.array(x), weight=mx.nd.array(weight),
                                     bias=mx.nd.array(bias), kernel=kernel_size, stride=stride,
-                                    pad=pad, num_filter=num_filter)
+                                    pad=pad, num_filter=num_filter, num_group=groups)
         mx_sym = mx.sym.Convolution(mx.sym.var("x"), mx.sym.var("weight"), mx.sym.var("bias"),
                                     kernel=kernel_size, stride=stride,
-                                    pad=pad, num_filter=num_filter)
+                                    pad=pad, num_filter=num_filter, num_group=groups)
         shape_dict = {"x": x.shape, "weight": weight.shape, "bias": bias.shape}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, ctx in ctx_list():
@@ -879,6 +891,8 @@ def test_forward_convolution():
     verify(data_shape=(20, 1, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(20, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
+    verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=8,
+           is_depthwise=True)
 
 def test_forward_deconvolution():
     def verify(data_shape, kernel_size, stride, pad, num_filter):
@@ -989,3 +1003,4 @@ if __name__ == '__main__':
     test_forward_convolution()
     test_forward_deconvolution()
     test_forward_cond()
+    test_forward_make_loss()

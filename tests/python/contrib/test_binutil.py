@@ -24,6 +24,7 @@ Specifically, we test the following capabilities:
 """
 
 import tvm
+from tvm import te
 import subprocess
 from tvm.contrib import util
 from tvm.contrib import cc

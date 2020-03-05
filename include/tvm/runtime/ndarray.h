@@ -68,19 +68,37 @@ class NDArray : public ObjectRef {
   /*!
    * \brief Copy data content from another array.
    * \param other The source array to be copied from.
-   * \note The copy may happen asynchrously if it involves a GPU context.
+   * \note The copy may happen asynchronously if it involves a GPU context.
    *       TVMSynchronize is necessary.
    */
   inline void CopyFrom(const DLTensor* other);
   inline void CopyFrom(const NDArray& other);
   /*!
+ * \brief Copy data content from a byte buffer.
+ * \param data The source bytes to be copied from.
+ * \param nbytes The size of the buffer in bytes
+ *        Must be equal to the size of the NDArray.
+ * \note The copy may happen asynchronously if it involves a GPU context.
+ *       TVMSynchronize is necessary.
+ */
+  TVM_DLL void CopyFromBytes(const void* data, size_t nbytes);
+  /*!
    * \brief Copy data content into another array.
    * \param other The source array to be copied from.
-   * \note The copy may happen asynchrously if it involves a GPU context.
+   * \note The copy may happen asynchronously if it involves a GPU context.
    *       TVMSynchronize is necessary.
    */
   inline void CopyTo(DLTensor* other) const;
   inline void CopyTo(const NDArray& other) const;
+  /*!
+   * \brief Copy data content into another array.
+   * \param data The source bytes to be copied from.
+   * \param nbytes The size of the data buffer.
+   *        Must be equal to the size of the NDArray.
+   * \note The copy may happen asynchronously if it involves a GPU context.
+   *       TVMSynchronize is necessary.
+   */
+  TVM_DLL void CopyToBytes(void* data, size_t nbytes) const;
   /*!
    * \brief Copy the data to another context.
    * \param ctx The target context.
@@ -182,7 +200,7 @@ class NDArray : public ObjectRef {
 
 /*!
  * \brief Save a DLTensor to stream
- * \param strm The outpu stream
+ * \param strm The output stream
  * \param tensor The tensor to be saved.
  */
 inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
@@ -205,7 +223,7 @@ class NDArray::ContainerBase {
   DLTensor dl_tensor;
 
   /*!
-   * \brief addtional context, reserved for recycling
+   * \brief additional context, reserved for recycling
    * \note We can attach additional content here
    *  which the current container depend on
    *  (e.g. reference to original memory when creating views).

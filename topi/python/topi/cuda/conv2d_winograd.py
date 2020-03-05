@@ -19,12 +19,11 @@
 
 import logging
 import tvm
+from tvm import te
 from tvm import autotvm
 
 from .. import nn
-from ..nn import conv2d, group_conv2d_nchw, conv2d_winograd_without_weight_transform
 from ..util import get_const_int, get_const_tuple, traverse_inline
-from ..generic import schedule_conv2d_winograd_without_weight_transform
 from ..nn.winograd_util import winograd_transform_matrices
 
 
@@ -37,10 +36,9 @@ def _infer_tile_size(data, kernel):
         return 4
     return 2
 
-def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, pre_computed):
+def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
+                  pre_computed):
     """Compute declaration for winograd"""
-    assert layout == 'NCHW'
-
     tile_size = _infer_tile_size(data, kernel)
 
     N, CI, H, W = get_const_tuple(data.shape)
@@ -53,7 +51,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     if not pre_computed: # kernel tensor is raw tensor, do strict check
         if dilation_h != 1 or dilation_w != 1:
-            kernel = dilation(kernel, (1, 1, dilation_h, dilation_w))
+            kernel = nn.dilate(kernel, (1, 1, dilation_h, dilation_w))
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
         alpha = KW + tile_size - 1
         assert HSTR == 1 and WSTR == 1 and KH == KW
@@ -78,50 +76,50 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     # transform kernel
     if not pre_computed:
-        r_kh = tvm.reduce_axis((0, KH), name='r_kh')
-        r_kw = tvm.reduce_axis((0, KW), name='r_kw')
-        kernel_pack = tvm.compute((alpha, alpha, CI, CO), lambda eps, nu, ci, co:
-                                  tvm.sum(kernel[co][ci][r_kh][r_kw] *
-                                          G[eps][r_kh] * G[nu][r_kw],
-                                          axis=[r_kh, r_kw]), name='kernel_pack')
+        r_kh = te.reduce_axis((0, KH), name='r_kh')
+        r_kw = te.reduce_axis((0, KW), name='r_kw')
+        kernel_pack = te.compute((alpha, alpha, CI, CO), lambda eps, nu, ci, co:
+                                 te.sum(kernel[co][ci][r_kh][r_kw] *
+                                        G[eps][r_kh] * G[nu][r_kw],
+                                        axis=[r_kh, r_kw]), name='kernel_pack')
     else:
         kernel_pack = kernel
 
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
     # pack input tile
-    input_tile = tvm.compute((CI, P, alpha, alpha), lambda c, p, eps, nu:
-                             data_pad[idxdiv(p, (nH * nW))][c][idxmod(idxdiv(p, nW), nH) * m + eps]
-                             [idxmod(p, nW) * m + nu], name='d')
+    input_tile = te.compute((CI, P, alpha, alpha), lambda c, p, eps, nu:
+                            data_pad[idxdiv(p, (nH * nW))][c][idxmod(idxdiv(p, nW), nH) * m + eps]
+                            [idxmod(p, nW) * m + nu], name='d')
 
     # transform data
-    r_a = tvm.reduce_axis((0, alpha), 'r_a')
-    r_b = tvm.reduce_axis((0, alpha), 'r_a')
-    data_pack = tvm.compute((alpha, alpha, CI, P), lambda eps, nu, ci, p:
-                            tvm.sum(input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
-                                    axis=[r_a, r_b]), name='data_pack')
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_a')
+    data_pack = te.compute((alpha, alpha, CI, P), lambda eps, nu, ci, p:
+                           te.sum(input_tile[ci][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
+                                  axis=[r_a, r_b]), name='data_pack')
 
     # do batch gemm
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    bgemm = tvm.compute((alpha, alpha, CO, P), lambda eps, nu, co, p:
-                        tvm.sum(kernel_pack[eps][nu][ci][co] *
-                                data_pack[eps][nu][ci][p],
-                                axis=[ci]), name='bgemm')
+    ci = te.reduce_axis((0, CI), name='ci')
+    bgemm = te.compute((alpha, alpha, CO, P), lambda eps, nu, co, p:
+                       te.sum(kernel_pack[eps][nu][ci][co] *
+                              data_pack[eps][nu][ci][p],
+                              axis=[ci]), name='bgemm')
 
     # inverse transform
-    r_a = tvm.reduce_axis((0, alpha), 'r_a')
-    r_b = tvm.reduce_axis((0, alpha), 'r_a')
-    inverse = tvm.compute((CO, P, m, m), lambda co, p, vh, vw:
-                          tvm.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
-                                  axis=[r_a, r_b]), name='inverse')
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_a')
+    inverse = te.compute((CO, P, m, m), lambda co, p, vh, vw:
+                         te.sum(bgemm[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
+                                axis=[r_a, r_b]), name='inverse')
 
     # output
-    output = tvm.compute((N, CO, H, W), lambda n, co, h, w:
-                         inverse[co,
-                                 n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
-                                 idxmod(h, m),
-                                 idxmod(w, m)],
-                         name='output', tag='conv2d_nchw_winograd')
+    output = te.compute((N, CO, H, W), lambda n, co, h, w:
+                        inverse[co,
+                                n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
+                                idxmod(h, m),
+                                idxmod(w, m)],
+                        name='output', tag='conv2d_nchw_winograd')
     cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
 
     return output
@@ -150,8 +148,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     fused = s[data_pack].fuse(c, p)
     bb, tt = s[data_pack].split(fused, 128)
     s[data_pack].reorder(bb, tt, pi, eps, nu)
-    s[data_pack].bind(bb, tvm.thread_axis("blockIdx.x"))
-    s[data_pack].bind(tt, tvm.thread_axis("threadIdx.x"))
+    s[data_pack].bind(bb, te.thread_axis("blockIdx.x"))
+    s[data_pack].bind(tt, te.thread_axis("threadIdx.x"))
 
     s[data_l].compute_at(s[data_pack], pi)
     s[input_tile].compute_at(s[data_pack], pi)
@@ -175,12 +173,12 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
             fused = s[kernel_pack].fuse(ci, co)
             bb, tt = s[kernel_pack].split(fused, 128)
             s[kernel_pack].reorder(bb, tt, eps, nu, r_a, r_b)
-            s[kernel_pack].bind(bb, tvm.thread_axis("blockIdx.x"))
-            s[kernel_pack].bind(tt, tvm.thread_axis("threadIdx.x"))
+            s[kernel_pack].bind(bb, te.thread_axis("blockIdx.x"))
+            s[kernel_pack].bind(tt, te.thread_axis("threadIdx.x"))
     else:
         kernel = kernel_pack
 
-    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+    if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
 
     ##### space definition begin #####
@@ -216,15 +214,15 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     bz, vz, tz, zi = cfg["tile_b"].apply(s, C, b)
     by, vy, ty, yi = cfg["tile_y"].apply(s, C, y)
     bx, vx, tx, xi = cfg["tile_x"].apply(s, C, x)
-    s[C].bind(bz, tvm.thread_axis("blockIdx.z"))
-    s[C].bind(by, tvm.thread_axis("blockIdx.y"))
-    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(vz, tvm.thread_axis("vthread"))
-    s[C].bind(vy, tvm.thread_axis("vthread"))
-    s[C].bind(vx, tvm.thread_axis("vthread"))
-    s[C].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[C].bind(bz, te.thread_axis("blockIdx.z"))
+    s[C].bind(by, te.thread_axis("blockIdx.y"))
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(vz, te.thread_axis("vthread"))
+    s[C].bind(vy, te.thread_axis("vthread"))
+    s[C].bind(vx, te.thread_axis("vthread"))
+    s[C].bind(tz, te.thread_axis("threadIdx.z"))
+    s[C].bind(ty, te.thread_axis("threadIdx.y"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].reorder(bgemm_scope, bz, by, bx, vz, vy, vx, tz, ty, tx, zi, yi, xi)
 
     # tile reduction axes
@@ -244,9 +242,9 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         fused, tx = s[load].split(fused, cfg["tile_x"].size[2])
         fused, ty = s[load].split(fused, cfg["tile_y"].size[2])
         fused, tz = s[load].split(fused, cfg["tile_b"].size[2])
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(ty, te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     s[C].pragma(bgemm_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[C].pragma(bgemm_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
@@ -267,8 +265,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     fused = s[output].fuse(n, co, ho, wo)
     bb, tt = s[output].split(fused, 128)
 
-    s[output].bind(bb, tvm.thread_axis("blockIdx.x"))
-    s[output].bind(tt, tvm.thread_axis("threadIdx.x"))
+    s[output].bind(bb, te.thread_axis("blockIdx.x"))
+    s[output].bind(tt, te.thread_axis("threadIdx.x"))
 
     if OL is not None:
         s[OL].compute_at(s[output], tt)
@@ -282,19 +280,34 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
 
     return s
 
-##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
-@autotvm.register_topi_compute(conv2d_winograd_without_weight_transform,
-                               ['cuda', 'gpu'], ['winograd'])
-def conv2d_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
-    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+@autotvm.register_topi_compute("conv2d_nchw_winograd.cuda")
+def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
+                         pre_computed=False)
+
+@autotvm.register_topi_schedule("conv2d_nchw_winograd.cuda")
+def schedule_conv2d_nchw_winograd(cfg, outs):
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if 'conv2d_nchw_winograd' in op.tag:
+            schedule_winograd_cuda(cfg, s, op.output(0), pre_computed=False)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+
+@autotvm.register_topi_compute("conv2d_nchw_winograd_without_weight_transform.cuda")
+def conv2d_nchw_winograd_without_weight_transform(cfg, data, kernel, strides,
+                                                  padding, dilation, out_dtype):
+    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
                          pre_computed=True)
 
 
-@autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
-                                ['cuda', 'gpu'], ['winograd'])
-def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_nchw_winograd_without_weight_transform.cuda")
+def schedule_conv2d_nchw_winograd_without_weight_transform(cfg, outs):
     """TOPI schedule callback"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'conv2d_nchw_winograd' in op.tag:
@@ -302,141 +315,3 @@ def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
 
     traverse_inline(s, outs[0].op, _callback)
     return s
-
-
-##### REGISTER ALTER OP LAYOUT #####
-@nn.conv2d_alter_layout.register(["cuda", "gpu"])
-def _alter_conv2d_layout(attrs, inputs, tinfos, F):
-    """Alter op layout for pre-computing kernel transformation
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    F: symbol
-        The context, can be relay.op
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level,
-    so we have to pass 'F' to make it support our two versions of graph IR,  Relay.
-    """
-    if 'cudnn' in tvm.target.Target.current().libs or 'miopen' in tvm.target.Target.current().libs:
-        return None
-
-    copy_inputs = list(inputs)
-    new_attrs = {k: attrs[k] for k in attrs.keys()}
-
-
-    new_attrs["channels"] = inputs[1].checked_type.shape[attrs['kernel_layout'].index('O')]
-
-    strides = attrs.get_int_tuple("strides")
-    padding = attrs.get_int_tuple("padding")
-    dilation = attrs.get_int_tuple("dilation")
-    groups = attrs.get_int('groups')
-    data_layout_key = "data_layout" if "data_layout" in new_attrs else "layout"
-    layout = attrs[data_layout_key]
-    out_dtype = attrs["out_dtype"]
-    if out_dtype in ("", "same"):
-        out_dtype = tinfos[0].dtype
-
-    data, kernel = tinfos[0:2]
-    N, CI, H, W = get_const_tuple(data.shape)
-    CO, _, KH, KW = get_const_tuple(kernel.shape)
-
-    dispatch_ctx = autotvm.DispatchContext.current
-    target = tvm.target.Target.current()
-
-    if groups == 1:
-        # query config of this workload
-        workload = autotvm.task.args_to_workload(
-            [tinfos[0], tinfos[1], strides, padding, dilation, layout, out_dtype], conv2d)
-        cfg = autotvm.DispatchContext.current.query(target, workload)
-
-        if cfg.is_fallback:  # if is fallback, clear query cache and return None
-            autotvm.task.clear_fallback_cache(target, workload)
-            return None
-
-        if cfg.template_key == 'direct':
-            return None
-
-        if cfg.template_key == 'int8':
-            assert 'cuda' in target.keys
-            new_layout = 'NCHW4c'
-            new_attrs[data_layout_key] = new_layout
-            new_attrs['out_layout'] = new_layout
-            new_attrs['kernel_layout'] = 'OIHW4o4i'
-            ic_block_factor = oc_block_factor = 4
-
-            # Store the same config for the altered operator (workload)
-            new_data = tvm.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
-                                       dtype=data.dtype)
-            new_kernel = tvm.placeholder((CO // oc_block_factor, CI // ic_block_factor, KH, KW,\
-                                         oc_block_factor, ic_block_factor), dtype=kernel.dtype)
-            new_workload = autotvm.task.args_to_workload(
-                [new_data, new_kernel, strides, padding, dilation, new_layout, out_dtype],
-                conv2d
-            )
-            dispatch_ctx.update(target, new_workload, cfg)
-            return F.nn.conv2d(*copy_inputs, **new_attrs)
-
-        if attrs.get_int_tuple("dilation") != (1, 1):
-            logger.warning("Does not support weight pre-transform for dilated convolution.")
-            return None
-
-        # pre-compute weight transformation in winograd
-        tile_size = _infer_tile_size(tinfos[0], tinfos[1])
-
-        weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1],
-                                                               tile_size=tile_size)
-        weight = F.transpose(weight, axes=[0, 1, 3, 2])
-        copy_inputs[1] = weight
-        new_attrs['tile_size'] = tile_size
-
-        # Store the same config for the altered operator (workload)
-        new_data = data
-        new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
-                                     dtype=kernel.dtype)
-        new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, dilation, layout, out_dtype, tile_size],
-            conv2d_winograd_without_weight_transform
-        )
-        dispatch_ctx.update(target, new_workload, cfg)
-        return F.nn.contrib_conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
-    if groups != CI:
-        workload = autotvm.task.args_to_workload(
-            [tinfos[0], tinfos[1], strides, padding, dilation, groups, out_dtype],
-            group_conv2d_nchw)
-        cfg = autotvm.DispatchContext.current.query(target, workload)
-
-        if cfg.is_fallback:  # if is fallback, clear query cache and return None
-            autotvm.task.clear_fallback_cache(target, workload)
-            return None
-
-        if cfg.template_key == 'int8':
-            assert 'cuda' in target.keys
-            new_layout = 'NCHW4c'
-            new_attrs[data_layout_key] = new_layout
-            new_attrs['out_layout'] = new_layout
-            new_attrs['kernel_layout'] = 'OIHW4o4i'
-            ic_block_factor = oc_block_factor = 4
-
-            # Store the same config for the altered operator (workload)
-            new_data = tvm.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
-                                       dtype=data.dtype)
-            new_kernel = tvm.placeholder((CO // oc_block_factor, CI // ic_block_factor // groups,\
-                                         KH, KW, oc_block_factor, ic_block_factor),
-                                         dtype=kernel.dtype)
-            new_workload = autotvm.task.args_to_workload(
-                [new_data, new_kernel, strides, padding, dilation, groups, out_dtype],
-                group_conv2d_nchw
-            )
-            dispatch_ctx.update(target, new_workload, cfg)
-            return F.nn.conv2d(*copy_inputs, **new_attrs)
-
-    # do nothing for depthwise convolution
-    return None

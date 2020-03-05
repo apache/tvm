@@ -79,7 +79,7 @@ if [ "$#" -lt 1 ] || [ ! -e "${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}" ]; then
 fi
 
 # Use nvidia-docker if the container is GPU.
-if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
+if [[ "${CONTAINER_TYPE}" == *"gpu"* ]]; then
     if ! type "nvidia-docker" 1> /dev/null 2> /dev/null
     then
         DOCKER_BINARY="docker"

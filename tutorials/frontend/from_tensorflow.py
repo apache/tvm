@@ -26,6 +26,7 @@ Please refer to https://www.tensorflow.org/install
 
 # tvm, relay
 import tvm
+from tvm import te
 from tvm import relay
 
 # os and numpy

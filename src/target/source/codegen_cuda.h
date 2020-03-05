@@ -66,6 +66,15 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitStmt_(const AttrStmtNode *op) final;
 
  private:
+  // Handle volatile loads
+  void HandleVolatileLoads(const std::string& value, const LoadNode* op,
+                           std::ostream& os) final;
+
+  // Whether scope such as "__shared__" or "__constant__"  is part of type.
+  bool IsScopePartOfType() const final {
+    return false;
+  }
+
   // Whether global barrier is needed.
   bool need_global_barrier_{false};
   // Global barrier state

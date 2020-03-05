@@ -18,6 +18,7 @@
 import time
 
 import tvm
+from tvm import te
 from tvm.contrib import util
 
 from tvm import autotvm

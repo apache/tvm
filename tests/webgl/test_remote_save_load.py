@@ -30,6 +30,7 @@ $ python tests/webgl/test_remote_save_load.py
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import rpc
 from tvm.contrib import util, emscripten
 
@@ -45,11 +46,11 @@ def try_remote_save_load():
         return
 
     # Build the module.
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = tvm.create_schedule(C.op)
+    n = te.var("n")
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
     s[C].opengl()
     target_host = "llvm -target=asmjs-unknown-emscripten -system-lib"
     f = tvm.build(s, [A, B, C], "opengl", target_host=target_host, name="myadd")

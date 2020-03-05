@@ -16,18 +16,17 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
-import tvm
-from .. import generic
+from tvm import te
 from .injective import schedule_injective_from_existing
 
-@generic.schedule_softmax.register(["cuda", "gpu"])
+
 def schedule_softmax(outs):
     """Schedule for softmax op.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of softmax in the format
           of an array of tensors.
 
     Returns
@@ -35,8 +34,8 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     softmax = outs[0]
 
     op_tag = softmax.op.tag
@@ -61,8 +60,8 @@ def schedule_softmax(outs):
             s = schedule_injective_from_existing(s, op.output(0))
     else:
         num_thread = 64
-        block_x = tvm.thread_axis("blockIdx.x")
-        thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
+        block_x = te.thread_axis("blockIdx.x")
+        thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
 
         if exp is not None:
             s[exp].bind(exp.op.axis[0], block_x)

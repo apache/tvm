@@ -23,7 +23,7 @@ import numpy as np
 
 from tvm.ir import IRModule
 
-from tvm import expr as tvm_expr
+from tvm.tir import expr as tvm_expr
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import _build_module

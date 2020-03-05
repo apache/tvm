@@ -17,6 +17,7 @@
 """Test legalize pass"""
 import numpy as np
 import tvm
+from tvm import te
 
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -191,6 +192,7 @@ def test_qnn_legalize_qnn_dense():
                 kernel_zero_point=relay.const(1, 'int32'),
                 input_scale=relay.const(1, 'float32'),
                 kernel_scale=relay.const(1, 'float32'),
+                units=kernel_shape[0],
                 out_dtype='int32')
 
         mod = relay.Function(relay.analysis.free_vars(func), func)

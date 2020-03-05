@@ -18,9 +18,6 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 # pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
-from __future__ import absolute_import as _abs
-from __future__ import print_function
-
 import warnings
 from collections import defaultdict
 
@@ -311,6 +308,7 @@ def _conv(opname):
             flip_layout = True
 
         if attr['data_format'] == 'NHWC':
+            in_channels = input_shape[3]
             kernel_h, kernel_w, _, depth_mult = weights_shape
             attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
             if opname == 'conv':
@@ -324,6 +322,7 @@ def _conv(opname):
                 attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
+            in_channels = input_shape[1]
             _, depth_mult, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
@@ -344,7 +343,7 @@ def _conv(opname):
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
         if opname == 'depthwise':
-            attr['groups'] = attr['channels']
+            attr['groups'] = in_channels
 
         # Fix padding
         attr['padding'] = attr['padding'].decode("utf-8")
@@ -897,6 +896,7 @@ def _fused_batch_norm():
                       disables=['momentum'])(inputs, attr)
 
         if need_cast:
+            out = _expr.TupleGetItem(out.astuple(), 0)
             out = _op.cast(out, dtype=attr['T'].name)
         return out
     return _impl
@@ -1009,7 +1009,7 @@ def _gather():
                 'Attribute batch_dims is not supported')
         new_input = inputs[0:2]
         return AttrCvt(op_name="take",
-                       extras={'axis': tvm.const(axis, 'int32')},
+                       extras={'axis': tvm.tir.const(axis, 'int32')},
                        ignores=['Tindices', 'Tparams', 'validate_indices',
                                 'Taxis', '_class', 'batch_dims'])(new_input, attr)
     return _impl
@@ -1499,6 +1499,12 @@ def _add_n():
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
+
+# Operators that get pruned away when the complete graph is frozen.
+# These operators are not needed for inference.
+_freezed_graph_pruned_op_list = ['ReadVariableOp', 'ResourceGather', 'Variable',
+                                 'VariableV2', 'VarHandleOp', 'Assign', 'AssignVariableOp']
+
 
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
@@ -2187,6 +2193,11 @@ class GraphProto(object):
         missing_operators = self._parse_import_prerequisites(graph)
 
         if missing_operators:
+            freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
+            if freezed_ops:
+                raise Exception("Graph is not frozen. Provide a frozen graph. "
+                                "Found operators {}".format(freezed_ops))
+
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 

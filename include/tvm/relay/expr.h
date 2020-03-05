@@ -222,6 +222,13 @@ class FunctionNode : public BaseFuncNode {
   bool IsPrimitive() const;
 
   /*!
+   * \brief Check whether the function is marked as inline.
+   *
+   * \return Whether the function should be inlined or not.
+   */
+  bool IsMarkedInline() const;
+
+  /*!
    * \brief Check whether the function should use the TVM default compiler to build, or
    * use other compilers.
    *
@@ -563,6 +570,8 @@ constexpr const char* kExternalSymbol = "ExternalSymbol";
 constexpr const char* kSkipOptimization = "SkipOptimization";
 /*! \brief Treat the function as a composite operator. */
 constexpr const char* kComposite = "Composite";
+/*! \brief Mark the function to be inlined. */
+constexpr const char* kInline = "Inline";
 }  // namespace attr
 
 }  // namespace relay

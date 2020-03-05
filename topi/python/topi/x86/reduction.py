@@ -16,10 +16,10 @@
 # under the License.
 # pylint: disable=invalid-name
 """x86 declaration and schedules."""
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
+from .injective import schedule_injective_from_existing
 from .. import tag
-from .. import generic
 from ..util import get_const_tuple
 
 def _schedule_reduce(sch, op, is_idx_reduce=False):
@@ -58,7 +58,6 @@ def _schedule_reduce(sch, op, is_idx_reduce=False):
             sch[out].parallel(fused)
 
 
-@generic.schedule_reduce.register(["cpu"])
 def schedule_reduce(outs):
     """X86 schedule for reduction op.
 
@@ -73,13 +72,13 @@ def schedule_reduce(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    sch = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    sch = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def traverse_before_reduce(operator):
         """Internal traverse function"""
-        if isinstance(operator, tvm.tensor.PlaceholderOp):
+        if isinstance(operator, tvm.te.PlaceholderOp):
             return
         if tag.is_injective(operator.tag):
             sch[operator].compute_inline()
@@ -95,7 +94,7 @@ def schedule_reduce(outs):
         """Internal traverse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
-                generic.schedule_injective_from_existing(sch, operator)
+                schedule_injective_from_existing(sch, operator)
             for tensor in operator.input_tensors:
                 traverse_after_reduce(tensor.op)
         elif operator.tag == 'comm_reduce':
@@ -109,7 +108,7 @@ def schedule_reduce(outs):
             for tensor in input_tensors:
                 if tensor.op not in scheduled_ops:
                     traverse_before_reduce(tensor.op)
-        elif isinstance(operator, tvm.tensor.PlaceholderOp):
+        elif isinstance(operator, tvm.te.PlaceholderOp):
             pass
         else:
             raise RuntimeError("Unsupported operator: %s (tag: %s)" % (operator, operator.tag))

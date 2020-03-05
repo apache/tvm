@@ -19,6 +19,7 @@ import os
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 import tvm.relay.transform as _transform
 

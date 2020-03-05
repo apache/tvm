@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import ctypes
 import os.path as osp
 from sys import platform

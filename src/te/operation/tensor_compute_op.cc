@@ -21,6 +21,7 @@
  * \brief Tensor Compute Op.
  * \file tensor_compute_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
@@ -71,6 +72,10 @@ Operation TensorComputeOpNode::make(std::string name,
   n->scalar_inputs = std::move(scalar_inputs);
   return Operation(n);
 }
+
+TVM_REGISTER_GLOBAL("te.TensorComputeOp")
+.set_body_typed(TensorComputeOpNode::make);
+
 
 Array<Tensor> TensorComputeOpNode::InputTensors() const {
   return inputs;

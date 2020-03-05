@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import numpy as np
 import tsim
 import sys
@@ -32,7 +33,7 @@ C: 2d matrix where each cloumn (because of bit packing) represents each bit slic
 """
 def slice(A, slice_width):
     assert np.log2(slice_width) % 1 == 0, "only power of 2 is supported"
-    dtype = type(A[0]) 
+    dtype = type(A[0])
     row = 0
     # currently only supports uint
     if dtype is np.uint8: row = 8 // slice_width
@@ -45,7 +46,7 @@ def slice(A, slice_width):
     else:
         dtype = 'uint8'
 
-    C = np.zeros((row, len(A))).astype(dtype) # sliced and transform 
+    C = np.zeros((row, len(A))).astype(dtype) # sliced and transform
 
     # create mask
     slice_mask = 2**(slice_width)-1
@@ -57,7 +58,7 @@ def slice(A, slice_width):
 
 def slice_mat(A, slice_width):
     assert np.log2(slice_width) % 1 == 0, "only power of 2 is supported"
-    dtype = type(A[0][0]) 
+    dtype = type(A[0][0])
     row = 0
     # currently only supports uint
     if dtype is np.uint8: row = 8 // slice_width
@@ -71,7 +72,7 @@ def slice_mat(A, slice_width):
         dtype = 'uint8'
 
     # 3d array (bits, row, clmn)
-    C = np.zeros((row, A.shape[0], A.shape[1])).astype(dtype) # sliced and transform 
+    C = np.zeros((row, A.shape[0], A.shape[1])).astype(dtype) # sliced and transform
 
     # create mask
     slice_mask = 2**(slice_width)-1
@@ -162,16 +163,16 @@ def test_accel(A, B, i_width, w_width):
     for i in range(len(a_arr)):
         for j in range(len(b_arr)):
             shift = np.uint8(i*i_width + j*w_width)
-            if i == 0 and j == 0: 
+            if i == 0 and j == 0:
                 cycles += f(b_arr[j], a_arr[i], shift, accum, np.uint32(1)) # reset accumulator
-            else: 
+            else:
                 cycles += f(b_arr[j], a_arr[i], shift, accum, np.uint32(0)) # no reset
 
     return (accum.asnumpy(), cycles)
 
 """ Matrix Generator
 Parameters
-----------     
+----------
 dtype : String, datatype generated (supports only uint)
 i_width : weight bit slices(needs to be less than actual bit width)
 w_width : activation bit slices(needs to be less than actual bit width)
@@ -179,9 +180,9 @@ w_width : activation bit slices(needs to be less than actual bit width)
 def top_test(dtype, i_width, w_width):
 
     # only supports positive values (up to 2**(bits-1))
-    rmax = 127 
+    rmax = 127
     # (m,16) * (16,16) GEMM
-    rrow = np.random.randint(7) + 1 
+    rrow = np.random.randint(7) + 1
     clmn = 16
     A = np.random.randint(rmax, size=(rrow,clmn)).astype(dtype)
     B = np.random.randint(rmax, size=(clmn,clmn)).astype(dtype)
@@ -196,8 +197,8 @@ if __name__ == "__main__":
     for i in range(1):
         # reg1 and reg2 bits in hardware/chisel/src/main/Compute.scala must be modified for slices greater than 8 bits
         if sys.argv[1] == 'serial':
-          # generates a random uint8 GEMM with 2-bit(8/4) input and 4-bit(8/2) weight 
+          # generates a random uint8 GEMM with 2-bit(8/4) input and 4-bit(8/2) weight
           top_test("uint8", 4, 2)
         elif sys.argv[1] == 'parallel':
-          # generates a random uint8 GEMM with 8-bit input and 8-bit weight (bit parallel) 
+          # generates a random uint8 GEMM with 8-bit input and 8-bit weight (bit parallel)
           top_test('uint8', 8, 8)

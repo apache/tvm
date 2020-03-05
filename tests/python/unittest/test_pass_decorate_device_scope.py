@@ -15,24 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_decorate_device():
-    m = tvm.size_var('m')
-    l = tvm.size_var('l')
-    A = tvm.placeholder((m, l), name='A')
+    m = te.size_var('m')
+    l = te.size_var('l')
+    A = te.placeholder((m, l), name='A')
 
-    A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
-    A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
+    A1 = te.compute((m, l), lambda i, j: A[i, j], name='A1')
+    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
 
-    s = tvm.create_schedule(A2.op)
+    s = te.create_schedule(A2.op)
     xo, xi = s[A2].split(A2.op.axis[0], factor=8)
     s[A1].compute_at(s[A2], xo)
     s[A1].set_scope("shared")
 
-    bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
-    stmt1 = tvm.ir_pass.Simplify(stmt)
-    stmt2 = tvm.ir_pass.DecorateDeviceScope(stmt1)
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
+    stmt1 = tvm.tir.ir_pass.Simplify(stmt)
+    stmt2 = tvm.tir.ir_pass.DecorateDeviceScope(stmt1)
     assert isinstance(stmt2, tvm.tir.AttrStmt)
     assert stmt2.attr_key == "device_scope"
     assert stmt1 == stmt2.body

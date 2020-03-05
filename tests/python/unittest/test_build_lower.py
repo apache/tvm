@@ -15,28 +15,29 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_lower_rfactor():
-    n = tvm.size_var("n")
-    m = tvm.size_var("m")
-    A = tvm.placeholder((n, m), name='A')
-    k = tvm.reduce_axis((0, m), "k")
-    B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
-    s = tvm.create_schedule(B.op)
+    n = te.size_var("n")
+    m = te.size_var("m")
+    A = te.placeholder((n, m), name='A')
+    k = te.reduce_axis((0, m), "k")
+    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
+    s = te.create_schedule(B.op)
     ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
     BF = s.rfactor(B, ki)
     xo, xi = s[B].split(s[B].op.axis[0], factor=32)
-    s[B.op].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[B.op].bind(xi, tvm.thread_axis("threadIdx.y"))
-    s[B].bind(s[B].op.reduce_axis[0], tvm.thread_axis("threadIdx.x"))
+    s[B.op].bind(xo, te.thread_axis("blockIdx.x"))
+    s[B.op].bind(xi, te.thread_axis("threadIdx.y"))
+    s[B].bind(s[B].op.reduce_axis[0], te.thread_axis("threadIdx.x"))
     s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
     fapi = tvm.lower(s, [A, B])
 
 def test_dependent_output_shape():
-    n, m, x = tvm.size_var('n'), tvm.size_var('m'), tvm.size_var('x')
-    A = tvm.placeholder((n, m))
-    B = tvm.compute((m, n//x), lambda i, j: A[i,j] , name='B')
-    s = tvm.create_schedule(B.op)
+    n, m, x = te.size_var('n'), te.size_var('m'), te.size_var('x')
+    A = te.placeholder((n, m))
+    B = te.compute((m, n//x), lambda i, j: A[i,j] , name='B')
+    s = te.create_schedule(B.op)
     mod = tvm.build(s, [A, B, x])
 
 if __name__ == "__main__":

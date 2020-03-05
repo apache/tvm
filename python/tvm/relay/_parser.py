@@ -48,19 +48,20 @@ from . import op
 
 PYTHON_VERSION = sys.version_info.major
 try:
-    from .grammar.py3.RelayVisitor import RelayVisitor
-    from .grammar.py3.RelayParser import RelayParser
-    from .grammar.py3.RelayLexer import RelayLexer
-except ImportError:
-    raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
-
-try:
     from antlr4 import InputStream, CommonTokenStream
     from antlr4.error.ErrorListener import ErrorListener
 except ImportError:
     raise Exception("Couldn't find ANTLR runtime." +
                     "Try running `pip{version} install antlr4-python{version}-runtime`."
                     .format(version=PYTHON_VERSION))
+
+try:
+    from .grammar.py3.RelayVisitor import RelayVisitor
+    from .grammar.py3.RelayParser import RelayParser
+    from .grammar.py3.RelayLexer import RelayLexer
+except ImportError:
+    raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
+
 
 sys.setrecursionlimit(10000)
 

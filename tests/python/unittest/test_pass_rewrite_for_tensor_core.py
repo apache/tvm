@@ -15,16 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 import numpy as np
 from tvm.contrib import nvcc
 
 def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
-    A = tvm.placeholder((n, l), name='A', dtype='float16')
-    B = tvm.placeholder((l, m), name='B', dtype='float16')
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k].astype('float32') * B[k, j].astype('float32'), axis=k))
-    s = tvm.create_schedule(C.op)
+    A = te.placeholder((n, l), name='A', dtype='float16')
+    B = te.placeholder((l, m), name='B', dtype='float16')
+    k = te.reduce_axis((0, l), name='k')
+    C = te.compute((n, m), lambda i, j: te.sum(A[i, k].astype('float32') * B[k, j].astype('float32'), axis=k))
+    s = te.create_schedule(C.op)
     y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
 
@@ -57,12 +58,12 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     kl, ki = s[CL].split(ki, tile_k)
 
     s[C].reorder(yo, xo, tz, ty, tx, yi, xi)
-    s[C].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[C].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[C].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[C].bind(vy, tvm.thread_axis((0, vthread), "vthread", name="vy"))
+    s[C].bind(yo, te.thread_axis("blockIdx.y"))
+    s[C].bind(xo, te.thread_axis("blockIdx.x"))
+    s[C].bind(ty, te.thread_axis("threadIdx.y"))
+    s[C].bind(tz, te.thread_axis("threadIdx.z"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
+    s[C].bind(vy, te.thread_axis((0, vthread), "vthread", name="vy"))
     s[CL].compute_at(s[C], tx)
     yo, xo = CL.op.axis
     s[CL].reorder(ko, kl, ki, yo, xo)
@@ -73,9 +74,9 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     tx, vec = s[AA].split(tx, factor=v)
     fused = s[AA].fuse(s[AA].op.axis[0], xo)
     _, ty = s[AA].split(fused, factor=by)
-    s[AA].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[AA].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[AA].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[AA].bind(ty, te.thread_axis("threadIdx.y"))
+    s[AA].bind(tz, te.thread_axis("threadIdx.z"))
+    s[AA].bind(tx, te.thread_axis("threadIdx.x"))
     s[AA].vectorize(vec)
 
     s[BB].compute_at(s[CL], ko)
@@ -84,9 +85,9 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     tx, vec = s[BB].split(tx, factor=v)
     fused = s[BB].fuse(s[BB].op.axis[0], xo)
     _, ty = s[BB].split(fused, factor=by)
-    s[BB].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[BB].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[BB].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[BB].bind(ty, te.thread_axis("threadIdx.y"))
+    s[BB].bind(tz, te.thread_axis("threadIdx.z"))
+    s[BB].bind(tx, te.thread_axis("threadIdx.x"))
     s[BB].vectorize(vec)
 
     s[AL].compute_at(s[CL], kl)
@@ -111,11 +112,11 @@ def tensor_core_matmul(warp_tile_m=16, m=64, n=32, l=96):
     np.testing.assert_allclose(c_np, c.asnumpy(), rtol=1e-3)
 
 def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
-    A = tvm.placeholder((batch, n, l), name='A', dtype='float16')
-    B = tvm.placeholder((batch, l, m), name='B', dtype='float16')
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute((batch, n, m), lambda b, i, j: tvm.sum((A[b, i, k] * B[b, k, j]).astype('float32'), axis=k))
-    s = tvm.create_schedule(C.op)
+    A = te.placeholder((batch, n, l), name='A', dtype='float16')
+    B = te.placeholder((batch, l, m), name='B', dtype='float16')
+    k = te.reduce_axis((0, l), name='k')
+    C = te.compute((batch, n, m), lambda b, i, j: te.sum((A[b, i, k] * B[b, k, j]).astype('float32'), axis=k))
+    s = te.create_schedule(C.op)
     z, y, x = s[C].op.axis
     k = s[C].op.reduce_axis[0]
 
@@ -148,13 +149,13 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     kl, ki = s[CL].split(ki, tile_k)
 
     s[C].reorder(z, yo, xo, tz, ty, tx, yi, xi)
-    s[C].bind(z, tvm.thread_axis("blockIdx.z"))
-    s[C].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[C].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[C].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[C].bind(vy, tvm.thread_axis((0, vthread), "vthread", name="vy"))
+    s[C].bind(z, te.thread_axis("blockIdx.z"))
+    s[C].bind(yo, te.thread_axis("blockIdx.y"))
+    s[C].bind(xo, te.thread_axis("blockIdx.x"))
+    s[C].bind(ty, te.thread_axis("threadIdx.y"))
+    s[C].bind(tz, te.thread_axis("threadIdx.z"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
+    s[C].bind(vy, te.thread_axis((0, vthread), "vthread", name="vy"))
     s[CL].compute_at(s[C], tx)
     zo, yo, xo = CL.op.axis
     s[CL].reorder(ko, kl, ki, zo, yo, xo)
@@ -165,9 +166,9 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     tx, vec = s[AA].split(tx, factor=v)
     fused = s[AA].fuse(s[AA].op.axis[1], xo)
     _, ty = s[AA].split(fused, factor=by)
-    s[AA].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[AA].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[AA].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[AA].bind(ty, te.thread_axis("threadIdx.y"))
+    s[AA].bind(tz, te.thread_axis("threadIdx.z"))
+    s[AA].bind(tx, te.thread_axis("threadIdx.x"))
     s[AA].vectorize(vec)
 
     s[BB].compute_at(s[CL], ko)
@@ -176,9 +177,9 @@ def tensor_core_batch_matmul(warp_tile_m=16, m=64, n=32, l=96, batch=2):
     tx, vec = s[BB].split(tx, factor=v)
     fused = s[BB].fuse(s[BB].op.axis[1], xo)
     _, ty = s[BB].split(fused, factor=by)
-    s[BB].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[BB].bind(tz, tvm.thread_axis("threadIdx.z"))
-    s[BB].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[BB].bind(ty, te.thread_axis("threadIdx.y"))
+    s[BB].bind(tz, te.thread_axis("threadIdx.z"))
+    s[BB].bind(tx, te.thread_axis("threadIdx.x"))
     s[BB].vectorize(vec)
 
     s[AL].compute_at(s[CL], kl)

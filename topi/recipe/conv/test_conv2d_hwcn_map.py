@@ -19,6 +19,7 @@ import os
 import numpy as np
 import scipy.signal
 import tvm
+from tvm import te
 from tvm.contrib import nvcc
 import topi
 from topi.util import get_const_tuple
@@ -55,8 +56,8 @@ def test_conv2d_hwcn_map():
     stride = 2
     padding = 'SAME'
 
-    A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
-    W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
+    A = te.placeholder((in_height, in_width, in_channel, batch), name='A')
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
     B = topi.nn.conv2d_hwcn(A, W, stride, padding)
     C = topi.nn.relu(B)
     s1 = topi.cuda.schedule_conv2d_hwcn([B])
@@ -76,7 +77,7 @@ def test_conv2d_hwcn_map():
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.target.build_config(auto_unroll_max_step=128,
                               unroll_explicit=device == 'rocm'):
             func1 = tvm.build(s1, [A, W, B], device)
             func1(a, w, b)

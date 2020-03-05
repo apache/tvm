@@ -27,6 +27,7 @@ it on Raspberry Pi.
 """
 
 import tvm
+from tvm import te
 import tvm.relay as relay
 from tvm import rpc
 from tvm.contrib import util, graph_runtime as runtime

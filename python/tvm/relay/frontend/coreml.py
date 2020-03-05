@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, import-self, unused-argument, unused-variable
 # pylint: disable=inconsistent-return-statements, import-outside-toplevel
 """CoreML frontend."""
-from __future__ import absolute_import as _abs
 import math
 import numpy as np
 import tvm

@@ -165,6 +165,11 @@ TVM_REGISTER_GLOBAL("topi.exp")
   *rv = exp(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.fast_exp")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = fast_exp(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.erf")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = erf(args[0]);
@@ -183,7 +188,10 @@ TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
   });
-
+TVM_REGISTER_GLOBAL("topi.fast_tanh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = fast_tanh(args[0]);
+  });
 TVM_REGISTER_GLOBAL("topi.atan")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = atan(args[0]);
@@ -672,7 +680,7 @@ TVM_REGISTER_GLOBAL("topi.rocm.schedule_softmax")
 
 TVM_REGISTER_GLOBAL("topi.rocm.schedule_lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::rocm::schedule_lrn(args[0], args[1]);
+  *rv = topi::rocm::schedule_lrn(args[0]);
   });
 
 /* CUDA schedules */
@@ -718,7 +726,7 @@ TVM_REGISTER_GLOBAL("topi.cuda.schedule_softmax")
 
 TVM_REGISTER_GLOBAL("topi.cuda.schedule_lrn")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = topi::cuda::schedule_lrn(args[0], args[1]);
+  *rv = topi::cuda::schedule_lrn(args[0]);
   });
 
 /* Utility functions */

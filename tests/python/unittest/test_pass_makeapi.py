@@ -15,26 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy
 
 def test_makeapi():
     """Not yet working, mock design"""
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    s = tvm.create_schedule(C.op)
+    n = te.size_var('n')
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = te.create_schedule(C.op)
 
-    bounds = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    bounds = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    Ab = tvm.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.decl_buffer(B.shape, B.dtype, name='B')
-    Cb = tvm.decl_buffer(C.shape, C.dtype, name='C')
-    stmt = tvm.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
+    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
+    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
+    Cb = tvm.tir.decl_buffer(C.shape, C.dtype, name='C')
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
 
     num_unpacked_args = 2
-    f = tvm.ir_pass.MakeAPI(
+    f = tvm.tir.ir_pass.MakeAPI(
         stmt, "myadd", [n, Ab, Bb, Cb], num_unpacked_args, True)
     assert(f.handle_data_type[Ab.data].dtype == Ab.dtype)
     assert(len(f.args) == 7)

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_local_gemm():
@@ -24,17 +25,17 @@ def test_local_gemm():
         return
 
     nn = 1024
-    n = tvm.var('n')
-    n = tvm.convert(nn)
+    n = te.var('n')
+    n = tvm.runtime.convert(nn)
     m = n
     l = n
-    A = tvm.placeholder((n, l), name='A', dtype='int32')
-    B = tvm.placeholder((m, l), name='B', dtype='int32')
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute((n, m), lambda ii, jj: tvm.sum(A[ii, k] * B[jj, k], axis=k),
+    A = te.placeholder((n, l), name='A', dtype='int32')
+    B = te.placeholder((m, l), name='B', dtype='int32')
+    k = te.reduce_axis((0, l), name='k')
+    C = te.compute((n, m), lambda ii, jj: te.sum(A[ii, k] * B[jj, k], axis=k),
                     name='CC')
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     s[C].opengl()
     print(tvm.lower(s, [A, B, C], simple_mode=True))
 

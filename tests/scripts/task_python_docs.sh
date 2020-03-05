@@ -27,6 +27,9 @@ rm -rf docs/_build/html/javadoc
 rm -rf docs/tutorials
 rm -rf docs/vta/tutorials
 
+# cleanup stale log files
+find . -type f -path "*.log" | xargs rm -f
+
 # C++ doc
 make doc
 

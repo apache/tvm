@@ -57,20 +57,6 @@ std::string CodeGenCUDA::Finish() {
                 << "{\n  return __hgt(__half(a), __half(b)) ? a : b;\n}\n";
     decl_stream << "__device__ half min(half a, half b)\n"
                 << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
-    // FIXME(tvm-team): "volatile" is used to enable cross thread reduction,
-    // which is needed by operations such as softmax.
-    // However, volatile overloading is not supported in NVRTC and CUDA < 9.2.
-    // We need to figure out a solution which can satisfy both scenario.
-    // decl_stream << "__device__ half operator<="
-    //             << "(const volatile __half &a,  const volatile __half &b)\n"
-    //             << "{\n  return __hlt(a, b);\n}\n";
-    // decl_stream << "__device__ half operator+"
-    //             << "(const volatile __half &a,  const volatile __half &b)\n"
-    //             <<"{\n  return __hadd(a, b);\n}\n";
-    // decl_stream << "__device__ half operator*"
-    //             << "(const volatile __half &a, const volatile __half &b)\n"
-    //             <<   "{\n  return __hmul(a, b);\n}\n";
-    // otherwise simulate computation via float32
     decl_stream << "#else\n";
     decl_stream << _cuda_half_t_def;
     decl_stream << "#endif\n\n";
@@ -158,6 +144,37 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       }
     }
     switch (t.bits()) {
+      case 1: {
+        if (t.lanes() == 1) {
+          os << "int"; return;
+        } else if (t.lanes() == 8) {
+          os << "int8_t"; return;
+        } else if (t.lanes() == 16) {
+          os << "int16_t"; return;
+        } else if (t.lanes() == 32) {
+          os << "int"; return;
+        } else {
+          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type!";
+        }
+      }
+      case 4: {
+        if (t.lanes() == 1) {
+          os << "int"; return;
+        } else if (t.lanes() == 4) {
+          os << "int16_t"; return;
+        } else if (t.lanes() == 8) {
+          // directly 8 4-bit int in integer.
+          os << "int"; return;
+        } else if (t.lanes() == 16) {
+          os << "int2"; return;
+        } else if (t.lanes() == 32) {
+          os << "int4"; return;
+        } else if (t.lanes() == 64) {
+          os << "int8"; return;
+        } else {
+          LOG(FATAL) << "Cannot convert type " << t << " to CUDA type!";
+        }
+      }
       case 8: {
         if (t.lanes() == 4) {
           // directly 4 8 bit int in integer.
@@ -196,7 +213,6 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
           os << "long"; break;
         }
       }
-      case 1: os << "int"; break;
       default: fail = true; break;
     }
     if (!fail && lanes == 1) {
@@ -385,6 +401,16 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
       this->PrintExpr(op->args[i * 2 + 1], os);
       os << "]" << ((i < 3) ? ", ": ")");
     }
+  } else if (op->is_intrinsic(intrinsic::tvm_bmma_sync)) {
+    need_mma_h_ = true;
+    CHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::bmma_sync(";
+    for (int i = 0; i < 4; ++i) {
+      this->PrintExpr(op->args[i * 2], os);
+      os << "[";
+      this->PrintExpr(op->args[i * 2 + 1], os);
+      os << "]" << ((i < 3) ? ", ": ")");
+    }
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -424,8 +450,12 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
       if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
         CHECK(op->dtype == DataType::Float(16) ||
               op->dtype == DataType::Int(8) ||
-              op->dtype == DataType::UInt(8))
-          << "Matrix_a and matrix_b only support half or char or unsigned char type for now";
+              op->dtype == DataType::UInt(8) ||
+              op->dtype == DataType::Int(4) ||
+              op->dtype == DataType::UInt(4) ||
+              op->dtype == DataType::Int(1))
+          << "Matrix_a and matrix_b only support half or char or unsigned char "
+          << "or uint4 or int4 or int1 type for now";
       } else {
         CHECK(op->dtype == DataType::Float(16) ||
               op->dtype == DataType::Float(32) ||
@@ -438,6 +468,11 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
       PrintStorageScope(scope, stream);
       stream << ' ';
       PrintType(op->dtype, stream);
+    }
+    if ((op->dtype == DataType::Int(4) ||
+         op->dtype == DataType::UInt(4) ||
+         op->dtype == DataType::Int(1)) && scope == "shared") {
+      constant_size = constant_size / (32 / op->dtype.bits());
     }
     stream << ' '<< vid << '['
            << constant_size << "];\n";
@@ -566,6 +601,24 @@ void CodeGenCUDA::PrintWmmaScope(const std::string &scope, DataType t,
   std::stringstream type;
   PrintType(t, type);
   std::string shape_str = fragment_shapes[variable];
+  if ((t.is_int() || t.is_uint()) && t.bits() < 8 && t.lanes() == 1) {
+    type.str(std::string());
+    if (t.is_int()) {
+      if (t.bits() == 4) {
+        type << "nvcuda::wmma::experimental::precision::s4";
+      } else if (t.bits() == 1) {
+        type << "nvcuda::wmma::experimental::precision::b1";
+      } else {
+        LOG(FATAL) << "Unhandled interger type for wmma fragment!";
+      }
+    } else if (t.is_uint()) {
+      if (t.bits() == 4) {
+        type << "nvcuda::wmma::experimental::precision::u4";
+      } else {
+        LOG(FATAL) << "Unhandled interger type for wmma fragment!";
+      }
+    }
+  }
   if (scope == "wmma.matrix_a") {
     need_mma_h_ = true;
     std::string layout_str = fragment_layouts[variable];
@@ -603,6 +656,20 @@ int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string &scope,
     return size / m / n;
   }
   return 0;
+}
+
+void CodeGenCUDA::HandleVolatileLoads(const std::string& value,
+                                      const LoadNode* op, std::ostream& os) {
+  // Cast away volatile qualifier for fp16 types. That is, only loads and
+  // stores are volatile. The loaded objects are not marked as volatile.
+  //
+  if (op->dtype.is_float16() && IsVolatile(op->buffer_var.get())) {
+    os << "(";
+    PrintType(op->dtype, os);
+    os << ")(" << value << ")";
+  } else {
+    os << value;
+  }
 }
 
 }  // namespace codegen

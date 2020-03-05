@@ -145,6 +145,12 @@ bool FunctionNode::IsPrimitive() const {
   return pval && pval->value != 0;
 }
 
+bool FunctionNode::IsMarkedInline() const {
+  ObjectRef res = FunctionGetAttr(GetRef<Function>(this), attr::kInline);
+  const tir::IntImmNode* pval = res.as<tir::IntImmNode>();
+  return pval && pval->value != 0;
+}
+
 Function FunctionNode::SetParams(const tvm::Map<Var, Constant>& parameters) const {
   return FunctionSetAttr(GetRef<Function>(this), attr::kParams, parameters);
 }
@@ -358,6 +364,12 @@ TVM_REGISTER_GLOBAL("relay._expr.FunctionSetAttr")
 .set_body_typed(
   [](Function func, std::string name, ObjectRef ref) {
     return FunctionSetAttr(func, name, ref);
+});
+
+TVM_REGISTER_GLOBAL("relay._expr.FunctionGetAttr")
+.set_body_typed(
+  [](Function func, std::string name) {
+    return FunctionGetAttr(func, name);
 });
 
 TVM_REGISTER_GLOBAL("relay._make.Any")

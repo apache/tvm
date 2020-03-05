@@ -24,7 +24,7 @@ import traceback
 # tvm._ffi
 from ._ffi.base import TVMError, __version__
 from ._ffi.runtime_ctypes import TypeCode, DataType
-from ._ffi.registry import register_object, register_func, register_extension
+from ._ffi import register_object, register_func, register_extension, get_global_func
 
 # top-level alias
 # tvm.runtime
@@ -48,24 +48,20 @@ from . import tir
 # tvm.target
 from . import target
 
-# others
-from . import tensor
-from . import arith
-from . import make
-from . import schedule
-from . import hybrid
+# tvm.te
+from . import te
+
+# tvm.testing
 from . import testing
 
-from .api import *
-from .tensor_intrin import decl_tensor_intrin
-from .schedule import create_schedule
-from .build_module import build, lower, build_config
-from .tag import tag_scope
+# tvm.driver
+from .driver import build, lower
 
-# backward compact for topi, to be removed later
-from .tir import expr, stmt, ir_builder, ir_pass, generic
-from .tir.op import *
-from . import intrin
+# tvm.hybrid
+from . import hybrid
+
+# others
+from . import arith
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

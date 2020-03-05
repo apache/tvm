@@ -18,22 +18,16 @@
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
+import topi.testing
 from topi.util import get_const_tuple
-from tvm.contrib.nvcc import parse_compute_version
+from tvm.contrib.nvcc import have_fp16
+
 from common import get_all_backend
 
-def skip_test(dtype, device):
-    if dtype == "float16" and device == "cuda":
-        major, minor = parse_compute_version(tvm.gpu(0).compute_version)
-        # fp16 starts from 5.3
-        if major < 6 or (major == 5 and minor < 3):
-            print("skip because gpu does not support fp16")
-            return True
-    return False
-
 def verify_relu(m, n, dtype="float32"):
-    A = tvm.placeholder((m, n), name='A', dtype=dtype)
+    A = te.placeholder((m, n), name='A', dtype=dtype)
     B = topi.nn.relu(A)
 
     a_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(A.shape)).astype(A.dtype)
@@ -44,11 +38,12 @@ def verify_relu(m, n, dtype="float32"):
         if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
-        if skip_test(dtype, device):
+        if dtype == "float16" and device == "cuda" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because %s does not have fp16 support" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_elemwise(B)
+            s = topi.testing.get_elemwise_schedule(device)(B)
 
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
@@ -61,9 +56,9 @@ def verify_relu(m, n, dtype="float32"):
 
 
 def verify_leaky_relu(m, alpha):
-    A = tvm.placeholder((m,), name='A')
+    A = te.placeholder((m,), name='A')
     B = topi.nn.leaky_relu(A, alpha)
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = a_np * (a_np > 0) + a_np * (a_np < 0) * alpha
@@ -76,8 +71,8 @@ def verify_leaky_relu(m, alpha):
 
 
 def verify_prelu(x, w, axis, weight_reshape):
-    X = tvm.placeholder((x), name='X')
-    W = tvm.placeholder((w), name='W')
+    X = te.placeholder((x), name='X')
+    W = te.placeholder((w), name='W')
     x_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(X.shape)).astype(X.dtype)
     w_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(W.shape)).astype(W.dtype)
 
@@ -85,7 +80,7 @@ def verify_prelu(x, w, axis, weight_reshape):
         return (x < 0) * (x *W.reshape(weight_reshape)) + (x>=0) * x
 
     B = topi.nn.prelu(X, W, axis)
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
 
     ctx = tvm.cpu(0)
     x_tvm = tvm.nd.array(x_np, ctx)

@@ -21,6 +21,7 @@ import sys
 import numpy as np
 
 import tvm
+from tvm import te
 import tvm.runtime._ffi_api
 from tvm import relay
 from tvm.contrib import util

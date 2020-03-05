@@ -21,6 +21,7 @@ Connect javascript end to the websocket port and connect to the RPC.
 """
 
 import tvm
+from tvm import te
 import os
 from tvm import rpc
 from tvm.contrib import util, emscripten
@@ -33,10 +34,10 @@ def test_rpc_array():
     if not tvm.runtime.enabled("rpc"):
         return
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
     remote = rpc.connect(proxy_host, proxy_port, key="js")
     target = "llvm -target=asmjs-unknown-emscripten -system-lib"
     def check_remote():
