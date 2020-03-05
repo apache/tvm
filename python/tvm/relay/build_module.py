@@ -222,6 +222,8 @@ def build(mod, target=None, target_host=None, params=None):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     if isinstance(mod, _expr.Function):
+        if params:
+            mod = bind_params_by_name(mod, params)
         mod = IRModule.from_expr(mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
@@ -278,6 +280,8 @@ def optimize(mod, target=None, params=None):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     if isinstance(mod, _expr.Function):
+        if params:
+            mod = bind_params_by_name(mod, params)
         mod = IRModule.from_expr(mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
