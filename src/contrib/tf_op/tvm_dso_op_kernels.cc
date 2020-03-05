@@ -242,9 +242,22 @@ class TVMDSOOp : public OpKernel {
           dims, static_output_shape.size(), &output_shape);
     } else if (output_shape_tensor.dims() == 1) {
       // use shape tensor values as output shape
-      const tensorflow::int64* dims =
-          output_shape_tensor.flat<tensorflow::int64>().data();
-      tensorflow::TensorShapeUtils::MakeShape(dims, 1, &output_shape);
+      tensorflow::int64 num_dims = output_shape_tensor.NumElements();
+      if (TVMDSOOpTrait<GPUDevice>::device_type == kDLGPU) {
+          const tensorflow::int64* flat =
+              output_shape_tensor.flat<tensorflow::int64>().data();
+          tensorflow::int64* dims = new tensorflow::int64[num_dims];
+          cudaMemcpy(dims, flat, sizeof(tensorflow::int64) * num_dims,
+             cudaMemcpyDeviceToHost);
+          tensorflow::TensorShapeUtils::MakeShape(
+              dims, num_dims, &output_shape);
+          delete dims;
+      } else {
+          const tensorflow::int64* dims =
+              output_shape_tensor.flat<tensorflow::int64>().data();
+          tensorflow::TensorShapeUtils::MakeShape(
+              dims, num_dims, &output_shape);
+      }
     } else {
       // use input tensor shape by default
       output_shape = context->input(0).shape();
