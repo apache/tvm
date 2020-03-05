@@ -31,6 +31,12 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 # Test extern package
+cd apps/bundle_deploy
+rm -rf build
+make
+cd ../..
+
+# Test extern package
 cd apps/extension
 rm -rf lib
 make
