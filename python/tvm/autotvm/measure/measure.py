@@ -17,7 +17,18 @@
 # pylint: disable=pointless-string-statement,consider-using-enumerate,invalid-name
 """User facing API for specifying how to measure the generated code"""
 import multiprocessing
+import time
 from collections import namedtuple
+
+import numpy as np
+
+from tvm import nd
+from tvm import target as _target
+from tvm.driver import build
+
+from ..util import get_const_tuple
+from .local_executor import LocalExecutor
+
 
 class MeasureInput(namedtuple("MeasureInput", ["target", "task", "config"])):
     """
@@ -66,7 +77,8 @@ class MeasureErrorNo(object):
 
 
 class Builder(object):
-    """Builder that builds programs in tuning
+    """
+    Builder that builds programs in tuning
 
     Parameters
     ----------
@@ -113,19 +125,61 @@ class Builder(object):
 
 
 class Runner(object):
-    """Runner that runs and measures the time cost of a generated program in tuning
+    """
+    Runner that runs and measures the time cost of a generated program in tuning
 
     Parameters
     ----------
-    timeout: float, optional
-        The timeout of a build task
-    n_parallel: int, optional
-        The number of tasks submitted in parallel
-        By default it will use all cpu cores
+    timeout: float
+        The timeout of a compilation
+    n_parallel: int
+        The number of tasks run in parallel. "None" will use all cpu cores
+    number: int
+        The number of times to run the generated code for taking average.
+        We call these runs as one `repeat` of measurement.
+    repeat : int, optional
+        The number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first "1" is warm up and will be discarded.
+        The returned result contains `repeat` costs,
+        each of which is an average of `number` costs.
+    min_repeat_ms: int, optional
+        The minimum duration of one `repeat` in milliseconds.
+        By default, one `repeat` contains `number` runs. If this parameter is set,
+        the parameters `number` will be dynamically adjusted to meet the
+        minimum duration requirement of one `repeat`.
+        i.e., When the run time of one `repeat` falls below this time, the `number` parameter
+        will be automatically increased.
+    cooldown_interval: float, optional
+        The cool down interval between two measurements.
+    check_correctness: bool, optional
+        Whether check correctness after measurement. This will use llvm cpu target to
+        call your template and get the reference output.
+        This can work for TOPI templates, but may not work for your custom template.
     """
-    def __init__(self, timeout=5, n_parallel=None):
+    def __init__(self,
+                 timeout=5,
+                 n_parallel=None,
+                 number=4,
+                 repeat=3,
+                 min_repeat_ms=0,
+                 cooldown_interval=0.1,
+                 check_correctness=False):
         self.timeout = timeout
         self.n_parallel = n_parallel or multiprocessing.cpu_count()
+        self.timeout = timeout
+
+        self.number = number
+        self.repeat = repeat
+        self.min_repeat_ms = min_repeat_ms
+
+        self.ref_input = None
+        self.ref_output = None
+        self.check_correctness = check_correctness
+        self.cooldown_interval = cooldown_interval
+
+        self.executor = LocalExecutor()
+
         self.task = None
 
     def set_task(self, task):
@@ -138,20 +192,77 @@ class Runner(object):
             The tuning task
         """
         self.task = task
+        if self.check_correctness:
+            # use llvm cpu to generate a reference input/output
+            # this option works for tuning topi, but might not work for your custom ops
+            with _target.create("llvm"):
+                s, arg_bufs = task.instantiate(task.config_space.get(0))
+            self.ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
+                              for x in arg_bufs]
+            func = build(s, arg_bufs, "llvm")
+            tvm_buf = [nd.array(x) for x in self.ref_input]
+            func(*tvm_buf)
+            self.ref_output = [x.asnumpy() for x in tvm_buf]
+
+    def get_device_context(self):
+        """
+        Get device context for build and run.
+
+        Returns
+        -------
+        ctx: TVMContext
+            The TVM context of the target device.
+        """
+        raise NotImplementedError()
 
     def get_build_kwargs(self):
         """
-        Get device specific build arguments (e.g. maximum shared memory size)
+        Get device specific build arguments (e.g. maximum shared memory size).
 
         Returns
         ----------
         kwargs: dict
             The additional keyword arguments
         """
+        kwargs = {}
+        if ('cuda' in self.task.target.keys or 'opencl' in self.task.target.keys
+                or 'rocm' in self.task.target.keys):
+            ctx = self.get_device_context()
+            max_dims = ctx.max_thread_dimensions
+            kwargs['check_gpu'] = {
+                'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
+                'max_threads_per_block': ctx.max_threads_per_block,
+                'max_thread_x': max_dims[0],
+                'max_thread_y': max_dims[1],
+                'max_thread_z': max_dims[2],
+            }
+
+            if 'cuda' in self.task.target.keys:
+                kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+
+        return kwargs
+
+    def get_run_args(self, measure_inputs, build_results):
+        """
+        Get arguments for running the built binaries.
+
+        Parameters
+        ----------
+        measure_inputs: List of MeasureInput
+            The raw measure input
+        build_results: List of BuildResults
+            The build results
+
+        Returns
+        -------
+        args: list
+            A list of running arguments. The first element in the list is the running function.
+        """
         raise NotImplementedError()
 
     def run(self, measure_inputs, build_results):
-        """Run amd measure built programs
+        """
+        Run amd measure built programs
 
         Parameters
         ----------
@@ -165,7 +276,26 @@ class Runner(object):
         measure_results: List of MeasureResult
             The final results of measurement
         """
-        raise NotImplementedError()
+        results = []
+
+        for i in range(0, len(measure_inputs), self.n_parallel):
+            futures = []
+            for measure_inp, build_res in zip(measure_inputs[i:i + self.n_parallel],
+                                              build_results[i:i + self.n_parallel]):
+                args = self.get_run_args(measure_inp, build_res)
+                ret = self.executor.submit(*args)
+                futures.append(ret)
+
+            for future in futures:
+                res = future.get()
+                if isinstance(res, Exception):  # executor error or timeout
+                    results.append(
+                        MeasureResult((str(res), ), MeasureErrorNo.RUN_TIMEOUT, self.timeout,
+                                      time.time()))
+                else:
+                    results.append(res)
+
+        return results
 
 
 def measure_option(builder, runner):
@@ -232,7 +362,8 @@ def measure_option(builder, runner):
 
 
 def create_measure_batch(task, option):
-    """Get a standard measure_batch function.
+    """
+    Get a standard measure_batch function.
 
     Parameters
     ----------
