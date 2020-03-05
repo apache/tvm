@@ -51,7 +51,6 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
-Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
