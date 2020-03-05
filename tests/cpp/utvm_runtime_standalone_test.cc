@@ -17,41 +17,66 @@
  * under the License.
  */
 
-#include <random>
-
-#include <dlpack/dlpack.h>
-#include <gtest/gtest.h>
-#include <map>
-#include <vector>
-
 #ifdef USE_MICRO_STANDALONE_RUNTIME
 
-// Use system(..), `gcc -shared -fPIC`, thus restrict the test to OS X for now.
-#if defined(__APPLE__) && defined(__MACH__)
-
 #include <gtest/gtest.h>
-#include <topi/generic/injective.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/te/operation.h>
-#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
-#include <tvm/runtime/micro/standalone/utvm_runtime.h>
-#include <tvm/runtime/module.h>
+#include <tvm/relay/analysis.h>
+#include <tvm/relay/transform.h>
+#include <tvm/relay/op_strategy.h>
+#include <tvm/relay/op_attr_types.h>
+#include <topi/broadcast.h>
+#include <topi/generic/injective.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/micro/standalone/utvm_runtime.h>
 
-#include <spawn.h>
-#include <sys/wait.h>
+using namespace tvm;
+using namespace tvm::relay;
 
-TVM_REGISTER_GLOBAL("test.sch").set_body([](tvm::TVMArgs args, tvm::TVMRetValue* rv) {
-  *rv = topi::generic::schedule_injective(args[0], args[1]);
+TVM_REGISTER_GLOBAL("test.strategy")
+.set_body_typed([](const Attrs& attrs, const Array<te::Tensor>& inputs,
+                   const Type& out_type, const Target& target) {
+    FTVMCompute fcompute = [](const Attrs& attrs,
+                              const Array<te::Tensor>& inputs,
+                              const Type& out_type) -> Array<te::Tensor> {
+        CHECK_EQ(inputs.size(), 2U);
+        return {topi::add(inputs[0], inputs[1])};
+    };
+    FTVMSchedule fschedule = [](const Attrs& attrs,
+                                const Array<te::Tensor>& outs,
+                                const Target& target) {
+        With<Target> target_scope(target);
+        return topi::generic::schedule_injective(target, outs);
+    };
+    auto n = make_object<OpStrategyNode>();
+    auto strategy = tvm::relay::OpStrategy(std::move(n));
+    strategy.AddImplementation(fcompute, fschedule, "test.strategy", 10);
+    return strategy;
+});
+
+TVM_REGISTER_GLOBAL("relay.backend.lower_call")
+.set_body_typed([](const relay::Call& call, const Array<te::Tensor>& inputs,
+                   const Target& target) {
+    static auto fstrategy = Op::GetAttr<relay::FTVMStrategy>("FTVMStrategy");
+    Op op = Downcast<Op>(call->op);
+    auto out_type = call->checked_type();
+    OpStrategy strategy = fstrategy[op](call->attrs, inputs, out_type, target);
+    auto impl = strategy->specializations[0]->implementations[0];
+    auto outs = impl.Compute(call->attrs, inputs, out_type);
+    auto f = tvm::runtime::Registry::Get("relay.backend._make_LoweredOutput");
+    if (!f) {
+      LOG(FATAL) << "relay.backend._make_LoweredOutput is not registered";
+    }
+    return (*f)(outs, impl);
 });
 
 TEST(MicroStandaloneRuntime, BuildModule) {
-  using namespace tvm;
-  auto tensor_type = relay::TensorType({2, 3}, ::tvm::Float(32));
+  auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
   auto a = relay::VarNode::make("a", tensor_type);
   auto b = relay::VarNode::make("b", tensor_type);
   auto add_op = relay::Op::Get("add");
@@ -74,14 +99,16 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   }
   // get schedule
   auto reg = tvm::runtime::Registry::Get("relay.op._Register");
-  auto s_i = tvm::runtime::Registry::Get("test.sch");
   if (!reg) {
     LOG(FATAL) << "no _Register";
   }
-  if (!s_i) {
-    LOG(FATAL) << "no test_sch";
+  auto fs = tvm::runtime::Registry::Get("test.strategy");
+  if (!fs) {
+    LOG(FATAL) << "No test_strategy registered.";
   }
-  (*reg)("add", "FTVMSchedule", *s_i, 10);
+  auto fgeneric = GenericFunc::Get("test.strategy_generic").set_default(*fs);
+  (*reg)("add", "FTVMStrategy", fgeneric, 10);
+
   // build
   auto pfb = tvm::runtime::Registry::Get("relay.build_module._BuildModule");
   tvm::runtime::Module build_mod = (*pfb)();
@@ -89,15 +116,16 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   auto json_f = build_mod.GetFunction("get_graph_json", false);
   auto mod_f = build_mod.GetFunction("get_module", false);
   Map<tvm::Integer, tvm::Target> targets;
-
   Target llvm_tgt = Target::Create("llvm");
   targets.Set(0, llvm_tgt);
   build_f(func, targets, llvm_tgt);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
-  std::string o_fname = std::tmpnam(nullptr);
-  std::string so_fname = std::tmpnam(nullptr);
+
+  std::string o_fname = "graphlib.o";
+  std::string so_fname = "graphlib.so";
   mod->SaveToFile(o_fname, "o");
+
   const std::vector<std::string> args = {"gcc", "-shared", "-fPIC", "-o", so_fname, o_fname};
   std::stringstream s;
   for (auto& c : args) {
@@ -106,27 +134,26 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   const auto ss = s.str();
   const auto ret = system(ss.c_str());
   ASSERT_EQ(ret, 0);
-  // Now, execute the minimal runtime.
-  auto* dsoModule = UTVMRuntimeDSOModuleCreate(so_fname.c_str(), so_fname.size());
-  ASSERT_NE(dsoModule, nullptr);
-  auto* handle = UTVMRuntimeCreate(json.c_str(), json.size(), dsoModule);
-  ASSERT_NE(handle, nullptr);
-
-  UTVMRuntimeSetInput(handle, 0, &A.ToDLPack()->dl_tensor);
-  UTVMRuntimeSetInput(handle, 1, &B.ToDLPack()->dl_tensor);
-  UTVMRuntimeSetInput(handle, 2, &C.ToDLPack()->dl_tensor);
-  UTVMRuntimeRun(handle);
+  
+  // Now, execute with the minimal runtime.
+  auto* dsomod = UTVMRuntimeDSOModuleCreate(so_fname.c_str(), so_fname.size());
+  ASSERT_NE(dsomod, nullptr);
+  auto* graph_runtime = UTVMRuntimeCreate(json.c_str(), json.size(), dsomod);
+  ASSERT_NE(graph_runtime, nullptr);
+  UTVMRuntimeSetInput(graph_runtime, 0, &A.ToDLPack()->dl_tensor);
+  UTVMRuntimeSetInput(graph_runtime, 1, &B.ToDLPack()->dl_tensor);
+  UTVMRuntimeSetInput(graph_runtime, 2, &C.ToDLPack()->dl_tensor);
+  UTVMRuntimeRun(graph_runtime);
   auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  UTVMRuntimeGetOutput(handle, 0, &Y.ToDLPack()->dl_tensor);
+  UTVMRuntimeGetOutput(graph_runtime, 0, &Y.ToDLPack()->dl_tensor);
   auto* pY = (float*)Y.ToDLPack()->dl_tensor.data;
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }
-  UTVMRuntimeDestroy(handle);
-  UTVMRuntimeDSOModuleDestroy(dsoModule);
+  UTVMRuntimeDestroy(graph_runtime);
+  UTVMRuntimeDSOModuleDestroy(dsomod);
 }
 
-#endif
 #endif
 
 int main(int argc, char** argv) {
