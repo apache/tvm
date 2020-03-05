@@ -18,14 +18,12 @@
 import os
 import sys
 import numpy as np
-import pytest
 
 import tvm
-from tvm import te
 import tvm.relay.testing
-import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
+from tvm.relay import transform
 from tvm.contrib import util
 from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
@@ -189,7 +187,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return lib
 
     def check_vm_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with relay.build_config(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
@@ -200,7 +198,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -297,6 +295,7 @@ def test_extern_ccompiler_single_op():
 
 def test_extern_ccompiler_default_ops():
     def expected():
+        mod = tvm.IRModule()
         x = relay.var("x", shape=(8, 8))
         y = relay.var("y", shape=(8, 8))
         x0 = relay.var("x0", shape=(8, 8))
@@ -305,11 +304,14 @@ def test_extern_ccompiler_default_ops():
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
         func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
         func = func.set_attribute("Compiler",
                                   tvm.tir.StringImm("ccompiler"))
         func = func.set_attribute("ExternalSymbol",
                                   tvm.tir.StringImm("ccompiler_0"))
-        add_call = relay.Call(func, [x, y])
+        glb_0 = relay.GlobalVar("ccompiler_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [x, y])
         # Function that uses default compiler. Ops are fused in this function.
         p0 = relay.var("p0", shape=(8, 8))
         log = relay.log(p0)
@@ -320,7 +322,6 @@ def test_extern_ccompiler_default_ops():
                                               tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
-        mod = tvm.IRModule()
         mod["main"] = main
         return mod
 
@@ -371,28 +372,65 @@ def test_extern_dnnl():
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
-    data = relay.var('data', shape=(ishape), dtype=dtype)
-    weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
-    depthwise_conv2d_1 = relay.nn.conv2d(data,
-                                         weight1,
-                                         kernel_size=(3, 3),
-                                         padding=(1, 1),
-                                         groups=32)
-    depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
-                                         weight1,
-                                         kernel_size=(3, 3),
-                                         padding=(1, 1),
-                                         groups=32)
-    out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
-    f = relay.Function([data, weight1], out)
+    def expected():
+        data0 = relay.var("data", shape=(ishape), dtype=dtype)
+        input0 = relay.var("input0", shape=(w1shape), dtype=dtype)
+        input1 = relay.var("input1", shape=(w1shape), dtype=dtype)
+        depthwise_conv2d_1 = relay.nn.conv2d(data0,
+                                             input0,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                             input1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+
+        func = relay.Function([data0, input0, input1], out)
+        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.set_attribute("Compiler", tvm.tir.StringImm("dnnl"))
+        func = func.set_attribute("ExternalSymbol",
+                                  tvm.tir.StringImm("dnnl_0"))
+        glb_var = relay.GlobalVar("dnnl_0")
+        mod = tvm.IRModule()
+        mod[glb_var] = func
+
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight = relay.var("input", shape=(w1shape), dtype=dtype)
+        main_f = relay.Function([data, weight], glb_var(data, weight, weight))
+        mod["main"] = main_f
+
+        return mod
+
+    def get_func():
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        depthwise_conv2d_1 = relay.nn.conv2d(data,
+                                             weight1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                             weight1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+
+        return relay.Function([data, weight1], out)
 
     mod = tvm.IRModule()
-    mod['main'] = WholeGraphAnnotator('dnnl').visit(f)
+    mod["main"] = WholeGraphAnnotator("dnnl").visit(get_func())
     mod = transform.PartitionGraph()(mod)
 
+    assert relay.alpha_equal(mod, expected())
+
     ref_mod = tvm.IRModule()
-    ref_mod['main'] = f
+    ref_mod["main"] = get_func()
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
