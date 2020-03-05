@@ -737,30 +737,6 @@ def _tanh():
         return _op.tensor.tanh(data)
     return _impl
 
-def _ge():
-    def _impl(inputs, input_types):
-        assert len(inputs) == 2
-        lhs = _wrap_const(inputs[0])
-        rhs = _wrap_const(inputs[1])
-        return _op.tensor.greater_equal(lhs, rhs)
-    return _impl
-
-def _gt():
-    def _impl(inputs, input_types):
-        assert len(inputs) == 2
-        lhs = _wrap_const(inputs[0])
-        rhs = _wrap_const(inputs[1])
-        return _op.tensor.greater(lhs, rhs)
-    return _impl
-
-def _lt():
-    def _impl(inputs, input_types):
-        assert len(inputs) == 2
-        lhs = _wrap_const(inputs[0])
-        rhs = _wrap_const(inputs[1])
-        return _op.tensor.less(lhs, rhs)
-    return _impl
-
 def _Bool():
     def _impl(inputs, input_types):
         assert len(inputs) == 1
@@ -899,12 +875,15 @@ _convert_map = {
     "aten::upsample_bilinear2d"             : _upsample("bilinear"),
     "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
     "aten::expand_as"                       : _expand_as(),
-    'aten::lt'                              : _lt(),
-    'aten::gt'                              : _gt(),
-    'aten::Bool'                            : _Bool(),
-    'aten::Float'                           : _Float(),
-    'aten::neg'                             : _neg(),
-    'aten::tanh'                            : _tanh(),
+    "aten::lt"                              : _elemwise("less"),
+    "aten::gt"                              : _elemwise("greater"),
+    "aten::le"                              : _elemwise("less_equal"),
+    "aten::ge"                              : _elemwise("greater_equal"),
+    "aten::ne"                              : _elemwise("not_equal"),
+    "aten::Bool"                            : _Bool(),
+    "aten::Float"                           : _Float(),
+    "aten::neg"                             : _neg(),
+    "aten::tanh"                            : _tanh(),
 }
 
 

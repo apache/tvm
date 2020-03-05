@@ -859,7 +859,7 @@ def test_control_flow():
                 else:
                     output = self.weight - inp
             else:
-                if inp.mean() > 0.:
+                if inp.mean() >= 0.:
                     output = self.weight * inp
                 else:
                     output = self.weight / inp
@@ -873,6 +873,10 @@ def test_control_flow():
                 b = i * i
                 b = b + 1
                 a += b
+            if a != 0:
+                a += 1
+            else:
+                a += 2
             return a
 
     class SimpleLoop(torch.nn.Module):
@@ -909,7 +913,7 @@ def test_control_flow():
         def forward(self, inp):
             a = 1
             i = 0
-            while i < inp.size(0):
+            while i <= inp.size(0):
                 a += i
                 i += 2
             i = 0
