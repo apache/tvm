@@ -24,10 +24,17 @@ from collections import defaultdict
 # Numpy support
 import numpy as np
 
+try:
+    from tensorflow.python.framework import tensor_util
+except ImportError as e:
+    raise ImportError(
+        "Unable to import tensorflow which is required {}".format(e))
+
 import tvm
 
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude
+from tvm.relay.analysis import structural_hash as s_hash
 
 from .. import analysis
 from .. import expr as _expr
@@ -2131,6 +2138,72 @@ class Branch:
         return self._if
 
 
+class LoopBound(ExprVisitor):
+    """
+    When a loop body is create, we get a Relay expression backtracing all
+    the way back to input node. This will result in lots of unnecessary
+    expression placed into loop body and compute multiple times. For example,
+    consider the following tensorflow code:
+
+    .. code-block:: python
+
+        i = tf.constant(0)
+        data = tf.compat.v1.placeholder(tf.float32, shape=(1024, 1024))
+        slice = tf.strided_slice(data, 0, 512)
+        def c(i): return tf.less(i, 10)
+        def b(i): return [tf.add(i, 1), tf.add(i, 1) + slice]
+        r = tf.while_loop(c, b, [i])
+
+    If we directly create recursive function, slice will be placed into function body.
+    Instead, we recognize whether slice is inside while_loop block and pass it as an
+    extra loop variable to avoid duplicate computation.
+
+    """
+    def __init__(self, loop_name, hash2tfnode, while_loop_name_set):
+        ExprVisitor.__init__(self)
+        self._loop_name = loop_name
+        self._hash2tfnode = hash2tfnode
+        self._while_loop_name_set = while_loop_name_set
+        self.extra_loop_var_names = set()
+
+    def _find_parent_loop_name(self, node_name):
+        ploop_name = ""
+        name_prefix = node_name.rsplit('/', 1)[0]
+        if name_prefix.startswith("^"):
+            name_prefix = name_prefix[1:]
+        for lname in self._while_loop_name_set:
+            # For nested loop, we should pick the inner most one.
+            if name_prefix.startswith(lname) and len(ploop_name) < len(lname):
+                ploop_name = lname
+
+        if len(ploop_name) == 0:
+            ploop_name = name_prefix
+
+        return ploop_name
+
+    def visit(self, expr):
+        """
+        For each expression in the body, loop up the corresponding
+        tensorflow node with its structural hash. If the current loop is the
+        direct parent of this node, we check whether its input nodes belong
+        to the current loop. If not, we mark this input node as an extra loop
+        variable to the current loop.
+        """
+        expr_hash = s_hash(expr)
+
+        if expr_hash in self._hash2tfnode:
+            node = self._hash2tfnode[expr_hash]
+            ploop_name = self._find_parent_loop_name(node.name)
+            if ploop_name == self._loop_name:
+                for iname in node.input:
+                    iploop_name = self._find_parent_loop_name(iname)
+                    # Use startswith to deal with nested loop
+                    if iploop_name.startswith(self._loop_name):
+                        if iname not in self.extra_loop_var_names:
+                            self.extra_loop_var_names.add(iname)
+        super().visit(expr)
+
+
 class Loop:
     """
     A class contains the components that are used to build up a Relay
@@ -2187,11 +2260,18 @@ class Loop:
           %6
         }
     """
-    def __init__(self):
+    def __init__(self, mod, loop_name, hash2tfnode,
+                 node_map, while_loop_name_set):
         self.loop_vars = []
         self.cond = None
         self.body = []
         self._loop = None
+        self._mod = mod
+        self._loop_name = loop_name
+        self._hash2tfnode = hash2tfnode
+        self._node_map = node_map
+        self._while_loop_name_set = while_loop_name_set
+        self.aligned = False
 
     def _while_loop(self):
         """An internal API to create a Relay recursive call for a matched TF
@@ -2201,11 +2281,30 @@ class Loop:
 
         sb = tvm.relay.scope_builder.ScopeBuilder()
 
+        loop_checker = LoopChecker(self._loop_name,
+                                   self._hash2tfnode,
+                                   self._while_loop_name_set)
+        for body in self.body:
+            loop_checker.visit(body)
+
         loop_vars = []
         bind_map = {}
+        loop_var_hash_set = set()
+        for var in self.loop_vars:
+            loop_var_hash_set.add(s_hash(var))
+
+        extra_nodes = []
+        for extra_loop_var_name in loop_checker.extra_loop_var_names:
+            extra_loop_var_name = extra_loop_var_name.split(':')[0].split("^")[-1]
+            extra_node = self._node_map[extra_loop_var_name]
+            extra_node = extra_node if isinstance(extra_node, _expr.Tuple) else extra_node[0]
+            if s_hash(extra_node) not in loop_var_hash_set:
+                self.loop_vars.append(extra_node)
+                extra_nodes.append(extra_node)
+
         for i, var in enumerate(self.loop_vars):
             if not isinstance(var, _expr.Var):
-                var_chk = _infer_type(var)
+                var_chk = _infer_type(var, self._mod)
                 var_type = var_chk.checked_type
             else:
                 var_type = var.type_annotation
@@ -2217,18 +2316,33 @@ class Loop:
         self.cond = rewrite_subgraph(self.cond, bind_map)
         self.body = [rewrite_subgraph(b, bind_map) for b in self.body]
 
+        self.body_shape = []
+        for body in self.body:
+            current_node = body
+            shape = _infer_shape(current_node, self._mod)
+            while not isinstance(shape, (tuple, list)):
+                current_node = current_node.args[-1]
+                shape = _infer_shape(current_node, self._mod)
+            self.body_shape.append(shape)
+
         cond = tvm.relay.op.min(self.cond)
 
         with sb.if_scope(cond):
-            sb.ret(wl(*self.body))
+            extra_args = []
+            if extra_nodes:
+                extra_args = list(loop_vars[-len(extra_nodes):])
+            sb.ret(wl(*list(self.body + extra_args)))
         with sb.else_scope():
             sb.ret(tvm.relay.Tuple(loop_vars))
 
         loop_fn = tvm.relay.Function(loop_vars, sb.get())
         sb = tvm.relay.scope_builder.ScopeBuilder()
         sb.let(wl, loop_fn)
-        sb.ret(wl(*self.loop_vars))
-        return sb.get()
+        loop_ret = wl(*self.loop_vars)
+
+        sb.ret(loop_ret)
+        ret = sb.get()
+        return ret
 
     def while_loop(self):
         """Instantiate a while loop if it has not been created yet."""
@@ -2245,16 +2359,21 @@ class GraphProto(object):
     """
     def __init__(self):
         self._nodes = {}
+        self._tf_node_map = {}
         self._params = {}
         self._input_shapes = {}
         self._output_shapes = {}
-        self._num_param = 0
         self._num_rnn_layer = False
         self._input_shapes = {}
         self._loops = {}
         self._branches = {}
         self._mod = IRModule({})
         self._prelude = Prelude(self._mod)
+        self._control_flow_node_map = defaultdict(set)
+        self._loop_body_orders = {}
+        self._loop_var_oreders = {}
+        self._hash2tfnode = {}
+        self._while_loop_name_set = set()
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2294,14 +2413,8 @@ class GraphProto(object):
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
-
-        try:
-            from tensorflow.python.framework import tensor_util
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import tensorflow which is required {}".format(e))
-
         missing_operators = self._parse_import_prerequisites(graph)
+        control_flow_nodes = []
 
         if missing_operators:
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
@@ -2312,10 +2425,11 @@ class GraphProto(object):
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
-        control_flow_node_map = defaultdict(set)
         for node in graph.node:
             node_name_prefix = node.name.rsplit('/', 1)[0]
-            control_flow_node_map[node_name_prefix].add(node.op)
+            self._control_flow_node_map[node_name_prefix].add(node.op)
+            self._tf_node_map[node.name] = node
+            # Parse placeholder and const here since input shape info is required.
             if node.op == 'Placeholder' or node.op == 'PlaceholderWithDefault':
                 # Give priority to user argument.
                 if shape and node.name in shape:
@@ -2340,120 +2454,53 @@ class GraphProto(object):
                 tensor_value = node.attr['value'].tensor
                 self._input_shapes[node.name] = \
                     tensor_util.TensorShapeProtoToList(tensor_value.tensor_shape)
+                self._output_shapes[node.name] = [self._input_shapes[node.name]]
                 if shape and node.name in shape:
                     warnings.warn("Ignore the passed shape. Shape in graphdef "
                                   "will be used for operator %s." % node.name)
-
-        # Parse the nodes to re-create TF graph using Relay operators.
-        for node in graph.node:
-            # Tensorflow doesn't have separate list for params extraction.
-            # Operator name 'Const' is treated as a parameter to build params dict.
-
-            input_shapes = {}
-            attr = self._parse_attr(node.attr)
-
-            # Variable converted to Const will not have only value attr
-            if 'value' in attr and node.op == 'Const':
-                self._output_shapes[node.name] = [self._input_shapes[node.name]]
-            elif '_output_shapes' in attr:
-                self._output_shapes[node.name] = \
-                    [tensor_util.TensorShapeProtoToList(tshape) \
-                    for tshape in attr['_output_shapes']]
-            else:
-                # Keep the list indexable to avoid key error.
-                # Actual value will be filled after node creation.
-                # Will infer shapes if the graph is not frozen with add_shapes=True
-                self._output_shapes[node.name] = [None]
-
-            if node.op == "Const":
-                # All Const nodes are Param nodes, lets parse
-                self._num_param += 1
                 for key, value in node.attr.items():
-                    self._parse_param(key, value, node.name, shape)
-                if node.name not in self._nodes:
-                    raise NotImplementedError( \
-                        "Const {} couldn't be converted to Param.".format(node.name))
+                    self._parse_param(key, value, node.name, self._in_shape)
+            elif node.op in _control_flow_nodes:
+                # We assume that the direct parent node of Exit is a while loop block
+                if node.op == "Exit":
+                    self._while_loop_name_set.add(node_name_prefix)
+                control_flow_nodes.append(node)
 
-                attr = self._parse_attr(node.attr)
+        # First, parse all control flow nodes.
+        # Convert tf.cond to Branch and tf.while_loop to Loop.
+        sorted_cf_nodes = []
+        current_node_name_prefix = None
+        exits = []
+        # Sort control flow nodes to move all Exit nodes to the end
+        # of corresponding while_loop block.
+        for i, node in enumerate(control_flow_nodes):
+            node_name_prefix = node.name.rsplit('/', 1)[0]
+            if current_node_name_prefix is None or current_node_name_prefix != node_name_prefix:
+                if node_name_prefix in self._while_loop_name_set:
+                    sorted_cf_nodes.extend(exits)
+                    exits.clear()
+                    current_node_name_prefix = node_name_prefix
 
-            elif node.op != "Placeholder" and node.op != 'PlaceholderWithDefault':
-                # Pass the parsed shapes instead
-                attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
+            if node.op == "Exit":
+                exits.append(node)
+            else:
+                sorted_cf_nodes.append(node)
 
-                # Pass the node name too in attr
-                attr["_node_name"] = node.name
+            if i == len(control_flow_nodes) - 1:
+                sorted_cf_nodes.extend(exits)
 
-                # Pass the target layout
-                attr["_target_layout"] = layout
+        for node in sorted_cf_nodes:
+            self._backtrack_construct(node.name)
 
-                # Fill shapes for all inputs in a list
-                inputs = []
-                for i in node.input:
-                    # Some TensorFlow operators internally maintain execution layers
-                    # and their output name includes the layer number along with
-                    # graph node name. E.g. the node name is 'Model/RNN/cell_0/RnnCell', but the
-                    # output tensor name is 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                    # the number has to be ignored for single-output nodes.
-                    # On the other hand, for multi-output nodes the number is the output index,
-                    # and the lack of the number implies 0.
-                    tensor_name = i.split(':')
-                    node_name = tensor_name[0]
-                    if node_name in self._nodes:
-                        in_sym = self._nodes[node_name]
-                        if isinstance(in_sym, _expr.TupleWrapper):
-                            tensor_slot = int(tensor_name[1]) if len(tensor_name) > 1 else 0
-                            in_sym = [in_sym[tensor_slot]]
-                            input_shape = self._output_shapes[node_name][tensor_slot]
-                        else:
-                            tensor_slot = 0
-                            input_shape = self._output_shapes[node_name][0]
-                        inputs.append(in_sym[0])
-                        input_shapes[in_sym[0]] = input_shape
-
-                attr['_input_shapes'] = input_shapes
-
-                if node.op in _control_flow_nodes:
-                    op = self._convert_control_flow_operator(node, inputs,
-                                                             attr,
-                                                             control_flow_node_map)
-                else:
-                    op = self._convert_operator(node.op, inputs, attr, graph)
-
-                # Check if op is converted to param
-                if isinstance(op, np.ndarray):
-                    self._params[node.name] = tvm.nd.array(op)
-                    op = [_expr.var(node.name,
-                                    shape=self._params[node.name].shape,
-                                    dtype=self._params[node.name].dtype)]
-
-                elif isinstance(op, (_expr.TupleWrapper, tuple, list)):
-                    pass
-                elif isinstance(op, _expr.Expr):
-                    op = [op]
-                else:
-                    raise RuntimeError("unexpected type %s" % type(op))
-
-                self._nodes[node.name] = op
-
-                # Infer shapes even without specifying "add_shapes=True"
-                if output_shapes == [None]:
-                    out_shapes = [_infer_shape(node_item, self._mod)
-                                  for node_item in self._nodes[node.name]]
-                    self._output_shapes[node.name] = out_shapes
-
-                if self._output_shapes[node.name] and shape and node.name in shape:
-                    assert self._output_shapes[node.name] == list(shape[node.name])
-
-            # Infer shapes if passed explicitly
-            node_output = self._nodes[node.name]
-            if shape and (not self._output_shapes[node.name][0]
-                          or -1 in self._output_shapes[node.name][0]):
-                out_shapes = [_infer_shape(node_item, self._mod) for node_item in node_output]
-                self._output_shapes[node.name] = out_shapes
+        # Second, parse other nodes to re-create TF graph using Relay operators.
+        for node in graph.node:
+            self._backtrack_construct(node.name)
 
         out = []
         if outputs is None:
-            if node.op == "Exit":
+            last_node = graph.node[-1]
+            op = self._nodes[last_node.name.split(":")[0]]
+            if last_node.op == "Exit":
                 out = [op[0].tuple_value]
             else:
                 out = op
@@ -2502,12 +2549,6 @@ class GraphProto(object):
         return missing_operators
 
     def _parse_param(self, key, value, name, shape):
-        try:
-            from tensorflow.python.framework import tensor_util
-        except ImportError as e:
-            raise ImportError(
-                "Unable to import tensorflow which is required {}".format(e))
-
         if key == 'value':
             np_array = tensor_util.MakeNdarray(value.tensor)
 
@@ -2649,53 +2690,95 @@ class GraphProto(object):
         """
         node_name_prefix = node.name.rsplit('/', 1)[0]
         if node.op == "Merge":
-            if _in_while_loop(control_flow_node_map, node_name_prefix):
-                op = self._nodes[node.input[0]]
-                self._loops[node_name_prefix] = Loop()
+            if _in_while_loop(self._control_flow_node_map, node_name_prefix):
+                op = self._recons(node.input[0])
+                if node_name_prefix not in self._loops:
+                    self._loops[node_name_prefix] = Loop(self._mod,
+                                                         node_name_prefix,
+                                                         self._hash2tfnode,
+                                                         self._nodes,
+                                                         self._while_loop_name_set)
             else:
                 if len(self._branches) == 0:
                     raise RuntimeError("Cannot find a created "
                                        "conditional for merge node")
                 branch = self._branches[node_name_prefix]
-                false_br = self._nodes[node.input[0]]
-                true_br = self._nodes[node.input[1]]
+                false_br =  self._recons(node.input[0])
+                true_br =  self._recons(node.input[1])
                 assert len(true_br) == 1
                 assert len(false_br) == 1
                 branch.true_branch = true_br[0]
                 branch.false_branch = false_br[0]
-                op = [branch.if_node()]
+                # Try pre-compute first
+                try:
+                    cond_val = np.all(_infer_value(branch.cond,
+                                                   self._params,
+                                                   self._mod).asnumpy())
+                    if cond_val:
+                        op = [branch.true_branch]
+                    else:
+                        op = [branch.false_branch]
+                except Exception:
+                    op = [branch.if_node()]
         elif node.op == "Exit":
             loop = self._loops[node_name_prefix]
+
+            # Check whether the order of loop variables aligns
+            # with loop body. If not, create new loop variable list
+            # with correct order.
+            if not loop.aligned:
+                loop_vars = []
+                for i in self._loop_body_order[node_name_prefix]:
+                    for j, k in enumerate(self._loop_var_order[node_name_prefix]):
+                        if k == i:
+                            loop_vars.append(loop.loop_vars[j])
+                loop.loop_vars = loop_vars
+                loop.aligned = True
             exit_name = node.name.split('/')[-1]
-            assert str.startswith(exit_name, 'Exit')
-
-            # TensorFlow has differen naming convention on different
-            # versions.
             if '_' in exit_name:
-                exit_number = int("0" + exit_name[5:])
+                exit_number = int(exit_name[5:])
             else:
-                exit_number = int("0" + exit_name[4:])
-
+                exit_number = 0
             expr = loop.while_loop()
-            op = _expr.TupleGetItem(expr, exit_number)
+            body_pos = exit_number
+            for i, j in enumerate(self._loop_body_order[node_name_prefix]):
+                if exit_number == j:
+                    body_pos = i
+                    break
+            op = [_expr.TupleGetItem(expr, body_pos)]
         elif node.op == "Enter":
-            op = self._nodes[node.input[0]]
+            op = self._backtrack_construct(node.input[0])
         elif node.op == "LoopCond":
-            op = self._nodes[node.input[0]]
+            op = self._backtrack_construct(node.input[0])
             assert len(op) == 1
             self._loops[node_name_prefix].cond = op[0]
         elif node.op == "Switch":
-            op = self._nodes[node.input[0]]
+            op = self._backtrack_construct(node.input[0])
+            cond = self._backtrack_construct(node.input[1])
             assert len(op) == 1
-            if _in_while_loop(control_flow_node_map, node_name_prefix):
+            if _in_while_loop(self._control_flow_node_map, node_name_prefix):
+                if node_name_prefix not in self._loop_var_order:
+                    self._loop_var_order[node_name_prefix] = []
+                if node.name.endswith("Switch"):
+                    self._loop_var_order[node_name_prefix].append(0)
+                else:
+                    self._loop_var_order[node_name_prefix].\
+                        append(int(node.name.split("Switch_")[-1]))
                 self._loops[node_name_prefix].loop_vars.append(op[0])
             else:
                 if node_name_prefix not in self._branches:
                     self._branches[node_name_prefix] = Branch()
-                chk_op = _infer_type(op[0])
-                self._branches[node_name_prefix].cond = chk_op
+                self._branches[node_name_prefix].cond = cond[0]
         elif node.op == "NextIteration":
-            op = self._nodes[node.input[0]]
+            if node_name_prefix not in self._loop_body_order:
+                self._loop_body_order[node_name_prefix] = []
+            if node.name.endswith("NextIteration"):
+                self._loop_body_order[node_name_prefix].append(0)
+            else:
+                self._loop_body_order[node_name_prefix].\
+                    append(int(node.name.split("NextIteration_")[-1]))
+            op = self._backtrack_construct(node.input[0])
+
             assert len(op) == 1
             self._loops[node_name_prefix].body.append(op[0])
         else:
@@ -2703,7 +2786,6 @@ class GraphProto(object):
                             "{}".format(node.op))
 
         return op
-
 
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
@@ -2752,6 +2834,73 @@ class GraphProto(object):
             raise NotImplementedError("Operator {} not implemented.".format(op_name))
         return sym
 
+    def _backtrack_construct(self, node_name):
+        """Convert a specific tensorflow node to relay expression.
+
+        If any of its ancestor node is not converted yet, backtrack as
+        far as input node and covert all nodes on the path.
+
+        This is required when parsing control flow nodes, since the parsing
+        order may not follow the original graph def.
+
+        Parameters
+        ----------
+        node_name : str
+            Tensorflow node name.
+
+        Returns
+        -------
+        op : relay.Expr
+            Converted relay expression
+        """
+        node_name = node_name.split(':')[0].split("^")[-1]
+
+        if node_name not in self._nodes:
+            node = self._tf_node_map[node_name]
+            attr = self._parse_attr(node.attr)
+            if '_output_shapes' in attr:
+                self._output_shapes[node_name] = \
+                    [tensor_util.TensorShapeProtoToList(tshape) \
+                     for tshape in attr['_output_shapes']]
+            else:
+                self._output_shapes[node_name] = [None]
+
+            if node.op in _control_flow_nodes:
+                attr = self._parse_attr(node.attr)
+                op = self._convert_control_flow_operator(node, [],
+                                                         attr,
+                                                         self._control_flow_node_map)
+            else:
+                attr["_output_shapes"] = self._output_shapes[node_name]
+                attr["_node_name"] = node.name
+                attr["_target_layout"] = self._layout
+                inputs = []
+                for iname in node.input:
+                    in_op = self._backtrack_construct(iname)
+                    if isinstance(in_op, _expr.TupleWrapper):
+                        tn = iname.split(':')
+                        tensor_slot = int(tn[1]) if len(tn) > 1 else 0
+                        in_op = in_op[tensor_slot]
+                    else:
+                        in_op = in_op[0]
+
+                    inputs.append(in_op)
+                op = self._convert_operator(node.op, inputs, attr, self._graph)
+
+            if isinstance(op, np.ndarray):
+                self._params[node.name] = tvm.nd.array(op)
+                op = [_expr.var(node.name,
+                                shape=self._params[node.name].shape,
+                                dtype=self._params[node.name].dtype)]
+
+            elif isinstance(op, (_expr.Expr, _expr.TupleGetItem)):
+                op = [op]
+
+            node_hash = s_hash(op) if isinstance(op, _expr.Tuple) else tvm.relay.analysis.s_hash(op[0])
+            self._hash2tfnode[node_hash] = node
+            self._nodes[node_name] = op
+
+        return self._nodes[node_name]
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
     """Load tensorflow graph which is a python tensorflow graph object into relay.
