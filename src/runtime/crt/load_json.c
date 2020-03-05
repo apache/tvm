@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file saveload_json.cc
- * \brief Save and load graph to/from JSON file.
+ * \file load_json.c
+ * \brief Load graph from JSON file.
  */
 #include "load_json.h"
 
