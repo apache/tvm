@@ -78,7 +78,7 @@ class PkgConfig(object):
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
             self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
         elif self.TARGET in ["de10nano"]:
-            self.lib_source += glob.glob(f"{proj_root}/vta/src/de10nano/*.cc")
+            self.lib_source += glob.glob("%s/vta/src/de10nano/*.cc" % (proj_root))
             self.include_path += [
                 f"-I{proj_root}/vta/src/de10nano",
                 f"-I{proj_root}/3rdparty"
