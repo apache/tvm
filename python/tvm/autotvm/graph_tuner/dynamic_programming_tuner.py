@@ -24,6 +24,8 @@ from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_stage import DPStage
 from .utils import has_multiple_inputs, is_boundary_node
 
+from ._base import OPT_OUT_OP
+
 if sys.version_info[0] == 3:
     import queue
 else:
@@ -57,6 +59,8 @@ class DPTuner(BaseGraphTuner):
             "input_shapes": self._input_shapes,
             "layout_transform_interlayer_cost": self._layout_transform_interlayer_cost
         }
+        self._opt_out_op = OPT_OUT_OP
+
 
     def _check_num_states(self, num_states):
         """Track the number of states."""
@@ -103,6 +107,7 @@ class DPTuner(BaseGraphTuner):
 
         states_list, aligned_node_list = DPStage.align_states(output_idx_list, self._stage_dict,
                                                               self._node_list)
+        print("states_list", states_list)
         num_states = states_list[0][3].size
         self._check_num_states(num_states * len(output_idx_list))
         aligned_node_shape = states_list[0][3].shape
@@ -144,7 +149,7 @@ class DPTuner(BaseGraphTuner):
                 continue
             optimal_sch_idx = optimal_record_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
-            if not has_multiple_inputs(self._node_list, node_idx, input_names):
+            if not has_multiple_inputs(self._node_list, node_idx, input_names, self._opt_out_op):
                 input_idx = self._in_nodes_dict[node_idx][0]
                 input_node = self._node_list[input_idx]
                 if is_boundary_node(input_node, input_names):

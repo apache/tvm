@@ -34,7 +34,7 @@ from .utils import is_boundary_node, get_in_nodes, get_out_nodes, has_multiple_i
     bind_inputs, expr2graph
 from ._base import INVALID_LAYOUT_TIME
 
-OPT_OUT_OP = ["layout_transform"]
+from ._base import OPT_OUT_OP
 
 def get_infer_layout(task_name):
     if task_name.startswith("conv2d"):
