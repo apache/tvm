@@ -107,7 +107,6 @@ class DPTuner(BaseGraphTuner):
 
         states_list, aligned_node_list = DPStage.align_states(output_idx_list, self._stage_dict,
                                                               self._node_list)
-        print("states_list", states_list)
         num_states = states_list[0][3].size
         self._check_num_states(num_states * len(output_idx_list))
         aligned_node_shape = states_list[0][3].shape
