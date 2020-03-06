@@ -495,7 +495,7 @@ def test_function_lifting():
             transform.PartitionGraph(),
             transform.SimplifyInference(),
             transform.FoldConstant(),
-            transform.AlterOpLayout()
+            transform.AlterOpLayout(),
         ])
 
         with relay.build_config(opt_level=3):
@@ -564,6 +564,76 @@ def test_function_lifting():
     assert relay.analysis.alpha_equal(partitioned, ref_mod)
 
 
+def test_function_lifting_inline():
+    def partition():
+        data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
+        bn_gamma = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mmean = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_mvar = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        bn_output = relay.nn.batch_norm(data, bn_gamma, bn_beta, bn_mmean,
+                                        bn_mvar)
+
+        func = relay.Function([data, bn_gamma, bn_beta, bn_mmean,
+                               bn_mvar], bn_output.astuple())
+        mod = tvm.IRModule()
+        mod["main"] = func
+        op_list = ["nn.batch_norm", "nn.conv2d"]
+        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+
+        opt_pass = transform.Sequential([
+            transform.InferType(),
+            transform.PartitionGraph(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.AlterOpLayout(),
+            transform.Inline(),
+        ])
+
+        with relay.build_config(opt_level=3):
+            mod = opt_pass(mod)
+
+        return mod
+
+    def expected():
+        # function for batch_norm
+        data0 = relay.var("data0", relay.TensorType((1, 16, 224, 224),
+                                                    "float32"))
+        mod = tvm.IRModule()
+        bn_gamma = relay.var("bn_gamma1", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta1", relay.TensorType((16, ), "float32"))
+        bn_mmean = relay.var("bn_mean1", relay.TensorType((16, ), "float32"))
+        bn_mvar = relay.var("bn_var1", relay.TensorType((16, ), "float32"))
+
+        bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+        func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
+                               bn.astuple())
+        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.set_attribute("Compiler",
+                                    tvm.tir.StringImm("test_compiler"))
+        func0 = func0.set_attribute("ExternalSymbol",
+                                    tvm.tir.StringImm("test_compiler_0"))
+
+        # main function
+        data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
+        bn_gamma0 = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta0 = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mmean0 = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_mvar0 = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        call0 = func0(data, bn_gamma0, bn_beta0, bn_mmean0, bn_mvar0)
+        mod["main"] = relay.Function([data, bn_gamma0, bn_beta0, bn_mmean0,
+                                      bn_mvar0], call0)
+        mod = transform.InferType()(mod)
+        return mod
+
+    partitioned = partition()
+    ref_mod = expected()
+    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -572,3 +642,4 @@ if __name__ == "__main__":
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
     test_function_lifting()
+    test_function_lifting_inline()

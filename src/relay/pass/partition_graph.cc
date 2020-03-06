@@ -224,7 +224,7 @@ class Partitioner : public ExprMutator {
           << "Global function " << name << " already exists";
       // Create a global function and add it to the IRModule for the subgraph.
       // This way we lift the functions that should be handled by external
-      // codegen to the module scope and rely the pass manager to prevent relay
+      // codegen to the module scope and rely on the pass manager to prevent relay
       // function level passes (i.e. simplify inference and fusion) optimizing it.
       GlobalVar glob_func(name);
       module_->Add(glob_func, subgraph_func);
