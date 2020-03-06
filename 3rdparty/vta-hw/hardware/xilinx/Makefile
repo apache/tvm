@@ -17,8 +17,8 @@
 
 # Directories
 ROOTDIR = $(CURDIR)
-VTA_DIR = $(CURDIR)/../..
-BUILD_DIR = $(VTA_DIR)/build/hardware/xilinx
+VTA_HW_DIR = $(CURDIR)/../..
+BUILD_DIR = $(VTA_HW_DIR)/build/hardware/xilinx
 SCRIPT_DIR = $(CURDIR)/scripts
 SRC_DIR = $(CURDIR)/src
 
@@ -27,7 +27,7 @@ VIVADO_HLS = vivado_hls
 VIVADO = vivado
 
 # Process VTA JSON config
-VTA_CONFIG := $(CURDIR)/../../config/vta_config.py
+VTA_CONFIG := $(VTA_HW_DIR)/config/vta_config.py
 
 # Derive config name
 CONF := $(shell python ${VTA_CONFIG} --cfg-str)
@@ -52,7 +52,7 @@ $(IP_PATH): $(SRC_DIR)/*
 		$(VIVADO_HLS) \
 		-f $(SCRIPT_DIR)/hls.tcl \
 		-tclargs \
-			$(VTA_DIR) \
+			$(VTA_HW_DIR) \
 			${VTA_CONFIG}
 
 $(BIT_PATH): $(IP_PATH)
