@@ -102,7 +102,7 @@ class Func():
             if shape.dtype == tf.int32:
                 shape = tf.cast(shape, tf.int64)
             return shape
-        elif isinstance(shape, list):
+        if isinstance(shape, list):
             shape_dims = []
             for dim_value in shape:
                 if isinstance(dim_value, int):

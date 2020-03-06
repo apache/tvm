@@ -24,6 +24,10 @@ if(NOT USE_TF_TVMDSOOP STREQUAL "OFF")
   if (NOT ${TF_STATUS} EQUAL 0)
     message(FATAL_ERROR "Fail to get TensorFlow compile flags")
   endif()
+  
+  if(NOT USE_CUDA STREQUAL "OFF")
+    add_definitions(-DTF_TVMDSOOP_ENABLE_GPU)
+  endif()
 
   execute_process(COMMAND ${Python_EXECUTABLE} -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_link_flags()))"
     OUTPUT_VARIABLE TF_LINK_FLAGS_STR
