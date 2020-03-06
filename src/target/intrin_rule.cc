@@ -40,6 +40,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tanh")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tan")
+.set_body(DispatchExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cos")
 .set_body(DispatchExtern<FloatSuffix>);
 
