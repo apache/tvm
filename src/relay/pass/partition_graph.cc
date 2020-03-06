@@ -186,7 +186,7 @@ class Partitioner : public ExprMutator {
 
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
 
-      // Check if the argument already belongs to an exist subgraph
+      // Check if the argument already belongs to an existing subgraph
       auto subgraph = GetSubgraph(call->args[0]);
       if (!subgraph) {
         auto ret = this->subgraphs_.emplace(std::make_shared<Subgraph>());
@@ -221,7 +221,11 @@ class Partitioner : public ExprMutator {
                                       tvm::tir::StringImmNode::make(compiler_attrs->compiler));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kInline, tvm::Integer(1));
       CHECK(!module_->ContainGlobalVar(name))
-          << "Global function " << name << " is already existed";
+          << "Global function " << name << " already exists";
+      // Create a global function and add it to the IRModule for the subgraph.
+      // This way we lift the functions that should be handled by external
+      // codegen to the module scope and rely the pass manager to prevent relay
+      // function level passes (i.e. simplify inference and fusion) optimizing it.
       GlobalVar glob_func(name);
       module_->Add(glob_func, subgraph_func);
       // The return type of callnode is the same as the type of the
