@@ -502,7 +502,7 @@ def infer_value(input_val, params, mod=None):
         m.set_input(**params)
         m.run()
         return m.get_output(0)
-    except:
+    except Exception:
         if isinstance(mod, IRModule):
             mod["main"] = _expr.Function(analysis.free_vars(input_val), input_val)
         else:
