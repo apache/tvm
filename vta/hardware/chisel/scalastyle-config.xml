@@ -118,4 +118,11 @@
  <check level="error" class="org.scalastyle.scalariform.PublicMethodsHaveTypeChecker" enabled="false"></check>
  <check level="error" class="org.scalastyle.file.NewLineAtEofChecker" enabled="true"></check>
  <check level="error" class="org.scalastyle.file.NoNewLineAtEofChecker" enabled="false"></check>
+ <check level="error" class="org.scalastyle.file.IndentationChecker" enabled="true">
+   <parameters>
+     <parameter name="tabSize">2</parameter>
+     <parameter name="methodParamIndentSize">2</parameter>
+     <parameter name="classParamIndentSize">4</parameter>
+   </parameters>
+ </check>
 </scalastyle>

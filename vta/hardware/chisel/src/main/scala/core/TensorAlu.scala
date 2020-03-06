@@ -39,11 +39,8 @@ class Alu(implicit p: Parameters) extends Module {
   val m = ~ub(width - 1, 0) + 1.U
 
   val n = ub(width - 1, 0)
-  val fop = Seq(Mux(io.a < io.b, io.a, io.b),
-                Mux(io.a < io.b, io.b, io.a),
-                io.a + io.b,
-                io.a >> n,
-                io.a << m)
+  val fop = Seq(Mux(io.a < io.b, io.a, io.b), Mux(io.a < io.b, io.b, io.a),
+    io.a + io.b, io.a >> n, io.a << m)
 
   val opmux = Seq.tabulate(ALU_OP_NUM)(i => ALU_OP(i) -> fop(i))
   io.y := MuxLookup(io.opcode, io.a, opmux)
@@ -101,12 +98,12 @@ class AluVector(implicit p: Parameters) extends Module {
 }
 
 /** TensorAlu.
-  *
-  * This unit instantiate the ALU vector unit (AluVector) and go over the
-  * micro-ops (uops) which are used to read the source operands (vectors)
-  * from the acc-scratchpad and then they are written back the same
-  * acc-scratchpad.
-  */
+ *
+ * This unit instantiate the ALU vector unit (AluVector) and go over the
+ * micro-ops (uops) which are used to read the source operands (vectors)
+ * from the acc-scratchpad and then they are written back the same
+ * acc-scratchpad.
+ */
 class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
@@ -200,18 +197,14 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
     dst_i := 0.U
     src_i := 0.U
   }.elsewhen(state === sReadUop && cnt_i === dec.lp_1) {
-      cnt_i := 0.U
-      dst_i := dst_o
-      src_i := src_o
-    }
-    .elsewhen(
-      state === sExe &&
-        alu.io.out.data.valid &&
-        uop_idx === uop_end - 1.U) {
-      cnt_i := cnt_i + 1.U
-      dst_i := dst_i + dec.dst_1
-      src_i := src_i + dec.src_1
-    }
+    cnt_i := 0.U
+    dst_i := dst_o
+    src_i := src_o
+  }.elsewhen(state === sExe && alu.io.out.data.valid && uop_idx === uop_end - 1.U) {
+    cnt_i := cnt_i + 1.U
+    dst_i := dst_i + dec.dst_1
+    src_i := src_i + dec.src_1
+  }
 
   when(state === sComputeIdx && io.uop.data.valid) {
     uop_dst := io.uop.data.bits.u0 + dst_i
@@ -232,7 +225,7 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   tensorImm.data.bits.foreach { b =>
     b.foreach { c =>
       c := Mux(dec.alu_imm(C_ALU_IMM_BITS - 1),
-               Cat(-1.S((aluBits - C_ALU_IMM_BITS).W), dec.alu_imm), dec.alu_imm)
+        Cat(-1.S((aluBits - C_ALU_IMM_BITS).W), dec.alu_imm), dec.alu_imm)
     }
   }
 
@@ -244,11 +237,11 @@ class TensorAlu(debug: Boolean = false)(implicit p: Parameters) extends Module {
   alu.io.acc_a.data.valid := io.acc.rd.data.valid & state === sReadTensorB
   alu.io.acc_a.data.bits <> io.acc.rd.data.bits
   alu.io.acc_b.data.valid := Mux(dec.alu_use_imm,
-                                 tensorImm.data.valid,
-                                 io.acc.rd.data.valid & state === sExe)
+    tensorImm.data.valid,
+    io.acc.rd.data.valid & state === sExe)
   alu.io.acc_b.data.bits <> Mux(dec.alu_use_imm,
-                                tensorImm.data.bits,
-                                io.acc.rd.data.bits)
+    tensorImm.data.bits,
+    io.acc.rd.data.bits)
 
   // acc_o
   io.acc.wr.valid := alu.io.acc_y.data.valid

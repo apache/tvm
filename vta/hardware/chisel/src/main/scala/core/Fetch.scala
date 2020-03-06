@@ -25,20 +25,20 @@ import vta.util.config._
 import vta.shell._
 
 /** Fetch.
-  *
-  * The fetch unit reads instructions (tasks) from memory (i.e. DRAM), using the
-  * VTA Memory Engine (VME), and push them into an instruction queue called
-  * inst_q. Once the instruction queue is full, instructions are dispatched to
-  * the Load, Compute and Store module queues based on the instruction opcode.
-  * After draining the queue, the fetch unit checks if there are more instructions
-  * via the ins_count register which is written by the host.
-  *
-  * Additionally, instructions are read into two chunks (see sReadLSB and sReadMSB)
-  * because we are using a DRAM payload of 8-bytes or half of a VTA instruction.
-  * This should be configurable for larger payloads, i.e. 64-bytes, which can load
-  * more than one instruction at the time. Finally, the instruction queue is
-  * sized (entries_q), depending on the maximum burst allowed in the memory.
-  */
+ *
+ * The fetch unit reads instructions (tasks) from memory (i.e. DRAM), using the
+ * VTA Memory Engine (VME), and push them into an instruction queue called
+ * inst_q. Once the instruction queue is full, instructions are dispatched to
+ * the Load, Compute and Store module queues based on the instruction opcode.
+ * After draining the queue, the fetch unit checks if there are more instructions
+ * via the ins_count register which is written by the host.
+ *
+ * Additionally, instructions are read into two chunks (see sReadLSB and sReadMSB)
+ * because we are using a DRAM payload of 8-bytes or half of a VTA instruction.
+ * This should be configurable for larger payloads, i.e. 64-bytes, which can load
+ * more than one instruction at the time. Finally, the instruction queue is
+ * sized (entries_q), depending on the maximum burst allowed in the memory.
+ */
 class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
@@ -112,17 +112,16 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
         when(xrem === 0.U) {
           state := sIdle
         }.elsewhen(xrem < xmax) {
-            state := sReadCmd
-            rlen := xrem
-            ilen := xrem >> 1.U
-            xrem := 0.U
-          }
-          .otherwise {
-            state := sReadCmd
-            rlen := xmax - 1.U
-            ilen := (xmax >> 1.U) - 1.U
-            xrem := xrem - xmax
-          }
+          state := sReadCmd
+          rlen := xrem
+          ilen := xrem >> 1.U
+          xrem := 0.U
+        }.otherwise {
+          state := sReadCmd
+          rlen := xmax - 1.U
+          ilen := (xmax >> 1.U) - 1.U
+          xrem := xrem - xmax
+        }
       }
     }
   }
@@ -165,12 +164,12 @@ class Fetch(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val deq_sel = Cat(dec.io.isCompute, dec.io.isStore, dec.io.isLoad).asUInt
   val deq_ready =
     MuxLookup(deq_sel,
-              false.B, // default
-              Array(
-                "h_01".U -> io.inst.ld.ready,
-                "h_02".U -> io.inst.st.ready,
-                "h_04".U -> io.inst.co.ready
-              ))
+      false.B, // default
+      Array(
+        "h_01".U -> io.inst.ld.ready,
+        "h_02".U -> io.inst.st.ready,
+        "h_04".U -> io.inst.co.ready
+      ))
 
   // dequeue instruction
   inst_q.io.deq.ready := deq_ready & inst_q.io.deq.valid & state === sDrain

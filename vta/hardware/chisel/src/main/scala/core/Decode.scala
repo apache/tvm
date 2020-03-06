@@ -25,16 +25,16 @@ import chisel3.util._
 import ISA._
 
 /** MemDecode.
-  *
-  * Decode memory instructions with a Bundle. This is similar to an union,
-  * therefore order matters when declaring fields. These are the instructions
-  * decoded with this bundle:
-  *   - LUOP
-  *   - LWGT
-  *   - LINP
-  *   - LACC
-  *   - SOUT
-  */
+ *
+ * Decode memory instructions with a Bundle. This is similar to an union,
+ * therefore order matters when declaring fields. These are the instructions
+ * decoded with this bundle:
+ *   - LUOP
+ *   - LWGT
+ *   - LINP
+ *   - LACC
+ *   - SOUT
+ */
 class MemDecode extends Bundle {
   val xpad_1 = UInt(M_PAD_BITS.W)
   val xpad_0 = UInt(M_PAD_BITS.W)
@@ -55,10 +55,10 @@ class MemDecode extends Bundle {
 }
 
 /** GemmDecode.
-  *
-  * Decode GEMM instruction with a Bundle. This is similar to an union,
-  * therefore order matters when declaring fields.
-  */
+ *
+ * Decode GEMM instruction with a Bundle. This is similar to an union,
+ * therefore order matters when declaring fields.
+ */
 class GemmDecode extends Bundle {
   val wgt_1 = UInt(C_WIDX_BITS.W)
   val wgt_0 = UInt(C_WIDX_BITS.W)
@@ -80,15 +80,15 @@ class GemmDecode extends Bundle {
 }
 
 /** AluDecode.
-  *
-  * Decode ALU instructions with a Bundle. This is similar to an union,
-  * therefore order matters when declaring fields. These are the instructions
-  * decoded with this bundle:
-  *   - VMIN
-  *   - VMAX
-  *   - VADD
-  *   - VSHX
-  */
+ *
+ * Decode ALU instructions with a Bundle. This is similar to an union,
+ * therefore order matters when declaring fields. These are the instructions
+ * decoded with this bundle:
+ *   - VMIN
+ *   - VMAX
+ *   - VADD
+ *   - VSHX
+ */
 class AluDecode extends Bundle {
   val empty_1 = Bool()
   val alu_imm = UInt(C_ALU_IMM_BITS.W)
@@ -112,9 +112,9 @@ class AluDecode extends Bundle {
 }
 
 /** UopDecode.
-  *
-  * Decode micro-ops (uops).
-  */
+ *
+ * Decode micro-ops (uops).
+ */
 class UopDecode extends Bundle {
   val u2 = UInt(10.W)
   val u1 = UInt(11.W)
@@ -122,9 +122,9 @@ class UopDecode extends Bundle {
 }
 
 /** FetchDecode.
-  *
-  * Partial decoding for dispatching instructions to Load, Compute, and Store.
-  */
+ *
+ * Partial decoding for dispatching instructions to Load, Compute, and Store.
+ */
 class FetchDecode extends Module {
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))
@@ -159,9 +159,9 @@ class FetchDecode extends Module {
 }
 
 /** LoadDecode.
-  *
-  * Decode dependencies, type and sync for Load module.
-  */
+ *
+ * Decode dependencies, type and sync for Load module.
+ */
 class LoadDecode extends Module {
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))
@@ -180,9 +180,9 @@ class LoadDecode extends Module {
 }
 
 /** ComputeDecode.
-  *
-  * Decode dependencies, type and sync for Compute module.
-  */
+ *
+ * Decode dependencies, type and sync for Compute module.
+ */
 class ComputeDecode extends Module {
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))
@@ -211,9 +211,9 @@ class ComputeDecode extends Module {
 }
 
 /** StoreDecode.
-  *
-  * Decode dependencies, type and sync for Store module.
-  */
+ *
+ * Decode dependencies, type and sync for Store module.
+ */
 class StoreDecode extends Module {
   val io = IO(new Bundle {
     val inst = Input(UInt(INST_BITS.W))

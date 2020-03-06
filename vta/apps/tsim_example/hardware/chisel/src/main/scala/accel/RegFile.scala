@@ -24,29 +24,29 @@ import chisel3.util._
 import vta.dpi._
 
 /** Register File.
-  *
-  * Six 32-bit register file.
-  *
-  * -------------------------------
-  *  Register description    | addr
-  * -------------------------|-----
-  *  Control status register | 0x00
-  *  Cycle counter           | 0x04
-  *  Constant value          | 0x08
-  *  Vector length           | 0x0c
-  *  Input pointer lsb       | 0x10
-  *  Input pointer msb       | 0x14
-  *  Output pointer lsb      | 0x18
-  *  Output pointer msb      | 0x1c
-  * -------------------------------
-
-  * ------------------------------
-  *  Control status register | bit
-  * ------------------------------
-  *  Launch                  | 0
-  *  Finish                  | 1
-  * ------------------------------
-  */
+ *
+ * Six 32-bit register file.
+ *
+ * -------------------------------
+ *  Register description    | addr
+ * -------------------------|-----
+ *  Control status register | 0x00
+ *  Cycle counter           | 0x04
+ *  Constant value          | 0x08
+ *  Vector length           | 0x0c
+ *  Input pointer lsb       | 0x10
+ *  Input pointer msb       | 0x14
+ *  Output pointer lsb      | 0x18
+ *  Output pointer msb      | 0x1c
+ * -------------------------------
+ *
+ * ------------------------------
+ *  Control status register | bit
+ * ------------------------------
+ *  Launch                  | 0
+ *  Finish                  | 1
+ * ------------------------------
+ */
 class RegFile(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {
     val launch = Output(Bool())
@@ -98,9 +98,8 @@ class RegFile(implicit config: AccelConfig) extends Module {
   }
 
   for (i <- 0 until (config.nVals + (2 * config.nPtrs))) {
-    when(
-      state === sIdle && io.host.req.valid &&
-        io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
+    when(state === sIdle && io.host.req.valid &&
+      io.host.req.opcode && addr(vo + i).U === io.host.req.addr) {
       reg(vo + i) := io.host.req.value
     }
   }

@@ -25,9 +25,9 @@ import vta.util.config._
 import vta.shell._
 
 /** TensorStore.
-  *
-  * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
-  */
+ *
+ * Store 1D and 2D tensors from out-scratchpad (SRAM) to main memory (DRAM).
+ */
 class TensorStore(tensorType: String = "none", debug: Boolean = false)(
     implicit p: Parameters)
     extends Module {
@@ -112,15 +112,14 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
             }
           }
         }.elsewhen(xrem < xmax) {
-            state := sWriteCmd
-            xlen := xrem
-            xrem := 0.U
-          }
-          .otherwise {
-            state := sWriteCmd
-            xlen := xmax - 1.U
-            xrem := xrem - xmax
-          }
+          state := sWriteCmd
+          xlen := xrem
+          xrem := 0.U
+        }.otherwise {
+          state := sWriteCmd
+          xlen := xmax - 1.U
+          xrem := xrem - xmax
+        }
       }
     }
   }
@@ -176,13 +175,12 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
     raddr_cur := dec.sram_offset
     raddr_nxt := dec.sram_offset
   }.elsewhen(io.vme_wr.data
-      .fire() && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U) {
-      raddr_cur := raddr_cur + 1.U
-    }
-    .elsewhen(stride) {
-      raddr_cur := raddr_nxt + dec.xsize
-      raddr_nxt := raddr_nxt + dec.xsize
-    }
+    .fire() && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U) {
+    raddr_cur := raddr_cur + 1.U
+  }.elsewhen(stride) {
+    raddr_cur := raddr_nxt + dec.xsize
+    raddr_nxt := raddr_nxt + dec.xsize
+  }
 
   val tread = Seq.tabulate(tensorLength) { i =>
     i.U ->
@@ -199,14 +197,11 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
     waddr_nxt := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(
       elemBytes)))
   }.elsewhen(state === sWriteAck && io.vme_wr.ack && xrem =/= 0.U) {
-      waddr_cur := waddr_cur + xmax_bytes
-    }
-    .elsewhen(stride) {
-      waddr_cur := waddr_nxt + (dec.xstride << log2Ceil(
-        tensorLength * tensorWidth))
-      waddr_nxt := waddr_nxt + (dec.xstride << log2Ceil(
-        tensorLength * tensorWidth))
-    }
+    waddr_cur := waddr_cur + xmax_bytes
+  }.elsewhen(stride) {
+    waddr_cur := waddr_nxt + (dec.xstride << log2Ceil(tensorLength * tensorWidth))
+    waddr_nxt := waddr_nxt + (dec.xstride << log2Ceil(tensorLength * tensorWidth))
+  }
 
   io.vme_wr.cmd.valid := state === sWriteCmd
   io.vme_wr.cmd.bits.addr := waddr_cur
@@ -231,12 +226,7 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
   if (debug) {
     when(io.vme_wr.cmd.fire()) {
       printf("[TensorStore] ysize:%x ycnt:%x raddr:%x waddr:%x len:%x rem:%x\n",
-             ysize,
-             ycnt,
-             raddr_cur,
-             waddr_cur,
-             xlen,
-             xrem)
+        ysize, ycnt, raddr_cur, waddr_cur, xlen, xrem)
     }
     when(io.vme_wr.data.fire()) {
       printf("[TensorStore] data:%x\n", io.vme_wr.data.bits)
