@@ -2119,7 +2119,6 @@ def _in_while_loop(control_flow_node_map, op_name):
     return op_name in control_flow_node_map and \
             "LoopCond" in control_flow_node_map[op_name]
 
-
 class Branch:
     """A class contains the components that are used to build up a Relay if
     node.
@@ -2776,17 +2775,17 @@ class GraphProto(object):
                 assert len(false_br) == 1
                 branch.true_branch = true_br[0]
                 branch.false_branch = false_br[0]
-                # Try pre-compute first
-                try:
-                    cond_val = np.all(_infer_value(branch.cond,
-                                                   self._params,
-                                                   self._mod).asnumpy())
-                    if cond_val:
-                        op = [branch.true_branch]
-                    else:
-                        op = [branch.false_branch]
-                except Exception:
-                    op = [branch.if_node()]
+                op = [branch.if_node()]
+                if node_name_prefix not in self._while_loop_name_set:
+                    try:
+                        cond_val = np.all(_infer_value(branch.cond, self._params, 
+                                                       self._mod).asnumpy())
+                        if cond_val:
+                            op = [branch.true_branch]
+                        else:
+                            op = [branch.false_branch]
+                    except Exception:
+                        op = [branch.if_node()]
         elif node.op == "Exit":
             loop = self._loops[node_name_prefix]
 
