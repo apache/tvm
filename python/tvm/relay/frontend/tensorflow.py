@@ -40,7 +40,7 @@ from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
-from ..expr_functor import ExprMutator
+from ..expr_functor import ExprMutator, ExprVisitor
 from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape
@@ -98,9 +98,6 @@ def _get_list_param(params, input_node):
 
 def _get_tuple_param(params, input_node):
     return tuple(_get_param(params, input_node))
-
-def _need_module_for_shape_inference(op):
-    return op in ['StridedSlice']
 
 def _need_prelude_for_shape_inference(op):
     return "TensorArray" in op
@@ -2264,7 +2261,7 @@ class LoopBound(ExprVisitor):
                 for iname in node.input:
                     iploop_name = self._find_parent_loop_name(iname)
                     # Use startswith to deal with nested loop
-                    if iploop_name.startswith(self._loop_name):
+                    if not iploop_name.startswith(self._loop_name):
                         if iname not in self.extra_loop_var_names:
                             self.extra_loop_var_names.add(iname)
         super().visit(expr)
@@ -2347,9 +2344,9 @@ class Loop:
 
         sb = tvm.relay.scope_builder.ScopeBuilder()
 
-        loop_checker = LoopChecker(self._loop_name,
-                                   self._hash2tfnode,
-                                   self._while_loop_name_set)
+        loop_checker = LoopBound(self._loop_name,
+                                 self._hash2tfnode,
+                                 self._while_loop_name_set)
         for body in self.body:
             loop_checker.visit(body)
 
@@ -2378,6 +2375,7 @@ class Loop:
             v = tvm.relay.var("loop_var" + str(i), type_annotation=var_type)
             loop_vars.append(v)
             bind_map[var] = v
+
 
         self.cond = rewrite_subgraph(self.cond, bind_map)
         self.body = [rewrite_subgraph(b, bind_map) for b in self.body]
@@ -2436,8 +2434,8 @@ class GraphProto(object):
         self._mod = IRModule({})
         self._prelude = Prelude(self._mod)
         self._control_flow_node_map = defaultdict(set)
-        self._loop_body_orders = {}
-        self._loop_var_oreders = {}
+        self._loop_body_order = {}
+        self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
 
@@ -2481,6 +2479,9 @@ class GraphProto(object):
         """
         missing_operators = self._parse_import_prerequisites(graph)
         control_flow_nodes = []
+        self._in_shape = shape
+        self._layout = layout
+        self._graph = graph
 
         if missing_operators:
             freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
@@ -2757,7 +2758,7 @@ class GraphProto(object):
         node_name_prefix = node.name.rsplit('/', 1)[0]
         if node.op == "Merge":
             if _in_while_loop(self._control_flow_node_map, node_name_prefix):
-                op = self._recons(node.input[0])
+                op = self._backtrack_construct(node.input[0])
                 if node_name_prefix not in self._loops:
                     self._loops[node_name_prefix] = Loop(self._mod,
                                                          node_name_prefix,
@@ -2769,8 +2770,8 @@ class GraphProto(object):
                     raise RuntimeError("Cannot find a created "
                                        "conditional for merge node")
                 branch = self._branches[node_name_prefix]
-                false_br =  self._recons(node.input[0])
-                true_br =  self._recons(node.input[1])
+                false_br =  self._backtrack_construct(node.input[0])
+                true_br =  self._backtrack_construct(node.input[1])
                 assert len(true_br) == 1
                 assert len(false_br) == 1
                 branch.true_branch = true_br[0]
@@ -2887,10 +2888,8 @@ class GraphProto(object):
         elif op_name in convert_map:
             if _need_prelude_for_shape_inference(op_name):
                 sym = convert_map[op_name](inputs, attrs, self._params, self._prelude)
-            elif _need_module_for_shape_inference(op_name):
-                sym = convert_map[op_name](inputs, attrs, self._params, self._mod)
             else:
-                sym = convert_map[op_name](inputs, attrs, self._params)
+                sym = convert_map[op_name](inputs, attrs, self._params, self._mod)
 
         elif op_name in convert_map_rnn:
             sym = self._convert_rnn_operator(op_name, inputs, attrs,
@@ -2962,7 +2961,7 @@ class GraphProto(object):
             elif isinstance(op, (_expr.Expr, _expr.TupleGetItem)):
                 op = [op]
 
-            node_hash = s_hash(op) if isinstance(op, _expr.Tuple) else tvm.relay.analysis.s_hash(op[0])
+            node_hash = s_hash(op) if isinstance(op, _expr.Tuple) else s_hash(op[0])
             self._hash2tfnode[node_hash] = node
             self._nodes[node_name] = op
 
