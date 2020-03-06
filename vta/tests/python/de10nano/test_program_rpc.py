@@ -19,8 +19,8 @@ import tvm
 from tvm import rpc
 from vta import get_bitstream_path, download_bitstream, program_fpga, reconfig_runtime
 
-host = os.environ.get("VTA_PYNQ_RPC_HOST", "de10nano")
-port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
+host = os.environ.get("VTA_RPC_HOST", "de10nano")
+port = int(os.environ.get("VTA_RPC_PORT", "9091"))
 
 def program_rpc_bitstream(path=None):
     """Program the FPGA on the RPC server

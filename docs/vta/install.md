@@ -146,8 +146,8 @@ Tips regarding the Pynq RPC Server:
 Before running the examples on your development machine, you'll need to configure your host environment as follows:
 ```bash
 # On the Host-side
-export VTA_PYNQ_RPC_HOST=192.168.2.99
-export VTA_PYNQ_RPC_PORT=9091
+export VTA_RPC_HOST=192.168.2.99
+export VTA_RPC_PORT=9091
 ```
 
 In addition, you'll need to edit the `vta_config.json` file on the host to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to `"pynq"`.
