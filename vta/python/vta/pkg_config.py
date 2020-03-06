@@ -81,7 +81,7 @@ class PkgConfig(object):
             self.lib_source += glob.glob("%s/vta/src/de10nano/*.cc" % (proj_root))
             self.include_path += [
                 "-I%s/vta/src/de10nano" % proj_root,
-                "-I%/3rdparty" % proj_root
+                "-I%s/3rdparty" % proj_root
             ]
 
         # Linker flags
