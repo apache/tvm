@@ -62,8 +62,6 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
   val tag = Reg(UInt(8.W))
   val set = Reg(UInt(8.W))
 
-  // Dynamically adjust the size of DMA transfers to avoid crossing page boundaries.
-  final val ADAPTIVE_DMA_XFER_ENABLE = true
   val xfer_bytes = Reg(chiselTypeOf(io.vme_wr.cmd.bits.addr))
   val xstride_bytes = dec.xstride << log2Ceil(tensorLength * tensorWidth)
   val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
@@ -74,12 +72,12 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
   val xfer_split_addr = waddr_cur + xfer_bytes
   val xfer_stride_addr = waddr_nxt + xstride_bytes
 
-  val xfer_init_bytes   = if (ADAPTIVE_DMA_XFER_ENABLE) xmax_bytes - xfer_init_addr % xmax_bytes else xmax_bytes
-  val xfer_init_pulses  = if (ADAPTIVE_DMA_XFER_ENABLE) xfer_init_bytes >> pulse_bytes_bits else xmax
-  val xfer_split_bytes  = if (ADAPTIVE_DMA_XFER_ENABLE) xmax_bytes - xfer_split_addr % xmax_bytes else xmax_bytes
-  val xfer_split_pulses = if (ADAPTIVE_DMA_XFER_ENABLE) xfer_split_bytes >> pulse_bytes_bits else xmax
-  val xfer_stride_bytes = if (ADAPTIVE_DMA_XFER_ENABLE) xmax_bytes - xfer_stride_addr % xmax_bytes else xmax_bytes
-  val xfer_stride_pulses= if (ADAPTIVE_DMA_XFER_ENABLE) xfer_stride_bytes >> pulse_bytes_bits else xmax
+  val xfer_init_bytes   = xmax_bytes - xfer_init_addr % xmax_bytes
+  val xfer_init_pulses  = xfer_init_bytes >> pulse_bytes_bits
+  val xfer_split_bytes  = xmax_bytes - xfer_split_addr % xmax_bytes
+  val xfer_split_pulses = xfer_split_bytes >> pulse_bytes_bits
+  val xfer_stride_bytes = xmax_bytes - xfer_stride_addr % xmax_bytes
+  val xfer_stride_pulses= xfer_stride_bytes >> pulse_bytes_bits
 
   val sIdle :: sWriteCmd :: sWriteData :: sReadMem :: sWriteAck :: Nil = Enum(5)
   val state = RegInit(sIdle)
