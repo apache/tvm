@@ -233,42 +233,46 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Build relay function for graph runtime
+   * \brief Build relay IRModule for graph runtime
    *
-   * \param func Relay Function
+   * \param mod Relay IRModule
    * \param target Target device
    * \param target_host Host target device
    */
-  void Build(Function func,
+  void Build(IRModule mod,
              const TargetsMap& targets,
              const tvm::Target& target_host) {
     targets_ = targets;
     target_host_ = target_host;
-    BuildRelay(func, params_);
+    BuildRelay(mod, params_);
   }
 
  protected:
   /*!
-   * \brief Optimize a Relay Function.
+   * \brief Optimize a Relay IRModule.
    *
-   * \param func The input Function where optmization will be applied on.
+   * \param relay_module The input IRModule where optmization will be applied on.
    * \param targets The device type to `Target` mapping.
    * \param params The param name to value mapping.
    *
-   * \return relay::Module The updated Relay module after optimization.
+   * \return relay::IRModule The updated Relay IR module after optimization.
    */
   IRModule Optimize(
-      Function func,
+      IRModule relay_module,
       const TargetsMap& targets,
       const std::unordered_map<std::string, runtime::NDArray>& params) {
     if (params.size()) {
-      func = BindParamsByName(func, params);
+      CHECK(relay_module->ContainGlobalVar("main"))
+        << "Missing the main entry function";
+      GlobalVar main_glb_var = relay_module->GetGlobalVar("main");
+      Function main_func = Downcast<Function>(relay_module->Lookup(main_glb_var));
+      auto new_main = BindParamsByName(main_func, params);
+      relay_module->Update(main_glb_var, new_main);
     }
 
-    // Perform Module->Module optimizations.
-    IRModule relay_module = IRModule::FromExpr(func);
-
     Array<Pass> pass_seqs;
+    Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
+    pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
 
     // Run all dialect legalization passes.
     pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -418,18 +422,18 @@ class RelayBuildModule : public runtime::ModuleNode {
   }
 
   /*!
-   * \brief Compile a Relay function to runtime module.
+   * \brief Compile a Relay IR module to runtime module.
    *
-   * \param func The Relay function.
+   * \param relay_module The Relay IR module.
    * \param params The parameters.
    */
   void BuildRelay(
-      Function func,
+      IRModule relay_module,
       const std::unordered_map<std::string, tvm::runtime::NDArray>& params) {
-    // Optimize input Relay Function and returns Relay Module
-    IRModule relay_module = Optimize(func, targets_, params);
+    // Relay IRModule -> IRModule optimizations.
+    relay_module = Optimize(relay_module, targets_, params);
     // Get the updated function.
-    func = Downcast<Function>(relay_module->Lookup("main"));
+    auto func = Downcast<Function>(relay_module->Lookup("main"));
 
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
