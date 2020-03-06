@@ -28,6 +28,7 @@ import shutil
 import tempfile
 import threading
 import time
+import traceback
 from collections import namedtuple
 from random import getrandbits
 
@@ -36,6 +37,7 @@ import numpy as np
 import tvm._ffi
 from tvm import nd
 from tvm import rpc as _rpc
+from tvm import target as _target
 from tvm.contrib import ndk, nvcc, tar
 from tvm.driver import build
 from tvm.error import TVMError
@@ -250,6 +252,26 @@ class LocalRunner(Runner):
         call your template and get the reference output.
         This can work for TOPI templates, but may not work for your custom template.
     """
+    def __init__(self,
+                 timeout=10, n_parallel=None,
+                 number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
+                 check_correctness=False):
+        super(LocalRunner, self).__init__(timeout, n_parallel, number, repeat, min_repeat_ms,
+                                          cooldown_interval, check_correctness)
+        if self.n_parallel > 1:
+            logger.info('n_parallel of local runner is reset to 1')
+            self.n_parallel = 1
+
+    def set_task(self, task):
+        super(LocalRunner, self).set_task(task)
+        if self.ref_input is None:
+            # Use consist inputs for all measurements.
+            with _target.create("llvm"):
+                _, arg_bufs = task.instantiate(task.config_space.get(0))
+            self.ref_input = [
+                np.random.uniform(size=get_const_tuple(x.shape)).astype(
+                    x.dtype) for x in arg_bufs
+            ]
 
     def get_device_context(self):
         return nd.context(str(self.task.target), 0)
@@ -506,7 +528,7 @@ def run_local(measure_input,
               repeat,
               min_repeat_ms,
               cooldown_interval,
-              ref_input=None,
+              ref_input,
               ref_output=None):
     """Run a generated library locally.
 
@@ -560,38 +582,37 @@ def run_local(measure_input,
                                      number=number,
                                      repeat=repeat,
                                      min_repeat_ms=min_repeat_ms)
-
-        # set input
-        if ref_input:
-            args = [nd.array(x, ctx=ctx) for x in ref_input]
-        else:
-            # create empty arrays on the remote device and copy them once.
-            # This can avoid some memory issues that make the measurement results unreliable.
-            args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
-            args = [nd.array(x, ctx=ctx) for x in args]
-            ctx.sync()
-
-        costs = time_f(*args).results
-
-        if len(costs) > 2:  # remove largest and smallest value to reduce variance
-            costs = list(costs)
-            costs.sort()
-            costs = tuple(costs[1:-1])
-
-        # check correctness of output
-        if ref_output:
-            for expected, real in zip(ref_output, args):
-                if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                    logger.warning("Wrong Answer!")
-                    errno = MeasureErrorNo.WRONG_ANSWER
-    except TVMError as exc:
-        msg = str(exc)
-        if "Stack trace returned" in msg:
-            msg = msg[:msg.index("Stack trace returned")]
-        if "CUDA Source" in msg:
-            msg = msg[:msg.index("CUDA Source")]
+    except Exception as err:  # pylint: disable=broad-except
+        print(str(err))
+        msg = str(traceback.format_exc())
         costs = (RuntimeError(msg[:1024]), )
-        errno = MeasureErrorNo.RUNTIME_DEVICE
+        errno = MeasureErrorNo.COMPILE_DEVICE
+
+    if errno == MeasureErrorNo.NO_ERROR:
+        try:
+            # set input and perform measurements
+            args = [nd.array(x, ctx=ctx) for x in ref_input]
+            ctx.sync()
+            costs = time_f(*args).results
+
+            if len(costs) > 2:  # remove largest and smallest value to reduce variance
+                costs = list(costs)
+                costs.sort()
+                costs = tuple(costs[1:-1])
+
+            # check correctness of output
+            if ref_output:
+                for expected, real in zip(ref_output, args):
+                    if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
+                        logger.warning("Wrong Answer!")
+                        errno = MeasureErrorNo.WRONG_ANSWER
+        except Exception as err: # pylint: disable=broad-except
+            print(str(err))
+            msg = str(traceback.format_exc())
+            costs = (RuntimeError(msg[:1024]), )
+            errno = MeasureErrorNo.RUNTIME_DEVICE
+
+    os.remove(build_result.filename)
     tstamp = time.time()
     time.sleep(cooldown_interval)
     return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)

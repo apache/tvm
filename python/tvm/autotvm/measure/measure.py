@@ -224,23 +224,25 @@ class Runner(object):
         kwargs: dict
             The additional keyword arguments
         """
-        kwargs = {}
         if ('cuda' in self.task.target.keys or 'opencl' in self.task.target.keys
                 or 'rocm' in self.task.target.keys):
-            ctx = self.get_device_context()
-            max_dims = ctx.max_thread_dimensions
-            kwargs['check_gpu'] = {
-                'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
-                'max_threads_per_block': ctx.max_threads_per_block,
-                'max_thread_x': max_dims[0],
-                'max_thread_y': max_dims[1],
-                'max_thread_z': max_dims[2],
-            }
+            def _get_gpu_build_kwargs():
+                kwargs = {}
+                ctx = self.get_device_context()
+                max_dims = ctx.max_thread_dimensions
+                kwargs['check_gpu'] = {
+                    'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
+                    'max_threads_per_block': ctx.max_threads_per_block,
+                    'max_thread_x': max_dims[0],
+                    'max_thread_y': max_dims[1],
+                    'max_thread_z': max_dims[2],
+                }
 
-            if 'cuda' in self.task.target.keys:
-                kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
-
-        return kwargs
+                if 'cuda' in self.task.target.keys:
+                    kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+                return kwargs
+            return self.executor.submit(_get_gpu_build_kwargs).get()
+        return {}
 
     def get_run_args(self, measure_inputs, build_results):
         """
