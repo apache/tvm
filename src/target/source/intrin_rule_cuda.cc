@@ -54,6 +54,22 @@ struct CUDAFastMath : public CUDAMath {
   }
 };
 
+struct CUDAFastMathTan : public CUDAMath {
+  std::string operator()(DataType t, std::string name) const {
+    if (t.lanes() == 1 && t.is_float()) {
+        switch (t.bits()) {
+          case 64: return name;
+          // `__tanf` seems to produce some values too deviant from numpy tan version.
+          // So, let's use just `tanf` instead.
+          case 32: return name + 'f';
+          case 16: LOG(FATAL) << "cuda tan unsupported for float16";
+          default: return "";
+        }
+    }
+    return "";
+  }
+};
+
 struct CUDAPopcount {
   std::string operator()(DataType t, std::string name) const {
     if (t.lanes() == 1 && t.is_uint()) {
@@ -96,6 +112,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
 .set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan")
+.set_body(DispatchExtern<CUDAFastMathTan>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
 .set_body(DispatchExtern<CUDAFastMath>);

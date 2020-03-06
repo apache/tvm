@@ -1696,6 +1696,7 @@ _identity_list = [
     "ones_like",
     "where",
     "gather_nd",
+    "tan",
     "cos",
     "sin"
 ]

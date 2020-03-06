@@ -2628,6 +2628,15 @@ def test_forward_cos():
     compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
 
 
+def test_forward_tan():
+    """test operator tan """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.tan(in_data, name="tan")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
+
+
 def test_forward_sin():
     """test operator sin """
     np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
@@ -3031,6 +3040,7 @@ if __name__ == '__main__':
     test_forward_sign()
     test_forward_log()
     test_forward_log1p()
+    test_forward_tan()
     test_forward_cos()
     test_forward_sin()
     test_forward_negative()
