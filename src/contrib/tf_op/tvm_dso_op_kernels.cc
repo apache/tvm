@@ -17,7 +17,9 @@
  * under the License.
  */
 
+#ifdef TF_TVMDSOOP_ENABLE_GPU
 #include <cuda_runtime.h>
+#endif
 #include <dlpack/dlpack.h>
 
 #include <tvm/runtime/module.h>
@@ -67,9 +69,11 @@ class TensorAsBuf {
         }
         if (device_type == kDLCPU) {
             memcpy(origin_buf, buf + offset, size);
+#ifdef TF_TVMDSOOP_ENABLE_GPU
         } else if (device_type == kDLGPU) {
             cudaMemcpy(origin_buf, buf + offset,
                 size, cudaMemcpyDeviceToDevice);
+#endif
         } else {
             LOG(FATAL) << "Only support CPU and CUDA now. Device "
                 << device_type << " is not implemented currently";
@@ -82,9 +86,11 @@ class TensorAsBuf {
         }
         if (device_type == kDLCPU) {
             memcpy(buf + offset, origin_buf, size);
+#ifdef TF_TVMDSOOP_ENABLE_GPU
         } else if (device_type == kDLGPU) {
             cudaMemcpy(buf + offset, origin_buf,
                 size, cudaMemcpyDeviceToDevice);
+#endif
         } else {
             LOG(FATAL) << "Only support CPU and CUDA now. Device "
                 << device_type << " is not implemented currently";
@@ -172,9 +178,19 @@ class TVMDSOOpTrait<CPUDevice> {
     static int device_id(OpKernelContext* context) {
         return 0;
     }
+
+    static void make_shape_from_tensor(
+            const tensorflow::Tensor& shape_tensor,
+            tensorflow::TensorShape* output_shape) {
+        tensorflow::int64 num_dims = shape_tensor.NumElements();
+        const tensorflow::int64* dims =
+              shape_tensor.flat<tensorflow::int64>().data();
+        tensorflow::TensorShapeUtils::MakeShape(
+            dims, num_dims, output_shape);
+    }
 };
 
-
+#ifdef TF_TVMDSOOP_ENABLE_GPU
 template <>
 class TVMDSOOpTrait<GPUDevice> {
  public:
@@ -185,7 +201,22 @@ class TVMDSOOpTrait<GPUDevice> {
         auto gpu_device_info = device_base->tensorflow_gpu_device_info();
         return gpu_device_info->gpu_id;
     }
+
+    static void make_shape_from_tensor(
+            const tensorflow::Tensor& shape_tensor,
+            tensorflow::TensorShape* output_shape) {
+        tensorflow::int64 num_dims = shape_tensor.NumElements();
+        const tensorflow::int64* flat =
+            shape_tensor.flat<tensorflow::int64>().data();
+        tensorflow::int64* dims = new tensorflow::int64[num_dims];
+        cudaMemcpy(dims, flat, sizeof(tensorflow::int64) * num_dims,
+           cudaMemcpyDeviceToHost);
+        tensorflow::TensorShapeUtils::MakeShape(
+            dims, num_dims, output_shape);
+        delete dims;
+    }
 };
+#endif
 
 
 template <typename DEVICE_TYPE, int NUM_INPUTS>
@@ -242,22 +273,8 @@ class TVMDSOOp : public OpKernel {
           dims, static_output_shape.size(), &output_shape);
     } else if (output_shape_tensor.dims() == 1) {
       // use shape tensor values as output shape
-      tensorflow::int64 num_dims = output_shape_tensor.NumElements();
-      if (TVMDSOOpTrait<GPUDevice>::device_type == kDLGPU) {
-          const tensorflow::int64* flat =
-              output_shape_tensor.flat<tensorflow::int64>().data();
-          tensorflow::int64* dims = new tensorflow::int64[num_dims];
-          cudaMemcpy(dims, flat, sizeof(tensorflow::int64) * num_dims,
-             cudaMemcpyDeviceToHost);
-          tensorflow::TensorShapeUtils::MakeShape(
-              dims, num_dims, &output_shape);
-          delete dims;
-      } else {
-          const tensorflow::int64* dims =
-              output_shape_tensor.flat<tensorflow::int64>().data();
-          tensorflow::TensorShapeUtils::MakeShape(
-              dims, num_dims, &output_shape);
-      }
+      TVMDSOOpTrait<DEVICE_TYPE>::make_shape_from_tensor(
+          output_shape_tensor, &output_shape);
     } else {
       // use input tensor shape by default
       output_shape = context->input(0).shape();
@@ -304,12 +321,17 @@ class TVMDSOOp : public OpKernel {
 };
 
 
-
+#ifdef TF_TVMDSOOP_ENABLE_GPU
 #define REGISTER_TFTVM_KERNEL(n) \
     REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n) \
         .Device(tensorflow::DEVICE_CPU), TVMDSOOp<CPUDevice, n>); \
     REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n) \
-        .Device(tensorflow::DEVICE_GPU), TVMDSOOp<GPUDevice, n>); \
+        .Device(tensorflow::DEVICE_GPU), TVMDSOOp<GPUDevice, n>);
+#else
+#define REGISTER_TFTVM_KERNEL(n) \
+    REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n) \
+        .Device(tensorflow::DEVICE_CPU), TVMDSOOp<CPUDevice, n>);
+#endif
 
 REGISTER_TFTVM_KERNEL(1)
 REGISTER_TFTVM_KERNEL(2)
