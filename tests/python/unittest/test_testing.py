@@ -31,6 +31,7 @@ def test_check_numerical_grads():
         lambda x: (np.sign(np.sin(1/x)), np.zeros_like(x)),
         lambda x: (x*np.sin(1/x), np.sin(1/x) - np.cos(1/x)/x),
         lambda x: (np.sin(1/x), - np.cos(1/x)/(x*x)),
+        lambda x: (np.tan(x), 1.0 / (np.cos(x) * np.cos(x))),
     ]
 
     # Avoid values too close to 0 since singularities of our functions are there
