@@ -43,52 +43,74 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
       module_(module)
       {}
 
+    Expr VisitExpr_(const ConstantNode* op) final {
+      GlobalTypeVar gradCellType = module_->GetGlobalTypeVar("GradCell");
+      Constructor toGradCell = Constructor("Raw", {op->checked_type()}, gradCellType);
+
+      return CallNode::make(toGradCell, {GetRef<Constant>(op)});
+    }
+
     Expr VisitExpr_(const CallNode* call_node) final {
       if (auto* op = (call_node->op).as<OpNode>()) {
-        if (op->name.compare("add") == 0) {
-          const BaseFunc addFunc = module_->Lookup("AddGradCell");
+        if (op->name.compare("add") == 0 && call_node->args.size() == 2 && 
+            AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
+          const auto addFunc = module_->GetGlobalVar("AddGradCell");
           tvm::Array<Expr> args;
 
-          args.push_back(Op::Get("add"));
-          for (Expr expr: call_node->args) {
-            args.push_back(expr);
-          }
+          Type paramType = call_node->args[0]->checked_type();
 
+          tvm::Array<Var> params = {VarNode::make("lhs", paramType), VarNode::make("rhs", paramType)};
+          Expr callAdd = CallNode::make(Op::Get("add"), {params[0], params[1]});
+          
+          Expr addTensorsFunc = FunctionNode::make(params, callAdd, paramType, Array<TypeVar>(), Attrs());
+
+          args.push_back(addTensorsFunc);
+          for (Expr expr: call_node->args) {
+            args.push_back(VisitExpr(expr));
+          }
           return CallNode::make(addFunc, args);
-        } else if (op->name.compare("multiply") == 0) {
-          const BaseFunc multFunc = module_->Lookup("MultiplyGradCell");
+        } else if (op->name.compare("multiply") == 0 && call_node->args.size() == 2 && 
+            AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
+          const auto multFunc = module_->GetGlobalVar("MultiplyGradCell");
           tvm::Array<Expr> args;
 
-          args.push_back(Op::Get("multiply"));
-          for (Expr expr: call_node->args) {
-            args.push_back(expr);
-          }
+          Type paramType = call_node->args[0]->checked_type();
 
+          tvm::Array<Var> params = {VarNode::make("lhs", paramType), VarNode::make("rhs", paramType)};
+          Expr callMultiply = CallNode::make(Op::Get("multiply"), {params[0], params[1]});
+          
+          Expr multTensorsFunc = FunctionNode::make(params, callMultiply, paramType, Array<TypeVar>(), Attrs());
+
+          args.push_back(multTensorsFunc);
+          for (Expr expr: call_node->args) {
+            args.push_back(VisitExpr(expr));
+          }
           return CallNode::make(multFunc, args);
         }
-        const BaseFunc fromFunc = module_->Lookup("FromGradCell");
+
+        const auto fromFunc = module_->GetGlobalVar("FromGradCell");
         GlobalTypeVar gradCellType = module_->GetGlobalTypeVar("GradCell");
         tvm::Array<Expr> args;
         // use FromGradCell to convert args to Tensor
         for (Expr expr: call_node->args) {
-          tvm::Array<Expr> fromGradArgs;
-          fromGradArgs.push_back(expr);
-          args.push_back(CallNode::make(fromFunc, fromGradArgs));
+          args.push_back(CallNode::make(fromFunc, {VisitExpr(expr)}, Attrs(), {expr->checked_type()}));
         }
+
+        const Expr tensorRes = CallNode::make(call_node->op, args); 
+
+        Constructor toGradCell = Constructor("Raw", {call_node->checked_type()}, gradCellType);
         
-        return CallNode::make(call_node->op, args);
+        return CallNode::make(toGradCell, {tensorRes});
       }
 
       return GetRef<Call>(call_node);
     }
 
     Type VisitType(const Type& t) final {
-      std::cout << "visittype called" << std::endl;
       return TypeMutator::VisitType(t);
     }
 
     Type VisitType_(const TensorTypeNode* op) {
-      std::cout << "TypeTensor" << std::endl;
       GlobalTypeVar gradCell = module_->GetGlobalTypeVar("GradCell");
       tvm::Array<Type> args;
       args.push_back(GetRef<TensorType>(op));
@@ -99,9 +121,6 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   private:
     // Module
     IRModule module_;
-
-    // memo which Expr visited 
-    std::unordered_set<Type, ObjectHash, ObjectEqual> visited_;  
 };
 
 Expr GradientCell(const Expr& e, IRModule mod) {

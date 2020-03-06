@@ -21,51 +21,91 @@ from tvm import te
 from tvm import relay
 from tvm.relay.analysis import free_vars, free_type_vars, assert_alpha_equal
 from tvm.relay import create_executor, transform
-from tvm.relay.build_module import optimize
-from tvm.relay.transform import GradientCell
 from tvm.relay.testing import rand, run_infer_type
 from tvm.relay.op import add, multiply
 from tvm.relay.prelude import Prelude, TensorArrayOps
+import pytest
 
-def test_zero_tensor():
+def grad_cell_type(mod, shape, dtype):
+  grad_type = mod.get_global_type_var("GradCell")
+  type_arg = relay.TensorType(shape, dtype)
+  return grad_type(type_arg)
+
+def test_add():
   mod = tvm.IRModule()
   mod.import_from_std("gradient.rly")
 
   shape = (10, 10)
   dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
 
+  x = relay.var("x", t)
+  y = relay.Function([x], x+x)
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type], new_type)
+
+def test_mult():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (15, 15)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  x = relay.var("x", t)
+  y = relay.Function([x], x * x)
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type], new_type)
+
+def test_tc():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (20, 20)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  x1 = relay.var("x1", t)
+  x2 = relay.var("x2", t)
+
+  y = relay.Function([x1, x2], (x1 - x2) * x2)
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type, new_type], new_type)
+
+def test_reverse_ad():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (10, 10)
+  dtype = 'float32'
   t = relay.TensorType(shape, dtype)
 
   x = relay.var("x", t)
 
-  y = relay.Function([x], multiply(x,x))
-  mod["main"] = y
+  func = relay.Function([x], x)
+  func = run_infer_type(func)
+  back_func = transform.gradient(func)
+  back_func = run_infer_type(back_func)
+
+  mod["main"] = back_func
 
   mod = transform.GradientCell()(mod)
 
+  # new_type = grad_cell_type(mod, shape, dtype)
+  # assert mod["main"].checked_type == relay.FuncType([new_type],)
 
-  # mod = transform.PrintIR(True)(mod)
-
-  print("---------------------------")
-
-  # gradcell = mod.get_global_type_var("GradCell")(t)
-  # x_np = np.zeros(shape, dtype)
-
-  # gradcell = mod.get_global_type_var("GradCell")
-  # y = tvm.relay.TypeCall(gradcell, [t])
-  #
-  # addcell = mod.get_global_var("AddGradCell")
-  # fromcell = mod.get_global_var("FromGradCell")
-
-  # mod, params = optimize(mod, target="llvm", params={"x": x_nd})
-
-  #ex = create_executor(mod=mod)
-  #a = ex.evaluate(addFunc)(x_nd)
-
-
-  # mod = transform.InferType()(mod)
-  print("hi")
 
 if __name__ == "__main__":
-  test_zero_tensor()
-
+  pytest.main([__file__])

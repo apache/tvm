@@ -151,6 +151,7 @@ Type TypeMutator::VisitType_(const FuncTypeNode* op) {
 
   Array<Type> new_args = MutateArray(op->arg_types);
   changed = changed || !new_args.same_as(op->arg_types);
+  CHECK(new_args.size() == op->arg_types.size());
 
   Type new_ret_type = VisitType(op->ret_type);
   changed = changed || !new_ret_type.same_as(op->ret_type);
