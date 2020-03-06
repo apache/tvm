@@ -17,6 +17,7 @@
 import numpy as np
 import scipy
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi import util
@@ -24,7 +25,7 @@ from common import get_all_backend
 
 
 def test_util():
-    x = tvm.const(100, "int32")
+    x = tvm.tir.const(100, "int32")
     assert util.get_const_int(x) == 100
     assert util.get_const_tuple((x, x)) == (100, 100)
 
@@ -37,13 +38,13 @@ def test_ewise():
         low,
         high,
         shape=(20, 3),
-        dtype=tvm.float32,
+        dtype="float32",
         check_round=False,
         skip_name_check=False,
     ):
-        m = tvm.var("m")
-        l = tvm.var("l")
-        A = tvm.placeholder((m, l), dtype=dtype, name="A")
+        m = te.var("m")
+        l = te.var("l")
+        A = te.placeholder((m, l), dtype=dtype, name="A")
 
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
@@ -76,13 +77,13 @@ def test_ewise():
         low,
         high,
         shape=(20, 3),
-        dtype=tvm.float32,
+        dtype="float32",
         check_round=False,
         skip_name_check=False,
     ):
-        m = tvm.var("m")
-        l = tvm.var("l")
-        A = tvm.placeholder((m, l), dtype=dtype, name="A")
+        m = te.var("m")
+        l = te.var("l")
+        A = te.placeholder((m, l), dtype=dtype, name="A")
 
         B = topi.isnan(A)
         assert tuple(B.shape) == tuple(A.shape)
@@ -126,6 +127,8 @@ def test_ewise():
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
     test_apply(topi.rsqrt, "rsqrt", lambda x: np.ones_like(x) / np.sqrt(x), 0, 100, skip_name_check=True)
     test_apply(topi.cos, "cos", np.cos, -2.0*np.pi, 2.0*np.pi)
+    test_apply(topi.tan, "tan", np.tan, -2.0*np.pi, 2.0*np.pi, dtype='float32')
+    test_apply(topi.tan, "tan", np.tan, -2.0*np.pi, 2.0*np.pi, dtype='float64')
     test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
     test_isnan(-100, 100)
@@ -134,7 +137,7 @@ def test_ewise():
 def test_cast():
     def verify(from_dtype, to_dtype, low=-100, high=100):
         shape = (5, 4)
-        A = tvm.placeholder(shape, dtype=from_dtype, name="A")
+        A = te.placeholder(shape, dtype=from_dtype, name="A")
         B = topi.cast(A, to_dtype)
 
         if from_dtype == "bool":
@@ -177,11 +180,11 @@ def test_fastmath():
         low,
         high,
         step,
-        dtype=tvm.float32
+        dtype="float32"
     ):
         a_np = np.arange(low, high, step).astype(dtype)
         b_np = f_numpy(a_np)
-        A = tvm.placeholder(a_np.shape, dtype=dtype, name="A")
+        A = te.placeholder(a_np.shape, dtype=dtype, name="A")
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
 

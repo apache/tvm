@@ -20,11 +20,12 @@ from __future__ import absolute_import
 
 import topi
 from topi.util import get_const_tuple
+
+from tvm.runtime import convert
 from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
 from .._tensor import elemwise_shape_func
-from ....api import convert
 from ....hybrid import script
 
 # relu
@@ -244,6 +245,16 @@ reg.register_pattern("nn.global_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # global_avg_pool2d
 reg.register_schedule("nn.global_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_max_pool2d
+reg.register_schedule("nn.adaptive_max_pool2d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_avg_pool2d
+reg.register_schedule("nn.adaptive_avg_pool2d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # leaky_relu

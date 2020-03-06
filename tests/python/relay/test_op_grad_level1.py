@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
@@ -63,6 +64,7 @@ def test_unary_op():
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
                         (tvm.relay.sin, lambda x: np.cos(x)),
+                        (tvm.relay.tan, lambda x: 1.0 / (np.cos(x) ** 2)),
                         (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0)))]:
         check_single_op(opfunc, ref)
 

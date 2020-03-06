@@ -17,6 +17,7 @@
 """Core kernel of dot product of 4 Int8 operations"""
 #pylint: disable=invalid-name
 import tvm
+from tvm import te
 import tvm.target.codegen
 
 
@@ -25,7 +26,7 @@ def dot_16x1x16_uint8_int8_int32():
     mcpu = tvm.target.Target.current().mcpu
 
     assert mcpu in ("skylake-avx512", "cascadelake"), \
-            "An old Intel machine that does not have fast Int8 support."
+        "An old Intel machine that does not have fast Int8 support."
     if mcpu == "skylake-avx512":
         return dot_16x1x16_uint8_int8_int32_skylake()
     # cascadelake
@@ -63,43 +64,43 @@ def dot_16x1x16_uint8_int8_int32_skylake():
 
     int32_lanes = 16 # 16 int32 lanes in AVX512
     num_int8_elements = 4 # 4 int8 elements in int32
-    data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, num_int8_elements), name='k')
-    C = tvm.compute((int32_lanes,),
-                    lambda i: tvm.sum(data[k].astype('int32') *
-                                      kernel[i, k].astype('int32'),
-                                      axis=k),
-                    name="C")
+    data = te.placeholder((num_int8_elements,), dtype='uint8', name='data')
+    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype='int8', name='kernel')
+    k = te.reduce_axis((0, num_int8_elements), name='k')
+    C = te.compute((int32_lanes,),
+                   lambda i: te.sum(data[k].astype('int32') *
+                                    kernel[i, k].astype('int32'),
+                                    axis=k),
+                   name="C")
 
-    a_buffer = tvm.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
-                               offset_factor=1,
-                               strides=[1])
-    b_buffer = tvm.decl_buffer(kernel.shape, dtype='int8', name="b_buffer",
-                               offset_factor=1,
-                               strides=[tvm.var('ldw'), 1])
+    a_buffer = tvm.tir.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
+                                   offset_factor=1,
+                                   strides=[1])
+    b_buffer = tvm.tir.decl_buffer(kernel.shape, dtype='int8', name="b_buffer",
+                                   offset_factor=1,
+                                   strides=[te.var('ldw'), 1])
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
-                ib.emit(outs[0].vstore(0, tvm.const(0, 'int32x16')))
+                ib.emit(outs[0].vstore(0, tvm.tir.const(0, 'int32x16')))
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.call_pure_intrin('int32', 'reinterpret', a_int8)
+            re_int32 = tvm.tir.call_pure_intrin('int32', 'reinterpret', a_int8)
             vec_ai32 = re_int32.astype('int32x16')
-            vec_a = tvm.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
+            vec_a = tvm.tir.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0], "int8x64")
-            vec_one = tvm.const(1, "int16x32")
-            pair_reduction = tvm.call_llvm_intrin('int16x32',
-                                                  'llvm.x86.avx512.pmaddubs.w.512',
-                                                  tvm.const(0, 'uint32'),
-                                                  vec_a, vec_b)
-            quad_reduction = tvm.call_llvm_intrin('int32x16',
-                                                  'llvm.x86.avx512.pmaddw.d.512',
-                                                  tvm.const(0, 'uint32'),
-                                                  pair_reduction, vec_one)
+            vec_one = tvm.tir.const(1, "int16x32")
+            pair_reduction = tvm.tir.call_llvm_intrin('int16x32',
+                                                      'llvm.x86.avx512.pmaddubs.w.512',
+                                                      tvm.tir.const(0, 'uint32'),
+                                                      vec_a, vec_b)
+            quad_reduction = tvm.tir.call_llvm_intrin('int32x16',
+                                                      'llvm.x86.avx512.pmaddw.d.512',
+                                                      tvm.tir.const(0, 'uint32'),
+                                                      pair_reduction, vec_one)
             if index == 0:
                 ib.emit(outs[0].vstore(0, quad_reduction))
             else:
@@ -109,8 +110,8 @@ def dot_16x1x16_uint8_int8_int32_skylake():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
 def dot_16x1x16_uint8_int8_int16():
@@ -146,41 +147,41 @@ def dot_16x1x16_uint8_int8_int16():
 
     int16_lanes = 4*32 # 4*32 int32 lanes in 4 AVX512 vector registers
     num_int8_elements = 2 # 2 int8 elements in int16
-    data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((int16_lanes, num_int8_elements), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, num_int8_elements), name='k')
-    C = tvm.compute((int16_lanes, ),
-                    lambda i: tvm.sum(data[k].astype('int16') *
-                                      kernel[i, k].astype('int16'),
-                                      axis=k),
-                    name="C")
+    data = te.placeholder((num_int8_elements,), dtype='uint8', name='data')
+    kernel = te.placeholder((int16_lanes, num_int8_elements), dtype='int8', name='kernel')
+    k = te.reduce_axis((0, num_int8_elements), name='k')
+    C = te.compute((int16_lanes, ),
+                   lambda i: te.sum(data[k].astype('int16') *
+                                    kernel[i, k].astype('int16'),
+                                    axis=k),
+                   name="C")
 
-    a_buffer = tvm.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
-                               offset_factor=1,
-                               strides=[1])
-    b_buffer = tvm.decl_buffer(kernel.shape, dtype='int8', name="b_buffer",
-                               offset_factor=1)
-                               # strides=[tvm.var('ldw'), 1, 1])
+    a_buffer = tvm.tir.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
+                                   offset_factor=1,
+                                   strides=[1])
+    b_buffer = tvm.tir.decl_buffer(kernel.shape, dtype='int8', name="b_buffer",
+                                   offset_factor=1)
+    # strides=[te.var('ldw'), 1, 1])
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
                 for i in range(4):
-                    ib.emit(outs[0].vstore([i*32], tvm.const(0, 'int16x32')))
+                    ib.emit(outs[0].vstore([i*32], tvm.tir.const(0, 'int16x32')))
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x2")
-            re_int16 = tvm.call_pure_intrin('int16', 'reinterpret', a_int8)
+            re_int16 = tvm.tir.call_pure_intrin('int16', 'reinterpret', a_int8)
             vec_ai16 = re_int16.astype('int16x32')
-            vec_a = tvm.call_pure_intrin('int8x64', 'reinterpret', vec_ai16)
+            vec_a = tvm.tir.call_pure_intrin('int8x64', 'reinterpret', vec_ai16)
 
             for i in range(4):
                 vec_b = ins[1].vload([i*32, 0], "int8x64")
-                pair_reduction = tvm.call_llvm_intrin('int16x32',
-                                                      'llvm.x86.avx512.pmaddubs.w.512',
-                                                      tvm.const(0, 'uint32'),
-                                                      vec_a, vec_b)
+                pair_reduction = tvm.tir.call_llvm_intrin('int16x32',
+                                                          'llvm.x86.avx512.pmaddubs.w.512',
+                                                          tvm.tir.const(0, 'uint32'),
+                                                          vec_a, vec_b)
                 if index == 0:
                     ib.emit(outs[0].vstore([i*32], pair_reduction))
                 else:
@@ -191,8 +192,8 @@ def dot_16x1x16_uint8_int8_int16():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
 
 def dot_16x1x16_uint8_int8_int32_cascadelake():
@@ -226,31 +227,31 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
 
     int32_lanes = 16 # 16 int32 lanes in AVX512
     num_int8_elements = 4 # 4 int8 elements in int32
-    data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, num_int8_elements), name='k')
-    C = tvm.compute((int32_lanes,),
-                    lambda i: tvm.sum(data[k].astype('int32') *
-                                      kernel[i, k].astype('int32'),
-                                      axis=k),
-                    name="C")
+    data = te.placeholder((num_int8_elements,), dtype='uint8', name='data')
+    kernel = te.placeholder((int32_lanes, num_int8_elements), dtype='int8', name='kernel')
+    k = te.reduce_axis((0, num_int8_elements), name='k')
+    C = te.compute((int32_lanes,),
+                   lambda i: te.sum(data[k].astype('int32') *
+                                    kernel[i, k].astype('int32'),
+                                    axis=k),
+                   name="C")
 
-    a_buffer = tvm.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
-                               offset_factor=1,
-                               strides=[1])
-    b_buffer = tvm.decl_buffer(kernel.shape, dtype='int8', name="b_buffer",
-                               offset_factor=1,
-                               strides=[tvm.var('ldw'), 1])
+    a_buffer = tvm.tir.decl_buffer(data.shape, dtype='uint8', name="a_buffer",
+                                   offset_factor=1,
+                                   strides=[1])
+    b_buffer = tvm.tir.decl_buffer(kernel.shape, dtype='int8', name="b_buffer",
+                                   offset_factor=1,
+                                   strides=[te.var('ldw'), 1])
 
     def _intrin_func(ins, outs):
         def _instr(index):
-            ib = tvm.ir_builder.create()
+            ib = tvm.tir.ir_builder.create()
             if index == 1:
-                ib.emit(outs[0].vstore(0, tvm.const(0, 'int32x16')))
+                ib.emit(outs[0].vstore(0, tvm.tir.const(0, 'int32x16')))
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.call_pure_intrin('int32', 'reinterpret', a_int8)
+            re_int32 = tvm.tir.call_pure_intrin('int32', 'reinterpret', a_int8)
             vec_ai32 = re_int32.astype('int32x16')
             vec_b = ins[1].vload([0, 0], "int8x64")
 
@@ -258,24 +259,24 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
             llvm_id = tvm.target.codegen.llvm_lookup_intrinsic_id(vnni_inst_name)
 
             if llvm_id != 0: # VNNI is available for current LLVM version
-                vec_bi32 = tvm.call_pure_intrin('int32x16', 'reinterpret', vec_b)
-                vec_zero = tvm.const(0, "int32x16")
-                quad_reduction = tvm.call_llvm_intrin('int32x16',
-                                                      'llvm.x86.avx512.vpdpbusd.512',
-                                                      tvm.const(0, 'uint32'),
-                                                      vec_zero,
-                                                      vec_ai32, vec_bi32)
+                vec_bi32 = tvm.tir.call_pure_intrin('int32x16', 'reinterpret', vec_b)
+                vec_zero = tvm.tir.const(0, "int32x16")
+                quad_reduction = tvm.tir.call_llvm_intrin('int32x16',
+                                                          'llvm.x86.avx512.vpdpbusd.512',
+                                                          tvm.tir.const(0, 'uint32'),
+                                                          vec_zero,
+                                                          vec_ai32, vec_bi32)
             else: # Fall back to the normal AVX512
-                vec_a = tvm.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
-                vec_one = tvm.const(1, "int16x32")
-                pair_reduction = tvm.call_llvm_intrin('int16x32',
-                                                      'llvm.x86.avx512.pmaddubs.w.512',
-                                                      tvm.const(0, 'uint32'),
-                                                      vec_a, vec_b)
-                quad_reduction = tvm.call_llvm_intrin('int32x16',
-                                                      'llvm.x86.avx512.pmaddw.d.512',
-                                                      tvm.const(0, 'uint32'),
-                                                      pair_reduction, vec_one)
+                vec_a = tvm.tir.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
+                vec_one = tvm.tir.const(1, "int16x32")
+                pair_reduction = tvm.tir.call_llvm_intrin('int16x32',
+                                                          'llvm.x86.avx512.pmaddubs.w.512',
+                                                          tvm.tir.const(0, 'uint32'),
+                                                          vec_a, vec_b)
+                quad_reduction = tvm.tir.call_llvm_intrin('int32x16',
+                                                          'llvm.x86.avx512.pmaddw.d.512',
+                                                          tvm.tir.const(0, 'uint32'),
+                                                          pair_reduction, vec_one)
 
             if index == 0:
                 ib.emit(outs[0].vstore(0, quad_reduction))
@@ -286,5 +287,5 @@ def dot_16x1x16_uint8_int8_int32_cascadelake():
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
 
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})

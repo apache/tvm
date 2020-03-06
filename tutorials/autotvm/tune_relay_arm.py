@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tune_relay_arm:
+
 Auto-tuning a convolutional network for ARM CPU
 ===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_, `Eddie Yan <https://github.com/eqy>`_
@@ -60,6 +62,7 @@ import os
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm import relay
 import tvm.relay.testing

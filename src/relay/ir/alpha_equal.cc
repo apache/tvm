@@ -50,14 +50,14 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool Equal(const ObjectRef& lhs, const ObjectRef& rhs) {
-    if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() || !rhs.defined()) return false;
-    if (lhs->IsInstance<TypeNode>()) {
-      if (!rhs->IsInstance<TypeNode>()) return false;
+    if (lhs.same_as(rhs)) return true;
+    if (lhs->IsInstance<TypeNode>() || rhs->IsInstance<TypeNode>()) {
+      if (!rhs->IsInstance<TypeNode>() || !lhs->IsInstance<TypeNode>()) return false;
       return TypeEqual(Downcast<Type>(lhs), Downcast<Type>(rhs));
     }
-    if (lhs->IsInstance<ExprNode>()) {
-      if (!rhs->IsInstance<ExprNode>()) return false;
+    if (lhs->IsInstance<ExprNode>() || rhs->IsInstance<ExprNode>()) {
+      if (!rhs->IsInstance<ExprNode>() || !lhs->IsInstance<ExprNode>()) return false;
       return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
     }
     if (const auto lhsm = lhs.as<IRModuleNode>()) {

@@ -18,6 +18,7 @@
 """Bitserial conv2d schedule on arm cpu"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm import relay
 from .. import tag
@@ -34,8 +35,8 @@ def _kernel_vec_spatial_pack_nhwc(kernel, kernel_bits, VC, use_bitpack=True):
         kernel_q = kernel
     KH, KW, KB, CI, CO = kernel_q.shape
     kvshape = (CO//VC, KH, KW, KB, VC, CI)
-    return tvm.compute(kvshape, lambda co, dh, dw, b, vc, ci: \
-        kernel_q[dh][dw][b][ci][co*VC+vc], name='kernel_vec')
+    return te.compute(kvshape, lambda co, dh, dw, b, vc, ci: \
+                      kernel_q[dh][dw][b][ci][co*VC+vc], name='kernel_vec')
 
 @autotvm.register_topi_compute("bitserial_conv2d_nhwc.arm_cpu")
 def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, activation_bits, weight_bits,
@@ -69,8 +70,8 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, activation_bits, w
     OW = (PAD_W - KW) // WSTR + 1
     oshape = (1, OH, OW, CO)
 
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
 
     # Pad input channels of weights and data when it is not a multiple of 8
     if CI_packed % 8 != 0:
@@ -108,7 +109,7 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, activation_bits, w
     data_q = bitpack(data, activation_bits, pack_axis=3, bit_axis=3, pack_type='uint8')
 
     kernel_vec = _kernel_vec_spatial_pack_nhwc(kernel, weight_bits, VC, len(kernel.shape) == 4)
-    idxm = tvm.indexmod
+    idxm = tvm.tir.indexmod
     if idxm(kernel_vec.shape[-1], 8) != 0 and CI_PAD != 0:
         kernel_vec = pad(kernel_vec, [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, CI_PAD])
 
@@ -125,78 +126,79 @@ def bitserial_conv2d_nhwc(cfg, data, kernel, stride, padding, activation_bits, w
     else:
         data_pad = data_q
 
-    data_vec = tvm.compute(dvshape, lambda n, h, w, vh, vw, b, ci: \
-        data_pad[n][h*VH*HSTR+vh][w*VW*WSTR+vw][b][ci], name='data_vec')
-    ci = tvm.reduce_axis((0, CI), name='ci')
-    dh = tvm.reduce_axis((0, KH), name='dh')
-    dw = tvm.reduce_axis((0, KW), name='dw')
-    ib = tvm.reduce_axis((0, IB), name='ib')
-    kb = tvm.reduce_axis((0, KB), name='kb')
+    data_vec = te.compute(dvshape, lambda n, h, w, vh, vw, b, ci: \
+                          data_pad[n][h*VH*HSTR+vh][w*VW*WSTR+vw][b][ci], name='data_vec')
+    ci = te.reduce_axis((0, CI), name='ci')
+    dh = te.reduce_axis((0, KH), name='dh')
+    dw = te.reduce_axis((0, KW), name='dw')
+    ib = te.reduce_axis((0, IB), name='ib')
+    kb = te.reduce_axis((0, KB), name='kb')
 
     def _bipolar_conv(n, h, w, co, vh, vw, vc):
-        return tvm.sum((tvm.popcount(
+        return te.sum((tvm.tir.popcount(
             kernel_vec[co, dh, dw, kb, vc, ci].astype('uint16') &
             data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ib, ci].astype('uint16'))
-                        << (kb + ib).astype('uint16')), axis=[dh, dw, kb, ib, ci])
+                       << (kb + ib).astype('uint16')), axis=[dh, dw, kb, ib, ci])
     def _unipolar_conv(n, h, w, co, vh, vw, vc):
-        return tvm.sum(
-            ((tvm.popcount(kernel_vec[co, dh, dw, kb, vc, ci].astype('int16') &
-                           data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ib, ci].astype('int16')) -
-              tvm.popcount(~kernel_vec[co, dh, dw, kb, vc, ci].astype('int16') &
-                           data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ib, ci]).astype('int16'))
+        return te.sum(
+            ((tvm.tir.popcount(kernel_vec[co, dh, dw, kb, vc, ci].astype('int16') &
+                               data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ib, ci].astype('int16')) -
+              tvm.tir.popcount(~kernel_vec[co, dh, dw, kb, vc, ci].astype('int16') &
+                               data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ib, ci]).astype('int16'))
              << (kb + ib).astype('int16')), axis=[dh, dw, kb, ib, ci])
     if unipolar:
-        conv_vec = tvm.compute(ovshape, _unipolar_conv, name='conv_vec', tag='unipolar')
+        conv_vec = te.compute(ovshape, _unipolar_conv, name='conv_vec', tag='unipolar')
     else:
-        conv_vec = tvm.compute(ovshape, _bipolar_conv, name='conv_vec', tag='bipolar')
+        conv_vec = te.compute(ovshape, _bipolar_conv, name='conv_vec', tag='bipolar')
 
 
-    conv = tvm.compute(oshape,
-                       lambda n, h, w, co:
-                       conv_vec[n,
-                                idxd(h, VH), idxd(w, VW), idxd(co, VC),
-                                idxm(h, VH), idxm(w, VW), idxm(co, VC)].astype(out_dtype),
-                       name='conv', tag='spatial_bitserial_conv_nhwc')
+    conv = te.compute(oshape,
+                      lambda n, h, w, co:
+                      conv_vec[n,
+                               idxd(h, VH), idxd(w, VW), idxd(co, VC),
+                               idxm(h, VH), idxm(w, VW), idxm(co, VC)].astype(out_dtype),
+                      name='conv', tag='spatial_bitserial_conv_nhwc')
 
     return conv
 
 def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
     pack_dtype = 'uint8'
-    w = tvm.placeholder((w_b, m, k_i), dtype=pack_dtype, name='w')
-    x = tvm.placeholder((x_b, k_i,), dtype=pack_dtype, name='x')
-    k = tvm.reduce_axis((0, k_i), name='k')
-    bw = tvm.reduce_axis((0, w_b), name='bw')
-    bx = tvm.reduce_axis((0, x_b), name='bx')
+    w = te.placeholder((w_b, m, k_i), dtype=pack_dtype, name='w')
+    x = te.placeholder((x_b, k_i,), dtype=pack_dtype, name='x')
+    k = te.reduce_axis((0, k_i), name='k')
+    bw = te.reduce_axis((0, w_b), name='bw')
+    bx = te.reduce_axis((0, x_b), name='bx')
     if unipolar:
         dtype = 'int16'
-        z = tvm.compute((m,), lambda i:
-                        tvm.sum((tvm.popcount(w[bw, i, k].astype(dtype) & x[bx, k].astype(dtype)) -
-                                 tvm.popcount(~w[bw, i, k].astype(dtype) & x[bx, k].astype(dtype)))
-                                << (bw+bx).astype(dtype), axis=[bw, bx, k]), name='z')
+        z = te.compute(
+            (m,), lambda i:
+            te.sum((tvm.tir.popcount(w[bw, i, k].astype(dtype) & x[bx, k].astype(dtype)) -
+                    tvm.tir.popcount(~w[bw, i, k].astype(dtype) & x[bx, k].astype(dtype)))
+                   << (bw+bx).astype(dtype), axis=[bw, bx, k]), name='z')
     else:
         dtype = 'uint16'
-        z = tvm.compute((m,), lambda i:
-                        tvm.sum(tvm.popcount(w[bw, i, k].astype(dtype) & x[bx, k].astype(dtype))
-                                << (bw+bx).astype(dtype), axis=[bw, bx, k]), name='z')
-    Wb = tvm.decl_buffer(w.shape, w.dtype,
-                         name="W",
-                         offset_factor=k_i,
-                         strides=[tvm.var('ldw'), tvm.var('ldw'), 1]) # stride can be inferred
-    Xb = tvm.decl_buffer(x.shape, x.dtype,
-                         name="X",
-                         offset_factor=k_i,
-                         strides=[tvm.var('ldw'), 1])
-    Zb = tvm.decl_buffer(z.shape, z.dtype,
-                         name="Z",
-                         offset_factor=1,
-                         strides=[1])
+        z = te.compute((m,), lambda i:
+                       te.sum(tvm.tir.popcount(w[bw, i, k].astype(dtype) & x[bx, k].astype(dtype))
+                              << (bw+bx).astype(dtype), axis=[bw, bx, k]), name='z')
+    Wb = tvm.tir.decl_buffer(w.shape, w.dtype,
+                             name="W",
+                             offset_factor=k_i,
+                             strides=[te.var('ldw'), te.var('ldw'), 1]) # stride can be inferred
+    Xb = tvm.tir.decl_buffer(x.shape, x.dtype,
+                             name="X",
+                             offset_factor=k_i,
+                             strides=[te.var('ldw'), 1])
+    Zb = tvm.tir.decl_buffer(z.shape, z.dtype,
+                             name="Z",
+                             offset_factor=1,
+                             strides=[1])
 
     def _intrin_func(ins, outs):
         ww, xx = ins
         zz = outs[0]
 
-        args_1 = tvm.const(1, 'uint32')
-        args_2 = tvm.const(2, 'uint32')
+        args_1 = tvm.tir.const(1, 'uint32')
+        args_2 = tvm.tir.const(2, 'uint32')
 
         if unipolar:
             vpadd = "llvm.arm.neon.vpadd.v8i8"
@@ -212,9 +214,9 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
             return_dtype = 'uint16x8'
 
         def _instr(index):
-            irb = tvm.ir_builder.create()
+            irb = tvm.tir.ir_builder.create()
             if index == 1: # reduce reset
-                irb.emit(zz.vstore(0, tvm.const(0, return_dtype)))
+                irb.emit(zz.vstore(0, tvm.tir.const(0, return_dtype)))
                 return irb.get()
             # body and reduce update
             cnts8 = [None] * 8
@@ -227,46 +229,50 @@ def _intrin_popcount(m, k_i, w_b, x_b, unipolar):
                             w_ = ww.vload([bw, i, 0], 'uint8x16').astype(full_dtype)
                             x_ = xx.vload([bx, 0], 'uint8x16').astype(full_dtype)
                             if unipolar:
-                                cnts = tvm.popcount(w_ & x_) - tvm.popcount(~w_ & x_)
+                                cnts = tvm.tir.popcount(w_ & x_) - tvm.tir.popcount(~w_ & x_)
                             else:
-                                cnts = tvm.popcount(w_ & x_)
-                            upper_half = tvm.call_pure_intrin(half_dtype, 'vectorhigh', cnts)
-                            lower_half = tvm.call_pure_intrin(half_dtype, 'vectorlow', cnts)
+                                cnts = tvm.tir.popcount(w_ & x_)
+                            upper_half = tvm.tir.call_pure_intrin(half_dtype, 'vectorhigh', cnts)
+                            lower_half = tvm.tir.call_pure_intrin(half_dtype, 'vectorlow', cnts)
                             cnts8[i] = upper_half + lower_half
                         for i in range(m//2):
-                            cnts4[i] = tvm.call_llvm_intrin(half_dtype, vpadd,
-                                                            args_1, cnts8[i*2], cnts8[i*2+1])
+                            cnts4[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
+                                                                args_1, cnts8[i*2], cnts8[i*2+1])
                         for i in range(m//4):
-                            cnts2[i] = tvm.call_llvm_intrin(half_dtype, vpadd,
-                                                            args_1, cnts4[i*2], cnts4[i*2+1])
-                        cnts = tvm.call_pure_intrin(full_dtype, 'vectorcombine', cnts2[0], cnts2[1])
-                        shifted_cnts = cnts << tvm.const(bw+bx, pack_dtype)
-                        out = tvm.call_llvm_intrin(return_dtype, vpadalu,
-                                                   args_2, zz.vload(0, return_dtype), shifted_cnts)
+                            cnts2[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
+                                                                args_1, cnts4[i*2], cnts4[i*2+1])
+                        cnts = tvm.tir.call_pure_intrin(
+                            full_dtype, 'vectorcombine', cnts2[0], cnts2[1])
+                        shifted_cnts = cnts << tvm.tir.const(bw+bx, pack_dtype)
+                        out = tvm.tir.call_llvm_intrin(
+                            return_dtype, vpadalu,
+                            args_2, zz.vload(0, return_dtype), shifted_cnts)
                     else: # ki == 8
                         for i in range(m):
                             w_ = ww.vload([bw, i, 0], 'uint8x8').astype(half_dtype)
                             x_ = xx.vload([bx, 0], 'uint8x8').astype(half_dtype)
                             if unipolar:
-                                cnts8[i] = tvm.popcount(w_ & x_) - tvm.popcount(~w_ & x_)
+                                cnts8[i] = tvm.tir.popcount(w_ & x_) - tvm.tir.popcount(~w_ & x_)
                             else:
-                                cnts8[i] = tvm.popcount(w_ & x_)
+                                cnts8[i] = tvm.tir.popcount(w_ & x_)
                         for i in range(m//2):
-                            cnts4[i] = tvm.call_llvm_intrin(half_dtype, vpadd,
-                                                            args_1, cnts8[i*2], cnts8[i*2+1])
+                            cnts4[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
+                                                                args_1, cnts8[i*2], cnts8[i*2+1])
                         for i in range(m//4):
-                            cnts2[i] = tvm.call_llvm_intrin(half_dtype, vpadd,
-                                                            args_1, cnts4[i*2], cnts4[i*2+1])
-                        cnts = tvm.call_pure_intrin(full_dtype, 'vectorcombine', cnts2[0], cnts2[1])
-                        shifted_cnts = cnts << tvm.const(bw+bx, pack_dtype)
-                        out = tvm.call_llvm_intrin(return_dtype, vpadalu,
-                                                   args_2, zz.vload(0, return_dtype), shifted_cnts)
+                            cnts2[i] = tvm.tir.call_llvm_intrin(half_dtype, vpadd,
+                                                                args_1, cnts4[i*2], cnts4[i*2+1])
+                        cnts = tvm.tir.call_pure_intrin(
+                            full_dtype, 'vectorcombine', cnts2[0], cnts2[1])
+                        shifted_cnts = cnts << tvm.tir.const(bw+bx, pack_dtype)
+                        out = tvm.tir.call_llvm_intrin(
+                            return_dtype, vpadalu,
+                            args_2, zz.vload(0, return_dtype), shifted_cnts)
                     irb.emit(zz.vstore(0, out))
             return irb.get()
         # body, reset, update
         return _instr(0), _instr(1), _instr(2)
-    with tvm.build_config(offset_factor=1, partition_const_loop=True):
-        return tvm.decl_tensor_intrin(z.op, _intrin_func, binds={w: Wb, x:Xb, z:Zb})
+    with tvm.target.build_config(offset_factor=1, partition_const_loop=True):
+        return te.decl_tensor_intrin(z.op, _intrin_func, binds={w: Wb, x:Xb, z:Zb})
 
 # ARM specific schedule that using custom microkernel
 def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
@@ -325,7 +331,7 @@ def _schedule_spatial_conv2d_nhwc(cfg, s, data_pad, data_vec, kernel_vec,
 @autotvm.register_topi_schedule("bitserial_conv2d_nhwc.arm_cpu")
 def schedule_bitserial_conv2d_nhwc(cfg, outs):
     """Arm cpu schedule for bitserial conv2d"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def traverse(op):
@@ -335,7 +341,7 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'spatial_bitserial_conv_nhwc' in op.tag:
@@ -347,7 +353,7 @@ def schedule_bitserial_conv2d_nhwc(cfg, outs):
             data_q = data_vec.op.input_tensors[0]
             data = data_q.op.input_tensors[0]
             data_pad = None
-            if isinstance(data_q.op, tvm.tensor.ComputeOp) and "pad" in data_q.op.tag:
+            if isinstance(data_q.op, te.tensor.ComputeOp) and "pad" in data_q.op.tag:
                 data_pad = data_q
                 data_q = data
                 data = data.op.input_tensors[0]

@@ -18,6 +18,7 @@
 """Proposal operator"""
 import math
 import tvm
+from tvm import te
 from ...util import get_const_tuple, get_const_int
 from ...sort import argsort
 
@@ -43,8 +44,8 @@ def reg_bbox(x1, y1, x2, y2, dx, dy, dw, dh):
 
     pred_ctr_x = dx * bbox_w + ctr_x
     pred_ctr_y = dy * bbox_h + ctr_y
-    pred_w = tvm.exp(dw) * bbox_w
-    pred_h = tvm.exp(dh) * bbox_h
+    pred_w = te.exp(dw) * bbox_w
+    pred_h = te.exp(dh) * bbox_h
 
     pred_x1 = pred_ctr_x - 0.5 * (pred_w - 1.0)
     pred_y1 = pred_ctr_y - 0.5 * (pred_h - 1.0)
@@ -67,16 +68,16 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
 
     Parameters
     ----------
-    cls_prob_buf : tvm.schedule.Buffer
+    cls_prob_buf : tvm.te.schedule.Buffer
         4-D with shape [batch, 2 * num_anchors, height, width]
 
-    bbox_pred_buf : tvm.schedule.Buffer
+    bbox_pred_buf : tvm.te.schedule.Buffer
         4-D with shape [batch, 4 * num_anchors, height, width]
 
-    im_info_buf : tvm.schedule.Buffer
+    im_info_buf : tvm.te.schedule.Buffer
         2-D with shape [batch, 3]
 
-    out_buf : tvm.schedule.Buffer
+    out_buf : tvm.te.schedule.Buffer
         3-D with shape [batch, num_bbox, 5]
         The last dimension is in format of [w_start, h_start, w_end, h_end, score]
 
@@ -103,15 +104,15 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
     """
     batch, num_anchors, height, width = get_const_tuple(cls_prob_buf.shape)
     num_anchors //= 2
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
 
     p_score = ib.buffer_ptr(cls_prob_buf)
     p_delta = ib.buffer_ptr(bbox_pred_buf)
     p_im_info = ib.buffer_ptr(im_info_buf)
     p_out = ib.buffer_ptr(out_buf)
 
-    idxm = tvm.indexmod
-    idxd = tvm.indexdiv
+    idxm = tvm.tir.indexmod
+    idxd = tvm.tir.indexdiv
 
     with ib.for_range(0, batch * height * width) as tid:
         w = idxm(tid, width)
@@ -135,10 +136,10 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
             regression_func = reg_iou if iou_loss else reg_bbox
             pred_x1, pred_y1, pred_x2, pred_y2 = regression_func(x1, y1, x2, y2, *delta)
 
-            pred_x1 = tvm.max(tvm.min(pred_x1, im_width - 1.0), 0.0)
-            pred_y1 = tvm.max(tvm.min(pred_y1, im_height - 1.0), 0.0)
-            pred_x2 = tvm.max(tvm.min(pred_x2, im_width - 1.0), 0.0)
-            pred_y2 = tvm.max(tvm.min(pred_y2, im_height - 1.0), 0.0)
+            pred_x1 = tvm.te.max(tvm.te.min(pred_x1, im_width - 1.0), 0.0)
+            pred_y1 = tvm.te.max(tvm.te.min(pred_y1, im_height - 1.0), 0.0)
+            pred_x2 = tvm.te.max(tvm.te.min(pred_x2, im_width - 1.0), 0.0)
+            pred_y2 = tvm.te.max(tvm.te.min(pred_y2, im_height - 1.0), 0.0)
 
             real_height = (im_height / feature_stride).astype('int32')
             real_width = (im_width / feature_stride).astype('int32')
@@ -148,15 +149,15 @@ def predict_bbox_ir(cls_prob_buf, bbox_pred_buf, im_info_buf, out_buf, scales, r
             min_size = p_im_info[b * 3 + 2] * rpn_min_size
 
             pred_score = p_score[((b * num_anchors * 2 + num_anchors + k) * height + h) * width + w]
-            pred_score = tvm.expr.Select(tvm.any(h >= real_height, w >= real_width),
-                                         -1.0, pred_score)
+            pred_score = tvm.tir.Select(tvm.tir.any(h >= real_height, w >= real_width),
+                                        -1.0, pred_score)
             p_out[out_index * 5 + 0] = pred_x1
             p_out[out_index * 5 + 1] = pred_y1
             p_out[out_index * 5 + 2] = pred_x2
             p_out[out_index * 5 + 3] = pred_y2
             p_out[out_index * 5 + 4] = pred_score
 
-            with ib.if_scope(tvm.any(bbox_w < min_size, bbox_h < min_size)):
+            with ib.if_scope(tvm.tir.any(bbox_w < min_size, bbox_h < min_size)):
                 p_out[out_index * 5 + 0] -= min_size / 2.0
                 p_out[out_index * 5 + 1] -= min_size / 2.0
                 p_out[out_index * 5 + 2] += min_size / 2.0
@@ -171,10 +172,10 @@ def argsort_ir(data_buf, out_index_buf):
 
     Parameters
     ----------
-    data_buf : tvm.schedule.Buffer
+    data_buf : tvm.te.schedule.Buffer
         2-D with shape [batch, num_bbox]
 
-    out_index_buf : tvm.schedule.Buffer
+    out_index_buf : tvm.te.schedule.Buffer
         2-D with shape [batch, num_bbox]. Indices of data in sorted order.
 
     Returns
@@ -183,12 +184,12 @@ def argsort_ir(data_buf, out_index_buf):
         The result IR statement.
     """
     batch, num_bbox = get_const_tuple(data_buf.shape)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(data_buf)
     index_out = ib.buffer_ptr(out_index_buf)
     temp_data = ib.allocate("float32", (1,), name="temp_data", scope="local")
     temp_index = ib.allocate("int32", (1,), name="temp_index", scope="local")
-    idxm = tvm.indexmod
+    idxm = tvm.tir.indexmod
     with ib.for_range(0, batch, for_type="unroll") as b:
         start = b * num_bbox
         for i in range(2):
@@ -199,8 +200,8 @@ def argsort_ir(data_buf, out_index_buf):
         with ib.for_range(0, num_bbox) as k:
             with ib.for_range(0, (num_bbox + 1) // 2) as tid:
                 offset = start + 2 * tid + idxm(k, 2)
-                with ib.if_scope(tvm.all(offset + 1 < num_bbox,
-                                         p_data[offset] < p_data[offset + 1])):
+                with ib.if_scope(tvm.tir.all(offset + 1 < num_bbox,
+                                             p_data[offset] < p_data[offset + 1])):
                     temp_data[0] = p_data[offset]
                     p_data[offset] = p_data[offset + 1]
                     p_data[offset + 1] = temp_data[0]
@@ -215,11 +216,11 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
 
     Parameters
     ----------
-    sorted_bbox_buf : tvm.schedule.Buffer
+    sorted_bbox_buf : tvm.te.schedule.Buffer
         3-D with shape [batch, num_bbox, 5]. The last dimension is in format of
         [w_start, h_start, w_end, h_end, score].
 
-    out_buf : tvm.schedule.Buffer
+    out_buf : tvm.te.schedule.Buffer
         2-D with shape [batch, num_bbox]. Boolean mask of whether a bounding box should be removed.
 
     nms_threshold : float
@@ -233,10 +234,10 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
     def calculate_overlap(out_tensor, box_a_idx, box_b_idx):
         """Calculate overlap of two boxes.
         """
-        w = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
-                    - tvm.max(out_tensor[box_a_idx], out_tensor[box_b_idx]) + 1.0)
-        h = tvm.max(0.0, tvm.min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
-                    - tvm.max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]) + 1.0)
+        w = tvm.te.max(0.0, tvm.te.min(out_tensor[box_a_idx + 2], out_tensor[box_b_idx + 2])
+                       - tvm.te.max(out_tensor[box_a_idx], out_tensor[box_b_idx]) + 1.0)
+        h = tvm.te.max(0.0, tvm.te.min(out_tensor[box_a_idx + 3], out_tensor[box_b_idx + 3])
+                       - tvm.te.max(out_tensor[box_a_idx + 1], out_tensor[box_b_idx + 1]) + 1.0)
         i = w * h
         u = (out_tensor[box_a_idx + 2] - out_tensor[box_a_idx] + 1.0) * \
             (out_tensor[box_a_idx + 3] - out_tensor[box_a_idx + 1] + 1.0) + \
@@ -245,7 +246,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
         return i / u
 
     batch, num_bbox = get_const_tuple(out_buf.shape)
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     p_data = ib.buffer_ptr(sorted_bbox_buf)
     p_out = ib.buffer_ptr(out_buf)
     with ib.for_range(0, batch, for_type="unroll", name="n") as b:
@@ -254,7 +255,7 @@ def nms_ir(sorted_bbox_buf, out_buf, nms_threshold):
             p_out[base_idx + i] = False
         with ib.for_range(0, num_bbox - 1) as l:
             with ib.for_range(0, num_bbox) as i:
-                with ib.if_scope(tvm.all(i < num_bbox, i > l, p_out[base_idx + l] == False)):
+                with ib.if_scope(tvm.tir.all(i < num_bbox, i > l, p_out[base_idx + l] == False)):
                     iou = calculate_overlap(p_data, (base_idx + l) * 5, (base_idx + i) * 5)
                     with ib.if_scope(iou > nms_threshold):
                         p_out[base_idx + i] = True
@@ -266,14 +267,14 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
 
     Parameters
     ----------
-    sorted_bbox_buf : tvm.schedule.Buffer
+    sorted_bbox_buf : tvm.te.schedule.Buffer
         3-D with shape [batch, num_bbox, 5]. The last dimension is in format of
         [w_start, h_start, w_end, h_end, score].
 
-    remove_mask_buf : tvm.schedule.Buffer
+    remove_mask_buf : tvm.te.schedule.Buffer
         2-D with shape [batch, num_bbox]. Boolean mask of whether a bounding box should be removed.
 
-    out_buf : tvm.schedule.Buffer
+    out_buf : tvm.te.schedule.Buffer
         2-D with shape [batch * rpn_post_nms_top_n, 5]. The last dimension is in format of
         [batch_index, w_start, h_start, w_end, h_end].
 
@@ -284,7 +285,7 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
     """
     batch, num_bbox, _ = get_const_tuple(sorted_bbox_buf.shape)
     rpn_post_nms_top_n = get_const_int(out_buf.shape[0]) // batch
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     i = ib.allocate('int32', (batch,), 'i', scope='local')
     p_sorted_bbox = ib.buffer_ptr(sorted_bbox_buf)
     p_remove = ib.buffer_ptr(remove_mask_buf)
@@ -302,14 +303,14 @@ def prepare_output_ir(sorted_bbox_buf, remove_mask_buf, out_buf):
                 nkeep[b] += 1
     with ib.for_range(0, batch) as b:
         with ib.if_scope(nkeep[b] > 0):
-            with ib.for_range(0, tvm.ceil(
-                    tvm.const(rpn_post_nms_top_n, 'float32') / nkeep[b]).astype('int32')):
+            with ib.for_range(0, te.ceil(
+                    tvm.tir.const(rpn_post_nms_top_n, 'float32') / nkeep[b]).astype('int32')):
                 with ib.for_range(0, num_bbox) as j:
                     offset_j = (b * num_bbox + j) * 5
                     offset_i = (b * rpn_post_nms_top_n + i[b]) * 5
-                    with ib.if_scope(tvm.all(i[b] < rpn_post_nms_top_n,
-                                             p_remove[(b*num_bbox+j)] == False)):
-                        p_out[offset_i] = tvm.expr.Cast('float32', b)
+                    with ib.if_scope(tvm.tir.all(i[b] < rpn_post_nms_top_n,
+                                                 p_remove[(b*num_bbox+j)] == False)):
+                        p_out[offset_i] = tvm.tir.Cast('float32', b)
                         with ib.for_range(0, 4, for_type='unroll') as k:
                             p_out[offset_i + k + 1] = p_sorted_bbox[offset_j + k]
                         i[b] = i[b] + 1
@@ -324,13 +325,13 @@ def proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, thres
 
     Parameters
     ----------
-    cls_prob : tvm.Tensor
+    cls_prob : tvm.te.Tensor
         4-D with shape [batch, 2 * num_anchors, height, width]
 
-    bbox_pred : tvm.Tensor
+    bbox_pred : tvm.te.Tensor
         4-D with shape [batch, 4 * num_anchors, height, width]
 
-    im_info : tvm.Tensor
+    im_info : tvm.te.Tensor
         2-D with shape [batch, 3]
 
     scales : list/tuple of float
@@ -360,7 +361,7 @@ def proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, thres
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         2-D tensor with shape [batch * rpn_post_nms_top_n, 5]. The last dimension is in format of
         [batch_index, w_start, h_start, w_end, h_end].
     """
@@ -370,20 +371,20 @@ def proposal(cls_prob, bbox_pred, im_info, scales, ratios, feature_stride, thres
     num_bbox = height * width * num_anchors
     rpn_pre_nms_top_n = min(rpn_pre_nms_top_n, num_bbox) if rpn_pre_nms_top_n > 0 else num_bbox
 
-    bbox = tvm.extern((batch, num_bbox, 5), [cls_prob, bbox_pred, im_info], lambda ins, outs:
-                      predict_bbox_ir(ins[0], ins[1], ins[2], outs[0], scales, ratios,
-                                      feature_stride, rpn_min_size, iou_loss),
-                      dtype=bbox_pred.dtype)
-    score = tvm.compute((batch, num_bbox), lambda b, i: bbox[b, i, 4], tag='bbox_score')
+    bbox = te.extern((batch, num_bbox, 5), [cls_prob, bbox_pred, im_info], lambda ins, outs:
+                     predict_bbox_ir(ins[0], ins[1], ins[2], outs[0], scales, ratios,
+                                     feature_stride, rpn_min_size, iou_loss),
+                     dtype=bbox_pred.dtype)
+    score = te.compute((batch, num_bbox), lambda b, i: bbox[b, i, 4], tag='bbox_score')
     valid_count_shape = (1,)
-    valid_count = tvm.compute(valid_count_shape, lambda i: num_bbox)
+    valid_count = te.compute(valid_count_shape, lambda i: num_bbox)
     sorted_index = argsort(score, valid_count=valid_count, axis=1, is_ascend=False)
-    sorted_bbox = tvm.compute((batch, rpn_pre_nms_top_n, 5),
-                              lambda b, i, j: bbox[b, sorted_index[b, i], j], tag='sorted_bbox')
-    nms_remove_mask = tvm.extern((batch, rpn_pre_nms_top_n), [sorted_bbox],
-                                 lambda ins, outs: nms_ir(ins[0], outs[0], threshold),
-                                 dtype='bool')
-    nms_out = tvm.extern((batch * rpn_post_nms_top_n, 5), [sorted_bbox, nms_remove_mask],
-                         lambda ins, outs: prepare_output_ir(ins[0], ins[1], outs[0]),
-                         dtype=sorted_bbox.dtype)
+    sorted_bbox = te.compute((batch, rpn_pre_nms_top_n, 5),
+                             lambda b, i, j: bbox[b, sorted_index[b, i], j], tag='sorted_bbox')
+    nms_remove_mask = te.extern((batch, rpn_pre_nms_top_n), [sorted_bbox],
+                                lambda ins, outs: nms_ir(ins[0], outs[0], threshold),
+                                dtype='bool')
+    nms_out = te.extern((batch * rpn_post_nms_top_n, 5), [sorted_bbox, nms_remove_mask],
+                        lambda ins, outs: prepare_output_ir(ins[0], ins[1], outs[0]),
+                        dtype=sorted_bbox.dtype)
     return nms_out

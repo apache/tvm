@@ -39,3 +39,4 @@ compiler stack.
    op
    scope_builder
    vision
+   testing

@@ -18,6 +18,7 @@
 import numpy as np
 import itertools
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -31,8 +32,8 @@ _conv1d_transpose_ncw_implement = {
 
 def verify_conv1d_transpose_ncw(batch, in_channel, in_size, num_filter, kernel, stride, padding):
     in_width = in_size
-    A = tvm.placeholder((batch, in_channel, in_width), name='A')
-    W = tvm.placeholder((in_channel, num_filter, kernel), name='W')
+    A = te.placeholder((batch, in_channel, in_width), name='A')
+    W = te.placeholder((in_channel, num_filter, kernel), name='W')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)

@@ -17,16 +17,17 @@
 """Pad the data by constant value """
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from ..util import equal_const_int
 from .. import tag
 
-@tvm.tag_scope(tag=tag.INJECTIVE+",pad")
+@tvm.te.tag_scope(tag=tag.INJECTIVE+",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
     """Pad Input with zeros.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D input, can be any layout.
 
     pad_before : list / tuple of n ints
@@ -43,7 +44,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         n-D, the same layout as Input.
     """
     n = len(data.shape)
@@ -55,10 +56,10 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
         raise ValueError("Input dimension and pad_after dismatch : %d vs %d" % (
             n, len(pad_before)))
     out_shape = tuple(
-        tvm.ir_pass.Simplify(
+        tvm.tir.ir_pass.Simplify(
             (data.shape[i] + pad_before[i] + pad_after[i])) for i in range(n))
-    pad_value = (pad_value if isinstance(pad_value, tvm.expr.PrimExpr)
-                 else tvm.const(pad_value, data.dtype))
+    pad_value = (pad_value if isinstance(pad_value, tvm.tir.PrimExpr)
+                 else tvm.tir.const(pad_value, data.dtype))
     def _pad(*indices):
         not_zero = []
         index_tuple = []
@@ -70,13 +71,13 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput"):
                 not_zero.append(indices[i] >= pad_before[i])
                 not_zero.append(indices[i] < data.shape[i] + pad_before[i])
         if not_zero:
-            not_zero = tvm.all(*not_zero)
-            return tvm.if_then_else(not_zero, data(*index_tuple), pad_value)
+            not_zero = tvm.tir.all(*not_zero)
+            return tvm.tir.if_then_else(not_zero, data(*index_tuple), pad_value)
         return data(*index_tuple)
-    return tvm.compute(out_shape, _pad, name=name)
+    return te.compute(out_shape, _pad, name=name)
 
 
-@tvm.tag_scope(tag=tag.INJECTIVE + ",pad")
+@tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
 def mirror_pad(data,
                pad_before,
                pad_after=None,
@@ -86,7 +87,7 @@ def mirror_pad(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D input, can be any layout.
 
     pad_before : list / tuple of n ints
@@ -103,7 +104,7 @@ def mirror_pad(data,
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         n-D, the same layout as Input.
     """
     n = len(data.shape)
@@ -115,7 +116,7 @@ def mirror_pad(data,
         raise ValueError("Input dimension and pad_after dismatch : %d vs %d" %
                          (n, len(pad_before)))
     out_shape = tuple(
-        tvm.ir_pass.Simplify((data.shape[i] + pad_before[i] + pad_after[i]))
+        tvm.tir.ir_pass.Simplify((data.shape[i] + pad_before[i] + pad_after[i]))
         for i in range(n))
     assert mode in ('SYMMETRIC', 'REFLECT')
     mode = int(mode == 'SYMMETRIC')
@@ -136,10 +137,10 @@ def mirror_pad(data,
                 below.append(indices[i] < pad_before[i])
         mapped_tuple = []
         for i, axis in enumerate(index_tuple):
-            mapped_axis = tvm.if_then_else(below[i], -axis - mode, axis)
-            mapped_axis = tvm.if_then_else(
+            mapped_axis = tvm.tir.if_then_else(below[i], -axis - mode, axis)
+            mapped_axis = tvm.tir.if_then_else(
                 above[i], (2 * (data.shape[i] - 1)) - axis + mode, mapped_axis)
             mapped_tuple.append(mapped_axis)
         return data(*mapped_tuple)
 
-    return tvm.compute(out_shape, _pad, name=name)
+    return te.compute(out_shape, _pad, name=name)

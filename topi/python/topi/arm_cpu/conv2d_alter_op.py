@@ -20,6 +20,7 @@
 import logging
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm import autotvm
 
@@ -58,7 +59,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    idxd = tvm.indexdiv
+    idxd = tvm.tir.indexdiv
 
     if topi_tmpl == "conv2d_nchw_spatial_pack.arm_cpu":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
@@ -69,7 +70,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs['kernel_layout'] = 'OIHW%do' % VC
 
         new_data = data
-        new_kernel = tvm.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
+        new_kernel = te.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
             "conv2d_nchw_spatial_pack.arm_cpu")
@@ -86,7 +87,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs['kernel_layout'] = 'OHWI%do' % VC
 
         new_data = data
-        new_kernel = tvm.placeholder((idxd(CO, VC), KH, KW, CI, VC), dtype=kernel.dtype)
+        new_kernel = te.placeholder((idxd(CO, VC), KH, KW, CI, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
             "conv2d_nhwc_spatial_pack.arm_cpu")
@@ -113,10 +114,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs['tile_size'] = tile_size
 
         new_data = data
-        new_kernel = tvm.placeholder((KH + tile_size - 1,
-                                      KW + tile_size -1,
-                                      idxd(CO, VC), CI, VC),
-                                     kernel.dtype)
+        new_kernel = te.placeholder((KH + tile_size - 1,
+                                     KW + tile_size -1,
+                                     idxd(CO, VC), CI, VC),
+                                    kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
             'conv2d_nchw_winograd.arm_cpu')
@@ -141,7 +142,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             out_dtype=weight_dtype)
 
         new_data = data
-        new_kernel = tvm.placeholder((CO, CI, 8, 8), "float32")
+        new_kernel = te.placeholder((CO, CI, 8, 8), "float32")
 
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, None, strides, padding, dilation, out_dtype],
@@ -160,7 +161,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
         # Store the same config for the altered operator (workload)
         new_data = data
-        new_kernel = tvm.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
+        new_kernel = te.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
             "depthwise_conv2d_nchw_spatial_pack.arm_cpu")

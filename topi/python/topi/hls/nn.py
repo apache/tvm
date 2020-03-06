@@ -18,13 +18,14 @@
 """HLS nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import tag
 
 
 def _schedule_conv2d(outs):
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
         """Internal traverse function"""
@@ -33,7 +34,7 @@ def _schedule_conv2d(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule conv2d
         elif OP.tag.find("conv2d") >= 0:
@@ -47,7 +48,7 @@ def _schedule_conv2d(outs):
     traverse(outs[0].op)
 
     px, x = s[outs[0]].split(outs[0].op.axis[0], nparts=1)
-    s[outs[0]].bind(px, tvm.thread_axis("pipeline"))
+    s[outs[0]].bind(px, te.thread_axis("pipeline"))
     return s
 
 
@@ -199,9 +200,9 @@ def schedule_reduce(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
         """Internal traverse function"""
@@ -210,7 +211,7 @@ def schedule_reduce(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         elif OP.tag in ["comm_reduce", "comm_reduce_idx"]:
             if OP.tag == "comm_reduce":
@@ -227,7 +228,7 @@ def schedule_reduce(outs):
 
     fused = s[outs[0]].fuse()
     px, x = s[outs[0]].split(fused, nparts=1)
-    s[outs[0]].bind(px, tvm.thread_axis("pipeline"))
+    s[outs[0]].bind(px, te.thread_axis("pipeline"))
     return s
 
 
@@ -245,9 +246,9 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
 
     softmax = outs[0]
 
@@ -271,7 +272,7 @@ def schedule_softmax(outs):
     s[max_elem].compute_at(s[softmax], s[softmax].op.axis[1])
 
     px, x = s[softmax].split(softmax.op.axis[0], nparts=1)
-    s[softmax].bind(px, tvm.thread_axis("pipeline"))
+    s[softmax].bind(px, te.thread_axis("pipeline"))
     return s
 
 
@@ -289,9 +290,9 @@ def schedule_dense(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
         """Internal traverse function"""
@@ -300,7 +301,7 @@ def schedule_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule dense
         elif OP.tag == 'dense':
@@ -314,7 +315,7 @@ def schedule_dense(outs):
     traverse(outs[0].op)
 
     px, x = s[outs[0]].split(outs[0].op.axis[0], nparts=1)
-    s[outs[0]].bind(px, tvm.thread_axis("pipeline"))
+    s[outs[0]].bind(px, te.thread_axis("pipeline"))
     return s
 
 
@@ -332,9 +333,9 @@ def schedule_pool(outs, layout):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
         """Internal traverse function"""
@@ -343,7 +344,7 @@ def schedule_pool(outs, layout):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
@@ -357,7 +358,7 @@ def schedule_pool(outs, layout):
     traverse(outs[0].op)
 
     px, x = s[outs[0]].split(outs[0].op.axis[0], nparts=1)
-    s[outs[0]].bind(px, tvm.thread_axis("pipeline"))
+    s[outs[0]].bind(px, te.thread_axis("pipeline"))
     return s
 
 
@@ -375,9 +376,9 @@ def schedule_adaptive_pool(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    tvm.te.schedule.AutoInlineInjective(s)
 
     def traverse(OP):
         """Internal traverse function"""
@@ -386,7 +387,7 @@ def schedule_adaptive_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if isinstance(tensor.op, tvm.te.ComputeOp):
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith('adaptive_pool'):
@@ -400,5 +401,5 @@ def schedule_adaptive_pool(outs):
     traverse(outs[0].op)
 
     px, x = s[outs[0]].split(outs[0].op.axis[0], nparts=1)
-    s[outs[0]].bind(px, tvm.thread_axis("pipeline"))
+    s[outs[0]].bind(px, te.thread_axis("pipeline"))
     return s

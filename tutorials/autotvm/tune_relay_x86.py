@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tune_relay_x86:
+
 Auto-tuning a convolutional network for x86 CPU
 ===============================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Eddie Yan <https://github.com/eqy>`_
@@ -26,6 +28,7 @@ import os
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm import relay
 from tvm.relay import testing

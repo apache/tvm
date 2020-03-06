@@ -21,6 +21,7 @@
 # https://github.com/apache/incubator-tvm/issues/3240
 # TODO: restore the file name after this issue is resolved.
 import tvm
+from tvm import te
 
 from tvm import autotvm, relay
 from tvm.relay.testing import resnet

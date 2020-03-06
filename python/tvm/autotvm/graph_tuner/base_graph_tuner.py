@@ -23,6 +23,7 @@ import numpy as np
 import topi
 
 import tvm
+from tvm import te
 from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
 from tvm.autotvm.record import encode, load_from_file
@@ -301,8 +302,8 @@ class BaseGraphTuner(object):
                             _, out_layout = o_input_info[0]
                         else:
                             _, out_layout = o_output_info[0]
-                        data_placeholder = tvm.placeholder(in_shape, name="data",
-                                                           dtype=self._dtype)
+                        data_placeholder = te.placeholder(in_shape, name="data",
+                                                          dtype=self._dtype)
                         args = [data_placeholder, in_layout, out_layout]
                         callback(i_idx, o_idx, m, n, args)
 

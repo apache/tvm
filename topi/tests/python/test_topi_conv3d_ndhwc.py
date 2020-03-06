@@ -18,6 +18,7 @@
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -41,8 +42,8 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride, 
     else:
         kernel_depth = kernel_height = kernel_width = kernel
 
-    A = tvm.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
-    W = tvm.placeholder((kernel_depth, kernel_height, kernel_width, in_channel, num_filter), name='W')
+    A = te.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A')
+    W = te.placeholder((kernel_depth, kernel_height, kernel_width, in_channel, num_filter), name='W')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)

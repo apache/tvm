@@ -18,6 +18,7 @@
 """Depthwise convolution schedule for ARM CPU"""
 
 import tvm
+from tvm import te
 from tvm import autotvm
 
 from .. import nn
@@ -48,8 +49,8 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
     s: Schedule
         The computation schedule for depthwise_conv2d nchw.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _schedule(cfg, s, data, data_pad, kernel, output):
         A, B, C = data, kernel, output
@@ -129,7 +130,7 @@ def schedule_depthwise_conv2d_nchw(cfg, outs):
             kernel = op.input_tensors[1]
             data = op.input_tensors[0]
             data_pad = None
-            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+            if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
             _schedule(cfg, s, data, data_pad, kernel, output)
@@ -147,10 +148,10 @@ def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dila
     cfg: ConfigEntity
         The config for this template
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, multiplier, filter_height, filter_width] or
         pre-packed 5-D with shape [num_filter_chunk, multiplier, filter_height,
         filter_width, num_filter_block]
@@ -169,7 +170,7 @@ def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dila
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
 
@@ -179,8 +180,8 @@ def depthwise_conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dila
 @autotvm.register_topi_schedule("depthwise_conv2d_nchw_spatial_pack.arm_cpu")
 def schedule_depthwise_conv2d_nchw_spatial_pack(cfg, outs):
     """Create the schedule for depthwise_conv2d_nchw_spatial_pack"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'spatial_depthwise_conv2d_nchw_output':
@@ -192,7 +193,7 @@ def schedule_depthwise_conv2d_nchw_spatial_pack(cfg, outs):
                 kernel = kernel_vec.op.input_tensors[0]
             else:
                 kernel = kernel_vec
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
             _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
 
@@ -284,50 +285,50 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype,
     if dilation_h != 1 or dilation_w != 1:
         # undilate input data
         dvshape = (N, OH // VH, OW // VW, C, KH, KW, VH, VW)
-        data_vec = tvm.compute(dvshape, lambda n, h, w, c, kh, kw, vh, vw:
-                               data_pad[n][c][(h * VH + vh) * HSTR + kh * dilation_h]
-                               [(w*VW+vw)*WSTR+kw*dilation_w],
-                               name='data_vec_undilated')
+        data_vec = te.compute(dvshape, lambda n, h, w, c, kh, kw, vh, vw:
+                              data_pad[n][c][(h * VH + vh) * HSTR + kh * dilation_h]
+                              [(w*VW+vw)*WSTR+kw*dilation_w],
+                              name='data_vec_undilated')
     else:
         dvshape = (N, OH // VH, OW // VW, C, VH*HSTR + KH-1, VW*WSTR + KW-1)
-        data_vec = tvm.compute(dvshape, lambda n, h, w, c, vh, vw:
-                               data_pad[n][c][h * VH * HSTR + vh][w * VW * WSTR + vw],
-                               name='data_vec')
+        data_vec = te.compute(dvshape, lambda n, h, w, c, vh, vw:
+                              data_pad[n][c][h * VH * HSTR + vh][w * VW * WSTR + vw],
+                              name='data_vec')
 
     if pre_packed:
         kernel_vec = kernel
     else:
-        kernel_vec = tvm.compute(kvshape, lambda co, m, kh, kw, vc:
-                                 kernel[co*VC+vc][m][kh][kw],
-                                 name='kernel_vec')
+        kernel_vec = te.compute(kvshape, lambda co, m, kh, kw, vc:
+                                kernel[co*VC+vc][m][kh][kw],
+                                name='kernel_vec')
 
-    kh = tvm.reduce_axis((0, KH), name='kh')
-    kw = tvm.reduce_axis((0, KW), name='kw')
+    kh = te.reduce_axis((0, KH), name='kh')
+    kw = te.reduce_axis((0, KW), name='kw')
 
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
 
     if dilation_h != 1 or dilation_w != 1:
-        conv = tvm.compute(
+        conv = te.compute(
             ovshape, lambda n, co, h, w, vh, vw, vc: \
-            tvm.sum(data_vec[n, h, w, idxdiv(co * VC + vc, M), kh, kw, vh, vw]
-                    .astype(out_dtype) *
-                    kernel_vec[idxdiv(co, M), idxmod(co, M), kh, kw, vc].astype(out_dtype),
-                    axis=[kh, kw]), name='depthwise_conv')
+            te.sum(data_vec[n, h, w, idxdiv(co * VC + vc, M), kh, kw, vh, vw]
+                   .astype(out_dtype) *
+                   kernel_vec[idxdiv(co, M), idxmod(co, M), kh, kw, vc].astype(out_dtype),
+                   axis=[kh, kw]), name='depthwise_conv')
     else:
-        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-                           tvm.sum(data_vec[n, h, w, idxdiv((co * VC + vc), M), vh * HSTR + kh,
-                                            vw * WSTR + kw].astype(out_dtype) *
-                                   kernel_vec[idxdiv(co, M),
-                                              idxmod(co, M),
-                                              kh, kw, vc].astype(out_dtype),
-                                   axis=[kh, kw]), name='depthwise_conv')
+        conv = te.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+                          te.sum(data_vec[n, h, w, idxdiv((co * VC + vc), M), vh * HSTR + kh,
+                                          vw * WSTR + kw].astype(out_dtype) *
+                                 kernel_vec[idxdiv(co, M),
+                                            idxmod(co, M),
+                                            kh, kw, vc].astype(out_dtype),
+                                 axis=[kh, kw]), name='depthwise_conv')
 
-    output = tvm.compute(oshape, lambda n, co, h, w:
-                         conv[n,
-                              idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
-                              idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
-                         name='output_unpack', tag='spatial_depthwise_conv2d_nchw_output')
+    output = te.compute(oshape, lambda n, co, h, w:
+                        conv[n,
+                             idxdiv(co, VC), idxdiv(h, VH), idxdiv(w, VW),
+                             idxmod(h, VH), idxmod(w, VW), idxmod(co, VC)],
+                        name='output_unpack', tag='spatial_depthwise_conv2d_nchw_output')
     return output
 
 def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
@@ -343,10 +344,10 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
 
     data_pad = data_vec.op.input_tensors[0]
     if data_pad.op.name == "data_pad":
-        assert isinstance(data_pad.op, tvm.tensor.ComputeOp)
+        assert isinstance(data_pad.op, tvm.te.ComputeOp)
         has_padding = True
     else:
-        assert isinstance(data_pad.op, tvm.tensor.PlaceholderOp)
+        assert isinstance(data_pad.op, tvm.te.PlaceholderOp)
         has_padding = False
 
     cfg.define_knob('data_pad_inline', [0, 1, 2, 3, 4])

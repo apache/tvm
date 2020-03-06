@@ -19,7 +19,7 @@
 # operator defs
 from .op import get, register, register_compute, register_gradient, \
     register_pattern, register_alter_op_layout, register_legalize, \
-    Op, OpPattern, OpStrategy, debug
+    Op, OpPattern, OpStrategy, debug, register_external_compiler
 from . import strategy
 
 # Operators
@@ -32,7 +32,6 @@ from . import annotation
 from . import memory
 from . import image
 from . import vision
-from . import contrib
 from . import op_attrs
 
 

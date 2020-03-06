@@ -17,20 +17,21 @@
 """TVM operator flatten compute."""
 from __future__ import absolute_import
 import tvm
+from tvm import te
 from .. import tag
 
-@tvm.tag_scope(tag=tag.INJECTIVE)
+@tvm.te.tag_scope(tag=tag.INJECTIVE)
 def flatten(data):
     """Flattens the input array into a 2-D array by collapsing the higher dimensions.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         Input array.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         2-D array with collapsed higher dimensions.
     """
     ishape = data.shape
@@ -38,8 +39,8 @@ def flatten(data):
     for i in range(1, len(ishape)):
         dim = dim * ishape[i]
     oshape = [ishape[0], dim]
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
 
     def unwrap(idx, shape):
         index = []
@@ -48,4 +49,4 @@ def flatten(data):
             idx = idxdiv(idx, s)
         return list(reversed(index))
 
-    return tvm.compute(oshape, lambda i, j: data(i, *unwrap(j, ishape[1:])))
+    return te.compute(oshape, lambda i, j: data(i, *unwrap(j, ishape[1:])))

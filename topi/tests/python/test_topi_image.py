@@ -17,6 +17,7 @@
 """Test code for bilinear scale """
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
@@ -25,12 +26,12 @@ from common import get_all_backend
 def verify_resize(batch, in_channel, in_height, in_width, out_height, out_width,
                   layout='NCHW', coord_trans="align_corners", method="bilinear"):
     if layout == 'NCHW':
-        A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='float32')
+        A = te.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='float32')
         dtype = A.dtype
         out_shape = (batch, in_channel, out_height, out_width)
         a_np = np.random.uniform(size=(batch, in_channel, in_height, in_width)).astype(dtype)
     elif layout == 'NHWC':
-        A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='float32')
+        A = te.placeholder((batch, in_height, in_width, in_channel), name='A', dtype='float32')
         dtype = A.dtype
         out_shape = (batch, out_height, out_width, in_channel)
         a_np = np.random.uniform(size=(batch, in_height, in_width, in_channel)).astype(dtype)
@@ -84,12 +85,12 @@ def test_resize():
 def verify_resize3d(batch, in_channel, in_depth, in_height, in_width, out_depth, out_height, out_width,
                     layout='NCDHW', coordinate_transformation_mode="half_pixel", method="trilinear"):
     if layout == 'NCDHW':
-        A = tvm.placeholder((batch, in_channel, in_depth, in_height, in_width), name='A', dtype='float32')
+        A = te.placeholder((batch, in_channel, in_depth, in_height, in_width), name='A', dtype='float32')
         dtype = A.dtype
         out_shape = (batch, in_channel, out_depth, out_height, out_width)
         a_np = np.random.uniform(size=(batch, in_channel, in_depth, in_height, in_width)).astype(dtype)
     elif layout == 'NDHWC':
-        A = tvm.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A', dtype='float32')
+        A = te.placeholder((batch, in_depth, in_height, in_width, in_channel), name='A', dtype='float32')
         dtype = A.dtype
         out_shape = (batch, out_depth, out_height, out_width, in_channel)
         a_np = np.random.uniform(size=(batch, in_depth, in_height, in_width, in_channel)).astype(dtype)
@@ -146,10 +147,10 @@ def test_crop_and_resize():
     def verify_crop_and_resize(image_shape, np_boxes, np_box_indices, np_crop_size, layout='NHWC',
                                method="bilinear", extrapolation_value=0.0):
 
-        images = tvm.placeholder(image_shape, name='images', dtype='float32')
+        images = te.placeholder(image_shape, name='images', dtype='float32')
         np_images = np.random.uniform(size=image_shape).astype("float32")
-        boxes = tvm.placeholder(np_boxes.shape, name="boxes", dtype="float32")
-        box_ind = tvm.placeholder(np_box_indices.shape, name="box_ind", dtype="int32")
+        boxes = te.placeholder(np_boxes.shape, name="boxes", dtype="float32")
+        box_ind = te.placeholder(np_box_indices.shape, name="box_ind", dtype="int32")
 
         batch = len(np_box_indices)
         target_height, target_width = np_crop_size[0], np_crop_size[1]

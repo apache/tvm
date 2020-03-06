@@ -15,33 +15,34 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_attrs_equal():
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     z = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4,1))
-    assert tvm.ir_pass.AttrsEqual(x, y)
-    assert not tvm.ir_pass.AttrsEqual(x, z)
+    assert tvm.tir.ir_pass.AttrsEqual(x, y)
+    assert not tvm.tir.ir_pass.AttrsEqual(x, z)
 
     dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
-    assert not tvm.ir_pass.AttrsEqual(dattr, x)
+    assert not tvm.tir.ir_pass.AttrsEqual(dattr, x)
     dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
-    assert tvm.ir_pass.AttrsEqual(dattr, dattr2)
+    assert tvm.tir.ir_pass.AttrsEqual(dattr, dattr2)
 
-    assert tvm.ir_pass.AttrsEqual({"x": x}, {"x": y})
+    assert tvm.tir.ir_pass.AttrsEqual({"x": x}, {"x": y})
     # array related checks
-    assert tvm.ir_pass.AttrsEqual({"x": [x, x]}, {"x": [y, x]})
-    assert not tvm.ir_pass.AttrsEqual({"x": [x, 1]}, {"x": [y, 2]})
+    assert tvm.tir.ir_pass.AttrsEqual({"x": [x, x]}, {"x": [y, x]})
+    assert not tvm.tir.ir_pass.AttrsEqual({"x": [x, 1]}, {"x": [y, 2]})
 
-    n = tvm.var("n")
-    assert tvm.ir_pass.AttrsEqual({"x": n+1}, {"x": n+1})
+    n = te.var("n")
+    assert tvm.tir.ir_pass.AttrsEqual({"x": n+1}, {"x": n+1})
 
 
 
 
 
 def test_attrs_hash():
-    fhash = tvm.ir_pass.AttrsHash
+    fhash = tvm.tir.ir_pass.AttrsHash
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     assert fhash({"x": x}) == fhash({"x": y})

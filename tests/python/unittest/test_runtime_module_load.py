@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm.contrib import cc, util
 import ctypes
 import os
@@ -29,6 +30,7 @@ import sys
 os.environ["TVM_USE_RUNTIME_LIB"] = "1"
 os.environ["TVM_FFI"] = "ctypes"
 import tvm
+from tvm import te
 import numpy as np
 path_dso = sys.argv[1]
 dtype = sys.argv[2]
@@ -46,17 +48,17 @@ def test_dso_module_load():
     temp = util.tempdir()
 
     def save_object(names):
-        n = tvm.size_var('n')
-        Ab = tvm.decl_buffer((n, ), dtype)
-        i = tvm.var('i')
+        n = te.size_var('n')
+        Ab = tvm.tir.decl_buffer((n, ), dtype)
+        i = te.var('i')
         # for i in 0 to n-1:
         stmt = tvm.tir.For(
             i, 0, n - 1, 0, 0,
             tvm.tir.Store(Ab.data,
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1))
-        fapi = tvm.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-        fapi = tvm.ir_pass.LowerTVMBuiltin(fapi)
+        fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
+        fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
         m = tvm.target.codegen.build_module(fapi, "llvm")
         for name in names:
             m.save(name)
@@ -88,15 +90,15 @@ def test_dso_module_load():
 
 def test_device_module_dump():
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
     # create iter var and assign them tags.
     num_thread = 8
     bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
-    s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[B].bind(bx, te.thread_axis("blockIdx.x"))
+    s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -150,10 +152,10 @@ def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""
     # graph
     nn = 12
-    n = tvm.convert(nn)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(nn)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
 
     def check_llvm():
         ctx = tvm.cpu(0)

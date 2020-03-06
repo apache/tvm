@@ -15,13 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 
 def test_double_buffer():
     dtype = 'int64'
     n = 100
     m = 4
-    tx = tvm.thread_axis("threadIdx.x")
-    ib = tvm.ir_builder.create()
+    tx = te.thread_axis("threadIdx.x")
+    ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
     C = ib.pointer("float32", name="C")
     ib.scope_attr(tx, "thread_extent", 1)
@@ -35,17 +36,17 @@ def test_double_buffer():
             C[j] = B[j] + 1
 
     stmt = ib.get()
-    stmt = tvm.ir_pass.InjectDoubleBuffer(stmt, 2)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    stmt = tvm.tir.ir_pass.InjectDoubleBuffer(stmt, 2)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
-    f = tvm.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
-    f = tvm.ir_pass.ThreadSync(f, "shared")
+    f = tvm.tir.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
+    f = tvm.tir.ir_pass.ThreadSync(f, "shared")
     count = [0]
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
-    tvm.ir_pass.PostOrderVisit(f.body, count_sync)
+    tvm.tir.ir_pass.PostOrderVisit(f.body, count_sync)
     assert count[0] == 4
 
 

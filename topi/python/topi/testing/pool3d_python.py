@@ -40,9 +40,9 @@ def pool3d_ncdhw_python(np_data, kernel,
         assert out_shape[3] == int(math.floor(float(in_shape[3] - k_h + pt + pb) / s_h) + 1)
         assert out_shape[4] == int(math.floor(float(in_shape[4] - k_w + pl + pr) / s_w) + 1)
 
-    fill_value = tvm.const(0.0, dtype).value
+    fill_value = tvm.tir.const(0.0, dtype).value
     if not(count_include_pad) and pool_type == 'max':
-        fill_value = tvm.min_value(dtype).value
+        fill_value = tvm.te.min_value(dtype).value
 
     pad_np = np.full(shape=(in_n, in_c,
                             in_d + pf + pk,

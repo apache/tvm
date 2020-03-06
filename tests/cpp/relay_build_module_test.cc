@@ -29,6 +29,7 @@
 #include <topi/broadcast.h>
 #include <topi/generic/injective.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/ir/module.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 
@@ -115,7 +116,8 @@ TEST(Relay, BuildModule) {
   Map<tvm::Integer, tvm::Target> targets;
   Target llvm_tgt = Target::Create("llvm");
   targets.Set(0, llvm_tgt);
-  build_f(func, targets, llvm_tgt);
+  auto relay_mod = tvm::IRModule::FromExpr(func);
+  build_f(relay_mod, targets, llvm_tgt);
   std::string json = json_f();
   tvm::runtime::Module mod = mod_f();
   // run

@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
 """MXNet symbol frontend."""
-from __future__ import absolute_import as _abs
-
 import json
 import numpy as np
 import tvm
@@ -315,7 +313,7 @@ def _mx_pooling(inputs, attrs):
 
 def _mx_adaptive_avg_pooling(inputs, attrs):
     output_size = attrs.get_int_tuple("output_size", [])
-    return _op.contrib.adaptive_avg_pool2d(inputs[0], output_size)
+    return _op.nn.adaptive_avg_pool2d(inputs[0], output_size)
 
 
 def _mx_dropout(inputs, attrs):
@@ -644,6 +642,13 @@ def _mx_arange(inputs, attrs):
     new_attrs["step"] = _expr.const(attrs.get_float("step", 1.0), dtype=dtype)
     new_attrs["dtype"] = dtype
     return _op.arange(**new_attrs)
+
+
+# pylint: disable=unused-argument
+def _mx_make_loss(inputs, attrs):
+    # while doing inference make_loss does not have any effect
+    # and it should be mapped to identity
+    return inputs[0]
 
 
 def _mx_repeat(inputs, attrs):
@@ -1691,6 +1696,7 @@ _identity_list = [
     "ones_like",
     "where",
     "gather_nd",
+    "tan",
     "cos",
     "sin"
 ]
@@ -1824,6 +1830,7 @@ _convert_map = {
     "SoftmaxActivation" : _mx_softmax_activation,
     "LinearRegressionOutput" : _mx_linear_regression_output,
     "smooth_l1"     : _mx_smooth_l1,
+    "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
     "one_hot"           : _mx_one_hot,
     # vision

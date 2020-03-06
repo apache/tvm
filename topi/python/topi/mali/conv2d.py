@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali GPU"""
 import tvm
+from tvm import te
 from tvm import relay
 from tvm import autotvm
 from tvm.autotvm.task.space import get_factors
@@ -38,10 +39,10 @@ def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_
     cfg: ConfigEntity
         The config for this template
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width] or
         pre-packed 5-D with shape [num_filter_chunk, in_channel, filter_height,
         filter_width, num_filter_block]
@@ -60,7 +61,7 @@ def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
@@ -83,7 +84,7 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
     s: Schedule
         The computation schedule for conv2d
     """
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         # schedule conv2d
@@ -100,7 +101,7 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
                 kernel = kernel_vec.op.input_tensors[0]
             else:
                 kernel = kernel_vec
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec)
@@ -121,12 +122,12 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     BW, TW, VW = cfg["tile_ow"].size
 
     # schedule padding
-    if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+    if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
         data_pad = data
         s[data_pad].compute_inline()
 
     # schedule data packing
-    if isinstance(data_vec.op, tvm.tensor.ComputeOp) and data_vec.op.name == 'data_vec_undilated':
+    if isinstance(data_vec.op, tvm.te.ComputeOp) and data_vec.op.name == 'data_vec_undilated':
         _, h, w, ci, _, _, vh, vw = s[data_vec].op.axis
     else:
         _, h, w, ci, vh, vw = s[data_vec].op.axis
@@ -136,7 +137,7 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     if vw.dom.extent.value < max_unroll:
         s[data_vec].unroll(vw)
 
-    if isinstance(kernel_vec.op, tvm.tensor.ComputeOp) and kernel_vec.name == 'kernel_vec':
+    if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # kernel packing will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
@@ -147,8 +148,8 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
             fused, vec = s[kernel_vec].split(fused, VC)
             bb, tt = s[kernel_vec].split(fused, max_threads)
-            s[kernel_vec].bind(bb, tvm.thread_axis("blockIdx.x"))
-            s[kernel_vec].bind(tt, tvm.thread_axis("threadIdx.x"))
+            s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
+            s[kernel_vec].bind(tt, te.thread_axis("threadIdx.x"))
             if VC in vec_size:
                 s[kernel_vec].vectorize(vec)
 
@@ -199,7 +200,7 @@ def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtyp
 
 @autotvm.register_topi_schedule("conv2d_nchw_winograd.mali")
 def schedule_conv2d_nchw_winograd(cfg, outs):
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'winograd_conv2d_output' in op.tag:
@@ -271,54 +272,55 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
     assert CO % bna == 0 and P_round % bnb == 0
 
     # pack input tile
-    input_tile = tvm.compute((CI, P_round // bnb, alpha, alpha, bnb), lambda ci, b, eps, nu, bb: \
-         tvm.if_then_else(
-             b * bnb + bb < P,
-             data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
-             [(b*bnb+bb) % nW * m + nu], tvm.const(0, data_pad.dtype)), name='d')
+    input_tile = te.compute(
+        (CI, P_round // bnb, alpha, alpha, bnb), lambda ci, b, eps, nu, bb: \
+        tvm.tir.if_then_else(
+            b * bnb + bb < P,
+            data_pad[(b*bnb+bb) // (nH*nW)][ci][(b*bnb+bb) // nW % nH * m + eps]
+            [(b*bnb+bb) % nW * m + nu], tvm.tir.const(0, data_pad.dtype)), name='d')
 
     # transform kernel
     if pre_computed:
         U = kernel
     else:
-        r_kh = tvm.reduce_axis((0, KH), 'r_kh')
-        r_kw = tvm.reduce_axis((0, KW), 'r_kw')
-        U = tvm.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
-                        tvm.sum(kernel[co * bna + vco][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
-                                axis=[r_kh, r_kw]), name='U')
+        r_kh = te.reduce_axis((0, KH), 'r_kh')
+        r_kw = te.reduce_axis((0, KW), 'r_kw')
+        U = te.compute((alpha, alpha, CO // bna, CI, bna), lambda eps, nu, co, ci, vco:
+                       te.sum(kernel[co * bna + vco][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
+                              axis=[r_kh, r_kw]), name='U')
 
     # transform image
-    r_a = tvm.reduce_axis((0, alpha), 'r_a')
-    r_b = tvm.reduce_axis((0, alpha), 'r_b')
-    V = tvm.compute((alpha, alpha, P_round // bnb, CI, bnb), lambda eps, nu, p, ci, vp:
-                    tvm.sum(input_tile[ci][p][r_a][r_b][vp] * B[r_a][eps] * B[r_b][nu],
-                            axis=[r_a, r_b]), name='V')
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_b')
+    V = te.compute((alpha, alpha, P_round // bnb, CI, bnb), lambda eps, nu, p, ci, vp:
+                   te.sum(input_tile[ci][p][r_a][r_b][vp] * B[r_a][eps] * B[r_b][nu],
+                          axis=[r_a, r_b]), name='V')
 
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
 
     # batch gemm
-    ci = tvm.reduce_axis((0, CI), name='c')
-    M = tvm.compute((alpha, alpha, CO, P_round), lambda eps, nu, co, p:
-                    tvm.sum(U[eps][nu][idxdiv(co, bna)][ci][idxmod(co, bna)] *
-                            V[eps][nu][idxdiv(p, bnb)][ci][idxmod(p, bnb)], axis=ci), name='M')
+    ci = te.reduce_axis((0, CI), name='c')
+    M = te.compute((alpha, alpha, CO, P_round), lambda eps, nu, co, p:
+                   te.sum(U[eps][nu][idxdiv(co, bna)][ci][idxmod(co, bna)] *
+                          V[eps][nu][idxdiv(p, bnb)][ci][idxmod(p, bnb)], axis=ci), name='M')
 
-    r_a = tvm.reduce_axis((0, alpha), 'r_a')
-    r_b = tvm.reduce_axis((0, alpha), 'r_b')
-    Y = tvm.compute((CO, P, m, m), lambda co, p, vh, vw:
-                    tvm.sum(M[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
-                            axis=[r_a, r_b]), name='Y')
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_b')
+    Y = te.compute((CO, P, m, m), lambda co, p, vh, vw:
+                   te.sum(M[r_a][r_b][co][p] * A[r_a][vh] * A[r_b][vw],
+                          axis=[r_a, r_b]), name='Y')
 
     # unpack output
-    output = tvm.compute((N, CO, H, W), lambda n, co, h, w:
-                         Y[co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
-                           idxmod(h, m), idxmod(w, m)]
-                         # The following hack term is used to make the padding in batch gemm ("M")
-                         # effective, otherwise the padding will be eliminated by bound inference.
-                         # Use `tvm.expr.Mul` instead of `*` to avoid issues in const folding.
-                         + tvm.expr.Mul(tvm.const(0, out_dtype),
-                                        M[alpha-1][alpha-1][CO-1][P_round-1]),
-                         name='output', tag='winograd_conv2d_output')
+    output = te.compute((N, CO, H, W), lambda n, co, h, w:
+                        Y[co, n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
+                          idxmod(h, m), idxmod(w, m)]
+                        # The following hack term is used to make the padding in batch gemm ("M")
+                        # effective, otherwise the padding will be eliminated by bound inference.
+                        # Use `tvm.tir.Mul` instead of `*` to avoid issues in const folding.
+                        + tvm.tir.Mul(tvm.tir.const(0, out_dtype),
+                                      M[alpha-1][alpha-1][CO-1][P_round-1]),
+                        name='output', tag='winograd_conv2d_output')
 
     # we have to manually assign effective GFLOP for winograd
     cfg.add_flop(2 * N * CO * H * W * KH * KW * CI)
@@ -339,7 +341,7 @@ def _schedule_winograd(cfg, s, op):
     s[data_pad].compute_inline()
 
     # transform kernel
-    if isinstance(U.op, tvm.tensor.ComputeOp):
+    if isinstance(U.op, tvm.te.ComputeOp):
         kernel, G = s[U].op.input_tensors
         s[G].compute_inline()
         eps, nu, co, ci, vco, = s[U].op.axis
@@ -355,7 +357,7 @@ def _schedule_winograd(cfg, s, op):
             tile_and_bind(s, U, co, ci, 1, 256)
 
         # dilation
-        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
             s[kernel].compute_inline()
 
     # transform image
@@ -370,8 +372,8 @@ def _schedule_winograd(cfg, s, op):
     fused = s[V].fuse(p, ci)
 
     bb, tt = cfg['tile_t1'].apply(s, V, fused)
-    s[V].bind(bb, tvm.thread_axis('blockIdx.x'))
-    s[V].bind(tt, tvm.thread_axis('threadIdx.x'))
+    s[V].bind(bb, te.thread_axis('blockIdx.x'))
+    s[V].bind(tt, te.thread_axis('threadIdx.x'))
 
     eps, nu, p, ci, vp = s[VL].op.axis
     r_a, r_b = s[VL].op.reduce_axis
@@ -416,8 +418,8 @@ def _schedule_winograd(cfg, s, op):
     s[output].unroll(wi)
     fused = s[output].fuse(n, co, h, w)
     bb, tt = cfg['tile_t2'].apply(s, output, fused)
-    s[output].bind(bb, tvm.thread_axis('blockIdx.x'))
-    s[output].bind(tt, tvm.thread_axis('threadIdx.x'))
+    s[output].bind(bb, te.thread_axis('blockIdx.x'))
+    s[output].bind(tt, te.thread_axis('threadIdx.x'))
 
     s[Y].compute_at(s[output], tt)
 
@@ -451,7 +453,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    idxd = tvm.indexdiv
+    idxd = tvm.tir.indexdiv
 
     if topi_tmpl == "conv2d_nchw_spatial_pack.mali":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
@@ -462,7 +464,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs['kernel_layout'] = 'OIHW%do' % VC
 
         new_data = data
-        new_kernel = tvm.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
+        new_kernel = te.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
             "conv2d_nchw_spatial_pack.mali")
@@ -488,10 +490,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         new_attrs['tile_size'] = tile_size
 
         new_data = data
-        new_kernel = tvm.placeholder((KH + tile_size - 1,
-                                      KW + tile_size -1,
-                                      idxd(CO, VC), CI, VC),
-                                     kernel.dtype)
+        new_kernel = te.placeholder((KH + tile_size - 1,
+                                     KW + tile_size -1,
+                                     idxd(CO, VC), CI, VC),
+                                    kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, out_dtype],
             'conv2d_nchw_winograd.mali')
@@ -508,10 +510,10 @@ def tile_and_bind(s, tensor, y, x, y_factor, x_factor=None):
     """ tile and bind to GPU threads """
     x_factor = x_factor or y_factor
     yo, xo, yi, xi = s[tensor].tile(y, x, y_factor, x_factor)
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
+    s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(xi, te.thread_axis("threadIdx.x"))
+    s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
+    s[tensor].bind(yi, te.thread_axis("threadIdx.y"))
     return yo, xo, yi, xi
 
 
@@ -522,11 +524,11 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     zo, zi = s[tensor].split(z, z_factor)
     yo, yi = s[tensor].split(y, y_factor)
     xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].bind(zo, tvm.thread_axis("blockIdx.z"))
-    s[tensor].bind(zi, tvm.thread_axis("threadIdx.z"))
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[tensor].bind(zo, te.thread_axis("blockIdx.z"))
+    s[tensor].bind(zi, te.thread_axis("threadIdx.z"))
+    s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
+    s[tensor].bind(yi, te.thread_axis("threadIdx.y"))
+    s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(xi, te.thread_axis("threadIdx.x"))
     s[tensor].reorder(zo, yo, xo, zi, yi, xi)
     return zo, yo, xo, zi, yi, xi

@@ -16,6 +16,7 @@
 # under the License.
 import os
 import tvm
+from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util, tflite_runtime

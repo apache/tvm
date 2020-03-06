@@ -19,6 +19,7 @@
 from __future__ import absolute_import as _abs
 
 import tvm
+from tvm import te
 from tvm import autotvm
 import tvm.contrib.nnpack
 
@@ -27,9 +28,9 @@ from .. import nn
 from ..nn.util import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
 from .conv2d_spatial_pack import conv2d_spatial_pack_nchw, \
-                                 conv2d_spatial_pack_nhwc, \
-                                 schedule_conv2d_spatial_pack_nchw, \
-                                 schedule_conv2d_spatial_pack_nhwc
+    conv2d_spatial_pack_nhwc, \
+    schedule_conv2d_spatial_pack_nchw, \
+    schedule_conv2d_spatial_pack_nhwc
 
 
 @autotvm.register_topi_compute("conv2d_nchw_spatial_pack.arm_cpu")
@@ -42,7 +43,7 @@ def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_
 @autotvm.register_topi_schedule("conv2d_nchw_spatial_pack.arm_cpu")
 def schedule_conv2d_nchw_spatial_pack(cfg, outs):
     """Create schedule for conv2d_nchw"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         # schedule conv2d
@@ -59,7 +60,7 @@ def schedule_conv2d_nchw_spatial_pack(cfg, outs):
                 kernel = kernel_vec.op.input_tensors[0]
             else:
                 kernel = kernel_vec
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
@@ -79,7 +80,7 @@ def conv2d_nhwc_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_
 @autotvm.register_topi_schedule("conv2d_nhwc_spatial_pack.arm_cpu")
 def schedule_conv2d_nhwc_spatial_pack(cfg, outs):
     """Create schedule for conv2d_nhwc"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'spatial_conv_output_NHWC' in op.tag:
@@ -100,7 +101,7 @@ def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtyp
 @autotvm.register_topi_schedule("conv2d_nchw_winograd.arm_cpu")
 def schedule_conv2d_nchw_winograd(cfg, outs):
     """Create schedule for conv2d_nchw_winograd"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'winograd_conv2d_output' in op.tag:
@@ -136,8 +137,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
     assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
     data_pad = nn.pad(data, (0, 0, pt, pl), (0, 0, pb, pr), name="data_pad")
 
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
 
     r = KW
     m = tile_size
@@ -158,48 +159,48 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, til
     VK = cfg['tile_k'].size[-1]
 
     # pack input tile
-    input_tile = tvm.compute((C, idxd(P, VP), alpha, alpha, VP),
-                             lambda c, b, eps, nu, bb:
-                             data_pad[idxd(b*VP + bb, nH*nW), c,
-                                      idxm(idxd(b*VP + bb, nW), nH) * m + eps,
-                                      idxm(b*VP + bb, nW) * m + nu],
-                             name='d')
+    input_tile = te.compute((C, idxd(P, VP), alpha, alpha, VP),
+                            lambda c, b, eps, nu, bb:
+                            data_pad[idxd(b*VP + bb, nH*nW), c,
+                                     idxm(idxd(b*VP + bb, nW), nH) * m + eps,
+                                     idxm(b*VP + bb, nW) * m + nu],
+                            name='d')
 
     # transform kernel
     if pre_computed:
         U = kernel
     else:
-        r_kh = tvm.reduce_axis((0, KH), 'r_kh')
-        r_kw = tvm.reduce_axis((0, KW), 'r_kw')
-        U = tvm.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
-                        tvm.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
-                                G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
+        r_kh = te.reduce_axis((0, KH), 'r_kh')
+        r_kw = te.reduce_axis((0, KW), 'r_kw')
+        U = te.compute((alpha, alpha, idxd(K, VK), C, VK), lambda eps, nu, k, c, kk:
+                       te.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
+                              G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
 
     # transform image
-    r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
-    r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
-    V = tvm.compute((alpha, alpha, idxd(P, VP), C, VP), lambda eps, nu, b, c, bb:
-                    tvm.sum(input_tile[c][b][r_eps][r_nu][bb].astype(out_dtype) *
-                            B[r_eps][eps] * B[r_nu][nu], axis=[r_eps, r_nu]), name='V')
+    r_eps = te.reduce_axis((0, alpha), 'r_eps')
+    r_nu = te.reduce_axis((0, alpha), 'r_nu')
+    V = te.compute((alpha, alpha, idxd(P, VP), C, VP), lambda eps, nu, b, c, bb:
+                   te.sum(input_tile[c][b][r_eps][r_nu][bb].astype(out_dtype) *
+                          B[r_eps][eps] * B[r_nu][nu], axis=[r_eps, r_nu]), name='V')
 
     # batch gemm
-    c = tvm.reduce_axis((0, C), name='c')
-    M = tvm.compute((alpha, alpha, K, P), lambda eps, nu, k, b:
-                    tvm.sum(U[eps][nu][idxd(k, VK)][c][idxm(k, VK)] *
-                            V[eps][nu][idxd(b, VP)][c][idxm(b, VP)], axis=c), name='M')
+    c = te.reduce_axis((0, C), name='c')
+    M = te.compute((alpha, alpha, K, P), lambda eps, nu, k, b:
+                   te.sum(U[eps][nu][idxd(k, VK)][c][idxm(k, VK)] *
+                          V[eps][nu][idxd(b, VP)][c][idxm(b, VP)], axis=c), name='M')
 
     # inverse transform
-    r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
-    r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
-    Y = tvm.compute((K, P, m, m), lambda k, b, vh, vw:
-                    tvm.sum(M[r_eps][r_nu][k][b] * A[r_eps][vh] * A[r_nu][vw],
-                            axis=[r_eps, r_nu]), name='Y')
+    r_eps = te.reduce_axis((0, alpha), 'r_eps')
+    r_nu = te.reduce_axis((0, alpha), 'r_nu')
+    Y = te.compute((K, P, m, m), lambda k, b, vh, vw:
+                   te.sum(M[r_eps][r_nu][k][b] * A[r_eps][vh] * A[r_nu][vw],
+                          axis=[r_eps, r_nu]), name='Y')
 
     # unpack output
-    output = tvm.compute((N, K, H, W), lambda n, k, h, w:
-                         Y[k][n * nH * nW + idxd(h, m) * nW + idxd(w, m),
-                              idxm(h, m), idxm(w, m)],
-                         name='output', tag='winograd_conv2d_output')
+    output = te.compute((N, K, H, W), lambda n, k, h, w:
+                        Y[k][n * nH * nW + idxd(h, m) * nW + idxd(w, m),
+                             idxm(h, m), idxm(w, m)],
+                        name='output', tag='winograd_conv2d_output')
 
     # we have to manually assign effective GFLOP for winograd
     cfg.add_flop(2 * N * K * H * W * KH * KW * C)
@@ -220,7 +221,7 @@ def _schedule_winograd(cfg, s, output, last):
     s[d].compute_inline()
 
     # transform kernel
-    if isinstance(U.op, tvm.tensor.ComputeOp):
+    if isinstance(U.op, tvm.te.ComputeOp):
         kernel, G = U.op.input_tensors
         s[G].compute_inline()
         eps, nu, k, c, kk, = s[U].op.axis
@@ -236,7 +237,7 @@ def _schedule_winograd(cfg, s, output, last):
             s[U].vectorize(kk)
             s[U].parallel(k)
 
-        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
             s[kernel].compute_inline()
 
     # transform image
@@ -310,7 +311,7 @@ def conv2d_nchw_winograd_nnpack(cfg, data, kernel, strides, padding, dilation, o
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_nnpack.arm_cpu")
 def schedule_conv2d_nchw_winograd_nnpack(cfg, outs):
     """Create schedule for conv2d_nchw_winograd_nnpack"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'winograd_nnpack_conv2d_output' in op.tag:
@@ -344,13 +345,13 @@ def _conv2d_arm_cpu_winograd_nnpack(
     cfg.define_knob('winograd_nnpack_algorithm', [convolution_algorithm])
 
     assert N == 1
-    with tvm.tag_scope("winograd_nnpack_conv2d_weight_transform"):
+    with tvm.te.tag_scope("winograd_nnpack_conv2d_weight_transform"):
         transformed_kernel = tvm.contrib.nnpack.convolution_inference_weight_transform(
             kernel, algorithm=cfg['winograd_nnpack_algorithm'].val)
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            transformed_kernel = tvm.compute(transformed_kernel.shape, lambda *args: 0.0)
+            transformed_kernel = te.compute(transformed_kernel.shape, lambda *args: 0.0)
 
-    with tvm.tag_scope("winograd_nnpack_conv2d_output"):
+    with tvm.te.tag_scope("winograd_nnpack_conv2d_output"):
         output = tvm.contrib.nnpack.convolution_inference_without_weight_transform(
             data, transformed_kernel,
             bias=None,
@@ -369,8 +370,8 @@ def _schedule_winograd_nnpack(cfg, s, output, last):
     (X, TK) = output.op.input_tensors[:2]
 
     # transform kernel
-    assert isinstance(TK.op, (tvm.tensor.ComputeOp, tvm.tensor.ExternOp, tvm.tensor.PlaceholderOp))
-    if autotvm.GLOBAL_SCOPE.in_tuning and isinstance(TK.op, tvm.tensor.ComputeOp):
+    assert isinstance(TK.op, (te.tensor.ComputeOp, te.tensor.ExternOp, te.tensor.PlaceholderOp))
+    if autotvm.GLOBAL_SCOPE.in_tuning and isinstance(TK.op, te.tensor.ComputeOp):
         # kernel transformation will be pre-computed during compilation, so we skip
         # this part to make tuning records correct
         s[TK].pragma(s[TK].op.axis[0], 'debug_skip_region')
@@ -398,7 +399,7 @@ def conv2d_nchw_winograd_nnpack_without_weight_transform(
     W = (IW + pl + pr - 3) // WSTR + 1
 
     assert N == 1
-    with tvm.tag_scope("winograd_nnpack_conv2d_output"):
+    with tvm.te.tag_scope("winograd_nnpack_conv2d_output"):
         output = tvm.contrib.nnpack.convolution_inference_without_weight_transform(
             data=data,
             transformed_kernel=transformed_kernel,
@@ -415,7 +416,7 @@ def conv2d_nchw_winograd_nnpack_without_weight_transform(
 @autotvm.register_topi_schedule("conv2d_nchw_winograd_nnpack_without_weight_transform.arm_cpu")
 def schedule_conv2d_nchw_winograd_nnpack_without_weight_transform(cfg, outs):
     """TOPI schedule callback"""
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if 'winograd_nnpack_conv2d_output' in op.tag:

@@ -28,6 +28,7 @@ the tensor expression language.
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import numpy as np
 
 # Global declarations of environment.
@@ -62,10 +63,10 @@ tgt="cuda"
 # No computation happens during this phase, as we are only declaring how
 # the computation should be done.
 #
-n = tvm.var("n")
-A = tvm.placeholder((n,), name='A')
-B = tvm.placeholder((n,), name='B')
-C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
+n = te.var("n")
+A = te.placeholder((n,), name='A')
+B = te.placeholder((n,), name='B')
+C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 print(type(C))
 
 ######################################################################
@@ -88,7 +89,7 @@ print(type(C))
 #     C[i] = A[i] + B[i];
 #   }
 #
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 ######################################################################
 # We used the split construct to split the first axis of C,
@@ -114,8 +115,8 @@ bx, tx = s[C].split(C.op.axis[0], factor=64)
 # to generate code that runs on GPU.
 #
 if tgt == "cuda" or tgt == "rocm" or tgt.startswith('opencl'):
-  s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-  s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+  s[C].bind(bx, te.thread_axis("blockIdx.x"))
+  s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
 ######################################################################
 # Compilation
@@ -188,7 +189,7 @@ else:
 #   arrays with different shapes into fadd, an error will be raised.
 #
 #   We can do more specializations. For example, we can write
-#   :code:`n = tvm.convert(1024)` instead of :code:`n = tvm.var("n")`,
+#   :code:`n = tvm.runtime.convert(1024)` instead of :code:`n = te.var("n")`,
 #   in the computation declaration. The generated function will
 #   only take vectors with length 1024.
 #

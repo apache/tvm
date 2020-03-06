@@ -175,6 +175,11 @@ TVM_REGISTER_GLOBAL("topi.erf")
   *rv = erf(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.tan")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = tan(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.cos")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = cos(args[0]);
@@ -188,7 +193,10 @@ TVM_REGISTER_GLOBAL("topi.tanh")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tanh(args[0]);
   });
-
+TVM_REGISTER_GLOBAL("topi.fast_tanh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = fast_tanh(args[0]);
+  });
 TVM_REGISTER_GLOBAL("topi.atan")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = atan(args[0]);

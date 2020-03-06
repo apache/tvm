@@ -17,6 +17,7 @@
 """Test code for transposed convolution."""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -38,8 +39,8 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
     stride_height, stride_width = stride
     pad_top, pad_left, pad_bottom, pad_right = padding
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((in_channel, num_filter, kernel_height, kernel_width), name='W')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = te.placeholder((in_channel, num_filter, kernel_height, kernel_width), name='W')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)

@@ -17,6 +17,7 @@
 import os.path as osp
 import numpy as np
 import tvm
+from tvm import te
 
 CWD = osp.abspath(osp.dirname(__file__))
 

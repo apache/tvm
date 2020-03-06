@@ -16,6 +16,7 @@
 # under the License.
 import os
 import tvm
+from tvm import te
 import numpy as np
 from scipy import signal
 from tvm.contrib import nvcc
@@ -63,11 +64,11 @@ def test_depthwise_conv2d_nchw():
     padding = 'SAME' # or 'VALID'
 
     # Placeholder
-    Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
-    Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
+    Input = te.placeholder((batch, in_channel, in_height, in_width), name='Input')
+    Filter = te.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
     Stride = [stride_h, stride_w]
-    Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
-    Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
+    Scale = te.placeholder((in_channel * channel_multiplier,), name='Scale')
+    Shift = te.placeholder((in_channel * channel_multiplier,), name='Shift')
     # Declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, Stride, padding)
     ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
@@ -128,7 +129,7 @@ def test_depthwise_conv2d_nchw():
         print("success")
 
     for device in ['cuda', 'opencl', 'rocm']:
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.target.build_config(auto_unroll_max_step=128,
                               unroll_explicit=device == 'rocm',
                               detect_global_barrier=False,
                               restricted_func=True):
@@ -152,11 +153,11 @@ def test_depthwise_conv2d_nhwc():
     padding = 'SAME' # or 'VALID'
 
     # Placeholder
-    Input = tvm.placeholder((batch, in_height, in_width, in_channel), name='Input')
-    Filter = tvm.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
+    Input = te.placeholder((batch, in_height, in_width, in_channel), name='Input')
+    Filter = te.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
     Stride = [stride_h, stride_w]
-    Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
-    Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
+    Scale = te.placeholder((in_channel * channel_multiplier,), name='Scale')
+    Shift = te.placeholder((in_channel * channel_multiplier,), name='Shift')
     # Declare
     DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter, Stride, padding)
     ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
@@ -217,7 +218,7 @@ def test_depthwise_conv2d_nhwc():
         print("success")
 
     for device in ['cuda', 'opencl', 'rocm']:
-        with tvm.build_config(auto_unroll_max_step=128,
+        with tvm.target.build_config(auto_unroll_max_step=128,
                               detect_global_barrier=False,
                               restricted_func=True):
             check_device(device)

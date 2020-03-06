@@ -18,6 +18,7 @@
 """1x1 Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
@@ -65,7 +66,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
     _, _, _, _, ic_bn = get_const_tuple(data_vec.shape)
 
     # schedule pad
-    if isinstance(s[data_vec].op, tvm.tensor.ComputeOp) \
+    if isinstance(s[data_vec].op, tvm.te.ComputeOp) \
             and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
@@ -78,7 +79,7 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
         # this part will be folded during Relay fold_constant pass.
         s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
         s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
-    elif isinstance(kernel_vec.op, tvm.tensor.ComputeOp) and \
+    elif isinstance(kernel_vec.op, tvm.te.ComputeOp) and \
             kernel_vec.name == 'kernel_vec':
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for
@@ -190,23 +191,23 @@ def _declaration_conv_nhwc_pack(cfg, Input, Filter, stride, padding, dilation, o
 
     # packing the Filter to let memory access be consecutive for AVX512 intrinsic
     # Done in pre-compute stage
-    idxd = tvm.indexdiv
-    idxm = tvm.indexmod
+    idxd = tvm.tir.indexdiv
+    idxm = tvm.tir.indexmod
 
     packw_shape = (kernel_h, kernel_w, idxd(num_filter, 16), 16 * idxd(channel, 4), 4)
-    PackW = tvm.compute(packw_shape,
-                        lambda a, b, c, d, e:
-                        Filter[a, b,
-                               c*16 + idxm(d, 16),
-                               idxd(d, 16) * 4 + e],
-                        name="packed_filter")
+    PackW = te.compute(packw_shape,
+                       lambda a, b, c, d, e:
+                       Filter[a, b,
+                              c*16 + idxm(d, 16),
+                              idxd(d, 16) * 4 + e],
+                       name="packed_filter")
 
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
-    Output = tvm.compute(
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
+    Output = te.compute(
         (batch, out_height, out_width, out_channel),
-        lambda nn, yy, xx, ff: tvm.sum(
+        lambda nn, yy, xx, ff: te.sum(
             PaddedInput[nn, yy * stride_h + ry * dilation_h,
                         xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
             PackW[ry, rx, idxd(ff, 16),
@@ -238,7 +239,7 @@ def _schedule_conv_nhwc_pack_int8(s, cfg, data, conv_out, last):
     ic_factor, oc_factor = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     # schedule data
     A = data
-    if isinstance(s[A].op, tvm.tensor.ComputeOp):
+    if isinstance(s[A].op, tvm.te.ComputeOp):
         batch, ih, iw, ic = s[A].op.axis
         d_ic_chunk, d_ic_block = s[A].split(ic, factor=4)
         s[A].vectorize(d_ic_block)

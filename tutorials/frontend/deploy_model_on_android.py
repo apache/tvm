@@ -31,6 +31,7 @@ from PIL import Image
 import keras
 from keras.applications.mobilenet_v2 import MobileNetV2
 import tvm
+from tvm import te
 import tvm.relay as relay
 from tvm import rpc
 from tvm.contrib import util, ndk, graph_runtime as runtime

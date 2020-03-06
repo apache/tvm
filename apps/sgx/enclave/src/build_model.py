@@ -23,6 +23,7 @@ from os import path as osp
 from tvm import relay
 from tvm.relay import testing
 import tvm
+from tvm import te
 
 
 def main():

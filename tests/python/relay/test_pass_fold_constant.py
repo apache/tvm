@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
@@ -54,7 +55,7 @@ def test_fold_const():
         raise RuntimeError()
 
     # the fold constant should work on any context.
-    with tvm.build_config(add_lower_pass=[(0, fail)]):
+    with tvm.target.build_config(add_lower_pass=[(0, fail)]):
         with tvm.target.create("cuda"):
             zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())

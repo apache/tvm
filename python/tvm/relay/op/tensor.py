@@ -47,6 +47,21 @@ def log(data):
     """
     return _make.log(data)
 
+def tan(data):
+    """Compute elementwise tan of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.tan(data)
+
 def cos(data):
     """Compute elementwise cos of data.
 
@@ -974,3 +989,22 @@ def shape_of(data, dtype="int32"):
         The shape tensor.
     """
     return _make.shape_of(data, dtype)
+
+
+def ndarray_size(data, dtype="int32"):
+    """Get number of elements of input tensor.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The number of elements of input tensor.
+    """
+    return _make.ndarray_size(data, dtype)

@@ -15,25 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 
 def test_reduce_prims():
     def test_prim(reducer, np_reducer):
         # graph
-        n = tvm.size_var('n')
-        m = tvm.size_var('m')
-        A = tvm.placeholder((n, m), name='A')
-        R = tvm.compute((n, ), lambda i: tvm.tir.Select((i > 1), 1, 0), name='R')
-        k = tvm.reduce_axis((0, m))
-        B = tvm.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i]==1)), name='B')
+        n = tvm.te.size_var('n')
+        m = tvm.te.size_var('m')
+        A = te.placeholder((n, m), name='A')
+        R = te.compute((n, ), lambda i: tvm.tir.Select((i > 1), 1, 0), name='R')
+        k = te.reduce_axis((0, m))
+        B = te.compute((n,), lambda i: reducer(A[i, k], axis=k, where=(R[i]==1)), name='B')
         # schedule
-        s = tvm.create_schedule(B.op)
+        s = te.create_schedule(B.op)
         # create iter var and assign them tags.
         num_thread = 1
         xo, xi = s[B].split(B.op.axis[0], factor=num_thread)
-        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(xo, te.thread_axis("blockIdx.x"))
+        s[B].bind(xi, te.thread_axis("threadIdx.x"))
         s[R].compute_inline()
 
         # one line to build the function.
@@ -64,18 +65,18 @@ def test_reduce_prims():
         check_device("vulkan")
         check_device("cuda")
         check_device("opencl")
-    test_prim(tvm.sum, np.sum)
-    test_prim(tvm.min, np.amin)
-    test_prim(tvm.max, np.amax)
+    test_prim(te.sum, np.sum)
+    test_prim(tvm.te.min, np.amin)
+    test_prim(tvm.te.max, np.amax)
 
 
 def test_rfactor():
-    n = tvm.convert(1027)
-    A = tvm.placeholder((n,), name='A')
-    k = tvm.reduce_axis((0, n))
-    B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k), name='B')
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,), name='A')
+    k = te.reduce_axis((0, n))
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name='B')
     # schedule
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
     BF = s.rfactor(B, kf)
     s[BF].parallel(BF.op.axis[0])
@@ -100,12 +101,12 @@ def test_rfactor():
     check_target()
 
 def test_rfactor_factor_axis():
-    n = tvm.convert(1027)
-    A = tvm.placeholder((n,), name='A')
-    k = tvm.reduce_axis((0, n))
-    B = tvm.compute((1,), lambda i: tvm.sum(A[k], axis=k), name='B')
+    n = tvm.runtime.convert(1027)
+    A = te.placeholder((n,), name='A')
+    k = te.reduce_axis((0, n))
+    B = te.compute((1,), lambda i: te.sum(A[k], axis=k), name='B')
     # schedule
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     kf, ki = s[B].split(k, nparts=4)
     BF = s.rfactor(B, kf, 1)
     s[BF].parallel(BF.op.axis[0])
@@ -133,21 +134,21 @@ def test_rfactor_factor_axis():
 def test_rfactor_threads():
     nn = 1027
     mm = 10
-    n = tvm.convert(nn)
-    m = tvm.convert(mm)
-    A = tvm.placeholder((m, n), name='A')
-    k = tvm.reduce_axis((0, n))
+    n = tvm.runtime.convert(nn)
+    m = tvm.runtime.convert(mm)
+    A = te.placeholder((m, n), name='A')
+    k = te.reduce_axis((0, n))
     nthread = 16
-    B = tvm.compute((m,), lambda i: tvm.sum(A[i, k], axis=k, where=(i>1)), name='B')
+    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=k, where=(i>1)), name='B')
     # schedule
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     ko, kf = s[B].split(k, factor=nthread)
     BF = s.rfactor(B, kf)
     bx, ty = s[B].split(s[B].op.axis[0], factor=nthread)
-    s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(ty, tvm.thread_axis("threadIdx.y"))
+    s[B].bind(bx, te.thread_axis("blockIdx.x"))
+    s[B].bind(ty, te.thread_axis("threadIdx.y"))
     tx = s[B].op.reduce_axis[0]
-    thread_x = tvm.thread_axis("threadIdx.x")
+    thread_x = te.thread_axis("threadIdx.x")
     s[B].bind(tx, thread_x)
     s[BF].compute_at(s[B], tx)
     s[B].set_store_predicate(thread_x.var.equal(0))
@@ -183,23 +184,23 @@ def test_rfactor_threads():
 def test_rfactor_elemwise_threads():
     n = 1025
     m = 10
-    A = tvm.placeholder((m, n), name='A')
-    k = tvm.reduce_axis((0, n))
+    A = te.placeholder((m, n), name='A')
+    k = te.reduce_axis((0, n))
     nthread = 16
-    B = tvm.compute((m,), lambda i: tvm.sum(A[i, k], axis=k), name='B')
-    BB = tvm.compute((m,), lambda i: B[i] + 1, name='BB')
-    C = tvm.compute((m,), lambda i: BB[i] + 1, name='C')
+    B = te.compute((m,), lambda i: te.sum(A[i, k], axis=k), name='B')
+    BB = te.compute((m,), lambda i: B[i] + 1, name='BB')
+    C = te.compute((m,), lambda i: BB[i] + 1, name='C')
     # schedule
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     s[BB].compute_inline()
     bx, ty = s[C].split(s[C].op.axis[0], factor=nthread)
     ko, kf = s[B].split(k, factor=nthread)
     BF = s.rfactor(B, kf)
     s[B].compute_at(s[C], ty)
-    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(ty, te.thread_axis("threadIdx.y"))
     tx = s[B].op.reduce_axis[0]
-    thread_x = tvm.thread_axis("threadIdx.x")
+    thread_x = te.thread_axis("threadIdx.x")
     s[B].bind(tx, thread_x)
     s[BF].compute_at(s[B], tx)
     # Since thread_x is shared across reductions
@@ -237,18 +238,18 @@ def test_argmax():
         return lhs, rhs
 
     def fidentity(t0, t1):
-        return tvm.const(-1, t0), tvm.min_value(t1)
+        return tvm.tir.const(-1, t0), tvm.te.min_value(t1)
 
-    argmax = tvm.comm_reducer(fcombine,
+    argmax = te.comm_reducer(fcombine,
                               fidentity,
                               name='argmax')
-    m = tvm.size_var('m')
-    n = tvm.size_var('n')
-    idx = tvm.placeholder((m, n), name='idx', dtype='int32')
-    val = tvm.placeholder((m, n), name='val', dtype='float32')
-    k = tvm.reduce_axis((0, n), 'k')
-    T0, T1 = tvm.compute((m,), lambda i: argmax((idx[i,k], val[i,k]), axis=k), name='T')
-    s = tvm.create_schedule(T0.op)
+    m = te.size_var('m')
+    n = te.size_var('n')
+    idx = te.placeholder((m, n), name='idx', dtype='int32')
+    val = te.placeholder((m, n), name='val', dtype='float32')
+    k = te.reduce_axis((0, n), 'k')
+    T0, T1 = te.compute((m,), lambda i: argmax((idx[i,k], val[i,k]), axis=k), name='T')
+    s = te.create_schedule(T0.op)
 
     def check_target():
         device = 'cpu'
@@ -284,31 +285,31 @@ def test_rfactor_argmax():
         return lhs, rhs
 
     def fidentity(t0, t1):
-        return tvm.const(-1, t0), tvm.min_value(t1)
+        return tvm.tir.const(-1, t0), tvm.te.min_value(t1)
 
-    argmax = tvm.comm_reducer(fcombine,
+    argmax = te.comm_reducer(fcombine,
                               fidentity,
                               name='argmax')
 
     nn = 1027
     mm = 10
-    n = tvm.convert(nn)
-    m = tvm.convert(mm)
-    A0 = tvm.placeholder((m, n), name='A0', dtype='int32')
-    A1 = tvm.placeholder((m, n), name='A1', dtype='float32')
-    k = tvm.reduce_axis((0, n))
-    B0, B1 = tvm.compute((m,), lambda i: argmax((A0[i, k], A1[i, k]), axis=k), name='B')
+    n = tvm.runtime.convert(nn)
+    m = tvm.runtime.convert(mm)
+    A0 = te.placeholder((m, n), name='A0', dtype='int32')
+    A1 = te.placeholder((m, n), name='A1', dtype='float32')
+    k = te.reduce_axis((0, n))
+    B0, B1 = te.compute((m,), lambda i: argmax((A0[i, k], A1[i, k]), axis=k), name='B')
 
     # schedule
-    s = tvm.create_schedule(B0.op)
+    s = te.create_schedule(B0.op)
     nthread = 16
     ko, kf = s[B0].split(k, factor=nthread)
     BF0, BF1 = s.rfactor(B0, kf)
     bx, ty = s[B0].split(s[B0].op.axis[0], factor=nthread)
-    s[B0].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[B0].bind(ty, tvm.thread_axis("threadIdx.y"))
+    s[B0].bind(bx, te.thread_axis("blockIdx.x"))
+    s[B0].bind(ty, te.thread_axis("threadIdx.y"))
     tx = s[B0].op.reduce_axis[0]
-    thread_x = tvm.thread_axis("threadIdx.x")
+    thread_x = te.thread_axis("threadIdx.x")
     s[B0].bind(tx, thread_x)
     s[BF0.op].compute_at(s[B0], tx)
     s[B0].set_store_predicate(thread_x.var.equal(0))

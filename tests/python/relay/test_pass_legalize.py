@@ -17,6 +17,7 @@
 """Test legalize pass"""
 import numpy as np
 import tvm
+from tvm import te
 
 from tvm import relay
 from tvm.contrib import graph_runtime

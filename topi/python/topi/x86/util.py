@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common x86 related utilities"""
-from __future__ import absolute_import as _abs
 import tvm
+
 
 def get_fp32_len():
     mcpu = tvm.target.Target.current().mcpu

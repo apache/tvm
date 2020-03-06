@@ -16,6 +16,7 @@
 # under the License.
 from collections import namedtuple
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import quantize as qtz
 import mxnet as mx

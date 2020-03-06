@@ -24,6 +24,7 @@ from collections import namedtuple
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
@@ -35,13 +36,13 @@ import vta.testing
 from vta.testing import simulator
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
-@tvm.tag_scope(tag=topi.tag.ELEMWISE)
+@tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
 def my_clip(x, a_min, a_max):
     """Unlike topi's current clip, put min and max into two stages."""
-    const_min = tvm.const(a_min, x.dtype)
-    const_max = tvm.const(a_max, x.dtype)
-    x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-    x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+    const_min = tvm.tir.const(a_min, x.dtype)
+    const_max = tvm.tir.const(a_max, x.dtype)
+    x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+    x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
     return x
 
 def run_gemm(env, remote, target,
@@ -70,8 +71,8 @@ def run_gemm(env, remote, target,
         kernel_shape = w_shape
         fcompute = topi.x86.dense_nopack
         fschedule = topi.x86.schedule_dense_nopack
-    data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
-    kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
+    data = te.placeholder(data_shape, name="data", dtype=env.inp_dtype)
+    kernel = te.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
 
     # Define base computation schedule
     with target:

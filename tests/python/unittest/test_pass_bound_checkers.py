@@ -16,41 +16,42 @@
 # under the License.
 import pytest
 import tvm
+from tvm import te
 import numpy as np
 def collect_visit(stmt, f):
     ret = []
-    tvm.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
+    tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
     return ret
 
 def lower(sch, args):
     binds = {}
     arg_list = []
     for x in args:
-        if isinstance(x, tvm.tensor.Tensor):
-            buf = tvm.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
+        if isinstance(x, te.tensor.Tensor):
+            buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
             assert x not in binds
             binds[x] = buf
             arg_list.append(buf)
         else:
             raise ValueError("args must be Tensor, Buffer or Var")
     sch = sch.normalize()
-    bounds = tvm.schedule.InferBound(sch)
-    stmt = tvm.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.ir_pass.RemoveNoOp(stmt)
-    stmt = tvm.ir_pass.StorageFlatten(stmt, binds, 64, True)
-    stmt = tvm.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.ir_pass.VectorizeLoop(stmt)
-    stmt = tvm.ir_pass.Simplify(stmt)
+    bounds = tvm.te.schedule.InferBound(sch)
+    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
+    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.tir.ir_pass.RemoveNoOp(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, True)
+    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
+    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+    stmt = tvm.tir.ir_pass.Simplify(stmt)
     return stmt
 
 @pytest.mark.xfail
 def test_out_of_bounds_llvm(index_a, index_b):
-    n = tvm.size_var("n")
-    A = tvm.placeholder ((n,), name='A')
-    B = tvm.placeholder ((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i + index_a] + B[i + index_b], name='C')
-    s = tvm.create_schedule (C.op)
+    n = te.size_var("n")
+    A = te.placeholder ((n,), name='A')
+    B = te.placeholder ((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i + index_a] + B[i + index_b], name='C')
+    s = te.create_schedule (C.op)
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower (s, [A, B, C], simple_mode=True)
@@ -63,11 +64,11 @@ def test_out_of_bounds_llvm(index_a, index_b):
     fadd (a, b, c)
 
 def test_in_bounds_llvm():
-    n = tvm.size_var("n")
-    A = tvm.placeholder ((n,), name='A')
-    B = tvm.placeholder ((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
-    s = tvm.create_schedule (C.op)
+    n = te.size_var("n")
+    A = te.placeholder ((n,), name='A')
+    B = te.placeholder ((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name='C')
+    s = te.create_schedule (C.op)
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower (s, [A, B, C], simple_mode=True)
@@ -81,11 +82,11 @@ def test_in_bounds_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
-    n = tvm.convert(nn)
-    a = tvm.placeholder((n), name='a')
-    b = tvm.placeholder((n), name='b')
-    c = tvm.compute((n,), lambda i: a[i + index_a] + b[i + index_b], name='c')
-    s = tvm.create_schedule(c.op)
+    n = tvm.runtime.convert(nn)
+    a = te.placeholder((n), name='a')
+    b = te.placeholder((n), name='b')
+    c = te.compute((n,), lambda i: a[i + index_a] + b[i + index_b], name='c')
+    s = te.create_schedule(c.op)
     xo, xi = s[c].split(c.op.axis[0], factor=8)
     s[c].parallel(xo)
     s[c].vectorize(xi)
@@ -104,10 +105,10 @@ def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
 def test_in_bounds_vectorize_llvm():
     n = 512
     lanes = 2
-    A = tvm.placeholder((n,), name='A', dtype="float32x%d" % lanes)
-    B = tvm.compute((n,), lambda i: A[i], name='B')
-    C = tvm.compute((n,), lambda i: B[i] + tvm.const(1, A.dtype), name='C')
-    s = tvm.create_schedule(C.op)
+    A = te.placeholder((n,), name='A', dtype="float32x%d" % lanes)
+    B = te.compute((n,), lambda i: A[i], name='B')
+    C = te.compute((n,), lambda i: B[i] + tvm.tir.const(1, A.dtype), name='C')
+    s = te.create_schedule(C.op)
     xo, xi = s[C].split(C.op.axis[0], nparts=2)
     _, xi = s[C].split(xi, factor=2)
     s[C].parallel(xo)
@@ -128,12 +129,12 @@ def test_in_bounds_vectorize_llvm():
     tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
 
 def test_in_bounds_loop_partition_basic_llvm():
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n, ), name='A')
-    B = tvm.placeholder((n, ), name='B')
+    n = te.size_var('n')
+    A = te.placeholder((n, ), name='A')
+    B = te.placeholder((n, ), name='B')
 
-    T = tvm.compute((n, ), lambda i: A[i]+B[i])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((n, ), lambda i: A[i]+B[i])
+    s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
@@ -147,12 +148,12 @@ def test_in_bounds_loop_partition_basic_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_loop_partition_basic_llvm(index_a, index_b):
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n, ), name='A')
-    B = tvm.placeholder((n, ), name='B')
+    n = te.size_var('n')
+    A = te.placeholder((n, ), name='A')
+    B = te.placeholder((n, ), name='B')
 
-    T = tvm.compute((n, ), lambda i: A[i + index_a]+B[i + index_b])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((n, ), lambda i: A[i + index_a]+B[i + index_b])
+    s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
@@ -187,20 +188,20 @@ def test_in_bounds_const_loop_partition_ir():
             branch_collector.append(x)
 
     n = 21
-    A = tvm.placeholder((n, ), name='A')
-    B = tvm.placeholder((n, ), name='B')
+    A = te.placeholder((n, ), name='A')
+    B = te.placeholder((n, ), name='B')
 
-    T = tvm.compute((n, ), lambda i: A[i]+B[i])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((n, ), lambda i: A[i]+B[i])
+    s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
 
-    bounds = tvm.schedule.InferBound(s)
+    bounds = tvm.te.schedule.InferBound(s)
     stmt = lower (s, [A, B, T])
     # num_attributes = num_buffers * num_splits = 2 * 3
     # before instrumentation
     assert_bound_instrumentation(stmt, check_attr_stmt, 2 * 3)
     assert_bound_instrumentation(stmt, check_branch_stmt, 0)
-    stmt = tvm.ir_pass.InstrumentBoundCheckers(stmt)
+    stmt = tvm.tir.ir_pass.InstrumentBoundCheckers(stmt)
     # after instrumentation
     assert_bound_instrumentation(stmt, check_attr_stmt, 2 * 3)
     assert_bound_instrumentation(stmt, check_branch_stmt, 2)
@@ -212,13 +213,13 @@ def test_in_bounds_const_loop_partition_ir():
     print (branch_collector[1].condition)
 
 def test_in_bounds_const_loop_partition_llvm():
-    with tvm.build_config(instrument_bound_checkers=True, partition_const_loop=True):
+    with tvm.target.build_config(instrument_bound_checkers=True, partition_const_loop=True):
         n = 21
-        A = tvm.placeholder((n, ), name='A')
-        B = tvm.placeholder((n, ), name='B')
+        A = te.placeholder((n, ), name='A')
+        B = te.placeholder((n, ), name='B')
 
-        T = tvm.compute((n, ), lambda i: A[i]+B[i])
-        s = tvm.create_schedule(T.op)
+        T = te.compute((n, ), lambda i: A[i]+B[i])
+        s = te.create_schedule(T.op)
         xo, xi = s[T].split(T.op.axis[0], factor=4)
         lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
         print (lowered_func.body)
@@ -232,13 +233,13 @@ def test_in_bounds_const_loop_partition_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_const_loop_partition_llvm(index_a, index_b):
-    with tvm.build_config(instrument_bound_checkers=True, partition_const_loop=True):
+    with tvm.target.build_config(instrument_bound_checkers=True, partition_const_loop=True):
         n = 21
-        A = tvm.placeholder((n, ), name='A')
-        B = tvm.placeholder((n, ), name='B')
+        A = te.placeholder((n, ), name='A')
+        B = te.placeholder((n, ), name='B')
 
-        T = tvm.compute((n, ), lambda i: A[i + index_a]+B[i + index_b])
-        s = tvm.create_schedule(T.op)
+        T = te.compute((n, ), lambda i: A[i + index_a]+B[i + index_b])
+        s = te.create_schedule(T.op)
         xo, xi = s[T].split(T.op.axis[0], factor=4)
         lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
         print (lowered_func.body)
@@ -258,18 +259,18 @@ def test_in_bounds_conv_llvm(loop_tiling=False):
     batch_size = 1
     in_height = in_width = 64
     out_height = out_width = in_height - kernel_height + 1
-    data = tvm.placeholder((batch_size, in_channel, in_height, in_width), name='data')
-    kernel = tvm.placeholder((kernel_height, kernel_width, in_channel,
+    data = te.placeholder((batch_size, in_channel, in_height, in_width), name='data')
+    kernel = te.placeholder((kernel_height, kernel_width, in_channel,
         out_channel), name='kernel')
-    ic = tvm.reduce_axis((0, in_channel), name='ic')
-    kh = tvm.reduce_axis((0, kernel_height), name='kh')
-    kw = tvm.reduce_axis((0, kernel_width), name='kw')
-    conv = tvm.compute((batch_size, out_channel, out_height, out_width),
-                       lambda n, oc, oh, ow: tvm.sum(data[n, ic, oh*HSTR + kh, ow*WSTR + kw] *
+    ic = te.reduce_axis((0, in_channel), name='ic')
+    kh = te.reduce_axis((0, kernel_height), name='kh')
+    kw = te.reduce_axis((0, kernel_width), name='kw')
+    conv = te.compute((batch_size, out_channel, out_height, out_width),
+                       lambda n, oc, oh, ow: te.sum(data[n, ic, oh*HSTR + kh, ow*WSTR + kw] *
                                                      kernel[kh, kw, ic, oc],
                                                      axis=[ic, kh, kw]),
                        name="conv2d")
-    s = tvm.create_schedule(conv.op)
+    s = te.create_schedule(conv.op)
 
     n, oc, oh, ow = conv.op.axis
     if loop_tiling:
@@ -280,10 +281,10 @@ def test_in_bounds_conv_llvm(loop_tiling=False):
 
     f = tvm.build(s, [data, kernel, conv], "llvm")
     data_input = tvm.nd.array(np.random.uniform(
-          size=(batch_size, in_channel, in_height, in_width)).astype(tvm.float32), ctx)
+          size=(batch_size, in_channel, in_height, in_width)).astype("float32"), ctx)
     kernel_input = tvm.nd.array(np.random.uniform(
-          size=(kernel_height, kernel_width, in_channel, out_channel)).astype(tvm.float32), ctx)
-    conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), tvm.float32, ctx)
+          size=(kernel_height, kernel_width, in_channel, out_channel)).astype("float32"), ctx)
+    conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), "float32", ctx)
     f(data_input, kernel_input, conv_out)
 
 @pytest.mark.xfail
@@ -295,14 +296,14 @@ def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False
     batch_size = 1
     in_height = in_width = 64
     out_height = out_width = in_height - kernel_height + 1
-    data = tvm.placeholder((batch_size, in_channel, in_height, in_width), name='data')
-    kernel = tvm.placeholder((kernel_height, kernel_width, in_channel,
+    data = te.placeholder((batch_size, in_channel, in_height, in_width), name='data')
+    kernel = te.placeholder((kernel_height, kernel_width, in_channel,
         out_channel), name='kernel')
-    ic = tvm.reduce_axis((0, in_channel), name='ic')
-    kh = tvm.reduce_axis((0, kernel_height), name='kh')
-    kw = tvm.reduce_axis((0, kernel_width), name='kw')
-    conv = tvm.compute((batch_size, out_channel, out_height, out_width),
-                       lambda n, oc, oh, ow: tvm.sum(data[n + data_offsets[0],
+    ic = te.reduce_axis((0, in_channel), name='ic')
+    kh = te.reduce_axis((0, kernel_height), name='kh')
+    kw = te.reduce_axis((0, kernel_width), name='kw')
+    conv = te.compute((batch_size, out_channel, out_height, out_width),
+                       lambda n, oc, oh, ow: te.sum(data[n + data_offsets[0],
                                                           ic + data_offsets[1],
                                                           oh*HSTR + kh + data_offsets[2],
                                                           ow*WSTR + kw + data_offsets[3]]
@@ -313,7 +314,7 @@ def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False
                                                      oc + kernel_offsets[3]],
                                                      axis=[ic, kh, kw]),
                        name="conv2d")
-    s = tvm.create_schedule(conv.op)
+    s = te.create_schedule(conv.op)
 
     n, oc, oh, ow = conv.op.axis
     if loop_tiling:
@@ -324,21 +325,21 @@ def test_out_of_bounds_conv_llvm(data_offsets, kernel_offsets, loop_tiling=False
 
     f = tvm.build(s, [data, kernel, conv], "llvm")
     data_input = tvm.nd.array(np.random.uniform(
-          size=(batch_size, in_channel, in_height, in_width)).astype(tvm.float32), ctx)
+          size=(batch_size, in_channel, in_height, in_width)).astype("float32"), ctx)
     kernel_input = tvm.nd.array(np.random.uniform(
-          size=(kernel_height, kernel_width, in_channel, out_channel)).astype(tvm.float32), ctx)
-    conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), tvm.float32, ctx)
+          size=(kernel_height, kernel_width, in_channel, out_channel)).astype("float32"), ctx)
+    conv_out = tvm.nd.empty ((batch_size, out_channel, out_height, out_width), "float32", ctx)
     f(data_input, kernel_input, conv_out)
 
 def test_in_bounds_tensors_with_same_shapes1D_llvm():
-    n = tvm.size_var('n')
-    k = tvm.size_var('k')
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n, ), name='A')
-    B = tvm.placeholder((k, ), name='B')
+    n = te.size_var('n')
+    k = te.size_var('k')
+    m = te.size_var('m')
+    A = te.placeholder((n, ), name='A')
+    B = te.placeholder((k, ), name='B')
 
-    T = tvm.compute((m, ), lambda i: A[i]*B[i])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((m, ), lambda i: A[i]*B[i])
+    s = te.create_schedule(T.op)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
     ctx = tvm.cpu(0)
@@ -351,14 +352,14 @@ def test_in_bounds_tensors_with_same_shapes1D_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape):
-    n = tvm.size_var('n')
-    k = tvm.size_var('k')
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n, ), name='A')
-    B = tvm.placeholder((k, ), name='B')
+    n = te.size_var('n')
+    k = te.size_var('k')
+    m = te.size_var('m')
+    A = te.placeholder((n, ), name='A')
+    B = te.placeholder((k, ), name='B')
 
-    T = tvm.compute((m, ), lambda i: A[i]*B[i])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((m, ), lambda i: A[i]*B[i])
+    s = te.create_schedule(T.op)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
     ctx = tvm.cpu(0)
@@ -370,14 +371,14 @@ def test_out_of_bounds_tensors_with_diff_shapes1D_llvm(a_shape, b_shape, c_shape
     f(a, b, t)
 
 def test_in_bounds_tensors_with_same_shapes2D_llvm():
-    n = tvm.size_var('n')
-    k = tvm.size_var('k')
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n, n), name='A')
-    B = tvm.placeholder((k, k), name='B')
+    n = te.size_var('n')
+    k = te.size_var('k')
+    m = te.size_var('m')
+    A = te.placeholder((n, n), name='A')
+    B = te.placeholder((k, k), name='B')
 
-    T = tvm.compute((m, m), lambda i, j: A[i][j]*B[i][j])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((m, m), lambda i, j: A[i][j]*B[i][j])
+    s = te.create_schedule(T.op)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
     ctx = tvm.cpu(0)
@@ -390,14 +391,14 @@ def test_in_bounds_tensors_with_same_shapes2D_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape):
-    n = tvm.size_var('n')
-    k = tvm.size_var('k')
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n, n), name='A')
-    B = tvm.placeholder((k, k), name='B')
+    n = te.size_var('n')
+    k = te.size_var('k')
+    m = te.size_var('m')
+    A = te.placeholder((n, n), name='A')
+    B = te.placeholder((k, k), name='B')
 
-    T = tvm.compute((m, m), lambda i, j: A[i][j]*B[i][j])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((m, m), lambda i, j: A[i][j]*B[i][j])
+    s = te.create_schedule(T.op)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
     ctx = tvm.cpu(0)
@@ -409,14 +410,14 @@ def test_out_of_bounds_tensors_with_diff_shapes2D_llvm(a_shape, b_shape, c_shape
     f(a, b, t)
 
 def test_in_bounds_tensors_with_same_shapes3D_llvm():
-    n = tvm.size_var('n')
-    k = tvm.size_var('k')
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n, n, n), name='A')
-    B = tvm.placeholder((k, k, k), name='B')
+    n = te.size_var('n')
+    k = te.size_var('k')
+    m = te.size_var('m')
+    A = te.placeholder((n, n, n), name='A')
+    B = te.placeholder((k, k, k), name='B')
 
-    T = tvm.compute((m, m, m), lambda i, j, p: A[i][j][p]*B[i][j][p])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((m, m, m), lambda i, j, p: A[i][j][p]*B[i][j][p])
+    s = te.create_schedule(T.op)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
     ctx = tvm.cpu(0)
@@ -429,14 +430,14 @@ def test_in_bounds_tensors_with_same_shapes3D_llvm():
 
 @pytest.mark.xfail
 def test_out_of_bounds_tensors_with_diff_shapes3D_llvm(a_shape, b_shape, c_shape):
-    n = tvm.size_var('n')
-    k = tvm.size_var('k')
-    m = tvm.size_var('m')
-    A = tvm.placeholder((n, n, n), name='A')
-    B = tvm.placeholder((k, k, k), name='B')
+    n = te.size_var('n')
+    k = te.size_var('k')
+    m = te.size_var('m')
+    A = te.placeholder((n, n, n), name='A')
+    B = te.placeholder((k, k, k), name='B')
 
-    T = tvm.compute((m, m, m), lambda i, j, p: A[i][j][p]*B[i][j][p])
-    s = tvm.create_schedule(T.op)
+    T = te.compute((m, m, m), lambda i, j, p: A[i][j][p]*B[i][j][p])
+    s = te.create_schedule(T.op)
     lowered_func = tvm.lower (s, [A, B, T], "llvm", simple_mode=False)
     print (lowered_func.body)
     ctx = tvm.cpu(0)
@@ -452,12 +453,12 @@ def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
     if not tvm.runtime.enabled("llvm"):
         return
     n = 64
-    A = tvm.placeholder((n, ), name='A')
-    scale = tvm.placeholder((), name='scale')
-    k = tvm.reduce_axis((0, n), name="k")
-    C = tvm.compute((), lambda : tvm.sum(A[k + k + k] * scale, axis=k), name="C")
-    D = tvm.compute((), lambda : C + 1)
-    s = tvm.create_schedule(D.op)
+    A = te.placeholder((n, ), name='A')
+    scale = te.placeholder((), name='scale')
+    k = te.reduce_axis((0, n), name="k")
+    C = te.compute((), lambda : te.sum(A[k + k + k] * scale, axis=k), name="C")
+    D = te.compute((), lambda : C + 1)
+    s = te.create_schedule(D.op)
     stmt = tvm.lower (s, [A, scale, D], simple_mode=True)
     print (stmt)
     # build and invoke the kernel.
@@ -473,7 +474,7 @@ def test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm():
     tvm.testing.assert_allclose(d.asnumpy(), d_np)
 
 if __name__ == "__main__":
-    with tvm.build_config(instrument_bound_checkers=True):
+    with tvm.target.build_config(instrument_bound_checkers=True):
         # zero scale
         test_out_of_bounds_tensors_with_zero_shape_op_with_not_zero_shape_llvm()
         # in bound

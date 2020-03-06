@@ -16,6 +16,8 @@
 # under the License.
 import tvm_ext
 import tvm
+import tvm._ffi.registry
+from tvm import te
 import numpy as np
 
 def test_bind_add():
@@ -26,9 +28,9 @@ def test_bind_add():
 
 def test_ext_dev():
     n = 10
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute((n,), lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    A = te.placeholder((n,), name='A')
+    B = te.compute((n,), lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
     def check_llvm():
         if not tvm.runtime.enabled("llvm"):
             return
@@ -43,8 +45,8 @@ def test_ext_dev():
 
 
 def test_sym_add():
-    a = tvm.var('a')
-    b = tvm.var('b')
+    a = te.var('a')
+    b = te.var('b')
     c = tvm_ext.sym_add(a, b)
     assert c.a == a and c.b == b
 
@@ -59,19 +61,20 @@ def test_ext_vec():
         assert(isinstance(v2, tvm_ext.IntVec))
         assert v2[2] == 3
 
-    tvm.convert(ivec_cb)(ivec)
+    tvm.runtime.convert(ivec_cb)(ivec)
 
 
 def test_extract_ext():
-    fdict = tvm.extract_ext_funcs(tvm_ext._LIB.TVMExtDeclare)
+    fdict = tvm._ffi.registry.extract_ext_funcs(
+        tvm_ext._LIB.TVMExtDeclare)
     assert fdict["mul"](3, 4) == 12
 
 
 def test_extern_call():
     n = 10
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute((n,), lambda *i: tvm.call_extern("float32", "TVMTestAddOne", A(*i)), name='B')
-    s = tvm.create_schedule(B.op)
+    A = te.placeholder((n,), name='A')
+    B = te.compute((n,), lambda *i: tvm.tir.call_extern("float32", "TVMTestAddOne", A(*i)), name='B')
+    s = te.create_schedule(B.op)
 
     def check_llvm():
         if not tvm.runtime.enabled("llvm"):

@@ -18,6 +18,7 @@
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 import logging
@@ -50,10 +51,10 @@ def check_device(A, B, a_np, b_np, device, name):
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 def verify_softmax(m, n, dtype="float32"):
-    A = tvm.placeholder((m, n), dtype=dtype, name='A')
+    A = te.placeholder((m, n), dtype=dtype, name='A')
     B = topi.nn.softmax(A)
     # confirm lower works
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
     tvm.lower(s, [A, B], simple_mode=True)
 
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
@@ -63,7 +64,7 @@ def verify_softmax(m, n, dtype="float32"):
         check_device(A, B, a_np, b_np, device, "softmax")
 
 def verify_softmax_4d(shape, dtype="float32"):
-    A = tvm.placeholder(shape, dtype=dtype, name='A')
+    A = te.placeholder(shape, dtype=dtype, name='A')
     B = topi.nn.softmax(A, axis=1)
 
     _, c, h, w = shape
@@ -81,10 +82,10 @@ def test_softmax():
     verify_softmax_4d((1, 16, 256, 256))
 
 def verify_log_softmax(m, n, dtype="float32"):
-    A = tvm.placeholder((m, n), dtype=dtype, name='A')
+    A = te.placeholder((m, n), dtype=dtype, name='A')
     B = topi.nn.log_softmax(A)
     # confirm lower works
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
     tvm.lower(s, [A, B], simple_mode=True)
     a_np = np.random.uniform(size=get_const_tuple(A.shape)).astype(A.dtype)
     b_np = topi.testing.log_softmax_python(a_np)

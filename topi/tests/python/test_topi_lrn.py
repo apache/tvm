@@ -17,6 +17,7 @@
 """Test code for local response normalization"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
 from topi.util import get_const_tuple
 import topi.testing
@@ -32,7 +33,7 @@ _lrn_schedule = {
 }
 
 def verify_lrn(shape, size, axis, bias, alpha, beta):
-    A = tvm.placeholder(shape, name='A')
+    A = te.placeholder(shape, name='A')
     B = topi.nn.lrn(A, size, axis, alpha, beta, bias)
     dtype = A.dtype
 

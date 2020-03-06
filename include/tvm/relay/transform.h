@@ -164,6 +164,13 @@ TVM_DLL Pass PartialEval();
 TVM_DLL Pass SimplifyInference();
 
 /*!
+ * \brief Replaces non linear activation functions with their fast but approximate counterparts.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FastMath();
+
+/*!
  * \brief Infer the type of an expression.
  *
  * The result of type checking is a new expression with unambigous
@@ -316,6 +323,24 @@ TVM_DLL Pass PrintIR(bool show_meta_data = true);
  * \return The pass.
  */
 TVM_DLL Pass PartitionGraph();
+
+/*!
+ * \brief Inline the global functions marked as `inline` in a given Relay
+ * IRModule.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass Inline();
+
+/*!
+ * \brief Remove the unused functions in the Relay IRModule.
+ *
+ * \param entry_functions The entry functions used to search the functions that
+ *        are being used.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
 
 }  // namespace transform
 

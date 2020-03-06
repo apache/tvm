@@ -16,9 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Schedule for dense operator"""
-from __future__ import absolute_import as _abs
 import logging
-import tvm
+from tvm import te
 import tvm.autotvm as autotvm
 from tvm.autotvm.task.space import SplitEntity
 from tvm.contrib import cublas
@@ -45,9 +44,9 @@ def dense_cublas(cfg, data, weight, bias=None, out_dtype=None):
     matmul = cublas.matmul(data, weight, False, True)
     cfg.add_flop(batch * in_dim * out_dim * 2)
     if bias is not None:
-        matmul = tvm.compute((batch, out_dim),
-                             lambda i, j: matmul[i, j] + bias[j],
-                             tag=tag.BROADCAST)
+        matmul = te.compute((batch, out_dim),
+                            lambda i, j: matmul[i, j] + bias[j],
+                            tag=tag.BROADCAST)
     return matmul
 
 
@@ -66,8 +65,8 @@ def dense_small_batch(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_small_batch.cuda")
 def schedule_dense_small_batch(cfg, outs):
     """Schedule float32/64 dense with small batch size"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'dense':
@@ -91,11 +90,11 @@ def _schedule_dense_small_batch(cfg, s, C):
     else:
         Out = s.outputs[0].output(0)
         s[C].compute_at(s[Out], s[Out].op.axis[1])
-    s[Out].bind(s[Out].op.axis[0], tvm.thread_axis("blockIdx.y"))
-    s[Out].bind(s[Out].op.axis[1], tvm.thread_axis("blockIdx.x"))
+    s[Out].bind(s[Out].op.axis[0], te.thread_axis("blockIdx.y"))
+    s[Out].bind(s[Out].op.axis[1], te.thread_axis("blockIdx.x"))
 
     tx = s[C].op.reduce_axis[0]
-    thread_x = tvm.thread_axis("threadIdx.x")
+    thread_x = te.thread_axis("threadIdx.x")
     s[C].bind(tx, thread_x)
     s[CF].compute_at(s[C], tx)
     s[C].set_store_predicate(thread_x.var.equal(0))
@@ -111,8 +110,8 @@ def dense_large_batch(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_large_batch.cuda")
 def schedule_dense_large_batch(cfg, outs):
     """Schedule float32/64 dense with large batch size"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if op.tag == 'dense':
@@ -185,12 +184,12 @@ def _schedule_dense_large_batch(cfg, s, C):
     s[CC].compute_at(s[C], tx)
 
     # Binding
-    s[C].bind(by, tvm.thread_axis("blockIdx.y"))
-    s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[C].bind(tyz, tvm.thread_axis("vthread"))
-    s[C].bind(txz, tvm.thread_axis("vthread"))
-    s[C].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[C].bind(by, te.thread_axis("blockIdx.y"))
+    s[C].bind(bx, te.thread_axis("blockIdx.x"))
+    s[C].bind(tyz, te.thread_axis("vthread"))
+    s[C].bind(txz, te.thread_axis("vthread"))
+    s[C].bind(ty, te.thread_axis("threadIdx.y"))
+    s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
     # Split reduction
     yo, xo = CC.op.axis
@@ -207,8 +206,8 @@ def _schedule_dense_large_batch(cfg, s, C):
     ty, _ = s[AA].split(s[AA].op.axis[0], nparts=num_thread_x)
     _, xi = s[AA].split(s[AA].op.axis[1], factor=num_thread_x * 4)
     tx, xi = s[AA].split(xi, nparts=num_thread_x)
-    s[AA].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[AA].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[AA].bind(ty, te.thread_axis("threadIdx.y"))
+    s[AA].bind(tx, te.thread_axis("threadIdx.x"))
     s[AA].double_buffer()
 
     # Schedule for B' shared memory load
@@ -216,8 +215,8 @@ def _schedule_dense_large_batch(cfg, s, C):
     ty, _ = s[BB].split(s[BB].op.axis[0], nparts=num_thread_y)
     _, xi = s[BB].split(s[BB].op.axis[1], factor=num_thread_y * 4)
     tx, xi = s[BB].split(xi, nparts=num_thread_y)
-    s[BB].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[BB].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[BB].bind(ty, te.thread_axis("threadIdx.y"))
+    s[BB].bind(tx, te.thread_axis("threadIdx.x"))
     s[BB].double_buffer()
 
 
@@ -229,19 +228,19 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
 
     batch, in_dim = get_const_tuple(data.shape)
     out_dim, _ = get_const_tuple(weight.shape)
-    k = tvm.reduce_axis((0, in_dim), name='k')
+    k = te.reduce_axis((0, in_dim), name='k')
 
-    matmul = tvm.compute((batch, out_dim),
-                         lambda i, j: tvm.sum(data[i, k].astype(out_dtype) *
-                                              weight[j, k].astype(out_dtype), axis=[k]),
-                         tag="dense_int8")
+    matmul = te.compute((batch, out_dim),
+                        lambda i, j: te.sum(data[i, k].astype(out_dtype) *
+                                            weight[j, k].astype(out_dtype), axis=[k]),
+                        tag="dense_int8")
 
     cfg.add_flop(batch * in_dim * out_dim * 2)
 
     if bias is not None:
-        matmul = tvm.compute((batch, out_dim),
-                             lambda i, j: matmul[i, j] + bias[j].astype(out_dtype),
-                             tag=tag.BROADCAST)
+        matmul = te.compute((batch, out_dim),
+                            lambda i, j: matmul[i, j] + bias[j].astype(out_dtype),
+                            tag=tag.BROADCAST)
         cfg.add_flop(batch * out_dim)
 
     return matmul
@@ -250,8 +249,8 @@ def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
 @autotvm.register_topi_schedule("dense_int8.cuda")
 def schedule_dense_int8(cfg, outs):
     """Dense schedule for int8 on CUDA"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         if "dense_int8" in op.tag:
@@ -302,12 +301,12 @@ def _schedule_dense_int8(cfg, s, output):
     bx, vx, tx, xi = cfg['tile_x'].apply(s, output, x)
 
     s[output].reorder(by, bx, vy, vx, ty, tx, yi, xi)
-    s[output].bind(by, tvm.thread_axis('blockIdx.y'))
-    s[output].bind(bx, tvm.thread_axis('blockIdx.x'))
-    s[output].bind(vy, tvm.thread_axis('vthread'))
-    s[output].bind(vx, tvm.thread_axis('vthread'))
-    s[output].bind(ty, tvm.thread_axis('threadIdx.y'))
-    s[output].bind(tx, tvm.thread_axis('threadIdx.x'))
+    s[output].bind(by, te.thread_axis('blockIdx.y'))
+    s[output].bind(bx, te.thread_axis('blockIdx.x'))
+    s[output].bind(vy, te.thread_axis('vthread'))
+    s[output].bind(vx, te.thread_axis('vthread'))
+    s[output].bind(ty, te.thread_axis('threadIdx.y'))
+    s[output].bind(tx, te.thread_axis('threadIdx.x'))
     n_ty = cfg['tile_y'].size[2]
     n_tx = cfg['tile_x'].size[2]
 
@@ -325,8 +324,8 @@ def _schedule_dense_int8(cfg, s, output):
 
         fused, tx = s[load].split(fused, factor=n_tx)
         fused, ty = s[load].split(fused, factor=n_ty)
-        s[load].bind(tx, tvm.thread_axis('threadIdx.x'))
-        s[load].bind(ty, tvm.thread_axis('threadIdx.y'))
+        s[load].bind(tx, te.thread_axis('threadIdx.x'))
+        s[load].bind(ty, te.thread_axis('threadIdx.y'))
 
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[output].pragma(kernel_scope, 'unroll_explicit', False)

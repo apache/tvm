@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import logging
 import numpy as np
 import tvm
+from tvm import te
 from ..base import register_relay_node, Object
 from ... import target as _target
 from ... import autotvm
@@ -79,12 +80,12 @@ def get_shape(shape):
     """Convert the shape to correct dtype and vars."""
     ret = []
     for dim in shape:
-        if isinstance(dim, tvm.expr.IntImm):
+        if isinstance(dim, tvm.tir.IntImm):
             val = int(dim)
             assert val <= np.iinfo(np.int32).max
-            ret.append(tvm.expr.IntImm("int32", val))
-        elif isinstance(dim, tvm.expr.Any):
-            ret.append(tvm.var("any_dim", "int32"))
+            ret.append(tvm.tir.IntImm("int32", val))
+        elif isinstance(dim, tvm.tir.Any):
+            ret.append(te.var("any_dim", "int32"))
         else:
             ret.append(dim)
     return ret
@@ -103,7 +104,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
     attrs : object
         The op attribute.
 
-    inputs : List[tvm.Tensor]
+    inputs : List[tvm.te.Tensor]
         Input tensors to the op.
 
     out_type : relay.Type
@@ -129,7 +130,7 @@ def get_valid_implementations(op, attrs, inputs, out_type, target):
             flag = True
             for clause in spec.condition.clauses:
                 clause = analyzer.canonical_simplify(clause)
-                if isinstance(clause, tvm.expr.IntImm) and clause.value:
+                if isinstance(clause, tvm.tir.IntImm) and clause.value:
                     continue
                 flag = False
                 break
@@ -162,7 +163,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
     attrs : object
         The op attribute.
 
-    inputs : List[tvm.Tensor]
+    inputs : List[tvm.te.Tensor]
         Input tensors to the op.
 
     out_type : relay.Type
@@ -176,7 +177,7 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     Returns
     -------
-    ret : tuple(relay.op.OpImplementation, List[tvm.Tensor])
+    ret : tuple(relay.op.OpImplementation, List[tvm.te.Tensor])
         The best op implementation and the corresponding output tensors.
     """
     all_impls = get_valid_implementations(op, attrs, inputs, out_type, target)

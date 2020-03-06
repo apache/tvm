@@ -18,6 +18,7 @@
 from __future__ import print_function
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 
@@ -34,7 +35,7 @@ _topk_implement = {
 def verify_argsort(axis, is_ascend):
     dshape = (20, 100)
     data_dtype = "float32"
-    data = tvm.placeholder(dshape, name="data", dtype=data_dtype)
+    data = te.placeholder(dshape, name="data", dtype=data_dtype)
 
     perm = np.arange(dshape[0] * dshape[1], dtype=data_dtype)
     np.random.shuffle(perm)
@@ -74,7 +75,7 @@ def verify_argsort(axis, is_ascend):
 def verify_topk(k, axis, ret_type, is_ascend, dtype):
     shape = (20, 100)
     data_dtype = "float32"
-    data = tvm.placeholder(shape, name="data", dtype=data_dtype)
+    data = te.placeholder(shape, name="data", dtype=data_dtype)
 
     np_data = np.random.uniform(size=shape).astype(data_dtype)
     if is_ascend:

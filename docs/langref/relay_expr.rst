@@ -92,7 +92,7 @@ references to :code:`%a` in the inner scope refer to the later definition, while
 references to :code:`%a` in the outer scope continue to refer to
 the first one.
 
-.. code-block:: python
+.. code-block::
 
     let %a = 1;
     let %b = 2 * %a;  // %b = 2
@@ -129,14 +129,14 @@ A definition minimally consists of the keyword :code:`fn`, an empty set of
 parameters, and a body expression (:py:class:`~tvm.relay.expr.Expr`)
 contained by curly braces.
 
-.. code-block:: python
+.. code-block::
 
     fn() { body }
 
 A definition may contain any number of parameters. For example, a
 simple function that invokes the :code:`add` operator:
 
-.. code-block:: python
+.. code-block::
 
     fn(%x, %y) { add(%x, %y) }
 
@@ -147,7 +147,7 @@ One may also annotate explicit types on functions.
 For example, we can restrict the above function to only work
 on certain types:
 
-.. code-block:: python
+.. code-block::
 
     fn(%x : Tensor[(10, 10), float32], %y : Tensor[(10, 10), float32])
                -> Tensor[(10, 10), float32] {
@@ -155,7 +155,7 @@ on certain types:
     }
 
 The above function only takes arguments of type :code:`Tensor[(10, 10), float32]` and returns a value of
-type :code:`Tensor[(10, 10), float32]`. A function parameter is just a local 
+type :code:`Tensor[(10, 10), float32]`. A function parameter is just a local
 variable (:py:class:`~tvm.relay.expr.LocalVar`) optionally annotated with a type, written as :code:`%x : T`.
 
 When the type information is omitted, Relay attempts to infer the most general type
@@ -166,7 +166,7 @@ parameters and return type based on the function body and call sites.
 A recursive function expression can be defined using a :code:`let` binding,
 as here:
 
-.. code-block:: python
+.. code-block::
 
     let %fact = fn(%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
         if (%x == Constant(0, (10, 10), float32)) {
@@ -189,7 +189,7 @@ For example, in the below example, the final result will be
 a tensor of zero values because the closure for :code:`%f` stores the value of
 :code:`%x` at the pointer where :code:`%f` was defined.
 
-.. code-block:: python
+.. code-block::
 
     let %g = fn() {
       let %x = Constant(0, (10, 10), float32);
@@ -216,13 +216,13 @@ given at call sites.
 Type parameters are classified by *kind* and can
 only appear in parts of the type signature where their kind is appropriate
 (e.g., type parameters of kind :code:`Shape` can only appear where a shape
-would be expected in a tensor type); for a full discussion, 
+would be expected in a tensor type); for a full discussion,
 see :ref:`the documentation on type parameters <type-parameter>`.
 
 For example, one can define a polymorphic identity function for
 any Relay type as follows:
 
-.. code-block:: python
+.. code-block::
 
     fn<t : Type>(%x : t) -> t {
         %x
@@ -231,7 +231,7 @@ any Relay type as follows:
 The below definition is also polymorphic, but restricts its
 arguments to tensor types:
 
-.. code-block:: python
+.. code-block::
 
     fn<s : Shape, bt : BaseType>(%x : Tensor[s, bt]) {
         %x
@@ -244,7 +244,7 @@ Notice that the return type is omitted and will be inferred.
 A function may also be subject to one or more type relations, such as in
 the following:
 
-.. code-block:: python
+.. code-block::
 
     fn(%x, %y) where Broadcast { add(%x, %y) }
 
@@ -347,14 +347,14 @@ or global functions) and Relay operators.
 The syntax of calls follows that used in C-like languages, demonstrated in the
 example below:
 
-.. code-block:: python
+.. code-block::
 
    let %c = 1;
    let %f = fn(%x : Tensor[(), float32], %y : Tensor[(), float32]) { %x + %y + %c };
    %f(10, 11)
 
 When a closure is called (see `Closures`_),
-the closure's body is evaluated in the stored environment 
+the closure's body is evaluated in the stored environment
 (i.e., using the stored values for free variables) with
 local variable bindings added for each argument; the final value
 obtained by evaluating the body is the call's return value.
@@ -362,7 +362,7 @@ Thus, in the above example, the call evaluates to 22.
 In the case of operators, the implementation is opaque to Relay,
 so the result is left up to the registered TVM implementation.
 
-*Note: type parameters are not yet supported in the text format.* 
+*Note: type parameters are not yet supported in the text format.*
 
 A type-polymorphic function can also include type arguments at a call
 site. The type arguments are substituted for type parameters when
@@ -370,7 +370,7 @@ type checking. If a function is type-polymorphic and type arguments are not
 given, type inference will attempt to infer type arguments if possible.
 The following code gives examples of explicit and inferred type arguments:
 
-.. code-block:: python
+.. code-block::
 
     // %f : fn<a : Type, b : Type, c : Type>(a, b) -> c
     let %x1 = %f<Tensor[(), bool], Tensor[(), bool], Tensor[(), bool)]>(True, False);
@@ -380,7 +380,7 @@ The following code gives examples of explicit and inferred type arguments:
 
 Note that all type relations in the function type must hold at each
 call site. Specifically, this means that the relation will be checked
-against the specific types of the arguments at a given call site. This 
+against the specific types of the arguments at a given call site. This
 is also a form of polymorphism, since there may be multiple valid
 assignments of argument types and a return type so long as the relation
 is satisfied.
@@ -390,7 +390,7 @@ and has the :code:`Broadcast` relation, then there are many different
 shapes that the arguments in the below call could have that would satisfy
 the type annotation:
 
-.. code-block:: python
+.. code-block::
 
    let %x : Tensor[(100, 100, 100), float32] = %f(%a, %b);
    %x
@@ -416,7 +416,7 @@ but have syntactic sugar in the text format to enter their definitions into the 
 a global function definition includes a global identifier and is allowed to recursively refer to
 that identifier in the body, as in the following example:
 
-.. code-block:: python
+.. code-block::
 
    def @ackermann(%m : Tensor[(), int32], %n : Tensor[(), int32]) -> Tensor[(), int32] {
        if (%m == 0) {
@@ -455,11 +455,11 @@ Tuples
 Construction
 ~~~~~~~~~~~~
 
-The tuple node builds a finite (that is, of statically known size) sequence of heterogeneous data. 
+The tuple node builds a finite (that is, of statically known size) sequence of heterogeneous data.
 These tuples match Python's closely, and their fixed length allows for efficient projection of their
 members.
 
-.. code-block:: python
+.. code-block::
 
    fn(%a : Tensor[(10, 10), float32], %b : float32, %c : Tensor[(100, 100), float32]) {
        let %tup = (%a, %b);     // type: (Tensor[(10, 10), float32], float32)
@@ -476,7 +476,7 @@ particular member of the tuple. Projections are 0-indexed.
 
 For example, the below projection evaluates to :code:`%b`:
 
-.. code-block:: python
+.. code-block::
 
    (%a, %b, %c).1
 
@@ -494,10 +494,10 @@ that may reference the bound identifier. If a type annotation
 on the bound variable is omitted, Relay attempts to infer the
 most general type permitted for the variable.
 
-The bound variable in a :code:`let` expression is only in scope 
+The bound variable in a :code:`let` expression is only in scope
 in its body, except when the variable defines a function expression.
 When a :code:`let` expression creates a function, the variable is also
-in scope in its value to allow for recursively defined functions 
+in scope in its value to allow for recursively defined functions
 (see the previous subsection).
 
 The value of a :code:`let` binding is the value of the final expression
@@ -505,7 +505,7 @@ after evaluating the bindings it depends on. For example, in the
 following example the entire expression evaluates to a tensor
 of shape :code:`(10, 10)` where all elements are 2:
 
-.. code-block:: python
+.. code-block::
 
    let %x : Tensor[(10, 10), float32] = Constant(1, (10, 10), float32);
    %x + %x
@@ -518,7 +518,7 @@ For example, the first and second :code:`let` bindings below
 may be evaluated in either order because neither has a dataflow
 dependency on the other:
 
-.. code-block:: python
+.. code-block::
 
    let %x = %a + %b;
    let %y = %c + %d;
@@ -549,7 +549,7 @@ of this nuance).
 In Relay's text format, a graph binding can be written as below (note the lack of a
 :code:`let` keyword and a semicolon):
 
-.. code-block:: python
+.. code-block::
 
    %1 = %a + %b
    %2 = %1 + %1
@@ -561,7 +561,7 @@ Python front-end by setting *Python variables* equal to the corresponding Relay 
 using the variables repeatedly, as below (a C++ program using the corresponding API bindings
 could accomplish the same thing):
 
-.. code-block:: python
+.. code-block::
 
    sum1 = relay.add(a, b)
    sum2 = relay.add(sum1, sum1)
@@ -581,7 +581,7 @@ Relay has a simple if-then-else expression that allows programs to branch
 on a single value of type :code:`bool`, i.e., a zero-rank
 tensor of booleans (:code:`Tensor[(), bool]`).
 
-.. code-block:: python
+.. code-block::
 
     if (%t == %u) {
         %t
@@ -626,7 +626,7 @@ executed; the clause expression is evaluated and returned.
 
 For example, suppose we have an ADT for natural numbers:
 
-.. code-block:: python
+.. code-block::
 
    data Nat {
      Z : () -> Nat # zero
@@ -635,7 +635,7 @@ For example, suppose we have an ADT for natural numbers:
 
 Then the following function subtracts one from a passed nat:
 
-.. code-block:: python
+.. code-block::
 
    fn(%v: Nat[]) -> Nat[] {
      match(%v) {
@@ -647,7 +647,7 @@ Then the following function subtracts one from a passed nat:
 The following function subtracts two from its argument if it is at least
 two and returns the argument otherwise, using a nested constructor pattern:
 
-.. code-block:: python
+.. code-block::
 
    fn(%v : Nat[]) -> Nat[] {
      match(%v) {
@@ -661,7 +661,7 @@ As aforementioned, the ordering of match clauses is relevant.
 In the below example, the first clause will always match so
 those below it can never run:
 
-.. code-block:: python
+.. code-block::
 
    fn(%v : Nat[]) -> Nat[] {
      match(%v) {
@@ -677,7 +677,7 @@ See :py:class:`~tvm.relay.adt.Match` for its definition and documentation.
 TempExprs
 =========
 
-Program transformations (passes) in Relay may require inserting temporary 
+Program transformations (passes) in Relay may require inserting temporary
 state into the program AST to guide further transformations. The
 :code:`TempExpr` node is provided as a utility to developers for this purpose;
 nodes inheriting from :code:`TempExpr` cannot appear directly in user-provided
@@ -685,7 +685,7 @@ code but may be inserted in a pass. Any :code:`TempExpr` created in a pass
 should ideally be eliminated before the pass is complete, as a
 :code:`TempExpr` only stores internal state and has no semantics of its own.
 
-For an example of :code:`TempExpr` being used in a pass, 
+For an example of :code:`TempExpr` being used in a pass,
 see :code:`src/relay/pass/alter_op_layout.cc`, which uses :code:`TempExpr` nodes
 to store information about operator layouts as the pass tries to rearrange operator
 calls.

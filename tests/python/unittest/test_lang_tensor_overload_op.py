@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
@@ -23,27 +24,27 @@ from topi.util import get_const_tuple
 
 def test_operator_type_and_tags():
     k = 1
-    n = tvm.var('n')
-    A = tvm.placeholder((), name='A')
-    B = tvm.placeholder((10, 5), name='B')
+    n = te.var('n')
+    A = te.placeholder((), name='A')
+    B = te.placeholder((10, 5), name='B')
     B1 = B[0]
     B2 = B[0,0]
 
     assert isinstance(k + n, tvm.tir.PrimExpr)
     assert isinstance(n + n, tvm.tir.PrimExpr)
-    assert isinstance(k + A, tvm.tensor.Tensor)
-    assert isinstance(A + k, tvm.tensor.Tensor)
-    assert isinstance(n + A, tvm.tensor.Tensor)
-    assert isinstance(A + n, tvm.tensor.Tensor)
-    assert isinstance(A + A, tvm.tensor.Tensor)
+    assert isinstance(k + A, te.tensor.Tensor)
+    assert isinstance(A + k, te.tensor.Tensor)
+    assert isinstance(n + A, te.tensor.Tensor)
+    assert isinstance(A + n, te.tensor.Tensor)
+    assert isinstance(A + A, te.tensor.Tensor)
 
-    assert isinstance(k + B, tvm.tensor.Tensor)
-    assert isinstance(B + k, tvm.tensor.Tensor)
-    assert isinstance(n + B, tvm.tensor.Tensor)
-    assert isinstance(B + n, tvm.tensor.Tensor)
-    assert isinstance(A + B, tvm.tensor.Tensor)
-    assert isinstance(B + A, tvm.tensor.Tensor)
-    assert isinstance(B + B, tvm.tensor.Tensor)
+    assert isinstance(k + B, te.tensor.Tensor)
+    assert isinstance(B + k, te.tensor.Tensor)
+    assert isinstance(n + B, te.tensor.Tensor)
+    assert isinstance(B + n, te.tensor.Tensor)
+    assert isinstance(A + B, te.tensor.Tensor)
+    assert isinstance(B + A, te.tensor.Tensor)
+    assert isinstance(B + B, te.tensor.Tensor)
 
     assert (k + B).op.tag == topi.tag.ELEMWISE
     assert (B + k).op.tag == topi.tag.ELEMWISE
@@ -58,22 +59,22 @@ def test_operator_type_and_tags():
     assert isinstance(n + B2, tvm.tir.PrimExpr)
     assert isinstance(B2 + n, tvm.tir.PrimExpr)
     assert isinstance(B2 + B2, tvm.tir.PrimExpr)
-    assert isinstance(B2 + A, tvm.tensor.Tensor)
-    assert isinstance(A + B2, tvm.tensor.Tensor)
-    assert isinstance(B2 + B, tvm.tensor.Tensor)
-    assert isinstance(B + B2, tvm.tensor.Tensor)
+    assert isinstance(B2 + A, te.tensor.Tensor)
+    assert isinstance(A + B2, te.tensor.Tensor)
+    assert isinstance(B2 + B, te.tensor.Tensor)
+    assert isinstance(B + B2, te.tensor.Tensor)
 
 
 def test_combination():
     k = 3
     n = 5
     m = 10
-    x = tvm.var('x')
-    A = tvm.placeholder((n, m), name='A')
-    B = tvm.placeholder((n, m), name='B')
-    C = tvm.placeholder((n, m), name='C')
+    x = te.var('x')
+    A = te.placeholder((n, m), name='A')
+    B = te.placeholder((n, m), name='B')
+    C = te.placeholder((n, m), name='C')
     D = k + A - B * C + x
-    s = tvm.create_schedule(D.op)
+    s = te.create_schedule(D.op)
     foo = tvm.build(s, [x, A, B, C, D], "llvm")
     ctx = tvm.cpu(0)
     x = 2
@@ -87,9 +88,9 @@ def test_combination():
 
 def verify_tensor_scalar_bop(shape, typ="add"):
     """Verify non-constant Tensor and scalar binary operations."""
-    sh = [tvm.size_var('n%d' % i) for i in range(0, len(shape))]
-    k = tvm.var('k')
-    A = tvm.placeholder(sh, name='A')
+    sh = [te.size_var('n%d' % i) for i in range(0, len(shape))]
+    k = te.var('k')
+    A = te.placeholder(sh, name='A')
     if typ == "add":
         B = A + k
     elif typ == "sub":
@@ -134,8 +135,8 @@ def verify_tensor_scalar_bop(shape, typ="add"):
 
 
 def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
-    A = tvm.placeholder(shape=lhs_shape, name="A")
-    B = tvm.placeholder(shape=rhs_shape, name="B")
+    A = te.placeholder(shape=lhs_shape, name="A")
+    B = te.placeholder(shape=rhs_shape, name="B")
     if typ == "add":
         C = A + B
     elif typ == "sub":
@@ -195,8 +196,8 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         k = 10.0
         dilation = (1, 1)
         with tvm.target.create(device):
-            A = tvm.placeholder((batch, in_channel, in_size, in_size), name='A')
-            W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+            A = te.placeholder((batch, in_channel, in_size, in_size), name='A')
+            W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
             B = conv2d_nchw(A, W, stride, padding, dilation, A.dtype)
             if typ == "add":
                 C = B + k

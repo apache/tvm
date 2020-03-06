@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D Transpose schedule on x86"""
-import tvm
+from tvm import te
 from ..util import traverse_inline
 from .. import nn
 from .conv2d import conv2d_nchw, schedule_conv2d_nchw
@@ -30,7 +30,7 @@ def conv2d_transpose_nchw(data, kernel, strides, padding, out_dtype):
 
 def schedule_conv2d_transpose_nchw(outs):
     """Create schedule for tensors"""
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = schedule_conv2d_nchw(outs)
     def _callback(op):
         if 'unpack_nchwc' in op.tag:

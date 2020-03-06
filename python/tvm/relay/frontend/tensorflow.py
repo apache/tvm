@@ -18,9 +18,6 @@
 # pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition, broad-except
 # pylint: disable=import-outside-toplevel
 """TF: Tensorflow frontend."""
-from __future__ import absolute_import as _abs
-from __future__ import print_function
-
 import warnings
 from collections import defaultdict
 
@@ -1012,7 +1009,7 @@ def _gather():
                 'Attribute batch_dims is not supported')
         new_input = inputs[0:2]
         return AttrCvt(op_name="take",
-                       extras={'axis': tvm.const(axis, 'int32')},
+                       extras={'axis': tvm.tir.const(axis, 'int32')},
                        ignores=['Tindices', 'Tparams', 'validate_indices',
                                 'Taxis', '_class', 'batch_dims'])(new_input, attr)
     return _impl
@@ -1503,6 +1500,12 @@ def _add_n():
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
+# Operators that get pruned away when the complete graph is frozen.
+# These operators are not needed for inference.
+_freezed_graph_pruned_op_list = ['ReadVariableOp', 'ResourceGather', 'Variable',
+                                 'VariableV2', 'VarHandleOp', 'Assign', 'AssignVariableOp']
+
+
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
 # use AttrCvt if attributes need to be converted
@@ -1561,6 +1564,7 @@ _convert_map = {
     'LessEqual'                         : _broadcast('less_equal'),
     'Log'                               : AttrCvt('log'),
     'Log1p'                             : _log1p(),
+    'Tan'                               : AttrCvt('tan'),
     'Cos'                               : AttrCvt('cos'),
     'Sin'                               : AttrCvt('sin'),
     'LogicalAnd'                        : _logical('logical_and'),
@@ -2190,6 +2194,11 @@ class GraphProto(object):
         missing_operators = self._parse_import_prerequisites(graph)
 
         if missing_operators:
+            freezed_ops = [op for op in missing_operators if op in _freezed_graph_pruned_op_list]
+            if freezed_ops:
+                raise Exception("Graph is not frozen. Provide a frozen graph. "
+                                "Found operators {}".format(freezed_ops))
+
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 

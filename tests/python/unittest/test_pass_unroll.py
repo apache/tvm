@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import os
 
 
 def test_unroll_loop():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     dtype = 'int64'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
     with ib.for_range(n, n + 2, name="i") as i:
@@ -31,31 +32,31 @@ def test_unroll_loop():
 
     stmt = ib.get()
     assert isinstance(stmt, tvm.tir.For)
-    ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, True)
+    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 16, 8, 0, True)
     assert not isinstance(ret, tvm.tir.For)
-    ret = tvm.ir_pass.UnrollLoop(stmt, 15, 8, 0, True)
+    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 15, 8, 0, True)
     assert isinstance(ret, tvm.tir.For)
-    ret = tvm.ir_pass.UnrollLoop(stmt, 16, 8, 0, False)
+    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 16, 8, 0, False)
     assert isinstance(ret, tvm.tir.For)
     assert ret.for_type == tvm.tir.For.Unrolled
 
-    ib = tvm.ir_builder.create()
-    ib.scope_attr(tvm.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
+    ib = tvm.tir.ir_builder.create()
+    ib.scope_attr(tvm.tir.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
     ib.emit(stmt)
     wrapped = ib.get()
     wrapped = tvm.tir.SeqStmt([wrapped, stmt])
     assert isinstance(ret, tvm.tir.For)
-    ret = tvm.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
+    ret = tvm.tir.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
     assert isinstance(ret[0], tvm.tir.For)
     assert ret[0].for_type == tvm.tir.For.Unrolled
     assert isinstance(ret[1], tvm.tir.For)
     assert ret[1].for_type != tvm.tir.For.Unrolled
 
 def test_unroll_fake_loop():
-    ib = tvm.ir_builder.create()
+    ib = tvm.tir.ir_builder.create()
     dtype = 'int32'
-    n = tvm.size_var('n')
-    Ab = tvm.decl_buffer((n, ), dtype)
+    n = te.size_var('n')
+    Ab = tvm.tir.decl_buffer((n, ), dtype)
     Aptr = ib.buffer_ptr(Ab)
     # for i in 0 to n-1:
     with ib.for_range(0, 1, name="i") as i:
@@ -64,20 +65,20 @@ def test_unroll_fake_loop():
             Aptr[j + 1] = Aptr[i] + 1
 
     stmt = ib.get()
-    ret = tvm.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
+    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
     assert isinstance(ret[0], tvm.tir.Store)
 
 def test_unroll_single_count_loops():
-    n = tvm.size_var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute((n,), lambda *i: A(*i), name='B')
-    s = tvm.create_schedule(B.op)
+    n = te.size_var('n')
+    A = te.placeholder((n,), name='A')
+    B = te.compute((n,), lambda *i: A(*i), name='B')
+    s = te.create_schedule(B.op)
     s = s.normalize()
-    dom_map = tvm.schedule.InferBound(s)
-    stmt = tvm.schedule.ScheduleOps(s, dom_map)
+    dom_map = tvm.te.schedule.InferBound(s)
+    stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
     # all parameters to UnrolLoops are default values except for
     # auto_unroll_max_extent which has been set to 1 (default:0)
-    after_unroll_stmt = tvm.ir_pass.UnrollLoop(stmt, 0, 8, 1, True)
+    after_unroll_stmt = tvm.tir.ir_pass.UnrollLoop(stmt, 0, 8, 1, True)
     assert after_unroll_stmt == stmt
 
 if __name__ == "__main__":

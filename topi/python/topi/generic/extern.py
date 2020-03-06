@@ -16,8 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """generic declaration and schedules."""
-from __future__ import absolute_import as _abs
-
 import tvm
 from .. import cpp
 

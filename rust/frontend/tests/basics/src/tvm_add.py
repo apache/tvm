@@ -20,20 +20,21 @@ import os.path as osp
 import sys
 
 import tvm
+from tvm import te
 from tvm.contrib import cc
 
 
 def main(target, out_dir):
-    n = tvm.var('n')
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name='C')
-    s = tvm.create_schedule(C.op)
+    n = te.var('n')
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name='C')
+    s = te.create_schedule(C.op)
 
     if target == 'cuda':
         bx, tx = s[C].split(C.op.axis[0], factor=64)
-        s[C].bind(bx, tvm.thread_axis('blockIdx.x'))
-        s[C].bind(tx, tvm.thread_axis('threadIdx.x'))
+        s[C].bind(bx, te.thread_axis('blockIdx.x'))
+        s[C].bind(tx, te.thread_axis('threadIdx.x'))
 
     fadd = tvm.build(s, [A, B, C], target, target_host='llvm', name='myadd')
 

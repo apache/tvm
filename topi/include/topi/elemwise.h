@@ -55,9 +55,11 @@ TOPI_DECLARE_UNARY_OP(round);
 TOPI_DECLARE_UNARY_OP(trunc);
 TOPI_DECLARE_UNARY_OP(abs);
 TOPI_DECLARE_UNARY_OP(cos);
+TOPI_DECLARE_UNARY_OP(tan);
 TOPI_DECLARE_UNARY_OP(sin);
 TOPI_DECLARE_UNARY_OP(atan);
 TOPI_DECLARE_UNARY_OP(isnan);
+TOPI_DECLARE_UNARY_OP(tanh);
 
 /*
  * \brief Fast_tanh_float implementation from Eigen
@@ -113,9 +115,9 @@ inline Tensor fast_tanh_float(const Tensor& in,
 *
 * \return A Tensor whose op member is tanh
 */
-inline Tensor tanh(const Tensor& x,
-                   std::string name = "T_tanh",
-                   std::string tag = kElementWise) {
+inline Tensor fast_tanh(const Tensor& x,
+                        std::string name = "T_fast_tanh",
+                        std::string tag = kElementWise) {
   if (x->dtype == DataType::Float(32)) {
     // invoke fast_tanh_float implementation
     return fast_tanh_float(x, name, tag);

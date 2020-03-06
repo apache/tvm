@@ -229,7 +229,7 @@ PrimExpr LetNode::make(Var var, PrimExpr value, PrimExpr body) {
 
 const char* CallNode::vectorizable_intrinsics[] = {
     "floor", "ceil", "sign", "trunc", "fabs", "round", "exp", "tanh", "sqrt",
-    "log", "sin", "cos", "pow", tir::CallNode::shift_left, tir::CallNode::shift_right,
+    "log", "sin", "cos", "pow", "tan", tir::CallNode::shift_left, tir::CallNode::shift_right,
     tir::CallNode::likely, tir::CallNode::popcount
 };
 

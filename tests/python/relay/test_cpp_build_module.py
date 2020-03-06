@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.contrib.nvcc import have_fp16
 
