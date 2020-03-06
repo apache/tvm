@@ -849,3 +849,9 @@ if __name__ == "__main__":
     test_custom_conversion_map()
 
     test_segmentaton_models()
+
+    # Quantization test
+    from qnn_test import test_quantized_imagenet, test_quantized_modules
+
+    test_quantized_modules()
+    test_quantized_imagenet()
