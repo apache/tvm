@@ -13,5 +13,4 @@
 
 <resources>
     <string name="app_name">TVM Android Demo</string>
-    <string name="modelLabel">Model:</string>
 </resources>

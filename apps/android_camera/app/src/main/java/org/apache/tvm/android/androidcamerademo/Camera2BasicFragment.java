@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.PriorityQueue;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
@@ -100,21 +101,20 @@ public class Camera2BasicFragment extends Fragment implements
     private static String[] MODELS;
     private static String mCurModel = "";
     private boolean mRunClassifier = false;
-    private int[] mRGBValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
-    private float[] mCHW = new float[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * IMG_CHANNEL];
-    private Semaphore isProcessingDone = new Semaphore(1);
+    private final int[] mRGBValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
+    private final float[] mCHW = new float[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * IMG_CHANNEL];
+    private final Semaphore isProcessingDone = new Semaphore(1);
     private boolean mCheckedPermissions = false;
     private AppCompatTextView mResultView;
     private AppCompatTextView mInfoView;
     private ListView mModelView;
     private AssetManager assetManager;
     private Module graphRuntimeModule;
-    private Vector<String> labels = new Vector<String>();
+    private final Vector<String> labels = new Vector<>();
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private PreviewView previewView;
-    private Camera camera;
     private ImageAnalysis imageAnalysis;
-    private ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
+    private final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
             3,
             3,
             1,
@@ -122,7 +122,7 @@ public class Camera2BasicFragment extends Fragment implements
             new LinkedBlockingQueue<>()
     );
 
-    public static Camera2BasicFragment newInstance() {
+    static Camera2BasicFragment newInstance() {
         return new Camera2BasicFragment();
     }
 
@@ -234,11 +234,6 @@ public class Camera2BasicFragment extends Fragment implements
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-    }
-
-    @Override
     public void onDestroy() {
         // release tvm local variables
         if (null != graphRuntimeModule)
@@ -260,7 +255,7 @@ public class Camera2BasicFragment extends Fragment implements
         byte[] bytes = new byte[length];
         // Read in the bytes
         int offset = 0;
-        int numRead = 0;
+        int numRead;
         try {
             while (offset < bytes.length
                     && (numRead = is.read(bytes, offset, bytes.length - offset)) >= 0) {
@@ -283,7 +278,7 @@ public class Camera2BasicFragment extends Fragment implements
      * @return String application cache folder path
      * @throws IOException
      */
-    private final String getTempLibFilePath(String fileName) throws IOException {
+    private String getTempLibFilePath(String fileName) throws IOException {
         File tempDir = File.createTempFile("tvm4j_demo_", "");
         if (!tempDir.delete() || !tempDir.mkdir()) {
             throw new IOException("Couldn't create directory " + tempDir.getAbsolutePath());
@@ -345,7 +340,9 @@ public class Camera2BasicFragment extends Fragment implements
                 float r = ((val >> 16) & 0xff) / 255.f;
                 float g = ((val >> 8) & 0xff) / 255.f;
                 float b = (val & 0xff) / 255.f;
+                //noinspection PointlessArithmeticExpression,PointlessArithmeticExpression
                 mCHW[0 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = r;
+                //noinspection PointlessArithmeticExpression
                 mCHW[1 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = g;
                 mCHW[2 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = b;
             }
@@ -406,10 +403,11 @@ public class Camera2BasicFragment extends Fragment implements
                 long t2 = SystemClock.uptimeMillis();
                 String[] results = inference(chw);
                 long t3 = SystemClock.uptimeMillis();
-                String msg = "";
+                StringBuilder msgBuilder = new StringBuilder();
                 for (int l = 1; l < 5; l++) {
-                    msg = msg + results[l] + "\n";
+                    msgBuilder.append(results[l]).append("\n");
                 }
+                String msg = msgBuilder.toString();
                 msg += "getFrame(): " + (t2 - t1) + "ms" + "\n";
                 msg += "inference(): " + (t3 - t2) + "ms" + "\n";
                 String finalMsg = msg;
@@ -435,7 +433,7 @@ public class Camera2BasicFragment extends Fragment implements
                 new CameraSelector.Builder()
                         .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                         .build();
-        camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
+        Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
     }
 
     @Override
@@ -460,16 +458,14 @@ public class Camera2BasicFragment extends Fragment implements
             Log.i(TAG, "Reading synset name from: " + labelFilename);
             try {
                 String labelsContent = new String(getBytesFromFile(assetManager, labelFilename));
-                for (String line : labelsContent.split("\\r?\\n")) {
-                    labels.add(line);
-                }
+                labels.addAll(Arrays.asList(labelsContent.split("\\r?\\n")));
             } catch (IOException e) {
                 Log.e(TAG, "Problem reading synset name file!",  e);
                 return -1;//failure
             }
 
             // load json graph
-            String modelGraph = null;
+            String modelGraph;
             String graphFilename = MODEL_GRAPH_FILE.split("file:///android_asset/")[1];
             Log.i(TAG, "Reading json graph from: " + graphFilename);
             try {
@@ -480,7 +476,7 @@ public class Camera2BasicFragment extends Fragment implements
             }
 
             // upload tvm compiled function on application cache folder
-            String libCacheFilePath = null;
+            String libCacheFilePath;
             String libFilename = EXE_GPU ? MODEL_CL_LIB_FILE.split("file:///android_asset/")[1] :
                     MODEL_CPU_LIB_FILE.split("file:///android_asset/")[1];
             Log.i(TAG, "Uploading compiled function to cache folder");
