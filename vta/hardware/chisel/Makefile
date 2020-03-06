@@ -60,6 +60,9 @@ DEBUG = 0
 # the verilator build is sane. To be used if you know what you are doing.
 SANITIZE = 0
 
+CXX_MAJOR := $(shell $(CXX) -dumpversion | sed 's/\..*//')
+CXX_HAS_ALIGN_NEW := $(shell [ $(CXX_MAJOR) -ge 7 ] && echo true)
+
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
 tvm_dir = $(abspath ../../../)
@@ -83,7 +86,10 @@ else
   cxx_flags = -O0 -g -Wall
 endif
 
-cxx_flags += -std=c++11 -faligned-new
+cxx_flags += -std=c++11 -Wno-maybe-uninitialized
+ifeq ($(CXX_HAS_ALIGN_NEW),true)
+  cxx_flags += -faligned-new
+endif
 cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
 cxx_flags += -DVL_PRINTF=printf
 cxx_flags += -DVL_USER_FINISH
