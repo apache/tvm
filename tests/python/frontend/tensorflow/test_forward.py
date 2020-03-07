@@ -2411,6 +2411,8 @@ def test_forward_slice():
     _test_forward_slice_operation_input([0, 1, 2, 3], [3], [-1])
     _test_forward_slice_operation_input([[0, 1, 2, 3], [4, 5, 6, 7]],
                                         begin_value=[0, 1], size_value=[-1, -1])
+    _test_forward_slice_operation_input([19], [0], [0])
+    _test_forward_slice_operation_input([19], [1], [-1])                                    
 
 def test_forward_ceil():
     ishape = (1, 3, 10, 10)

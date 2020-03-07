@@ -764,7 +764,11 @@ def _tensor_array_concat():
 
 def _tile():
     def _impl(inputs, attr, params):
-        reps = _get_list_param(params, inputs.pop())
+        input_rep = inputs.pop()
+        try:
+            reps = _get_list_param(params, input_rep)
+        except (AttributeError):
+            reps = _infer_value(input_rep, params).asnumpy().tolist()
         new_input = []
         new_input.append(inputs.pop(0))
 
@@ -784,6 +788,18 @@ def _slice():
             size = _get_list_param(params, inputs[2])
         except (IndexError, KeyError, AttributeError):
             size = _infer_value(inputs[2], params).asnumpy().tolist()[0]
+        
+        # handle situations when return empty constant
+        input0_np = _infer_value(inputs[0], params).asnumpy()  
+        input0_shape = input0_np.shape
+        for input_dim_i, begin_i, size_i in zip(input0_shape, begin, size):
+            # when one size_i == 0, return empty constant
+            if size_i == 0:
+                return _expr.const([], dtype=input0_np.dtype) 
+            # when begin index larger than the dimension of inputs[0]
+            if begin_i >= input_dim_i:
+                return _expr.const([], dtype=input0_np.dtype) 
+        
         data_shape = attr['_input_shapes'][inputs[0]]
         data_dim = len(data_shape)
         end = size
