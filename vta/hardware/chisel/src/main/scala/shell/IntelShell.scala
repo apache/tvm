@@ -25,10 +25,10 @@ import vta.interface.axi._
 import vta.core._
 
 /** IntelShell.
-  *
-  * The IntelShell is based on a VME, VCR and core. This creates a complete VTA
-  * system that can be used for simulation or real hardware.
-  */
+ *
+ * The IntelShell is based on a VME, VCR and core. This creates a complete VTA
+ * system that can be used for simulation or real hardware.
+ */
 class IntelShell(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val host = new AXIClient(p(ShellKey).hostParams)
