@@ -21,6 +21,10 @@ task buildJni(type: Exec, description: 'Build JNI libs') {
     commandLine 'sh', 'src/main/jni/build.sh'
 }
 
+tasks.withType(JavaCompile) {
+    compileTask -> compileTask.dependsOn buildJni
+}
+
 android {
     compileSdkVersion 29
     defaultConfig {
