@@ -59,8 +59,6 @@ class DPTuner(BaseGraphTuner):
             "input_shapes": self._input_shapes,
             "layout_transform_interlayer_cost": self._layout_transform_interlayer_cost
         }
-        self._opt_out_op = OPT_OUT_OP
-
 
     def _check_num_states(self, num_states):
         """Track the number of states."""
