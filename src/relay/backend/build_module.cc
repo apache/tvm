@@ -334,6 +334,13 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Fuse the operations if it is needed.
     relay_module = transform::FuseOps()(relay_module);
     relay_module = transform::InferType()(relay_module);
+    // Inline the functions that have been lifted by the module scope.
+    //
+    // TODO(@zhiics) Note that we need to be careful about the subgraphs with
+    // global function calls. We should make sure that these callees are also
+    // inline functions. However, this should be very unlikely for accelerators
+    // and vendor-provided libraries. So we don't handle for now.
+    relay_module = transform::Inline()(relay_module);
     CHECK(relay_module.defined());
 
     return relay_module;

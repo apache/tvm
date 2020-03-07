@@ -18,14 +18,12 @@
 import os
 import sys
 import numpy as np
-import pytest
 
 import tvm
-from tvm import te
 import tvm.relay.testing
-import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
+from tvm.relay import transform
 from tvm.contrib import util
 from tvm.relay.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
@@ -189,7 +187,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return lib
 
     def check_vm_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with relay.build_config(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
         lib = update_lib(lib)
@@ -200,7 +198,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
-        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+        with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
         rt_mod = tvm.contrib.graph_runtime.create(json, lib, ctx)
@@ -297,6 +295,7 @@ def test_extern_ccompiler_single_op():
 
 def test_extern_ccompiler_default_ops():
     def expected():
+        mod = tvm.IRModule()
         x = relay.var("x", shape=(8, 8))
         y = relay.var("y", shape=(8, 8))
         x0 = relay.var("x0", shape=(8, 8))
@@ -305,11 +304,14 @@ def test_extern_ccompiler_default_ops():
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
         func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
         func = func.set_attribute("Compiler",
                                   tvm.tir.StringImm("ccompiler"))
         func = func.set_attribute("ExternalSymbol",
                                   tvm.tir.StringImm("ccompiler_0"))
-        add_call = relay.Call(func, [x, y])
+        glb_0 = relay.GlobalVar("ccompiler_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [x, y])
         # Function that uses default compiler. Ops are fused in this function.
         p0 = relay.var("p0", shape=(8, 8))
         log = relay.log(p0)
@@ -320,7 +322,6 @@ def test_extern_ccompiler_default_ops():
                                               tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
-        mod = tvm.IRModule()
         mod["main"] = main
         return mod
 
@@ -371,28 +372,65 @@ def test_extern_dnnl():
     dtype = 'float32'
     ishape = (1, 32, 14, 14)
     w1shape = (32, 1, 3, 3)
-    data = relay.var('data', shape=(ishape), dtype=dtype)
-    weight1 = relay.var('weight1', shape=(w1shape), dtype=dtype)
-    depthwise_conv2d_1 = relay.nn.conv2d(data,
-                                         weight1,
-                                         kernel_size=(3, 3),
-                                         padding=(1, 1),
-                                         groups=32)
-    depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
-                                         weight1,
-                                         kernel_size=(3, 3),
-                                         padding=(1, 1),
-                                         groups=32)
-    out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
-    f = relay.Function([data, weight1], out)
+    def expected():
+        data0 = relay.var("data", shape=(ishape), dtype=dtype)
+        input0 = relay.var("input0", shape=(w1shape), dtype=dtype)
+        input1 = relay.var("input1", shape=(w1shape), dtype=dtype)
+        depthwise_conv2d_1 = relay.nn.conv2d(data0,
+                                             input0,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                             input1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+
+        func = relay.Function([data0, input0, input1], out)
+        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.set_attribute("Compiler", tvm.tir.StringImm("dnnl"))
+        func = func.set_attribute("ExternalSymbol",
+                                  tvm.tir.StringImm("dnnl_0"))
+        glb_var = relay.GlobalVar("dnnl_0")
+        mod = tvm.IRModule()
+        mod[glb_var] = func
+
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight = relay.var("input", shape=(w1shape), dtype=dtype)
+        main_f = relay.Function([data, weight], glb_var(data, weight, weight))
+        mod["main"] = main_f
+
+        return mod
+
+    def get_func():
+        data = relay.var("data", shape=(ishape), dtype=dtype)
+        weight1 = relay.var("weight1", shape=(w1shape), dtype=dtype)
+        depthwise_conv2d_1 = relay.nn.conv2d(data,
+                                             weight1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
+                                             weight1,
+                                             kernel_size=(3, 3),
+                                             padding=(1, 1),
+                                             groups=32)
+        out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
+
+        return relay.Function([data, weight1], out)
 
     mod = tvm.IRModule()
-    mod['main'] = WholeGraphAnnotator('dnnl').visit(f)
+    mod["main"] = WholeGraphAnnotator("dnnl").visit(get_func())
     mod = transform.PartitionGraph()(mod)
 
+    assert relay.alpha_equal(mod, expected())
+
     ref_mod = tvm.IRModule()
-    ref_mod['main'] = f
+    ref_mod["main"] = get_func()
 
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
     w1_data = np.random.uniform(0, 1, w1shape).astype(dtype)
@@ -427,6 +465,175 @@ def test_extern_dnnl_mobilenet():
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
 
+def test_function_lifting():
+    def partition():
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("weight", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mmean = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_mvar = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        conv = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=(3, 3),
+            channels=16,
+            padding=(1, 1))
+        bn_output = relay.nn.batch_norm(conv, bn_gamma, bn_beta, bn_mmean,
+                                        bn_mvar)
+
+        func = relay.Function([data, weight, bn_gamma, bn_beta, bn_mmean,
+                               bn_mvar], bn_output.astuple())
+        mod = tvm.IRModule()
+        mod["main"] = func
+        op_list = ["nn.batch_norm", "nn.conv2d"]
+        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+
+        opt_pass = transform.Sequential([
+            transform.InferType(),
+            transform.PartitionGraph(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.AlterOpLayout(),
+        ])
+
+        with relay.build_config(opt_level=3):
+            mod = opt_pass(mod)
+
+        return mod
+
+    def expected():
+        # function for batch_norm
+        data0 = relay.var("data0", relay.TensorType((1, 16, 224, 224),
+                                                    "float32"))
+        mod = tvm.IRModule()
+        bn_gamma = relay.var("bn_gamma1", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta1", relay.TensorType((16, ), "float32"))
+        bn_mmean = relay.var("bn_mean1", relay.TensorType((16, ), "float32"))
+        bn_mvar = relay.var("bn_var1", relay.TensorType((16, ), "float32"))
+
+        bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+        func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
+                               bn.astuple())
+        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.set_attribute("Compiler",
+                                    tvm.tir.StringImm("test_compiler"))
+        func0 = func0.set_attribute("ExternalSymbol",
+                                    tvm.tir.StringImm("test_compiler_0"))
+        gv0 = relay.GlobalVar("test_compiler_0")
+        mod[gv0] = func0
+
+        # function for conv2d
+        data1 = relay.var("data1", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight1 = relay.var("weight1", relay.TensorType((16, 3, 3, 3), "float32"))
+        conv = relay.nn.conv2d(
+            data=data1,
+            weight=weight1,
+            kernel_size=(3, 3),
+            channels=16,
+            padding=(1, 1))
+        func1 = relay.Function([data1, weight1], conv)
+        func1 = func1.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func1 = func1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func1 = func1.set_attribute("Compiler",
+                                    tvm.tir.StringImm("test_compiler"))
+        func1 = func1.set_attribute("ExternalSymbol",
+                                    tvm.tir.StringImm("test_compiler_1"))
+        gv1 = relay.GlobalVar("test_compiler_1")
+        mod[gv1] = func1
+
+        # main function
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("weight", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma0 = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta0 = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mmean0 = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_mvar0 = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        call1 = gv1(data, weight)
+        call0 = gv0(call1, bn_gamma0, bn_beta0, bn_mmean0, bn_mvar0)
+        mod["main"] = relay.Function([data, weight, bn_gamma0, bn_beta0, bn_mmean0,
+                                      bn_mvar0], call0)
+        mod = transform.InferType()(mod)
+        return mod
+
+    partitioned = partition()
+    ref_mod = expected()
+    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+
+
+def test_function_lifting_inline():
+    def partition():
+        data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
+        bn_gamma = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mmean = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_mvar = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        bn_output = relay.nn.batch_norm(data, bn_gamma, bn_beta, bn_mmean,
+                                        bn_mvar)
+
+        func = relay.Function([data, bn_gamma, bn_beta, bn_mmean,
+                               bn_mvar], bn_output.astuple())
+        mod = tvm.IRModule()
+        mod["main"] = func
+        op_list = ["nn.batch_norm", "nn.conv2d"]
+        mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
+
+        opt_pass = transform.Sequential([
+            transform.InferType(),
+            transform.PartitionGraph(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.AlterOpLayout(),
+            transform.Inline(),
+        ])
+
+        with relay.build_config(opt_level=3):
+            mod = opt_pass(mod)
+
+        return mod
+
+    def expected():
+        # function for batch_norm
+        data0 = relay.var("data0", relay.TensorType((1, 16, 224, 224),
+                                                    "float32"))
+        mod = tvm.IRModule()
+        bn_gamma = relay.var("bn_gamma1", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta1", relay.TensorType((16, ), "float32"))
+        bn_mmean = relay.var("bn_mean1", relay.TensorType((16, ), "float32"))
+        bn_mvar = relay.var("bn_var1", relay.TensorType((16, ), "float32"))
+
+        bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
+        func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
+                               bn.astuple())
+        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.set_attribute("Compiler",
+                                    tvm.tir.StringImm("test_compiler"))
+        func0 = func0.set_attribute("ExternalSymbol",
+                                    tvm.tir.StringImm("test_compiler_0"))
+
+        # main function
+        data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
+        bn_gamma0 = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta0 = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mmean0 = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_mvar0 = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        call0 = func0(data, bn_gamma0, bn_beta0, bn_mmean0, bn_mvar0)
+        mod["main"] = relay.Function([data, bn_gamma0, bn_beta0, bn_mmean0,
+                                      bn_mvar0], call0)
+        mod = transform.InferType()(mod)
+        return mod
+
+    partitioned = partition()
+    ref_mod = expected()
+    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -434,3 +641,5 @@ if __name__ == "__main__":
     test_extern_ccompiler()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
+    test_function_lifting()
+    test_function_lifting_inline()
