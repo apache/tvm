@@ -88,6 +88,7 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
+- [Henry Liu](https://github.com/optima2005): @optima2005
 - [Steven Lyubomirsky](https://github.com/slyubomirsky): @slyubomirsky
 - [Masahiro Masuda](https://github.com/masahi): @masahi
 - [Sergey Mironov](https://github.com/grwlf): @grwlf
