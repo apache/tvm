@@ -61,6 +61,8 @@ import org.apache.tvm.NDArray;
 import org.apache.tvm.TVMContext;
 import org.apache.tvm.TVMType;
 import org.apache.tvm.TVMValue;
+import org.json.JSONArray;
+import org.json.JSONException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -68,10 +70,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.PriorityQueue;
-import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
@@ -93,12 +92,13 @@ public class Camera2BasicFragment extends Fragment implements
     // converted e.g. via  define_and_compile_model.py.
     private static final boolean EXE_GPU = false;
     private static final int MODEL_INPUT_SIZE = 224;
-    private static final String MODEL_CL_LIB_FILE = "file:///android_asset/deploy_lib_opencl.so";
-    private static final String MODEL_CPU_LIB_FILE = "file:///android_asset/deploy_lib_cpu.so";
-    private static final String MODEL_GRAPH_FILE = "file:///android_asset/deploy_graph.json";
-    private static final String MODEL_PARAM_FILE = "file:///android_asset/deploy_param.params";
-    private static final String MODEL_LABEL_FILE = "file:///android_asset/imagenet.shortnames.list";
-    private static String[] MODELS;
+    private static final String MODEL_CL_LIB_FILE = "deploy_lib_opencl.so";
+    private static final String MODEL_CPU_LIB_FILE = "deploy_lib_cpu.so";
+    private static final String MODEL_GRAPH_FILE = "deploy_graph.json";
+    private static final String MODEL_PARAM_FILE = "deploy_param.params";
+    private static final String MODEL_LABEL_FILE = "image_net_labels.json";
+    private static final String MODELS = "models";
+    private static String[] models;
     private static String mCurModel = "";
     private boolean mRunClassifier = false;
     private final int[] mRGBValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
@@ -110,7 +110,7 @@ public class Camera2BasicFragment extends Fragment implements
     private ListView mModelView;
     private AssetManager assetManager;
     private Module graphRuntimeModule;
-    private final Vector<String> labels = new Vector<>();
+    private JSONArray labels;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private PreviewView previewView;
     private ImageAnalysis imageAnalysis;
@@ -126,26 +126,14 @@ public class Camera2BasicFragment extends Fragment implements
         return new Camera2BasicFragment();
     }
 
-    private String[] getModelAssets() {
-        String[] assetList;
-        ArrayList<String> modelAssets = new ArrayList<>();
-        String[] modelAssetsArray;
+    private String[] getModels() {
+        String[] models;
         try {
-            assetList = getActivity().getAssets().list("");
+            models = getActivity().getAssets().list(MODELS);
         } catch (IOException e) {
             return null;
         }
-        for (String asset : assetList) {
-            if (asset.contains("deploy_lib")) {
-                modelAssets.add(asset);
-            }
-        }
-        modelAssetsArray = new String[modelAssets.size()];
-        modelAssetsArray = modelAssets.toArray(modelAssetsArray);
-        String tmp = modelAssetsArray[modelAssets.size() - 1];
-        modelAssetsArray[modelAssets.size() - 1] = modelAssetsArray[0];
-        modelAssetsArray[0] = tmp;
-        return modelAssetsArray;
+        return models;
     }
 
     private String[] inference(float[] chw) {
@@ -183,8 +171,12 @@ public class Camera2BasicFragment extends Fragment implements
             }
             for (int l = 0; l < 5; l++) {
                 int idx = pq.poll();
-                if (idx < labels.size()) {
-                    results[l] = String.format("%.2f", output[idx]) + " : " + labels.get(idx);
+                if (idx < labels.length()) {
+                    try {
+                        results[l] = String.format("%.2f", output[idx]) + " : " + labels.getString(idx);
+                    } catch (JSONException e) {
+                        Log.e(TAG, "index out of range", e);
+                    }
                 } else {
                     results[l] = "???: unknown";
                 }
@@ -215,13 +207,13 @@ public class Camera2BasicFragment extends Fragment implements
         }
 
         mModelView.setChoiceMode(ListView.CHOICE_MODE_SINGLE);
-        MODELS = getModelAssets();
+        models = getModels();
 
         ArrayAdapter<String> modelAdapter =
                 new ArrayAdapter<>(
-                        getContext(), R.layout.listview_row, R.id.listview_row_text, MODELS);
+                        getContext(), R.layout.listview_row, R.id.listview_row_text, models);
         mModelView.setAdapter(modelAdapter);
-        mModelView.setItemChecked(1, true);
+        mModelView.setItemChecked(0, true);
         mModelView.setOnItemClickListener(
                 (parent, view1, position, id) -> updateActiveModel());
 
@@ -452,24 +444,23 @@ public class Camera2BasicFragment extends Fragment implements
             mRunClassifier = false;
             // load synset name
             int modelIndex = mModelView.getCheckedItemPosition();
-            String model = MODELS[modelIndex];
+            String model = MODELS + "/" + models[modelIndex];
 
-            String labelFilename = MODEL_LABEL_FILE.split("file:///android_asset/")[1];
-            Log.i(TAG, "Reading synset name from: " + labelFilename);
+            String labelFilename = MODEL_LABEL_FILE;
+            Log.i(TAG, "Reading labels from: " + model+ "/" + labelFilename);
             try {
-                String labelsContent = new String(getBytesFromFile(assetManager, labelFilename));
-                labels.addAll(Arrays.asList(labelsContent.split("\\r?\\n")));
-            } catch (IOException e) {
-                Log.e(TAG, "Problem reading synset name file!",  e);
+                labels = new JSONArray(new String(getBytesFromFile(assetManager, model+ "/" + labelFilename)));
+            } catch (IOException | JSONException e) {
+                Log.e(TAG, "Problem reading labels name file!",  e);
                 return -1;//failure
             }
 
             // load json graph
             String modelGraph;
-            String graphFilename = MODEL_GRAPH_FILE.split("file:///android_asset/")[1];
-            Log.i(TAG, "Reading json graph from: " + graphFilename);
+            String graphFilename = MODEL_GRAPH_FILE;
+            Log.i(TAG, "Reading json graph from: " + model+ "/" + graphFilename);
             try {
-                modelGraph = new String(getBytesFromFile(assetManager, graphFilename));
+                modelGraph = new String(getBytesFromFile(assetManager, model+ "/" + graphFilename));
             } catch (IOException e) {
                 Log.e(TAG, "Problem reading json graph file!", e);
                 return -1;//failure
@@ -477,12 +468,11 @@ public class Camera2BasicFragment extends Fragment implements
 
             // upload tvm compiled function on application cache folder
             String libCacheFilePath;
-            String libFilename = EXE_GPU ? MODEL_CL_LIB_FILE.split("file:///android_asset/")[1] :
-                    MODEL_CPU_LIB_FILE.split("file:///android_asset/")[1];
+            String libFilename = EXE_GPU ? MODEL_CL_LIB_FILE : MODEL_CPU_LIB_FILE;
             Log.i(TAG, "Uploading compiled function to cache folder");
             try {
                 libCacheFilePath = getTempLibFilePath(libFilename);
-                byte[] modelLibByte = getBytesFromFile(assetManager, libFilename);
+                byte[] modelLibByte = getBytesFromFile(assetManager, model+ "/" + libFilename);
                 FileOutputStream fos = new FileOutputStream(libCacheFilePath);
                 fos.write(modelLibByte);
                 fos.close();
@@ -493,9 +483,9 @@ public class Camera2BasicFragment extends Fragment implements
 
             // load parameters
             byte[] modelParams;
-            String paramFilename = MODEL_PARAM_FILE.split("file:///android_asset/")[1];
+            String paramFilename = MODEL_PARAM_FILE;
             try {
-                modelParams = getBytesFromFile(assetManager, paramFilename);
+                modelParams = getBytesFromFile(assetManager, model+ "/" + paramFilename);
             } catch (IOException e) {
                 Log.e(TAG, "Problem reading params file!", e);
                 return -1;//failure

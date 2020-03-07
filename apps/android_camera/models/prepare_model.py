@@ -16,81 +16,99 @@
 # under the License.
 
 import logging
-
-import mxnet as mx
-import tvm
-import nnvm.frontend
-import nnvm.compiler
-from mxnet import gluon
-from mxnet.gluon.model_zoo import vision
-from tvm import relay
-from tvm.contrib import ndk
+import pathlib
+from pathlib import Path
+from typing import Union
 import os
+from os import environ
+
+import tvm
+import tvm.relay as relay
+from tvm.contrib import util, ndk, graph_runtime as runtime
+from tvm.contrib.download import download_testdata, download
+
+target = 'llvm -target=aarch64-linux-android'
+target_host = None
 
 
-target_host =  'llvm -target=arm64-linux-android'
+def del_dir(target: Union[Path, str], only_if_empty: bool = False):
+    target = Path(target).expanduser()
+    assert target.is_dir()
+    for p in sorted(target.glob('**/*'), reverse=True):
+        if not p.exists():
+            continue
+        p.chmod(0o666)
+        if p.is_dir():
+            p.rmdir()
+        else:
+            if only_if_empty:
+                raise RuntimeError(f'{p.parent} is not empty!')
+            p.unlink()
+    target.rmdir()
 
 def get_model(model_name, batch_size=1):
-    gluon_model = vision.get_model(model_name, pretrained=True)
-    img_size = 299 if model_name == 'inceptionv3' else 224
-    data_shape = (batch_size, 3, img_size, img_size)
-    net, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
-    with relay.build_config(opt_level=3):
-        func = relay.optimize(net, target=None, params=params)
-    return func
+    if model_name == 'resnet18_v1':
+        import mxnet as mx
+        from mxnet import gluon
+        from mxnet.gluon.model_zoo import vision
+        gluon_model = vision.get_model(model_name, pretrained=True)
+        img_size = 224
+        data_shape = (batch_size, 3, img_size, img_size)
+        net, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
+        return (net, params)
+    elif model_name == 'mobilenet_v2':
+        import keras
+        from keras.applications.mobilenet_v2 import MobileNetV2
+        keras.backend.clear_session()  # Destroys the current TF graph and creates a new one.
+        weights_url = ''.join(['https://github.com/JonathanCMitchell/',
+                               'mobilenet_v2_keras/releases/download/v1.1/',
+                               'mobilenet_v2_weights_tf_dim_ordering_tf_kernels_0.5_224.h5'])
+        weights_file = 'mobilenet_v2_weights.h5'
+        weights_path = download_testdata(weights_url, weights_file, module='keras')
+        keras_mobilenet_v2 = MobileNetV2(alpha=0.5, include_top=True, weights=None,
+                                        input_shape=(224, 224, 3), classes=1000)
+        keras_mobilenet_v2.load_weights(weights_path)
+        
+        img_size = 224
+        data_shape = (batch_size, 3, img_size, img_size)
+        mod, params = relay.frontend.from_keras(keras_mobilenet_v2,  {"input_1": data_shape})
+        return (mod, params)
 
-def get_model_nnvm(model_name, batch_size=1):
-    gluon_model = vision.get_model(model_name, pretrained=True)
-    img_size = 299 if model_name == 'inceptionv3' else 224
-    data_shape = (batch_size, 3, img_size, img_size)
-    sym, params = nnvm.frontend.from_mxnet(gluon_model, {"data": data_shape})
-    return sym, params
-
-def main_nnvm(model_str):
+def main(model_str, output_path):
+    if output_path.exists():
+        del_dir(output_path)
+    output_path.mkdir()
+    output_path_str = os.fspath(output_path)
     print(model_str)
     print("getting model...")
-    sym, params = get_model_nnvm(model_str)
-    try:
-        os.mkdir(model_str)
-    except FileExistsError:
-        pass
-    target = tvm.target.arm_cpu(model='pixel2')
-    print("building model...")
-    with nnvm.compiler.build_config(opt_level=3):
-        graph, lib, params = nnvm.compiler.build(sym, target, {"data": (1, 3,
-                                                 224, 224)}, params=params, target_host=None)
-    print("dumping lib...")
-    lib.export_library(model_str + '/' + 'deploy_lib_cpu.so', ndk.create_shared)
-    print("dumping graph...")
-    with open(model_str + '/' + 'deploy_graph.json', 'w') as f:
-        f.write(graph.json())
-    print("dumping params...")
-    with open (model_str + '/' + 'deploy_param.params', 'wb') as f:
-        f.write(nnvm.compiler.save_param_dict(params))
-
-def main(model_str):
-    print(model_str)
-    print("getting model...")
-    func = get_model(model_str)
+    net, params = get_model(model_str)
     try:
         os.mkdir(model_str)
     except FileExistsError:
         pass
     print("building...")
-    target = tvm.target.arm_cpu(model='pixel2')
-    print("(relay)")
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(func, target, target_host=target_host)
+        graph, lib, params = relay.build(net, target, target_host=target_host)
     print("dumping lib...")
-    lib.export_library(model_str + '/' + 'deploy_lib_cpu.so', ndk.create_shared)
+    lib.export_library(output_path_str + '/' + 'deploy_lib_cpu.so', ndk.create_shared)
     print("dumping graph...")
-    with open(model_str + '/' + 'deploy_graph.json', 'w') as f:
+    with open(output_path_str + '/' + 'deploy_graph.json', 'w') as f:
         f.write(graph)
     print("dumping params...")
-    with open(model_str + '/' + 'deploy_param.params', 'wb') as f:
+    with open(output_path_str + '/' + 'deploy_param.params', 'wb') as f:
         f.write(relay.save_param_dict(params))
+    print("dumping labels...")
+    download('https://raw.githubusercontent.com/dmlc/web-data/master/mxnet/doc/tutorials/onnx/image_net_labels.json', output_path_str + '/image_net_labels.json')
+
 
 if __name__ == '__main__':
-    models = ['resnet18_v1']
-    for model in models:
-        main(model)
+    if environ.get('TVM_NDK_CC') is None:
+        raise RuntimeError("Require environment variable TVM_NDK_CC")
+    models_path = Path().absolute().parent.joinpath('app/src/main/assets/models/')
+    if not models_path.exists():
+        models_path.mkdir()
+    models = {'mobilenet_v2': models_path.joinpath('mobilenet_v2'),
+              'resnet18_v1': models_path.joinpath('resnet18_v1')
+            }
+    for model, output_path in models.items():
+        main(model, output_path)
