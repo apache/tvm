@@ -38,7 +38,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
   void VisitExpr(const PrimExpr& e) {
     if (e.dtype().is_int()) {
       int bits = 64;
-      if (analyzer_.CanProve(e <= max_value(DataType::Int(32)) &&
+      if (e.dtype() == DataType::Int(32) ||
+          analyzer_.CanProve(e <= max_value(DataType::Int(32)) &&
                              e >= min_value(DataType::Int(32)))) {
         bits = 32;
       }
