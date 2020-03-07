@@ -149,7 +149,6 @@ def lower(sch,
     # Phase 0
     if isinstance(sch, schedule.Schedule):
         stmt = form_body(sch)
-        print("{:>32} = \n{}".format("form_body", stmt))
 
     for f in lower_phase0:
         stmt = f(stmt)
@@ -159,56 +158,41 @@ def lower(sch,
 
     # Phase 1
     stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
-    print("{:>32} = \n{}".format("RewriteForTensorCore", stmt))
     stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
-    print("{:>32} = \n{}".format("StorageFlatten", stmt))
     stmt = ir_pass.DataTypeRewrite(stmt)
-    print("{:>32} = \n{}".format("DataTypeRewrite", stmt))
     stmt = ir_pass.CanonicalSimplify(stmt)
-    print("{:>32} = \n{}".format("CanonicalSimplify", stmt))
     for f in lower_phase1:
         stmt = f(stmt)
 
     # Phase 2
     if not simple_mode:
         stmt = ir_pass.LoopPartition(stmt, cfg.partition_const_loop)
-        print("{:>32} = \n{}".format("LoopPartition", stmt))
     if cfg.disable_vectorize:
         stmt = ir_pass.SkipVectorize(stmt)
-        print("{:>32} = \n{}".format("SkipVectorize", stmt))
     else:
         stmt = ir_pass.VectorizeLoop(stmt)
-        print("{:>32} = \n{}".format("VectorizeLoop", stmt))
     stmt = ir_pass.InjectVirtualThread(stmt)
-    print("{:>32} = \n{}".format("InjectVirtualThread", stmt))
     stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
-    print("{:>32} = \n{}".format("InjectDoubleBuffer", stmt))
     stmt = ir_pass.StorageRewrite(stmt)
-    print("{:>32} = \n{}".format("StorageRewrite", stmt))
     stmt = ir_pass.UnrollLoop(
         stmt,
         cfg.auto_unroll_max_step,
         cfg.auto_unroll_max_depth,
         cfg.auto_unroll_max_extent,
         cfg.unroll_explicit)
-    print("{:>32} = \n{}".format("UnrollLoop", stmt))
     for f in lower_phase2:
         stmt = f(stmt)
 
     # Phase 3
     stmt = ir_pass.Simplify(stmt)
-    print("{:>32} = \n{}".format("Simplify", stmt))
     stmt = ir_pass.RemoveNoOp(stmt)
-    print("{:>32} = \n{}".format("RemoveNoOp", stmt))
     if not cfg.disable_select_rewriting:
         stmt = ir_pass.RewriteUnsafeSelect(stmt)
-        print("{:>32} = \n{}".format("RewriteUnsafeSelect", stmt))
     for f in lower_phase3:
         stmt = f(stmt)
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
         stmt = ir_pass.InstrumentBoundCheckers(stmt)
-        print("{:>32} = \n{}".format("InstrumentBoundCheckers", stmt))
     if simple_mode:
         return stmt
 
