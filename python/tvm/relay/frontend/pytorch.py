@@ -470,7 +470,10 @@ def _avg_pool2d():
         data = inputs[0]
 
         pool_size = _infer_shape(inputs[1])
-        strides = _infer_shape(inputs[2])
+        if inputs[2]:
+            strides = _infer_shape(inputs[2])
+        else:
+            strides = pool_size
         padding = _infer_shape(inputs[3])
 
         ceil_mode = int(inputs[4])
