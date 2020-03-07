@@ -47,9 +47,9 @@ class MAC(aBits: Int = 8, bBits: Int = 8, cBits: Int = 16) extends Module {
 }
 
 /** PipeAdder
-  *
-  * This unit loads input bits into register and performs addition in the next cycle
-  */
+ *
+ * This unit loads input bits into register and performs addition in the next cycle
+ */
 class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
   val outBits = Math.max(aBits, bBits) + 1
   val io = IO(new Bundle {
@@ -65,10 +65,10 @@ class PipeAdder(aBits: Int = 8, bBits: Int = 8) extends Module {
 }
 
 /** Adder
-  *
-  * This unit wires input bits to an adder directly.
-  * The output comes out of combinational logic without waiting for another cycle.
-  */
+ *
+ * This unit wires input bits to an adder directly.
+ * The output comes out of combinational logic without waiting for another cycle.
+ */
 class Adder(aBits: Int = 8, bBits: Int = 8) extends Module {
   val outBits = Math.max(aBits, bBits) + 1
   val io = IO(new Bundle {
@@ -86,8 +86,7 @@ class Adder(aBits: Int = 8, bBits: Int = 8) extends Module {
 }
 
 /** Pipelined DotProduct based on MAC and PipeAdder */
-class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16)
-    extends Module {
+class DotProduct(aBits: Int = 8, bBits: Int = 8, size: Int = 16) extends Module {
   val errorMsg =
     s"\n\n[VTA] [DotProduct] size must be greater than 4 and a power of 2\n\n"
   require(size >= 2 && isPow2(size), errorMsg)
@@ -175,16 +174,15 @@ class MatrixVectorMultiplication(implicit p: Parameters) extends Module {
 }
 
 /** TensorGemm.
-  *
-  * This unit instantiate the MatrixVectorMultiplication and go over the
-  * micro-ops (uops) which are used to read inputs, weights and biases,
-  * and writes results back to the acc and out scratchpads.
-  *
-  * Also, the TensorGemm uses the reset field in the Gemm instruction to
-  * clear or zero-out the acc-scratchpad locations based on the micro-ops.
-  */
-class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
-    extends Module {
+ *
+ * This unit instantiate the MatrixVectorMultiplication and go over the
+ * micro-ops (uops) which are used to read inputs, weights and biases,
+ * and writes results back to the acc and out scratchpads.
+ *
+ * Also, the TensorGemm uses the reset field in the Gemm instruction to
+ * clear or zero-out the acc-scratchpad locations based on the micro-ops.
+ */
+class TensorGemm(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val start = Input(Bool())
     val done = Output(Bool())
@@ -268,11 +266,10 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
     when((state === sReadTensor) && mvc.io.acc_o.data.valid) { // issue & commit
       inflight := inflight
     }.elsewhen(state === sReadTensor) { // issue a tensor
-        inflight := inflight + 1.U
-      }
-      .elsewhen(mvc.io.acc_o.data.valid) { // commit a tensor
-        inflight := inflight - 1.U
-      }
+      inflight := inflight + 1.U
+    }.elsewhen(mvc.io.acc_o.data.valid) { // commit a tensor
+      inflight := inflight - 1.U
+    }
   }
 
   when(
@@ -305,17 +302,16 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
     inp_i := 0.U
     wgt_i := 0.U
   }.elsewhen(state === sReadUop && cnt_i === dec.lp_1) {
-      cnt_i := 0.U
-      acc_i := acc_o
-      inp_i := inp_o
-      wgt_i := wgt_o
-    }
-    .elsewhen(state === sExe && uop_idx === uop_end - 1.U) {
-      cnt_i := cnt_i + 1.U
-      acc_i := acc_i + dec.acc_1
-      inp_i := inp_i + dec.inp_1
-      wgt_i := wgt_i + dec.wgt_1
-    }
+    cnt_i := 0.U
+    acc_i := acc_o
+    inp_i := inp_o
+    wgt_i := wgt_o
+  }.elsewhen(state === sExe && uop_idx === uop_end - 1.U) {
+    cnt_i := cnt_i + 1.U
+    acc_i := acc_i + dec.acc_1
+    inp_i := inp_i + dec.inp_1
+    wgt_i := wgt_i + dec.wgt_1
+  }
 
   when(state === sComputeIdx && io.uop.data.valid) {
     uop_acc := io.uop.data.bits.u0 + acc_i
@@ -351,9 +347,8 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
   mvc.io.acc_i.data <> io.acc.rd.data
 
   // acc_o
-  io.acc.wr.valid := mvc.io.acc_o.data.valid & Mux(dec.reset,
-                                                   true.B,
-                                                   wrpipe.io.deq.valid)
+  io.acc.wr.valid := mvc.io.acc_o.data.valid &
+    Mux(dec.reset, true.B, wrpipe.io.deq.valid)
   io.acc.wr.bits.idx := Mux(dec.reset, uop_acc, wrpipe.io.deq.bits)
   io.acc.wr.bits.data <> mvc.io.acc_o.data.bits
 
@@ -371,10 +366,7 @@ class TensorGemm(debug: Boolean = false)(implicit p: Parameters)
     }
 
     when(state === sReadTensor && ~dec.reset) {
-      printf("[TensorGemm] [uop] acc:%x inp:%x wgt:%x\n",
-             uop_acc,
-             uop_inp,
-             uop_wgt)
+      printf("[TensorGemm] [uop] acc:%x inp:%x wgt:%x\n", uop_acc, uop_inp, uop_wgt)
     }
 
     io.inp.rd.data.bits.zipWithIndex.foreach {

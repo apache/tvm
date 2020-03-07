@@ -33,9 +33,9 @@ trait VTAMemDPIParams {
 }
 
 /** Memory master interface.
-  *
-  * This interface is tipically used by the Accelerator
-  */
+ *
+ * This interface is tipically used by the Accelerator
+ */
 class VTAMemDPIMaster extends Bundle with VTAMemDPIParams {
   val req = new Bundle {
     val valid = Output(Bool())
@@ -48,9 +48,9 @@ class VTAMemDPIMaster extends Bundle with VTAMemDPIParams {
 }
 
 /** Memory client interface.
-  *
-  * This interface is tipically used by the Host
-  */
+ *
+ * This interface is tipically used by the Host
+ */
 class VTAMemDPIClient extends Bundle with VTAMemDPIParams {
   val req = new Bundle {
     val valid = Input(Bool())
@@ -63,9 +63,9 @@ class VTAMemDPIClient extends Bundle with VTAMemDPIParams {
 }
 
 /** Memory DPI module.
-  *
-  * Wrapper for Memory Verilog DPI module.
-  */
+ *
+ * Wrapper for Memory Verilog DPI module.
+ */
 class VTAMemDPI extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clock = Input(Clock())
@@ -75,8 +75,7 @@ class VTAMemDPI extends BlackBox with HasBlackBoxResource {
   setResource("/verilog/VTAMemDPI.v")
 }
 
-class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters)
-    extends Module {
+class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val dpi = new VTAMemDPIMaster
     val axi = new AXIClient(p(ShellKey).memParams)
@@ -173,13 +172,13 @@ class VTAMemDPIToAXI(debug: Boolean = false)(implicit p: Parameters)
     }
     when(io.axi.r.fire()) {
       printf("[VTAMemDPIToAXI] [R] last:%x data:%x\n",
-             io.axi.r.bits.last,
-             io.axi.r.bits.data)
+        io.axi.r.bits.last,
+        io.axi.r.bits.data)
     }
     when(io.axi.w.fire()) {
       printf("[VTAMemDPIToAXI] [W] last:%x data:%x\n",
-             io.axi.w.bits.last,
-             io.axi.w.bits.data)
+        io.axi.w.bits.last,
+        io.axi.w.bits.data)
     }
   }
 }

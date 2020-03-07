@@ -112,7 +112,7 @@ endif
 default: lint lib
 
 lint:
-	sbt scalafmt --test
+	sbt scalastyle
 
 lib: $(lib_path)
 

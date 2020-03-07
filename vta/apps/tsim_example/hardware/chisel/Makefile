@@ -94,7 +94,8 @@ endif
 default: lint lib
 
 lint:
-	sbt scalafmt
+	cp $(vta_dir)/hardware/chisel/scalastyle-config.xml .
+	sbt scalastyle
 
 lib: $(lib_path)
 $(lib_path): $(verilator_build_dir)/V$(TOP).cpp

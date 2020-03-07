@@ -25,11 +25,11 @@ import vta.util.config._
 import vta.shell._
 
 /** UopMaster.
-  *
-  * Uop interface used by a master module, i.e. TensorAlu or TensorGemm,
-  * to request a micro-op (uop) from the uop-scratchpad. The index (idx) is
-  * used as an address to find the uop in the uop-scratchpad.
-  */
+ *
+ * Uop interface used by a master module, i.e. TensorAlu or TensorGemm,
+ * to request a micro-op (uop) from the uop-scratchpad. The index (idx) is
+ * used as an address to find the uop in the uop-scratchpad.
+ */
 class UopMaster(implicit p: Parameters) extends Bundle {
   val addrBits = log2Ceil(p(CoreKey).uopMemDepth)
   val idx = ValidIO(UInt(addrBits.W))
@@ -38,11 +38,11 @@ class UopMaster(implicit p: Parameters) extends Bundle {
 }
 
 /** UopClient.
-  *
-  * Uop interface used by a client module, i.e. LoadUop, to receive
-  * a request from a master module, i.e. TensorAlu or TensorGemm.
-  * The index (idx) is used as an address to find the uop in the uop-scratchpad.
-  */
+ *
+ * Uop interface used by a client module, i.e. LoadUop, to receive
+ * a request from a master module, i.e. TensorAlu or TensorGemm.
+ * The index (idx) is used as an address to find the uop in the uop-scratchpad.
+ */
 class UopClient(implicit p: Parameters) extends Bundle {
   val addrBits = log2Ceil(p(CoreKey).uopMemDepth)
   val idx = Flipped(ValidIO(UInt(addrBits.W)))
@@ -51,12 +51,12 @@ class UopClient(implicit p: Parameters) extends Bundle {
 }
 
 /** LoadUop.
-  *
-  * Load micro-ops (uops) from memory, i.e. DRAM, and store them in the
-  * uop-scratchpad. Currently, micro-ops are 32-bit wide and loaded in
-  * group of 2 given the fact that the DRAM payload is 8-bytes. This module
-  * should be modified later on to support different DRAM sizes efficiently.
-  */
+ *
+ * Load micro-ops (uops) from memory, i.e. DRAM, and store them in the
+ * uop-scratchpad. Currently, micro-ops are 32-bit wide and loaded in
+ * group of 2 given the fact that the DRAM payload is 8-bytes. This module
+ * should be modified later on to support different DRAM sizes efficiently.
+ */
 class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
@@ -113,15 +113,14 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
           when(xrem === 0.U) {
             state := sIdle
           }.elsewhen(xrem < xmax) {
-              state := sReadCmd
-              xlen := xrem
-              xrem := 0.U
-            }
-            .otherwise {
-              state := sReadCmd
-              xlen := xmax - 1.U
-              xrem := xrem - xmax
-            }
+            state := sReadCmd
+            xlen := xrem
+            xrem := 0.U
+          }.otherwise {
+            state := sReadCmd
+            xlen := xmax - 1.U
+            xrem := xrem - xmax
+          }
         }
       }
     }
@@ -166,19 +165,18 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
     when(sizeIsEven) {
       wmask := "b_11".U.asTypeOf(wmask)
     }.elsewhen(io.vme_rd.cmd.fire()) {
-        when(dec.xsize === 1.U) {
-          wmask := "b_01".U.asTypeOf(wmask)
-        }.otherwise {
-          wmask := "b_11".U.asTypeOf(wmask)
-        }
+      when(dec.xsize === 1.U) {
+        wmask := "b_01".U.asTypeOf(wmask)
+      }.otherwise {
+        wmask := "b_11".U.asTypeOf(wmask)
       }
-      .elsewhen(io.vme_rd.data.fire()) {
-        when((xcnt === xlen - 1.U) && (xrem === 0.U)) {
-          wmask := "b_01".U.asTypeOf(wmask)
-        }.otherwise {
-          wmask := "b_11".U.asTypeOf(wmask)
-        }
+    }.elsewhen(io.vme_rd.data.fire()) {
+      when((xcnt === xlen - 1.U) && (xrem === 0.U)) {
+        wmask := "b_01".U.asTypeOf(wmask)
+      }.otherwise {
+        wmask := "b_11".U.asTypeOf(wmask)
       }
+    }
   }.otherwise {
     when(io.vme_rd.cmd.fire()) {
       wmask := "b_10".U.asTypeOf(wmask)

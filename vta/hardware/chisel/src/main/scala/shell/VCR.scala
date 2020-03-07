@@ -26,9 +26,9 @@ import vta.util.genericbundle._
 import vta.interface.axi._
 
 /** VCR parameters.
-  *
-  * These parameters are used on VCR interfaces and modules.
-  */
+ *
+ * These parameters are used on VCR interfaces and modules.
+ */
 case class VCRParams() {
   val nCtrl = 1
   val nECnt = 1
@@ -38,14 +38,13 @@ case class VCRParams() {
 }
 
 /** VCRBase. Parametrize base class. */
-abstract class VCRBase(implicit p: Parameters)
-    extends GenericParameterizedBundle(p)
+abstract class VCRBase(implicit p: Parameters) extends GenericParameterizedBundle(p)
 
 /** VCRMaster.
-  *
-  * This is the master interface used by VCR in the VTAShell to control
-  * the Core unit.
-  */
+ *
+ * This is the master interface used by VCR in the VTAShell to control
+ * the Core unit.
+ */
 class VCRMaster(implicit p: Parameters) extends VCRBase {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
@@ -57,10 +56,10 @@ class VCRMaster(implicit p: Parameters) extends VCRBase {
 }
 
 /** VCRClient.
-  *
-  * This is the client interface used by the Core module to communicate
-  * to the VCR in the VTAShell.
-  */
+ *
+ * This is the client interface used by the Core module to communicate
+ * to the VCR in the VTAShell.
+ */
 class VCRClient(implicit p: Parameters) extends VCRBase {
   val vp = p(ShellKey).vcrParams
   val mp = p(ShellKey).memParams
@@ -72,12 +71,12 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
 }
 
 /** VTA Control Registers (VCR).
-  *
-  * This unit provides control registers (32 and 64 bits) to be used by a control'
-  * unit, typically a host processor. These registers are read-only by the core
-  * at the moment but this will likely change once we add support to general purpose
-  * registers that could be used as event counters by the Core unit.
-  */
+ *
+ * This unit provides control registers (32 and 64 bits) to be used by a control'
+ * unit, typically a host processor. These registers are read-only by the core
+ * at the moment but this will likely change once we add support to general purpose
+ * registers that could be used as event counters by the Core unit.
+ */
 class VCR(implicit p: Parameters) extends Module {
   val io = IO(new Bundle {
     val host = new AXILiteClient(p(ShellKey).hostParams)
