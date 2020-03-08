@@ -8,7 +8,7 @@
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing,
+# Unless required by applicable law or agreed to in writing,    
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
@@ -17,7 +17,7 @@
 # pylint: disable=redefined-builtin, invalid-name
 """Operators used in TIR expression."""
 import tvm._ffi
-from tvm.runtime import convert, const
+from tvm.runtime import convert, const, DataType, TypeCode
 from tvm.ir import Array
 
 from .buffer import Buffer
@@ -315,7 +315,7 @@ def max_value(dtype):
 
 
 def exp(x):
-    """Take exponetial of input x.
+    """Take exponential of float input x.
 
     Parameters
     ----------
@@ -327,11 +327,13 @@ def exp(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("exp only applies to float")
     return call_pure_intrin(x.dtype, "exp", x)
 
 
 def erf(x):
-    """Take gauss error function of the input x.
+    """Take gauss error function of the float input x.
 
     Parameters
     ----------
@@ -343,11 +345,13 @@ def erf(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("erf only applies to float")
     return call_pure_intrin(x.dtype, "erf", x)
 
 
 def tanh(x):
-    """Take hyperbolic tanh of input x.
+    """Take hyperbolic tanh of float input x.
 
     Parameters
     ----------
@@ -359,11 +363,13 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("tanh only applies to float")
     return call_pure_intrin(x.dtype, "tanh", x)
 
 
 def sigmoid(x):
-    """Quick function to get sigmoid
+    """Quick function to get sigmoid of float input x
 
     Parameters
     ----------
@@ -375,11 +381,13 @@ def sigmoid(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("sigmoid only applies to float")
     return call_pure_intrin(x.dtype, "sigmoid", x)
 
 
 def log(x):
-    """Take log of input x.
+    """Take log of float input x.
 
     Parameters
     ----------
@@ -391,10 +399,12 @@ def log(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("log only applies to float")
     return call_pure_intrin(x.dtype, "log", x)
 
 def tan(x):
-    """Take tan of input x.
+    """Take tan of float input x.
 
     Parameters
     ----------
@@ -406,11 +416,13 @@ def tan(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("tan only applies to float")
     return call_pure_intrin(x.dtype, "tan", x)
 
 
 def cos(x):
-    """Take cos of input x.
+    """Take cos of float input x.
 
     Parameters
     ----------
@@ -422,10 +434,12 @@ def cos(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("cos only applies to float")
     return call_pure_intrin(x.dtype, "cos", x)
 
 def sin(x):
-    """Take sin of input x.
+    """Take sin of float input x.
 
     Parameters
     ----------
@@ -437,10 +451,12 @@ def sin(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("sin only applies to float")
     return call_pure_intrin(x.dtype, "sin", x)
 
 def atan(x):
-    """Take atan of input x.
+    """Take atan of float input x.
 
     Parameters
     ----------
@@ -452,10 +468,12 @@ def atan(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("atan only applies to float")
     return call_pure_intrin(x.dtype, "atan", x)
 
 def sqrt(x):
-    """Take square root of input x.
+    """Take square root of float input x.
 
     Parameters
     ----------
@@ -467,11 +485,13 @@ def sqrt(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("sqrt only applies to float")
     return call_pure_intrin(x.dtype, "sqrt", x)
 
 
 def rsqrt(x):
-    """Take reciprocal of square root of input x.
+    """Take reciprocal of square root of float input x.
 
     Parameters
     ----------
@@ -483,6 +503,8 @@ def rsqrt(x):
     y : PrimExpr
         The result.
     """
+    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+        raise RuntimeError("rsqrt only applies to float")
     return call_pure_intrin(x.dtype, "rsqrt", x)
 
 

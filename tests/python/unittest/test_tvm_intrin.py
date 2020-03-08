@@ -45,5 +45,27 @@ def test_nearbyint():
         a_rounded.asnumpy(), np.rint(a.asnumpy()))
 
 
+def test_intrinsic_argtypes():
+    for intrinsic in [tvm.tir.round, tvm.tir.trunc, tvm.tir.ceil,
+                            tvm.tir.floor, tvm.tir.nearbyint]:
+        assert intrinsic(tvm.tir.const(10,'int32')).value == 10
+        assert intrinsic(tvm.tir.const(True,'bool')).value == True
+
+    assert tvm.tir.isnan(tvm.tir.const(10, 'int32')).value == False
+    assert isinstance(tvm.tir.popcount(tvm.tir.const(10, 'int32')), tvm.tir.expr.Call)
+
+    for intrinsic in [tvm.tir.exp, tvm.tir.erf, tvm.tir.tanh,
+                            tvm.tir.sigmoid, tvm.tir.log,
+                            tvm.tir.tan, tvm.tir.cos,
+                            tvm.tir.sin, tvm.tir.atan,
+                            tvm.tir.sqrt, tvm.tir.rsqrt]:
+        try:
+            intrinsic(tvm.tir.const(10,'int32'))
+            assert False
+        except RuntimeError:
+            pass
+
+
 if __name__ == "__main__":
     test_nearbyint()
+    test_intrinsic_argtypes()
