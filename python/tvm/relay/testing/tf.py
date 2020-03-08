@@ -66,6 +66,11 @@ def ProcessGraphDefParam(graph_def):
     return graph_def
 
 
+def convert_to_list(x):
+    if not isinstance(x, list):
+        x = [x]
+    return x
+
 def AddShapesToGraphDef(session, out_node):
     """ Add shapes attribute to nodes of the graph.
         Input graph here is the default graph in context.
@@ -74,7 +79,7 @@ def AddShapesToGraphDef(session, out_node):
     ----------
     session : tf.Session
         Tensorflow session
-    out_node : String
+    out_node : String or List
         Final output node of the graph.
 
     Returns
@@ -87,7 +92,7 @@ def AddShapesToGraphDef(session, out_node):
     graph_def = tf_compat_v1.graph_util.convert_variables_to_constants(
         session,
         session.graph.as_graph_def(add_shapes=True),
-        [out_node],
+        convert_to_list(out_node),
         )
     return graph_def
 
