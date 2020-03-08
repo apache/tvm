@@ -790,7 +790,7 @@ def _slice():
             size = _infer_value(inputs[2], params).asnumpy().tolist()[0]
         
         # handle situations when return empty constant
-        input0_np = _infer_value(inputs[0], params).asnumpy()  
+        input0_np = _infer_value_simulated(inputs[0], params).asnumpy()  
         input0_shape = input0_np.shape
         for input_dim_i, begin_i, size_i in zip(input0_shape, begin, size):
             # when one size_i == 0, return empty constant
