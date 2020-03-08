@@ -623,15 +623,16 @@ Above, we discussed the behavior of PassUpDomain on Split relations only. In the
 ::
 
    import tvm
+   from tvm import te
 
    n = 4
    m = 4
 
-   A = tvm.placeholder((n, m), name='A')
-   B = tvm.compute((n, m), lambda bi, bj: A[bi, bj]+2, name='B')
-   C = tvm.compute((n, m), lambda ci, cj: B[ci, cj]*3, name='C')
+   A = te.placeholder((n, m), name='A')
+   B = te.compute((n, m), lambda bi, bj: A[bi, bj]+2, name='B')
+   C = te.compute((n, m), lambda ci, cj: B[ci, cj]*3, name='C')
 
-   s = tvm.create_schedule(C.op)
+   s = te.create_schedule(C.op)
 
    fused_axes = s[C].fuse(C.op.axis[0], C.op.axis[1])
    xo, xi = s[C].split(fused_axes, 4)
