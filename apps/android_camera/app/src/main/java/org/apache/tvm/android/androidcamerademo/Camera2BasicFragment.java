@@ -23,10 +23,6 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.ImageFormat;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
 import android.media.Image;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -52,6 +48,11 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.renderscript.Allocation;
+import androidx.renderscript.Element;
+import androidx.renderscript.RenderScript;
+import androidx.renderscript.Script;
+import androidx.renderscript.Type;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -64,7 +65,6 @@ import org.apache.tvm.TVMValue;
 import org.json.JSONArray;
 import org.json.JSONException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -100,10 +100,20 @@ public class Camera2BasicFragment extends Fragment implements
     private static final String MODELS = "models";
     private static String[] models;
     private static String mCurModel = "";
-    private boolean mRunClassifier = false;
     private final int[] mRGBValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
     private final float[] mCHW = new float[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * IMG_CHANNEL];
     private final Semaphore isProcessingDone = new Semaphore(1);
+    private final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
+            3,
+            3,
+            1,
+            TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>()
+    );
+    // rs creation just for demo. Create rs just once in onCreate and use it again.
+    private RenderScript rs;
+    private ScriptC_yuv420888 mYuv420;
+    private boolean mRunClassifier = false;
     private boolean mCheckedPermissions = false;
     private AppCompatTextView mResultView;
     private AppCompatTextView mInfoView;
@@ -114,13 +124,6 @@ public class Camera2BasicFragment extends Fragment implements
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private PreviewView previewView;
     private ImageAnalysis imageAnalysis;
-    private final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
-            3,
-            3,
-            1,
-            TimeUnit.SECONDS,
-            new LinkedBlockingQueue<>()
-    );
 
     static Camera2BasicFragment newInstance() {
         return new Camera2BasicFragment();
@@ -295,36 +298,85 @@ public class Camera2BasicFragment extends Fragment implements
         }
     }
 
-    private Bitmap toBitmap(Image image) {
+    private Bitmap YUV_420_888_toRGB(Image image, int width, int height) {
+        // Get the three image planes
         Image.Plane[] planes = image.getPlanes();
-        ByteBuffer yBuffer = planes[0].getBuffer();
-        ByteBuffer uBuffer = planes[1].getBuffer();
-        ByteBuffer vBuffer = planes[2].getBuffer();
+        ByteBuffer buffer = planes[0].getBuffer();
+        byte[] y = new byte[buffer.remaining()];
+        buffer.get(y);
 
-        int ySize = yBuffer.remaining();
-        int uSize = uBuffer.remaining();
-        int vSize = vBuffer.remaining();
+        buffer = planes[1].getBuffer();
+        byte[] u = new byte[buffer.remaining()];
+        buffer.get(u);
 
-        byte[] nv21 = new byte[ySize + uSize + vSize];
-        //U and V are swapped
-        yBuffer.get(nv21, 0, ySize);
-        vBuffer.get(nv21, ySize, vSize);
-        uBuffer.get(nv21, ySize + vSize, uSize);
+        buffer = planes[2].getBuffer();
+        byte[] v = new byte[buffer.remaining()];
+        buffer.get(v);
 
-        YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, image.getWidth(), image.getHeight(), null);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        yuvImage.compressToJpeg(new Rect(0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE), 100, out);
+        // get the relevant RowStrides and PixelStrides
+        // (we know from documentation that PixelStride is 1 for y)
+        int yRowStride = planes[0].getRowStride();
+        int uvRowStride = planes[1].getRowStride();  // we know from   documentation that RowStride is the same for u and v.
+        int uvPixelStride = planes[1].getPixelStride();  // we know from   documentation that PixelStride is the same for u and v.
 
-        byte[] imageBytes = out.toByteArray();
-        return BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+        // Y,U,V are defined as global allocations, the out-Allocation is the Bitmap.
+        // Note also that uAlloc and vAlloc are 1-dimensional while yAlloc is 2-dimensional.
+        Type.Builder typeUcharY = new Type.Builder(rs, Element.U8(rs));
+        typeUcharY.setX(yRowStride).setY(height);
+        Allocation yAlloc = Allocation.createTyped(rs, typeUcharY.create());
+        yAlloc.copyFrom(y);
+        mYuv420.set_ypsIn(yAlloc);
+
+        Type.Builder typeUcharUV = new Type.Builder(rs, Element.U8(rs));
+        // note that the size of the u's and v's are as follows:
+        //      (  (width/2)*PixelStride + padding  ) * (height/2)
+        // =    (RowStride                          ) * (height/2)
+        // but I noted that on the S7 it is 1 less...
+        typeUcharUV.setX(u.length);
+        Allocation uAlloc = Allocation.createTyped(rs, typeUcharUV.create());
+        uAlloc.copyFrom(u);
+        mYuv420.set_uIn(uAlloc);
+
+        Allocation vAlloc = Allocation.createTyped(rs, typeUcharUV.create());
+        vAlloc.copyFrom(v);
+        mYuv420.set_vIn(vAlloc);
+
+        // handover parameters
+        mYuv420.set_picWidth(width);
+        mYuv420.set_uvRowStride(uvRowStride);
+        mYuv420.set_uvPixelStride(uvPixelStride);
+
+        Bitmap outBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        Allocation outAlloc = Allocation.createFromBitmap(rs, outBitmap, Allocation.MipmapControl.MIPMAP_NONE, Allocation.USAGE_SCRIPT);
+
+        Script.LaunchOptions lo = new Script.LaunchOptions();
+        lo.setX(0, width);  // by this we ignore the y’s padding zone, i.e. the right side of x between width and yRowStride
+        lo.setY(0, height);
+
+        mYuv420.forEach_doConvert(outAlloc, lo);
+        outAlloc.copyTo(outBitmap);
+
+        return outBitmap;
+    }
+    public void getBitmapPixels(Bitmap bitmap) {
+        int[] pixels = new int[bitmap.getWidth() * bitmap.getHeight()];
+        bitmap.getPixels(pixels, 0, bitmap.getWidth(), 0, 0,
+                MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+        for (int row = 0; row < MODEL_INPUT_SIZE; row++) {
+            System.arraycopy(pixels, (row * bitmap.getWidth()),
+                    mRGBValues, row * MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+        }
     }
 
     private float[] getFrame(ImageProxy imageProxy) {
         int pixel = 0;
         @SuppressLint("UnsafeExperimentalUsageError") Image image = imageProxy.getImage();
         if (image != null) {
-            Bitmap bitmap = toBitmap(image);
-            bitmap.getPixels(mRGBValues, 0, bitmap.getWidth(), 0, 0, bitmap.getWidth(), bitmap.getHeight());
+            Bitmap bitmap = YUV_420_888_toRGB(image, image.getWidth(), image.getHeight());
+            bitmap.getPixels(mRGBValues, 0, MODEL_INPUT_SIZE, 0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+            //getBitmapPixels(bitmap);
+            bitmap.recycle();
         }
         for (int h = 0; h < MODEL_INPUT_SIZE; h++) {
             for (int w = 0; w < MODEL_INPUT_SIZE; w++) {
@@ -370,7 +422,8 @@ public class Camera2BasicFragment extends Fragment implements
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_camera2_basic, container, false);
         previewView = v.findViewById(R.id.textureView);
-
+        rs = RenderScript.create(getActivity());
+        mYuv420 = new ScriptC_yuv420888(rs);
         cameraProviderFuture.addListener(() -> {
             try {
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
@@ -382,31 +435,32 @@ public class Camera2BasicFragment extends Fragment implements
 
         imageAnalysis = new ImageAnalysis.Builder()
                 .setTargetResolution(new Size(224, 224))
-                .setMaxResolution(new Size(800, 800))
+                .setMaxResolution(new Size(300, 300))
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build();
 
         imageAnalysis.setAnalyzer(threadPoolExecutor, image -> {
             Log.e(TAG, "w: " + image.getWidth() + " h: " + image.getHeight());
-
             if (mRunClassifier && isProcessingDone.tryAcquire()) {
                 long t1 = SystemClock.uptimeMillis();
                 float[] chw = getFrame(image);
-                long t2 = SystemClock.uptimeMillis();
-                String[] results = inference(chw);
-                long t3 = SystemClock.uptimeMillis();
-                StringBuilder msgBuilder = new StringBuilder();
-                for (int l = 1; l < 5; l++) {
-                    msgBuilder.append(results[l]).append("\n");
+                if (chw != null) {
+                    long t2 = SystemClock.uptimeMillis();
+                    String[] results = inference(chw);
+                    long t3 = SystemClock.uptimeMillis();
+                    StringBuilder msgBuilder = new StringBuilder();
+                    for (int l = 1; l < 5; l++) {
+                        msgBuilder.append(results[l]).append("\n");
+                    }
+                    String msg = msgBuilder.toString();
+                    msg += "getFrame(): " + (t2 - t1) + "ms" + "\n";
+                    msg += "inference(): " + (t3 - t2) + "ms" + "\n";
+                    String finalMsg = msg;
+                    this.getActivity().runOnUiThread(() -> {
+                        mResultView.setText(String.format("model: %s \n %s", mCurModel, results[0]));
+                        mInfoView.setText(finalMsg);
+                    });
                 }
-                String msg = msgBuilder.toString();
-                msg += "getFrame(): " + (t2 - t1) + "ms" + "\n";
-                msg += "inference(): " + (t3 - t2) + "ms" + "\n";
-                String finalMsg = msg;
-                this.getActivity().runOnUiThread(()-> {
-                            mResultView.setText(String.format("model: %s \n %s", mCurModel, results[0]));
-                            mInfoView.setText(finalMsg);
-                        });
                 isProcessingDone.release();
             }
             image.close();
@@ -447,20 +501,20 @@ public class Camera2BasicFragment extends Fragment implements
             String model = MODELS + "/" + models[modelIndex];
 
             String labelFilename = MODEL_LABEL_FILE;
-            Log.i(TAG, "Reading labels from: " + model+ "/" + labelFilename);
+            Log.i(TAG, "Reading labels from: " + model + "/" + labelFilename);
             try {
-                labels = new JSONArray(new String(getBytesFromFile(assetManager, model+ "/" + labelFilename)));
+                labels = new JSONArray(new String(getBytesFromFile(assetManager, model + "/" + labelFilename)));
             } catch (IOException | JSONException e) {
-                Log.e(TAG, "Problem reading labels name file!",  e);
+                Log.e(TAG, "Problem reading labels name file!", e);
                 return -1;//failure
             }
 
             // load json graph
             String modelGraph;
             String graphFilename = MODEL_GRAPH_FILE;
-            Log.i(TAG, "Reading json graph from: " + model+ "/" + graphFilename);
+            Log.i(TAG, "Reading json graph from: " + model + "/" + graphFilename);
             try {
-                modelGraph = new String(getBytesFromFile(assetManager, model+ "/" + graphFilename));
+                modelGraph = new String(getBytesFromFile(assetManager, model + "/" + graphFilename));
             } catch (IOException e) {
                 Log.e(TAG, "Problem reading json graph file!", e);
                 return -1;//failure
@@ -472,7 +526,7 @@ public class Camera2BasicFragment extends Fragment implements
             Log.i(TAG, "Uploading compiled function to cache folder");
             try {
                 libCacheFilePath = getTempLibFilePath(libFilename);
-                byte[] modelLibByte = getBytesFromFile(assetManager, model+ "/" + libFilename);
+                byte[] modelLibByte = getBytesFromFile(assetManager, model + "/" + libFilename);
                 FileOutputStream fos = new FileOutputStream(libCacheFilePath);
                 fos.write(modelLibByte);
                 fos.close();
@@ -485,7 +539,7 @@ public class Camera2BasicFragment extends Fragment implements
             byte[] modelParams;
             String paramFilename = MODEL_PARAM_FILE;
             try {
-                modelParams = getBytesFromFile(assetManager, model+ "/" + paramFilename);
+                modelParams = getBytesFromFile(assetManager, model + "/" + paramFilename);
             } catch (IOException e) {
                 Log.e(TAG, "Problem reading params file!", e);
                 return -1;//failure

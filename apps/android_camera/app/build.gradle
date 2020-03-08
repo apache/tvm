@@ -22,7 +22,7 @@ task buildJni(type: Exec, description: 'Build JNI libs') {
 }
 
 tasks.withType(JavaCompile) {
-    compileTask -> compileTask.dependsOn buildJni
+    //compileTask -> compileTask.dependsOn buildJni
 }
 
 android {
@@ -31,6 +31,8 @@ android {
         applicationId "ml.apache.tvm.android.androidcamerademo"
         minSdkVersion 24
         targetSdkVersion 29
+        renderscriptTargetApi 18
+        renderscriptSupportModeEnabled true
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
