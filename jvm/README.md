@@ -96,14 +96,15 @@ There's nothing special for this part. The following Python snippet generate add
 ```python
 import os
 import tvm
+from tvm import te
 from tvm.contrib import cc, util
 
 def test_add(target_dir):
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = tvm.create_schedule(C.op)
+    n = te.var("n")
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
     fadd = tvm.build(s, [A, B, C], "llvm", target_host="llvm", name="myadd")
 
     fadd.save(os.path.join(target_dir, "add_cpu.o"))
