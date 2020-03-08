@@ -8,7 +8,7 @@
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
 #
-# Unless required by applicable law or agreed to in writing,    
+# Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
@@ -327,7 +327,7 @@ def exp(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("exp only applies to float")
     return call_pure_intrin(x.dtype, "exp", x)
 
@@ -345,7 +345,7 @@ def erf(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("erf only applies to float")
     return call_pure_intrin(x.dtype, "erf", x)
 
@@ -363,7 +363,7 @@ def tanh(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("tanh only applies to float")
     return call_pure_intrin(x.dtype, "tanh", x)
 
@@ -381,7 +381,7 @@ def sigmoid(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("sigmoid only applies to float")
     return call_pure_intrin(x.dtype, "sigmoid", x)
 
@@ -399,7 +399,7 @@ def log(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("log only applies to float")
     return call_pure_intrin(x.dtype, "log", x)
 
@@ -416,7 +416,7 @@ def tan(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("tan only applies to float")
     return call_pure_intrin(x.dtype, "tan", x)
 
@@ -434,7 +434,7 @@ def cos(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("cos only applies to float")
     return call_pure_intrin(x.dtype, "cos", x)
 
@@ -451,7 +451,7 @@ def sin(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("sin only applies to float")
     return call_pure_intrin(x.dtype, "sin", x)
 
@@ -468,7 +468,7 @@ def atan(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("atan only applies to float")
     return call_pure_intrin(x.dtype, "atan", x)
 
@@ -485,7 +485,7 @@ def sqrt(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("sqrt only applies to float")
     return call_pure_intrin(x.dtype, "sqrt", x)
 
@@ -503,7 +503,7 @@ def rsqrt(x):
     y : PrimExpr
         The result.
     """
-    if (DataType(x.dtype).type_code != TypeCode.FLOAT):
+    if DataType(x.dtype).type_code != TypeCode.FLOAT:
         raise RuntimeError("rsqrt only applies to float")
     return call_pure_intrin(x.dtype, "rsqrt", x)
 
