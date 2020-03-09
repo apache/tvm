@@ -384,6 +384,18 @@ def MergeComposite(pattern_table):
     return _ffi_api.MergeComposite(pattern_names, patterns)
 
 
+def MergeSupported():
+    """Merge supported operators into target subgraphs.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that annotates supported target
+        subgraphs.
+    """
+    return _ffi_api.MergeSupported()
+
+
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.
