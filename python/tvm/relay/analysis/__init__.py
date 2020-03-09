@@ -19,6 +19,9 @@
 # Analysis passes
 from .analysis import *
 
+# Subgraphs
+from . import subgraph_set
+
 # Call graph
 from . import call_graph
 
@@ -26,3 +29,4 @@ from . import call_graph
 from . import feature
 
 CallGraph = call_graph.CallGraph
+SubgraphSet = subgraph_set.SubgraphSet
