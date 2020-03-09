@@ -197,7 +197,7 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     tag := tag + 1.U
   }
 
-  when(state === sIdle || dataCtrlDone || (set === (tp.tensorLength - 1).U && tag === (tp.numMemBlock - 1).U)) { 
+  when(state === sIdle || dataCtrlDone || (set === (tp.tensorLength - 1).U && tag === (tp.numMemBlock - 1).U)) {
     set := 0.U
   }.elsewhen((io.vme_rd.data.fire() || isZeroPad) && tag === (tp.numMemBlock - 1).U) {
     set := set + 1.U
@@ -208,7 +208,10 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
   when(state === sIdle) {
     waddr_cur := dec.sram_offset
     waddr_nxt := dec.sram_offset
-  }.elsewhen((io.vme_rd.data.fire() || isZeroPad) && set === (tp.tensorLength - 1).U && tag === (tp.numMemBlock - 1).U) {
+  }.elsewhen((io.vme_rd.data.fire() || isZeroPad)
+    && set === (tp.tensorLength - 1).U
+    && tag === (tp.numMemBlock - 1).U)
+  {
     waddr_cur := waddr_cur + 1.U
   }.elsewhen(dataCtrl.io.stride && io.vme_rd.data.fire()) {
     waddr_cur := waddr_nxt + dec.xsize
@@ -257,10 +260,8 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
   }
 
   // done
-  val done_no_pad = io.vme_rd.data.fire() & dataCtrl.io.done & 
-                    dec.xpad_1 === 0.U & dec.ypad_1 === 0.U
-  val done_x_pad = state === sXPad1 & xPadCtrl1.io.done & 
-                   dataCtrlDone & dec.ypad_1 === 0.U
+  val done_no_pad = io.vme_rd.data.fire() & dataCtrl.io.done & dec.xpad_1 === 0.U & dec.ypad_1 === 0.U
+  val done_x_pad = state === sXPad1 & xPadCtrl1.io.done & dataCtrlDone & dec.ypad_1 === 0.U
   val done_y_pad = state === sYPad1 & dataCtrlDone & yPadCtrl1.io.done
   io.done := done_no_pad | done_x_pad | done_y_pad
 
