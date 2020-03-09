@@ -65,7 +65,7 @@ CXX_HAS_ALIGN_NEW := $(shell [ $(CXX_MAJOR) -ge 7 ] && echo true)
 
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
-tvm_dir = $(abspath ../../../)
+tvm_dir = $(abspath ../../../../)
 verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
 chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
 
