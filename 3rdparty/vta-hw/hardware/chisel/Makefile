@@ -21,15 +21,15 @@ endif
 
 # Change VERILATOR_INC_DIR if Verilator is installed on a different location
 ifeq (, $(VERILATOR_INC_DIR))
-  ifeq (, $(wildcard /usr/local/share/verilator/include/*))
-    ifeq (, $(wildcard /usr/share/verilator/include/*))
-      $(error "Verilator include directory is not set properly")
-    else
-      VERILATOR_INC_DIR := /usr/share/verilator/include
-    endif
-  else
-      VERILATOR_INC_DIR := /usr/local/share/verilator/include
-  endif
+	ifeq (, $(wildcard /usr/local/share/verilator/include/*))
+		ifeq (, $(wildcard /usr/share/verilator/include/*))
+			$(error "Verilator include directory is not set properly")
+		else
+			VERILATOR_INC_DIR := /usr/share/verilator/include
+		endif
+	else
+			VERILATOR_INC_DIR := /usr/local/share/verilator/include
+	endif
 endif
 
 CONFIG = DefaultDe10Config
@@ -81,14 +81,14 @@ verilator_opt += -Mdir ${verilator_build_dir}
 verilator_opt += -I$(chisel_build_dir)
 
 ifeq ($(DEBUG), 0)
-  cxx_flags = -O2 -Wall -fvisibility=hidden
+	cxx_flags = -O2 -Wall -fvisibility=hidden
 else
-  cxx_flags = -O0 -g -Wall
+	cxx_flags = -O0 -g -Wall
 endif
 
 cxx_flags += -std=c++11 -Wno-maybe-uninitialized
 ifeq ($(CXX_HAS_ALIGN_NEW),true)
-  cxx_flags += -faligned-new
+	cxx_flags += -faligned-new
 endif
 cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
 cxx_flags += -DVL_PRINTF=printf
@@ -107,50 +107,50 @@ cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 ld_flags = -fPIC -shared
 
 ifeq ($(SANITIZE), 1)
-  ifeq ($(DEBUG), 1)
-    cxx_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
-     ld_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
-  endif
+	ifeq ($(DEBUG), 1)
+		cxx_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
+		ld_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
+	endif
 endif
 
 cxx_objs = $(verilator_build_dir)/verilated.o $(verilator_build_dir)/verilated_dpi.o $(verilator_build_dir)/tsim_device.o
 
 ifneq ($(USE_TRACE), 0)
-  cxx_flags += -DVM_TRACE=1
-  ifeq ($(USE_TRACE_FST), 1)
-    cxx_flags += -DVM_TRACE_FST
-    verilator_opt += --trace-fst
-  else
-    verilator_opt += --trace
-  endif
-  ifeq ($(USE_TRACE_DETAILED), 1)
-    verilator_opt += --trace-underscore --trace-structs
-  endif
-  ifeq ($(USE_TRACE_FST), 1)
-    cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).fst
-    cxx_objs += $(verilator_build_dir)/verilated_fst_c.o
-  else
-    cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
-    cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
-  endif
+	cxx_flags += -DVM_TRACE=1
+	ifeq ($(USE_TRACE_FST), 1)
+		cxx_flags += -DVM_TRACE_FST
+		verilator_opt += --trace-fst
+	else
+		verilator_opt += --trace
+	endif
+	ifeq ($(USE_TRACE_DETAILED), 1)
+		verilator_opt += --trace-underscore --trace-structs
+	endif
+	ifeq ($(USE_TRACE_FST), 1)
+		cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).fst
+		cxx_objs += $(verilator_build_dir)/verilated_fst_c.o
+	else
+		cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
+		cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
+	endif
 else
-  cxx_flags += -DVM_TRACE=0
+	cxx_flags += -DVM_TRACE=0
 endif
 
 ifneq ($(USE_THREADS), 0)
-  verilator_opt += --threads $(USE_THREADS)
-  cxx_flags += -DVL_THREADED
-  cxx_objs += $(verilator_build_dir)/verilated_threads.o
+	verilator_opt += --threads $(USE_THREADS)
+	cxx_flags += -DVL_THREADED
+	cxx_objs += $(verilator_build_dir)/verilated_threads.o
 endif
 
 VPATH = $(VERILATOR_INC_DIR):$(verilator_build_dir):$(vta_dir)/hardware/dpi
 
 # The following is to be consistent with cmake
 ifeq ($(shell uname), Darwin)
-  lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).dylib
-  cxx_flags += -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
+	lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).dylib
+	cxx_flags += -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
 else
-  lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
+	lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 endif
 
 default: lint lib
