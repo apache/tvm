@@ -112,14 +112,13 @@ class CUDADeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        DLDataType type_hint) final {
+    CHECK_EQ(256 % alignment, 0U)
+          << "CUDA space is aligned at 256 bytes";
     void *ret;
     if (ctx.device_type == kDLCPUPinned) {
-        CUDA_CALL(cudaMallocHost(&ret, nbytes));
+      CUDA_CALL(cudaMallocHost(&ret, nbytes));
     } else {
       CUDA_CALL(cudaSetDevice(ctx.device_id));
-      CHECK_EQ(256 % alignment, 0U)
-          << "CUDA space is aligned at 256 bytes";
-
       CUDA_CALL(cudaMalloc(&ret, nbytes));
     }
     return ret;
