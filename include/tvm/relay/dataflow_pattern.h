@@ -68,7 +68,7 @@ class ExprPatternNode : public DFPatternNode {
     v->Visit("expr", &expr);
   }
 
-  static constexpr const char* _type_key = "relay.pattern.Expr";
+  static constexpr const char* _type_key = "relay.df_pattern.ExprPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExprPatternNode, DFPatternNode);
 };
 
