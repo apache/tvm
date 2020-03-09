@@ -31,6 +31,9 @@ set_input_delay -clock altera_reserved_tck -clock_fall 3 [get_ports altera_reser
 set_input_delay -clock altera_reserved_tck -clock_fall 3 [get_ports altera_reserved_tms]
 set_output_delay -clock altera_reserved_tck 3 [get_ports altera_reserved_tdo]
 
+# Turn off warning on unconstrained LED port.
+set_false_path -to [get_ports {LED[0]}]
+
 # Create Generated Clock
 derive_pll_clocks
 

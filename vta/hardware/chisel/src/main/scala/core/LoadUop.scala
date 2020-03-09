@@ -112,14 +112,18 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
         when(xcnt === xlen) {
           when(xrem === 0.U) {
             state := sIdle
-          }.elsewhen(xrem < xmax) {
-            state := sReadCmd
-            xlen := xrem
-            xrem := 0.U
           }.otherwise {
-            state := sReadCmd
-            xlen := xmax - 1.U
-            xrem := xrem - xmax
+            raddr := raddr + xmax_bytes
+            when(xrem < xmax) {
+              state := sReadCmd
+              xlen := xrem
+              xrem := 0.U
+            }
+            .otherwise {
+              state := sReadCmd
+              xlen := xmax - 1.U
+              xrem := xrem - xmax
+            }
           }
         }
       }
@@ -134,8 +138,6 @@ class LoadUop(debug: Boolean = false)(implicit p: Parameters) extends Module {
     }.otherwise {
       raddr := (io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(uopBytes)))) - uopBytes.U
     }
-  }.elsewhen(state === sReadData && xcnt === xlen && xrem =/= 0.U) {
-    raddr := raddr + xmax_bytes
   }
 
   io.vme_rd.cmd.valid := state === sReadCmd
