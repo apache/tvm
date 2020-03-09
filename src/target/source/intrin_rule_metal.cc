@@ -75,6 +75,18 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.popcount")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fmod")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sin")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sinh")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.cos")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.cosh")
+.set_body(DispatchExtern<Direct>);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm

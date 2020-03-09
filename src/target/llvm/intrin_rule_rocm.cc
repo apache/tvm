@@ -98,7 +98,13 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos")
 .set_body(DispatchExternOCML);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh")
+.set_body(DispatchExternOCML);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin")
+.set_body(DispatchExternOCML);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh")
 .set_body(DispatchExternOCML);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan")

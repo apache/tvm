@@ -131,7 +131,13 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh")
+.set_body(DispatchExtern<CUDAFastMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin")
+.set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh")
 .set_body(DispatchExtern<CUDAFastMath>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan")

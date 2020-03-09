@@ -45,10 +45,10 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.exp")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp2")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.exp2")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp10")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.exp10")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.log")
@@ -72,6 +72,17 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.popcount")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.sin")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.sinh")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.cos")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.cosh")
+.set_body(DispatchExtern<Direct>);
 
 }  // namespace intrin
 }  // namespace codegen
