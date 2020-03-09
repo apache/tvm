@@ -135,7 +135,6 @@ Supported Ops
 - ConcatV2
 - Conv2D
 - Cos
-- Tan
 - CropAndResize
 - DecodeJpeg
 - DepthwiseConv2dNative
