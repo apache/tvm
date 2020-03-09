@@ -110,6 +110,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10")
+.set_body(DispatchExtern<CUDAFastMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
 .set_body(DispatchExtern<CUDAMath>);
 
