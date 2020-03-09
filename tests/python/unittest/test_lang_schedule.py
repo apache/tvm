@@ -300,5 +300,8 @@ if __name__ == "__main__":
     test_tile()
     test_split()
     test_fuse()
+    test_fuse_with_split()
+    test_fuse_with_out_of_order_axis()
+    test_fuse_with_out_of_order_axis_with_reorder()
     test_vectorize()
     test_vectorize_commreduce()
