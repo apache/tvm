@@ -59,8 +59,8 @@ def run(run_func):
         tracker_port = os.environ.get("TVM_TRACKER_PORT", None)
         # Otherwise, we can set the variables below to directly
         # obtain a remote from a test device
-        pynq_host = os.environ.get("VTA_PYNQ_RPC_HOST", None)
-        pynq_port = os.environ.get("VTA_PYNQ_RPC_PORT", None)
+        pynq_host = os.environ.get("VTA_RPC_HOST", None)
+        pynq_port = os.environ.get("VTA_RPC_PORT", None)
         # Run device from fleet node if env variables are defined
         if tracker_host and tracker_port:
             remote = autotvm.measure.request_remote(env.TARGET,
@@ -75,7 +75,7 @@ def run(run_func):
                 run_func(env, remote)
             else:
                 raise RuntimeError(
-                    "Please set the VTA_PYNQ_RPC_HOST and VTA_PYNQ_RPC_PORT environment variables")
+                    "Please set the VTA_RPC_HOST and VTA_RPC_PORT environment variables")
 
     else:
         raise RuntimeError("Unknown target %s" % env.TARGET)

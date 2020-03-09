@@ -14,13 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
+import sys, os
 import tvm
-from tvm import te
 from tvm import rpc
 from vta import get_bitstream_path, download_bitstream, program_fpga, reconfig_runtime
 
-host = os.environ.get("VTA_RPC_HOST", "pynq")
+host = os.environ.get("VTA_RPC_HOST", "de10nano")
 port = int(os.environ.get("VTA_RPC_PORT", "9091"))
 
 def program_rpc_bitstream(path=None):
@@ -41,5 +40,6 @@ def reconfig_rpc_runtime():
     remote = rpc.connect(host, port)
     reconfig_runtime(remote)
 
-program_rpc_bitstream()
+bitstream = sys.argv[1] if len(sys.argv) == 2 else None
+program_rpc_bitstream(bitstream)
 reconfig_rpc_runtime()

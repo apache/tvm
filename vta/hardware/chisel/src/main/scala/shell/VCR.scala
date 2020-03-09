@@ -34,6 +34,7 @@ case class VCRParams() {
   val nECnt = 1
   val nVals = 1
   val nPtrs = 6
+  val nUCnt = 1
   val regBits = 32
 }
 
@@ -53,6 +54,7 @@ class VCRMaster(implicit p: Parameters) extends VCRBase {
   val ecnt = Vec(vp.nECnt, Flipped(ValidIO(UInt(vp.regBits.W))))
   val vals = Output(Vec(vp.nVals, UInt(vp.regBits.W)))
   val ptrs = Output(Vec(vp.nPtrs, UInt(mp.addrBits.W)))
+  val ucnt = Vec(vp.nUCnt, Flipped(ValidIO(UInt(vp.regBits.W))))
 }
 
 /** VCRClient.
@@ -68,6 +70,7 @@ class VCRClient(implicit p: Parameters) extends VCRBase {
   val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
   val vals = Input(Vec(vp.nVals, UInt(vp.regBits.W)))
   val ptrs = Input(Vec(vp.nPtrs, UInt(mp.addrBits.W)))
+  val ucnt = Vec(vp.nUCnt, ValidIO(UInt(vp.regBits.W)))
 }
 
 /** VTA Control Registers (VCR).
@@ -100,7 +103,7 @@ class VCR(implicit p: Parameters) extends Module {
 
   // registers
   val nPtrs = if (mp.addrBits == 32) vp.nPtrs else 2 * vp.nPtrs
-  val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + nPtrs
+  val nTotal = vp.nCtrl + vp.nECnt + vp.nVals + nPtrs + vp.nUCnt
 
   val reg = Seq.fill(nTotal)(RegInit(0.U(vp.regBits.W)))
   val addr = Seq.tabulate(nTotal)(_ * 4)
@@ -108,6 +111,7 @@ class VCR(implicit p: Parameters) extends Module {
   val eo = vp.nCtrl
   val vo = eo + vp.nECnt
   val po = vo + vp.nVals
+  val uo = po + nPtrs
 
   switch(wstate) {
     is(sWriteAddress) {
@@ -189,6 +193,14 @@ class VCR(implicit p: Parameters) extends Module {
   } else { // 64-bits pointers
     for (i <- 0 until (nPtrs / 2)) {
       io.vcr.ptrs(i) := Cat(reg(po + 2 * i + 1), reg(po + 2 * i))
+    }
+  }
+
+  for (i <- 0 until vp.nUCnt) {
+    when(io.vcr.ucnt(i).valid) {
+      reg(uo + i) := io.vcr.ucnt(i).bits
+    }.elsewhen(io.host.w.fire() && addr(uo + i).U === waddr) {
+      reg(uo + i) := wdata
     }
   }
 }

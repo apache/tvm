@@ -72,7 +72,6 @@ class AluReg(implicit p: Parameters) extends Module {
 
 /** Vector of pipeline ALUs */
 class AluVector(implicit p: Parameters) extends Module {
-  val aluBits = p(CoreKey).accBits
   val io = IO(new Bundle {
     val opcode = Input(UInt(C_ALU_OP_BITS.W))
     val acc_a = new TensorMasterData(tensorType = "acc")

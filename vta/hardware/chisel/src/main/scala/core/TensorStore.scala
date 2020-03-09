@@ -62,20 +62,38 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
   val tag = Reg(UInt(8.W))
   val set = Reg(UInt(8.W))
 
+  val xfer_bytes = Reg(chiselTypeOf(io.vme_wr.cmd.bits.addr))
+  val xstride_bytes = dec.xstride << log2Ceil(tensorLength * tensorWidth)
+  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
+  val elemBytes = (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).outBits) / 8
+  val pulse_bytes_bits = log2Ceil(mp.dataBits >> 3)
+
+  val xfer_init_addr = io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+  val xfer_split_addr = waddr_cur + xfer_bytes
+  val xfer_stride_addr = waddr_nxt + xstride_bytes
+
+  val xfer_init_bytes   = xmax_bytes - xfer_init_addr % xmax_bytes
+  val xfer_init_pulses  = xfer_init_bytes >> pulse_bytes_bits
+  val xfer_split_bytes  = xmax_bytes - xfer_split_addr % xmax_bytes
+  val xfer_split_pulses = xfer_split_bytes >> pulse_bytes_bits
+  val xfer_stride_bytes = xmax_bytes - xfer_stride_addr % xmax_bytes
+  val xfer_stride_pulses= xfer_stride_bytes >> pulse_bytes_bits
+
   val sIdle :: sWriteCmd :: sWriteData :: sReadMem :: sWriteAck :: Nil = Enum(5)
   val state = RegInit(sIdle)
 
   // control
   switch(state) {
     is(sIdle) {
-      when(io.start) {
+      xfer_bytes := xfer_init_bytes
+      when (io.start) {
         state := sWriteCmd
-        when(xsize < xmax) {
+        when (xsize < xfer_init_pulses) {
           xlen := xsize
           xrem := 0.U
         }.otherwise {
-          xlen := xmax - 1.U
-          xrem := xsize - xmax
+          xlen := xfer_init_pulses - 1.U
+          xrem := xsize - xfer_init_pulses
         }
       }
     }
@@ -101,24 +119,29 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
         when(xrem === 0.U) {
           when(ycnt === ysize - 1.U) {
             state := sIdle
-          }.otherwise {
+          }.otherwise { // stride
             state := sWriteCmd
-            when(xsize < xmax) {
+            xfer_bytes := xfer_stride_bytes
+            when(xsize < xfer_stride_pulses) {
               xlen := xsize
               xrem := 0.U
             }.otherwise {
-              xlen := xmax - 1.U
-              xrem := xsize - xmax
+              xlen := xfer_stride_pulses - 1.U
+              xrem := xsize - xfer_stride_pulses
             }
           }
-        }.elsewhen(xrem < xmax) {
+        } // split
+        .elsewhen(xrem < xfer_split_pulses) {
           state := sWriteCmd
+          xfer_bytes := xfer_split_bytes
           xlen := xrem
           xrem := 0.U
-        }.otherwise {
+        }
+        .otherwise {
           state := sWriteCmd
-          xlen := xmax - 1.U
-          xrem := xrem - xmax
+          xfer_bytes := xfer_split_bytes
+          xlen := xfer_split_pulses - 1.U
+          xrem := xrem - xfer_split_pulses
         }
       }
     }
@@ -174,8 +197,7 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
   when(state === sIdle) {
     raddr_cur := dec.sram_offset
     raddr_nxt := dec.sram_offset
-  }.elsewhen(io.vme_wr.data
-    .fire() && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U) {
+  }.elsewhen(io.vme_wr.data.fire() && set === (tensorLength - 1).U && tag === (numMemBlock - 1).U) {
     raddr_cur := raddr_cur + 1.U
   }.elsewhen(stride) {
     raddr_cur := raddr_nxt + dec.xsize
@@ -189,18 +211,14 @@ class TensorStore(tensorType: String = "none", debug: Boolean = false)(
   val mdata = MuxLookup(set, 0.U.asTypeOf(chiselTypeOf(wdata_t)), tread)
 
   // write-to-dram
-  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
-  val elemBytes = (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).outBits) / 8
   when(state === sIdle) {
-    waddr_cur := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(
-      elemBytes)))
-    waddr_nxt := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(
-      elemBytes)))
+    waddr_cur := xfer_init_addr
+    waddr_nxt := xfer_init_addr
   }.elsewhen(state === sWriteAck && io.vme_wr.ack && xrem =/= 0.U) {
-    waddr_cur := waddr_cur + xmax_bytes
+    waddr_cur := xfer_split_addr
   }.elsewhen(stride) {
-    waddr_cur := waddr_nxt + (dec.xstride << log2Ceil(tensorLength * tensorWidth))
-    waddr_nxt := waddr_nxt + (dec.xstride << log2Ceil(tensorLength * tensorWidth))
+    waddr_cur := xfer_stride_addr
+    waddr_nxt := xfer_stride_addr
   }
 
   io.vme_wr.cmd.valid := state === sWriteCmd

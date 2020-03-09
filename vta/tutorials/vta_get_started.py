@@ -71,12 +71,12 @@ from tvm.contrib import util
 from vta.testing import simulator
 
 # We read the Pynq RPC host IP address and port number from the OS environment
-host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
-port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
+host = os.environ.get("VTA_RPC_HOST", "192.168.2.99")
+port = int(os.environ.get("VTA_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
 # to match the VTA configuration specified by the vta_config.json file.
-if env.TARGET == "pynq":
+if env.TARGET == "pynq" or env.TARGET == "de10nano":
 
     # Make sure that TVM was compiled with RPC=1
     assert tvm.runtime.enabled("rpc")

@@ -19,7 +19,7 @@ import os
 import argparse
 
 def main():
-    """Main funciton"""
+    """Main function"""
     parser = argparse.ArgumentParser()
     parser.add_argument("target", type=str, default="",
                         help="target")
@@ -27,7 +27,7 @@ def main():
                         help="bitstream path")
     args = parser.parse_args()
 
-    if (args.target != 'pynq' and args.target != 'sim'):
+    if args.target not in ('pynq', 'ultra96', 'de10nano', 'sim', 'tsim'):
         raise RuntimeError("Unknown target {}".format(args.target))
 
     curr_path = os.path.dirname(
@@ -48,9 +48,17 @@ def pynq_bitstream_program(bitstream_path):
     bitstream = Bitstream(bitstream_path)
     bitstream.download()
 
+def de10nano_bitstream_program(bitstream_path):
+    # pylint: disable=import-outside-toplevel
+    from tvm import get_global_func
+    program = get_global_func("vta.de10nano.program")
+    program(bitstream_path)
+
 def bitstream_program(target, bitstream):
     if target in ['pynq', 'ultra96']:
         pynq_bitstream_program(bitstream)
+    elif target in ['de10nano']:
+        de10nano_bitstream_program(bitstream)
     elif target in ['sim', 'tsim']:
         # In simulation, bit stream programming is a no-op
         return

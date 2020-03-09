@@ -32,16 +32,36 @@ ifeq (, $(VERILATOR_INC_DIR))
   endif
 endif
 
-CONFIG = DefaultPynqConfig
+CONFIG = DefaultDe10Config
 TOP = VTA
 TOP_TEST = Test
 BUILD_NAME = build
+# Set USE_TRACE = 1 to generate a trace during simulation.
 USE_TRACE = 0
+# With USE_TRACE = 1, default trace format is VCD.
+# Set USE_TRACE_FST = 1 to use the FST format.
+# Note that although FST is around two orders of magnitude smaller than VCD
+# it is also currently much slower to produce (verilator limitation). But if
+# you are low on disk space it may be your only option.
+USE_TRACE_FST = 0
+# With USE_TRACE = 1, USE_TRACE_DETAILED = 1 will generate traces that also
+# include non-interface internal signal names starting with an underscore.
+# This will significantly increase the trace size and should only be used
+# on a per need basis for difficult debug problems.
+USE_TRACE_DETAILED = 0
 USE_THREADS = $(shell nproc)
 VTA_LIBNAME = libvta_hw
 UNITTEST_NAME = all
 CXX = g++
+# A debug build with DEBUG = 1 is useful to trace the simulation with a
+# debugger.
 DEBUG = 0
+# With DEBUG = 1, SANITIZE = 1 turns on address sanitizing to verify that
+# the verilator build is sane. To be used if you know what you are doing.
+SANITIZE = 0
+
+CXX_MAJOR := $(shell $(CXX) -dumpversion | sed 's/\..*//')
+CXX_HAS_ALIGN_NEW := $(shell [ $(CXX_MAJOR) -ge 7 ] && echo true)
 
 config_test = $(TOP_TEST)$(CONFIG)
 vta_dir = $(abspath ../../)
@@ -61,11 +81,15 @@ verilator_opt += -Mdir ${verilator_build_dir}
 verilator_opt += -I$(chisel_build_dir)
 
 ifeq ($(DEBUG), 0)
-  cxx_flags = -O2 -Wall
+  cxx_flags = -O2 -Wall -fvisibility=hidden
 else
   cxx_flags = -O0 -g -Wall
 endif
-cxx_flags += -fvisibility=hidden -std=c++11
+
+cxx_flags += -std=c++11 -Wno-maybe-uninitialized
+ifeq ($(CXX_HAS_ALIGN_NEW),true)
+  cxx_flags += -faligned-new
+endif
 cxx_flags += -DVL_TSIM_NAME=V$(TOP_TEST)
 cxx_flags += -DVL_PRINTF=printf
 cxx_flags += -DVL_USER_FINISH
@@ -82,13 +106,33 @@ cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
 
 ld_flags = -fPIC -shared
 
+ifeq ($(SANITIZE), 1)
+  ifeq ($(DEBUG), 1)
+    cxx_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
+     ld_flags += -fno-omit-frame-pointer -fsanitize=address -fsanitize-recover=address
+  endif
+endif
+
 cxx_objs = $(verilator_build_dir)/verilated.o $(verilator_build_dir)/verilated_dpi.o $(verilator_build_dir)/tsim_device.o
 
 ifneq ($(USE_TRACE), 0)
-  verilator_opt += --trace
   cxx_flags += -DVM_TRACE=1
-  cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
-  cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
+  ifeq ($(USE_TRACE_FST), 1)
+    cxx_flags += -DVM_TRACE_FST
+    verilator_opt += --trace-fst
+  else
+    verilator_opt += --trace
+  endif
+  ifeq ($(USE_TRACE_DETAILED), 1)
+    verilator_opt += --trace-underscore --trace-structs
+  endif
+  ifeq ($(USE_TRACE_FST), 1)
+    cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).fst
+    cxx_objs += $(verilator_build_dir)/verilated_fst_c.o
+  else
+    cxx_flags += -DTSIM_TRACE_FILE=$(verilator_build_dir)/$(TOP_TEST).vcd
+    cxx_objs += $(verilator_build_dir)/verilated_vcd_c.o
+  endif
 else
   cxx_flags += -DVM_TRACE=0
 endif
