@@ -62,6 +62,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2")
+.set_body(DispatchExternOCML);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf")
 .set_body(DispatchExternOCML);
 

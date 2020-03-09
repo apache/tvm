@@ -63,6 +63,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fabs")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp2")
+.set_body(DispatchExternLibDevice);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.erf")
 .set_body(DispatchExternLibDevice);
 

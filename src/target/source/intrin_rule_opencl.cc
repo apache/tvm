@@ -45,6 +45,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp2")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.log")
 .set_body(DispatchExtern<Direct>);
 

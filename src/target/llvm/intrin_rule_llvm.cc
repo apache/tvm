@@ -35,6 +35,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.prefetch")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp2")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.fma")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 1>);
 
