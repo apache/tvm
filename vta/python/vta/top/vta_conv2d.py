@@ -68,78 +68,6 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
     return res
 
 
-# FIXME(zhanghao): move this code to a proper location
-@topi.generic.schedule_add.register(["vta"])
-def _schedule_add(outs):
-    eprint("schedule_add vta")
-    assert len(outs) == 1
-
-    def is_cast_op(op):
-        # return op.same_as(Op.op.get("cast"))
-        # FIXME(zhanghao): find a better way to do compare
-        return op.name == 'T_cast'
-
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    output = outs[0]
-    s = tvm.create_schedule([x.op for x in outs])
-    tvm.schedule.AutoInlineInjective(s)
-    # s[output].fuse(s[output].op.axis)
-
-    ewise_inputs = []
-    ewise_ops = []
-    const_ops = []
-
-    def _traverse(op):
-        if topi.tag.is_broadcast(op.tag):
-            if not op.same_as(output.op):
-                if not op.axis:
-                    const_ops.append(op)
-                elif not is_cast_op(op):
-                    ewise_ops.append(op)
-
-            for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.PlaceholderOp):
-                    ewise_inputs.append((op, tensor))
-                elif is_cast_op(tensor.op) and not op.same_as(output.op):
-                    ewise_inputs.append((op, tensor))
-                else:
-                    _traverse(tensor.op)
-        else:
-            for tensor in op.input_tensors:
-                if (not isinstance(tensor.op, tvm.tensor.PlaceholderOp)) \
-                        and (not is_cast_op(tensor.op)):
-                    _traverse(tensor.op)
-
-    op = output.op
-    _traverse(op)
-    # only put the int-related ops to vta
-    if "int" in output.dtype:
-        env = get_env()
-        for eo in ewise_ops:
-            eprint("add ewise_ops ", eo)
-            s[eo].set_scope(env.acc_scope)
-            s[eo].pragma(s[eo].op.axis[0], env.alu)
-            s[eo].compute_at(s[output], s[output].op.axis[-2])
-
-        # cache read input
-        cache_read_ewise = []
-        for consumer, tensor in ewise_inputs:
-            eprint("add dma_copy", consumer, tensor, tensor.op)
-            cache_read_ewise.append(
-                s.cache_read(tensor, env.acc_scope, [consumer]))
-
-        for tensor in cache_read_ewise:
-            s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
-            s[tensor].compute_at(s[output], s[output].op.axis[-2])
-
-        for op in const_ops:
-            s[op].compute_inline()
-
-        s[output].pragma(s[output].op.axis[-1], env.dma_copy)
-
-    return s
-
-
 @autotvm.register_topi_schedule("conv2d_packed.vta")
 def schedule_conv2d_packed(cfg, outs):
     """Schedule packed conv2d"""
@@ -259,5 +187,77 @@ def schedule_conv2d_packed(cfg, outs):
     s[ckernel].pragma(s[ckernel].op.axis[0], env.dma_copy)
     s[conv2d_stage].tensorize(x_bi, env.gemm)
     s[output].pragma(x_co1, env.dma_copy)
+
+    return s
+
+
+# FIXME(zhanghao): move this code to a proper location
+@topi.generic.schedule_add.register(["vta"])
+def _schedule_add(outs):
+    eprint("schedule_add vta")
+    assert len(outs) == 1
+
+    def is_cast_op(op):
+        # return op.same_as(Op.op.get("cast"))
+        # FIXME(zhanghao): find a better way to do compare
+        return op.name == 'T_cast'
+
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    output = outs[0]
+    s = te.create_schedule([x.op for x in outs])
+    te.schedule.AutoInlineInjective(s)
+    # s[output].fuse(s[output].op.axis)
+
+    ewise_inputs = []
+    ewise_ops = []
+    const_ops = []
+
+    def _traverse(op):
+        if topi.tag.is_broadcast(op.tag):
+            if not op.same_as(output.op):
+                if not op.axis:
+                    const_ops.append(op)
+                elif not is_cast_op(op):
+                    ewise_ops.append(op)
+
+            for tensor in op.input_tensors:
+                if isinstance(tensor.op, tvm.te.PlaceholderOp):
+                    ewise_inputs.append((op, tensor))
+                elif is_cast_op(tensor.op) and not op.same_as(output.op):
+                    ewise_inputs.append((op, tensor))
+                else:
+                    _traverse(tensor.op)
+        else:
+            for tensor in op.input_tensors:
+                if (not isinstance(tensor.op, tvm.te.PlaceholderOp)) \
+                        and (not is_cast_op(tensor.op)):
+                    _traverse(tensor.op)
+
+    op = output.op
+    _traverse(op)
+    # only put the int-related ops to vta
+    if "int" in output.dtype:
+        env = get_env()
+        for eo in ewise_ops:
+            eprint("add ewise_ops ", eo)
+            s[eo].set_scope(env.acc_scope)
+            s[eo].pragma(s[eo].op.axis[0], env.alu)
+            s[eo].compute_at(s[output], s[output].op.axis[-2])
+
+        # cache read input
+        cache_read_ewise = []
+        for consumer, tensor in ewise_inputs:
+            eprint("add dma_copy", consumer, tensor, tensor.op)
+            cache_read_ewise.append(
+                s.cache_read(tensor, env.acc_scope, [consumer]))
+
+        for tensor in cache_read_ewise:
+            s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
+            s[tensor].compute_at(s[output], s[output].op.axis[-2])
+
+        for op in const_ops:
+            s[op].compute_inline()
+
+        s[output].pragma(s[output].op.axis[-1], env.dma_copy)
 
     return s

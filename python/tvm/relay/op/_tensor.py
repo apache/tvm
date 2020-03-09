@@ -52,7 +52,7 @@ register_broadcast_schedule("sign")
 register_broadcast_schedule("abs")
 register_broadcast_schedule("tanh")
 # NOTE(zhanghao): use customized add schedule
-register_schedule("add", schedule_add)
+register_add_schedule("add")
 # register_broadcast_schedule("add")
 register_broadcast_schedule("subtract")
 register_broadcast_schedule("multiply")

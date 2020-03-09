@@ -70,6 +70,12 @@ def schedule_injective(attrs, outs, target):
         return topi.generic.schedule_injective(outs)
 
 @generic_func
+def schedule_add(attrs, outputs, target):
+    """Generic schedule for add."""
+    with target:
+        return topi.generic.schedule_add(outputs)
+
+@generic_func
 def schedule_reduce(attrs, outs, target):
     """Schedule reduction ops"""
     with target:
@@ -77,6 +83,7 @@ def schedule_reduce(attrs, outs, target):
 
 _op._schedule_injective = schedule_injective
 _op._schedule_reduce = schedule_reduce
+_op._schedule_add = schedule_add
 
 # concatenate
 @generic_func
