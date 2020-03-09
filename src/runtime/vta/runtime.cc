@@ -26,7 +26,6 @@
  */
 #include <vta/driver.h>
 #include <vta/hw_spec.h>
-#include <vta/runtime.h>
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 
@@ -34,6 +33,8 @@
 #include <cstring>
 #include <vector>
 #include <memory>
+
+#include "runtime.h"
 
 namespace vta {
 
