@@ -101,8 +101,7 @@ class Func():
         if isinstance(shape, tf.Tensor):
             if shape.dtype == tf.int32:
                 shape = tf.cast(shape, tf.int64)
-            return shape
-        if isinstance(shape, list):
+        elif isinstance(shape, list):
             shape_dims = []
             for dim_value in shape:
                 if isinstance(dim_value, int):
@@ -113,6 +112,7 @@ class Func():
                     shape_dims.append(dim_value)
                 else:
                     raise TypeError("Input shape dimension is neither scalar tensor nor int")
-            return tf.stack(shape_dims)
+            shape = tf.stack(shape_dims)
         else:
             raise TypeError("Input shape is neither tensor nor list")
+        return shape
