@@ -25,9 +25,7 @@
 #include <random>
 #include <vector>
 #include <sys/time.h>
-
-#include "build/test_graph.json.c"
-#include "build/test_params.bin.c"
+#include <sys/stat.h>
 
 template <typename F> auto getFunc(void *bundle, const char *name) {
   dlerror();
@@ -38,13 +36,27 @@ template <typename F> auto getFunc(void *bundle, const char *name) {
 }
 
 int main(int argc, char **argv) {
-  assert(argc == 4 && "Usage: test <bundle.so> <test_data.bin> <test_output.bin>");
+  assert(argc == 6 && "Usage: test <bundle.so> <data.bin> <output.bin> <graph.json> <params.bin>");
   auto *bundle = dlopen(argv[1], RTLD_LAZY | RTLD_LOCAL);
   assert(bundle);
 
-  char * json_data = reinterpret_cast<char*>(build_test_graph_json);
-  char * params_data = reinterpret_cast<char*>(build_test_params_bin);
-  uint64_t params_size = build_test_params_bin_len;
+  struct stat st;
+  char * json_data;
+  char * params_data;
+  uint64_t params_size;
+
+  FILE * fp = fopen(argv[4], "rb");
+  stat(argv[4], &st);
+  json_data = (char*)malloc(st.st_size);
+  fread(json_data, st.st_size, 1, fp);
+  fclose(fp);
+
+  fp = fopen(argv[5], "rb");
+  stat(argv[5], &st);
+  params_data = (char*)malloc(st.st_size);
+  fread(params_data, st.st_size, 1, fp);
+  params_size = st.st_size;
+  fclose(fp);
 
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
@@ -54,7 +66,7 @@ int main(int argc, char **argv) {
   gettimeofday(&t1, 0);
 
   float input_storage[10 * 5];
-  FILE * fp = fopen(argv[2], "rb");
+  fp = fopen(argv[2], "rb");
   fread(input_storage, 10 * 5, 4, fp);
   fclose(fp);
 
@@ -115,6 +127,9 @@ int main(int argc, char **argv) {
          (t3.tv_sec-t2.tv_sec)*1000000 + (t3.tv_usec-t2.tv_usec)/1000.f,
          (t4.tv_sec-t3.tv_sec)*1000000 + (t4.tv_usec-t3.tv_usec)/1000.f,
          (t5.tv_sec-t4.tv_sec)*1000000 + (t5.tv_usec-t4.tv_usec)/1000.f);
+
+  free(json_data);
+  free(params_data);
   dlclose(bundle);
   
   return 0;

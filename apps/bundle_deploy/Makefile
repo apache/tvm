@@ -38,14 +38,14 @@ demo: $(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_
 	TVM_NUM_THREADS=1 $(build_dir)/demo $(build_dir)/bundle_c.so $(build_dir)/cat.bin
 
 test: $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 
 $(build_dir)/demo: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  demo.cc -ldl
 
-$(build_dir)/test: test.cc ${build_dir}/test_graph.json.c ${build_dir}/test_params.bin.c
+$(build_dir)/test: test.cc ${build_dir}/test_graph.json ${build_dir}/test_params.bin
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
 
@@ -57,13 +57,13 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-# Serialize our test_graph.json file.
-$(build_dir)/test_graph.json.c: $(build_dir)/test_graph.json
-	xxd -i $^  > $@
-
-# Serialize our test_params.bin file.
-$(build_dir)/test_params.bin.c: $(build_dir)/test_params.bin
-	xxd -i $^  > $@
+# # Serialize our test_graph.json file.
+# $(build_dir)/test_graph.json.c: $(build_dir)/test_graph.json
+# 	xxd -i $^  > $@
+# 
+# # Serialize our test_params.bin file.
+# $(build_dir)/test_params.bin.c: $(build_dir)/test_params.bin
+# 	xxd -i $^  > $@
 
 $(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
