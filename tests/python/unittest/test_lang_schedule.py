@@ -127,6 +127,25 @@ def test_fuse_with_out_of_order_axis():
     xo, xi = s[T].split(T.op.axis[0], factor=10)
     fused = s[T].fuse(xo, y) # should throw here
 
+@pytest.mark.xfail
+def test_fuse_with_out_of_order_axis_with_reorder():
+    m = te.size_var('m')
+    n = te.size_var('n')
+    A = te.placeholder((m, n), name='A')
+    T = te.compute((m, n), lambda i, j: A[i, j])
+
+    s = te.create_schedule(T.op)
+    y = T.op.axis[1]
+    xo, xi = s[T].split(T.op.axis[0], factor=10)
+    s[T].reorder(y, xo, xi)
+    fused = s[T].fuse(y, xo) # should be ok
+
+    s = te.create_schedule(T.op)
+    y = T.op.axis[1]
+    xo, xi = s[T].split(T.op.axis[0], factor=10)
+    s[T].reorder(y, xo, xi)
+    fused = s[T].fuse(y, xi) # should throw here
+
 def test_singleton():
     print("test singleton")
     A = te.placeholder((), name='A')
