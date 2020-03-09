@@ -47,6 +47,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.fma")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log2")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log10")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
 

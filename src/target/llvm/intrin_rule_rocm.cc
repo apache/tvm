@@ -77,6 +77,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log")
 .set_body(DispatchExternOCML);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2")
+.set_body(DispatchExternOCML);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10")
+.set_body(DispatchExternOCML);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt")
 .set_body(DispatchExternOCML);
 

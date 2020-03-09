@@ -54,6 +54,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp10")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log10")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.tanh")
 .set_body(DispatchExtern<Direct>);
 

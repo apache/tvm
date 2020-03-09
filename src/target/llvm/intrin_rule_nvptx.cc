@@ -78,6 +78,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fma")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.log")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.log2")
+.set_body(DispatchExternLibDevice);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.log10")
+.set_body(DispatchExternLibDevice);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.sqrt")
 .set_body(DispatchExternLibDevice);
 

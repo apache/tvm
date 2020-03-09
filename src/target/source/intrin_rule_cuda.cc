@@ -119,6 +119,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2")
+.set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10")
+.set_body(DispatchExtern<CUDAFastMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan")
 .set_body(DispatchExtern<CUDAFastMathTan>);
 
