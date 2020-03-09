@@ -608,29 +608,29 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     CommitPendingPop(kComputeStage);
   }
   // Helper function: Get Opcode string
-  const char* getOpcodeString(int opcode, bool use_imm) {
-    // The string name
-    if (opcode == VTA_ALU_OPCODE_MIN) {
-      if (use_imm) {
-        return "min imm";
-      } else {
-        return "min";
+  std::string getOpcodeString(int opcode, bool use_imm, int64_t imm) {
+      // The string name
+      if (opcode == VTA_ALU_OPCODE_MIN) {
+          if (use_imm) {
+              return std::string("min imm ") + std::to_string(imm);
+          } else {
+              return "min";
+          }
+      } else if (opcode == VTA_ALU_OPCODE_MAX) {
+          if (use_imm) {
+              return (std::string("max imm ") + std::to_string(imm));
+          } else {
+              return "max";
+          }
+      } else if (opcode == VTA_ALU_OPCODE_ADD) {
+          if (use_imm) {
+              return (std::string("add imm ") + std::to_string(imm));
+          } else {
+              return "add";
+          }
+      } else if (opcode == VTA_ALU_OPCODE_SHR) {
+          return (std::string("shr ") + std::to_string(imm));
       }
-    } else if (opcode == VTA_ALU_OPCODE_MAX) {
-      if (use_imm) {
-        return "max imm";
-      } else {
-        return "max";
-      }
-    } else if (opcode == VTA_ALU_OPCODE_ADD) {
-      if (use_imm) {
-        return "add imm";
-      } else {
-        return "add";
-      }
-    } else if (opcode == VTA_ALU_OPCODE_SHR) {
-      return "shr";
-    }
 
     return "unknown op";
   }
@@ -692,6 +692,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
           if (c.mem.memory_type == VTA_MEM_ID_WGT) printf("WGT\n");
           if (c.mem.memory_type == VTA_MEM_ID_INP) printf("INP\n");
           if (c.mem.memory_type == VTA_MEM_ID_ACC) printf("ACC\n");
+          if (c.mem.memory_type == VTA_MEM_ID_ACC_8) printf("ACC 8\n");
         }
         if (c.mem.opcode == VTA_OPCODE_STORE) {
           printf("STORE:\n");
@@ -724,7 +725,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
                static_cast<int>(c.gemm.src_factor_in), static_cast<int>(c.gemm.dst_factor_in));
       } else if (c.mem.opcode == VTA_OPCODE_ALU) {
         // Print instruction field information
-        printf("ALU - %s\n", getOpcodeString(c.alu.alu_opcode, c.alu.use_imm));
+        printf("ALU - %s\n", getOpcodeString(c.alu.alu_opcode, c.alu.use_imm, c.alu.imm).c_str());
         printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
                static_cast<int>(c.mem.pop_prev_dep), static_cast<int>(c.mem.pop_next_dep),
                static_cast<int>(c.mem.push_prev_dep), static_cast<int>(c.mem.push_next_dep));
@@ -829,7 +830,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   }
   // Get stage of the memory
   static PipelineStage GetMemPipelineStage(int memory_type) {
-    if (memory_type == VTA_MEM_ID_ACC) return kComputeStage;
+    if (memory_type == VTA_MEM_ID_ACC || memory_type == VTA_MEM_ID_ACC_8) return kComputeStage;
     if (memory_type == VTA_MEM_ID_UOP) return kComputeStage;
     return kLoadStage;
   }
@@ -839,7 +840,7 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     if (insn->opcode == VTA_OPCODE_ALU) return kComputeStage;
     if (insn->opcode == VTA_OPCODE_LOAD) {
       if (insn->x_size == 0) return kNoneStage;
-      if (insn->memory_type == VTA_MEM_ID_ACC) return kComputeStage;
+      if (insn->memory_type == VTA_MEM_ID_ACC || insn->memory_type == VTA_MEM_ID_ACC_8) return kComputeStage;
       if (insn->memory_type == VTA_MEM_ID_UOP) return kComputeStage;
       return kLoadStage;
     }
@@ -921,6 +922,9 @@ class CommandQueue {
         break;
       case VTA_MEM_ID_OUT:
         elem_bytes = VTA_OUT_ELEM_BYTES;
+        break;
+      case VTA_MEM_ID_ACC_8:
+        elem_bytes = VTA_ACC_ELEM_BYTES / 4;
         break;
       default:
         LOG(FATAL) << "Memory id not recognized:" << memory_id;

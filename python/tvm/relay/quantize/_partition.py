@@ -144,3 +144,15 @@ def multiply_partition_function(ref_call, new_args, ctx):
         return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
     assert (not lhs_cond) and (not rhs_cond)
     return None
+
+# @register_partition_function("nn.global_avg_pool2d")
+# def global_avg_pool2d_partition_function(ref_call, new_args, ctx):
+#     cond, expr = partition_expr_check(new_args[0])
+#     eprint("global_avg_pool2d partition")
+#     if cond:
+#         expr = stop_fusion(new_args[0].realize())
+#         return _forward_op(ref_call, [expr])
+#     else:
+#         expr = stop_fusion(QPartitionExpr(new_args[0]).realize())
+#         return _forward_op(ref_call, [expr])
+#     return None

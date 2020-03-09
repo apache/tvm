@@ -161,12 +161,13 @@ class Tuner(object):
                 logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
-            if error_ct > 150:
-                logging.basicConfig()
-                logger.warning("Too many errors happen in the tuning. Now is in debug mode")
-                logger.setLevel(logging.DEBUG)
-            else:
-                logger.setLevel(old_level)
+            # NOTE(zhanghao): comment out as it will raise too many logs
+            # if error_ct > 150:
+            #     logging.basicConfig()
+            #     logger.warning("Too many errors happen in the tuning. Now is in debug mode")
+            #     logger.setLevel(logging.DEBUG)
+            # else:
+            #     logger.setLevel(old_level)
 
         GLOBAL_SCOPE.in_tuning = False
         del measure_batch

@@ -394,6 +394,13 @@ def register_external_compiler(op_name, fexternal=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FTVMExternalCompiler", fexternal, level)
 
 
+
+def schedule_add(attrs, outputs, target):
+    """Generic schedule for add."""
+    with target:
+        return topi.generic.schedule_add(outputs)
+
+
 @tvm._ffi.register_func("relay.op.compiler._lower")
 def _lower(name, schedule, inputs, outputs):
     return lower(schedule, list(inputs) + list(outputs), name=name)

@@ -317,7 +317,12 @@ class ExprPack(ExprMutator):
             elif self.start_pack and call.op == op.op.get('cast') and \
                     input_types[0].dtype == 'int32':
                 cast = relay.Call(op.op.get('cast'), [args[0]], call.attrs)
-                return relay.Call(op.op.get('copy'), [cast])
+                # zhanghao: force separate cast and copy (to let copy do on cpu)
+                # cast = relay.Call(op.op.get('annotation.stop_fusion'), [cast])
+
+                # zhanghao: remove the redudant copy
+                # return relay.Call(op.op.get('copy'), [cast])
+                return cast
             elif call.op == self.pad:
                 pad_width = call.attrs.pad_width
                 if len(pad_width) == 6:

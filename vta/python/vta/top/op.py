@@ -35,7 +35,8 @@ from ..environment import get_env
 
 
 # override to force partition at copy
-reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
+# TODO(zhanghao): remove all copy
+# reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
 
 # add clip vta strategy
 def compute_clip_vta(attrs, inputs, output_type):

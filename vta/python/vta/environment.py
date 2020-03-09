@@ -62,11 +62,13 @@ class DevContext(object):
     MEM_ID_INP = 2
     MEM_ID_ACC = 3
     MEM_ID_OUT = 4
+    MEM_ID_ACC_8 = 5
     # VTA ALU Opcodes
     ALU_OPCODE_MIN = 0
     ALU_OPCODE_MAX = 1
     ALU_OPCODE_ADD = 2
     ALU_OPCODE_SHR = 3
+    # ALU_OPCODE_CAST = 4
     # Task queue id (pipeline stage)
     QID_LOAD_INP = 1
     QID_LOAD_WGT = 1

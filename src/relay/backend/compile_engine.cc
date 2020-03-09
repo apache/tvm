@@ -123,7 +123,7 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
     readable_name_stream_ << "fused";
     cache_node->outputs = this->VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
-    constexpr static size_t kMaxFuncNameLength = 80;
+    constexpr static size_t kMaxFuncNameLength = 800;
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);
@@ -343,7 +343,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     auto cache_node = make_object<CachedFuncNode>();
     cache_node->outputs = VisitExpr(prim_func->body);
     auto candidate_name = readable_name_stream_.str();
-    constexpr static size_t kMaxFuncNameLength = 80;
+    constexpr static size_t kMaxFuncNameLength = 800;
     if (candidate_name.size() > kMaxFuncNameLength) {
       std::stringstream truncated_name;
       truncated_name << candidate_name.substr(0, kMaxFuncNameLength);

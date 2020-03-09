@@ -63,5 +63,9 @@ def schedule_injective(outs):
     schedule_injective_from_existing(s, x)
     return s
 
+@tvm.target.generic_func
+def schedule_add(outs):
+    return schedule_injective(outs)
+
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective

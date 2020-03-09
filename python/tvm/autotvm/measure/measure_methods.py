@@ -468,8 +468,9 @@ def run_through_rpc(measure_input, build_result,
             measure_input.target.device_name == 'vta':
             # pylint: disable=import-outside-toplevel
             from vta import program_fpga, reconfig_runtime
-            program_fpga(remote, None)
-            reconfig_runtime(remote)
+            # FIXME(zhanghao): remove this
+            # program_fpga(remote, None)
+            # reconfig_runtime(remote)
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)

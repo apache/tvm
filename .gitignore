@@ -233,3 +233,6 @@ conda/pkg
 # antlr files
 *.tokens
 *.interp
+
+*log*
+*.txt

@@ -312,19 +312,38 @@ Array<Expr> UnifyDTypeScale(const Array<Expr>& ref_args, const Array<Expr>& args
   CHECK_EQ(ref_args.size(), args.size());
   DataType dtype;
 
-  if (ret.size() == 2 && nptrs[1]->dtype == cfg->dtype_input) {
-    dtype = cfg->dtype_input;
-  } else {
-    dtype = cfg->dtype_activation;
-  }
+  // FIXME(zhanghao): force to use add(int32, int32) in order to put in VTA ALU
+  // but this may be not necessary for other devices
+  // if (ret.size() == 2 && nptrs[1]->dtype == cfg->dtype_input) {
+  //   dtype = cfg->dtype_input;
+  // } else {
+  //   dtype = cfg->dtype_activation;
+  // }
+  dtype = cfg->dtype_activation;
   for (size_t i = 0; i < ret.size(); ++i) {
     auto ref_arg = ref_args[i].as<CallNode>();
     if (nptrs[i]->dtype != dtype) {
-      ret.Set(i, Cast(ret[i], dtype));
+      auto new_arg = Cast(ret[i], dtype);
+
+      // NOTE(zhanghao)
+      // if you want to let cpu to do all the cast, use the following code
+      // ret.Set(i, StopFusion(new_arg));
+
+      // do not fuse float32 cast
+      if (nptrs[i]->dtype == DataType::Float(32)) {
+        ret.Set(i, StopFusion(new_arg));
+      } else {
+        ret.Set(i, new_arg);
+      }
     } else if (ref_arg && ref_arg->op.same_as(simulated_quantize) &&
                ref_arg->attrs.as<SimulatedQuantizeAttrs>()->kind == kQInput) {
       auto new_arg = Cast(ret[i], cfg->dtype_input);
       new_arg = StopFusion(new_arg);
+
+      // NOTE(zhanghao)
+      // if you want to let cpu to do all the cast, use the following code
+      // ret.Set(i, StopFusion(Cast(new_arg, dtype)));
+
       ret.Set(i, Cast(new_arg, dtype));
     }
   }
