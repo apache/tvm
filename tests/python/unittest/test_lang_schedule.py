@@ -102,6 +102,18 @@ def test_fuse():
     assert any(isinstance(x, tvm.te.schedule.Fuse) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused, xi, yi)
 
+def test_fuse_with_split():
+    m = te.size_var('m')
+    n = te.size_var('n')
+    A = te.placeholder((m, n), name='A')
+    T = te.compute((m, n), lambda i, j: A[i, j])
+
+    s = te.create_schedule(T.op)
+    y = T.op.axis[1]
+    xo, xi = s[T].split(T.op.axis[0], factor=10)
+    fused = s[T].fuse(xi, y)
+    assert any(isinstance(x, tvm.te.schedule.Fuse) for x in s[T].relations)
+    assert tuple(s[T].leaf_iter_vars) == (xo, fused)
 
 def test_singleton():
     print("test singleton")
