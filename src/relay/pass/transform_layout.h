@@ -274,10 +274,10 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   }
 
   for (auto arg : ref_call->args) {
-    if (arg->IsInstance<TupleNode>()) {  // flatten tuple
-      Tuple tuple_arg = Downcast<Tuple>(arg);
-      for (auto x : tuple_arg->fields) {
-        input_shapes.push_back(x->type_as<TensorTypeNode>()->shape);
+    if (arg->checked_type().as<TupleTypeNode>()) {  // flatten tuple
+      auto* tuple_type = arg->type_as<TupleTypeNode>();
+      for (auto x : tuple_type->fields) {
+        input_shapes.push_back(x.as<TensorTypeNode>()->shape);
       }
     } else {
       input_shapes.push_back(arg->type_as<TensorTypeNode>()->shape);
