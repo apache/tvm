@@ -49,7 +49,7 @@ USE_TRACE_FST = 0
 # This will significantly increase the trace size and should only be used
 # on a per need basis for difficult debug problems.
 USE_TRACE_DETAILED = 0
-USE_THREADS = $(shell nproc)
+USE_THREADS = 0
 VTA_LIBNAME = libvta_hw
 UNITTEST_NAME = all
 CXX = g++
