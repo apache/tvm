@@ -364,7 +364,7 @@ int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime * runtime, const char * name) 
     }
   }
   if (rv < 0) {
-    fprintf(stderr, "cannot find \"%s\" among input", name);
+    fprintf(stderr, "cannot find \"%s\" among input\n", name);
   }
   return rv;
 }

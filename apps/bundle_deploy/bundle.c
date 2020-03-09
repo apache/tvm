@@ -72,7 +72,7 @@ TVM_DLL void tvm_runtime_destroy(void * runtime) {
 TVM_DLL void tvm_runtime_set_input(void * runtime, const char * name, DLTensor * tensor) {
   void (*TVMGraphRuntime_SetInput)(TVMModuleHandle, const char *, DLTensor*);
   TVM_CCALL(TVMFuncGetGlobal("tvm.graph_runtime.set_input", (TVMFunctionHandle*)&TVMGraphRuntime_SetInput));
-  TVMGraphRuntime_SetInput(runtime, "data", tensor);
+  TVMGraphRuntime_SetInput(runtime, name, tensor);
 }
 
 TVM_DLL void tvm_runtime_run(void * runtime) {

@@ -30,10 +30,10 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Test TVM
 make cython3
 
-# Test extern package
+# Test MISRA-C runtime
 cd apps/bundle_deploy
 rm -rf build
-make
+make test
 cd ../..
 
 # Test extern package
