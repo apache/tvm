@@ -314,7 +314,6 @@ layers.append(GraphConv(
 
 # Analyze free variables and generate Relay function
 output = layers[-1]
-func = relay.Function(relay.analysis.free_vars(output), output)
 
 ######################################################################
 # Compile and run with TVM
@@ -332,9 +331,13 @@ for i in range(num_layers+1):
 # Set the TVM build target
 target = 'llvm' # Currently only support `llvm` as target
 
+func = relay.Function(relay.analysis.free_vars(output), output)
+func = relay.build_module.bind_params_by_name(func, params)
+mod = tvm.IRModule()
+mod["main"] = func
 # Build with Relay
 with relay.build_config(opt_level=0): # Currently only support opt_level=0
-    graph, lib, params = relay.build(func, target, params=params)
+    graph, lib, params = relay.build(mod, target, params=params)
 
 # Generate graph runtime
 ctx = tvm.context(target, 0)

@@ -263,10 +263,10 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
     std::swap(outer, inner);
     std::swap(pos_inner, pos_outer);
   }
-  self->relations.push_back(FuseNode::make(outer, inner, fused));
-  all_vars->data.push_back(fused);
   CHECK_EQ(pos_inner, pos_outer + 1)
       << "Can only fuse iterations that are consecutive between each other";
+  self->relations.push_back(FuseNode::make(outer, inner, fused));
+  all_vars->data.push_back(fused);
   leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
                         leaf_vars->data.begin() + pos_inner + 1);
   leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,

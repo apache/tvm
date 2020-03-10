@@ -25,10 +25,10 @@ import vta.util.config._
 import vta.interface.axi._
 
 /** XilinxShell.
-  *
-  * This is a wrapper shell mostly used to match Xilinx convention naming,
-  * therefore we can pack VTA as an IP for IPI based flows.
-  */
+ *
+ * This is a wrapper shell mostly used to match Xilinx convention naming,
+ * therefore we can pack VTA as an IP for IPI based flows.
+ */
 class XilinxShell(implicit p: Parameters) extends RawModule {
 
   val hp = p(ShellKey).hostParams

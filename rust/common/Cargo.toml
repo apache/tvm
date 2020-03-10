@@ -26,8 +26,8 @@ edition = "2018"
 bindings = []
 
 [dependencies]
-failure = "0.1.5"
-ndarray = "0.12.1"
+failure = { version = "0.1", default-features = false, features = ["derive"] }
+ndarray = "0.12"
 
 [build-dependencies]
-bindgen = "0.37.4"
+bindgen = "0.51"

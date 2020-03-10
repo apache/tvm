@@ -26,9 +26,9 @@ import vta.interface.axi._
 import vta.shell._
 
 /** Sim DPI module.
-  *
-  * Wrapper for Sim Verilog DPI module.
-  */
+ *
+ * Wrapper for Sim Verilog DPI module.
+ */
 class VTASimDPI extends BlackBox with HasBlackBoxResource {
   val io = IO(new Bundle {
     val clock = Input(Clock())

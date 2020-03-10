@@ -25,26 +25,27 @@ import vta.util.config._
 import vta.shell._
 
 /** EventCounters.
-  *
-  * This unit contains all the event counting logic. One common event tracked in
-  * hardware is the number of clock cycles taken to achieve certain task. We
-  * can count the total number of clock cycles spent in a VTA run by checking
-  * launch and finish signals.
-  *
-  * The event counter value is passed to the VCR module via the ecnt port, so
-  * they can be accessed by the host. The number of event counters (nECnt) is
-  * defined in the Shell VCR module as a parameter, see VCRParams.
-  *
-  * If one would like to add an event counter, then the value of nECnt must be
-  * changed in VCRParams together with the corresponding counting logic here.
-  */
-class EventCounters(debug: Boolean = false)(implicit p: Parameters)
-    extends Module {
+ *
+ * This unit contains all the event counting logic. One common event tracked in
+ * hardware is the number of clock cycles taken to achieve certain task. We
+ * can count the total number of clock cycles spent in a VTA run by checking
+ * launch and finish signals.
+ *
+ * The event counter value is passed to the VCR module via the ecnt port, so
+ * they can be accessed by the host. The number of event counters (nECnt) is
+ * defined in the Shell VCR module as a parameter, see VCRParams.
+ *
+ * If one would like to add an event counter, then the value of nECnt must be
+ * changed in VCRParams together with the corresponding counting logic here.
+ */
+class EventCounters(debug: Boolean = false)(implicit p: Parameters) extends Module {
   val vp = p(ShellKey).vcrParams
   val io = IO(new Bundle {
     val launch = Input(Bool())
     val finish = Input(Bool())
     val ecnt = Vec(vp.nECnt, ValidIO(UInt(vp.regBits.W)))
+    val ucnt = Vec(vp.nUCnt, ValidIO(UInt(vp.regBits.W)))
+    val acc_wr_event = Input(Bool())
   })
   val cycle_cnt = RegInit(0.U(vp.regBits.W))
   when(io.launch && !io.finish) {
@@ -54,4 +55,13 @@ class EventCounters(debug: Boolean = false)(implicit p: Parameters)
   }
   io.ecnt(0).valid := io.finish
   io.ecnt(0).bits := cycle_cnt
+
+  val acc_wr_count = Reg(UInt(vp.regBits.W))
+  when (!io.launch || io.finish) {
+    acc_wr_count := 0.U
+  }.elsewhen (io.acc_wr_event) {
+    acc_wr_count := acc_wr_count + 1.U
+  }
+  io.ucnt(0).valid := io.finish
+  io.ucnt(0).bits := acc_wr_count
 }

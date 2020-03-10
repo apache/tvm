@@ -51,9 +51,9 @@ We use a simple example that uses the low level TVM API directly. The example is
 ::
 
    n = 1024
-   A = tvm.placeholder((n,), name='A')
-   B = tvm.placeholder((n,), name='B')
-   C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
+   A = tvm.te.placeholder((n,), name='A')
+   B = tvm.te.placeholder((n,), name='B')
+   C = tvm.te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 Here, types of ``A``, ``B``, ``C`` are ``tvm.tensor.Tensor``, defined in ``python/tvm/te/tensor.py``. The Python ``Tensor`` is backed by C++ ``Tensor``, implemented in ``include/tvm/te/tensor.h`` and ``src/te/tensor.cc``. All Python types in TVM can be thought of as a handle to the underlying C++ type with the same name. If you look at the definition of Python ``Tensor`` type below, you can see it is a subclass of ``Object``.
 
