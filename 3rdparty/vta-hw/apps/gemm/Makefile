@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-export PYTHONPATH:=$(PWD)/python:$(PYTHONPATH)
+export PYTHONPATH:=$(abspath .)/python:$(PYTHONPATH)
 
 BUILD_NAME = build
 build_dir = $(abspath .)/$(BUILD_NAME)
