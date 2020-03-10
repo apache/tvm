@@ -22,10 +22,10 @@ license = "Apache-2.0"
 authors = ["TVM Contributors"]
 
 [dependencies]
-ndarray="0.12.1"
-serde = "1.0.59"
-serde_json = "1.0.17"
+ndarray="0.12"
+serde = "1.0"
+serde_json = "1.0"
 tvm-runtime = { path = "../../" }
 
 [build-dependencies]
-ar = "0.6.0"
+ar = "0.6"

@@ -39,7 +39,7 @@ fn main() {
             for arg in args.iter() {
                 let e = NDArray::empty(
                     shape, TVMContext::cpu(0),
-                    TVMType::from_str("float32").unwrap()
+                    DLDataType::from_str("float32").unwrap()
                 );
                 let arg: NDArray = arg.try_into()?;
                 let arr = arg.copy_to_ndarray(e)?;
@@ -55,7 +55,7 @@ fn main() {
     let mut arr = NDArray::empty(
         shape,
         TVMContext::cpu(0),
-        TVMType::from_str("float32").unwrap(),
+        DLDataType::from_str("float32").unwrap(),
     );
     arr.copy_from_buffer(data.as_mut_slice());
 
