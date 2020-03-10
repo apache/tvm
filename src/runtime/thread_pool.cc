@@ -105,16 +105,14 @@ class ParallelLauncher {
       tvm::runtime::threading::Yield();
     }
     if (!has_error_.load()) return 0;
-    // the following is intended to use string due to
-    // security issue raised in SGX backend
-    std::string err("");
+    std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i].length() != 0) {
-        err += "Task " + std::to_string(i) + " error: " + par_errors_[i] + '\n';
+        os << "Task " << i << " error: " << par_errors_[i] << '\n';
         par_errors_[i].clear();
       }
     }
-    TVMAPISetLastError(err.c_str());
+    TVMAPISetLastError(os.str().c_str());
     return -1;
   }
   // Signal that one job has finished.
@@ -373,11 +371,7 @@ class ThreadPool {
   // number of workers used (can be restricted with affinity pref)
   int num_workers_used_;
   // if or not to exclude worker 0 and use master to run task 0
-#ifndef _LIBCPP_SGX_CONFIG
   bool exclude_worker0_{true};
-#else
-  bool exclude_worker0_{false};
-#endif
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
