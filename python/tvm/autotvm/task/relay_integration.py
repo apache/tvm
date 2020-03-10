@@ -46,7 +46,8 @@ def _lower(mod,
             with vta.build_config():
                 mod, _ = relay.optimize(mod, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
-                return grc.codegen(mod["main"])
+                grc.codegen(mod["main"])
+                return
     # default case
     # Try graph codegen first to extract autotvm tasks.
     # If failed to compile, then fallback to use VM compiler.
