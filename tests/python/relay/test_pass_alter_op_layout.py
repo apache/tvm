@@ -1043,6 +1043,18 @@ def test_alter_op_with_global_var():
 
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
+def test_tuple_type_var_node():
+    """Test that input shapes from non-Tuple nodes with TupleType are properly
+    handled."""
+    input_type = relay.TensorType((1, 16, 56, 56), "float32")
+    x = relay.var("x", relay.TupleType([input_type, input_type]))
+    # relay.concatenate only supports list of Expr inputs, so we have to use
+    # _make.concatenate instead.
+    from tvm.relay.op import _make
+    out = _make.concatenate(x, 1)
+    func = relay.Function([x], out)
+    run_opt_pass(func, [transform.InferType(), transform.AlterOpLayout()])
+
 if __name__ == "__main__":
     test_alter_op()
     test_alter_return_none()
@@ -1062,3 +1074,4 @@ if __name__ == "__main__":
     test_alter_layout_sum()
     # test_alter_layout_nhwc_nchw_arm()
     test_alter_op_with_global_var()
+    test_tuple_type_var_node()
