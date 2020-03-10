@@ -233,7 +233,9 @@ void NDArray::CopyFromTo(const DLTensor* from,
 
   CHECK(from->ctx.device_type == to->ctx.device_type
         || from->ctx.device_type == kDLCPU
-        || to->ctx.device_type == kDLCPU)
+        || to->ctx.device_type == kDLCPU
+        || from->ctx.device_type == kDLCPUPinned
+        || to->ctx.device_type == kDLCPUPinned)
     << "Can not copy across different ctx types directly";
 
   // Use the context that is *not* a cpu context to get the correct device
