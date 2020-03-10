@@ -20,10 +20,9 @@ export PYTHONPATH:=$(PWD)/python:$(PYTHONPATH)
 BUILD_NAME = build
 build_dir = $(abspath .)/$(BUILD_NAME)
 
-default: chisel driver
-	python3 tests/python/chisel_accel.py serial
+default: chisel driver serial parallel
 
-serial:  
+serial:
 	python3 tests/python/chisel_accel.py serial
 
 parallel:
