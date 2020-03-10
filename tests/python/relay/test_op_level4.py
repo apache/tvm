@@ -88,11 +88,54 @@ def test_cmp_type():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 
-def test_binary_int_broadcast():
-    for op, ref in [(relay.right_shift, np.right_shift),
-               (relay.left_shift, np.left_shift),
-               (relay.maximum, np.maximum),
-               (relay.minimum, np.minimum)]:
+def test_binary_int_broadcast_1():
+    for op, ref in [(relay.right_shift, np.right_shift)]:
+        x = relay.var("x", relay.TensorType((10, 4), "int32"))
+        y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
+        z = op(x, y)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
+
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape, 'int32')
+            t2 = relay.TensorType(y_shape, 'int32')
+            x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
+            y_data = np.random.randint(1, 31, size=(y_shape)).astype(t2.dtype)
+            func = relay.Function([x, y], z)
+            ref_res = ref(x_data, y_data)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+def test_binary_int_broadcast_2():
+    for op, ref in [(relay.left_shift, np.left_shift)]:
+        x = relay.var("x", relay.TensorType((10, 4), "int32"))
+        y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
+        z = op(x, y)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
+
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape, 'int32')
+            t2 = relay.TensorType(y_shape, 'int32')
+            x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
+            y_data = np.random.randint(1, 31, size=(y_shape)).astype(t2.dtype)
+            func = relay.Function([x, y], z)
+            ref_res = ref(x_data, y_data)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+def test_binary_int_broadcast_3():
+    for op, ref in [(relay.maximum, np.maximum)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
@@ -114,6 +157,51 @@ def test_binary_int_broadcast():
                 op_res = intrp.evaluate(func)(x_data, y_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
+def test_binary_int_broadcast_4():
+    for op, ref in [(relay.minimum, np.minimum)]:
+        x = relay.var("x", relay.TensorType((10, 4), "int32"))
+        y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
+        z = op(x, y)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
+
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape, 'int32')
+            t2 = relay.TensorType(y_shape, 'int32')
+            x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
+            y_data = np.random.randint(1, 10000, size=(y_shape)).astype(t2.dtype)
+            func = relay.Function([x, y], z)
+            ref_res = ref(x_data, y_data)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+def test_binary_int_broadcast_5():
+    for op, ref in [(relay.mod, np.mod)]:
+        x = relay.var("x", relay.TensorType((10, 4), "int32"))
+        y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
+        z = op(x, y)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
+
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape, 'int32')
+            t2 = relay.TensorType(y_shape, 'int32')
+            x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
+            y_data = np.random.randint(1, 10000, size=(y_shape)).astype(t2.dtype)
+            func = relay.Function([x, y], z)
+            ref_res = ref(x_data, y_data)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 def test_where():
     shape = (3, 4)
