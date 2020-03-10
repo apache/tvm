@@ -103,7 +103,7 @@ def _need_prelude_for_shape_inference(op):
     return "TensorArray" in op
 
 def _rsqrt():
-    def _impl(inputs, attr, params):
+    def _impl(inputs, attr, params, mod):
         inputs.append(tvm.relay.const(-0.5, attr['T'].name))
         return AttrCvt(op_name="power")(inputs, attr)
     return _impl
@@ -145,10 +145,9 @@ def _pool3d(name):
                   'is not valid.'
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
         if attr['data_format'] == "NDHWC":
-            input_shape = [attr['_input_shapes'][inputs[0]][i] for i in (0, 4, 1, 2, 3)]
+            input_shape = [_infer_shape(inputs[0], mod)[i] for i in (0, 4, 1, 2, 3)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 4, 1, 2, 3))
             attr['data_format'] = "NCDHW"
-            attr['_input_shapes'][inputs[0]] = input_shape
             flip_layout = True
 
         attr['padding'] = attr['padding'].decode("utf-8")
@@ -211,7 +210,7 @@ def _pooling(name):
             raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
-            tmp_shape = attr['_input_shapes'][inputs[0]]
+            tmp_shape = _infer_shape(inputs[0], mod)
             input_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[0] = _op.transpose(inputs[0], axes=(0, 3, 1, 2))
             attr['data_format'] = "NCHW"
@@ -270,7 +269,6 @@ def _conv(opname):
             tmp_shape = _infer_shape(inputs[2], mod)
             tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[2] = _op.transpose(inputs[2], axes=(0, 3, 1, 2))
-            attr['_input_shapes'][inputs[2]] = tmp_shape
             attr['strides'][1], attr['strides'][2], attr['strides'][3] = \
                 attr['strides'][3], attr['strides'][1], attr['strides'][2]
             attr['data_format'] = 'NCHW'
@@ -1148,7 +1146,7 @@ def _stridedSlice():
         ellipsis_mask = int(attr.get('ellipsis_mask', 0))
         new_axis_mask = int(attr.get('new_axis_mask', 0))
         shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
-        data_shape = attr['_input_shapes'][inputs[0]]
+        data_shape = _infer_shape(inputs[0], mod)
         data_dim = len(data_shape)
         stride_dim = len(stride)
 
@@ -1360,11 +1358,18 @@ def _range():
 
 
         dtype = attr['Tidx'].name if 'Tidx' in attr else str(start.dtype)
+        if isinstance(start, (np.int32, np.int64, int, np.float32, np.float64, float)):
+            start = _expr.const(start)
+        if isinstance(limit, (np.int32, np.int64, int, np.float32, np.float64, float)):
+            limit = _expr.const(limit)
+        if isinstance(delta, (np.int32, np.int64, int, np.float32, np.float64, float)):
+            delta = _expr.const(delta)
+
         return AttrCvt(
             op_name="arange",
             ignores=['Tidx'],
             extras={'start': start,
-                    "stop": limit,
+                    'stop': limit,
                     'step': delta,
                     'dtype': dtype})([], attr)
     return _impl
@@ -1470,7 +1475,7 @@ def _softplus():
 
 def _topk():
     def _impl(inputs, attr, params, mod):
-        k_input = inputs[1]
+        k_input = inputs.pop(1)
         try:
             k = int(_get_num_param(params, k_input))
         except (IndexError, KeyError, AttributeError):
@@ -1483,7 +1488,7 @@ def _topk():
                 'Attribute sorted=False is not supported in operator TopKV2')
         return AttrCvt(op_name='topk',
                        ignores=['sorted'],
-                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs[0], attr)
+                       extras={'k': k, 'is_ascend': False, 'dtype': 'int32'})(inputs, attr)
     return _impl
 
 def _floordiv():
@@ -1576,7 +1581,7 @@ def _batch_to_space_nd():
         # Reshape input to reshaped of shape:
         # [block_shape[0], ..., block_shape[M-1], batch / prod(block_shape),
         #  input_shape[1], ..., input_shape[N-1]]
-        shape1 = block_shape + [batch // np.prod(block_shape)] + input_shape[1:]
+        shape1 = block_shape + [batch // np.prod(block_shape)] + list(input_shape[1:])
         reshaped = tvm.relay.reshape(input_node, newshape=shape1)
         # Permute dimensions of reshaped to produce permuted of shape
         # [batch / prod(block_shape), input_shape[1], block_shape[0], ...,
@@ -1826,7 +1831,7 @@ _convert_map = {
 }
 
 def _LSTMBlockCell():
-    def _impl(inputs, in_state_c, in_state_h, attr, params):
+    def _impl(inputs, in_state_c, in_state_h, attr, params, mod):
         """LSTM Block cell.
         Calculations are described in: https://github.com/tensorflow/tensorflow/blob/
         r1.8/tensorflow/contrib/rnn/python/ops/lstm_ops.py#L41-L114
@@ -1855,8 +1860,8 @@ def _LSTMBlockCell():
         in_weight = inputs[3]
         in_bias = inputs[7]
         forget_bias = attr.pop('forget_bias')
-        input_shape = attr['_input_shapes'][inputs[0]]
-        weight_shape = attr['_input_shapes'][inputs[3]]
+        input_shape = _infer_shape(inputs[0], mod)
+        weight_shape = _infer_shape(inputs[3], mod)
         batch_size, input_size = input_shape[0], input_shape[1]
         num_hidden_layers = weight_shape[1]
         num_hidden = num_hidden_layers // 4
@@ -1951,7 +1956,7 @@ class RecurrentNetworks(object):
         sym : relay.Expr
             The returned relay Expr
         """
-        def _impl(op_name, layer_name, inputs, attrs, params, num_layers):
+        def _impl(op_name, layer_name, inputs, attrs, params, num_layers, mod):
             in_state_c_name = layer_name+'_c'
             in_state_h_name = layer_name+'_h'
 
@@ -1982,8 +1987,8 @@ class RecurrentNetworks(object):
             def _LSTMBlockCellWrapper(inputs, attr, params,
                                       num_layers, layer):
                 """LSTM cell warapper to prepare the inputs"""
-                input_shape = attr['_input_shapes'][inputs[0]]
-                weight_shape = attr['_input_shapes'][inputs[3]]
+                input_shape = _infer_shape(inputs[0], mod)
+                weight_shape = _infer_shape(inputs[3], mod)
 
                 batch_size = input_shape[0]
                 num_hidden = weight_shape[1] // 4
@@ -2002,7 +2007,7 @@ class RecurrentNetworks(object):
                                                     batch_size, num_hidden)
                 output, out_state = self._convert_map[op_name](inputs, cur_in_state_c,
                                                                cur_in_state_h,
-                                                               attr, params)
+                                                               attr, params, mod)
                 return output, out_state, in_state_c, in_state_h
 
             sym, cur_out_state, in_state_c, in_state_h = \
@@ -2016,7 +2021,7 @@ class RecurrentNetworks(object):
             return sym
         return _impl
 
-    def process_op(self, op_name, inputs, attrs, params):
+    def process_op(self, op_name, inputs, attrs, params, mod):
         """Process recurrent layer operators.
 
         List '_recurrent_ops_layer_map' map each Layer based operators with its
@@ -2066,7 +2071,7 @@ class RecurrentNetworks(object):
                 num_layers += 1
 
         sym = self._recurrent_ops_layer_map[op_name](op_name, layer_name, inputs, attrs,
-                                                     params, num_layers)
+                                                     params, num_layers, mod)
         return sym
 
 # An internal list to contain all the control flow primitives used in Tensorflow
@@ -2725,7 +2730,7 @@ class GraphProto(object):
             self._out_rnn = []
             self.rnn = RecurrentNetworks(self._nodes, self._out_rnn, graph, convert_map)
             self._num_rnn_layer = True
-        sym = self.rnn.process_op(op_name, inputs, attrs, params)
+        sym = self.rnn.process_op(op_name, inputs, attrs, params, self._mod)
         return sym
 
     def _convert_control_flow_operator(self, node, inputs, attrs, control_flow_node_map):
@@ -2769,8 +2774,8 @@ class GraphProto(object):
                     raise RuntimeError("Cannot find a created "
                                        "conditional for merge node")
                 branch = self._branches[node_name_prefix]
-                false_br =  self._backtrack_construct(node.input[0])
-                true_br =  self._backtrack_construct(node.input[1])
+                false_br = self._backtrack_construct(node.input[0])
+                true_br = self._backtrack_construct(node.input[1])
                 assert len(true_br) == 1
                 assert len(false_br) == 1
                 branch.true_branch = true_br[0]
@@ -2778,7 +2783,7 @@ class GraphProto(object):
                 op = [branch.if_node()]
                 if node_name_prefix not in self._while_loop_name_set:
                     try:
-                        cond_val = np.all(_infer_value(branch.cond, self._params, 
+                        cond_val = np.all(_infer_value(branch.cond, self._params,
                                                        self._mod).asnumpy())
                         if cond_val:
                             op = [branch.true_branch]
