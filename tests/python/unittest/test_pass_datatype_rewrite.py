@@ -51,12 +51,21 @@ def test_const():
     C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
     s = te.create_schedule(C.op)
     stmt = lower(s, [A, B, C])
-    assert stmt.body.loop_var.dtype == "int64"
-    assert stmt.body.body.loop_var.dtype == "int64"
-    
+    # i32 + i32 is not promoted to i64 even in the case of overflow
+    assert stmt.body.loop_var.dtype == "int32"
+    assert stmt.body.body.loop_var.dtype == "int32"
+
 
 def test_symbolic():
-    m, n = te.size_var(name='m'), te.size_var(name='n')
+    m, n = te.size_var(name='m', dtype='int32'), te.size_var(name='n', dtype='int32')
+    A = te.placeholder((m, n), name='A')
+    B = te.placeholder((m, n), name='B')
+    C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
+    s = te.create_schedule(C.op)
+    stmt = lower(s, [A, B, C])
+    assert stmt.body.loop_var.dtype == "int32"
+    assert stmt.body.body.loop_var.dtype == "int32"
+    m, n = te.size_var(name='m', dtype='int64'), te.size_var(name='n', dtype='int64')
     A = te.placeholder((m, n), name='A')
     B = te.placeholder((m, n), name='B')
     C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
@@ -90,8 +99,9 @@ def test_thread_axis_3dim():
     s[C].bind(xo, te.thread_axis("blockIdx.x"))
     s[C].bind(xi, te.thread_axis("threadIdx.x"))
     stmt = lower(s, [A, B, C])
-    assert stmt.body.node.var.dtype == "int64"
-    assert stmt.body.body.node.var.dtype == "int64"
+    # i32 + i32 is not promoted to i64 even in the case of overflow
+    assert stmt.body.node.var.dtype == "int32"
+    assert stmt.body.body.node.var.dtype == "int32"
 
 
 if __name__ == "__main__":
