@@ -955,6 +955,7 @@ def _report_missing_conversion(op_names):
         msg = "The following operators are not implemented: {}".format(missing)
         raise NotImplementedError(msg)
 
+
 def _check_input_names(script_module, input_shapes):
     """ Check the graph inputs match the inputs """
     ir_inputs = get_graph_input_names(script_module)
