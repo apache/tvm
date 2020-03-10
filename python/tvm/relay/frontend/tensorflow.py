@@ -23,13 +23,6 @@ from collections import defaultdict
 
 # Numpy support
 import numpy as np
-
-try:
-    from tensorflow.python.framework import tensor_util
-except ImportError as e:
-    raise ImportError(
-        "Unable to import tensorflow which is required {}".format(e))
-
 import tvm
 
 from tvm.ir import IRModule
@@ -2482,6 +2475,12 @@ class GraphProto(object):
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
+        try:
+            from tensorflow.python.framework import tensor_util
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
         missing_operators = self._parse_import_prerequisites(graph)
         control_flow_nodes = []
         self._in_shape = shape
@@ -2501,6 +2500,16 @@ class GraphProto(object):
             node_name_prefix = node.name.rsplit('/', 1)[0]
             self._control_flow_node_map[node_name_prefix].add(node.op)
             self._tf_node_map[node.name] = node
+
+            # Parse output_shapes attribute
+            parsed_attr = self._parse_attr(node.attr)
+            if '_output_shapes' in parsed_attr:
+                self._output_shapes[node.name] = \
+                    [tensor_util.TensorShapeProtoToList(tshape) \
+                     for tshape in parsed_attr['_output_shapes']]
+            else:
+                self._output_shapes[node.name] = [None]
+
             # Parse placeholder and const here since input shape info is required.
             if node.op == 'Placeholder' or node.op == 'PlaceholderWithDefault':
                 # Give priority to user argument.
@@ -2621,6 +2630,12 @@ class GraphProto(object):
         return missing_operators
 
     def _parse_param(self, key, value, name, shape):
+        try:
+            from tensorflow.python.framework import tensor_util
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
         if key == 'value':
             np_array = tensor_util.MakeNdarray(value.tensor)
 
@@ -2928,12 +2943,6 @@ class GraphProto(object):
         if node_name not in self._nodes:
             node = self._tf_node_map[node_name]
             attr = self._parse_attr(node.attr)
-            if '_output_shapes' in attr:
-                self._output_shapes[node_name] = \
-                    [tensor_util.TensorShapeProtoToList(tshape) \
-                     for tshape in attr['_output_shapes']]
-            else:
-                self._output_shapes[node_name] = [None]
 
             if node.op in _control_flow_nodes:
                 attr = self._parse_attr(node.attr)
