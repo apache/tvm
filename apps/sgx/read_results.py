@@ -15,18 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "model-enclave"
-version = "0.1.0"
-authors = ["Nick Hynes <nhynes@berkeley.edu>"]
+import struct
+import sys
 
-[lib]
-crate-type = ["staticlib"]
+import numpy as np
 
-[dependencies]
-lazy_static = "1.1.0"
-tvm = { path = "../../../rust", default-features = false, features = ["sgx"] }
+def float_bytes(l):
+    for i in range(0, len(l), 4):
+        yield l[i:i + 4]
 
-[profile.release]
-lto = true
-opt-level = 3
+floats = [struct.unpack('f', f)[0] for f in float_bytes(sys.stdin.buffer.read())]
+print(np.array(floats))

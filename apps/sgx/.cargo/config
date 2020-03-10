@@ -1,0 +1,5 @@
+[build]
+target = "x86_64-fortanix-unknown-sgx"
+
+[target.x86_64-fortanix-unknown-sgx]
+runner = "ftxsgx-runner-cargo"
