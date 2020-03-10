@@ -189,6 +189,7 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
+        if (!n->UseDefaultCompiler()) continue;
         auto func = GetRef<Function>(n);
         func = FunctionNode::make(func->params,
                                   VisitExpr(func->body),

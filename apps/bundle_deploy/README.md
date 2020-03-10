@@ -45,9 +45,10 @@ make demo
 This will:
 
 - Download the mobilenet0.25 model from the MXNet Gluon Model Zoo
-- Compile the model with NNVM
+- Compile the model with Relay
 - Build a `bundle.so` shared object containing the model specification and
   parameters
-- Build a `demo` executable that `dlopen`'s `bundle.so`, instantiates the
-  contained graph runtime, and invokes the `GraphRuntime::Run` function on a
-  random input, then prints the output tensor to `stderr`.
+- Build a `demo` executable that `dlopen`'s `bundle.so` (or `bundle_c.so` in 
+  terms of the MISRA-C runtime), instantiates the contained graph runtime,
+  and invokes the `GraphRuntime::Run` function on a cat image, then prints
+  the output results.

@@ -18,29 +18,17 @@
  */
 
 use std::{
+    env,
     os::raw::{c_int, c_void},
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Barrier,
     },
-};
-
-#[cfg(not(target_env = "sgx"))]
-use num_cpus;
-#[cfg(not(target_env = "sgx"))]
-use std::{
-    env,
     thread::{self, JoinHandle},
 };
 
-#[cfg(target_env = "sgx")]
-use std::{collections::VecDeque, ptr, sync::Mutex};
-
-use bounded_spsc_queue::{self, Producer};
+use crossbeam::channel::{Sender, Receiver, bounded};
 use tvm_common::ffi::TVMParallelGroupEnv;
-
-#[cfg(target_env = "sgx")]
-use super::{TVMArgValue, TVMRetValue};
 
 pub(crate) type FTVMParallelLambda =
     extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;
@@ -82,7 +70,6 @@ impl Job {
     /// Waits for all tasks in this `Job` to be completed.
     fn wait(&self) {
         while self.pending.load(Ordering::Acquire) > 0 {
-            #[cfg(not(target_env = "sgx"))]
             thread::yield_now();
         }
     }
@@ -99,9 +86,8 @@ struct Task {
 unsafe impl Send for Task {}
 unsafe impl Sync for Task {}
 
-impl FnOnce<()> for Task {
-    type Output = i32;
-    extern "rust-call" fn call_once(self, _args: ()) -> Self::Output {
+impl Task {
+    fn run(self) -> i32 {
         let status = (self.flambda)(self.id, &self.penv as *const _, self.cdata);
         self.pending.fetch_sub(1, Ordering::AcqRel);
         status
@@ -111,45 +97,23 @@ impl FnOnce<()> for Task {
 #[derive(Default)]
 struct Threads {
     #[allow(unused)]
-    #[cfg(not(target_env = "sgx"))]
     handles: Vec<JoinHandle<()>>,
-    queues: Vec<Producer<Task>>,
+    queues: Vec<Sender<Task>>,
 }
 
 impl<'a> Threads {
-    #[cfg(not(target_env = "sgx"))]
-    fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(
+    fn launch<F: Sync + Send + FnOnce(Receiver<Task>) + 'static + Copy>(
         num_threads: usize,
         cb: F,
     ) -> Self {
         let (handles, queues) = (0..num_threads)
             .map(|_| {
-                let (p, c) = bounded_spsc_queue::make(2);
+                let (p, c) = bounded(2);
                 let handle = thread::spawn(move || cb(c.into()));
                 (handle, p)
             })
             .unzip();
-        Threads {
-            handles: handles,
-            queues: queues,
-        }
-    }
-
-    #[cfg(target_env = "sgx")]
-    fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(
-        num_threads: usize,
-        _cb: F,
-    ) -> Self {
-        let mut consumer_queues = SGX_QUEUES.lock().unwrap();
-        let queues = (0..num_threads)
-            .map(|_| {
-                let (p, c) = bounded_spsc_queue::make(2);
-                consumer_queues.push_back(c.into());
-                p
-            })
-            .collect();
-        ocall_packed!("__sgx_thread_group_launch__", num_threads as u64);
-        Threads { queues: queues }
+        Threads { handles, queues }
     }
 }
 
@@ -165,7 +129,7 @@ impl ThreadPool {
     fn new() -> Self {
         let num_workers = max_concurrency();
         ThreadPool {
-            num_workers: num_workers,
+            num_workers,
             threads: Threads::launch(num_workers, ThreadPool::run_worker),
         }
     }
@@ -174,17 +138,18 @@ impl ThreadPool {
         let mut tasks = job.tasks(self.num_workers + 1);
 
         for (i, task) in tasks.split_off(1).into_iter().enumerate() {
-            self.threads.queues[i].push(task);
+            self.threads.queues[i].send(task)
+                .expect("should send");
         }
 
-        tasks.pop().unwrap()();
+        tasks.pop().unwrap().run();
         job.wait();
     }
 
-    fn run_worker(queue: Consumer<Task>) {
+    fn run_worker(queue: Receiver<Task>) {
         loop {
-            let task = queue.pop();
-            let result = task();
+            let task = queue.recv().expect("should recv");
+            let result = task.run();
             if result == <i32>::min_value() {
                 break;
             } else if result != 0 {
@@ -194,60 +159,19 @@ impl ThreadPool {
     }
 }
 
-// Send + Sync wrapper for bounded_spsc_queue::Consumer
-struct Consumer<T> {
-    consumer: bounded_spsc_queue::Consumer<T>,
-}
-impl<T> From<bounded_spsc_queue::Consumer<T>> for Consumer<T> {
-    fn from(c: bounded_spsc_queue::Consumer<T>) -> Self {
-        Consumer { consumer: c }
-    }
-}
-impl<T> Consumer<T> {
-    fn pop(&self) -> T {
-        self.consumer.pop()
-    }
-}
-unsafe impl<T> Send for Consumer<T> {}
-unsafe impl<T> Sync for Consumer<T> {}
-
-#[cfg(target_env = "sgx")]
-lazy_static! {
-  /// Holds tasks for untrusted threads which re-enter the enclave to execute.
-  static ref SGX_QUEUES: Mutex<VecDeque<Consumer<Task>>> = Mutex::new(VecDeque::new());
-}
-
-#[cfg(all(not(target_arch = "wasm32"), not(target_env = "sgx")))]
+#[cfg(not(target_arch = "wasm32"))]
 fn max_concurrency() -> usize {
-    if let Ok(threads_str) = env::var("TVM_NUM_THREADS").or(env::var("OMP_NUM_THREADS")) {
+    if let Ok(threads_str) = env::var("TVM_NUM_THREADS").or_else(|_| env::var("OMP_NUM_THREADS")) {
         if let Ok(threads) = usize::from_str_radix(&threads_str, 10) {
             return threads;
         }
     }
-    num_cpus::get_physical()
-}
-
-#[cfg(target_env = "sgx")]
-fn max_concurrency() -> usize {
-    usize::from_str_radix(env!("TVM_NUM_THREADS"), 10).unwrap_or(1)
+    num_cpus::get()
 }
 
 #[cfg(target_arch = "wasm32")]
 fn max_concurrency() -> usize {
     0 // wasm doesn't support threads yet
-}
-
-#[cfg(target_env = "sgx")]
-pub fn tvm_run_worker(_args: &[TVMArgValue]) -> TVMRetValue {
-    let q = {
-        let mut qs = SGX_QUEUES.lock().unwrap();
-        qs.pop_front()
-        // `qs: MutexGuard` needs to be dropped here since `run_worker` won't return
-    };
-    if let Some(q) = q {
-        ThreadPool::run_worker(q);
-    }
-    TVMRetValue::default()
 }
 
 #[no_mangle]
@@ -256,50 +180,32 @@ pub extern "C" fn TVMBackendParallelLaunch(
     cdata: *const c_void,
     num_task: usize,
 ) -> c_int {
-    if max_concurrency() == 0 {
+    if max_concurrency() < 2 {
         let penv = TVMParallelGroupEnv {
-            sync_handle: 0 as *mut c_void,
+            sync_handle: std::ptr::null_mut(),
             num_task: 1,
         };
         cb(0, &penv as *const _, cdata);
     } else {
         THREAD_POOL.with(|pool| {
             pool.launch(Job {
-                cb: cb,
-                cdata: cdata,
+                cb,
+                cdata,
                 req_num_tasks: num_task,
                 pending: Arc::new(AtomicUsize::new(0)),
             });
         });
     }
-    return 0;
-}
-
-#[cfg(target_env = "sgx")]
-pub(crate) fn sgx_join_threads() {
-    extern "C" fn poison_pill(
-        _task_id: usize,
-        _penv: *const TVMParallelGroupEnv,
-        _cdata: *const c_void,
-    ) -> i32 {
-        <i32>::min_value()
-    }
-
-    THREAD_POOL.with(|pool| {
-        pool.launch(Job {
-            cb: poison_pill,
-            cdata: ptr::null(),
-            req_num_tasks: 0,
-            pending: Arc::new(AtomicUsize::new(0)),
-        });
-    });
-    ocall_packed!("__sgx_thread_group_join__", 0);
+    0
 }
 
 // @see issue 988 for information on why this function is used.
 #[no_mangle]
-pub extern "C" fn TVMBackendParallelBarrier(_task_id: usize, penv: *const TVMParallelGroupEnv) {
-    let barrier: &Arc<Barrier> = unsafe { &*((*penv).sync_handle as *const Arc<Barrier>) };
+pub unsafe extern "C" fn TVMBackendParallelBarrier(
+    _task_id: usize,
+    penv: *const TVMParallelGroupEnv,
+) {
+    let barrier: &Arc<Barrier> = &*((*penv).sync_handle as *const Arc<Barrier>);
     barrier.wait();
 }
 
@@ -323,7 +229,7 @@ mod tests {
         penv: *const TVMParallelGroupEnv,
         cdata: *const c_void,
     ) -> i32 {
-        if cdata == ptr::null() {
+        if cdata.is_null() {
             return 0;
         }
         unsafe {

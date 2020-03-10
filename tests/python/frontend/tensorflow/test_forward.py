@@ -171,11 +171,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
     with tf.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            out_node,
-        )
+        final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         for device in ["llvm", "cuda"]:

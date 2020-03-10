@@ -23,10 +23,10 @@ use std::path::PathBuf;
 
 fn main() {
     let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
-        let tvm_home = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .canonicalize()
             .unwrap();
-        tvm_home
+        crate_dir
             .parent()
             .unwrap()
             .parent()
@@ -46,6 +46,7 @@ fn main() {
         .header(format!("{}/include/tvm/runtime/c_runtime_api.h", tvm_home))
         .header(format!("{}/include/tvm/runtime/c_backend_api.h", tvm_home))
         .clang_arg(format!("-I{}/3rdparty/dlpack/include/", tvm_home))
+        .clang_arg(format!("-I{}/include/", tvm_home))
         .blacklist_type("max_align_t")
         .layout_tests(false)
         .derive_partialeq(true)

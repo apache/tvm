@@ -110,6 +110,8 @@ class AnnotationChecker : public ExprVisitor {
  */
 class Partitioner : public ExprMutator {
  public:
+  explicit Partitioner(const IRModule& module) : module_(module) {}
+
   std::shared_ptr<Subgraph> GetSubgraph(const Expr node) {
     for (auto candidate : this->subgraphs_) {
       if (candidate->nodes.find(node) != candidate->nodes.end()) {
@@ -163,8 +165,10 @@ class Partitioner : public ExprMutator {
 
       // Replace the begin annotation with an external call input variable.
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
+      // The type of the created variable is the same as the compiler_begin
+      // node.
       auto var = VarNode::make(compiler_attrs->compiler + "_input" + std::to_string(var_id_++),
-                               input_expr->checked_type_);
+                               call->checked_type_);
 
       // Find the corresponding subgraph and add the argument.
       auto subgraph = GetSubgraph(GetRef<Call>(call));
@@ -182,7 +186,7 @@ class Partitioner : public ExprMutator {
 
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
 
-      // Check if the argument already belongs to an exist subgraph
+      // Check if the argument already belongs to an existing subgraph
       auto subgraph = GetSubgraph(call->args[0]);
       if (!subgraph) {
         auto ret = this->subgraphs_.emplace(std::make_shared<Subgraph>());
@@ -207,16 +211,28 @@ class Partitioner : public ExprMutator {
       }
 
       auto subgraph_func =
-          FunctionNode::make(params, input, call->args[0]->checked_type_, {}, Attrs());
+          FunctionNode::make(params, input, call->checked_type_, {}, Attrs());
 
-      Expr arg0 = call->args[0];
       std::string name = compiler_attrs->compiler + "_" + std::to_string(subgraph->id);
       subgraph_func =
           FunctionSetAttr(subgraph_func, attr::kExternalSymbol, tir::StringImmNode::make(name));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kPrimitive, tvm::Integer(1));
       subgraph_func = FunctionSetAttr(subgraph_func, attr::kCompiler,
                                       tvm::tir::StringImmNode::make(compiler_attrs->compiler));
-      return CallNode::make(subgraph_func, args);
+      subgraph_func = FunctionSetAttr(subgraph_func, attr::kInline, tvm::Integer(1));
+      CHECK(!module_->ContainGlobalVar(name))
+          << "Global function " << name << " already exists";
+      // Create a global function and add it to the IRModule for the subgraph.
+      // This way we lift the functions that should be handled by external
+      // codegen to the module scope and rely on the pass manager to prevent relay
+      // function level passes (i.e. simplify inference and fusion) optimizing it.
+      GlobalVar glob_func(name);
+      module_->Add(glob_func, subgraph_func);
+      // The return type of callnode is the same as the type of the
+      // compiler_end node.
+      auto ret = CallNode::make(glob_func, args);
+      ret->checked_type_ = call->checked_type_;
+      return std::move(ret);
     }
   }
 
@@ -330,50 +346,39 @@ class Partitioner : public ExprMutator {
     }
   }
 
+  IRModule Partition() {
+    auto glob_funcs = module_->functions;
+    for (const auto& pair : glob_funcs) {
+      if (auto* fn = pair.second.as<FunctionNode>()) {
+        auto func = GetRef<Function>(fn);
+        func = FunctionNode::make(func->params,
+                                  VisitExpr(func->body),
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+        module_->Update(pair.first, func);
+      }
+    }
+    return module_;
+  }
+
  private:
   int var_id_{0};
   int subgraph_id_{0};
   std::unordered_set<std::shared_ptr<Subgraph>> subgraphs_;
+  IRModule module_;
 };
-
-/*!
- * \brief TODO(@zhiics, @comaniac) Combine parallel regions that belong to
- * the same codegen backend. This reduces rounds trips between TVM and external
- * backends. Likely we can borrow some ideas from operator fusion.
- *
- * For example, sg1 and sg2 should be combined if they belong to the same
- * codegen tool in the following case.
- *
- *      op1
- *     /   \
- *   sg1   sg2
- *
- *       |
- *      \|/
- *
- *      op1
- *       |
- *    sg1_sg2
- *
- * where the return type of the new subgraph sg1_sg2 is a tuple, and op1 has two
- * inputs that obtained from the tuple.
- */
-
-Expr PartitionGraph(const Expr& expr) {
-  Partitioner part;
-  return part.Mutate(expr);
-}
 
 }  // namespace partitioning
 
 namespace transform {
 
 Pass PartitionGraph() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> part_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(partitioning::PartitionGraph(f));
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
+      [=](IRModule m, PassContext pc) {
+        return partitioning::Partitioner(m).Partition();
       };
-  auto partitioned = CreateFunctionPass(part_func, 0, "PartitionGraph", {});
+  auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
 }
 

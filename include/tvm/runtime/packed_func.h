@@ -24,9 +24,6 @@
 #ifndef TVM_RUNTIME_PACKED_FUNC_H_
 #define TVM_RUNTIME_PACKED_FUNC_H_
 
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
-#include <sstream>
-#endif
 #include <dmlc/logging.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
@@ -1019,7 +1016,6 @@ inline const char* TypeCode2Str(int type_code) {
   }
 }
 
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
@@ -1041,30 +1037,11 @@ inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) { // NO
   return os << dtype.operator DLDataType();
 }
 
-#endif
-
 inline std::string DLDataType2String(DLDataType t) {
   if (t.bits == 0) return "";
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
   std::ostringstream os;
   os << t;
   return os.str();
-#else
-  if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
-    return "bool";
-  }
-  if (t.code < kTVMCustomBegin) {
-    repr += TypeCode2Str(t.code);
-  } else {
-    repr += "custom[" + GetCustomTypeName(t.code) + "]";
-  }
-  if (t.code == kTVMOpaqueHandle) return repr;
-  repr += std::to_string(static_cast<int>(t.bits));
-  if (t.lanes != 1) {
-    repr += "x" + std::to_string(static_cast<int>(t.lanes));
-  }
-  return repr;
-#endif
 }
 
 inline DLDataType String2DLDataType(std::string s) {

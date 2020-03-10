@@ -38,7 +38,6 @@ https://mxnet.incubator.apache.org/versions/master/install/index.html
 # some standard imports
 import mxnet as mx
 import tvm
-from tvm import te
 import tvm.relay as relay
 import numpy as np
 

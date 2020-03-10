@@ -55,7 +55,7 @@ case class AXIParams(
 }
 
 abstract class AXIBase(params: AXIParams)
-    extends GenericParameterizedBundle(params)
+  extends GenericParameterizedBundle(params)
 
 // AXILite
 

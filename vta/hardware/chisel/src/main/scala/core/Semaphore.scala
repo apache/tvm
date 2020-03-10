@@ -23,14 +23,13 @@ import chisel3._
 import chisel3.util._
 
 /** Semaphore.
-  *
-  * This semaphore is used instead of push/pop fifo, used in the initial
-  * version of VTA. This semaphore is incremented (spost) or decremented (swait)
-  * depending on the push and pop fields on instructions to prevent RAW and WAR
-  * hazards.
-  */
-class Semaphore(counterBits: Int = 1, counterInitValue: Int = 1)
-    extends Module {
+ *
+ * This semaphore is used instead of push/pop fifo, used in the initial
+ * version of VTA. This semaphore is incremented (spost) or decremented (swait)
+ * depending on the push and pop fields on instructions to prevent RAW and WAR
+ * hazards.
+ */
+class Semaphore(counterBits: Int = 1, counterInitValue: Int = 1) extends Module {
   val io = IO(new Bundle {
     val spost = Input(Bool())
     val swait = Input(Bool())

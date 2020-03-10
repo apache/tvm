@@ -26,8 +26,10 @@ use std::{
 pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
 
-pub trait PackedFunc =
-    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync;
+pub trait PackedFunc : Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync {}
+
+impl<T> PackedFunc for T
+    where T : Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync {}
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
@@ -66,7 +68,7 @@ macro_rules! TVMPODValue {
             UInt(i64),
             Float(f64),
             Null,
-            Type(TVMType),
+            DataType(DLDataType),
             String(CString),
             Context(TVMContext),
             Handle(*mut c_void),
@@ -87,15 +89,15 @@ macro_rules! TVMPODValue {
                         DLDataTypeCode_kDLInt => Int($value.v_int64),
                         DLDataTypeCode_kDLUInt => UInt($value.v_int64),
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),
-                        TVMTypeCode_kNull => Null,
-                        TVMTypeCode_kTVMType => Type($value.v_type),
+                        TVMTypeCode_kTVMNullptr => Null,
+                        TVMTypeCode_kTVMDataType => DataType($value.v_type),
                         TVMTypeCode_kTVMContext => Context($value.v_ctx),
-                        TVMTypeCode_kHandle => Handle($value.v_handle),
-                        TVMTypeCode_kArrayHandle => ArrayHandle($value.v_handle as TVMArrayHandle),
-                        TVMTypeCode_kObjectHandle => ObjectHandle($value.v_handle),
-                        TVMTypeCode_kModuleHandle => ModuleHandle($value.v_handle),
-                        TVMTypeCode_kFuncHandle => FuncHandle($value.v_handle),
-                        TVMTypeCode_kNDArrayContainer => NDArrayContainer($value.v_handle),
+                        TVMTypeCode_kTVMOpaqueHandle => Handle($value.v_handle),
+                        TVMTypeCode_kTVMDLTensorHandle => ArrayHandle($value.v_handle as TVMArrayHandle),
+                        TVMTypeCode_kTVMObjectHandle => ObjectHandle($value.v_handle),
+                        TVMTypeCode_kTVMModuleHandle => ModuleHandle($value.v_handle),
+                        TVMTypeCode_kTVMPackedFuncHandle => FuncHandle($value.v_handle),
+                        TVMTypeCode_kTVMNDArrayHandle => NDArrayContainer($value.v_handle),
                         $( $tvm_type => { $from_tvm_type } ),+
                         _ => unimplemented!("{}", type_code),
                     }
@@ -108,31 +110,31 @@ macro_rules! TVMPODValue {
                     Int(val) => (TVMValue { v_int64: *val }, DLDataTypeCode_kDLInt),
                     UInt(val) => (TVMValue { v_int64: *val as i64 }, DLDataTypeCode_kDLUInt),
                     Float(val) => (TVMValue { v_float64: *val }, DLDataTypeCode_kDLFloat),
-                    Null => (TVMValue{ v_int64: 0 },TVMTypeCode_kNull),
-                    Type(val) => (TVMValue { v_type: *val }, TVMTypeCode_kTVMType),
+                    Null => (TVMValue{ v_int64: 0 },TVMTypeCode_kTVMNullptr),
+                    DataType(val) => (TVMValue { v_type: *val }, TVMTypeCode_kTVMDataType),
                     Context(val) => (TVMValue { v_ctx: val.clone() }, TVMTypeCode_kTVMContext),
                     String(val) => {
                         (
                             TVMValue { v_handle: val.as_ptr() as *mut c_void },
-                            TVMTypeCode_kStr,
+                            TVMTypeCode_kTVMStr,
                         )
                     }
-                    Handle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kHandle),
+                    Handle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kTVMOpaqueHandle),
                     ArrayHandle(val) => {
                         (
                             TVMValue { v_handle: *val as *const _ as *mut c_void },
-                            TVMTypeCode_kArrayHandle,
+                            TVMTypeCode_kTVMNDArrayHandle,
                         )
                     },
-                    ObjectHandle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kObjectHandle),
+                    ObjectHandle(val) => (TVMValue { v_handle: *val }, TVMTypeCode_kTVMObjectHandle),
                     ModuleHandle(val) =>
-                        (TVMValue { v_handle: *val }, TVMTypeCode_kModuleHandle),
+                        (TVMValue { v_handle: *val }, TVMTypeCode_kTVMModuleHandle),
                     FuncHandle(val) => (
                         TVMValue { v_handle: *val },
-                        TVMTypeCode_kFuncHandle
+                        TVMTypeCode_kTVMPackedFuncHandle
                     ),
                     NDArrayContainer(val) =>
-                        (TVMValue { v_handle: *val }, TVMTypeCode_kNDArrayContainer),
+                        (TVMValue { v_handle: *val }, TVMTypeCode_kTVMNDArrayHandle),
                     $( $self_type($val) => { $from_self_type } ),+
                 }
             }
@@ -148,14 +150,14 @@ TVMPODValue! {
         Str(&'a CStr),
     },
     match value {
-        TVMTypeCode_kBytes => { Bytes(&*(value.v_handle as *const TVMByteArray)) }
-        TVMTypeCode_kStr => { Str(CStr::from_ptr(value.v_handle as *const i8)) }
+        TVMTypeCode_kTVMBytes => { Bytes(&*(value.v_handle as *const TVMByteArray)) }
+        TVMTypeCode_kTVMStr => { Str(CStr::from_ptr(value.v_handle as *const i8)) }
     },
     match &self {
         Bytes(val) => {
-            (TVMValue { v_handle: val.clone() as *const _ as *mut c_void }, TVMTypeCode_kBytes)
+            (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMTypeCode_kTVMBytes)
         }
-        Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kStr) }
+        Str(val) => { (TVMValue { v_handle: val.as_ptr() as *mut c_void }, TVMTypeCode_kTVMStr) }
     }
 }
 
@@ -166,11 +168,14 @@ TVMPODValue! {
     /// # Example
     ///
     /// ```
+    /// use std::convert::{TryFrom, TryInto};
+    /// use tvm_common::TVMRetValue;
+    ///
     /// let a = 42u32;
-    /// let b: i64 = TVMRetValue::from(a).try_into().unwrap();
+    /// let b: u32 = tvm_common::TVMRetValue::from(a).try_into().unwrap();
     ///
     /// let s = "hello, world!";
-    /// let t: TVMRetValue = s.into();
+    /// let t: TVMRetValue = s.to_string().into();
     /// assert_eq!(String::try_from(t).unwrap(), s);
     /// ```
     TVMRetValue {
@@ -178,14 +183,14 @@ TVMPODValue! {
         Str(&'static CStr),
     },
     match value {
-        TVMTypeCode_kBytes => { Bytes(*(value.v_handle as *const TVMByteArray)) }
-        TVMTypeCode_kStr => { Str(CStr::from_ptr(value.v_handle as *mut i8)) }
+        TVMTypeCode_kTVMBytes => { Bytes(*(value.v_handle as *const TVMByteArray)) }
+        TVMTypeCode_kTVMStr => { Str(CStr::from_ptr(value.v_handle as *mut i8)) }
     },
     match &self {
         Bytes(val) =>
-            { (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMTypeCode_kBytes ) }
+            { (TVMValue { v_handle: val as *const _ as *mut c_void }, TVMTypeCode_kTVMBytes ) }
         Str(val) =>
-            { (TVMValue { v_str: val.as_ptr() }, TVMTypeCode_kStr ) }
+            { (TVMValue { v_str: val.as_ptr() }, TVMTypeCode_kTVMStr ) }
     }
 }
 
@@ -251,7 +256,7 @@ macro_rules! impl_pod_value {
 impl_pod_value!(Int, i64, [i8, i16, i32, i64, isize]);
 impl_pod_value!(UInt, i64, [u8, u16, u32, u64, usize]);
 impl_pod_value!(Float, f64, [f32, f64]);
-impl_pod_value!(Type, TVMType, [TVMType]);
+impl_pod_value!(DataType, DLDataType, [DLDataType]);
 impl_pod_value!(Context, TVMContext, [TVMContext]);
 
 impl<'a> From<&'a str> for TVMArgValue<'a> {

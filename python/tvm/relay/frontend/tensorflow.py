@@ -877,6 +877,7 @@ def _fused_batch_norm():
     def _impl(inputs, attr, params):
         # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
         # Relay:       (data, gamma, beta, moving_mean, moving_varience)
+        assert len(inputs) == 5
         axis = 3
         need_cast = False
 
@@ -887,7 +888,14 @@ def _fused_batch_norm():
         if 'U' in attr:
             need_cast = True
             inputs[0] = _op.cast(inputs[0], dtype=attr['U'].name)
-
+        # Check if mean and variance are empty
+        # If so, replace them with Mean and Variance Ops
+        # For run-time calculation
+        moving_mean_shape = [int(n) for n in inputs[3].type_annotation.shape]
+        moving_variance_shape = [int(n) for n in inputs[4].type_annotation.shape]
+        if (moving_mean_shape[0] == 0 and moving_variance_shape[0] == 0):
+            inputs[3] = _op.mean(inputs[0], axis=axis, keepdims=False, exclude=True)
+            inputs[4] = _op.variance(inputs[0], axis=axis, keepdims=False, exclude=True)
         out = AttrCvt(op_name='batch_norm',
                       transforms={'scale_after_normalization':'scale',
                                   'variance_epsilon':'epsilon'},

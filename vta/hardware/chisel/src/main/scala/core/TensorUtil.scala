@@ -25,19 +25,18 @@ import vta.util.config._
 import vta.shell._
 
 /** TensorParams.
-  *
-  * This Bundle derives parameters for each tensorType, including inputs (inp),
-  * weights (wgt), biases (acc), and outputs (out). This is used to avoid
-  * doing the same boring calculations over and over again.
-  */
-class TensorParams(tensorType: String = "none")(implicit p: Parameters)
-    extends Bundle {
+ *
+ * This Bundle derives parameters for each tensorType, including inputs (inp),
+ * weights (wgt), biases (acc), and outputs (out). This is used to avoid
+ * doing the same boring calculations over and over again.
+ */
+class TensorParams(tensorType: String = "none")(implicit p: Parameters) extends Bundle {
   val errorMsg =
     s"\n\n[VTA] [TensorParams] only inp, wgt, acc, and out supported\n\n"
 
   require(tensorType == "inp" || tensorType == "wgt"
-            || tensorType == "acc" || tensorType == "out",
-          errorMsg)
+    || tensorType == "acc" || tensorType == "out",
+    errorMsg)
 
   val (tensorLength, tensorWidth, tensorElemBits) =
     if (tensorType == "inp")
@@ -66,14 +65,14 @@ class TensorParams(tensorType: String = "none")(implicit p: Parameters)
 }
 
 /** TensorMaster.
-  *
-  * This interface issue read and write tensor-requests to scratchpads. For example,
-  * The TensorGemm unit uses this interface for managing the inputs (inp), weights (wgt),
-  * biases (acc), and outputs (out).
-  *
-  */
-class TensorMaster(tensorType: String = "none")(implicit p: Parameters)
-    extends TensorParams(tensorType) {
+ *
+ * This interface issue read and write tensor-requests to scratchpads. For example,
+ * The TensorGemm unit uses this interface for managing the inputs (inp), weights (wgt),
+ * biases (acc), and outputs (out).
+ *
+ */
+class TensorMaster(tensorType: String = "none")
+  (implicit p: Parameters) extends TensorParams(tensorType) {
   val rd = new Bundle {
     val idx = ValidIO(UInt(memAddrBits.W))
     val data = Flipped(
@@ -101,13 +100,13 @@ class TensorMaster(tensorType: String = "none")(implicit p: Parameters)
 }
 
 /** TensorClient.
-  *
-  * This interface receives read and write tensor-requests to scratchpads. For example,
-  * The TensorLoad unit uses this interface for receiving read and write requests from
-  * the TensorGemm unit.
-  */
-class TensorClient(tensorType: String = "none")(implicit p: Parameters)
-    extends TensorParams(tensorType) {
+ *
+ * This interface receives read and write tensor-requests to scratchpads. For example,
+ * The TensorLoad unit uses this interface for receiving read and write requests from
+ * the TensorGemm unit.
+ */
+class TensorClient(tensorType: String = "none")
+  (implicit p: Parameters) extends TensorParams(tensorType) {
   val rd = new Bundle {
     val idx = Flipped(ValidIO(UInt(memAddrBits.W)))
     val data = ValidIO(
@@ -130,13 +129,13 @@ class TensorClient(tensorType: String = "none")(implicit p: Parameters)
 }
 
 /** TensorMasterData.
-  *
-  * This interface is only used for datapath only purposes and the direction convention
-  * is based on the TensorMaster interface, which means this is an input. This interface
-  * is used on datapath only module such MatrixVectorCore or AluVector.
-  */
-class TensorMasterData(tensorType: String = "none")(implicit p: Parameters)
-    extends TensorParams(tensorType) {
+ *
+ * This interface is only used for datapath only purposes and the direction convention
+ * is based on the TensorMaster interface, which means this is an input. This interface
+ * is used on datapath only module such MatrixVectorCore or AluVector.
+ */
+class TensorMasterData(tensorType: String = "none")
+  (implicit p: Parameters) extends TensorParams(tensorType) {
   val data = Flipped(
     ValidIO(Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W)))))
   override def cloneType =
@@ -144,13 +143,13 @@ class TensorMasterData(tensorType: String = "none")(implicit p: Parameters)
 }
 
 /** TensorClientData.
-  *
-  * This interface is only used for datapath only purposes and the direction convention
-  * is based on the TensorClient interface, which means this is an output. This interface
-  * is used on datapath only module such MatrixVectorCore or AluVector.
-  */
-class TensorClientData(tensorType: String = "none")(implicit p: Parameters)
-    extends TensorParams(tensorType) {
+ *
+ * This interface is only used for datapath only purposes and the direction convention
+ * is based on the TensorClient interface, which means this is an output. This interface
+ * is used on datapath only module such MatrixVectorCore or AluVector.
+ */
+class TensorClientData(tensorType: String = "none")
+  (implicit p: Parameters) extends TensorParams(tensorType) {
   val data = ValidIO(
     Vec(tensorLength, Vec(tensorWidth, UInt(tensorElemBits.W))))
   override def cloneType =
@@ -158,13 +157,12 @@ class TensorClientData(tensorType: String = "none")(implicit p: Parameters)
 }
 
 /** TensorPadCtrl. Zero-padding controller for TensorLoad. */
-class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1)
-    extends Module {
+class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1) extends Module {
   val errorMsg =
     s"\n\n\n[VTA-ERROR] only YPad0, YPad1, XPad0, or XPad1 supported\n\n\n"
   require(padType == "YPad0" || padType == "YPad1"
-            || padType == "XPad0" || padType == "XPad1",
-          errorMsg)
+    || padType == "XPad0" || padType == "XPad1",
+    errorMsg)
 
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -233,9 +231,7 @@ class TensorPadCtrl(padType: String = "none", sizeFactor: Int = 1)
 
 /** TensorDataCtrl. Data controller for TensorLoad. */
 class TensorDataCtrl(tensorType: String = "none",
-                     sizeFactor: Int = 1,
-                     strideFactor: Int = 1)(implicit p: Parameters)
-    extends Module {
+    sizeFactor: Int = 1, strideFactor: Int = 1)(implicit p: Parameters) extends Module {
   val mp = p(ShellKey).memParams
   val io = IO(new Bundle {
     val start = Input(Bool())
@@ -256,8 +252,16 @@ class TensorDataCtrl(tensorType: String = "none",
 
   val caddr = Reg(UInt(mp.addrBits.W))
   val baddr = Reg(UInt(mp.addrBits.W))
-
   val len = Reg(UInt(mp.lenBits.W))
+  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
+  val elemBytes =
+    if (tensorType == "inp") {
+      (p(CoreKey).batch * p(CoreKey).blockIn * p(CoreKey).inpBits) / 8
+    } else if (tensorType == "wgt") {
+      (p(CoreKey).blockOut * p(CoreKey).blockIn * p(CoreKey).wgtBits) / 8
+    } else {
+      (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).accBits) / 8
+    }
 
   val xmax_bytes = ((1 << mp.lenBits) * mp.dataBits / 8).U
   val xcnt = Reg(UInt(mp.lenBits.W))
@@ -266,27 +270,53 @@ class TensorDataCtrl(tensorType: String = "none",
   val xmax = (1 << mp.lenBits).U
   val ycnt = Reg(chiselTypeOf(dec.ysize))
 
+  val xfer_bytes = Reg(UInt(mp.addrBits.W))
+  val pulse_bytes_bits = log2Ceil(mp.dataBits >> 3)
+  val xstride_bytes = dec.xstride << log2Ceil(elemBytes)
+
+  val xfer_init_addr = io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+  val xfer_split_addr = caddr + xfer_bytes
+  val xfer_stride_addr = baddr + xstride_bytes
+
+  val xfer_init_bytes   = xmax_bytes - xfer_init_addr % xmax_bytes
+  val xfer_init_pulses  = xfer_init_bytes >> pulse_bytes_bits
+  val xfer_split_bytes  = xmax_bytes - xfer_split_addr % xmax_bytes
+  val xfer_split_pulses = xfer_split_bytes >> pulse_bytes_bits
+  val xfer_stride_bytes = xmax_bytes - xfer_stride_addr % xmax_bytes
+  val xfer_stride_pulses= xfer_stride_bytes >> pulse_bytes_bits
+
   val stride = xcnt === len &
     xrem === 0.U &
     ycnt =/= dec.ysize - 1.U
 
   val split = xcnt === len & xrem =/= 0.U
 
-  when(io.start || (io.xupdate && stride)) {
-    when(xsize < xmax) {
+  when(io.start) {
+    xfer_bytes := xfer_init_bytes
+    when(xsize < xfer_init_pulses) {
       len := xsize
       xrem := 0.U
     }.otherwise {
-      len := xmax - 1.U
-      xrem := xsize - xmax
+      len := xfer_init_pulses - 1.U
+      xrem := xsize - xfer_init_pulses
+    }
+  }.elsewhen(io.xupdate && stride) {
+    xfer_bytes := xfer_stride_bytes
+    when(xsize < xfer_stride_pulses) {
+      len := xsize
+      xrem := 0.U
+    }.otherwise {
+      len := xfer_stride_pulses - 1.U
+      xrem := xsize - xfer_stride_pulses
     }
   }.elsewhen(io.xupdate && split) {
-    when(xrem < xmax) {
+    xfer_bytes := xfer_split_bytes
+    when(xrem < xfer_split_pulses) {
       len := xrem
       xrem := 0.U
     }.otherwise {
-      len := xmax - 1.U
-      xrem := xrem - xmax
+      len := xfer_split_pulses - 1.U
+      xrem := xrem - xfer_split_pulses
     }
   }
 
@@ -302,25 +332,15 @@ class TensorDataCtrl(tensorType: String = "none",
     ycnt := ycnt + 1.U
   }
 
-  val maskOffset = VecInit(Seq.fill(M_DRAM_OFFSET_BITS)(true.B)).asUInt
-  val elemBytes =
-    if (tensorType == "inp") {
-      (p(CoreKey).batch * p(CoreKey).blockIn * p(CoreKey).inpBits) / 8
-    } else if (tensorType == "wgt") {
-      (p(CoreKey).blockOut * p(CoreKey).blockIn * p(CoreKey).wgtBits) / 8
-    } else {
-      (p(CoreKey).batch * p(CoreKey).blockOut * p(CoreKey).accBits) / 8
-    }
-
   when(io.start) {
-    caddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
-    baddr := io.baddr | (maskOffset & (dec.dram_offset << log2Ceil(elemBytes)))
+    caddr := xfer_init_addr
+    baddr := xfer_init_addr
   }.elsewhen(io.yupdate) {
     when(split) {
-      caddr := caddr + xmax_bytes
+      caddr := xfer_split_addr
     }.elsewhen(stride) {
-      caddr := baddr + (dec.xstride << log2Ceil(elemBytes))
-      baddr := baddr + (dec.xstride << log2Ceil(elemBytes))
+      caddr := xfer_stride_addr
+      baddr := xfer_stride_addr
     }
   }
 
