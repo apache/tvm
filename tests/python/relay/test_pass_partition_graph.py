@@ -633,6 +633,24 @@ def test_function_lifting_inline():
     ref_mod = expected()
     assert relay.analysis.alpha_equal(partitioned, ref_mod)
 
+def test_partition_concatenate():
+    # A subgraph containing concatenate will have a Var node arg which has
+    # TupleType. LayoutRewriter which is used by AlterOpLayout had a bug and
+    # would crash when running on such a subgraph.
+    x_0 = relay.var("x_0", shape=(1, 2, 6, 6))
+    x_1 = relay.var("x_1", shape=(1, 3, 6, 6))
+    concat_inputs = [x_0, x_1]
+    out = relay.concatenate(concat_inputs, axis=1)
+    func = relay.Function(concat_inputs, out)
+
+    mod = tvm.IRModule()
+    mod["main"] = func
+
+    mod = WhiteListAnnotator(["concatenate"], "test_compiler")(mod)
+    mod = transform.PartitionGraph()(mod)
+    mod = transform.InferType()(mod)
+    mod = transform.Inline()(mod)
+    mod = transform.AlterOpLayout()(mod)
 
 if __name__ == "__main__":
     test_multi_node_compiler()
@@ -643,3 +661,4 @@ if __name__ == "__main__":
     test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()
+    test_partition_concatenate()
