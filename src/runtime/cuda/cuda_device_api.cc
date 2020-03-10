@@ -112,17 +112,25 @@ class CUDADeviceAPI final : public DeviceAPI {
                        size_t nbytes,
                        size_t alignment,
                        DLDataType type_hint) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id));
     CHECK_EQ(256 % alignment, 0U)
-        << "CUDA space is aligned at 256 bytes";
+          << "CUDA space is aligned at 256 bytes";
     void *ret;
-    CUDA_CALL(cudaMalloc(&ret, nbytes));
+    if (ctx.device_type == kDLCPUPinned) {
+      CUDA_CALL(cudaMallocHost(&ret, nbytes));
+    } else {
+      CUDA_CALL(cudaSetDevice(ctx.device_id));
+      CUDA_CALL(cudaMalloc(&ret, nbytes));
+    }
     return ret;
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id));
-    CUDA_CALL(cudaFree(ptr));
+    if (ctx.device_type == kDLCPUPinned) {
+      CUDA_CALL(cudaFreeHost(ptr));
+    } else {
+      CUDA_CALL(cudaSetDevice(ctx.device_id));
+      CUDA_CALL(cudaFree(ptr));
+    }
   }
 
   void CopyDataFromTo(const void* from,
@@ -137,6 +145,21 @@ class CUDADeviceAPI final : public DeviceAPI {
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
+
+    if (ctx_from.device_type == kDLCPUPinned) {
+      ctx_from.device_type = kDLCPU;
+    }
+
+    if (ctx_to.device_type == kDLCPUPinned) {
+      ctx_to.device_type = kDLCPU;
+    }
+
+    // In case there is a copy from host mem to host mem */
+    if (ctx_to.device_type == kDLCPU && ctx_from.device_type == kDLCPU) {
+        memcpy(to, from, size);
+        return;
+    }
+
     if (ctx_from.device_type == kDLGPU && ctx_to.device_type == kDLGPU) {
       CUDA_CALL(cudaSetDevice(ctx_from.device_id));
       if (ctx_from.device_id == ctx_to.device_id) {
@@ -230,6 +253,12 @@ CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
 }
 
 TVM_REGISTER_GLOBAL("device_api.gpu")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    DeviceAPI* ptr = CUDADeviceAPI::Global().get();
+    *rv = static_cast<void*>(ptr);
+  });
+
+TVM_REGISTER_GLOBAL("device_api.cpu_pinned")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = CUDADeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);
