@@ -35,6 +35,8 @@ DEVICE = $(shell $(VTA_CONFIG) --get-fpga-dev)
 DEVICE_FAMILY = $(shell $(VTA_CONFIG) --get-fpga-family)
 # Project name
 PROJECT = de10_nano_top
+# Frequency in MHz
+FREQ_MHZ = $(shell $(VTA_CONFIG) --get-fpga-freq)
 
 #---------------------
 # Compilation parameters
@@ -55,7 +57,8 @@ endif
 IP_PATH = $(IP_BUILD_PATH)/VTA.DefaultDe10Config.v
 
 # Bitstream file path
-BIT_PATH = $(HW_BUILD_PATH)/export/vta.rbf
+BIT_PATH = $(HW_BUILD_PATH)/export/vta_$(FREQ_MHZ)MHz.rbf
+CPF_OPT := -o bitstream_compression=on
 
 # System design file path
 QSYS_PATH = $(HW_BUILD_PATH)/soc_system.qsys
@@ -77,13 +80,16 @@ $(QSYS_PATH): $(IP_PATH)
 	cd $(HW_BUILD_PATH) && \
     cp -r $(SCRIPT_DIR)/* $(HW_BUILD_PATH) && \
     python3 $(SCRIPT_DIR)/set_attrs.py -i $(IP_PATH) -o $(HW_BUILD_PATH)/ip/vta/VTAShell.v $(DSP_FLAG) && \
-    qsys-script --script=soc_system.tcl $(DEVICE) $(DEVICE_FAMILY)
+    qsys-script --script=soc_system.tcl $(DEVICE) $(DEVICE_FAMILY) $(FREQ_MHZ)
 
 $(BIT_PATH): $(QSYS_PATH)
 	cd $(HW_BUILD_PATH) && \
     quartus_sh -t $(SCRIPT_DIR)/compile_design.tcl $(DEVICE) $(PROJECT) && \
     mkdir -p $(shell dirname $(BIT_PATH)) && \
-    quartus_cpf -c $(HW_BUILD_PATH)/$(PROJECT).sof $(BIT_PATH)
+    quartus_cpf $(CPF_OPT) -c $(HW_BUILD_PATH)/$(PROJECT).sof $(BIT_PATH)
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+clean-qsys:
+	rm -rf $(QSYS_PATH)

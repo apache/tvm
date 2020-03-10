@@ -22,7 +22,11 @@
 #include <vta/dpi/tsim.h>
 
 #if VM_TRACE
+#ifdef VM_TRACE_FST
+#include <verilated_fst_c.h>
+#else
 #include <verilated_vcd_c.h>
+#endif
 #endif
 
 #if VM_TRACE
@@ -100,7 +104,11 @@ int VTADPISim() {
 
 #if VM_TRACE
   Verilated::traceEverOn(true);
+#ifdef VM_TRACE_FST
+  VerilatedFstC* tfp = new VerilatedFstC;
+#else
   VerilatedVcdC* tfp = new VerilatedVcdC;
+#endif // VM_TRACE_FST
   top->trace(tfp, 99);
   tfp->open(STRINGIZE_VALUE_OF(TSIM_TRACE_FILE));
 #endif
@@ -142,7 +150,7 @@ int VTADPISim() {
 #endif
     trace_count++;
     if ((trace_count % 1000000) == 1)
-      fprintf(stderr, "[traced %dM cycles]\n", trace_count / 1000000);
+      fprintf(stderr, "[traced %luM cycles]\n", trace_count / 1000000);
     while (top->sim_wait) {
       top->clock = 0;
       std::this_thread::sleep_for(std::chrono::milliseconds(100));

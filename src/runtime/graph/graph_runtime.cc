@@ -67,11 +67,7 @@ void GraphRuntime::Run() {
 void GraphRuntime::Init(const std::string& graph_json,
                         tvm::runtime::Module module,
                         const std::vector<TVMContext>& ctxs) {
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
   std::istringstream is(graph_json);
-#else
-  std::string is = graph_json;
-#endif
   dmlc::JSONReader reader(&is);
   this->Load(&reader);
   module_ = module;

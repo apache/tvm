@@ -77,6 +77,12 @@ class PkgConfig(object):
         if self.TARGET in ["pynq", "ultra96"]:
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
             self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
+        elif self.TARGET in ["de10nano"]:
+            self.lib_source += glob.glob("%s/vta/src/de10nano/*.cc" % (proj_root))
+            self.include_path += [
+                "-I%s/vta/src/de10nano" % proj_root,
+                "-I%s/3rdparty" % proj_root
+            ]
 
         # Linker flags
         if self.TARGET in ["pynq", "ultra96"]:

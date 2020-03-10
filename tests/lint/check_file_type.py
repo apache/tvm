@@ -89,6 +89,7 @@ ALLOW_FILE_NAME = {
     ".gitmodules",
     "CODEOWNERS",
     ".scalafmt.conf",
+    "Cargo.lock"
    }
 
 # List of specific files allowed in relpath to <proj_root>
@@ -99,8 +100,8 @@ ALLOW_SPECIFIC_FILE = {
     "KEYS",
     "DISCLAIMER",
     "Jenkinsfile",
-    # sgx file
-    "apps/sgx/enclave/sgx-deps.diff",
+    # sgx config
+    "apps/sgx/.cargo/config",
     # html for demo purposes
     "tests/webgl/test_static_webgl_library.html",
     "web/example_rpc.html",

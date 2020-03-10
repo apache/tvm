@@ -101,7 +101,9 @@ elseif(PYTHON)
        ${VTA_TARGET} STREQUAL "ultra96")
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
-      target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
+     #target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
+      target_include_directories(vta PUBLIC vta/src/de10nano)
+      target_include_directories(vta PUBLIC 3rdparty)
       target_include_directories(vta PUBLIC
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
     endif()

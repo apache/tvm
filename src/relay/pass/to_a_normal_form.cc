@@ -298,6 +298,9 @@ IRModule ToANormalForm(const IRModule& m) {
   auto funcs = m->functions;
   for (const auto& it : funcs) {
     CHECK_EQ(FreeVars(it.second).size(), 0);
+    if (const auto* n = it.second.as<FunctionNode>()) {
+      if (!n->UseDefaultCompiler()) continue;
+    }
     Expr ret =
       TransformF([&](const Expr& e) {
         return ToANormalFormAux(e);

@@ -25,13 +25,13 @@ import vta.util.config._
 import vta.shell._
 
 /** TensorLoad.
-  *
-  * Load 1D and 2D tensors from main memory (DRAM) to input/weight
-  * scratchpads (SRAM). Also, there is support for zero padding, while
-  * doing the load. Zero-padding works on the y and x axis, and it is
-  * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
-  * handling the way tensors are stored on the scratchpads.
-  */
+ *
+ * Load 1D and 2D tensors from main memory (DRAM) to input/weight
+ * scratchpads (SRAM). Also, there is support for zero padding, while
+ * doing the load. Zero-padding works on the y and x axis, and it is
+ * managed by TensorPadCtrl. The TensorDataCtrl is in charge of
+ * handling the way tensors are stored on the scratchpads.
+ */
 class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     implicit p: Parameters)
     extends Module {
@@ -71,11 +71,10 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
         when(dec.ypad_0 =/= 0.U) {
           state := sYPad0
         }.elsewhen(dec.xpad_0 =/= 0.U) {
-            state := sXPad0
-          }
-          .otherwise {
-            state := sReadCmd
-          }
+          state := sXPad0
+        }.otherwise {
+          state := sReadCmd
+        }
       }
     }
     is(sYPad0) {
@@ -104,8 +103,7 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
             state := sXPad1
           }.elsewhen(dec.ypad_1 =/= 0.U) {
             state := sYPad1
-          }
-          .otherwise {
+          }.otherwise {
             state := sIdle
           }
         }.elsewhen(dataCtrl.io.stride) {
@@ -199,11 +197,9 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     tag := tag + 1.U
   }
 
-  when(
-    state === sIdle || dataCtrlDone || (set === (tp.tensorLength - 1).U && tag === (tp.numMemBlock - 1).U)) {
+  when(state === sIdle || dataCtrlDone || (set === (tp.tensorLength - 1).U && tag === (tp.numMemBlock - 1).U)) {
     set := 0.U
-  }.elsewhen(
-    (io.vme_rd.data.fire() || isZeroPad) && tag === (tp.numMemBlock - 1).U) {
+  }.elsewhen((io.vme_rd.data.fire() || isZeroPad) && tag === (tp.numMemBlock - 1).U) {
     set := set + 1.U
   }
 
@@ -212,14 +208,15 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
   when(state === sIdle) {
     waddr_cur := dec.sram_offset
     waddr_nxt := dec.sram_offset
-  }.elsewhen((io.vme_rd.data
-      .fire() || isZeroPad) && set === (tp.tensorLength - 1).U && tag === (tp.numMemBlock - 1).U) {
-      waddr_cur := waddr_cur + 1.U
-    }
-    .elsewhen(dataCtrl.io.stride) {
-      waddr_cur := waddr_nxt + dec.xsize
-      waddr_nxt := waddr_nxt + dec.xsize
-    }
+  }.elsewhen((io.vme_rd.data.fire() || isZeroPad)
+    && set === (tp.tensorLength - 1).U
+    && tag === (tp.numMemBlock - 1).U)
+  {
+    waddr_cur := waddr_cur + 1.U
+  }.elsewhen(dataCtrl.io.stride && io.vme_rd.data.fire()) {
+    waddr_cur := waddr_nxt + dec.xsize
+    waddr_nxt := waddr_nxt + dec.xsize
+  }
 
   val tensorFile = Seq.fill(tp.tensorLength) {
     SyncReadMem(tp.memDepth, Vec(tp.numMemBlock, UInt(tp.memBlockBits.W)))
@@ -241,8 +238,8 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     val tdata = io.tensor.wr.bits.data(i).asUInt.asTypeOf(wdata(i))
     val muxWen =
       Mux(state === sIdle,
-          io.tensor.wr.valid,
-          (io.vme_rd.data.fire() | isZeroPad) & set === i.U)
+        io.tensor.wr.valid,
+        (io.vme_rd.data.fire() | isZeroPad) & set === i.U)
     val muxWaddr = Mux(state === sIdle, io.tensor.wr.bits.idx, waddr_cur)
     val muxWdata = Mux(state === sIdle, tdata, wdata(i))
     val muxWmask = Mux(state === sIdle, no_mask, wmask(i))
@@ -263,8 +260,7 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
   }
 
   // done
-  val done_no_pad = io.vme_rd.data
-    .fire() & dataCtrl.io.done & dec.xpad_1 === 0.U & dec.ypad_1 === 0.U
+  val done_no_pad = io.vme_rd.data.fire() & dataCtrl.io.done & dec.xpad_1 === 0.U & dec.ypad_1 === 0.U
   val done_x_pad = state === sXPad1 & xPadCtrl1.io.done & dataCtrlDone & dec.ypad_1 === 0.U
   val done_y_pad = state === sYPad1 & dataCtrlDone & yPadCtrl1.io.done
   io.done := done_no_pad | done_x_pad | done_y_pad
@@ -274,8 +270,8 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     if (tensorType == "inp") {
       when(io.vme_rd.cmd.fire()) {
         printf("[TensorLoad] [inp] cmd addr:%x len:%x\n",
-               dataCtrl.io.addr,
-               dataCtrl.io.len)
+          dataCtrl.io.addr,
+          dataCtrl.io.len)
       }
       when(state === sYPad0) {
         printf("[TensorLoad] [inp] sYPad0\n")
@@ -292,14 +288,14 @@ class TensorLoad(tensorType: String = "none", debug: Boolean = false)(
     } else if (tensorType == "wgt") {
       when(io.vme_rd.cmd.fire()) {
         printf("[TensorLoad] [wgt] cmd addr:%x len:%x\n",
-               dataCtrl.io.addr,
-               dataCtrl.io.len)
+          dataCtrl.io.addr,
+          dataCtrl.io.len)
       }
     } else if (tensorType == "acc") {
       when(io.vme_rd.cmd.fire()) {
         printf("[TensorLoad] [acc] cmd addr:%x len:%x\n",
-               dataCtrl.io.addr,
-               dataCtrl.io.len)
+          dataCtrl.io.addr,
+          dataCtrl.io.len)
       }
     }
   }

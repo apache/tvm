@@ -24,17 +24,17 @@ import chisel3.util._
 import vta.dpi._
 
 /** Compute
-  *
-  * Add-by-one procedure:
-  *
-  * 1. Wait for launch to be asserted
-  * 2. Issue a read request for 8-byte value at inp_baddr address
-  * 3. Wait for the value
-  * 4. Issue a write request for 8-byte value at out_baddr address
-  * 5. Increment read-address and write-address for next value
-  * 6. Check if counter (cnt) is equal to length to assert finish,
-  *    otherwise go to step 2.
-  */
+ *
+ * Add-by-one procedure:
+ *
+ * 1. Wait for launch to be asserted
+ * 2. Issue a read request for 8-byte value at inp_baddr address
+ * 3. Wait for the value
+ * 4. Issue a write request for 8-byte value at out_baddr address
+ * 5. Increment read-address and write-address for next value
+ * 6. Check if counter (cnt) is equal to length to assert finish,
+ *    otherwise go to step 2.
+ */
 class Compute(implicit config: AccelConfig) extends Module {
   val io = IO(new Bundle {
     val launch = Input(Bool())

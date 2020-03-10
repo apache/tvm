@@ -77,10 +77,21 @@ def _dimension_constraint():
         return False
     return _dim_check, "Only 2d or 3d kernel supported."
 
+# Build count_used to record params have been converted to attrs
+used_params = {}
+def count_used(func):
+    def wrapper(*args):
+        if not isinstance(args[-1], _expr.Constant):
+            used_params[args[-1].name_hint] = 1
+        return func(*args)
+    return wrapper
+
+# Using built count_used at each call to _get_param
+@count_used
 def _get_param(params, input_node):
     if isinstance(input_node, _expr.Constant):
         return np.atleast_1d(input_node.data.asnumpy())
-    return params.pop(input_node.name_hint).asnumpy()
+    return params[input_node.name_hint].asnumpy()
 
 def _get_num_param(params, input_node):
     return _get_param(params, input_node).item()
@@ -877,6 +888,7 @@ def _fused_batch_norm():
     def _impl(inputs, attr, params):
         # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
         # Relay:       (data, gamma, beta, moving_mean, moving_varience)
+        assert len(inputs) == 5
         axis = 3
         need_cast = False
 
@@ -887,7 +899,14 @@ def _fused_batch_norm():
         if 'U' in attr:
             need_cast = True
             inputs[0] = _op.cast(inputs[0], dtype=attr['U'].name)
-
+        # Check if mean and variance are empty
+        # If so, replace them with Mean and Variance Ops
+        # For run-time calculation
+        moving_mean_shape = [int(n) for n in inputs[3].type_annotation.shape]
+        moving_variance_shape = [int(n) for n in inputs[4].type_annotation.shape]
+        if (moving_mean_shape[0] == 0 and moving_variance_shape[0] == 0):
+            inputs[3] = _op.mean(inputs[0], axis=axis, keepdims=False, exclude=True)
+            inputs[4] = _op.variance(inputs[0], axis=axis, keepdims=False, exclude=True)
         out = AttrCvt(op_name='batch_norm',
                       transforms={'scale_after_normalization':'scale',
                                   'variance_epsilon':'epsilon'},
@@ -2366,6 +2385,9 @@ class GraphProto(object):
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(analysis.free_vars(out), out)
         self._mod["main"] = func
+        #If the params have been converted to attrs then delete them
+        for param in used_params:
+            del self._params[param]
         return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):

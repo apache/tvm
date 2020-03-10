@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python:apps/extension/python
+export PYTHONPATH=`pwd`/python:`pwd`/topi/python:`pwd`/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
@@ -29,6 +29,12 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 # Test TVM
 make cython3
+
+# Test MISRA-C runtime
+cd apps/bundle_deploy
+rm -rf build
+make test
+cd ../..
 
 # Test extern package
 cd apps/extension

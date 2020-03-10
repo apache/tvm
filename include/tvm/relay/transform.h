@@ -332,6 +332,16 @@ TVM_DLL Pass PartitionGraph();
  */
 TVM_DLL Pass Inline();
 
+/*!
+ * \brief Remove the unused functions in the Relay IRModule.
+ *
+ * \param entry_functions The entry functions used to search the functions that
+ *        are being used.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
+
 }  // namespace transform
 
 /*!

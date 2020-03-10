@@ -30,8 +30,6 @@
 //!
 //! Checkout the `examples` repository for more details.
 
-#![feature(box_syntax)]
-
 #[macro_use]
 extern crate failure;
 #[macro_use]
@@ -55,7 +53,7 @@ pub use crate::{
     ndarray::NDArray,
     tvm_common::{
         errors as common_errors,
-        ffi::{self, TVMByteArray, TVMType},
+        ffi::{self, TVMByteArray, DLDataType},
         packed_func::{TVMArgValue, TVMRetValue},
     },
 };
