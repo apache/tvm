@@ -19,6 +19,7 @@
 """Test script for tf op module"""
 import tempfile
 import os
+import logging
 import tensorflow as tf
 import numpy as np
 import tvm
@@ -32,7 +33,7 @@ def export_cpu_add_lib():
     ph_b = tvm.placeholder((n,), name='ph_b')
     ph_c = tvm.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
     sched = tvm.create_schedule(ph_c.op)
-    fadd_dylib = tvm.build(sched, [ph_a, ph_b, ph_c], "llvm", name="vector_add")
+    fadd_dylib = tvm.build(sched, [ph_a, ph_b, ph_c], "c", name="vector_add")
     lib_path = tempfile.mktemp("tvm_add_dll.so")
     fadd_dylib.export_library(lib_path)
     return lib_path
@@ -79,21 +80,37 @@ def test_add(session, lib_path, tf_device):
         np.testing.assert_equal(output3, expect)
 
 
-def main():
-    """main test function"""
+def cpu_test(session):
+    """test function for cpu"""
     cpu_lib = None
-    gpu_lib = None
     try:
         cpu_lib = export_cpu_add_lib()
-        gpu_lib = export_gpu_add_lib()
-        with tf.Session() as session:
-            test_add(session, cpu_lib, "/cpu:0")
-            test_add(session, gpu_lib, "/gpu:0")
+        test_add(session, cpu_lib, "/cpu:0")
     finally:
         if cpu_lib is not None:
             os.remove(cpu_lib)
+
+
+def gpu_test(session):
+    """test function for gpu"""
+    gpu_lib = None
+    try:
+        gpu_lib = export_gpu_add_lib()
+        test_add(session, gpu_lib, "/gpu:0")
+    finally:
         if gpu_lib is not None:
             os.remove(gpu_lib)
+
+
+def main():
+    """main test function"""
+    with tf.Session() as session:
+        if tvm.module.enabled("cpu"):
+            logging.info("Test TensorFlow op on cpu kernel")
+            cpu_test(session)
+        if tvm.module.enabled("gpu"):
+            logging.info("Test TensorFlow op on gpu kernel")
+            gpu_test(session)
 
 
 if __name__ == "__main__":
