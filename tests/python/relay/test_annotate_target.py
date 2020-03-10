@@ -22,6 +22,7 @@ import pytest
 
 import tvm
 import tvm.relay.testing
+import tvm.relay.op as reg
 import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
@@ -183,6 +184,41 @@ def test_extern_dnnl_mobilenet():
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
 
+@reg.register("nn.relu", "target.test")
+def relu(attrs, args):
+    return True
+
+
+def test_multiple_ends():
+    def before():
+        x = relay.var("x", shape=(10, 10))
+        r = relay.nn.relu(x)
+        a_1 = relay.abs(r)
+        a_2 = relay.abs(r)
+        out = relay.add(a_1, a_2)
+        f = relay.Function([x], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        x = relay.var("x", shape=(10, 10))
+        cb_1 = relay.annotation.compiler_begin(x, "test")
+        r = relay.nn.relu(cb_1)
+        ce_1 = relay.annotation.compiler_end(r, "test")
+        ce_2 = relay.annotation.compiler_end(r, "test")
+        a_1 = relay.abs(ce_1)
+        a_2 = relay.abs(ce_2)
+        out = relay.add(a_1, a_2)
+        f = relay.Function([x], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    result = transform.AnnotateTarget("test")(before())
+    expected = transform.InferType()(after())
+    assert relay.analysis.alpha_equal(expected, result)
+
+
 if __name__ == "__main__":
+    test_multiple_ends()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
