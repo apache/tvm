@@ -22,12 +22,23 @@ from tvm.contrib import cudnn
 
 from .. import nn, generic
 from ..nn.util import get_pad_tuple
+from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..util import get_const_tuple, traverse_inline
 from .conv2d_direct import schedule_direct_cuda
+from .conv2d_int8 import conv2d_NCHWc_int8
+
+
+def conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype='float32'):
+    if data.dtype == "float32" and kernel.dtype == "float32":
+        return conv2d_nchw_fp32(data, kernel, strides, padding, dilation, out_dtype)
+    if data.dtype in ('int8', 'uint8') and kernel.dtype in ('int8', 'uint8'):
+        assert data.dtype == kernel.dtype
+        packed_out = conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, "NCHW", out_dtype)
+        return unpack_NCHWc_to_nchw(packed_out, out_dtype)
 
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
-def conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+def conv2d_nchw_fp32(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
     """Compute conv2d with NCHW layout"""
     return nn.conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
 
