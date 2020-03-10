@@ -19,9 +19,9 @@
 import tvm
 from tvm import relay
 from tvm.relay import transform
-from .._base import OPT_OUT_OP
+#from .._base import OPT_OUT_OP
 
-def has_multiple_inputs(node_list, node_idx, input_names, opt_out_op=OPT_OUT_OP):
+def has_multiple_inputs(node_list, node_idx, input_names, opt_out_op=[]):
     """Check whether a node has multiple input nodes
     except variable nodes.
 

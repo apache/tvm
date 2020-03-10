@@ -24,8 +24,6 @@ from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_stage import DPStage
 from .utils import has_multiple_inputs, is_boundary_node
 
-from ._base import OPT_OUT_OP
-
 if sys.version_info[0] == 3:
     import queue
 else:
