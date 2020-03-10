@@ -221,7 +221,6 @@ inline const char* DeviceName(int type) {
   }
 }
 
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
   int device_type = static_cast<int>(ctx.device_type);
   if (device_type > kRPCSessMask) {
@@ -231,8 +230,6 @@ inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
   os << runtime::DeviceName(device_type) << "(" << ctx.device_id << ")";
   return os;
 }
-
-#endif
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_DEVICE_API_H_

@@ -50,7 +50,7 @@ class CPUDeviceAPI final : public DeviceAPI {
 #if _MSC_VER
     ptr = _aligned_malloc(nbytes, alignment);
     if (ptr == nullptr) throw std::bad_alloc();
-#elif defined(_LIBCPP_SGX_CONFIG) || (defined(__ANDROID__) && __ANDROID_API__ < 17)
+#elif defined(__ANDROID__) && __ANDROID_API__ < 17
     ptr = memalign(alignment, nbytes);
     if (ptr == nullptr) throw std::bad_alloc();
 #else
