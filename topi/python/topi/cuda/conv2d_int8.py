@@ -217,7 +217,13 @@ def _schedule_conv2d_NCHWc_int8(cfg, s, output):
         output = s.outputs[0].output(0)
 
     # tile and bind spatial axes
-    n, f, y, x, c = s[output].op.axis
+    if len(s[output].op.axis) == 5:
+        n, f, y, x, c = s[output].op.axis
+    else:
+        # For task extraction of auto-tuning, the expected output is 4D.  Since auto-tuning tasks
+        # are created from scratch, therefore the real auto-tuning will still happen on 5D output.
+        n, f, y, x = s[output].op.axis
+
     cfg.define_split("tile_n", cfg.axis(n), num_outputs=4)
     cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
     cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
