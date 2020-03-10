@@ -91,7 +91,6 @@ def test_cmp_type():
 def test_binary_int_broadcast():
     for op, ref in [(relay.right_shift, np.right_shift),
                (relay.left_shift, np.left_shift),
-                (relay.mod, np.mod),
                (relay.maximum, np.maximum),
                (relay.minimum, np.minimum)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
