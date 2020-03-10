@@ -26,7 +26,7 @@ from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
 
 from .utils import has_multiple_inputs, is_boundary_node, is_skipped_node
-from .._base import OPT_OUT_OP 
+from .._base import OPT_OUT_OP
 
 def expr2graph(expr, target_ops, node_dict, node_list):
     """Convert relay expr to graph data structure
