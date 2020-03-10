@@ -393,7 +393,7 @@ def _conv(opname):
         # Ignore the new attributes from TF2.0, for now.
         out = AttrCvt(
             op_name=_dimension_picker('conv',
-                surfix="_transpose" if opname == 'conv_transpose' else ""),
+                                      surfix="_transpose" if opname == 'conv_transpose' else ""),
             ignores=['explicit_paddings'],
             transforms={
                 'kernel_shape': 'kernel_size',
@@ -602,7 +602,7 @@ def _conv3d(opname):
         # Ignore the new attributes from TF2.0, for now.
         out = AttrCvt(
             op_name=_dimension_picker('conv',
-                surfix="_transpose" if opname == 'conv_transpose' else ""),
+                                      surfix="_transpose" if opname == 'conv_transpose' else ""),
             ignores=['explicit_paddings'],
             transforms={
                 'kernel_shape': 'kernel_size',
@@ -1175,7 +1175,7 @@ def _stridedSlice():
                 if mask & ellipsis_mask:
                     #Identify the end index for applying ellipsis_mask
                     to_index = min(((data_dim - (stride_dim-index)) + 1
-                                     + new_axes_after_ellipsis), data_dim)
+                                    + new_axes_after_ellipsis), data_dim)
                     for i in range(final_index, to_index):
                         m_begin[final_index] = 0
                         m_end[final_index] = data_shape[final_index]
@@ -2002,9 +2002,9 @@ class RecurrentNetworks(object):
                     in_state_h = self._nodes[in_state_h_name]
 
                 cur_in_state_c, cur_in_state_h = _get_cur_input_state(
-                                                    in_state_c, in_state_h,
-                                                    num_layers, layer,
-                                                    batch_size, num_hidden)
+                    in_state_c, in_state_h,
+                    num_layers, layer,
+                    batch_size, num_hidden)
                 output, out_state = self._convert_map[op_name](inputs, cur_in_state_c,
                                                                cur_in_state_h,
                                                                attr, params, mod)

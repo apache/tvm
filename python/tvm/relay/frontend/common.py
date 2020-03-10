@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=broad-except
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
@@ -507,11 +508,11 @@ def infer_value(input_val, params, mod=None):
             mod["main"] = _expr.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
-        ex = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
+        exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
         inputs = []
         for param in mod['main'].params:
             inputs.append(tvm.nd.array(params[param.name_hint]))
-        result = ex.evaluate()(*inputs)
+        result = exc.evaluate()(*inputs)
         return result
 
 
