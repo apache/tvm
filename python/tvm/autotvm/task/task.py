@@ -383,8 +383,13 @@ def create(task_name, args, target, target_host=None):
 
     return ret
 
-def get_config():
+def get_config(workload=None):
     """Get current config object
+
+    Parameters
+    ----------
+    workload : tuple, optional
+        The workload corresponding to the config
 
     Returns
     -------
@@ -392,7 +397,7 @@ def get_config():
         The current config
     """
     tgt = _target.Target.current(allow_none=True)
-    return DispatchContext.current.query(tgt, None)
+    return DispatchContext.current.query(tgt, workload)
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
