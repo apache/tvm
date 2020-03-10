@@ -723,13 +723,6 @@ def _test_cos(data):
     """ One iteration of cos """
     return _test_unary_elemwise(math_ops.cos, data)
 #######################################################################
-# Tan
-# ---
-
-def _test_tan(data):
-    """ One iteration of tan """
-    return _test_unary_elemwise(math_ops.tan, data)
-#######################################################################
 # Sqrt
 # ----
 
@@ -779,7 +772,6 @@ def test_all_unary_elemwise():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_forward_unary_elemwise(_test_ceil)
         _test_forward_unary_elemwise(_test_cos)
-        _test_forward_unary_elemwise(_test_tan)
 
 #######################################################################
 # Element-wise

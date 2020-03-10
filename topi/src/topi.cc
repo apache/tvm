@@ -175,11 +175,6 @@ TVM_REGISTER_GLOBAL("topi.erf")
   *rv = erf(args[0]);
   });
 
-TVM_REGISTER_GLOBAL("topi.tan")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = tan(args[0]);
-  });
-
 TVM_REGISTER_GLOBAL("topi.cos")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = cos(args[0]);
