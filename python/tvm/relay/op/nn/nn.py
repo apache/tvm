@@ -2371,3 +2371,59 @@ def adaptive_avg_pool2d(data,
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool2d(data, output_size, layout)
+
+
+def dilation2d(data,
+               weight,
+               strides=(1, 1),
+               padding=(0, 0),
+               rates=(1, 1),
+               data_layout="NCHW",
+               kernel_layout="IHW",
+               out_dtype=""):
+    r"""Dilation 2D.
+    This operator takes the weight as the dilation kernel and dilates it with
+    data to produce an output. In the default case, where the data_layout is `NCHW`
+    and kernel_layout is `OIHW`, dilation2d takes in a data Tensor with shape
+    `(batch_size, in_channels, height, width)`, and a weight Tensor with shape
+    `(channels, kernel_height, kernel_width)` to produce an output Tensor
+    with the following rule:
+
+    .. math::
+        \mbox{out}[b, c, y, x] = \max_{dy, dx}
+           \mbox{data}[b, c, \mbox{strides}[0] * y  + dy, \mbox{strides}[1] * x + dx] +
+           \mbox{weight}[c, dy, dx]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification. Semantically, the operator
+    will convert the layout to the canonical layout
+    (`NCHW` for data and `IHW` for weight) and perform the computation.
+
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+    weight : tvm.relay.Expr
+        The weight expressions.
+    strides : Optional[Tuple[int]]
+        The strides of convolution.
+    padding : Optional[Tuple[int]]
+        The padding of convolution on both sides of inputs before convolution.
+    rates : Optional[Tuple[int]]
+        Specifies the dilation rate to be used for dilated convolution.
+    data_layout : Optional[str]
+        Layout of the input.
+    kernel_layout : Optional[str]
+        Layout of the weight.
+    out_layout : Optional[str]
+        Layout of the output, by default, out_layout is the same as data_layout
+    out_dtype : Optional[str]
+        Specifies the output data type for mixed precision conv2d.
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.dilation2d(data, weight, strides, padding, rates, data_layout,
+                            kernel_layout, out_dtype)
