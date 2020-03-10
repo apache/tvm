@@ -627,6 +627,7 @@ class CompileEngineImpl : public CompileEngineNode {
         const tvm::tir::StringImmNode* symbol_name = ext_symbol.as<tvm::tir::StringImmNode>();
         CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
         auto gv = GlobalVar(symbol_name->value);
+        src_func = FunctionSetAttr(src_func, attr::kCompiler, tir::StringImmNode::make("default"));
         ext_mods[code_gen->value]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
