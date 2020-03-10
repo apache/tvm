@@ -23,9 +23,21 @@ from tvm import autotvm
 from .injective import schedule_injective_from_existing
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
+from ..nn.conv2d import unpack_NCHWc_to_nchw
 from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 
+
+def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype='int32'):
+    assert data.dtype in ('int8', 'uint8')
+    assert kernel.dtype in ('int8', 'uint8')
+    assert data.dtype == kernel.dtype
+    packed_out = conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, "NCHW", out_dtype)
+    return unpack_NCHWc_to_nchw(packed_out, out_dtype)
+
+def schedule_conv2d_nchw_int8(outs):
+    """Create schedule for tensors"""
+    return schedule_conv2d_NCHWc_int8(outs)
 
 @autotvm.register_topi_compute("conv2d_NCHWc_int8.cuda")
 def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_dtype):
