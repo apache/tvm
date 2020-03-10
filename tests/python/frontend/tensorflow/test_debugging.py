@@ -67,13 +67,11 @@ def test_assert_true_var_capture():
             x_value = np.random.rand()
             assert sess.run(assert_op, feed_dict={x: x_value}) is None
 
-        # ToDo: The frontend converter gets confused here as well, thinking
-        # that it needs to be told what x is twice. It also notes the output of
+        # TODO: The frontend converter notes the output of
         # the graph as a boolean, which is not correct - as you can see above,
-        # TF believes that the value of this graph is None. In addition, the
-        # arity of the translated function should be 1, not 2.
+        # TF believes that the value of this graph is None.
         np.testing.assert_allclose(True,
-            run_relay(g, None, x_value, x_value).asnumpy())
+            run_relay(g, None, x_value).asnumpy())
 
 def test_assert_false():
     g = tf.Graph()
