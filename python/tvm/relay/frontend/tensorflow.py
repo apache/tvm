@@ -2234,6 +2234,7 @@ class LoopBound(ExprVisitor):
         self.extra_loop_var_names = set()
 
     def _find_parent_loop_name(self, node_name):
+        """Find name of direct parent while loop."""
         ploop_name = ""
         name_prefix = node_name.rsplit('/', 1)[0]
         if name_prefix.startswith("^"):
@@ -2250,9 +2251,9 @@ class LoopBound(ExprVisitor):
 
     def visit(self, expr):
         """
-        For each expression in the body, loop up the corresponding
+        For each expression in the body, look up the corresponding
         tensorflow node with its structural hash. If the current loop is the
-        direct parent of this node, we check whether its input nodes belong
+        direct parent of this node, we check whether its every input node belong
         to the current loop. If not, we mark this input node as an extra loop
         variable to the current loop.
         """
