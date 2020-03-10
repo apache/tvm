@@ -18,13 +18,13 @@
 cmake_minimum_required(VERSION 3.2)
 project(tsim C CXX)
 
-set(TVM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../)
-set(VTA_DIR ${TVM_DIR}/vta)
+set(TVM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../)
+set(VTA_HW_DIR ${TVM_DIR}/3rdparty/vta-hw)
 
 include_directories("${TVM_DIR}/include")
 include_directories("${TVM_DIR}/3rdparty/dlpack/include")
 include_directories("${TVM_DIR}/3rdparty/dmlc-core/include")
-include_directories("${TVM_DIR}/vta/src/dpi")
+include_directories("${VTA_HW_DIR}/src/dpi")
 
 set(CMAKE_C_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden")
 set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden -std=c++11")
@@ -35,11 +35,11 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
 endif()
 
 file(GLOB TSIM_SW_SRC src/driver.cc)
-list(APPEND TSIM_SW_SRC ${VTA_DIR}/src/vmem/virtual_memory.cc)
-list(APPEND TSIM_SW_SRC ${VTA_DIR}/src/dpi/module.cc)
+list(APPEND TSIM_SW_SRC ${VTA_HW_DIR}/src/vmem/virtual_memory.cc)
+list(APPEND TSIM_SW_SRC ${VTA_HW_DIR}/src/dpi/module.cc)
 
 add_library(sw SHARED ${TSIM_SW_SRC})
-target_include_directories(sw PRIVATE ${VTA_DIR}/include ${VTA_DIR}/src)
+target_include_directories(sw PRIVATE ${VTA_HW_DIR}/include ${VTA_HW_DIR}/src)
 
 if(APPLE)
   set_target_properties(sw PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")

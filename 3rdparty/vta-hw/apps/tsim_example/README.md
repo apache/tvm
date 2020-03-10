@@ -55,7 +55,7 @@ verilator --version
 the supported version of Verilator should be at least 4.012,
 if homebrew (OSX) or package-manager (Linux) does not support that version,
 please install Verilator 4.012 or later from binary or source base on following
-instruction of Verilator wiki.  
+instruction of Verilator wiki.
 
 https://www.veripool.org/projects/verilator/wiki/Installing
 
@@ -72,16 +72,16 @@ The default target language for these two implementations is Verilog. The follow
 how to run both of them:
 
 * Test Verilog backend
-    * Go to `<tvm-root>/vta/apps/tsim_example`
+    * Go to `<tvm-root>/3rdparty/vta-hw/apps/tsim_example`
     * Run `make`
 
 * Test Chisel3 backend
-    * Go to `<tvm-root>/vta/apps/tsim_example`
+    * Go to `<tvm-root>/3rdparty/vta-hw/apps/tsim_example`
     * Run `make run_chisel`
 
 * Some pointers
-    * Verilog and Chisel3 tests in `<tvm-root>/vta/apps/tsim_example/tests/python`
-    * Verilog accelerator backend `<tvm-root>/vta/apps/tsim_example/hardware/verilog`
-    * Chisel3 accelerator backend `<tvm-root>/vta/apps/tsim_example/hardware/chisel`
-    * Software C++ driver (backend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/src/driver.cc`
-    * Software Python driver (frontend) that handles the accelerator `<tvm-root>/vta/apps/tsim_example/python/accel`
+    * Verilog and Chisel3 tests in `<tvm-root>/3rdparty/vta-hw/apps/tsim_example/tests/python`
+    * Verilog accelerator backend `<tvm-root>/3rdparty/vta-hw/apps/tsim_example/hardware/verilog`
+    * Chisel3 accelerator backend `<tvm-root>/3rdparty/vta-hw/apps/tsim_example/hardware/chisel`
+    * Software C++ driver (backend) that handles the accelerator `<tvm-root>/3rdparty/vta-hw/apps/tsim_example/src/driver.cc`
+    * Software Python driver (frontend) that handles the accelerator `<tvm-root>/3rdparty/vta-hw/apps/tsim_example/python/accel`

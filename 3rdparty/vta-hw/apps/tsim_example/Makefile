@@ -20,7 +20,9 @@ export PYTHONPATH:=$(PWD)/python:$(PYTHONPATH)
 BUILD_NAME = build
 build_dir = $(abspath .)/$(BUILD_NAME)
 
-default: verilog driver
+default: run_verilog
+
+run_verilog: verilog driver
 	python3 tests/python/verilog_accel.py
 
 run_chisel: chisel driver

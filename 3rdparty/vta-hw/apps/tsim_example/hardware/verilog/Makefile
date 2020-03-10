@@ -38,7 +38,7 @@ USE_TRACE = 0
 LIBNAME = libhw
 
 vta_dir = $(abspath ../../../../)
-tvm_dir = $(abspath ../../../../../)
+tvm_dir = $(abspath ../../../../../../)
 build_dir = $(abspath .)/$(BUILD_NAME)
 
 verilator_opt = --cc
