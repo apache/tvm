@@ -57,8 +57,8 @@ def convert_to_list(x):
 
 
 #######################################################################
-# Get a real image for e2e testing.
-# --------------------------------------
+# Get a real image for e2e testing
+# --------------------------------
 def get_real_image(im_height, im_width):
     repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
     img_name = 'elephant-299.jpg'
@@ -299,7 +299,7 @@ def test_forward_transpose():
 
 #######################################################################
 # Cast
-# --------
+# ----
 
 def _test_cast(data, cast_dtype):
     """ One iteration of CAST """
@@ -316,8 +316,8 @@ def test_forward_cast():
     _test_cast(np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64)
 
 #######################################################################
-# tile
-# ---------
+# Tile
+# ----
 
 
 def _test_forward_tile(in_shape, reps, dtype):
@@ -758,6 +758,14 @@ def _test_square(data):
     """ One iteration of square """
     return _test_unary_elemwise(math_ops.square, data)
 
+#######################################################################
+# Elu
+# ---
+
+def _test_elu(data):
+    """ One iteration of elu """
+    return _test_unary_elemwise(nn_ops.elu, data)
+
 def _test_forward_unary_elemwise(test_op):
     # functions that need positive input
     if test_op.__name__ in {'_test_log', '_test_sqrt', '_test_rsqrt'}:
@@ -780,10 +788,11 @@ def test_all_unary_elemwise():
         _test_forward_unary_elemwise(_test_ceil)
         _test_forward_unary_elemwise(_test_cos)
         _test_forward_unary_elemwise(_test_tan)
+        _test_forward_unary_elemwise(_test_elu)
 
 #######################################################################
 # Element-wise
-# ---
+# ------------
 
 def _test_elemwise(math_op, data, fused_activation_function=None, quantized=False, qnn_op=None):
     """ One iteration of elemwise """
@@ -1049,7 +1058,7 @@ def test_all_logical():
 
 #######################################################################
 # Zeros like
-# --------
+# ----------
 
 def _test_zeros_like(data):
     """ One iteration of ZEROS LIKE """
@@ -1237,7 +1246,7 @@ def test_forward_pad():
 
 #######################################################################
 # Pack
-# -------------
+# ----
 
 def _test_pack(data, axis):
     """ One iteration of pack """
@@ -1290,6 +1299,26 @@ def test_forward_unpack():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_unpack(np.array(np.random.uniform(0, 5, (3, 6)), dtype=np.int32), axis=-2, num_unpacks=3)
         _test_unpack(np.array(np.random.uniform(0, 5, (2, 3, 4)), dtype=np.int32), axis=-3, num_unpacks=2)
+
+
+#######################################################################
+# Local response normalization
+# ----------------------------
+
+def _test_local_response_normalization(data, depth_radius, bias, alpha, beta):
+    """ One iteration of LOCAL_RESPONSE_NORMALIZATION """
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype='float32', name='in_0')
+        out = nn_ops.local_response_normalization(in_data, depth_radius=depth_radius, bias=bias, alpha=alpha, beta=beta)
+        compare_tflite_with_tvm(data, 'in_0:0', [in_data], [out])
+
+def test_forward_local_response_normalization():
+    """ LOCAL_RESPONSE_NORMALIZATION """
+    data = np.random.uniform(size=(1, 6, 4, 3)).astype('float32')
+    # LOCAL_RESPONSE_NORMALIZATION come with TFLite >= 1.14.0 fbs schema
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_local_response_normalization(data, depth_radius=5, bias=1, alpha=1, beta=0.5)
+
 
 #######################################################################
 # L2 normalization
@@ -1350,7 +1379,7 @@ def test_forward_softmax():
 
 #######################################################################
 # Tanh
-# --------
+# ----
 
 def _test_tanh(data):
     """ One iteration of TANH """
@@ -1365,7 +1394,7 @@ def test_forward_tanh():
 
 #######################################################################
 # ReLu
-# --------
+# ----
 
 def _test_relu(data):
     """ One iteration of ReLU """
@@ -1393,7 +1422,7 @@ def test_forward_prelu():
 
 #######################################################################
 # Fully Connected
-# -------
+# ---------------
 
 def _test_fully_connected(tensor_in_sizes, filter_in_sizes, bias_in_size=None):
     """ One iteration of fully connected """
@@ -1518,7 +1547,7 @@ def test_forward_mobilenet_v2():
 
 #######################################################################
 # Inception
-# ------------
+# ---------
 
 def test_forward_inception_v3_net():
     """Test the Inception V3 TF Lite model."""
@@ -1696,6 +1725,7 @@ if __name__ == '__main__':
     test_forward_prelu()
     test_forward_fully_connected()
     test_forward_l2_normalization()
+    test_forward_local_response_normalization()
 
     # Elemwise
     test_all_elemwise()
