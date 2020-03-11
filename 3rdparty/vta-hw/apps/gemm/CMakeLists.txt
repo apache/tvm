@@ -24,7 +24,7 @@ set(VTA_HW_DIR ${TVM_DIR}/3rdparty/vta-hw)
 include_directories("${TVM_DIR}/include")
 include_directories("${TVM_DIR}/3rdparty/dlpack/include")
 include_directories("${TVM_DIR}/3rdparty/dmlc-core/include")
-include_directories("${TVM_DIR}/vta/src/dpi")
+include_directories("${VTA_HW_DIR}/src/dpi")
 
 set(CMAKE_C_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden")
 set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -fvisibility=hidden -std=c++11")
