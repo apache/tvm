@@ -504,12 +504,20 @@ inline PrimExpr end_index(const Var& out_index,
 inline Tensor adaptive_pool_impl(const Tensor& x,
                                  const Array<PrimExpr>& output_size,
                                  PoolType pool_type,
-                                 const size_t height_axis,
-                                 const size_t width_axis) {
-  CHECK_EQ(output_size.size(), 2) << "Pooling kernel_size must have 2 elements";
+				 const std::vector<int>& axes){
+  CHECK_EQ(output_size.size(), axes.size()) << "Pooling kernel_size must have 2 elements";
+  auto height_axis = axes[0];
+  auto width_axis = axes[1];
 
+  const auto n_dim = output_size.size();
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
+
+  Array<PrimExpr> in_size, out_size;
+  for (size_t i = 0; i < n_dim; ++i) {
+    in_size.push_back(x->shape[axes[i]]);
+    out_size.push_back(cast(DataType::Int(32), output_size[i]));
+  }
 
   auto out_height = cast(DataType::Int(32), output_size[0]);
   auto out_width = cast(DataType::Int(32), output_size[1]);
@@ -534,18 +542,17 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
   } else if (pool_type == kAvgPool) {
     auto pool_sum = tvm::te::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
-      for (const Var& var : output) indices.push_back(var);
-      auto i_start_h = start_index(output[height_axis], out_height, height);
-      auto i_end_h = end_index(output[height_axis], out_height, height);
-      auto i_start_w = start_index(output[width_axis], out_width, width);
-      auto i_end_w = end_index(output[width_axis], out_width, width);
-      auto divide_factor = tvm::cast(x->dtype, (i_end_h - i_start_h)
-                                               * (i_end_w - i_start_w));
-      auto dheight = tvm::te::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
-      auto dwidth = tvm::te::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
-      indices.Set(height_axis, i_start_h + dheight);
-      indices.Set(width_axis, i_start_w + dwidth);
-      return tvm::sum(x(indices), { dheight, dwidth });
+      for (size_t i = 0; i < output.size(); ++i) indices.push_back(output[i]);
+      Array<tir::IterVar> reduce_axes;
+      for (size_t i = 0; i < n_dim; ++i) {
+        auto i_start = start_index(output[axes[i]], out_size[i], in_size[i]);
+        auto i_end = end_index(output[axes[i]], out_size[i], in_size[i]);
+	auto rv_name = "rv" + std::to_string(i);
+	auto rv_axis = tvm::te::reduce_axis(Range(0, i_end - i_start), rv_name);
+	reduce_axes.push_back(rv_axis);
+	indices.Set(axes[i], i_start + rv_axis);
+      }
+      return tvm::sum(x(indices), reduce_axes);
     }, "tensor", "adaptive_pool_sum");
 
     return tvm::te::compute(out_shape, [&](const Array<Var>& output) {
@@ -598,7 +605,7 @@ inline Tensor adaptive_pool(const Tensor& x,
   int height_axis = -1, width_axis = -1;
   CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
-  return adaptive_pool_impl(x, output_size, pool_type, height_axis, width_axis);
+  return adaptive_pool_impl(x, output_size, pool_type, {height_axis, width_axis});
 }
 
 /*!
