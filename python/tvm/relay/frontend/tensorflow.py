@@ -499,7 +499,7 @@ def _conv3d(opname):
         inputs_data = inputs[0] if opname != 'conv_transpose' else inputs[2]
 
         # NCDHW Layout require weights transpose
-        weights_shape = _infer_shape([inputs[1]], mod)
+        weights_shape = _infer_shape(inputs[1], mod)
         if attr['data_format'] == 'NCDHW':
             tmp_shape = weights_shape
             tmp_shape = [tmp_shape[ii] for ii in (4, 3, 0, 1, 2)]
