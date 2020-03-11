@@ -270,11 +270,11 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
 #####################
 
 @qnn_conv2d_legalize.register('cuda')
-def _qnn_conv2d_legalize_arm_cpu(attrs, inputs, types):
+def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
     # CUDA prefers the dtypes to be same.
     return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
 
 @qnn_dense_legalize.register('cuda')
-def _qnn_dense_legalize_arm_cpu(attrs, inputs, types):
+def _qnn_dense_legalize_cuda(attrs, inputs, types):
     # CUDA prefers the dtypes to be same.
     return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
