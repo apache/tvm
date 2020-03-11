@@ -42,7 +42,7 @@ from .measure import measure_option, MeasureInput, MeasureResult, MeasureErrorNo
     LocalBuilder, LocalRunner, RPCRunner
 from .tuner import callback
 from .task import get_config, create, ConfigSpace, ConfigEntity, \
-    register_topi_compute, register_topi_schedule, register_customized_task, \
+    register_topi_compute, register_topi_schedule, template, \
     DispatchContext, FallbackContext, ApplyHistoryBest as apply_history_best, \
     ApplyGraphBest as apply_graph_best
 from .env import GLOBAL_SCOPE

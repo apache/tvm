@@ -218,7 +218,7 @@ class TopiTemplate(object):
                 queue.extend(t.op.input_tensors)
         return inputs
 
-def register_task_compute(name, func=None):
+def _register_task_compute(name, func=None):
     """Register compute function to autotvm task
 
     Parameters
@@ -247,7 +247,7 @@ def register_task_compute(name, func=None):
         return _do_reg(func)
     return _do_reg
 
-def register_task_schedule(name, func=None):
+def _register_task_schedule(name, func=None):
     """Register schedule function to autotvm task
 
     Parameters
@@ -276,13 +276,8 @@ def register_task_schedule(name, func=None):
         return _do_reg(func)
     return _do_reg
 
-def register_customized_task(name, func=None):
+def _register_customized_task(name, func=None):
     """Register a customized function to AutoTVM task.
-
-    In most cases, you can just use register_topi_compute and register_topi_schedule
-    with the same task name to define an AutoTVM task. However, you can also
-    create a customized AutoTVM task that defines a tunable template or performs
-    extra layout transform before invoking compute/schedule function.
 
     Parameters
     ----------
@@ -297,6 +292,37 @@ def register_customized_task(name, func=None):
     -------
     decorator: callable
         A decorator
+    """
+    def _do_reg(f):
+        if name not in TASK_TABLE:
+            TASK_TABLE[name] = TopiTemplate()
+        tmpl = TASK_TABLE[name]
+        if tmpl.customized_func is not None:
+            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
+        tmpl.customized_func = f
+        return f
+    if func:
+        return _do_reg(func)
+    return _do_reg
+
+
+def template(task_name, func=None):
+    """Decorate a function as a tunable schedule template.
+
+    Parameters
+    ----------
+    task_name: str
+        The task name
+
+    func: None or callable
+        A callable template function.
+        If it is None, return a decorator.
+        If is callable, decorate this function.
+
+    Returns
+    -------
+    func: callable
+        The decorated function
 
     Examples
     --------
@@ -304,7 +330,7 @@ def register_customized_task(name, func=None):
 
     .. code-block:: python
 
-        @autotvm.register_customized_task("matmul")
+        @autotvm.template("matmul")
         def matmul(N, L, M, dtype):
             A = te.placeholder((N, L), name='A', dtype=dtype)
             B = te.placeholder((L, M), name='B', dtype=dtype)
@@ -331,17 +357,22 @@ def register_customized_task(name, func=None):
 
             return s, [A, B, C]
     """
-    def _do_reg(f):
-        if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
-        tmpl = TASK_TABLE[name]
-        if tmpl.customized_func is not None:
-            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
-        tmpl.customized_func = f
-        return f
+    def _decorate(f):
+        def wrapper(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            workload = args_to_workload(args, task_name)
+            tgt = _target.Target.current()
+            cfg = DispatchContext.current.query(tgt, workload)
+            with ApplyConfig(cfg):
+                return f(*args, **kwargs)
+
+        _register_customized_task(task_name, f)
+        return wrapper
+
     if func:
-        return _do_reg(func)
-    return _do_reg
+        return _decorate(func)
+    return _decorate
+
 
 def create(task_name, args, target, target_host=None):
     """Create a tuning task and initialize its search space
@@ -383,13 +414,8 @@ def create(task_name, args, target, target_host=None):
 
     return ret
 
-def get_config(workload=None):
+def get_config():
     """Get current config object
-
-    Parameters
-    ----------
-    workload : tuple, optional
-        The workload corresponding to the config
 
     Returns
     -------
@@ -397,7 +423,7 @@ def get_config(workload=None):
         The current config
     """
     tgt = _target.Target.current(allow_none=True)
-    return DispatchContext.current.query(tgt, workload)
+    return DispatchContext.current.query(tgt, None)
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""

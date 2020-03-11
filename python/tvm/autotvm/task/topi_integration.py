@@ -30,8 +30,8 @@ import tvm.te._ffi_api
 from tvm import target as _target
 from tvm.te import tensor
 
-from .task import args_to_workload, DispatchContext, \
-    register_task_compute, register_task_schedule, serialize_args
+from .task import args_to_workload, serialize_args, DispatchContext, \
+    _register_task_compute, _register_task_schedule
 
 
 # Task extractor for relay program
@@ -142,7 +142,7 @@ def register_topi_compute(task_name, func=None):
     See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
     """
     def _decorate(topi_compute):
-        @register_task_compute(task_name)
+        @_register_task_compute(task_name)
         def wrapper(*args, **kwargs):
             """wrapper function for topi compute"""
             assert not kwargs, "Do not support kwargs in template function call"
@@ -212,7 +212,7 @@ def register_topi_schedule(task_name, func=None):
     See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
     """
     def _decorate(topi_schedule):
-        @register_task_schedule(task_name)
+        @_register_task_schedule(task_name)
         def wrapper(outs, *args, **kwargs):
             """wrapper function for topi schedule"""
             workload = get_workload(outs)

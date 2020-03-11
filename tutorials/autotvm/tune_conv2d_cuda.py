@@ -79,7 +79,7 @@ from tvm import autotvm
 # can be very large (at the level of 10^9 for some input shapes)
 #
 
-@autotvm.register_customized_task("tutorial/conv2d_no_batching")
+@autotvm.template("tutorial/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
     assert N == 1, "Only consider batch_size = 1 in this template"
 
