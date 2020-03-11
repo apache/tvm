@@ -33,12 +33,14 @@ using arith::Analyzer;
 using arith::IRMutatorWithAnalyzer;
 using arith::ConstIntBound;
 
+class DataTypeRewriter;
+
 class DataTypeVisitor final : public StmtExprVisitor {
  public:
   void VisitExpr(const PrimExpr& e) {
     if (e.dtype().is_int()) {
       int bits = 64;
-      if (e.dtype() == DataType::Int(32) ||
+      if (e.dtype().bits() <= 32 ||
           analyzer_.CanProve(e <= max_value(DataType::Int(32)) &&
                              e >= min_value(DataType::Int(32)))) {
         bits = 32;
@@ -86,9 +88,9 @@ class DataTypeVisitor final : public StmtExprVisitor {
   void VisitExpr_(const VarNode* op) {
     if (vset_.find(op) != vset_.end()) {
       if (vmap.find(op) == vmap.end()) {
-        vmap[op] = DataType::Int(bits_);
+        vmap[op] = op->dtype.with_bits(bits_);
       } else {
-        vmap[op] = DataType::Int(std::max(vmap[op].bits(), bits_));
+        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits_));
       }
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -98,9 +100,9 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (op->dtype.is_int()) {
       int bits = std::min(op->dtype.bits(), bits_);
       if (vmap.find(op) == vmap.end()) {
-        vmap[op] = DataType::Int(bits);
+        vmap[op] = op->dtype.with_bits(bits);
       } else {
-        vmap[op] = DataType::Int(std::max(vmap[op].bits(), bits));
+        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits));
       }
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -110,9 +112,9 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (op->dtype.is_int()) {
       int bits = std::min(op->dtype.bits(), bits_);
       if (vmap.find(op) == vmap.end()) {
-        vmap[op] = DataType::Int(bits);
+        vmap[op] = op->dtype.with_bits(bits);
       } else {
-        vmap[op] = DataType::Int(std::max(vmap[op].bits(), bits));
+        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits));
       }
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -127,6 +129,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
  private:
   int bits_;
   std::unordered_set<const Object*> vset_;
+  friend class DataTypeRewriter;
 };
 
 class DataTypeRewriter : public StmtExprMutator {

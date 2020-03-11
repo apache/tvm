@@ -104,8 +104,21 @@ def test_thread_axis_3dim():
     assert stmt.body.body.node.var.dtype == "int32"
 
 
+def test_vectorize():
+    def test(m, lanes, dtype):
+        A = te.placeholder((m,), name='A', dtype='float32x{}'.format(lanes))
+        B = te.placeholder((m,), name='B', dtype='float32x{}'.format(lanes))
+        C = te.compute((m,), lambda *idx: A[idx] + B[idx])
+        s = te.create_schedule(C.op)
+        stmt = lower(s, [A, B, C])
+        assert stmt.body.loop_var.dtype == dtype
+    test(tvm.tir.const(64, dtype='int32'), 2, 'int32')
+    test(tvm.tir.const(2 ** 32, dtype='int64'), 2, 'int64')
+
+
 if __name__ == "__main__":
     test_const()
     test_symbolic()
     test_thread_axis_2dim()
     test_thread_axis_3dim()
+    test_vectorize()
