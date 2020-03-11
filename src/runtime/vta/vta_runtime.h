@@ -22,8 +22,8 @@
  * \brief VTA runtime library.
  */
 
-#ifndef VTA_RUNTIME_H_
-#define VTA_RUNTIME_H_
+#ifndef TVM_RUNTIME_VTA_VTA_RUNTIME_H_
+#define TVM_RUNTIME_VTA_VTA_RUNTIME_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -291,4 +291,4 @@ TVM_DLL void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles);
 #ifdef __cplusplus
 }
 #endif
-#endif  // VTA_RUNTIME_H_
+#endif  // TVM_RUNTIME_VTA_VTA_RUNTIME_H_
