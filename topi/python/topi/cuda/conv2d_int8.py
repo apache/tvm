@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+# pylint: disable=no-value-for-parameter
 """Int8 conv2d in NCHWc layout"""
 import tvm
 from tvm import te
