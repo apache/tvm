@@ -186,25 +186,35 @@ class Task(object):
 
 TASK_TABLE = {}
 
-class TopiTemplate(object):
-    """Topi template that holds the topi compute and schedule function"""
+class TaskTemplate(object):
+    """
+    Task template is used to creates a tunable AutoTVM task.
+
+    It can be defined by a pair of compute and schedule function using
+    `_register_task_compute` and `_register_task_schedule`,
+    or by a customized task creation function that is more flexible using
+    `_register_customized_task`.
+
+    Note that when customized func is registered, compute and schedule function
+    will be ignored
+    """
     def __init__(self):
-        self.compute = None
-        self.schedule = None
-        self.customized_func = None
+        self.fcompute = None
+        self.fschedule = None
+        self.fcustomized = None
 
     def __call__(self, *args, **kwargs):
         args = deserialize_args(args)
-        if self.customized_func is None:
+        if self.fcustomized is None:
             return self._default_func(*args, **kwargs)
-        assert callable(self.customized_func)
-        return self.customized_func(*args, **kwargs)
+        assert callable(self.fcustomized)
+        return self.fcustomized(*args, **kwargs)
 
     def _default_func(self, *args, **kwargs):
-        assert callable(self.compute) and callable(self.schedule)
-        out = self.compute(*args, **kwargs)
+        assert callable(self.fcompute) and callable(self.fschedule)
+        out = self.fcompute(*args, **kwargs)
         arg_bufs = [out] + self.get_inputs(out)
-        s = self.schedule([out])
+        s = self.fschedule([out])
         return s, arg_bufs
 
     def get_inputs(self, out):
@@ -237,11 +247,11 @@ def _register_task_compute(name, func=None):
     """
     def _do_reg(f):
         if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
+            TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
-        if tmpl.compute is not None:
+        if tmpl.fcompute is not None:
             raise ValueError("Compute is already registered in autoTVM task %s" % name)
-        tmpl.compute = f
+        tmpl.fcompute = f
         return f
     if func:
         return _do_reg(func)
@@ -266,11 +276,11 @@ def _register_task_schedule(name, func=None):
     """
     def _do_reg(f):
         if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
+            TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
-        if tmpl.schedule is not None:
+        if tmpl.fschedule is not None:
             raise ValueError("Schedule is already registered in autoTVM task %s" % name)
-        tmpl.schedule = f
+        tmpl.fschedule = f
         return f
     if func:
         return _do_reg(func)
@@ -295,11 +305,11 @@ def _register_customized_task(name, func=None):
     """
     def _do_reg(f):
         if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
+            TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
-        if tmpl.customized_func is not None:
+        if tmpl.fcustomized is not None:
             raise ValueError("Customized func is already registered in autoTVM task %s" % name)
-        tmpl.customized_func = f
+        tmpl.fcustomized = f
         return f
     if func:
         return _do_reg(func)
