@@ -188,6 +188,22 @@ def _adaptive_max_2d():
             output_size=output_size)
     return _impl
 
+def _adaptive_max_3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        output_size = _infer_shape(inputs[1])
+        return _op.nn.adaptive_max_pool3d(data, output_size=output_size)
+
+    return _impl
+
+def _adaptive_avg_3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        output_size = _infer_shape(inputs[1])
+        return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
+
+    return _impl
+
 def _maxpool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -249,33 +265,30 @@ def _convolution():
         if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
 
-        if use_transpose:
-            conv_out = _op.nn.conv2d_transpose(data,
-                                               weight,
-                                               strides=strides,
-                                               padding=padding,
-                                               dilation=dilation,
-                                               groups=groups,
-                                               channels=channels,
-                                               kernel_size=kernel_size,
-                                               data_layout="NCHW",
-                                               kernel_layout="OIHW",
-                                               out_layout="",
-                                               out_dtype="")
-        else:
-            conv_out = _op.nn.conv2d(data,
-                                     weight,
-                                     strides=strides,
-                                     padding=padding,
-                                     dilation=dilation,
-                                     groups=groups,
-                                     channels=channels,
-                                     kernel_size=kernel_size,
-                                     data_layout="NCHW",
-                                     kernel_layout="OIHW",
-                                     out_layout="",
-                                     out_dtype="")
+        data_layout = "NCHW"
+        kernel_layout = "OIHW"
+        conv_op = _op.nn.conv2d
 
+        if use_transpose:
+            assert len(kernel_size) == 2, "ConvTranspose 3D not supported"
+            conv_op = _op.nn.conv2d_transpose
+        if len(kernel_size) == 3:
+            conv_op = _op.nn.conv3d
+            data_layout = "NCDHW"
+            kernel_layout = "OIDHW"
+
+        conv_out = conv_op(data,
+                           weight,
+                           strides=strides,
+                           padding=padding,
+                           dilation=dilation,
+                           groups=groups,
+                           channels=channels,
+                           kernel_size=kernel_size,
+                           data_layout=data_layout,
+                           kernel_layout=kernel_layout,
+                           out_layout="",
+                           out_dtype="")
         if use_bias:
             return _op.nn.bias_add(conv_out, bias)
         else:
@@ -895,6 +908,8 @@ _convert_map = {
     "aten::Float"                           : _Float(),
     "aten::neg"                             : _neg(),
     "aten::tanh"                            : _tanh(),
+    "aten::adaptive_avg_pool3d"             : _adaptive_avg_3d(),
+    "aten::adaptive_max_pool3d"             : _adaptive_max_3d()
 }
 
 
@@ -1328,6 +1343,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     """
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    print(graph)
 
     if custom_convert_map:
         _convert_map.update(custom_convert_map)

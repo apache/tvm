@@ -708,6 +708,24 @@ def test_to():
     verify_model(ToInt().eval(), torch.tensor(2.0))
 
 
+def test_adaptive_pool3d():
+    inp = torch.rand((1, 32, 16, 16, 16))
+    verify_model(torch.nn.AdaptiveAvgPool3d((1, 1, 1)).eval(), inp)
+    verify_model(torch.nn.AdaptiveAvgPool3d((2, 2, 2)).eval(), inp)
+    # verify_model(torch.nn.AdaptiveMaxPool3d((1, 1, 1)).eval(), inp)
+    # verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
+
+
+def test_conv3d():
+    inp = torch.rand((1, 32, 16, 16, 16))
+    verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3),
+                                 padding=(1, 1, 1)).eval(),
+                 inp),
+    # verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3),
+    #                              padding=(1, 1, 1)).eval(),
+    #              inp)
+
+
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
@@ -991,57 +1009,59 @@ def test_simple_rnn():
 
 if __name__ == "__main__":
     # Single operator tests
-    test_forward_add()
-    test_forward_subtract()
-    test_forward_multiply()
-    test_forward_unsqueeze()
-    test_forward_concatenate()
-    test_forward_relu()
-    test_forward_adaptiveavgpool()
-    test_forward_maxpool()
-    test_forward_hardtanh()
-    test_forward_conv()
-    test_forward_threshold()
-    test_forward_contiguous()
-    test_forward_batchnorm()
-    test_forward_transpose()
-    test_forward_size()
-    test_forward_view()
-    test_forward_select()
-    test_forward_clone()
-    test_forward_logsoftmax()
-    test_forward_sigmoid()
-    test_forward_dense()
-    test_forward_avgpool()
-    test_forward_dropout()
-    test_forward_slice()
-    test_forward_mean()
-    test_forward_expand()
-    test_forward_pow()
-    test_forward_chunk()
-    test_upsample()
-    test_to()
+    # test_forward_add()
+    # test_forward_subtract()
+    # test_forward_multiply()
+    # test_forward_unsqueeze()
+    # test_forward_concatenate()
+    # test_forward_relu()
+    # test_forward_adaptiveavgpool()
+    # test_forward_maxpool()
+    # test_forward_hardtanh()
+    # test_forward_conv()
+    # test_forward_threshold()
+    # test_forward_contiguous()
+    # test_forward_batchnorm()
+    # test_forward_transpose()
+    # test_forward_size()
+    # test_forward_view()
+    # test_forward_select()
+    # test_forward_clone()
+    # test_forward_logsoftmax()
+    # test_forward_sigmoid()
+    # test_forward_dense()
+    # test_forward_avgpool()
+    # test_forward_dropout()
+    # test_forward_slice()
+    # test_forward_mean()
+    # test_forward_expand()
+    # test_forward_pow()
+    # test_forward_chunk()
+    # test_upsample()
+    # test_to()
+    # test_adaptive_pool3d()
+    test_conv3d()
 
-    # Model tests
-    test_resnet18()
-    test_squeezenet1_0()
-    test_squeezenet1_1()
-    test_densenet121()
-    test_inception_v3()
-    test_googlenet()
-    test_mnasnet0_5()
-    test_mobilenet_v2()
+    # # Model tests
+    # test_resnet18()
+    # test_squeezenet1_0()
+    # test_squeezenet1_1()
+    # test_densenet121()
+    # test_inception_v3()
+    # test_googlenet()
+    # test_mnasnet0_5()
+    # test_mobilenet_v2()
 
-    test_custom_conversion_map()
+    # test_custom_conversion_map()
 
-    test_segmentaton_models()
+    # test_segmentaton_models()
 
-    # Quantization test
-    from qnn_test import test_quantized_imagenet, test_quantized_modules
+    # # Quantization test
+    # from qnn_test import test_quantized_imagenet, test_quantized_modules
 
-    test_quantized_modules()
-    test_quantized_imagenet()
+    # test_quantized_modules()
+    # test_quantized_imagenet()
 
-    # Test simple conditionals and loop
-    test_control_flow()
-    test_simple_rnn()
+    # # Test simple conditionals and loop
+    # test_control_flow()
+    # test_simple_rnn()
