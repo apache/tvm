@@ -30,6 +30,8 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/attrs/nn.h>
 #include "../../ir/attr_functor.h"
+
+
 namespace tvm {
 namespace relay {
 
@@ -50,37 +52,7 @@ class AlphaEqualHandler:
    * \return The comparison result.
    */
   bool Equal(const ObjectRef& lhs, const ObjectRef& rhs) {
-    if (!lhs.defined() || !rhs.defined()) return false;
-    if (lhs.same_as(rhs)) return true;
-    if (lhs->IsInstance<TypeNode>() || rhs->IsInstance<TypeNode>()) {
-      if (!rhs->IsInstance<TypeNode>() || !lhs->IsInstance<TypeNode>()) return false;
-      return TypeEqual(Downcast<Type>(lhs), Downcast<Type>(rhs));
-    }
-    if (lhs->IsInstance<ExprNode>() || rhs->IsInstance<ExprNode>()) {
-      if (!rhs->IsInstance<ExprNode>() || !lhs->IsInstance<ExprNode>()) return false;
-      return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
-    }
-    if (const auto lhsm = lhs.as<IRModuleNode>()) {
-      auto rhsm = rhs.as<IRModuleNode>();
-      if (!rhsm) return false;
-      if (lhsm->functions.size() != rhsm->functions.size()) return false;
-      for (const auto& p : lhsm->functions) {
-        if (!Equal(p.second, rhsm->Lookup(p.first->name_hint))) return false;
-      }
-      if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
-      for (const auto& p : lhsm->type_definitions) {
-        if (!rhsm->ContainGlobalTypeVar(p.first->name_hint) ||
-            !Equal(p.second, rhsm->LookupTypeDef(p.first->name_hint))) {
-          return false;
-        }
-      }
-      return true;
-    }
-    return AttrEqual(lhs, rhs);
-  }
-
-  bool DoubleEqual(double l, double r) {
-    return true;
+    return VisitAttr(lhs, rhs);
   }
   /*!
    * Check equality of two attributes.
@@ -90,25 +62,7 @@ class AlphaEqualHandler:
    */
   bool AttrEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
     auto compute = [&]() {
-      if (&lhs == &rhs) return true;
-      if (auto lhsd = lhs.as<DictAttrsNode>()) {
-        auto rhsd = rhs.as<DictAttrsNode>();
-        if (!rhsd) return false;
-        if (lhsd->dict.size() != rhsd->dict.size()) return false;
-        for (const auto& k : lhsd->dict) {
-          if (!Equal(k.second, rhsd->dict[k.first])) return false;
-        }
-        return true;
-      }
-      if (auto lhsbn = lhs.as<BatchNormAttrs>()) {
-        auto rhsbn = rhs.as<BatchNormAttrs>();
-        if (!rhsbn) return false;
-        return (lhsbn->axis == rhsbn->axis)
-          && DoubleEqual(lhsbn->epsilon, rhsbn->epsilon)
-          && (lhsbn->center == rhsbn->center)
-          && (lhsbn->scale == rhsbn->scale);
-      }
-      return AttrsEqualHandler::Equal(lhs, rhs);
+      return VisitAttr(lhs, rhs);
     };
     return Compare(compute(), lhs, rhs);
   }
@@ -164,6 +118,40 @@ class AlphaEqualHandler:
   }
 
  protected:
+  // So that the new definition of equality in relay can be handled directly.
+  // Specifically, if a DictAttr contains a value defined by a relay AST.
+  // We want to able to recursively check the equality in the attr defined by the relay AST.
+  bool VisitAttr(const ObjectRef& lhs, const ObjectRef& rhs) final {
+    if (lhs.same_as(rhs)) return true;
+    if (!lhs.defined() && rhs.defined()) return false;
+    if (!rhs.defined() && lhs.defined()) return false;
+    if (lhs->IsInstance<TypeNode>() || rhs->IsInstance<TypeNode>()) {
+      if (!rhs->IsInstance<TypeNode>() || !lhs->IsInstance<TypeNode>()) return false;
+      return TypeEqual(Downcast<Type>(lhs), Downcast<Type>(rhs));
+    }
+    if (lhs->IsInstance<ExprNode>() || rhs->IsInstance<ExprNode>()) {
+      if (!rhs->IsInstance<ExprNode>() || !lhs->IsInstance<ExprNode>()) return false;
+      return ExprEqual(Downcast<Expr>(lhs), Downcast<Expr>(rhs));
+    }
+    if (const auto lhsm = lhs.as<IRModuleNode>()) {
+      auto rhsm = rhs.as<IRModuleNode>();
+      if (!rhsm) return false;
+      if (lhsm->functions.size() != rhsm->functions.size()) return false;
+      for (const auto& p : lhsm->functions) {
+        if (!Equal(p.second, rhsm->Lookup(p.first->name_hint))) return false;
+      }
+      if (lhsm->type_definitions.size() != rhsm->type_definitions.size()) return false;
+      for (const auto& p : lhsm->type_definitions) {
+        if (!rhsm->ContainGlobalTypeVar(p.first->name_hint) ||
+            !Equal(p.second, rhsm->LookupTypeDef(p.first->name_hint))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    // Fall back to the object equal case.
+    return AttrsEqualHandler::VisitAttr(lhs, rhs);
+  }
   /*!
    * \brief Check if data type equals each other.
    * \param lhs The left hand operand.
