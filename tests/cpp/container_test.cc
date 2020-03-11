@@ -275,19 +275,60 @@ TEST(String, Comparisons) {
   CHECK_EQ(s == mismatch, false);
   CHECK_EQ(s == source.data(), true);
   CHECK_EQ(s == mismatch.data(), false);
+}
 
-  // Check '\0' handling
+// Check '\0' handling
+TEST(String, null_byte_handling) {
+  using namespace std;
+  // Ensure string still compares equal if it contains '\0'.
   string v1 = "hello world";
   size_t v1_size = v1.size();
   v1[5] = '\0';
   CHECK_EQ(v1[5], '\0');
   CHECK_EQ(v1.size(), v1_size);
   String str_v1{v1};
-  CHECK_EQ(str_v1 == v1, true);
+  CHECK_EQ(str_v1.compare(v1), 0);
   CHECK_EQ(str_v1.size(), v1_size);
 
-  string v2 = "hello";
-  CHECK_EQ(str_v1 == v2, false);
+  // Ensure bytes after '\0' are taken into account for mismatches.
+  string v2 = "aaa one";
+  string v3 = "aaa two";
+  v2[3] = '\0';
+  v3[3] = '\0';
+  String str_v2{v2};
+  String str_v3{v3};
+  CHECK_EQ(str_v2.compare(str_v3), -1);
+  CHECK_EQ(str_v2.size(), 7);
+  // strcmp won't be able to detect the mismatch
+  CHECK_EQ(strcmp(v2.data(), v3.data()), 0);
+  // string::compare can handle \0 since it knows size
+  CHECK_LT(v2.compare(v3), 0);
+
+  // If there is mismatch before '\0', should still handle it.
+  string v4 = "acc one";
+  string v5 = "abb two";
+  v4[3] = '\0';
+  v5[3] = '\0';
+  String str_v4{v4};
+  String str_v5{v5};
+  CHECK_GT(str_v4.compare(str_v5), 0);
+  CHECK_EQ(str_v4.size(), 7);
+  // strcmp is able to detect the mismatch
+  CHECK_GT(strcmp(v4.data(), v5.data()), 0);
+  // string::compare can handle \0 since it knows size
+  CHECK_GT(v4.compare(v5), 0);
+}
+
+TEST(String, compare_same_memory_region_different_size) {
+  using namespace std;
+  string source = "a string";
+  String str_source{source};
+  char* memory = const_cast<char*>(str_source.data());
+  CHECK_EQ(str_source.compare(memory), 0);
+  // This changes the string size
+  memory[2] = '\0';
+  // memory is logically shorter now
+  CHECK_GT(str_source.compare(memory), 0);
 }
 
 TEST(String, compare) {
@@ -322,16 +363,6 @@ TEST(String, compare) {
   CHECK_GT(str_source.compare(str_mismatch2), 0);
   CHECK_GT(str_source.compare(str_mismatch3), 0);
   CHECK_LT(str_source.compare(str_mismatch4), 0);
-
-  // Check '\0' handling
-  string v1 = "hello world";
-  size_t v1_size = v1.size();
-  v1[5] = '\0';
-  CHECK_EQ(v1[5], '\0');
-  CHECK_EQ(v1.size(), v1_size);
-  String str_v1{v1};
-  CHECK_EQ(str_v1.compare(v1), 0);
-  CHECK_EQ(str_v1.size(), v1_size);
 }
 
 TEST(String, c_str) {

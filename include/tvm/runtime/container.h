@@ -441,9 +441,6 @@ class String : public ObjectRef {
    * before other, positive otherwise.
    */
   int compare(const char* other) const {
-    if (other == data()) {
-      return 0;
-    }
     return memncmp(data(), other, size(), std::strlen(other));
   }
 
@@ -550,6 +547,8 @@ inline String String::operator=(std::string other) {
 
 inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
                            size_t rhs_count) {
+  if (lhs == rhs && lhs_count == rhs_count) return 0;
+
   for (size_t i = 0; i < lhs_count && i < rhs_count; ++i) {
     if (lhs[i] < rhs[i]) return -1;
     if (lhs[i] > rhs[i]) return 1;
