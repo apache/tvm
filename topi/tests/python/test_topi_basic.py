@@ -45,6 +45,7 @@ def test_ewise():
     test_apply(topi.rsqrt, "rsqrt")
     test_apply(topi.sin, "sin")
     test_apply(topi.cos, "cos")
+    test_apply(topi.tan, "tan")
     test_apply(topi.atan, "atan")
 
 

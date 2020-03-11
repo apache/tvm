@@ -135,6 +135,13 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
   } else if (t == DataType::Bool()) {
     os << "bool"; return;
+  } else if (t.is_vector_bool()) {
+    // CUDA does not support bool vectors.
+    // Use ushort vectors to represent instead.
+    int n = t.lanes();
+    if (n <= 4) {
+      os << "ushort" << n; return;
+    }
   } else if (t.is_uint() || t.is_int()) {
     if (t.is_uint()) {
       if (t.lanes() != 1) {
@@ -226,7 +233,7 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenCUDA::PrintVecBinaryOp(
-    const std::string&op, DataType t,
+    const std::string& op, DataType t,
     PrimExpr lhs, PrimExpr rhs, std::ostream& os) {  // NOLINT(*)
   // unpacking operations.
   int lanes = t.lanes();
@@ -559,6 +566,48 @@ void CodeGenCUDA::VisitExpr_(const ShuffleNode* op, std::ostream &os) {
     os << to_shuffle[*val];
   }
   os << ')';
+}
+
+void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream &os) {
+  // Non-vector cases.
+  if (!op->dtype.is_vector()) {
+    CodeGenC::VisitExpr_(op, os);
+    return;
+  }
+
+  // Codegen vector condition case by serializing the select op.
+  CHECK(op->false_value->dtype == op->dtype &&
+        op->true_value->dtype == op->dtype &&
+        op->dtype.lanes() == op->condition.dtype().lanes());
+
+  int lanes = op->dtype.lanes();
+  int scope = BeginScope();
+
+  std::string c_var = SSAGetID(PrintExpr(op->condition), op->dtype);
+  std::string t_var = SSAGetID(PrintExpr(op->true_value), op->dtype);
+  std::string f_var = SSAGetID(PrintExpr(op->false_value), op->dtype);
+  std::string r_var = GetUniqueName("_");
+
+  this->PrintIndent();
+  this->PrintType(op->dtype, stream);
+  stream << ' ' << r_var << ";\n";
+
+  // The condition is stored as an ushort vector.
+  DataType memory_ty(DataType::TypeCode::kUInt, 16, lanes);
+
+  for (int i = 0; i < lanes; ++i) {
+    std::ostringstream item;
+    item << "(bool(";
+    PrintVecElemLoad(c_var, memory_ty, i, item);
+    item << ")?";
+    PrintVecElemLoad(t_var, op->dtype, i, item);
+    item << ':';
+    PrintVecElemLoad(f_var, op->dtype, i, item);
+    item << ')';
+    PrintVecElemStore(r_var, op->dtype, i, item.str());
+  }
+  os << r_var;
+  EndScope(scope);
 }
 
 inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
