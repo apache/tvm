@@ -366,7 +366,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     this->Emit(Instruction::If(test_register, target_register, 0, 0));
     this->VisitExpr(if_node->true_branch);
 
-    size_t true_register = last_register_;
+    // It saves the result of If-Else expression.
+    auto merge_register = NewRegister();
+    Emit(Instruction::Move(last_register_, merge_register));
     Emit(Instruction::Goto(0));
 
     // Finally store how many instructions there are in the
@@ -378,7 +380,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     size_t false_register = last_register_;
 
     // In else-branch, override the then-branch register
-    Emit(Instruction::Move(false_register, true_register));
+    Emit(Instruction::Move(false_register, merge_register));
     // Compute the total number of instructions
     // after generating false.
     auto after_false = this->instructions_.size();
@@ -397,7 +399,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // Patch the Goto.
     this->instructions_[after_true - 1].pc_offset = (after_false - after_true) + 1;
 
-    this->last_register_ = true_register;
+    this->last_register_ = merge_register;
   }
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
