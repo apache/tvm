@@ -177,13 +177,17 @@ Expr Conv2DFallBack(const Expr& data, const Expr& weight, const Expr& input_zero
 Expr Conv2DPadInput(const Expr& data, const Expr& input_zero_point, const Conv2DAttrs* param) {
   // 1) Pad the input data
   auto padded_data = data;
-  auto pad_h_value = get_const_int(param->padding[0]);
-  auto pad_w_value = get_const_int(param->padding[1]);
-  if (pad_h_value != 0 || pad_w_value != 0) {
+  auto pad_top_value = get_const_int(param->padding[0]);
+  auto pad_left_value = get_const_int(param->padding[1]);
+  auto pad_bottom_value = get_const_int(param->padding[2]);
+  auto pad_right_value = get_const_int(param->padding[3]);
+  bool do_pad = pad_top_value != 0 || pad_left_value != 0 ||
+                pad_bottom_value != 0 || pad_right_value != 0;
+  if (do_pad) {
     Array<IndexExpr> pad_n({0, 0});
     Array<IndexExpr> pad_c({0, 0});
-    Array<IndexExpr> pad_h({param->padding[0], param->padding[0]});
-    Array<IndexExpr> pad_w({param->padding[1], param->padding[1]});
+    Array<IndexExpr> pad_h({param->padding[0], param->padding[2]});
+    Array<IndexExpr> pad_w({param->padding[1], param->padding[3]});
 
     Array<Array<IndexExpr>> pad_width;
     if (param->data_layout == "NCHW") {
@@ -336,7 +340,7 @@ Expr DepthwiseConv2DFourthTerm(int input_zero_point_int, int kernel_zero_point_i
  */
 Expr Conv2DFirstTerm(const Expr& padded_data, const Expr& weight, const Conv2DAttrs* param) {
   // Lowering for Term 1
-  Array<IndexExpr> padding({0, 0});
+  Array<IndexExpr> padding({0, 0, 0, 0});
   return Conv2D(padded_data, weight, param->strides, padding, param->dilation, param->groups,
                 param->channels, param->kernel_size, param->data_layout, param->kernel_layout,
                 param->out_layout, param->out_dtype);
@@ -583,7 +587,6 @@ Expr QnnConv2DCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   const auto* param = attrs.as<Conv2DAttrs>();
   CHECK(param != nullptr);
   // Assertion checks for exisiing support.
-  CHECK_EQ(param->padding.size(), 2) << "qnn.conv2d only supports 2D padding";
   CHECK(param->data_layout == "NCHW" || param->data_layout == "NHWC")
       << "qnn.conv2d supports only NCHW/NHWC input data layout.";
   CHECK(param->kernel_layout == "OIHW" || param->kernel_layout == "HWIO" ||

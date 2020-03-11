@@ -19,6 +19,7 @@
 
 from __future__ import absolute_import as _abs
 from tvm.relay.expr import Tuple
+from tvm.relay.op.nn.util import get_pad_tuple2d
 from . import _make
 
 def requantize(data,
@@ -280,6 +281,9 @@ def conv2d(data,
         The computed result.
     """
 
+    # TODO enforce 4-way padding in topi/nn/conv2d after #4644 merged
+    # convert 2-way padding to 4-way padding
+    padding = get_pad_tuple2d(padding)
     return _make.conv2d(data, kernel,
                         input_zero_point, kernel_zero_point,
                         input_scale, kernel_scale,
