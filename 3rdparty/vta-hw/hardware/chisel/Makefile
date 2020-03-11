@@ -193,4 +193,5 @@ clean:
 cleanall:
 	-rm -rf $(vta_dir)/$(BUILD_NAME)/chisel
 	-rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.so
+	-rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.dylib
 	-rm -rf $(vta_dir)/$(BUILD_NAME)/verilator
