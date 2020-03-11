@@ -45,7 +45,19 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.exp10")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.log10")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.tanh")
@@ -61,6 +73,18 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.popcount")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fmod")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sin")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.sinh")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.cos")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.cosh")
 .set_body(DispatchExtern<Direct>);
 
 }  // namespace intrin
