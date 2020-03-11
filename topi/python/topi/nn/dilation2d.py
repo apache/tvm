@@ -19,9 +19,9 @@
 """Dilation2D operators"""
 from __future__ import absolute_import as _abs
 from tvm import te
+from topi.util import simplify
 from .pad import pad
 from .util import get_pad_tuple
-from topi.util import simplify
 
 
 def dilation2d_nchw(input, filter, stride, padding, dilation, out_dtype=None):
@@ -142,6 +142,6 @@ def dilation2d_nhwc(input, filter, stride, padding, dilation, out_dtype=None):
         (batch, out_height, out_width, in_channel),
         lambda nn, yy, xx, ff: te.max(
             padded_input[nn, yy * stride_h + ry * dilation_h,
-                        xx * stride_w + rx * dilation_w, ff].astype(out_dtype) +
+                         xx * stride_w + rx * dilation_w, ff].astype(out_dtype) +
             filter[ry, rx, ff].astype(out_dtype),
             axis=[ry, rx]), tag="dilation2d_nhcw")
