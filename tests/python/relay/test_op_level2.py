@@ -1241,7 +1241,7 @@ def test_dilation2d_run():
                             strides=[1, 1],
                             padding=[0, 0],
                             rates=[1, 1],
-                            except_targets=None,
+                            except_targets=['cuda'],
                             **attrs):
 
         dshape = indata.shape
