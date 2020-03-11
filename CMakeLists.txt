@@ -146,7 +146,9 @@ file(GLOB_RECURSE RELAY_OP_SRCS
     src/relay/op/*.cc
     )
 file(GLOB_RECURSE RELAY_PASS_SRCS
-    src/relay/pass/*.cc
+    src/relay/analysis/*.cc
+    src/relay/transforms/*.cc
+    src/relay/quantize/*.cc
     )
 file(GLOB RELAY_BACKEND_SRCS
     src/relay/backend/*.cc

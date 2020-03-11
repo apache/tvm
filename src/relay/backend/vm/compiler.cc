@@ -40,7 +40,7 @@
 #include <vector>
 #include "../utils.h"
 #include "../../backend/compile_engine.h"
-#include "../../pass/pass_util.h"
+#include "../../transforms/pass_util.h"
 #include "../../op/op_common.h"
 #include "compiler.h"
 
