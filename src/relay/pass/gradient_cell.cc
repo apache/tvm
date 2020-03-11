@@ -160,7 +160,8 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
       }
     }
 
-    CHECK(false) << "Constructor " << name_hint << "not found in GradCell datatype.";
+    CHECK(false) << "Constructor " << name_hint << "not found in GradCell typedata.";
+    throw std::runtime_error("Constructor not found in GradCell typedata");
   }
 };
 
