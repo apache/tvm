@@ -30,7 +30,7 @@ rm -rf ~/.tvm
 make cython3
 
 # Reset default fsim simulation
-cp vta/config/fsim_sample.json vta/config/vta_config.json
+cp 3rdparty/vta-hw/config/fsim_sample.json 3rdparty/vta-hw/config/vta_config.json
 
 # Run unit tests in functional/fast simulator
 echo "Running unittest in fsim..."
