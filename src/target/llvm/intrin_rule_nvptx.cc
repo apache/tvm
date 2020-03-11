@@ -81,9 +81,6 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.tanh")
 .set_body(DispatchExternLibDevice);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.tan")
-.set_body(DispatchExternLibDevice);
-
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.cos")
 .set_body(DispatchExternLibDevice);
 

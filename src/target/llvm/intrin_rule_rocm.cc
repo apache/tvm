@@ -80,9 +80,6 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tanh")
 .set_body(DispatchExternOCML);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan")
-.set_body(DispatchExternOCML);
-
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos")
 .set_body(DispatchExternOCML);
 

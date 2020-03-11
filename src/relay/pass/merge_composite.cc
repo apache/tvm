@@ -168,7 +168,6 @@ class MergeCompositeWrapper : public ExprMutator {
       // make the composite function
       auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
       f = FunctionSetAttr(f, attr::kComposite, tir::StringImmNode::make(pattern_name_));
-      f = FunctionSetAttr(f, attr::kPrimitive, tvm::Integer(1));
       // find the expressions associated with the free vars using the args_map
       // this tells us which expressions should be given as inputs to the composite function
       Array<Expr> args;
