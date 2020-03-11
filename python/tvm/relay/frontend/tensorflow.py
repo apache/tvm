@@ -1572,6 +1572,7 @@ _convert_map = {
     'LessEqual'                         : _broadcast('less_equal'),
     'Log'                               : AttrCvt('log'),
     'Log1p'                             : _log1p(),
+    'Tan'                               : AttrCvt('tan'),
     'Cos'                               : AttrCvt('cos'),
     'Sin'                               : AttrCvt('sin'),
     'LogicalAnd'                        : _logical('logical_and'),

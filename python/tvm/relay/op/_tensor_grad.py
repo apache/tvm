@@ -61,6 +61,13 @@ def log_grad(orig, grad):
     return [grad * ones_like(x) / x]
 
 
+@register_gradient("tan")
+def tan_grad(orig, grad):
+    """Returns [grad / (cos^2(x))]"""
+    x = orig.args[0]
+    return [grad / (cos(x) * cos(x))]
+
+
 @register_gradient("cos")
 def cos_grad(orig, grad):
     """Returns [grad * (-sin(x))]"""
