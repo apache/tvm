@@ -27,6 +27,7 @@ from ...hybrid import script
 
 
 register_broadcast_schedule("log")
+register_broadcast_schedule("tan")
 register_broadcast_schedule("cos")
 register_broadcast_schedule("sin")
 register_broadcast_schedule("atan")
@@ -214,3 +215,4 @@ register_shape_func("minimum", False, broadcast_shape_func)
 register_shape_func("sqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
+register_shape_func("tan", False, elemwise_shape_func)
