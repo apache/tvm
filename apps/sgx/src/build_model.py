@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,11 +16,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 """Creates a simple TVM modules."""
 
-import argparse
 import os
 from os import path as osp
+import sys
 
 from tvm import relay
 from tvm.relay import testing
@@ -27,9 +30,8 @@ from tvm import te
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-o', '--out-dir', default='.')
-    opts = parser.parse_args()
+    dshape = (1, 28, 28)
+    net, params = relay.testing.mlp.get_workload(batch_size=dshape[0], dtype='float32')
 
     dshape = (1, 3, 224, 224)
     net, params = relay.testing.resnet.get_workload(
@@ -39,11 +41,11 @@ def main():
         graph, lib, params = relay.build(
             net, 'llvm --system-lib', params=params)
 
-    build_dir = osp.abspath(opts.out_dir)
+    build_dir = osp.abspath(sys.argv[1])
     if not osp.isdir(build_dir):
         os.makedirs(build_dir, exist_ok=True)
 
-    lib.save(osp.join(build_dir, 'model.bc'))
+    lib.save(osp.join(build_dir, 'model.o'))
     with open(osp.join(build_dir, 'graph.json'), 'w') as f_graph_json:
         f_graph_json.write(graph)
         with open(osp.join(build_dir, 'params.bin'), 'wb') as f_params:

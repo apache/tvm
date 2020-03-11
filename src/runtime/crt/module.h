@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -18,26 +18,31 @@
  */
 
 /*!
- * \file common.h
- * \brief TVM SGX common API.
+ * \file src/runtime/crt/module.h
+ * \brief Runtime container of the functions
  */
-#ifndef TVM_RUNTIME_SGX_COMMON_H_
-#define TVM_RUNTIME_SGX_COMMON_H_
+#ifndef TVM_RUNTIME_CRT_MODULE_H_
+#define TVM_RUNTIME_CRT_MODULE_H_
 
-#include <sgx_error.h>
+#include <string.h>
+#include <tvm/runtime/c_runtime_api.h>
 
-namespace tvm {
-namespace runtime {
-namespace sgx {
+struct TVMPackedFunc;
+typedef struct TVMPackedFunc TVMPackedFunc;
 
-#define TVM_SGX_CHECKED_CALL(Function)                                         \
-  sgx_status_t TVM_STR_CONCAT(__sgx_status_, __LINE__) = SGX_ERROR_UNEXPECTED; \
-  TVM_STR_CONCAT(__sgx_status_, __LINE__) = Function;                          \
-  CHECK_EQ(TVM_STR_CONCAT(__sgx_status_, __LINE__), SGX_SUCCESS)               \
-    << "SGX Error: " << TVM_STR_CONCAT(__sgx_status_, __LINE__);
+/*!
+ * \brief Module container of TVM.
+ */
+typedef struct TVMModule {
+  /*!
+   * \brief Get packed function from current module by name.
+   *
+   * \param name The name of the function.
+   * \param pf The result function.
+   *
+   *  This function will return PackedFunc(nullptr) if function do not exist.
+   */
+  void (*GetFunction)(const char * name, TVMPackedFunc * pf);
+} TVMModule;
 
-}  // namespace sgx
-}  // namespace runtime
-}  // namespace tvm
-
-#endif  // TVM_RUNTIME_SGX_COMMON_H_
+#endif  // TVM_RUNTIME_CRT_MODULE_H_

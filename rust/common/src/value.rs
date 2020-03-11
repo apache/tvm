@@ -19,11 +19,9 @@
 
 use std::{os::raw::c_char, str::FromStr};
 
-use failure::Error;
-
 use crate::ffi::*;
 
-impl TVMType {
+impl DLDataType {
     fn new(type_code: u8, bits: u8, lanes: u16) -> Self {
         Self {
             code: type_code,
@@ -33,25 +31,37 @@ impl TVMType {
     }
 }
 
+#[derive(Debug, Fail)]
+pub enum ParseTvmTypeError {
+    #[fail(display = "invalid number: {}", _0)]
+    InvalidNumber(std::num::ParseIntError),
+    #[fail(display = "unknown type: {}", _0)]
+    UnknownType(String),
+}
+
 /// Implements TVMType conversion from `&str` of general format `{dtype}{bits}x{lanes}`
 /// such as "int32", "float32" or with lane "float32x1".
-impl FromStr for TVMType {
-    type Err = Error;
+impl FromStr for DLDataType {
+    type Err = ParseTvmTypeError;
     fn from_str(type_str: &str) -> Result<Self, Self::Err> {
         if type_str == "bool" {
-            return Ok(TVMType::new(1, 1, 1));
+            return Ok(DLDataType::new(1, 1, 1));
         }
 
-        let mut type_lanes = type_str.split("x");
+        let mut type_lanes = type_str.split('x');
         let typ = type_lanes.next().expect("Missing dtype");
         let lanes = type_lanes
             .next()
             .map(|l| <u16>::from_str_radix(l, 10))
-            .unwrap_or(Ok(1))?;
+            .unwrap_or(Ok(1))
+            .map_err(ParseTvmTypeError::InvalidNumber)?;
         let (type_name, bits) = match typ.find(char::is_numeric) {
             Some(idx) => {
                 let (name, bits_str) = typ.split_at(idx);
-                (name, u8::from_str_radix(bits_str, 10)?)
+                (
+                    name,
+                    u8::from_str_radix(bits_str, 10).map_err(ParseTvmTypeError::InvalidNumber)?,
+                )
             }
             None => (typ, 32),
         };
@@ -61,14 +71,14 @@ impl FromStr for TVMType {
             "uint" => 1,
             "float" => 2,
             "handle" => 3,
-            _ => return Err(format_err!("Unknown type {}", type_name)),
+            _ => return Err(ParseTvmTypeError::UnknownType(type_name.to_string())),
         };
 
-        Ok(TVMType::new(type_code, bits, lanes))
+        Ok(DLDataType::new(type_code, bits, lanes))
     }
 }
 
-impl std::fmt::Display for TVMType {
+impl std::fmt::Display for DLDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if self.bits == 1 && self.lanes == 1 {
             return write!(f, "bool");
@@ -113,19 +123,23 @@ macro_rules! impl_pod_tvm_value {
 
 impl_pod_tvm_value!(v_int64, i64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 impl_pod_tvm_value!(v_float64, f64, f32, f64);
-impl_pod_tvm_value!(v_type, TVMType);
+impl_pod_tvm_value!(v_type, DLDataType);
 impl_pod_tvm_value!(v_ctx, TVMContext);
+
+#[derive(Debug, Fail)]
+#[fail(display = "unsupported device: {}", _0)]
+pub struct UnsupportedDeviceError(String);
 
 macro_rules! impl_tvm_context {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
         /// Creates a TVMContext from a string (e.g., "cpu", "gpu", "ext_dev")
         impl FromStr for TVMContext {
-            type Err = Error;
+            type Err = UnsupportedDeviceError;
             fn from_str(type_str: &str) -> Result<Self, Self::Err> {
                 Ok(Self {
                     device_type: match type_str {
                          $( $(  stringify!($dev_name)  )|+ => $dev_type ),+,
-                        _ => return Err(format_err!("device {} not supported", type_str).into()),
+                        _ => return Err(UnsupportedDeviceError(type_str.to_string())),
                     },
                     device_id: 0,
                 })
@@ -163,7 +177,7 @@ impl_tvm_context!(
 ///
 /// ```
 /// let v = b"hello";
-/// let barr = TVMByteArray::from(&v);
+/// let barr = tvm_common::TVMByteArray::from(&v);
 /// assert_eq!(barr.len(), v.len());
 /// assert_eq!(barr.data(), &[104u8, 101, 108, 108, 111]);
 /// ```
@@ -181,6 +195,10 @@ impl TVMByteArray {
     /// Converts the underlying byte-array to `Vec<u8>`
     pub fn to_vec(&self) -> Vec<u8> {
         self.data().to_vec()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

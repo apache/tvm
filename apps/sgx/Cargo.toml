@@ -15,16 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+[package]
+name = "sgx-demo"
+version = "0.1.0"
+authors = ["Nick Hynes <nhynes@nhynes.com>"]
+edition = "2018"
+
 [dependencies]
-alloc = {}
-panic_unwind = {}
-panic_abort = {}
+tvm-runtime = { path = "../../rust/runtime" }
 
-[dependencies.std]
-path = "/opt/rust-sgx-sdk/xargo/sgx_tstd"
-features = ["backtrace", "stdio", "untrusted_time"]
-stage = 2
-
-[dependencies.xargo_sgx_rand]
-path = "/opt/rust-sgx-sdk/xargo/sgx_rand"
-stage = 3
+[patch.crates-io]
+"backtrace" = { git = "https://github.com/nhynes/backtrace-rs", branch = "fix-sgx" }

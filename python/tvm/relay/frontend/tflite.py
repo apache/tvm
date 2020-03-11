@@ -62,70 +62,72 @@ class OperatorConverter(object):
         # Add more operators
         self.convert_map = {
             'ABS': self.convert_abs,
-            'EXP': self.convert_exp,
-            'FLOOR': self.convert_floor,
-            'CEIL': self.convert_ceil,
-            'LOG': self.convert_log,
-            'SIN': self.convert_sin,
-            'COS': self.convert_cos,
-            'TAN': self.convert_tan,
-            'SQRT': self.convert_sqrt,
-            'RSQRT': self.convert_rsqrt,
-            'NEG': self.convert_neg,
-            'CONV_2D': self.convert_conv2d,
-            'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
+            'ADD': self.convert_add,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
+            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
+            'CAST': self.convert_cast,
+            'CEIL': self.convert_ceil,
+            'CONCATENATION': self.convert_concatenation,
+            'CONV_2D': self.convert_conv2d,
+            'COS': self.convert_cos,
+            'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
+            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'DIV': self.convert_div,
+            'ELU': self.convert_elu,
+            'EQUAL': self.convert_equal,
+            'EXP': self.convert_exp,
+            'FLOOR_DIV': self.convert_floor_div,
+            'FLOOR_MOD': self.convert_floor_mod,
+            'FLOOR': self.convert_floor,
+            'FULLY_CONNECTED': self.convert_fully_connected,
+            'GREATER_EQUAL': self.convert_greater_equal,
+            'GREATER': self.convert_greater,
+            'L2_NORMALIZATION': self.convert_l2_normalization,
+            'LESS_EQUAL': self.convert_less_equal,
+            'LESS': self.convert_less,
+            'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
+            'LOG': self.convert_log,
+            'LOGICAL_AND': self.convert_logical_and,
+            'LOGICAL_OR': self.convert_logical_or,
+            'LOGISTIC': self.convert_logistic,
+            'MAX_POOL_2D': self.convert_max_pool2d,
+            'MAXIMUM': self.convert_maximum,
+            'MEAN': self._convert_reduce_mean,
+            'MINIMUM': self.convert_minimum,
+            'MIRROR_PAD': self.convert_mirror_pad,
+            'MUL': self.convert_mul,
+            'NEG': self.convert_neg,
+            'NOT_EQUAL': self.convert_not_equal,
+            'PACK': self.convert_pack,
+            'PAD': self.convert_pad,
+            'POW': self.convert_pow,
+            'PRELU': self.convert_prelu,
+            'REDUCE_MAX': self._convert_reduce_max,
+            'REDUCE_MIN': self._convert_reduce_min,
+            'REDUCE_PROD': self._convert_reduce_prod,
+            'RELU':self.convert_relu,
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
-            'SOFTMAX': self.convert_softmax,
-            'SQUEEZE': self.convert_squeeze,
-            'MAX_POOL_2D': self.convert_max_pool2d,
-            'CONCATENATION': self.convert_concatenation,
-            'ADD': self.convert_add,
-            'SUB': self.convert_sub,
-            'MUL': self.convert_mul,
-            'DIV': self.convert_div,
-            'POW': self.convert_pow,
-            'MAXIMUM': self.convert_maximum,
-            'MINIMUM': self.convert_minimum,
-            'GREATER': self.convert_greater,
-            'GREATER_EQUAL': self.convert_greater_equal,
-            'LESS': self.convert_less,
-            'LESS_EQUAL': self.convert_less_equal,
-            'EQUAL': self.convert_equal,
-            'NOT_EQUAL': self.convert_not_equal,
-            'ZEROS_LIKE': self.convert_zeros_like,
-            'REDUCE_MIN': self._convert_reduce_min,
-            'REDUCE_MAX': self._convert_reduce_max,
-            'MEAN': self._convert_reduce_mean,
-            'REDUCE_PROD': self._convert_reduce_prod,
-            'SUM': self._convert_reduce_sum,
-            'FULLY_CONNECTED': self.convert_fully_connected,
-            'PAD': self.convert_pad,
-            'MIRROR_PAD': self.convert_mirror_pad,
-            'PACK': self.convert_pack,
-            'UNPACK': self.convert_unpack,
-            'LOGISTIC': self.convert_logistic,
-            'TANH':self.convert_tanh,
-            'RELU':self.convert_relu,
-            'SPLIT': self.convert_split,
+            'RSQRT': self.convert_rsqrt,
+            'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
-            'TRANSPOSE': self.convert_transpose,
-            'CAST': self.convert_cast,
-            'TILE': self.convert_tile,
-            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
+            'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
-            'PRELU': self.convert_prelu,
-            'TRANSPOSE_CONV': self.convert_transpose_conv,
-            'SQUARED_DIFFERENCE': self.convert_squared_difference,
-            'LOGICAL_AND': self.convert_logical_and,
-            'LOGICAL_OR': self.convert_logical_or,
-            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'SPLIT': self.convert_split,
+            'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
-            'L2_NORMALIZATION': self.convert_l2_normalization,
-            'FLOOR_DIV': self.convert_floor_div,
-            'FLOOR_MOD': self.convert_floor_mod,
+            'SQUARED_DIFFERENCE': self.convert_squared_difference,
+            'SQUEEZE': self.convert_squeeze,
+            'SUB': self.convert_sub,
+            'SUM': self._convert_reduce_sum,
+            'TAN': self.convert_tan,
+            'TANH':self.convert_tanh,
+            'TILE': self.convert_tile,
+            'TRANSPOSE_CONV': self.convert_transpose_conv,
+            'TRANSPOSE': self.convert_transpose,
+            'UNPACK': self.convert_unpack,
+            'ZEROS_LIKE': self.convert_zeros_like,
         }
 
     def check_unsupported_ops(self):
@@ -455,6 +457,43 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_lrn(self, op):
+        """Convert TFLite LOCAL_RESPONSE_NORMALIZATION """
+        try:
+            from tflite.Operator import Operator
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized LRN operator is not supported yet.')
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.LocalResponseNormalizationOptions
+        op_options = op.BuiltinOptions()
+        lrn_options = LocalResponseNormalizationOptions()
+        lrn_options.Init(op_options.Bytes, op_options.Pos)
+        radius = lrn_options.Radius()
+        bias = lrn_options.Bias()
+        alpha = lrn_options.Alpha()
+        beta = lrn_options.Beta()
+        size = (radius * 2) + 1
+        alpha = alpha * size
+        axis = 3 # NHWC format
+        out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+
+        return out
+
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
         try:
@@ -692,6 +731,29 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NEG operator is not supported yet.')
         return self._convert_unary_elemwise(_op.negative, op)
+
+    def convert_elu(self, op):
+        """Convert TFLite ELU"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        assert isinstance(op, Operator)
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ELU operator is not supported yet.')
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        exp_type = self.get_tensor_type_str(input_tensor.tensor.Type())
+        out = relay.const(-1.0, exp_type) * \
+              _op.nn.relu(relay.const(1., exp_type) - _op.exp(in_expr)) + \
+              _op.nn.relu(in_expr)
+
+        return out
 
     def convert_square(self, op):
         """Convert TFLite SQUARE"""

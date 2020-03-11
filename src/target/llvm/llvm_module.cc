@@ -296,7 +296,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << layout.getStringRepresentation() << ")";
     ee_ = builder.create(tm.release());
     CHECK(ee_ != nullptr)
-        << "Failed to initialize git engine for " << mptr_->getTargetTriple();
+        << "Failed to initialize jit engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
     // setup context address.
     entry_func_ =

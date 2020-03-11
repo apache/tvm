@@ -27,6 +27,8 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
+
 /**
  * \brief Initialize CMA api (basically perform open() syscall).
  *

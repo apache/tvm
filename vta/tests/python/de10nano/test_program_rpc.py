@@ -14,26 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os.path as osp
-import numpy as np
+import sys, os
 import tvm
-from tvm import te
+from tvm import rpc
+from vta import get_bitstream_path, download_bitstream, program_fpga, reconfig_runtime
 
-CWD = osp.abspath(osp.dirname(__file__))
+host = os.environ.get("VTA_RPC_HOST", "de10nano")
+port = int(os.environ.get("VTA_RPC_PORT", "9091"))
 
+def program_rpc_bitstream(path=None):
+    """Program the FPGA on the RPC server
 
-def main():
-    ctx = tvm.context('cpu', 0)
-    model = tvm.runtime.load_module(osp.join(CWD, 'build', 'enclave.signed.so'))
-    inp = tvm.nd.array(np.ones((1, 3, 224, 224), dtype='float32'), ctx)
-    out = tvm.nd.array(np.empty((1, 1000), dtype='float32'), ctx)
-    model(inp, out)
-    if abs(out.asnumpy().sum() - 1) < 0.001:
-        print('It works!')
-    else:
-        print('It doesn\'t work!')
-        exit(1)
+    Parameters
+    ----------
+    path : path to bitstream (optional)
+    """
+    assert tvm.runtime.enabled("rpc")
+    remote = rpc.connect(host, port)
+    program_fpga(remote, path)
 
+def reconfig_rpc_runtime():
+    """Reconfig the RPC server runtime
+    """
+    assert tvm.runtime.enabled("rpc")
+    remote = rpc.connect(host, port)
+    reconfig_runtime(remote)
 
-if __name__ == '__main__':
-    main()
+bitstream = sys.argv[1] if len(sys.argv) == 2 else None
+program_rpc_bitstream(bitstream)
+reconfig_rpc_runtime()
