@@ -19,13 +19,11 @@
 
 /*!
  *
- * \file gradient_node.cc
+ * \file gradient_cell.cc
  *
  * \brief Convert all tensors to a Gradient Cell
- *
- * The algorithm is implemented by two visitor:
- * CalcDep turn an expr into a dependency graph of expr,
- * GenLet turn the dependency graph into a let list, taking only the used value.
+ * 
+ * This algorithm is implemented by one visitor
  */
 
 #include <tvm/relay/analysis.h>
@@ -47,7 +45,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
       GlobalTypeVar gradCellType = module_->GetGlobalTypeVar("GradCell");
       Constructor toGradCell = Constructor("Raw", {op->checked_type()}, gradCellType);
 
-      return CallNode::make(toGradCell, {GetRef<Constant>(op)});
+      return CallNode::make(toGradCell, {GetRef<Constant>(op)}, Attrs(), {op->checked_type()});
     }
 
     Expr VisitExpr_(const CallNode* call_node) final {
@@ -68,7 +66,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
           for (Expr expr: call_node->args) {
             args.push_back(VisitExpr(expr));
           }
-          return CallNode::make(addFunc, args);
+          return CallNode::make(addFunc, args, Attrs(), {paramType});
         } else if (op->name.compare("multiply") == 0 && call_node->args.size() == 2 && 
             AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
           const auto multFunc = module_->GetGlobalVar("MultiplyGradCell");
@@ -85,7 +83,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
           for (Expr expr: call_node->args) {
             args.push_back(VisitExpr(expr));
           }
-          return CallNode::make(multFunc, args);
+          return CallNode::make(multFunc, args, Attrs(), {paramType});
         }
 
         const auto fromFunc = module_->GetGlobalVar("FromGradCell");
@@ -100,10 +98,10 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
 
         Constructor toGradCell = Constructor("Raw", {call_node->checked_type()}, gradCellType);
         
-        return CallNode::make(toGradCell, {tensorRes});
+        return CallNode::make(toGradCell, {tensorRes}, Attrs(), {call_node->checked_type()});
       }
 
-      return GetRef<Call>(call_node);
+      return ExprMutator::VisitExpr_(call_node);
     }
 
     Type VisitType(const Type& t) final {
@@ -121,6 +119,8 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   private:
     // Module
     IRModule module_;
+
+
 };
 
 Expr GradientCell(const Expr& e, IRModule mod) {
