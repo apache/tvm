@@ -91,6 +91,20 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.popcount")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tan")
+.set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+  PrimExpr e = targs[0];
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  CHECK(call != nullptr);
+  const PrimExpr& x = call->args[0];
+  PrimExpr sin_x = tir::CallNode::make(
+      x.dtype(), "sin", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr cos_x = tir::CallNode::make(
+      x.dtype(), "cos", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr tan_x = sin_x / cos_x;
+  *rv = tan_x;
+});
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.cos")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 

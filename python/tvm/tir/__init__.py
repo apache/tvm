@@ -33,7 +33,7 @@ from .stmt import IfThenElse, Evaluate, Prefetch, LoweredFunc, stmt_seq, stmt_li
 
 from .op import call_packed, call_pure_intrin, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, all, any, min_value, max_value, trace
-from .op import exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil
+from .op import exp, erf, tanh, sigmoid, log, tan, cos, sin, atan, sqrt, rsqrt, floor, ceil
 from .op import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
