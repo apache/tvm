@@ -491,13 +491,12 @@ inline PrimExpr end_index(const Var& out_index,
 }
 
 /*!
-* \brief Perform adaptive pooling on height and width dimension of data.
+* \brief Perform adaptive pooling on N dimensional data
 *
 * \param x The input tensor
-* \param output_size Vector of two ints: {output_height, output_width}
+* \param output_size int vector of size in each dimension
 * \param pool_type The type of pooling operator
-* \param height_axis index of the height dimension
-* \param width_axis index of the width dimension
+* \param axes indices of each dimension
 *
 * \return The output tensor in same layout order
 */
@@ -505,25 +504,16 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
                                  const Array<PrimExpr>& output_size,
                                  PoolType pool_type,
 				 const std::vector<int>& axes){
-  CHECK_EQ(output_size.size(), axes.size()) << "Pooling kernel_size must have 2 elements";
-  auto height_axis = axes[0];
-  auto width_axis = axes[1];
-
   const auto n_dim = output_size.size();
-  auto height = x->shape[height_axis];
-  auto width = x->shape[width_axis];
+  CHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
 
+  Array<PrimExpr> out_shape = x->shape;
   Array<PrimExpr> in_size, out_size;
   for (size_t i = 0; i < n_dim; ++i) {
     in_size.push_back(x->shape[axes[i]]);
     out_size.push_back(cast(DataType::Int(32), output_size[i]));
+    out_shape.Set(axes[i], out_size[i]);
   }
-
-  auto out_height = cast(DataType::Int(32), output_size[0]);
-  auto out_width = cast(DataType::Int(32), output_size[1]);
-  Array<PrimExpr> out_shape = x->shape;
-  out_shape.Set(height_axis, out_height);
-  out_shape.Set(width_axis, out_width);
 
   auto get_iter_vars = [=](const Array<Var>& output, bool reduce_indices) {
     Array<PrimExpr> indices;
@@ -609,6 +599,24 @@ inline Tensor adaptive_pool(const Tensor& x,
   CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
   return adaptive_pool_impl(x, output_size, pool_type, {height_axis, width_axis});
+}
+
+/*!
+* \brief Adaptively perform pooling on three dimensional data.
+*        See the two dimensional version above for details.
+* \param x The input tensor
+* \param output_size Vector of three ints: {output_depth, output_height, output_width}
+* \param pool_type The type of pooling operator
+* \param layout The input layout. The default is "NCDHW".
+*/
+inline Tensor adaptive_pool3d(const Tensor& x,
+                              const Array<PrimExpr>& output_size,
+                              PoolType pool_type,
+                              const std::string& layout = "NCDHW") {
+  int depth_axis = -1, height_axis = -1, width_axis = -1;
+  CHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
+    << "Unsupported layout " << layout;
+  return adaptive_pool_impl(x, output_size, pool_type, {depth_axis, height_axis, width_axis});
 }
 
 /*!
