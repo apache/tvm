@@ -183,15 +183,35 @@ def _conv2d_legalize(attrs, inputs, arg_types):
     data_layout = attrs['data_layout']
     kernel_layout = attrs['kernel_layout']
 
+    # Pad input and output channels to use int8 schedule.
     if data_dtype in ['int8', 'uint8']:
         if data_layout == 'NCHW' and kernel_layout == "OIHW":
+            oc_modified = False
             in_channel = data_tensor.shape[1].value
+            out_channel = kernel_tensor.shape[0].value
+
+            # Pad input channel
             if in_channel % 4 != 0:
                 new_in_channel = ((in_channel + 4) // 4) * 4
                 diff = new_in_channel - in_channel
                 pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
                 data = relay.nn.pad(data, pad_width=pad_width)
                 kernel = relay.nn.pad(kernel, pad_width=pad_width)
+
+            # Pad output channel
+            new_out_channel = out_channel
+            if out_channel % 4 != 0:
+                new_out_channel = ((out_channel + 4) // 4) * 4
+                diff = new_out_channel - out_channel
+                kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+                oc_modified = True
+
+            if oc_modified:
+                new_attrs['channels'] = new_out_channel
+                out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
+                original_out_shape = [x.value for x in output_tensor.shape]
+                out = relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+            else:
                 out = relay.nn.conv2d(data, kernel, **new_attrs)
-                return out
+            return out
     return None

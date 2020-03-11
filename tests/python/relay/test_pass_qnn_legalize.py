@@ -177,6 +177,13 @@ def test_qnn_legalize_qnn_conv2d():
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
 
+    ###########################################
+    # Check transformations for CUDA platforms.
+    ###########################################
+    with tvm.target.create('cuda'):
+        legalized_mod = relay.qnn.transform.Legalize()(mod)
+        assert 'cast' in legalized_mod.astext() and "qnn" in legalized_mod.astext()
+
 
 def test_qnn_legalize_qnn_dense():
     def _get_mod(data_dtype, kernel_dtype):
@@ -256,6 +263,13 @@ def test_qnn_legalize_qnn_dense():
     with tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu'):
         legalized_mod = relay.qnn.transform.Legalize()(mod)
         assert 'cast' in legalized_mod.astext() and "qnn" not in legalized_mod.astext()
+
+    ###########################################
+    # Check transformations for CUDA platforms.
+    ###########################################
+    with tvm.target.create('cuda'):
+        legalized_mod = relay.qnn.transform.Legalize()(mod)
+        assert 'cast' in legalized_mod.astext() and "qnn" in legalized_mod.astext()
 
 
 if __name__ == "__main__":

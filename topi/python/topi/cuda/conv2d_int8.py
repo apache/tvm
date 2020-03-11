@@ -30,6 +30,7 @@ from ..util import get_const_tuple, traverse_inline
 
 
 def conv2d_nchw_int8(data, kernel, strides, padding, dilation, out_dtype='int32'):
+    """Compute conv2d internally using conv2d_nchwc layout for int8 dtype"""
     assert data.dtype in ('int8', 'uint8')
     assert kernel.dtype in ('int8', 'uint8')
     assert data.dtype == kernel.dtype
