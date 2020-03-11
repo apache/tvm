@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file vta_runtime.cc
+ * \file runtime.cc
  * \brief Generic VTA runtime in C++11.
  *
  *  The runtime depends on specific instruction
@@ -35,7 +35,7 @@
 #include <vector>
 #include <memory>
 
-#include "vta_runtime.h"
+#include "runtime.h"
 
 namespace vta {
 

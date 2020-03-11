@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file vta_device_api.cc
+ * \file device_api.cc
  * \brief TVM device API for VTA
  */
 
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
 
-#include "vta_runtime.h"
+#include "runtime.h"
 #include "../workspace_pool.h"
 
 
