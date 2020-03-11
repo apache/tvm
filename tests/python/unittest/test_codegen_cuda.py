@@ -321,6 +321,33 @@ def test_cuda_reduction():
     check_cuda("float32")
     check_cuda("float16")
 
+def test_cuda_floordiv_with_vectorization():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    with tvm.target.cuda():
+        # B[i] = A[floordiv(i, k)]
+        n = 256
+        k = 37
+        A = te.placeholder((n,), name='A')
+        B = te.compute((n,), lambda i: A[tvm.tir.floordiv(i, k)], name='B')
+        s = te.create_schedule(B.op)
+        xo, xi = s[B].split(B.op.axis[0], nparts=1)
+        xio, xii = s[B].split(xi, factor=4)
+        s[B].vectorize(xii)
+        s[B].bind(xo, bx)
+        s[B].bind(xio, tx)
+        func = tvm.build(s, [A, B], 'cuda')
+
+        ctx = tvm.gpu(0)
+        a_np = np.random.uniform(size=(n,)).astype(A.dtype)
+        b_np = np.array([a_np[i//k] for i in range(0, n)])
+        a_nd = tvm.nd.array(a_np, ctx)
+        b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), ctx)
+        func(a_nd, b_nd)
+        tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
@@ -332,3 +359,4 @@ if __name__ == "__main__":
     test_rfactor_predicates()
     test_cuda_const_float_to_half()
     test_cuda_reduction()
+    test_cuda_floordiv_with_vectorization()
