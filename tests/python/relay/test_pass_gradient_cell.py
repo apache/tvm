@@ -17,13 +17,9 @@
 import numpy as np
 
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import rand, run_infer_type, check_grad
-from tvm.relay.analysis import assert_alpha_equal
-from tvm.relay.op import add, multiply
-from tvm.relay.prelude import Prelude, TensorArrayOps
+from tvm.relay.testing import rand, run_infer_type
 from tvm.testing import assert_allclose
 import pytest
 

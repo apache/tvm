@@ -23,7 +23,16 @@
  *
  * \brief Convert all tensors to a Gradient Cell
  * 
- * This algorithm is implemented by one visitor
+ * This pass delays or removes memory allocation by converting tensors into 
+ * GradCell, an algebraic data type defined in gradient.rly
+ * 
+ * This will delay or decrease memory usage. All calls to
+ * ones, ones_like, zeros, zeros_like will call the One or Zero constructor
+ * of GradCell, which will not instantiate in memory until needed. All other cases result
+ * in using the Raw constructor which means the tensor is instantiated in memory.
+ * 
+ * It also overloads + and * operation which can increase performance when doing
+ * operations involving zero-filled or one-filled tensors.
  */
 
 #include <tvm/relay/analysis.h>
@@ -49,6 +58,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
       if (auto* op = (call_node->op).as<OpNode>()) {
         if (op->name.compare("add") == 0 && call_node->args.size() == 2 &&
             AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
+          // case: "add" between two tensors of the same size
           const auto addFunc = module_->GetGlobalVar("AddGradCell");
           tvm::Array<Expr> args;
 
@@ -66,6 +76,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
           return CallNode::make(addFunc, args, Attrs(), {paramType});
         } else if (op->name.compare("multiply") == 0 && call_node->args.size() == 2 &&
             AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
+          // case: "multiply" between two tensors of the same size
           const auto multFunc = module_->GetGlobalVar("MultiplyGradCell");
           tvm::Array<Expr> args;
 
@@ -125,9 +136,8 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   private:
     // Module
     IRModule module_;
-    // Constructors of gradCell datatype
-    std::unordered_map<std::string, Constructor> gradCellConstructors;
 
+    // get constructor of GradCell with name 
     Constructor getGradCellConstructor(std::string name_hint) {
       TypeData gradCell = module_->LookupTypeDef("GradCell");
       for (Constructor c: gradCell->constructors) {
