@@ -18,17 +18,17 @@
 # CMake Build rules for VTA
 find_program(PYTHON NAMES python python3 python3.6)
 
-# VTA hw sources directory
-set(VTA_HW_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/vta-hw)
+# VTA sources directory
+set(VTA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/vta-hw)
 
 if(MSVC)
   message(STATUS "VTA build is skipped in Windows..")
 elseif(PYTHON)
-  set(VTA_CONFIG ${PYTHON} ${VTA_HW_DIR}/config/vta_config.py)
+  set(VTA_CONFIG ${PYTHON} ${VTA_DIR}/config/vta_config.py)
 
   if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
     message(STATUS "Use VTA config " ${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
-    set(VTA_CONFIG ${PYTHON} ${VTA_HW_DIR}/config/vta_config.py
+    set(VTA_CONFIG ${PYTHON} ${VTA_DIR}/config/vta_config.py
       --use-cfg=${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
   endif()
 
@@ -43,20 +43,18 @@ elseif(PYTHON)
   # Fast simulator driver build
   if(USE_VTA_FSIM)
     # Add fsim driver sources
-    file(GLOB FSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/*.cc)
+    file(GLOB FSIM_RUNTIME_SRCS ${VTA_DIR}/src/*.cc)
     file(GLOB FSIM_RUNTIME_SRCS src/runtime/vta/*.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/sim/sim_driver.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/sim/sim_tlpp.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/vmem/virtual_memory.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/vmem/virtual_memory.h)
+    list(APPEND FSIM_RUNTIME_SRCS ${VTA_DIR}/src/sim/sim_driver.cc)
+    list(APPEND FSIM_RUNTIME_SRCS ${VTA_DIR}/src/sim/sim_tlpp.cc)
+    list(APPEND FSIM_RUNTIME_SRCS ${VTA_DIR}/src/vmem/virtual_memory.cc)
     # Target lib: vta_fsim
     add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
-    target_include_directories(vta_fsim PUBLIC vta/include)
+    target_include_directories(vta_fsim PUBLIC ${VTA_DIR}/include)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_fsim PUBLIC ${__strip_def})
     endforeach()
-    include_directories("vta/include")
     if(APPLE)
       set_target_properties(vta_fsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
     endif(APPLE)
@@ -66,20 +64,18 @@ elseif(PYTHON)
   # Cycle accurate simulator driver build
   if(USE_VTA_TSIM)
     # Add tsim driver sources
-    file(GLOB TSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/*.cc)
-    file(GLOB FSIM_RUNTIME_SRCS src/runtime/vta/*.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/tsim/tsim_driver.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/dpi/module.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/vmem/virtual_memory.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_HW_DIR}/src/vmem/virtual_memory.h)
+    file(GLOB TSIM_RUNTIME_SRCS ${VTA_DIR}/src/*.cc)
+    file(GLOB TSIM_RUNTIME_SRCS src/runtime/vta/*.cc)
+    list(APPEND TSIM_RUNTIME_SRCS ${VTA_DIR}/src/tsim/tsim_driver.cc)
+    list(APPEND TSIM_RUNTIME_SRCS ${VTA_DIR}/src/dpi/module.cc)
+    list(APPEND TSIM_RUNTIME_SRCS ${VTA_DIR}/src/vmem/virtual_memory.cc)
     # Target lib: vta_tsim
     add_library(vta_tsim SHARED ${TSIM_RUNTIME_SRCS})
-    target_include_directories(vta_tsim PUBLIC ${VTA_HW_DIR}/include)
+    target_include_directories(vta_tsim PUBLIC ${VTA_DIR}/include)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_tsim PUBLIC ${__strip_def})
     endforeach()
-    include_directories("${VTA_HW_DIR}/include")
     if(APPLE)
       set_target_properties(vta_tsim PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
     endif(APPLE)
