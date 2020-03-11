@@ -367,14 +367,14 @@ TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
   auto tm = GetLLVMTargetMachine(target);
   auto ctx = std::make_shared<llvm::LLVMContext>();
   std::unique_ptr<llvm::Module> module(new llvm::Module(module_name, *ctx));
-  
+
   // Use a default data layout and target triple
   auto triple = tm->getTargetTriple();
   module->setTargetTriple(triple.str());
   module->setDataLayout(tm->createDataLayout());
 
   n->Init(std::move(module), ctx);
- 
+
   *rv = runtime::Module(n);
 });
 
