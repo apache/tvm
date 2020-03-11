@@ -77,17 +77,6 @@ def _dimension_constraint():
         return False
     return _dim_check, "Only 2d or 3d kernel supported."
 
-# Build count_used to record params have been converted to attrs
-used_params = {}
-def count_used(func):
-    def wrapper(*args):
-        if not isinstance(args[-1], _expr.Constant):
-            used_params[args[-1].name_hint] = 1
-        return func(*args)
-    return wrapper
-
-# Using built count_used at each call to _get_param
-@count_used
 def _get_param(params, input_node):
     if isinstance(input_node, _expr.Constant):
         return np.atleast_1d(input_node.data.asnumpy())
@@ -2386,9 +2375,6 @@ class GraphProto(object):
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(analysis.free_vars(out), out)
         self._mod["main"] = func
-        #If the params have been converted to attrs then delete them
-        for param in used_params:
-            del self._params[param]
         return self._mod, self._params
 
     def _parse_import_prerequisites(self, graph):
