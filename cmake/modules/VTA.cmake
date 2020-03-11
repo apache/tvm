@@ -19,7 +19,7 @@
 find_program(PYTHON NAMES python python3 python3.6)
 
 # VTA sources directory
-set(VTA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/vta-hw)
+set(VTA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vta/vta-hw)
 
 if(MSVC)
   message(STATUS "VTA build is skipped in Windows..")

@@ -19,7 +19,7 @@ cmake_minimum_required(VERSION 3.2)
 project(tsim C CXX)
 
 set(TVM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../)
-set(VTA_HW_DIR ${TVM_DIR}/3rdparty/vta-hw)
+set(VTA_HW_DIR ${TVM_DIR}/vta/vta-hw)
 
 include_directories("${TVM_DIR}/include")
 include_directories("${TVM_DIR}/3rdparty/dlpack/include")

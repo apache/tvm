@@ -109,7 +109,7 @@ def main():
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
     path_list = [
-        os.path.join(proj_root, "3rdparty/vta-hw/config/vta_config.json")
+        os.path.join(proj_root, "vta/vta-hw/config/vta_config.json")
     ]
     if args.use_cfg:
         path_list = [args.use_cfg]
