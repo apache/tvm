@@ -67,7 +67,7 @@ if {$make_assignments} {
   set_global_assignment -name VERILOG_FILE ${PROJECT_NAME}.v
   set_global_assignment -name SIGNALTAP_FILE ${PROJECT_NAME}.stp
   set_global_assignment -name USE_SIGNALTAP_FILE ${PROJECT_NAME}.stp
-    
+
   set_location_assignment PIN_V11 -to FPGA_CLK1_50
   set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
   set_location_assignment PIN_Y13 -to FPGA_CLK2_50
@@ -91,7 +91,7 @@ if {$make_assignments} {
   set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[6]
   set_location_assignment PIN_AA23 -to LED[7]
   set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[7]
-    
+
   for {set i 0} {$i < 32} {incr i} {
     set_instance_assignment -name IO_STANDARD "SSTL-15 CLASS I" -to HPS_DDR3_DQ[$i]
     set_instance_assignment -name INPUT_TERMINATION "PARALLEL 50 OHM WITH CALIBRATION" -to HPS_DDR3_DQ[$i] -tag __hps_sdram_p0
@@ -161,13 +161,13 @@ if {$make_assignments} {
   set_instance_assignment -name PACKAGE_SKEW_COMPENSATION OFF -to HPS_DDR3_RESET_N -tag __hps_sdram_p0
   set_instance_assignment -name PACKAGE_SKEW_COMPENSATION OFF -to HPS_DDR3_CK_P -tag __hps_sdram_p0
   set_instance_assignment -name PACKAGE_SKEW_COMPENSATION OFF -to HPS_DDR3_CK_N -tag __hps_sdram_p0
-    
+
   set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
 
   # Commit assignments
   export_assignments
-    
-  load_package flow 
+
+  load_package flow
   execute_flow -compile
 
   # Close project

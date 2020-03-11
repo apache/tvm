@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
+
 package unittest
 // taken from https://github.com/freechipsproject/chisel-testers
 
@@ -36,7 +36,7 @@ class TestConfig extends Config(new CoreConfig ++ new PynqConfig)
  *
  * How to Use:
  * When the user input: sbt 'test:runMain unittest.Launcher mvm'
- * the TestRunner will look for 'mvm' in the map and executes the 
+ * the TestRunner will look for 'mvm' in the map and executes the
  * test that 'mvm' is mapped to
  */
 object Launcher {
@@ -50,8 +50,8 @@ object Launcher {
 		"alu" -> { (manager: TesterOptionsManager) =>
       Driver.execute(() => new AluVector, manager) {
         (c) => new TestAluVector(c)
-      }   
-    } 
+      }
+    }
   )
 
   def main(args: Array[String]): Unit = {

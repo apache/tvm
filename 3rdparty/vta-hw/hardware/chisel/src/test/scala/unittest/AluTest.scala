@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
+
 package unittest
 
 import chisel3._
@@ -27,7 +27,7 @@ import unittest.util._
 import vta.core._
 
 class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
-    
+
   /* alu_ref
    *
    * This is a software function used as a reference for the hardware
@@ -36,11 +36,11 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
     val size = a.length
     val mask = helper.getMask(log2Ceil(width))
     val res = Array.fill(size) {0}
-    
+
     if (opcode == 1) {
       for (i <- 0 until size) {
         res(i) = if (a(i) < b(i)) b(i) else a(i)
-      } 
+      }
     } else if (opcode == 2) {
       for (i <- 0 until size) {
         res(i) = a(i) + b(i)
@@ -62,7 +62,7 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
       }
     }
     return res
-  } 
+  }
 
   val num_ops = ALU_OP_NUM
   for (i <- 0 until num_ops) {
@@ -73,18 +73,18 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
     val in_a = dataGen.any
     val in_b = if (op != 4) dataGen.any else dataGen.negative
     val mask = helper.getMask(bits)
-    val res = aluRef(op, in_a, in_b, bits)  
-    
+    val res = aluRef(op, in_a, in_b, bits)
+
     for (i <- 0 until c.blockOut) {
       poke(c.io.acc_a.data.bits(0)(i), in_a(i) & mask)
       poke(c.io.acc_b.data.bits(0)(i), in_b(i) & mask)
     }
-    poke(c.io.opcode, op) 
+    poke(c.io.opcode, op)
 
     poke(c.io.acc_a.data.valid, 1)
     poke(c.io.acc_b.data.valid, 1)
     poke(c.io.acc_y.data.valid, 1)
-      
+
     step(1)
 
     poke(c.io.acc_a.data.valid, 0)
@@ -94,11 +94,11 @@ class TestAluVector(c: AluVector) extends PeekPokeTester(c) {
     // wait for valid signal
     while (peek(c.io.acc_y.data.valid) == BigInt(0)) {
       step(1) // advance clock
-    } 
+    }
     if (peek(c.io.acc_y.data.valid) == BigInt(1)) {
       for (i <- 0 until c.blockOut) {
           expect(c.io.acc_y.data.bits(0)(i), res(i) & mask)
       }
     }
-  } 
+  }
 }

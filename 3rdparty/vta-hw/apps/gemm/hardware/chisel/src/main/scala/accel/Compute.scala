@@ -89,7 +89,7 @@ class Compute(implicit config: AccelConfig) extends Module {
     is (sReadAData) {
       when (io.mem.rd.valid) {
         state := sReadADone
-      }   
+      }
     }
     is (sReadADone) {
       when (cntwgt === (length * length) - 1.U) {
@@ -180,8 +180,8 @@ class Compute(implicit config: AccelConfig) extends Module {
   }
 
   io.mem.rd.ready := state === sReadAData | state === sReadBData
-  mvc.io.inp.data.valid := state === sInpDone // 2 inputs have been processed 
-  mvc.io.wgt.data.valid := state === sInpDone // 2 inputs have been processed 
+  mvc.io.inp.data.valid := state === sInpDone // 2 inputs have been processed
+  mvc.io.wgt.data.valid := state === sInpDone // 2 inputs have been processed
 
   mvc.io.wgt.data.bits <> reg1
   mvc.io.inp.data.bits <> reg2
@@ -198,7 +198,7 @@ class Compute(implicit config: AccelConfig) extends Module {
   accum.io.valid := mvc.io.acc_o.data.valid
 
   // write
-  io.mem.wr.valid := state === sWriteData 
+  io.mem.wr.valid := state === sWriteData
   io.mem.wr.bits := accum.io.sum(cntout)
 
   // count read/write

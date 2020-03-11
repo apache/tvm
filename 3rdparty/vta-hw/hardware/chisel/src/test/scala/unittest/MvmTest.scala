@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
- 
+
 package unittest
 
 import chisel3._
@@ -27,7 +27,7 @@ import unittest.util._
 import vta.core._
 
 class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends PeekPokeTester(c) {
-    
+
   /* mvm_ref
    *
    * This is a software function that computes dot product with a programmable shift
@@ -53,11 +53,11 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     val wgtGen = new RandomArray(c.size, c.wgtBits)
     val in_a = inpGen.any
     val in_b = Array.fill(c.size) { wgtGen.any }
-    val res = mvmRef(in_a, in_b, 0)  
+    val res = mvmRef(in_a, in_b, 0)
     val inpMask = helper.getMask(c.inpBits)
     val wgtMask = helper.getMask(c.wgtBits)
     val accMask = helper.getMask(c.accBits)
-    
+
     for (i <- 0 until c.size) {
       poke(c.io.inp.data.bits(0)(i), in_a(i) & inpMask)
       poke(c.io.acc_i.data.bits(0)(i), 0)
@@ -65,13 +65,13 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
         poke(c.io.wgt.data.bits(i)(j), in_b(i)(j) & wgtMask)
       }
     }
-    
+
     poke(c.io.reset, 0)
-    
+
     poke(c.io.inp.data.valid, 1)
     poke(c.io.wgt.data.valid, 1)
     poke(c.io.acc_i.data.valid, 1)
-      
+
     step(1)
 
     poke(c.io.inp.data.valid, 0)
@@ -81,7 +81,7 @@ class TestMatrixVectorMultiplication(c: MatrixVectorMultiplication) extends Peek
     // wait for valid signal
     while (peek(c.io.acc_o.data.valid) == BigInt(0)) {
       step(1) // advance clock
-    } 
+    }
     if (peek(c.io.acc_o.data.valid) == BigInt(1)) {
       for (i <- 0 until c.size) {
           expect(c.io.acc_o.data.bits(0)(i), res(i) & accMask)
