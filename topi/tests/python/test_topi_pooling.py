@@ -252,25 +252,12 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
         return int(np.ceil((index + 1) * idim / odim))
 
     np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
-    n, c, h, w = dshape
-    oh, ow = out_size
-    oshape = (n, c) + out_size
-    np_out = np.zeros(oshape).astype(dtype)
-    np_op = np.mean if pool_type == "avg" else np.max
-    for i in range(n):
-        for j in range(c):
-            for k in range(oh):
-                k_start = start_index(k, oh, h)
-                k_end = end_index(k, oh, h)
-                k_sl = slice(k_start, k_end)
-                for l in range(ow):
-                    l_start = start_index(l, ow, w)
-                    l_end = end_index(l, ow, w)
-                    l_sl = slice(l_start, l_end)
-                    np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
+    np_out = topi.testing.adaptive_pool(np_data, out_size, pool_type)
+    oshape = np_out.shape
 
     data = te.placeholder(dshape, name="data", dtype=dtype)
     out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
