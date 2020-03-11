@@ -45,7 +45,19 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.exp10")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.log")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.log2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.log10")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.tanh")
@@ -61,6 +73,18 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.popcount")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.fmod")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.sin")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.sinh")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.cos")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.cosh")
 .set_body(DispatchExtern<Direct>);
 
 // There is no warp shuffle instruction in standard OpenCL

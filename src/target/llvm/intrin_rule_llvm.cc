@@ -35,11 +35,34 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.prefetch")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp2")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp2, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp10")
+.set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+  using tir::make_const;
+  using tir::make_zero;
+  PrimExpr e = targs[0];
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  CHECK(call != nullptr);
+  const PrimExpr& x = call->args[0];
+  PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
+  PrimExpr ret = tir::CallNode::make(
+      x.dtype(), "exp", {x * ln10}, tir::CallNode::PureIntrinsic);
+  *rv = ret;
+});
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.fma")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 1>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log2")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log2, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.log10")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::log10, 1>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sqrt")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sqrt, 1>);
@@ -108,8 +131,44 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.tan")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.cos")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::cos, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.cosh")
+.set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+  using tir::make_const;
+  using tir::make_zero;
+  PrimExpr e = targs[0];
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  CHECK(call != nullptr);
+  const PrimExpr& x = call->args[0];
+  PrimExpr two = make_const(x.dtype(), 2);
+  PrimExpr neg_one = make_const(x.dtype(), -1);
+  PrimExpr exp_negx = tir::CallNode::make(
+      x.dtype(), "exp", {neg_one * x}, tir::CallNode::PureIntrinsic);
+  PrimExpr exp_posx = tir::CallNode::make(
+      x.dtype(), "exp", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr ret = (exp_posx + exp_negx) / two;
+  *rv = ret;
+});
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sin")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.sinh")
+.set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+  using tir::make_const;
+  using tir::make_zero;
+  PrimExpr e = targs[0];
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  CHECK(call != nullptr);
+  const PrimExpr& x = call->args[0];
+  PrimExpr two = make_const(x.dtype(), 2);
+  PrimExpr neg_one = make_const(x.dtype(), -1);
+  PrimExpr exp_negx = tir::CallNode::make(
+      x.dtype(), "exp", {neg_one * x}, tir::CallNode::PureIntrinsic);
+  PrimExpr exp_posx = tir::CallNode::make(
+      x.dtype(), "exp", {x}, tir::CallNode::PureIntrinsic);
+  PrimExpr ret = (exp_posx - exp_negx) / two;
+  *rv = ret;
+});
 
 }  // namespace llvm
 }  // namespace codegen

@@ -62,6 +62,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp2")
+.set_body(DispatchExternOCML);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp10")
+.set_body(DispatchExternOCML);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.erf")
 .set_body(DispatchExternOCML);
 
@@ -69,6 +75,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fma")
 .set_body(DispatchExternOCML);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log")
+.set_body(DispatchExternOCML);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log2")
+.set_body(DispatchExternOCML);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.log10")
 .set_body(DispatchExternOCML);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sqrt")
@@ -86,7 +98,13 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.tan")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cos")
 .set_body(DispatchExternOCML);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.cosh")
+.set_body(DispatchExternOCML);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sin")
+.set_body(DispatchExternOCML);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.sinh")
 .set_body(DispatchExternOCML);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.atan")
