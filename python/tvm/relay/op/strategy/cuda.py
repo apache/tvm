@@ -86,7 +86,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
     if groups == 1:
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
-            if data.dtype in ('int8', 'uint8') and kernel.dtype in ('int8', 'uint8'): 
+            if data.dtype in ('int8', 'uint8') and kernel.dtype in ('int8', 'uint8'):
                 assert data.dtype == kernel.dtype
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw_int8),
