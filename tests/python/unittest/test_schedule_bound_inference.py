@@ -70,6 +70,32 @@ def test_bound3():
     assert(bounds[A1.op.axis[0]].extent.value==32)
     assert(bounds[A1.op.axis[1]].extent.value==16)
 
+def test_bound_split_ext_less_than_factor():
+    m = 8
+    I = te.placeholder((m,), name='I')
+    EF = te.compute((m,), lambda i: I[i] * 2, name = "EF")
+    E = te.compute((m,), lambda i: EF[i] * 2, name = "E")
+    s = te.create_schedule([E.op])
+    xo, xi = s[E].split(s[E].op.axis[0], factor = 32)
+    s[EF].compute_at(s[E], xo)
+
+    bounds = tvm.te.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert bounds[xi].extent.value == m
+
+def test_bound_split_ext_less_than_naprts():
+    m = 8
+    I = te.placeholder((m,), name='I')
+    EF = te.compute((m,), lambda i: I[i] * 2, name = "EF")
+    E = te.compute((m,), lambda i: EF[i] * 2, name = "E")
+    s = te.create_schedule([E.op])
+    xo, xi = s[E].split(s[E].op.axis[0], nparts = 32)
+    s[EF].compute_at(s[E], xo)
+
+    bounds = tvm.te.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert bounds[xo].extent.value == m
+
 def test_bound_split_divisible():
     m = te.var('m')
     l = te.var('l')
