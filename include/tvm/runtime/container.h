@@ -28,7 +28,37 @@
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 
+#include <cstring>
 #include <initializer_list>
+#include <string>
+// We use c++14 std::experimental::string_view for optimizing hash computation
+// only right now, its usage is limited in this file. Any broader usage of
+// std::experiment in our core codebase is discouraged and needs community
+// discussion for each use case. Reference for feature test macros of
+// string_view:
+// https://isocpp.org/std/standing-documents/sd-6-sg10-feature-test-recommendations
+// https://en.cppreference.com/w/User:D41D8CD98F/feature_testing_macros
+#if defined(__cpp_lib_experimental_string_view) && \
+    __cpp_lib_experimental_string_view >= 201411
+#define TVM_USE_CXX14_STRING_VIEW_HASH 1
+#else
+#define TVM_USE_CXX14_STRING_VIEW_HASH 0
+#endif
+
+// Tested with clang version 9.0.1 and c++17. It will detect string_view support
+// correctly.
+#if defined(__cpp_lib_string_view) && __cpp_lib_string_view >= 201606
+#define TVM_USE_CXX17_STRING_VIEW_HASH 1
+#else
+#define TVM_USE_CXX17_STRING_VIEW_HASH 0
+#endif
+
+#if TVM_USE_CXX17_STRING_VIEW_HASH
+#include <string_view>
+#elif TVM_USE_CXX14_STRING_VIEW_HASH
+#include <experimental/string_view>
+#endif
+
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -274,7 +304,285 @@ class ADT : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(ADT, ObjectRef, ADTObj);
 };
 
+/*! \brief An object representing string. It's POD type. */
+class StringObj : public Object {
+ public:
+  /*! \brief The pointer to string data. */
+  const char* data;
+
+  /*! \brief The length of the string object. */
+  uint64_t size;
+
+  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const char* _type_key = "runtime.String";
+  TVM_DECLARE_FINAL_OBJECT_INFO(StringObj, Object);
+
+ private:
+  /*! \brief String object which is moved from std::string container. */
+  class FromStd;
+
+  friend class String;
+};
+
+/*!
+ * \brief Reference to string objects.
+ *
+ * \code
+ *
+ * // Example to create runtime String reference object from std::string
+ * std::string s = "hello world";
+ *
+ * // You can create the reference from existing std::string
+ * String ref{std::move(s)};
+ *
+ * // You can rebind the reference to another string.
+ * ref = std::string{"hello world2"};
+ *
+ * // You can use the reference as hash map key
+ * std::unordered_map<String, int32_t> m;
+ * m[ref] = 1;
+ *
+ * // You can compare the reference object with other string objects
+ * assert(ref == "hello world", true);
+ *
+ * // You can convert the reference to std::string again
+ * string s2 = (string)ref;
+ *
+ * \endcode
+ */
+class String : public ObjectRef {
+ public:
+  /*!
+   * \brief Construct a new String object
+   *
+   * \param other The moved/copied std::string object
+   *
+   * \note If user passes const reference, it will trigger copy. If it's rvalue,
+   * it will be moved into other.
+   */
+  explicit String(std::string other);
+
+  /*!
+   * \brief Change the value the reference object points to.
+   *
+   * \param other The value for the new String
+   *
+   */
+  inline String operator=(std::string other);
+
+  /*!
+   * \brief Compare is equal to other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator==(const std::string& other) const {
+    return this->compare(other) == 0;
+  }
+
+  /*!
+   * \brief Compare is not equal to other std::string
+   *
+   * \param other The other string
+   *
+   * \return the comparison result
+   */
+  bool operator!=(const std::string& other) const { return !operator==(other); }
+
+  /*!
+   * \brief Compare is equal to other char string
+   *
+   * \param other The other char string
+   *
+   * \return the comparison result
+   */
+  bool operator==(const char* other) const { return compare(other) == 0; }
+
+  /*!
+   * \brief Compare is not equal to other char string
+   *
+   * \param other The other char string
+   *
+   * \return the comparison result
+   */
+  bool operator!=(const char* other) const { return !operator==(other); }
+
+  /*!
+   * \brief Compares this String object to other
+   *
+   * \param other The String to compare with.
+   *
+   * \return zero if both char sequences compare equal. negative if this appear
+   * before other, positive otherwise.
+   */
+  int compare(const String& other) const {
+    return memncmp(data(), other.data(), size(), other.size());
+  }
+
+  /*!
+   * \brief Compares this String object to other
+   *
+   * \param other The string to compare with.
+   *
+   * \return zero if both char sequences compare equal. negative if this appear
+   * before other, positive otherwise.
+   */
+  int compare(const std::string& other) const {
+    return memncmp(data(), other.data(), size(), other.size());
+  }
+
+  /*!
+   * \brief Compares this to other
+   *
+   * \param other The character array to compare with.
+   *
+   * \return zero if both char sequences compare equal. negative if this appear
+   * before other, positive otherwise.
+   */
+  int compare(const char* other) const {
+    return memncmp(data(), other, size(), std::strlen(other));
+  }
+
+  /*!
+   * \brief Returns a pointer to the char array in the string.
+   *
+   * \return const char*
+   */
+  const char* c_str() const { return get()->data; }
+
+  /*!
+   * \brief Return the length of the string
+   *
+   * \return size_t string length
+   */
+  size_t size() const {
+    const auto* ptr = get();
+    if (ptr == nullptr) {
+      return 0;
+    }
+    return ptr->size;
+  }
+
+  /*!
+   * \brief Return the length of the string
+   *
+   * \return size_t string length
+   */
+  size_t length() const { return size(); }
+
+  /*!
+   * \brief Retun if the string is empty
+   *
+   * \return true if empty, false otherwise.
+   */
+  bool empty() const { return size() == 0; }
+
+  /*!
+   * \brief Return the data pointer
+   *
+   * \return const char* data pointer
+   */
+  const char* data() const { return get()->data; }
+
+  /*!
+   * \brief Convert String to an std::sting object
+   *
+   * \return std::string
+   */
+  operator std::string() const { return std::string{get()->data, size()}; }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
+
+ private:
+  /*! \return the internal StringObj pointer */
+  const StringObj* get() const { return operator->(); }
+
+  /*!
+   * \brief Compare two char sequence
+   *
+   * \param lhs Pointers to the char array to compare
+   * \param rhs Pointers to the char array to compare
+   * \param lhs_count Length of the char array to compare
+   * \param rhs_count Length of the char array to compare
+   * \return int zero if both char sequences compare equal. negative if this
+   * appear before other, positive otherwise.
+   */
+  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count,
+                     size_t rhs_count);
+};
+
+/*! \brief An object representing string moved from std::string. */
+class StringObj::FromStd : public StringObj {
+ public:
+  /*!
+   * \brief Construct a new FromStd object
+   *
+   * \param other The moved/copied std::string object
+   *
+   * \note If user passes const reference, it will trigger copy. If it's rvalue,
+   * it will be moved into other.
+   */
+  explicit FromStd(std::string other) : data_container{other} {}
+
+ private:
+  /*! \brief Container that holds the memory. */
+  std::string data_container;
+
+  friend class String;
+};
+
+inline String::String(std::string other) {
+  auto ptr = make_object<StringObj::FromStd>(std::move(other));
+  ptr->size = ptr->data_container.size();
+  ptr->data = ptr->data_container.data();
+  data_ = std::move(ptr);
+}
+
+inline String String::operator=(std::string other) {
+  String replace{std::move(other)};
+  data_.swap(replace.data_);
+  return Downcast<String>(*this);
+}
+
+inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
+                           size_t rhs_count) {
+  if (lhs == rhs && lhs_count == rhs_count) return 0;
+
+  for (size_t i = 0; i < lhs_count && i < rhs_count; ++i) {
+    if (lhs[i] < rhs[i]) return -1;
+    if (lhs[i] > rhs[i]) return 1;
+  }
+  if (lhs_count < rhs_count) {
+    return -1;
+  } else if (lhs_count > rhs_count) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 }  // namespace runtime
 }  // namespace tvm
+
+namespace std {
+
+template <>
+struct hash<::tvm::runtime::String> {
+  std::size_t operator()(const ::tvm::runtime::String& str) const {
+    // This function falls back to string copy with c++11 compiler and is
+    // recommended to be compiled with c++14
+#if TVM_USE_CXX17_STRING_VIEW_HASH
+    return std::hash<std::string_view>{}(
+        std::string_view{str.data(), str.size()});
+#elif TVM_USE_CXX14_STRING_VIEW_HASH
+    return std::hash<std::experimental::string_view>{}(
+        std::experimental::string_view{str.data(), str.size()});
+#else
+    return std::hash<std::string>()(str.operator std::string());
+#endif
+  }
+};
+}  // namespace std
 
 #endif  // TVM_RUNTIME_CONTAINER_H_
