@@ -180,7 +180,7 @@ Pass GradientCell() {
 TVM_REGISTER_GLOBAL("relay._transform.GradientCell")
 .set_body_typed(GradientCell);
 
-} // namespace transform
+}  // namespace transform
 
-} // namespace relay
-} // namespace tvm
+}  // namespace relay
+}  // namespace tvm
