@@ -503,7 +503,7 @@ inline PrimExpr end_index(const Var& out_index,
 inline Tensor adaptive_pool_impl(const Tensor& x,
                                  const Array<PrimExpr>& output_size,
                                  PoolType pool_type,
-				 const std::vector<int>& axes){
+                                 const std::vector<int>& axes) {
   const auto n_dim = output_size.size();
   CHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
 
@@ -526,7 +526,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
       auto rv_axis = tvm::te::reduce_axis(Range(0, i_end - i_start), rv_name);
       reduce_axes.push_back(rv_axis);
       if (reduce_indices) {
-	indices.Set(axes[i], i_start + rv_axis);
+        indices.Set(axes[i], i_start + rv_axis);
       }
     }
     return std::make_tuple(indices, reduce_axes);
@@ -554,7 +554,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x,
 
       PrimExpr divide_factor = tvm::cast(x->dtype, 1);
       for (size_t i = 0; i < n_dim; ++i) {
-      	divide_factor *= tvm::cast(x->dtype, reduce_axes[i]->dom->extent);
+        divide_factor *= tvm::cast(x->dtype, reduce_axes[i]->dom->extent);
       }
 
       return div(pool_sum(indices), divide_factor);
