@@ -269,35 +269,120 @@ def test_partial_eval_after_multivar():
   x = relay.var("x", t)
   y = relay.var("y", t)
 
-  # func = relay.Function([x, y], (x * y) * relay.const(np.ones(shape, dtype)))
-  func = relay.Function([x, y], x + y)
+  func = relay.Function([x, y], x * y)
   func = run_infer_type(func)
   back_func = transform.gradient(func)
   back_func = run_infer_type(back_func)
 
   mod["main"] = back_func
 
-  mod = transform.GradientCell()(mod)
-  mod = transform.PartialEvaluate()(mod)
+  seq = transform.Sequential([
+    transform.GradientCell(),
+    transform.PartialEvaluate(),
+    transform.DeadCodeElimination()
+  ])
 
-  # seq = transform.Sequential([
-  #   transform.GradientCell(),
-  #   transform.PartialEvaluate(),
-  # ])
-  #
-  # mod = seq(mod)
+  mod = seq(mod)
 
   new_type = grad_cell_type(mod, shape, dtype)
-  # assert mod["main"].checked_type == relay.FuncType([new_type, new_type],
-  #                                                   relay.TupleType([new_type, relay.TupleType([new_type, new_type])]))
-  #
-  # ex = create_executor()
-  # x = rand(dtype, *shape)
-  # y = rand(dtype, *shape)
-  # (forward), (grad_x, grad_y,) = ex.evaluate(back_func)(x, y)
-  # assert_allclose(forward.asnumpy(), x.asnumpy() * y.asnumpy())
-  # assert_allclose(grad_x.asnumpy(), y.asnumpy())
-  # assert_allclose(grad_y.asnumpy(), x.asnumpy())
+  assert mod["main"].checked_type == relay.FuncType([new_type, new_type],
+                                                    relay.TupleType([new_type, relay.TupleType([new_type, new_type])]))
+
+  ex = create_executor()
+  x = rand(dtype, *shape)
+  y = rand(dtype, *shape)
+  (forward), (grad_x, grad_y,) = ex.evaluate(back_func)(x, y)
+  assert_allclose(forward.asnumpy(), x.asnumpy() * y.asnumpy())
+  assert_allclose(grad_x.asnumpy(), y.asnumpy())
+  assert_allclose(grad_y.asnumpy(), x.asnumpy())
+
+def test_zeros():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (10, 10)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  x = relay.var("x", t)
+  y = relay.Function([x], x + relay.zeros(shape, dtype))
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type], new_type)
+
+  ex = create_executor()
+  x = rand(dtype, *shape)
+  y = ex.evaluate(y)(x)
+  assert_allclose(y.asnumpy(), x.asnumpy())
+
+def test_ones():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (10, 10)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  x = relay.var("x", t)
+  y = relay.Function([x], x + relay.ones(shape, dtype))
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type], new_type)
+
+  ex = create_executor()
+  x = rand(dtype, *shape)
+  y = ex.evaluate(y)(x)
+  assert_allclose(y.asnumpy(), x.asnumpy() + np.ones_like(x.asnumpy()))
+
+def test_zeros():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (10, 10)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  x = relay.var("x", t)
+  y = relay.Function([x], x + relay.zeros_like(x))
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type], new_type)
+
+  ex = create_executor()
+  x = rand(dtype, *shape)
+  y = ex.evaluate(y)(x)
+  assert_allclose(y.asnumpy(), x.asnumpy())
+
+def test_ones_like():
+  mod = tvm.IRModule()
+  mod.import_from_std("gradient.rly")
+
+  shape = (10, 10)
+  dtype = 'float32'
+  t = relay.TensorType(shape, dtype)
+
+  x = relay.var("x", t)
+  y = relay.Function([x], x + relay.ones_like(x))
+
+  mod["main"] = y
+  mod = transform.GradientCell()(mod)
+
+  new_type = grad_cell_type(mod, shape, dtype)
+  assert mod["main"].checked_type == relay.FuncType([new_type], new_type)
+
+  ex = create_executor()
+  x = rand(dtype, *shape)
+  y = ex.evaluate(y)(x)
+  assert_allclose(y.asnumpy(), x.asnumpy() + np.ones_like(x.asnumpy()))
 
 if __name__ == "__main__":
   pytest.main([__file__])

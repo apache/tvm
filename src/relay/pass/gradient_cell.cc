@@ -39,20 +39,10 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   public:
     explicit GradientCellTransform(IRModule module):
       module_(module)
-      {
-        TypeData gradCell = module_->LookupTypeDef("GradCell");
-        for (Constructor c: gradCell->constructors) {
-          if (c->name_hint.compare("Raw") == 0) {
-            rawConstructor = c;
-            return;
-          }
-        }
-
-        CHECK(false) << "Raw Constructor missing from GradCell datatype";
-      }
+      {}
 
     Expr VisitExpr_(const ConstantNode* op) final {
-      return CallNode::make(rawConstructor, {GetRef<Constant>(op)}, Attrs(), {op->checked_type()});
+      return CallNode::make(getGradCellConstructor("Raw"), {GetRef<Constant>(op)}, Attrs(), {op->checked_type()});
     }
 
     Expr VisitExpr_(const CallNode* call_node) final {
@@ -91,10 +81,15 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
             args.push_back(VisitExpr(expr));
           }
           return CallNode::make(multFunc, args, Attrs(), {paramType});
-        }
+        } else if (op->name.compare("ones") == 0) {
+          Expr func = FunctionNode::make({}, {ExprMutator::VisitExpr_(call_node)}, {call_node->checked_type()}, {}, Attrs());
+          return CallNode::make(getGradCellConstructor("One"), {func}, Attrs(), {call_node->checked_type()});
+        } else if (op->name.compare("zeros") == 0) {
+          Expr func = FunctionNode::make({}, {ExprMutator::VisitExpr_(call_node)}, {call_node->checked_type()}, {}, Attrs());
+          return CallNode::make(getGradCellConstructor("Zero"), {func}, Attrs(), {call_node->checked_type()});
+        } 
 
         const auto fromFunc = module_->GetGlobalVar("FromGradCell");
-        GlobalTypeVar gradCellType = module_->GetGlobalTypeVar("GradCell");
         tvm::Array<Expr> args;
         // use FromGradCell to convert args to Tensor
         for (Expr expr: call_node->args) {
@@ -103,7 +98,14 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
 
         const Expr tensorRes = CallNode::make(call_node->op, args);
 
-        return CallNode::make(rawConstructor, {tensorRes}, Attrs(), {call_node->checked_type()});
+        if (op->name.compare("ones_like") == 0) {
+          Expr onesFunction = FunctionNode::make({}, tensorRes, {call_node->checked_type()}, Array<TypeVar>(), Attrs());
+          return CallNode::make(getGradCellConstructor("One"), {onesFunction}, Attrs(), {call_node->checked_type()});
+        } else if (op->name.compare("zeros_like") == 0) {
+          Expr zerosFunction = FunctionNode::make({}, tensorRes, {call_node->checked_type()}, Array<TypeVar>(), Attrs());
+          return CallNode::make(getGradCellConstructor("Zero"), {zerosFunction}, Attrs(), {call_node->checked_type()});
+        }
+        return CallNode::make(getGradCellConstructor("Raw"), {tensorRes}, Attrs(), {call_node->checked_type()});
       }
 
       return ExprMutator::VisitExpr_(call_node);
@@ -123,10 +125,19 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   private:
     // Module
     IRModule module_;
+    // Constructors of gradCell datatype
+    std::unordered_map<std::string, Constructor> gradCellConstructors;
 
-    // Raw Constructor of GradCell datatype
-    Constructor rawConstructor;
+    Constructor getGradCellConstructor(std::string name_hint) {
+      TypeData gradCell = module_->LookupTypeDef("GradCell");
+      for (Constructor c: gradCell->constructors) {
+        if (name_hint.compare(c->name_hint) == 0) {
+          return c;
+        }
+      }
 
+      CHECK(false) << "Constructor " << name_hint << "not found in GradCell datatype.";
+    }
 };
 
 Expr GradientCell(const Expr& e, IRModule mod) {
