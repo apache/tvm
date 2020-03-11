@@ -393,6 +393,22 @@ def log(x):
     """
     return call_pure_intrin(x.dtype, "log", x)
 
+def tan(x):
+    """Take tan of input x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "tan", x)
+
+
 def cos(x):
     """Take cos of input x.
 
