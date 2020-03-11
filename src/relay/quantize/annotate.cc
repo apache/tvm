@@ -99,7 +99,7 @@ Pass QuantizeAnnotate() {
       for (const auto& x : FreeVars(func)) {
         new_params.push_back(x);
       }
-      return FunctionNode::make(new_params,
+      return Function(new_params,
                                 func->body,
                                 func->ret_type,
                                 func->type_params,

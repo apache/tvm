@@ -86,7 +86,7 @@ struct PrimitiveInliner : ExprMutator {
     }
 
     if (auto func = op.as<FunctionNode>()) {
-      if (func->IsPrimitive()) {
+      if (func->HasNonzeroAttr(attr::kPrimitive)) {
         tvm::Array<Expr> call_args;
         for (auto arg : call->args) {
           auto new_arg = VisitExpr(arg);
@@ -109,7 +109,7 @@ struct PrimitiveInliner : ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func) {
-    if (func->IsPrimitive()) {
+    if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return GetRef<Function>(func);
     } else {
       return ExprMutator::VisitExpr_(func);
@@ -128,7 +128,7 @@ struct PrimitiveInliner : ExprMutator {
         DLOG(INFO) << "Before inlining primitives: " << global
                    << std::endl << AsText(func, false);
 
-        func = FunctionNode::make(func->params,
+        func = Function(func->params,
                                   VisitExpr(func->body),
                                   func->ret_type,
                                   func->type_params,

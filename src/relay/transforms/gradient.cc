@@ -255,7 +255,7 @@ Expr FirstOrderGradient(const Expr& re, const IRModule& mod) {
     return Pair(res.forward, grad);
   });
 
-  return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
+  return Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.first_order_gradient")
@@ -384,7 +384,7 @@ void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
 }
 
 Expr BPEmpty() {
-  Expr unitF = FunctionNode::make({}, TupleNode::make({}), TupleType::Empty(), {});
+  Expr unitF = Function({}, TupleNode::make({}), TupleType::Empty(), {});
   return RefCreateNode::make(unitF);
 }
 
@@ -413,7 +413,7 @@ struct ReverseAD : ExprMutator {
       auto x_var = ll->Push(x);
       auto ret = ll->Push(GetRev(call->checked_type(), x_var, ll));
       auto bpv = ll->Push(RefReadNode::make(bp));
-      Expr nbp = FunctionNode::make(
+      Expr nbp = Function(
         {},
         LetList::With([&](LetList* ll) {
           // we need a new ReverseAD visitor to avoid clobbering the bp local var
@@ -457,7 +457,7 @@ struct ReverseAD : ExprMutator {
         orig_var->checked_type_ = call->checked_type();
         auto ret = ll->Push(GetRev(call->checked_type(), orig_var, ll));
         auto bpv = ll->Push(RefReadNode::make(bp));
-        Expr nbp = FunctionNode::make(
+        Expr nbp = Function(
           {},
           LetList::With([&](LetList* ll) {
             tvm::Array<Expr> rev = rev_map[op_ref](orig, GetGrad(call->checked_type(), ret, ll));
@@ -583,7 +583,7 @@ Expr Gradient(const Expr& re, const IRModule& mod) {
     };
     return Pair(get_final_result(c, f->body->checked_type()), TupleNode::make(ret));
   });
-  return FunctionNode::make(f->params, body, GradRetType(GetRef<Function>(f)), {});
+  return Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.gradient")

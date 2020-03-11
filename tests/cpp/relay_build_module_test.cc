@@ -82,7 +82,7 @@ TEST(Relay, BuildModule) {
   auto x = relay::CallNode::make(add_op, {a, b}, tvm::Attrs(), {});
   auto c = relay::VarNode::make("c", tensor_type);
   auto y = relay::CallNode::make(add_op, {x, c}, tvm::Attrs(), {});
-  auto func = relay::FunctionNode::make(relay::FreeVars(y), y, relay::Type(), {});
+  auto func = relay::Function(relay::FreeVars(y), y, relay::Type(), {});
   auto A = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});

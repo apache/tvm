@@ -111,7 +111,7 @@ class EtaExpander : public ExprMutator {
     Expr body = CallNode::make(cons, params, Attrs());
     Type ret_type = TypeCall(cons->belong_to, type_params);
 
-    return FunctionNode::make(
+    return Function(
       Downcast<tvm::Array<Var>>(params),
       body,
       ret_type,
@@ -135,7 +135,7 @@ class EtaExpander : public ExprMutator {
         args.push_back(var);
       }
 
-    return FunctionNode::make(
+    return Function(
         args,
         CallNode::make(gvar, params),
         func->ret_type,

@@ -23,6 +23,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 // NOTE: reverse dependency on top/tir.
 // These dependencies do not happen at the interface-level,
 // and are only used in minimum cases where they are clearly marked.
