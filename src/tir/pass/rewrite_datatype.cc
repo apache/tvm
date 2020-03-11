@@ -94,6 +94,30 @@ class DataTypeVisitor final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
+  void VisitExpr_(const IntImmNode* op) {
+    if (op->dtype.is_int()) {
+      int bits = std::min(op->dtype.bits(), bits_);
+      if (vmap.find(op) == vmap.end()) {
+        vmap[op] = DataType::Int(bits);
+      } else {
+        vmap[op] = DataType::Int(std::max(vmap[op].bits(), bits));
+      }
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitExpr_(const CastNode* op) {
+    if (op->dtype.is_int()) {
+      int bits = std::min(op->dtype.bits(), bits_);
+      if (vmap.find(op) == vmap.end()) {
+        vmap[op] = DataType::Int(bits);
+      } else {
+        vmap[op] = DataType::Int(std::max(vmap[op].bits(), bits));
+      }
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
   std::unordered_map<const Object*, DataType> vmap;
 
  protected:
@@ -154,6 +178,22 @@ class DataTypeRewriter : public StmtExprMutator {
         vmap_[op] = SizeVar(op->name_hint, visitor_.vmap[op]);
       }
       return vmap_[op];
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
+  PrimExpr VisitExpr_(const IntImmNode* op) final {
+    if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
+      return IntImm(visitor_.vmap[op], op->value);
+    }
+    return StmtExprMutator::VisitExpr_(op);
+  }
+
+  PrimExpr VisitExpr_(const CastNode* op) final {
+    if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
+      PrimExpr e = StmtExprMutator::VisitExpr_(op);
+      const CastNode* new_op = e.as<CastNode>();
+      return CastNode::make(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
