@@ -40,7 +40,7 @@ cp vta/vta-hw/config/tsim_sample.json vta/vta-hw/config/vta_config.json
 
 # Check style of scala code
 echo "Check style of scala code..."
-make -C vta/hardware/chisel lint
+make -C vta/vta-hw/hardware/chisel lint
 
 # Build VTA chisel design and verilator simulator
 echo "Building VTA chisel design..."
