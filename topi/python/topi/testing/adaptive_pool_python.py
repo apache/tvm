@@ -63,6 +63,7 @@ def adaptive_pool(np_data, out_size, pool_type):
     if len(out_size) == 2:
         pool_op = pool2d
     else:
+        assert len(out_size) == 3
         pool_op = pool3d
 
     n, c = np_data.shape[:2]

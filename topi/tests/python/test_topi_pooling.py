@@ -256,7 +256,11 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
     oshape = np_out.shape
 
     data = te.placeholder(dshape, name="data", dtype=dtype)
-    out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
+    if len(out_size) == 2:
+        out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
+    else:
+        assert len(out_size) == 3
+        out = topi.nn.adaptive_pool3d(data, out_size, pool_type, layout)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -281,6 +285,11 @@ def test_adaptive_pool():
     verify_adaptive_pool((1, 3, 224, 224), (1, 1), "avg")
     verify_adaptive_pool((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "max", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "max", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "avg", layout="NCDHW")
+
 
 def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
                   ceil_mode, count_include_pad=True, layout='NCDHW'):
