@@ -703,7 +703,6 @@ def test_to():
 
 def test_adaptive_pool3d():
     inp = torch.rand((1, 32, 16, 16, 16))
-
     verify_model(torch.nn.AdaptiveMaxPool3d((1, 1, 1)).eval(), inp)
     verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
     verify_model(torch.nn.AdaptiveAvgPool3d((1, 1, 1)).eval(), inp)
@@ -1052,7 +1051,9 @@ if __name__ == "__main__":
     test_squeezenet1_0()
     test_squeezenet1_1()
     test_densenet121()
-    test_inception_v3()
+    # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
+    # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
+    # test_inception_v3()
     test_googlenet()
     test_mnasnet0_5()
     test_mobilenet_v2()
