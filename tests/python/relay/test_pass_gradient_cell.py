@@ -30,7 +30,6 @@ def grad_cell_type(mod, shape, dtype):
 
 def test_add():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
 
   shape = (10, 10)
   dtype = 'float32'
@@ -47,7 +46,6 @@ def test_add():
 
 def test_add_tuple():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
 
   shape = (10, 10)
   dtype = 'float32'
@@ -66,7 +64,6 @@ def test_add_tuple():
 
 def test_mult():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
 
   shape = (15, 15)
   dtype = 'float32'
@@ -83,7 +80,6 @@ def test_mult():
 
 def test_tc():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
 
   shape = (20, 20)
   dtype = 'float32'
@@ -102,8 +98,7 @@ def test_tc():
 
 def test_ret_tuple():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -121,8 +116,7 @@ def test_ret_tuple():
 
 def test_broadcast():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape1 = (3, 4, 1)
   shape2 = (1, 5)
   dtype = 'float32'
@@ -157,8 +151,7 @@ def test_broadcast():
 
 def test_reverse_ad_identity():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -186,8 +179,7 @@ def test_reverse_ad_identity():
 
 def test_multivar_reverse_ad():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -218,8 +210,7 @@ def test_multivar_reverse_ad():
 
 def test_partial_eval_before():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -256,8 +247,7 @@ def test_partial_eval_before():
 
 def test_partial_eval_after_multivar():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -294,8 +284,7 @@ def test_partial_eval_after_multivar():
 
 def test_zeros():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -316,8 +305,7 @@ def test_zeros():
 
 def test_ones():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -338,8 +326,7 @@ def test_ones():
 
 def test_zeros():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)
@@ -360,8 +347,7 @@ def test_zeros():
 
 def test_ones_like():
   mod = tvm.IRModule()
-  mod.import_from_std("gradient.rly")
-
+  
   shape = (10, 10)
   dtype = 'float32'
   t = relay.TensorType(shape, dtype)

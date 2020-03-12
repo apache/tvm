@@ -220,7 +220,7 @@ def DeadCodeElimination(inline_once=False):
     return _ffi_api.DeadCodeElimination(inline_once)
 
 def GradientCell():
-    """Condense tensors with all 0s or 1s
+    """Reduces memory usage of tensors with all 0s or 1s
 
     Parameters
     ----------
@@ -228,7 +228,7 @@ def GradientCell():
     Returns
     -------
     ret: tvm.relay.Pass
-        The registered pass that condenses tensors with all 0s or 1s
+        The registered pass that delays or reduces memory allocation
     """
     return _transform.GradientCell()
 

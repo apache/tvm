@@ -48,7 +48,9 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
  public:
   explicit GradientCellTransform(IRModule module):
     module_(module)
-    {}
+    {
+      module_->ImportFromStd("gradient.rly");
+    }
 
   Expr VisitExpr_(const ConstantNode* op) final {
     return CallNode::make(getGradCellConstructor("Raw"),
