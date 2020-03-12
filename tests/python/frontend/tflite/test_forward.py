@@ -1432,8 +1432,8 @@ def _test_depthtospace(data, block_size):
         out = array_ops.depth_to_space(in_data, block_size)
         compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
-
 def test_forward_depthtospace():
+    # DEPTH_TO_SPACE comes with TFLite >= 1.15.0 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
         _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
@@ -1450,12 +1450,9 @@ def _test_spacetodepth(data, block_size):
         out = array_ops.space_to_depth(in_data, block_size)
         compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
-
-
 def test_forward_spacetodepth():
-    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
-        _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
-        _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
+    _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
+    _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
 #######################################################################
 # Fully Connected
