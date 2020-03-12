@@ -424,7 +424,7 @@ def extract_fused_functions(mod):
     ret : Dict[int, tvm.relay.expr.Function]
         A module containing only fused primitive functions
     """
-    ret_mod =_analysis.ExtractFusedFunctions()(mod)
+    ret_mod = _analysis.ExtractFusedFunctions()(mod)
     ret = {}
     for hash_, func in ret_mod.functions.items():
         ret[hash_] = func
