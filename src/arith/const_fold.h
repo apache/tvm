@@ -181,6 +181,7 @@ inline PrimExpr TryConstFold<tir::ModNode>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
+        CHECK_NE(pb->value, 0) << "Divide by zero";
         return IntImm(rtype, pa->value % pb->value);
       }
       if (pa) {
@@ -226,6 +227,7 @@ inline PrimExpr TryConstFold<tir::FloorModNode>(PrimExpr a, PrimExpr b) {
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
       if (pa && pb) {
+        CHECK_NE(pb->value, 0) << "Divide by zero";
         return IntImm(rtype, floormod(pa->value, pb->value));
       }
       if (pa) {

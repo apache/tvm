@@ -44,6 +44,16 @@ def test_nearbyint():
     tvm.testing.assert_allclose(
         a_rounded.asnumpy(), np.rint(a.asnumpy()))
 
+def test_round_intrinsics_on_int():
+    i = tvm.te.var("i", 'int32')
+    for op in [tvm.tir.round, tvm.tir.trunc, tvm.tir.ceil,
+                            tvm.tir.floor, tvm.tir.nearbyint]:
+        assert op(tvm.tir.const(10,'int32')).value == 10
+        assert op(tvm.tir.const(True,'bool')).value == True
+        assert op(i).same_as(i)
+
+    assert tvm.tir.isnan(tvm.tir.const(10, 'int32')).value == False
+
 
 def test_unary_intrin():
     test_funcs = [
@@ -75,3 +85,4 @@ def test_unary_intrin():
 if __name__ == "__main__":
     test_nearbyint()
     test_unary_intrin()
+    test_round_intrinsics_on_int()
