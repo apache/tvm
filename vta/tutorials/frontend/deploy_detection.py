@@ -111,7 +111,7 @@ names = [x.strip() for x in content]
 # --------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
-# Load VTA parameters from the vta/config/vta_config.json file
+# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
 env = vta.get_env()
 # Set ``device=arm_cpu`` to run inference on the CPU
 # or ``device=vta`` to run inference on the FPGA.
@@ -149,8 +149,8 @@ if env.TARGET not in ["sim", "tsim"]:
     # Otherwise if you have a device you want to program directly from
     # the host, make sure you've set the variables below to the IP of
     # your board.
-    device_host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
-    device_port = os.environ.get("VTA_PYNQ_RPC_PORT", "9091")
+    device_host = os.environ.get("VTA_RPC_HOST", "192.168.2.99")
+    device_port = os.environ.get("VTA_RPC_PORT", "9091")
     if not tracker_host or not tracker_port:
         remote = rpc.connect(device_host, int(device_port))
     else:

@@ -32,7 +32,7 @@
 #include <string>
 #include <unordered_map>
 #include "type_relations.h"
-#include "../pass/infer_layout_util.h"
+#include "../transforms/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {

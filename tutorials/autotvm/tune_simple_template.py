@@ -103,7 +103,7 @@ def matmul_v0(N, L, M, dtype):
 # In autotvm, we can define a tunable parameter, or a "knob" for such kind of value.
 
 # Matmul V1: List candidate values
-@autotvm.register_customized_task("tutorial/matmul_v1")  # 1. use a decorator
+@autotvm.template("tutorial/matmul_v1")  # 1. use a decorator
 def matmul_v1(N, L, M, dtype):
     A = te.placeholder((N, L), name='A', dtype=dtype)
     B = te.placeholder((L, M), name='B', dtype=dtype)
@@ -183,7 +183,7 @@ def matmul_v1(N, L, M, dtype):
 # When the high level API cannot meet your requirement, you can always fall
 # back to use low level API.
 
-@autotvm.register_customized_task("tutorial/matmul")
+@autotvm.template("tutorial/matmul")
 def matmul(N, L, M, dtype):
     A = te.placeholder((N, L), name='A', dtype=dtype)
     B = te.placeholder((L, M), name='B', dtype=dtype)

@@ -27,6 +27,7 @@
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op.h>
 
@@ -331,6 +332,16 @@ TVM_DLL Pass PartitionGraph();
  * \return The pass.
  */
 TVM_DLL Pass Inline();
+
+/*!
+ * \brief Remove the unused functions in the Relay IRModule.
+ *
+ * \param entry_functions The entry functions used to search the functions that
+ *        are being used.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
 
 }  // namespace transform
 

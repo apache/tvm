@@ -53,7 +53,7 @@ TEST(Relay, Sequential) {
   // Let expression and varaible a should be dead-code eliminated.
   auto z3 = relay::LetNode::make(a, c, z2);
   relay::Function func =
-      relay::FunctionNode::make(relay::FreeVars(z3), z3, relay::Type(), {});
+      relay::Function(relay::FreeVars(z3), z3, relay::Type(), {});
 
   // Get schedule
   auto reg = tvm::runtime::Registry::Get("relay.op._Register");
@@ -96,7 +96,7 @@ TEST(Relay, Sequential) {
   auto zz = relay::CallNode::make(add_op, {y1, c1});
   zz = relay::CallNode::make(add_op, {zz, zz});
   relay::Function expected_func =
-      relay::FunctionNode::make(relay::FreeVars(zz), zz, relay::Type(), {});
+      relay::Function(relay::FreeVars(zz), zz, relay::Type(), {});
 
   // Infer type for the expected function.
   auto mod1 = IRModule::FromExpr(expected_func);

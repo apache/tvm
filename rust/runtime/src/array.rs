@@ -101,6 +101,22 @@ impl<'a> Storage<'a> {
         }
         s
     }
+
+    /// Returns a view of the stored data.
+    pub fn as_slice(&self) -> &[u8] {
+        match self {
+            Storage::Owned(alloc) => alloc.as_slice(),
+            Storage::View(slice, _) => &*slice,
+        }
+    }
+
+    /// Returns a mutable view of the stored data.
+    pub fn as_mut_slice(&mut self) -> &mut [u8] {
+        match self {
+            Storage::Owned(alloc) => alloc.as_mut_slice(),
+            Storage::View(slice, _) => slice,
+        }
+    }
 }
 
 impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
@@ -123,14 +139,18 @@ impl<'d, 's, T> From<&'d [T]> for Storage<'s> {
 ///
 /// ```
 /// extern crate ndarray;
+/// use std::convert::TryInto;
+/// use tvm_runtime::{call_packed, DLTensor, TVMArgValue, TVMRetValue, Tensor};
 ///
-/// let mut a_nd: ndarray::Array = ndarray::Array::from_vec(vec![1f32, 2., 3., 4.]);
+/// let mut a_nd: ndarray::Array1<f32> = ndarray::Array::from_vec(vec![1f32, 2., 3., 4.]);
 /// let mut a: Tensor = a_nd.into();
-/// let mut a_dl: DLTensor = (&mut t).into();
+/// let mut a_dl: DLTensor = (&mut a).into();
+///
+/// let tvm_fn = |args: &[TVMArgValue]| -> Result<TVMRetValue, ()> { Ok(TVMRetValue::default()) };
 /// call_packed!(tvm_fn, &mut a_dl);
 ///
 /// // Array -> Tensor is mostly useful when post-processing TVM graph outputs.
-/// let mut a_nd = ndarray::Array::try_from(&a).unwrap();
+/// let mut a_nd: ndarray::ArrayD<f32> = a.try_into().unwrap();
 /// ```
 #[derive(PartialEq)]
 pub struct Tensor<'a> {
@@ -152,6 +172,14 @@ unsafe impl<'a> Send for Tensor<'a> {}
 impl<'a> Tensor<'a> {
     pub fn shape(&self) -> Vec<i64> {
         self.shape.clone()
+    }
+
+    pub fn data(&self) -> &Storage {
+        &self.data
+    }
+
+    pub fn data_mut(&mut self) -> &'a mut Storage {
+        &mut self.data
     }
 
     /// Returns the data of this `Tensor` as a `Vec`.
@@ -220,9 +248,9 @@ impl<'a> Tensor<'a> {
     pub fn to_owned(&self) -> Tensor<'static> {
         let t = Tensor {
             data: self.data.to_owned(),
-            ctx: self.ctx.clone(),
-            dtype: self.dtype.clone(),
-            size: self.size.clone(),
+            ctx: self.ctx,
+            dtype: self.dtype,
+            size: self.size,
             shape: self.shape.clone(),
             strides: None,
             byte_offset: 0,
@@ -246,7 +274,7 @@ impl<'a> Tensor<'a> {
             },
             size: arr.len(),
             shape: arr.shape().iter().map(|&v| v as i64).collect(),
-            strides: Some(arr.strides().into_iter().map(|&v| v as usize).collect()),
+            strides: Some(arr.strides().iter().map(|&v| v as usize).collect()),
             byte_offset: 0,
         }
     }
@@ -276,9 +304,9 @@ impl<'a> Tensor<'a> {
 /// Conversions to `ndarray::Array` from `Tensor`, if the types match.
 macro_rules! impl_ndarray_try_from_tensor {
     ($type:ty, $dtype:expr) => {
-        impl<'a, 't> TryFrom<&'a Tensor<'t>> for ndarray::ArrayD<$type> {
+        impl<'t> TryFrom<Tensor<'t>> for ndarray::ArrayD<$type> {
             type Error = Error;
-            fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<$type>, Error> {
+            fn try_from(tensor: Tensor) -> Result<ndarray::ArrayD<$type>, Error> {
                 ensure!(
                     tensor.dtype == $dtype,
                     "Cannot convert Tensor with dtype {:?} to ndarray",
@@ -342,10 +370,10 @@ impl<'a> From<DLTensor> for Tensor<'a> {
             Self {
                 data: storage,
                 ctx: TVMContext::default(),
-                dtype: dtype,
-                size: size,
-                shape: shape,
-                strides: if dlt.strides == ptr::null_mut() {
+                dtype,
+                size,
+                shape,
+                strides: if dlt.strides.is_null() {
                     None
                 } else {
                     Some(slice::from_raw_parts_mut(dlt.strides as *mut usize, size).to_vec())

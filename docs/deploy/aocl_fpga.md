@@ -27,16 +27,16 @@ We use two python scripts for this tutorial.
 - build.py - a script to synthesize FPGA bitstream.
 ```
 import tvm
-
+from tvm import te
 tgt_host="llvm"
 tgt="aocl_sw_emu"
 
-n = tvm.var("n")
-A = tvm.placeholder((n,), name='A')
-B = tvm.placeholder((n,), name='B')
-C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
+n = te.var("n")
+A = te.placeholder((n,), name='A')
+B = te.placeholder((n,), name='B')
+C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 px, x = s[C].split(C.op.axis[0], nparts=1)
 
 s[C].bind(px, tvm.thread_axis("pipeline"))

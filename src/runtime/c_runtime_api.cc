@@ -28,12 +28,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
-#ifdef _LIBCPP_SGX_CONFIG
-#include "sgx/trusted/runtime.h"
-#endif
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
 #include <sstream>
-#endif
 #include <array>
 #include <algorithm>
 #include <string>
@@ -174,7 +169,6 @@ void DeviceAPI::SyncStreamFromTo(TVMContext ctx,
   LOG(FATAL) << "Device does not support stream api.";
 }
 
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
 //--------------------------------------------------------
 // Error handling mechanism
 // -------------------------------------------------------
@@ -338,11 +332,6 @@ std::string NormalizeError(std::string err_msg) {
   return os.str();
 }
 
-#else
-std::string NormalizeError(std::string err_msg) {
-  return err_msg;
-}
-#endif
 }  // namespace runtime
 }  // namespace tvm
 
@@ -366,11 +355,7 @@ int TVMAPIHandleException(const std::runtime_error &e) {
 }
 
 void TVMAPISetLastError(const char* msg) {
-#ifndef _LIBCPP_SGX_CONFIG
   TVMAPIRuntimeStore::Get()->last_error = msg;
-#else
-  sgx::OCallPackedFunc("__sgx_set_last_error__", msg);
-#endif
 }
 
 int TVMModLoadFromFile(const char* file_name,

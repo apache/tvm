@@ -23,7 +23,6 @@ configuring the passes and scripting them in Python.
 from tvm.ir import RelayExpr, IRModule
 
 from . import _analysis
-from . import _make
 from .ty import Type
 from .feature import Feature
 
@@ -237,7 +236,7 @@ def alpha_equal(lhs, rhs):
     result : bool
         True iff lhs is alpha equal to rhs.
     """
-    return bool(_make._alpha_equal(lhs, rhs))
+    return bool(_analysis._alpha_equal(lhs, rhs))
 
 
 def assert_alpha_equal(lhs, rhs):
@@ -251,7 +250,7 @@ def assert_alpha_equal(lhs, rhs):
     rhs : tvm.relay.Expr
         One of the input Expression.
     """
-    _make._assert_alpha_equal(lhs, rhs)
+    _analysis._assert_alpha_equal(lhs, rhs)
 
 
 def graph_equal(lhs, rhs):
@@ -273,7 +272,7 @@ def graph_equal(lhs, rhs):
     result : bool
       True iff lhs is data-flow equivalent to rhs.
     """
-    return bool(_make._graph_equal(lhs, rhs))
+    return bool(_analysis._graph_equal(lhs, rhs))
 
 
 def assert_graph_equal(lhs, rhs):
@@ -290,7 +289,7 @@ def assert_graph_equal(lhs, rhs):
     rhs : tvm.relay.Expr
       One of the input Expression.
     """
-    _make._assert_graph_equal(lhs, rhs)
+    _analysis._assert_graph_equal(lhs, rhs)
 
 
 def collect_device_info(expr):

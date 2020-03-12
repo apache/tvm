@@ -22,8 +22,7 @@ This module defines the task data structure, as well as a collection(zoo)
 of typical tasks of interest.
 """
 
-from .task import Task, create, get_config, args_to_workload, \
-    register_customized_task
+from .task import Task, create, get_config, args_to_workload, template
 from .space import ConfigSpace, ConfigEntity
 from .code_hash import attach_code_hash, attach_code_hash_to_arg
 from .dispatcher import DispatchContext, ApplyConfig, ApplyHistoryBest, \

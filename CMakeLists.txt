@@ -36,7 +36,6 @@ tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
 tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
-tvm_option(USE_SGX "Build with SGX" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro" OFF)
@@ -147,7 +146,9 @@ file(GLOB_RECURSE RELAY_OP_SRCS
     src/relay/op/*.cc
     )
 file(GLOB_RECURSE RELAY_PASS_SRCS
-    src/relay/pass/*.cc
+    src/relay/analysis/*.cc
+    src/relay/transforms/*.cc
+    src/relay/quantize/*.cc
     )
 file(GLOB RELAY_BACKEND_SRCS
     src/relay/backend/*.cc
@@ -243,7 +244,6 @@ include(cmake/modules/OpenMP.cmake)
 include(cmake/modules/Vulkan.cmake)
 include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
-include(cmake/modules/SGX.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/Micro.cmake)
 include(cmake/modules/ANTLR.cmake)
@@ -282,12 +282,6 @@ if(USE_RELAY_DEBUG)
 else()
   set_target_properties(tvm PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
 endif(USE_RELAY_DEBUG)
-
-if(NOT USE_SGX STREQUAL "OFF")
-  add_dependencies(tvm sgx_edl)
-  add_dependencies(tvm_runtime sgx_edl tvm_t)
-  install(TARGETS tvm_t ARCHIVE DESTINATION lib${LIB_SUFFIX})
-endif()
 
 if(USE_THREADS)
   message(STATUS "Build with thread support...")

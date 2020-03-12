@@ -171,11 +171,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
     with tf.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            out_node,
-        )
+        final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         for device in ["llvm", "cuda"]:
@@ -2628,6 +2624,15 @@ def test_forward_cos():
     compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
 
 
+def test_forward_tan():
+    """test operator tan """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.tan(in_data, name="tan")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
+
+
 def test_forward_sin():
     """test operator sin """
     np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
@@ -3031,6 +3036,7 @@ if __name__ == '__main__':
     test_forward_sign()
     test_forward_log()
     test_forward_log1p()
+    test_forward_tan()
     test_forward_cos()
     test_forward_sin()
     test_forward_negative()

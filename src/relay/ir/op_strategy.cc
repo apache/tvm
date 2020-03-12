@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/ir/op_strategy.cc
+ * \file src/relay/ir/op_strategy.cc
  * \brief The Relay operator Strategy and related data structure.
  */
 

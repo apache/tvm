@@ -33,7 +33,7 @@ fn main() {
     } else {
         (TVMContext::gpu(0), "gpu")
     };
-    let dtype = TVMType::from_str("float32").unwrap();
+    let dtype = DLDataType::from_str("float32").unwrap();
     let mut arr = NDArray::empty(shape, ctx, dtype);
     arr.copy_from_buffer(data.as_mut_slice());
     let mut ret = NDArray::empty(shape, ctx, dtype);

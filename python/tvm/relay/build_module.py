@@ -62,7 +62,7 @@ def _convert_param_map(params):
 
 
 class BuildModule(object):
-    """Build a Relay function to run on TVM graph runtime. This class is used
+    """Build an IR module to run on TVM graph runtime. This class is used
     to expose the `RelayBuildModule` APIs implemented in C++.
     """
     def __init__(self):
@@ -74,12 +74,12 @@ class BuildModule(object):
         self._set_params_func = self.mod["set_params"]
         self._get_params_func = self.mod["get_params"]
 
-    def build(self, func, target=None, target_host=None, params=None):
+    def build(self, mod, target=None, target_host=None, params=None):
         """
         Parameters
         ----------
-        func: relay.Function
-            The function to build.
+        mod : :py:class:`~tvm.IRModule`
+            The IRModule to build.
 
         target : str, :any:`tvm.target.Target`, or dict of str(i.e.
         device/context name) to str/tvm.target.Target, optional
@@ -115,8 +115,8 @@ class BuildModule(object):
         # Setup the params.
         if params:
             self._set_params(params)
-        # Build the function
-        self._build(func, target, target_host)
+        # Build the IR module
+        self._build(mod, target, target_host)
         # Get artifacts
         graph_json = self.get_json()
         mod = self.get_module()
@@ -124,12 +124,12 @@ class BuildModule(object):
 
         return graph_json, mod, params
 
-    def optimize(self, func, target=None, params=None):
+    def optimize(self, mod, target=None, params=None):
         """
         Parameters
         ----------
-        func: relay.Function
-            The function to build.
+        mod : :py:class:`~tvm.IRModule`
+            The IR module to build.
 
         target : str, :any:`tvm.target.Target`, or dict of str(i.e.
         device/context name) to str/tvm.target.Target, optional
@@ -142,7 +142,7 @@ class BuildModule(object):
 
         Returns
         -------
-        mod : tvm.IRModule
+        mod : :py:class:`~tvm.IRModule`
             The optimized relay module.
 
         params : dict
@@ -153,7 +153,7 @@ class BuildModule(object):
         # Setup the params.
         if params:
             self._set_params(params)
-        mod = self._optimize(func, target)
+        mod = self._optimize(mod, target)
         # Get artifacts
         params = self.get_params()
 
@@ -186,8 +186,8 @@ def build(mod, target=None, target_host=None, params=None):
 
     Parameters
     ----------
-    mod : tvm.IRModule
-        The module to build. Using relay.Function is deprecated.
+    mod : :py:class:`~tvm.IRModule`
+        The IR module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
     name) to str/tvm.target.Target, optional
@@ -218,16 +218,17 @@ def build(mod, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
-    if isinstance(mod, IRModule):
-        func = mod["main"]
-    elif isinstance(mod, _expr.Function):
-        func = mod
+    if not isinstance(mod, (IRModule, _expr.Function)):
+        raise ValueError("Type of input parameter mod must be tvm.IRModule")
+
+    if isinstance(mod, _expr.Function):
+        if params:
+            mod = bind_params_by_name(mod, params)
+        mod = IRModule.from_expr(mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
-            "instead of deprecated parameter func (tvm.relay.expr.Function)",
+            "instead of deprecated parameter mod (tvm.relay.expr.Function)",
             DeprecationWarning)
-    else:
-        raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     target = _update_target(target)
 
@@ -246,7 +247,7 @@ def build(mod, target=None, target_host=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(func, target, target_host, params)
+        graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
     return graph_json, mod, params
 
 
@@ -255,7 +256,7 @@ def optimize(mod, target=None, params=None):
 
     Parameters
     ----------
-    mod : tvm.IRModule
+    mod : :py:class:`~tvm.IRModule`
         The module to build. Using relay.Function is deprecated.
 
     target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
@@ -269,22 +270,23 @@ def optimize(mod, target=None, params=None):
 
     Returns
     -------
-    mod : tvm.IRModule
+    mod : :py:class:`~tvm.IRModule`
         The optimized relay module.
 
     params : dict
         The parameters of the final graph.
     """
-    if isinstance(mod, IRModule):
-        func = mod["main"]
-    elif isinstance(mod, _expr.Function):
-        func = mod
+    if not isinstance(mod, (IRModule, _expr.Function)):
+        raise ValueError("Type of input parameter mod must be tvm.IRModule")
+
+    if isinstance(mod, _expr.Function):
+        if params:
+            mod = bind_params_by_name(mod, params)
+        mod = IRModule.from_expr(mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
             "instead of deprecated parameter func (tvm.relay.expr.Function)",
             DeprecationWarning)
-    else:
-        raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
     target = _update_target(target)
 
@@ -297,7 +299,7 @@ def optimize(mod, target=None, params=None):
 
     with tophub_context:
         bld_mod = BuildModule()
-        mod, params = bld_mod.optimize(func, target, params)
+        mod, params = bld_mod.optimize(mod, target, params)
     return mod, params
 
 

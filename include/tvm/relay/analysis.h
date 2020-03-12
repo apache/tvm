@@ -26,6 +26,7 @@
 
 #include <tvm/relay/adt.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relay/type.h>
 #include <string>
