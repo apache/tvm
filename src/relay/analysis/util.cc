@@ -330,12 +330,12 @@ TVM_REGISTER_GLOBAL("relay.analysis.all_type_vars")
  */
 std::unordered_map<const Object*, size_t>
 GetExprRefCount(const Expr& body) {
-  class ExprRefCounter : private PostOrderGraphVisitor {
+  class ExprRefCounter : private DataflowVisitor {
    public:
     std::unordered_map<const Object*, size_t>
     Get(const Expr& body) {
       this->VisitExpr(body);
-      return std::move(this->visit_counter_);
+      return expander_.GetVisitCounter();
     }
   };
   return ExprRefCounter().Get(body);

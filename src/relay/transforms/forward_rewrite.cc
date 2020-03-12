@@ -33,11 +33,10 @@ namespace relay {
 // Realizer class that realizes the expression
 // Note that we can take benefit of its internal memo
 // so that calling realize repeatively won't hurt perf.
-class TempRealizer : private ExprRewriter {
+class TempRealizer : private DataflowMutator {
  public:
-  TempRealizer() : ExprRewriter([this](const Expr& expr){this->VisitExpr(expr);}) {}
   Expr Realize(Expr expr) {
-    return Rewrite(expr);
+    return Mutate(expr);
   }
 
  private:
@@ -49,9 +48,8 @@ class TempRealizer : private ExprRewriter {
       Expr res;
       if (const auto* temp = expr.as<TempExprNode>()) {
         res = temp->Realize();
-
       } else {
-        res = ExprRewriter::VisitExpr(expr);
+        res = DataflowMutator::VisitExpr(expr);
       }
       memo_[expr] = res;
       return res;
@@ -59,7 +57,7 @@ class TempRealizer : private ExprRewriter {
   }
 };
 
-class ForwardRewriter : private ExprRewriter {
+class ForwardRewriter : private DataflowMutator {
  public:
   ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
                   std::function<ObjectRef(const Call&)> fcontext,
@@ -77,11 +75,11 @@ class ForwardRewriter : private ExprRewriter {
 
 
   // Transform expression.
-  Expr Rewrite(const Expr& expr) override {
+  Expr Rewrite(const Expr& expr) {
     if (fmulti_ref_trigger_ != nullptr) {
       ref_counter_ = GetExprRefCount(expr);
     }
-    return this->VisitExpr(expr);
+    return realizer_.Realize(Mutate(expr));
   }
 
  private:
@@ -97,15 +95,10 @@ class ForwardRewriter : private ExprRewriter {
   // internal realizer
   TempRealizer realizer_;
 
-  Expr VisitExpr(const Expr& expr) final {
-    // by default always realize.
-    return realizer_.Realize(ExprRewriter::Rewrite(expr));
-  }
-
   // Visit and allow non-realized version.
   Expr GetTempExpr(const Expr& expr)  {
     if (fmulti_ref_trigger_ != nullptr) {
-      Expr ret = ExprRewriter::VisitExpr(expr);
+      Expr ret = Mutate(expr);
       auto it = ref_counter_.find(expr.get());
       CHECK(it != ref_counter_.end());
       if (it->second > 1) {
@@ -113,7 +106,7 @@ class ForwardRewriter : private ExprRewriter {
       }
       return ret;
     } else {
-      return ExprRewriter::VisitExpr(expr);
+      return Mutate(expr);
     }
   }
 

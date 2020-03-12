@@ -92,7 +92,7 @@ class Eliminator : private ExprMutator {
 };
 
 // calculate the dependency graph from expression
-class CalcDep : private PostOrderGraphVisitor {
+class CalcDep : private DataflowVisitor {
  public:
   static Expr Eliminate(const Expr& e, bool inline_once) {
     FindDef fd;
@@ -105,25 +105,21 @@ class CalcDep : private PostOrderGraphVisitor {
 
  private:
   explicit CalcDep(const VarMap<Expr>& expr_map)
-      : PostOrderGraphVisitor([](const Expr&) {}, 2), expr_map_(expr_map) {}
+      : DataflowVisitor([](const Expr&) {}, 2), expr_map_(expr_map) {}
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
 
 
-  bool VisitExpr_(const LetNode* l) final {
-    bool children_processed = true;
-    children_processed &= PushToStack(l->body);
-    return children_processed;
+  void VisitExpr_(const LetNode* l) final {
+    VisitExpr(l->body);
   }
 
-  bool VisitExpr_(const VarNode* v) final {
-    bool children_processed = true;
+  void VisitExpr_(const VarNode* v) final {
     Var var = GetRef<Var>(v);
     ++use_map_[var];
     if (use_map_[var] == 1 && expr_map_.count(var) > 0) {
-      children_processed &= PushToStack(expr_map_[var]);
+      VisitExpr(expr_map_[var]);
     }
-    return children_processed;
   }
 };
 

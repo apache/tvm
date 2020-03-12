@@ -234,82 +234,102 @@ class ExprMutator
 };
 
 /*!
- * \brief A wrapper around ExprFunctor which traverses the Graph Normal AST.
+ * \brief a helper class for expanding dataflow regions of the graph non-recursively
  *
- * PostOrderGraphVisitor treats Expr as dataflow graph.
- * PostOrderGraphVisitor provides utitilies for doing a Depth-first
- * pre or post order traversal of the graph without recursion.
- * It accepts a std::function as part of it's construction which is used
- * to do the actual operatiuons on the graph.
+ * DataflowExpander takes a visit function as an argument and provides a method
+ * called ExpandDataflow, which will non-recursively call the visit function
+ * on Dataflow subgraphs in Post-DFS order.
+ *
+ * This class is not meant to be used on it's own, users should instead
+ * use DataflowVisitor and DataflowMutator which wrap this class
  */
-class PostOrderGraphVisitor : public ::tvm::relay::ExprFunctor<bool(const Expr&)> {
+class DataflowExpander {
  public:
-  PostOrderGraphVisitor() : visitor_([](const Expr&) {}), visit_count_(1) {}
-  PostOrderGraphVisitor(const std::function<void(const Expr&)>& visitor, int visit_count = 1)
-      : visitor_(visitor) {
-    CHECK(visit_count > 0) << "GraphMutator visit count must be greater than 0";
-    CHECK(visit_count < 10) << "GraphMutator visit count must be less than 10";
-    visit_count_ = visit_count;
-  }
-  bool VisitExpr(const Expr& expr) override;
-  bool VisitExpr_(const VarNode* op) override;
-  bool VisitExpr_(const ConstantNode* op) override;
-  bool VisitExpr_(const GlobalVarNode* op) override;
-  bool VisitExpr_(const OpNode* op) override;
-  bool VisitExpr_(const TupleNode* op) override;
-  bool VisitExpr_(const FunctionNode* op) override;
-  bool VisitExpr_(const CallNode* call_node) override;
-  bool VisitExpr_(const LetNode* op) override;
-  bool VisitExpr_(const IfNode* op) override;
-  bool VisitExpr_(const TupleGetItemNode* op) override;
-  bool VisitExpr_(const RefCreateNode* op) override;
-  bool VisitExpr_(const RefReadNode* op) override;
-  bool VisitExpr_(const RefWriteNode* op) override;
-  bool VisitExpr_(const ConstructorNode* op) override;
-  bool VisitExpr_(const MatchNode* op) override;
+  DataflowExpander(std::function<void(const Expr&)> visit, size_t visit_count = 1)
+      : visit_(visit), visit_count_(visit_count) {}
+  void ExpandDataflow(const Expr& Expr);
+  std::unordered_map<const Object*, size_t> GetVisitCounter() { return visit_counter_; }
 
  protected:
   /* \brief Function to push a note to the stack if it hasn't been visited
    * Also returns false if the node hasn't been visited */
-  bool PushToStack(const Expr& expr);
+  bool PushToStack(const Expr& expr, std::stack<std::pair<Expr, bool>>& stack);
   /*! \brief std::function used to process nodes. */
-  std::function<void(const Expr&)> visitor_;
+  std::function<void(const Expr&)> visit_;
   /*! \brief Number of times fo visit each node. */
   size_t visit_count_;
   // Internal visiting counter
   std::unordered_map<const Object*, size_t> visit_counter_;
-  /*! \brief Internal Manually Managed Stack.
-   * The stack contains a pair of <Expr, bool> where the boolean indicates
-   * whether or not we've already checked the status of this nodes inputs */
-  std::stack<std::pair<Expr, bool>> stack_;
 };
 
 /*!
- * \brief A wrapper around ExprFunctor which functionally updates the AST.
+ * \brief A wrapper around ExprVisitor which traverses the Dataflow Normal AST.
  *
- * ExprRewriter treats Expr as dataflow graph, and only Rewrites each Expr once.
+ * DataflowVisitor treats Expr as dataflow graph, and visits in post-DFS order
+ * It provides an option to run an arbitrary std::function<void(const Expr&)> on
+ * every node it visits.
+ *
+ * DataflowVisitor provides the same recursive API as ExprVisitor, and uses
+ * recursion to traverse most forms of the IR, but under the hood it uses DataflowExpander
+ * to non-recursively visit nested dataflow regions of the graph to prevent stack overflows
+ */
+class DataflowVisitor : public ::tvm::relay::ExprVisitor {
+ public:
+  DataflowVisitor() : DataflowVisitor([](const Expr&) {}) {}
+  DataflowVisitor(const std::function<void(const Expr&)>& visitor, int visit_count = 1)
+      : visitor_(visitor),
+        expander_(
+            [this](const Expr& expr) {
+              ExprFunctor<void(const Expr&)>::VisitExpr(expr);
+              visitor_(expr);
+              this->visit_counter_[expr.get()]++;
+            },
+            visit_count) {
+    CHECK(visit_count > 0) << "GraphMutator visit count must be greater than 0";
+    CHECK(visit_count < 10) << "GraphMutator visit count must be less than 10";
+    visit_count_ = visit_count;
+  }
+  void VisitExpr(const Expr& expr) override {
+    if (this->visit_counter_[expr.get()] < visit_count_) {
+      expander_.ExpandDataflow(expr);
+    }
+  }
+
+ protected:
+  /*! \brief std::function used to process nodes. */
+  std::function<void(const Expr&)> visitor_;
+  /*! DataflowExpander to non-recursively visit dataflow regions and prevent stack overflows */
+  DataflowExpander expander_;
+  /*! \brief Number of times fo visit each node. */
+  size_t visit_count_;
+};
+
+/*!
+ * \brief A wrapper around ExprMutator which functionally updates the AST.
+ *
+ * DataflowMutator treats Expr as dataflow graph, and only Rewrites each Expr once.
  * The mutated results are memoized in a map and reused so that
  * local transformation on the dataflow preserves the graph structure.
- * ExprRewriter does not iterate over the graph, it assumes another method,
- * like PostOrderGraphVisitor, is passing expressions in an appropriate order
+ *
+ * DataflowMutator provides the same recursive API as ExprMutator, and uses
+ * recursion to traverse most forms of the IR, but under the hood it uses DataflowExpander
+ * to non-recursively visit nested dataflow regions of the graph to prevent stack overflow
  */
-class ExprRewriter : protected ::tvm::relay::ExprMutator {
+class DataflowMutator : protected ::tvm::relay::ExprMutator {
  public:
-  ExprRewriter(std::function<void(const Expr&)> f) : visitor(PostOrderGraphVisitor(f)) {}
-  ExprRewriter()
-      : visitor(PostOrderGraphVisitor([this](const Expr& expr) { ExprMutator::VisitExpr(expr); })) {
-  }
+  DataflowMutator()
+      : expander_(DataflowExpander([this](const Expr& expr) { this->VisitExpr(expr); })) {}
   /*!
-   * \brief Rewrite is alias for VisitExpr
-   * Rewrite effective does the same thing as ExprMutator's Mutate,
-   * except it prepends it by a PostOrderGraphTraversal to ensure the inputs have been processed
+   * \brief Mutate the Expression
+   * This override of Mutate aeffective does the same thing as ExprMutator's Mutate,
+   * except it prepends it by a non-recursive Dataflow expansion to prevent stack overflow
    * \return expr.
    */
-  virtual Expr Rewrite(const Expr& expr) {
+  Expr Mutate(const Expr& expr) final {
     if (memo_.count(expr)) {
       return memo_[expr];
     } else {
-      this->visitor.VisitExpr(expr);
+      expander_.ExpandDataflow(expr);
       Expr ret = this->VisitExpr(expr);
       memo_[expr] = ret;
       return ret;
@@ -317,8 +337,7 @@ class ExprRewriter : protected ::tvm::relay::ExprMutator {
   }
 
  protected:
-  Expr Mutate(const Expr& expr) override;
-  PostOrderGraphVisitor visitor;
+  DataflowExpander expander_;
 };
 
 /*!

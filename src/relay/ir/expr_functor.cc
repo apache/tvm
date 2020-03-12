@@ -32,15 +32,10 @@
 namespace tvm {
 namespace relay {
 
-Expr ExprRewriter::Mutate(const Expr& expr) {
-  CHECK(this->memo_.count(expr)) << "ExprRewriter::Mutate called on a Node with unprocessed inputs";
-  return this->memo_[expr];
-}
-
-bool PostOrderGraphVisitor::PushToStack(const Expr& expr) {
+bool DataflowExpander::PushToStack(const Expr& expr, std::stack<std::pair<Expr, bool>>& stack) {
   bool out = true;
   if (visit_counter_[expr.get()] < visit_count_) {
-    stack_.push({expr, false});
+    stack.push({expr, false});
     out = false;
   } else {
     visit_counter_[expr.get()]++;
@@ -50,109 +45,50 @@ bool PostOrderGraphVisitor::PushToStack(const Expr& expr) {
   return out;
 }
 
-bool PostOrderGraphVisitor::VisitExpr(const Expr& expr) {
-  PushToStack(expr);
-  while (stack_.size() > 0) {
-    std::pair<Expr, bool>& current = stack_.top();
-    if (visit_counter_[current.first.get()] < visit_count_) {
-      if (current.second                               // If we have already checked this node
-          || current.first.as<TempExprNode>()          // Or it's temporary
-          || ExprFunctor::VisitExpr(current.first)) {  // or we've already visited it's inputs
-        // Do post order visitation
-        visitor_(current.first);
-        visit_counter_[current.first.get()]++;
-        stack_.pop();
-      } else {
-        // Otherwise. the VisitExpr function just pushed univisted children onto the stack
-        // The next time we see this item on the stack, it's children must have been visted
+void DataflowExpander::ExpandDataflow(const Expr& expr) {
+  /*! \brief Internal Manually Managed Stack.
+   * The stack contains a pair of <const ExprNoe*, bool> where the boolean indicates
+   * whether or not we've already checked the status of this nodes inputs
+   * The stack is initialized locally in the ExpandDataflow function to prevent non-recursive
+   * behavior and recursive behavior interacting.
+   * */
+  std::stack<std::pair<Expr, bool>> stack;
+  PushToStack(expr, stack);
+  while (stack.size() > 0) {
+    std::pair<Expr, bool>& current = stack.top();
+    Expr node = current.first;
+    if (visit_counter_[node.get()] < visit_count_) {
+      bool visit_now = true;
+      if (!current.second) {
+        if (const CallNode* op = node.as<CallNode>()) {
+          // push the children to the stack in reverse order
+          // to match recursive processing order
+          for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+            visit_now &= PushToStack(*it, stack);
+          }
+          visit_now &= PushToStack(op->op, stack);
+        } else if (const TupleNode* op = node.as<TupleNode>()) {
+          // push the children to the stack in reverse order
+          // to match recursive processing order
+          for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
+            visit_now &= PushToStack(*it, stack);
+          }
+        } else if (const TupleGetItemNode* op = node.as<TupleGetItemNode>()) {
+          visit_now &= PushToStack(op->tuple, stack);
+        }
         current.second = true;
       }
+      if (visit_now) {
+        // Do post order visitation
+        visit_(node);
+        visit_counter_[node.get()]++;
+        stack.pop();
+      }
     } else {
-      visit_counter_[current.first.get()]++;
-      stack_.pop();
+      visit_counter_[node.get()]++;
+      stack.pop();
     }
   }
-  // This is just to match the template API of ExprFunctor
-  return true;
-}
-
-bool PostOrderGraphVisitor::VisitExpr_(const VarNode* op) { return true; }
-bool PostOrderGraphVisitor::VisitExpr_(const ConstantNode* op) { return true; }
-bool PostOrderGraphVisitor::VisitExpr_(const GlobalVarNode* op) { return true; }
-bool PostOrderGraphVisitor::VisitExpr_(const OpNode* op) { return true; }
-bool PostOrderGraphVisitor::VisitExpr_(const TupleNode* op) {
-  bool children_processed = true;
-  // push the children to the stack in reverse order
-  // to match recursive processing order
-  for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
-    children_processed &= PushToStack(*it);
-  }
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const FunctionNode* op) {
-  bool children_processed = true;
-  // push the children to the stack in reverse order
-  // to match recursive processing order
-  children_processed &= PushToStack(op->body);
-  for (auto it = op->params.rbegin(); it != op->params.rend(); ++it) {
-    children_processed &= PushToStack(*it);
-  }
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const CallNode* call_node) {
-  bool children_processed = true;
-  // push the children to the stack in reverse order
-  // to match recursive processing order
-  for (auto it = call_node->args.rbegin(); it != call_node->args.rend(); ++it) {
-    children_processed &= PushToStack(*it);
-  }
-  children_processed &= PushToStack(call_node->op);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const LetNode* op) {
-  bool children_processed = true;
-  children_processed &= PushToStack(op->body);
-  children_processed &= PushToStack(op->value);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const IfNode* op) {
-  bool children_processed = true;
-  children_processed &= PushToStack(op->false_branch);
-  children_processed &= PushToStack(op->true_branch);
-  children_processed &= PushToStack(op->cond);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const TupleGetItemNode* op) {
-  bool children_processed = true;
-  children_processed &= PushToStack(op->tuple);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const RefCreateNode* op) {
-  bool children_processed = true;
-  children_processed &= PushToStack(op->value);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const RefReadNode* op) {
-  bool children_processed = true;
-  children_processed &= PushToStack(op->ref);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const RefWriteNode* op) {
-  bool children_processed = true;
-  children_processed &= PushToStack(op->value);
-  children_processed &= PushToStack(op->ref);
-  return children_processed;
-}
-bool PostOrderGraphVisitor::VisitExpr_(const ConstructorNode* op) { return true; }
-bool PostOrderGraphVisitor::VisitExpr_(const MatchNode* op) {
-  bool children_processed = true;
-  // push the children to the stack in reverse order
-  // to match recursive processing order
-  for (auto it = op->clauses.rbegin(); it != op->clauses.rend(); ++it) {
-    children_processed &= PushToStack((*it)->rhs);
-  }
-  children_processed &= PushToStack(op->data);
-  return children_processed;
 }
 
 Expr ExprMutator::VisitExpr(const Expr& expr) {
