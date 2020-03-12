@@ -204,9 +204,7 @@ struct SConstructorNode : StaticNode {
   Constructor constructor;
   std::vector<PStatic> fields;
   SConstructorNode(const Constructor& constructor, const std::vector<PStatic>& fields) :
-    constructor(constructor), fields(fields) {
-    CHECK_NE(constructor->tag, -1);
-  }
+    constructor(constructor), fields(fields) { }
   static constexpr const char* _type_key = "relay.SConstructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(SConstructorNode, StaticNode);
 };
@@ -1002,7 +1000,6 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const ConstructorNode* op, LetList* ll) final {
-    CHECK_NE(op->tag, -1);
     Constructor c = GetRef<Constructor>(op);
     Func f = [=](const PStatic& self,
                  const std::vector<PStatic>& pv,

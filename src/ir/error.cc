@@ -115,9 +115,7 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
       auto it = err_map.find(expr);
       if (it != err_map.end()) {
         CHECK_NE(it->second.size(), 0);
-        std::string ret = it->second;
-        err_map.erase(it);
-        return ret;
+        return it->second;
       } else {
         return std::string("");
       }
@@ -128,12 +126,6 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
 
   if (use_color) {
     rang::setControlMode(rang::control::Auto);
-  }
-
-  for (const auto& err_map : error_maps) {
-    for (const auto& str : err_map.second) {
-      annotated_prog << str.second << std::endl;
-    }
   }
 
   // Finally we report the error, currently we do so to LOG(FATAL),

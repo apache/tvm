@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file gradient.cc
+ * \file ad.cc
  * \brief API for Automatic Differentiation for the Relay IR.
  */
 #include <tvm/ir/type_functor.h>
@@ -89,14 +89,6 @@ Expr DeGlobal(const IRModule& mod, const Expr& e) {
     }
   } else {
     return e;
-  }
-}
-
-std::string GradName(const Expr& e) {
-  if (const auto* x = e.as<GlobalVarNode>()) {
-    return x->name_hint + "_grad";
-  } else {
-    return "temp_grad";
   }
 }
 
