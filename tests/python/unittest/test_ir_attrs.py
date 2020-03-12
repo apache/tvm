@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
+import tvm.ir._ffi_api
 
 def test_make_attrs():
     try:
@@ -50,6 +50,19 @@ def test_dict_attrs():
     assert len(dattr.items()) == 4
 
 
+def test_attrs_equal():
+    attr_equal = tvm.ir._ffi_api.AttrsEqual
+    dattr0 = tvm.ir.make_node("DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm.ir.make_node("DictAttrs", y=[10, 20], x=1)
+    dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=None)
+    assert attr_equal(dattr0, dattr1)
+    assert not attr_equal(dattr0, dattr2)
+    assert not attr_equal({"x": 1}, tvm.runtime.convert(1))
+    assert not attr_equal([1, 2], tvm.runtime.convert(1))
+
+
+
 if __name__ == "__main__":
     test_make_attrs()
     test_dict_attrs()
+    test_attrs_equal()
