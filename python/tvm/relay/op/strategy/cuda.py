@@ -85,12 +85,18 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
 
     if groups == 1:
         if layout == "NCHW":
-            # TODO(@vinx13, @icemelon9): Use conv2d_NCHWc_int8 when dtype is int8/uint8.
             assert kernel_layout == "OIHW"
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.cuda.conv2d_nchw),
-                wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
-                name="conv2d_nchw.cuda")
+            if data.dtype in ('int8', 'uint8') and kernel.dtype in ('int8', 'uint8'):
+                assert data.dtype == kernel.dtype
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_nchw_int8),
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_int8),
+                    name="conv2d_nchw_int8.cuda")
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_nchw),
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
+                    name="conv2d_nchw.cuda")
             _, _, kh, kw = get_const_tuple(kernel.shape)
             if 2 < kh < 8 and 2 < kw < 8 and kh == kw and stride_h == 1 and stride_w == 1 and \
                 dilation_h == 1 and dilation_w == 1:

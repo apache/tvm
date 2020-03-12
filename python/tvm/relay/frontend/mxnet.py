@@ -1373,8 +1373,8 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
 
         # 3) Clip/cast to change the out dtype.
         _res = relay.clip(_res,
-                          a_min=float(tvm.api.min_value(out_dtype).value),
-                          a_max=float(tvm.api.max_value(out_dtype).value))
+                          a_min=float(tvm.tir.op.min_value(out_dtype).value),
+                          a_max=float(tvm.tir.op.max_value(out_dtype).value))
         _res = relay.cast(_res, out_dtype)
         return _res
 
@@ -1647,8 +1647,8 @@ def _qnn_fully_connected(inputs, attrs, subgraphs, params):
                 _op.multiply(_op.cast(bias_data, 'float32'), bias_requantize_scale)
             rounded_bias = _op.round(multiplied_bias)
             clipped_bias = _op.clip(rounded_bias,
-                                    a_min=tvm.api.min_value('int32').value,
-                                    a_max=tvm.api.max_value('int32').value)
+                                    a_min=tvm.tir.op.min_value('int32').value,
+                                    a_max=tvm.tir.op.max_value('int32').value)
             requantized_bias = _op.cast(clipped_bias, 'int32')
             res = _op.nn.bias_add(res, requantized_bias, axis=-1)
         enable_float_output = attrs.get_bool('enable_float_output', False)

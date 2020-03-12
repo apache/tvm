@@ -264,3 +264,17 @@ def _qnn_dense_legalize_intel_cpu(attrs, inputs, types):
     if is_fast_int8_on_intel():
         return helper_change_dtypes_to_uint8_int8(attrs, inputs, types, relay.qnn.op.dense)
     return helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay.nn.dense)
+
+#####################
+# CUDA legalizations.
+#####################
+
+@qnn_conv2d_legalize.register('cuda')
+def _qnn_conv2d_legalize_cuda(attrs, inputs, types):
+    # CUDA prefers the dtypes to be same.
+    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.conv2d)
+
+@qnn_dense_legalize.register('cuda')
+def _qnn_dense_legalize_cuda(attrs, inputs, types):
+    # CUDA prefers the dtypes to be same.
+    return helper_change_dtypes_to_be_same(attrs, inputs, types, relay.qnn.op.dense)
