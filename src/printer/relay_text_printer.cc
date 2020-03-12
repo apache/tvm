@@ -38,7 +38,7 @@
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
 #include "meta_data.h"
-#include "../relay/pass/dependency_graph.h"
+#include "../relay/analysis/dependency_graph.h"
 #include "../ir/attr_functor.h"
 
 namespace tvm {

@@ -29,7 +29,7 @@
 #include <tvm/relay/attrs/memory.h>
 
 #include "../op_common.h"
-#include "../../pass/infer_layout_util.h"
+#include "../../transforms/infer_layout_util.h"
 #include "../type_relations.h"
 
 namespace tvm {

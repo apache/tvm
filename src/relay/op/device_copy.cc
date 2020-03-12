@@ -33,7 +33,7 @@
 #include <tvm/relay/op_attr_types.h>
 
 #include "type_relations.h"
-#include "../pass/infer_layout_util.h"
+#include "../transforms/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {
