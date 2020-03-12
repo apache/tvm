@@ -182,7 +182,44 @@ def test_extern_dnnl_mobilenet():
     check_result(mod, {"data": i_data},
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
+def test_annotate_with_merge():
+    def annotated():
+        in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
+        in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
+        in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
+        in_4 = relay.var('in_4', shape=(10, 10), dtype='float32')
+        in_5 = relay.var('in_5', shape=(10, 10), dtype='float32')
+        in_6 = relay.var('in_6', shape=(10, 10), dtype='float32')
+        in_7 = relay.var('in_7', shape=(10, 10), dtype='float32')
+        in_8 = relay.var('in_8', shape=(10, 10), dtype='float32')
+        in_9 = relay.var('in_9', shape=(10, 10), dtype='float32')
+        in_10 = relay.var('in_10', shape=(10, 10), dtype='float32')
+
+        node0 = relay.add(in_1, in_2)
+        node1 = relay.add(in_3, in_4)
+        node2 = relay.add(node0, node1)
+
+        node3 = relay.subtract(in_5, in_6)
+        node4 = relay.subtract(in_7, node3)
+
+        node5 = relay.add(node2, node4)
+        node6 = relay.subtract(in_8, node5)
+        node7 = relay.add(in_9, node5)
+
+        node8 = relay.add(node6, node7)
+        node9 = relay.add(in_10, node8)
+
+        f = relay.Function([in_1, in_2, in_3, in_4, in_5, in_6, in_7, in_8, in_9, in_10], node9)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    mod = annotated()
+    mod = transform.AnnotateTargetWithMerge(["dnnl"])(mod)
+    #ref_mod = expected(dtype, ishape, w1shape)
+    #assert relay.analysis.alpha_equal(mod, ref_mod)
+
 
 if __name__ == "__main__":
-    test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
+    #test_extern_dnnl()
+    #test_extern_dnnl_mobilenet()
+    test_annotate_with_merge()

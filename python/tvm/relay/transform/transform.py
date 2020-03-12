@@ -570,6 +570,23 @@ def AnnotateTarget(target):
     return _ffi_api.AnnotateTarget(target)
 
 
+def AnnotateTargetWithMerge(target):
+    """Annotate ops in an experession with a provied compiler/target and merge them greedy.
+
+    Parameters
+    ----------
+    target : String
+        The target compiler used for codegen.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The annotated pass that wrapps ops with subgraph_start and
+        subgraph_end.
+    """
+    return _transform.AnnotateTargetWithMerge(target)
+
+
 def Inline():
     """Perform inlining on the given Relay IR module. The global functions that
     are marked as `inline` should be always inlined. A cost model will be
