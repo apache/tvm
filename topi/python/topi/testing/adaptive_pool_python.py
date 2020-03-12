@@ -20,6 +20,7 @@ import numpy as np
 
 
 def adaptive_pool(np_data, out_size, pool_type):
+    """ The reference function for adaptive pool, both 2d and 3d """
     def start_index(index, odim, idim):
         return int(np.floor(index * idim / odim))
 
