@@ -2416,10 +2416,8 @@ def dilation2d(data,
         Layout of the input.
     kernel_layout : Optional[str]
         Layout of the weight.
-    out_layout : Optional[str]
-        Layout of the output, by default, out_layout is the same as data_layout
     out_dtype : Optional[str]
-        Specifies the output data type for mixed precision conv2d.
+        Specifies the output data type.
     Returns
     -------
     result : tvm.relay.Expr
