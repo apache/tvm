@@ -102,6 +102,7 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
+            'REDUCE_ANY': self._convert_reduce_any,
             'REDUCE_MAX': self._convert_reduce_max,
             'REDUCE_MIN': self._convert_reduce_min,
             'REDUCE_PROD': self._convert_reduce_prod,
@@ -1087,6 +1088,9 @@ class OperatorConverter(object):
 
     def _convert_reduce_sum(self, op):
         return self._convert_reduce(_op.reduce.sum, op)
+
+    def _convert_reduce_any(self, op):
+        return self._convert_reduce(_op.reduce.any, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
