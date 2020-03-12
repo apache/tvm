@@ -129,6 +129,7 @@ class OperatorConverter(object):
             'TAN': self.convert_tan,
             'TANH':self.convert_tanh,
             'TILE': self.convert_tile,
+            'TOPK_V2': self.convert_topk_v2,
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'TRANSPOSE': self.convert_transpose,
             'UNPACK': self.convert_unpack,
@@ -1547,6 +1548,24 @@ class OperatorConverter(object):
         reps = tuple(self.get_tensor_value(input_tensors[1]))
 
         out = _op.tile(in_expr, reps)
+
+        return out
+
+    def convert_topk_v2(self, op):
+        """ Convert TFLite TOPK_v2 """
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+        k = self.get_tensor_value(input_tensors[1])
+        out = _op.topk(in_expr, int(k))
 
         return out
 
