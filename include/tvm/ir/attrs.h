@@ -143,8 +143,13 @@ class AttrsEqualHandler;
 class AttrsEqual {
  public:
   bool operator()(const double& lhs, const double& rhs) const {
-    return lhs == rhs;
+    // fuzzy float pt comparison
+    constexpr double atol = 1e-9;
+    if (lhs == rhs) return true;
+    double diff = lhs - rhs;
+    return diff > -atol && diff < atol;
   }
+
   bool operator()(const int64_t& lhs, const int64_t& rhs) const {
     return lhs == rhs;
   }

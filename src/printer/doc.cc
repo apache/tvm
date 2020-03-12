@@ -40,9 +40,6 @@ class DocTextNode : public DocAtomNode {
 
   explicit DocTextNode(std::string str_val)
       : str(str_val) {
-    if (str.find_first_of("\t\n") != str.npos) {
-      LOG(WARNING) << "text node: '" << str << "' should not has tab or newline.";
-    }
   }
 
   static constexpr const char* _type_key = "printer.DocText";
@@ -54,6 +51,9 @@ TVM_REGISTER_OBJECT_TYPE(DocTextNode);
 class DocText : public DocAtom {
  public:
   explicit DocText(std::string str) {
+    if (str.find_first_of("\t\n") != str.npos) {
+      LOG(WARNING) << "text node: '" << str << "' should not has tab or newline.";
+    }
     data_ = runtime::make_object<DocTextNode>(str);
   }
 
@@ -123,6 +123,10 @@ Doc Doc::NewLine(int indent) {
 
 Doc Doc::Text(std::string text) {
   return Doc() << DocText(text);
+}
+
+Doc Doc::RawText(std::string text) {
+  return Doc() << DocAtom(runtime::make_object<DocTextNode>(text));
 }
 
 Doc Doc::Indent(int indent, Doc doc) {
