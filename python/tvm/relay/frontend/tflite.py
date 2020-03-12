@@ -109,6 +109,7 @@ class OperatorConverter(object):
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
+            'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
@@ -675,6 +676,13 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized FLOOR operator is not supported yet.')
         return self._convert_unary_elemwise(_op.floor, op)
+
+    def convert_round(self, op):
+        """Convert TFLite ROUND"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ROUND operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.round, op)
 
     def convert_exp(self, op):
         """Convert TFLite EXP"""

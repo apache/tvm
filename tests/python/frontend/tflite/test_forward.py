@@ -694,6 +694,15 @@ def _test_ceil(data):
 def _test_floor(data):
     """ One iteration of floor """
     return _test_unary_elemwise(math_ops.floor, data)
+
+#######################################################################
+# Round
+# -----
+
+def _test_round(data):
+    """ One iteration of round """
+    return _test_unary_elemwise(math_ops.round, data)
+
 #######################################################################
 # Exp
 # ---
@@ -787,6 +796,7 @@ def test_all_unary_elemwise():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_forward_unary_elemwise(_test_ceil)
         _test_forward_unary_elemwise(_test_cos)
+        _test_forward_unary_elemwise(_test_round)
         _test_forward_unary_elemwise(_test_tan)
         _test_forward_unary_elemwise(_test_elu)
 
