@@ -471,8 +471,18 @@ def test_forward_batchnorm():
             return self.batch_norm(args[0])
 
     input_data = torch.rand(input_shape).float()
-    verify_model(BatchNorm1().float().eval(), input_data=input_data)
-    verify_model(BatchNorm2().float().eval(), input_data=input_data)
+    # verify_model(BatchNorm1().float().eval(), input_data=input_data)
+    # verify_model(BatchNorm2().float().eval(), input_data=input_data)
+    bn3d = torch.nn.BatchNorm3d(16).eval()
+    torch.nn.init.normal(bn3d.weight)
+    torch.nn.init.normal_(bn3d.bias)
+
+    for i in range(10):
+        bn3d(torch.rand((1, 16, 32, 32, 32)))
+
+    print(bn3d.state_dict())
+    verify_model(bn3d,
+                 input_data=torch.rand((1, 16, 32, 32, 32)))
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
@@ -1022,7 +1032,7 @@ if __name__ == "__main__":
     # test_forward_conv()
     # test_forward_threshold()
     # test_forward_contiguous()
-    # test_forward_batchnorm()
+    test_forward_batchnorm()
     # test_forward_transpose()
     # test_forward_size()
     # test_forward_view()
@@ -1040,7 +1050,7 @@ if __name__ == "__main__":
     # test_forward_chunk()
     # test_upsample()
     # test_to()
-    test_adaptive_pool3d()
+    # test_adaptive_pool3d()
     # test_conv3d()
 
     # # Model tests
