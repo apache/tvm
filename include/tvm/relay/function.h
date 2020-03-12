@@ -125,7 +125,7 @@ class Function : public BaseFunc {
  * \returns The new function with updated attributes.
  *
  * \note This function performs copy on write optimization for func.
- *       If we move an uniquely referenced func into WithAttr,
+ *       If we move a uniquely referenced func into WithAttr,
  *       then no additional copy will be performed.
  *
  *       This is also why we make it as a function instead of a member function

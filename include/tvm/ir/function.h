@@ -36,7 +36,7 @@ namespace tvm {
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
- * All of the functions shares the same type system(via checked_type)
+ * All of the functions share the same type system(via checked_type)
  * to support cross variant calls.
  *
  * \sa BaseFunc
@@ -91,7 +91,7 @@ class BaseFuncNode : public RelayExprNode {
    * \code
    *
    *  void HasNonzeroAttrExample(const BaseFunc& f) {
-   *    if (f->HasNonzeroAttr(attr::Inline)) {
+   *    if (f->HasNonzeroAttr(attr::kInline)) {
    *      // inline the function.
    *    }
    *  }
