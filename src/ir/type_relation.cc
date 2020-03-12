@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/type_relation.cc
+ * \file src/ir/type_relation.cc
  * \brief Type relation
  */
 #include <tvm/ir/type.h>

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/interpreter.cc
+ * \file src/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
 #include <tvm/runtime/device_api.h>
@@ -516,7 +516,7 @@ class Interpreter :
     }
 
     if (is_dyn) {
-      CHECK(func->IsPrimitive());
+      CHECK(func->HasNonzeroAttr(attr::kPrimitive));
       out_shapes = ComputeDynamicShape(func, args);
     }
 
@@ -556,7 +556,7 @@ class Interpreter :
                    const tvm::Array<ObjectRef>& args,
                    const Var& bind = Var()) {
     // Get a reference to the function inside the closure.
-    if (closure->func->IsPrimitive()) {
+    if (closure->func->HasNonzeroAttr(attr::kPrimitive)) {
       return InvokePrimitiveOp(closure->func, args);
     }
     auto func = closure->func;

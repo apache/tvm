@@ -33,7 +33,7 @@ def get_recursive_count_loop():
     func = relay.Function([i],
                           sb.get(),
                           ret_type=relay.TensorType([], 'int32'))
-    func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
     mod[sum_up] = func
     iarg = relay.var('i', shape=[], dtype='int32')
     mod["main"] = relay.Function([iarg], sum_up(iarg))
@@ -56,7 +56,7 @@ def test_call_chain_inline_leaf():
         x11 = relay.var("x11", shape=(3, 5))
         g11 = relay.GlobalVar("g11")
         fn11 = relay.Function([x11], x11)
-        fn11 = fn11.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn11 = fn11.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         mod[g11] = fn11
 
         x1 = relay.var("x1", shape=(3, 5))
@@ -135,7 +135,7 @@ def test_call_chain_inline_multiple_levels():
         x11 = relay.var("x11", shape=(3, 5))
         g11 = relay.GlobalVar("g11")
         fn11 = relay.Function([x11], x11)
-        fn11 = fn11.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn11 = fn11.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         mod[g11] = fn11
 
         x1 = relay.var("x1", shape=(3, 5))
@@ -143,7 +143,7 @@ def test_call_chain_inline_multiple_levels():
         sb = relay.ScopeBuilder()
         sb.ret(x1 + y1 + g11(x1))
         fn1 = relay.Function([x1, y1], sb.get())
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
 
@@ -208,8 +208,8 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
         x11 = relay.var("x11", shape=(3, 5))
         g11 = relay.GlobalVar("g11")
         fn11 = relay.Function([x11], x11)
-        fn11 = fn11.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn11 = fn11.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn11 = fn11.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn11 = fn11.with_attr("Compiler", tvm.tir.StringImm("a"))
         mod[g11] = fn11
 
         x1 = relay.var("x1", shape=(3, 5))
@@ -217,7 +217,7 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
         sb = relay.ScopeBuilder()
         sb.ret(x1 + y1 + g11(x1))
         fn1 = relay.Function([x1, y1], sb.get())
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
 
@@ -243,8 +243,8 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
         mod = tvm.IRModule({})
         x11 = relay.var("x11", shape=(3, 5))
         fn11 = relay.Function([x11], x11)
-        fn11 = fn11.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn11 = fn11.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn11 = fn11.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn11 = fn11.with_attr("Compiler", tvm.tir.StringImm("a"))
 
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
@@ -275,7 +275,7 @@ def test_recursive_call_with_global():
 
         x = relay.var('x', shape=[], dtype='int32')
         fn0 = relay.Function([x], x)
-        fn0 = fn0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         gx = relay.GlobalVar("gx")
         mod[gx] = fn0
 
@@ -292,7 +292,7 @@ def test_recursive_call_with_global():
         func = relay.Function([i],
                               sb.get(),
                               ret_type=relay.TensorType([], "int32"))
-        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         mod[sum_up] = func
         iarg = relay.var("i", shape=[], dtype='int32')
         mod["main"] = relay.Function([iarg], sum_up(iarg))
@@ -313,7 +313,7 @@ def test_recursive_call_with_global():
         func = relay.Function([i],
                               sb.get(),
                               ret_type=relay.TensorType([], 'int32'))
-        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         mod[sum_up] = func
         iarg = relay.var('i', shape=[], dtype='int32')
         mod["main"] = relay.Function([iarg], sum_up(iarg))
@@ -340,7 +340,7 @@ def test_recursive_not_called():
         y = relay.var("y", shape=(2, 2))
         x1 = relay.var("x1", shape=(2, 2))
         fn1 = relay.Function([x1], x1)
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
         mod["main"] = relay.Function([x, y], x + y + g1(x))
@@ -366,8 +366,8 @@ def test_recursive_not_called_extern_compiler():
         y = relay.var("y", shape=(2, 2))
         x1 = relay.var("x1", shape=(2, 2))
         fn1 = relay.Function([x1], x1)
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
         mod["main"] = relay.Function([x, y], x + y + g1(x))
@@ -379,8 +379,8 @@ def test_recursive_not_called_extern_compiler():
         y = relay.var("y", shape=(2, 2))
         x1 = relay.var("x1", shape=(2, 2))
         fn1 = relay.Function([x1], x1)
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
         mod["main"] = relay.Function([x, y], x + y + fn1(x))
         return mod
 
@@ -398,7 +398,7 @@ def test_globalvar_as_call_arg():
         sb = relay.ScopeBuilder()
         sb.ret(x1 + y1)
         fn1 = relay.Function([x1, y1], sb.get())
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
 
@@ -407,7 +407,7 @@ def test_globalvar_as_call_arg():
         sb1 = relay.ScopeBuilder()
         sb1.ret(x2 - y2)
         fn2 = relay.Function([x2, y2], sb1.get())
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -445,8 +445,8 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb = relay.ScopeBuilder()
         sb.ret(x1 + y1)
         fn1 = relay.Function([x1, y1], sb.get())
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
 
@@ -455,8 +455,8 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb1 = relay.ScopeBuilder()
         sb1.ret(x2 - y2)
         fn2 = relay.Function([x2, y2], sb1.get())
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.set_attribute("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -477,16 +477,16 @@ def test_globalvar_as_call_arg_extern_compiler():
         sb = relay.ScopeBuilder()
         sb.ret(x1 + y1)
         fn1 = relay.Function([x1, y1], sb.get())
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
 
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         sb1 = relay.ScopeBuilder()
         sb1.ret(x2 - y2)
         fn2 = relay.Function([x2, y2], sb1.get())
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.set_attribute("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
 
         p0 = relay.var("p0", shape=(3, 5))
         p1 = relay.var("p1", shape=(3, 5))
@@ -507,9 +507,9 @@ def test_inline_globalvar_without_args():
     def get_mod():
         mod = tvm.IRModule({})
         fn1 = relay.Function([], relay.const(1))
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         fn2 = relay.Function([], relay.const(2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g1 = relay.GlobalVar('g1')
         g2 = relay.GlobalVar('g2')
         mod[g1] = fn1
@@ -521,9 +521,9 @@ def test_inline_globalvar_without_args():
     def expected():
         mod = tvm.IRModule({})
         fn1 = relay.Function([], relay.const(1))
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         fn2 = relay.Function([], relay.const(2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         p = relay.var('p', 'bool')
         mod['main'] = relay.Function([p], relay.Call(
             relay.If(p, fn1, fn2), []))
@@ -538,11 +538,11 @@ def test_inline_globalvar_without_args_extern_compiler():
     def get_mod():
         mod = tvm.IRModule({})
         fn1 = relay.Function([], relay.const(1))
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
         fn2 = relay.Function([], relay.const(2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.set_attribute("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
         g1 = relay.GlobalVar('g1')
         g2 = relay.GlobalVar('g2')
         mod[g1] = fn1
@@ -554,11 +554,11 @@ def test_inline_globalvar_without_args_extern_compiler():
     def expected():
         mod = tvm.IRModule({})
         fn1 = relay.Function([], relay.const(1))
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn1 = fn1.set_attribute("Compiler", tvm.tir.StringImm("a"))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Compiler", tvm.tir.StringImm("a"))
         fn2 = relay.Function([], relay.const(2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn2 = fn2.set_attribute("Compiler", tvm.tir.StringImm("b"))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Compiler", tvm.tir.StringImm("b"))
         p = relay.var('p', 'bool')
         mod['main'] = relay.Function([p], relay.Call(
             relay.If(p, fn1, fn2), []))
@@ -593,7 +593,7 @@ def test_globalvar_called_by_multiple_functions():
         sb1 = relay.ScopeBuilder()
         sb1.ret(x2 - y2)
         fn2 = relay.Function([x2, y2], sb1.get())
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -659,14 +659,14 @@ def test_entry_with_inline():
         x1 = relay.var("x1", shape=(3, 5))
         y1 = relay.var("y1", shape=(3, 5))
         fn1 = relay.Function([x1, y1], x1 + y1)
-        fn1 = fn1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn1 = fn1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g1 = relay.GlobalVar("g1")
         mod[g1] = fn1
 
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         fn2 = relay.Function([x2, y2], x2 - y2)
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -699,7 +699,7 @@ def test_callee_not_inline():
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         fn2 = relay.Function([x2, y2], x2 - g1(x2, y2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -728,7 +728,7 @@ def test_callee_not_inline_leaf_inline():
         x0 = relay.var("x0", shape=(3, 5))
         y0 = relay.var("y0", shape=(3, 5))
         fn0 = relay.Function([x0, y0], x0 * y0)
-        fn0 = fn0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g0 = relay.GlobalVar("g0")
         mod[g0] = fn0
 
@@ -741,7 +741,7 @@ def test_callee_not_inline_leaf_inline():
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         fn2 = relay.Function([x2, y2], x2 - g1(x2, y2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
         return mod
@@ -757,7 +757,7 @@ def test_callee_not_inline_leaf_inline():
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         fn2 = relay.Function([x2, y2], x2 - g1(x2, y2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 
@@ -786,8 +786,8 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
         x0 = relay.var("x0", shape=(3, 5))
         y0 = relay.var("y0", shape=(3, 5))
         fn0 = relay.Function([x0, y0], x0 * y0)
-        fn0 = fn0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn0 = fn0.set_attribute("Compiler", tvm.tir.StringImm("aa"))
+        fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn0 = fn0.with_attr("Compiler", tvm.tir.StringImm("aa"))
         g0 = relay.GlobalVar("g0")
         mod[g0] = fn0
 
@@ -800,7 +800,7 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         fn2 = relay.Function([x2, y2], x2 - g1(x2, y2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
         return mod
@@ -810,8 +810,8 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
         x0 = relay.var("x0", shape=(3, 5))
         y0 = relay.var("y0", shape=(3, 5))
         fn0 = relay.Function([x0, y0], x0 * y0)
-        fn0 = fn0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        fn0 = fn0.set_attribute("Compiler", tvm.tir.StringImm("aa"))
+        fn0 = fn0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        fn0 = fn0.with_attr("Compiler", tvm.tir.StringImm("aa"))
 
         x1 = relay.var("x1", shape=(3, 5))
         y1 = relay.var("y1", shape=(3, 5))
@@ -822,7 +822,7 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
         x2 = relay.var("x2", shape=(3, 5))
         y2 = relay.var("y2", shape=(3, 5))
         fn2 = relay.Function([x2, y2], x2 - g1(x2, y2))
-        fn2 = fn2.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
+        fn2 = fn2.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         g2 = relay.GlobalVar("g2")
         mod[g2] = fn2
 

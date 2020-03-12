@@ -211,15 +211,18 @@ class Partitioner : public ExprMutator {
       }
 
       auto subgraph_func =
-          FunctionNode::make(params, input, call->checked_type_, {}, Attrs());
+          Function(params, input, call->checked_type_, {});
 
       std::string name = compiler_attrs->compiler + "_" + std::to_string(subgraph->id);
       subgraph_func =
-          FunctionSetAttr(subgraph_func, attr::kExternalSymbol, tir::StringImmNode::make(name));
-      subgraph_func = FunctionSetAttr(subgraph_func, attr::kPrimitive, tvm::Integer(1));
-      subgraph_func = FunctionSetAttr(subgraph_func, attr::kCompiler,
-                                      tvm::tir::StringImmNode::make(compiler_attrs->compiler));
-      subgraph_func = FunctionSetAttr(subgraph_func, attr::kInline, tvm::Integer(1));
+          WithAttr(std::move(subgraph_func), attr::kExternalSymbol, tir::StringImmNode::make(name));
+      subgraph_func =
+          WithAttr(std::move(subgraph_func), attr::kPrimitive, tvm::Integer(1));
+      subgraph_func =
+          WithAttr(std::move(subgraph_func), attr::kCompiler,
+                   tvm::tir::StringImmNode::make(compiler_attrs->compiler));
+      subgraph_func =
+          WithAttr(std::move(subgraph_func), attr::kInline, tvm::Integer(1));
       CHECK(!module_->ContainGlobalVar(name))
           << "Global function " << name << " already exists";
       // Create a global function and add it to the IRModule for the subgraph.
@@ -277,7 +280,7 @@ class Partitioner : public ExprMutator {
         params.push_back(new_param);
       }
       auto body = VisitExpr(op->body);
-      return FunctionNode::make(params, body, op->ret_type, op->type_params, op->attrs);
+      return Function(params, body, op->ret_type, op->type_params, op->attrs);
     }
   }
 
@@ -351,7 +354,7 @@ class Partitioner : public ExprMutator {
     for (const auto& pair : glob_funcs) {
       if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
-        func = FunctionNode::make(func->params,
+        func = Function(func->params,
                                   VisitExpr(func->body),
                                   func->ret_type,
                                   func->type_params,

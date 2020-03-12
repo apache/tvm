@@ -208,10 +208,10 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr VisitExpr_(const FunctionNode* f, const Var& v) final {
     Expr e = GetRef<Expr>(f);
     Expr ret;
-    if (f->IsPrimitive()) {
+    if (f->HasNonzeroAttr(attr::kPrimitive)) {
       ret = e;
     } else {
-      ret = FunctionNode::make(f->params,
+      ret = Function(f->params,
                                GetSubScope(e, 0)->ll->Get(VisitExpr(f->body)),
                                f->ret_type,
                                f->type_params,

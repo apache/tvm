@@ -78,7 +78,7 @@ Expr DeDup(const Expr& e) {
       for (const Var& param : op->params) {
         params.push_back(Fresh(param));
       }
-      return FunctionNode::make(params,
+      return Function(params,
                                 VisitExpr(op->body),
                                 VisitType(op->ret_type),
                                 type_params,

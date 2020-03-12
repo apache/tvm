@@ -83,7 +83,7 @@ class Inliner : ExprMutator {
   }
 
   Function Inline(const Function& func) {
-    return FunctionNode::make(func->params,
+    return Function(func->params,
                               VisitExpr(func->body),
                               func->ret_type,
                               func->type_params,
@@ -101,7 +101,7 @@ class Inliner : ExprMutator {
     if (!func->body.defined()) return false;
 
     // The function must be annotated with the inline attribute.
-    if (!func->IsMarkedInline()) return false;
+    if (!func->HasNonzeroAttr(attr::kInline)) return false;
 
     // The function is not abled to be inlined if any callee under the CallGraph
     // of this function cannot be inlined.
@@ -124,7 +124,7 @@ class Inliner : ExprMutator {
     const auto* fn = base_func.as<FunctionNode>();
     CHECK(fn) << "Expected to work on a Relay function.";
 
-    auto func = FunctionNode::make(fn->params,
+    auto func = Function(fn->params,
                                    fn->body,
                                    fn->ret_type,
                                    fn->type_params,
@@ -198,7 +198,7 @@ IRModule Inline(const IRModule& module) {
     auto base_func = cg->GetGlobalFunction(cgn->GetGlobalVar());
     if (const auto* fn = base_func.as<FunctionNode>()) {
       auto func = GetRef<Function>(fn);
-      if (func->IsMarkedInline()) {
+      if (func->HasNonzeroAttr(attr::kInline)) {
         CHECK_EQ(cgn->GetRefCount(), 0U)
             << cgn->GetNameHint() << " is marked as inline but not inlined.";
         cgn->CleanCallGraphEntries();

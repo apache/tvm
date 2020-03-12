@@ -47,9 +47,7 @@ class Attrs(Object):
         keys : list of str
             List of keys
         """
-        fields = self.list_field_info()
-        for field in fields:
-            yield field.name
+        return [field.name for field in self.list_field_info()]
 
     def get_int_tuple(self, key):
         """Get a python int tuple of a key
@@ -92,6 +90,39 @@ class Attrs(Object):
 
     def __getitem__(self, item):
         return self.__getattr__(item)
+
+
+@tvm._ffi.register_object
+class DictAttrs(Attrs):
+    """Dictionary attributes.
+    """
+    def _dict(self):
+        """Get internal dict"""
+        return _ffi_api.DictAttrsGetDict(self)
+
+    def keys(self):
+        """Get list of names in the attribute.
+
+        Returns
+        -------
+        keys : list of str
+            List of keys
+        """
+        return [k for k, _ in self.items()]
+
+    def __getitem__(self, k):
+        return self._dict().__getitem__(k)
+
+    def __contains__(self, k):
+        return self._dict().__contains__(k)
+
+    def items(self):
+        """Get items from the map."""
+        return self._dict().items()
+
+    def __len__(self):
+        return self._dict().__len__()
+
 
 def make_node(type_key, **kwargs):
     """Make a new IR node by its type key and fields

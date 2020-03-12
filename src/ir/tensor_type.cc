@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/tensor_type.cc
+ * \file src/ir/tensor_type.cc
  * \brief The type system AST nodes of Relay.
  */
 #include <tvm/runtime/registry.h>

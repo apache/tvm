@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/ir/hash.cc
+ * \file src/relay/ir/hash.cc
  * \brief Hash functions for Relay types and expressions.
  */
 #include <tvm/ir/type_functor.h>

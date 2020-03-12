@@ -142,7 +142,7 @@ Function ToCPS(const Function& f,
     }
 
     Expr VisitExpr_(const FunctionNode* op, const MCont& k) final {
-      CHECK(!op->IsPrimitive()) << "primitive func not supported yet.";
+      CHECK(!op->HasNonzeroAttr(attr::kPrimitive)) << "primitive func not supported yet.";
       return k(ToCPS(GetRef<Function>(op), m, cm, vm, answer));
     }
 
@@ -182,7 +182,7 @@ Function ToCPS(const Function& f,
 
     Expr reify(const MCont& k) {
       Var arg = VarNode::make("arg", Type());
-      return FunctionNode::make({arg}, k(arg), Type(), {}, {});
+      return Function({arg}, k(arg), Type(), {}, {});
     }
 
     Expr reify(const MCont& k, const std::function<Expr(MCont)>& cont) {
@@ -293,7 +293,7 @@ Function ToCPS(const Function& f,
     new_params.push_back(remap(v));
   }
   new_params.push_back(k);
-  return FunctionNode::make(new_params,
+  return Function(new_params,
                             mut.VisitExpr(f->body,
                                           [&](const Expr& e) { return CallNode::make(k, {e}); }),
                             answer,
@@ -328,7 +328,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
   Function ret = ToCPS(f, m, cm, &var, answer);
   auto new_type_params = ret->type_params;
   new_type_params.push_back(answer);
-  return FunctionNode::make(ret->params, ret->body, ret->ret_type, new_type_params, ret->attrs);
+  return Function(ret->params, ret->body, ret->ret_type, new_type_params, ret->attrs);
 }
 
 Function ToCPS(const Function& f, const IRModule& m) {
@@ -355,7 +355,7 @@ Function UnCPS(const Function& f) {
   // TODO(@M.K.): make alphaequal work on free term
   // CHECK(AlphaEqual(cont_type, Arrow(new_ret_type, answer_type)));
   auto x = VarNode::make("x", new_ret_type);
-  auto cont = FunctionNode::make({x}, x, new_ret_type, {}, {});
+  auto cont = Function({x}, x, new_ret_type, {}, {});
   tvm::Array<Expr> args;
   for (const auto& p : new_params) {
     args.push_back(p);
@@ -366,7 +366,7 @@ Function UnCPS(const Function& f) {
     type_args.push_back(tp);
   }
   type_args.push_back(new_ret_type);
-  return FunctionNode::make(new_params,
+  return Function(new_params,
                             CallNode::make(f, args, {}, type_args),
                             new_ret_type,
                             new_type_params,

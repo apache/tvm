@@ -27,15 +27,14 @@
 
 #include <tvm/node/functor.h>
 #include <tvm/ir/error.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
+#include <tvm/relay/adt.h>
+#include <tvm/relay/op.h>
 
 #include <string>
 #include <utility>
 #include <unordered_map>
-
-#include "./expr.h"
-#include "./adt.h"
-#include "./op.h"
-
 
 namespace tvm {
 namespace relay {

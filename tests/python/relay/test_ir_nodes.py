@@ -169,14 +169,15 @@ def test_function():
     body = relay.Tuple(tvm.runtime.convert([]))
     type_params = tvm.runtime.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
-    fn = fn.set_attribute("test_attribute", tvm.tir.StringImm("value"))
+    fn = fn.with_attr("test_attribute", tvm.tir.StringImm("value"))
     assert fn.params == params
     assert fn.body == body
     assert fn.type_params == type_params
     assert fn.span == None
-    assert fn.get_attribute("test_attribute") == "value"
+    assert fn.attrs["test_attribute"] == "value"
     str(fn)
     check_json_roundtrip(fn)
+
 
 @pytest.mark.skip(reason="AttrsEqualHandler doesn't handle Map so far.")
 def test_function_attrs():
@@ -190,8 +191,10 @@ def test_function_attrs():
     for param in params[:1]:
         cty = param.type_annotation
         tensor = np.random.rand(*[int(sh) for sh in cty.shape]).astype(cty.dtype)
-        model_params[param] = tvm.nd.array(tensor)
-    fn = fn.set_params(model_params)
+        model_params[param] = relay.Constant(tvm.nd.array(tensor))
+
+    fn = fn.with_attr("__params__", model_params)
+
     assert fn.params == params
     assert fn.body == body
     assert fn.type_params == type_params
@@ -200,7 +203,7 @@ def test_function_attrs():
     check_json_roundtrip(fn)
     json_str = tvm.ir.save_json(fn)
     fn_after = tvm.ir.load_json(json_str)
-    model_params_after = fn_after.get_params()
+    model_params_after = fn_after.attrs["__params__"]
     after_keys = [item[0] for item in model_params_after.items()]
     for key1, key2 in zip(model_params, after_keys):
         assert key1.name_hint == key2.name_hint
@@ -296,4 +299,3 @@ if __name__ == "__main__":
     test_tuple_get_item()
     test_op()
     test_conv2d_attrs()
-

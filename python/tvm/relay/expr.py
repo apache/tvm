@@ -266,22 +266,24 @@ class Function(BaseFunc):
         """
         return Call(self, args, None, None)
 
-    def get_params(self):
-        return _expr.FunctionGetParams(self)
+    def with_attr(self, attr_key, attr_value):
+        """Create a new copy of the function and update the attribute
 
-    def set_params(self, params):
-        for key in params:
-            value = params[key]
-            if isinstance(value, NDArray):
-                params[key] = Constant(value)
+        Parameters
+        ----------
+        attr_key : str
+            The attribute key to use.
 
-        return _expr.FunctionSetParams(self, params)
+        attr_value : Object
+            The new attribute value.
 
-    def set_attribute(self, name, ref):
-        return _expr.FunctionSetAttr(self, name, ref)
+        Returns
+        -------
+        func : Function
+            A new copy of the function
+        """
+        return _expr.FunctionWithAttr(self, attr_key, attr_value)
 
-    def get_attribute(self, name):
-        return _expr.FunctionGetAttr(self, name)
 
 
 @register_relay_node

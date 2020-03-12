@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/doc.cc
+ * \file src/relay/doc.cc
  * \brief Doc ADT used for pretty printing.
  *
  *  Reference: Philip Wadler. A Prettier Printer. Journal of Functional Programming'98

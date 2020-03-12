@@ -140,9 +140,10 @@ class MergeCompositeWrapper : public ExprMutator {
     if (call->op->IsInstance<FunctionNode>()) {
       Function func = Downcast<Function>(call->op);
       CHECK(func.defined());
-      const auto name_node = FunctionGetAttr(func, attr::kComposite).as<tir::StringImmNode>();
+      const auto name_node =
+          func->GetAttr<tir::StringImm>(attr::kComposite);
       // don't step into existing composite functions
-      if (name_node && name_node->value != "") {
+      if (name_node.defined() && name_node->value != "") {
         tvm::Array<tvm::relay::Expr> new_args;
         for (const auto& arg : call->args) {
           auto new_e = this->Mutate(arg);
@@ -166,8 +167,8 @@ class MergeCompositeWrapper : public ExprMutator {
     if (extract.defined()) {
       auto free_vars = FreeVars(extract);
       // make the composite function
-      auto f = FunctionNode::make(free_vars, extract, call->checked_type_, {}, Attrs());
-      f = FunctionSetAttr(f, attr::kComposite, tir::StringImmNode::make(pattern_name_));
+      auto f = Function(free_vars, extract, call->checked_type_, {}, DictAttrs());
+      f = WithAttr(std::move(f), attr::kComposite, tir::StringImmNode::make(pattern_name_));
       // find the expressions associated with the free vars using the args_map
       // this tells us which expressions should be given as inputs to the composite function
       Array<Expr> args;

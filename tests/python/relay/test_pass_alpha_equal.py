@@ -353,7 +353,7 @@ def test_function_attr():
     p00 = relay.subtract(z00, w01)
     q00 = relay.multiply(p00, w02)
     func0 = relay.Function([x0, w00, w01, w02], q00)
-    func0 = func0.set_attribute("FuncName", tvm.tir.StringImm("a"))
+    func0 = func0.with_attr("FuncName", tvm.tir.StringImm("a"))
 
     x1 = relay.var('x1', shape=(10, 10))
     w10 = relay.var('w10', shape=(10, 10))
@@ -363,7 +363,7 @@ def test_function_attr():
     p10 = relay.subtract(z10, w11)
     q10 = relay.multiply(p10, w12)
     func1 = relay.Function([x1, w10, w11, w12], q10)
-    func1 = func1.set_attribute("FuncName", tvm.tir.StringImm("b"))
+    func1 = func1.with_attr("FuncName", tvm.tir.StringImm("b"))
     assert not alpha_equal(func0, func1)
 
 
@@ -694,7 +694,7 @@ def test_fn_attribute():
     d = relay.var('d', shape=(10, 10))
     add_1 = relay.add(c, d)
     add_1_fn = relay.Function([c, d], add_1)
-    add_1_fn = add_1_fn.set_attribute("TestAttribute", tvm.tir.StringImm("test"))
+    add_1_fn = add_1_fn.with_attr("TestAttribute", tvm.tir.StringImm("test"))
     add_1_fn = run_opt_pass(add_1_fn, relay.transform.InferType())
 
     assert not relay.analysis.alpha_equal(add_1_fn, add_fn)

@@ -211,30 +211,6 @@ class GlobalVar : public RelayExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
 };
 
-/*!
- * \brief Base node of all functions.
- *
- * We support several variants of functions throughout the stack.
- * All of the functions shares the same type system(via checked_type)
- * to support cross variant calls.
- *
- * \sa BaseFunc
- */
-class BaseFuncNode : public RelayExprNode {
- public:
-  static constexpr const char* _type_key = "BaseFunc";
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);
-};
-
-/*!
- * \brief Managed reference to BaseFuncNode.
- * \sa BaseFuncNode
- */
-class BaseFunc : public RelayExpr {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
-};
-
 // PrimExprs that are useful as runtime containers.
 //
 /*!
