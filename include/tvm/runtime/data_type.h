@@ -112,6 +112,10 @@ class DataType {
   bool is_vector() const {
     return lanes() > 1;
   }
+  /*! \return whether type is a bool vector type. */
+  bool is_vector_bool() const {
+    return is_vector() && bits() == 1;
+  }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.

@@ -260,8 +260,9 @@ For example, in the following code, we accessed the op field of the TensorNode.
 .. code:: python
 
     import tvm
+    from tvm import te
 
-    x = tvm.placeholder((3,4), name="x")
+    x = te.placeholder((3,4), name="x")
     # access the op field of TensorNode
     print(x.op.name)
 

@@ -63,6 +63,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fabs")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp2")
+.set_body(DispatchExternLibDevice);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp10")
+.set_body(DispatchExternLibDevice);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.erf")
 .set_body(DispatchExternLibDevice);
 
@@ -70,6 +76,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fma")
 .set_body(DispatchExternLibDevice);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.log")
+.set_body(DispatchExternLibDevice);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.log2")
+.set_body(DispatchExternLibDevice);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.log10")
 .set_body(DispatchExternLibDevice);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.sqrt")
@@ -87,7 +99,13 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.tan")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.cos")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.cosh")
+.set_body(DispatchExternLibDevice);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.sin")
+.set_body(DispatchExternLibDevice);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.sinh")
 .set_body(DispatchExternLibDevice);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.atan")

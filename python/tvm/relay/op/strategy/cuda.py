@@ -98,7 +98,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_winograd),
                     name="conv2d_nchw_winograd.cuda",
-                    plevel=15)
+                    plevel=5)
         elif layout == "HWCN":
             assert kernel_layout == "HWIO"
             strategy.add_implementation(

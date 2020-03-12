@@ -30,7 +30,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <topi/elemwise.h>
 
-#include "../../pass/infer_layout_util.h"
+#include "../../transforms/infer_layout_util.h"
 #include "../type_relations.h"
 
 namespace tvm {

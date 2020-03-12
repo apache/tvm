@@ -496,6 +496,30 @@ def test_padding():
         verify(ref_func, qnn_func, data_shape, data_dtype,
                 kernel_shape, kernel_dtype)
 
+        # Try asymmetric padding
+        data_shape = (2, 2, 4, 4) # NHWC
+        data_dtype = 'uint8'
+        kernel_shape = (2, 2, 4, 3) # HWIO
+        kernel_dtype = 'uint8'
+        ref_func, qnn_func = get_funcs(data_shape=data_shape,
+                                       data_dtype=data_dtype,
+                                       kernel_shape=kernel_shape,
+                                       kernel_dtype=kernel_dtype,
+                                       input_zero_point=8,
+                                       kernel_zero_point=3,
+                                       input_scale=1.0,
+                                       kernel_scale=1.0,
+                                       kernel_size=(2, 2),
+                                       padding=(1, 1, 2, 2),
+                                       strides=(1, 1),
+                                       dilation=(1, 1),
+                                       data_layout="NHWC",
+                                       kernel_layout="HWIO",
+                                       out_dtype="int32")
+        verify(ref_func, qnn_func, data_shape, data_dtype,
+                kernel_shape, kernel_dtype)
+
+
 def test_dilation():
     with TempOpAttr("qnn.conv2d", "FTVMQnnLegalize", legalize_qnn_conv2d):
 

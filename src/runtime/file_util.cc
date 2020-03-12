@@ -73,7 +73,6 @@ std::string GetFileFormat(const std::string& file_name,
                           const std::string& format) {
   std::string fmt = format;
   if (fmt.length() == 0) {
-    if (file_name.find(".signed.so") != std::string::npos) return "sgx";
     size_t pos = file_name.find_last_of(".");
     if (pos != std::string::npos) {
       return file_name.substr(pos + 1, file_name.length() - pos - 1);

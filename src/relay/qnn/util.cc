@@ -23,7 +23,7 @@
  */
 
 #include "util.h"
-#include "../pass/pattern_util.h"
+#include "../transforms/pattern_util.h"
 
 namespace tvm {
 namespace relay {

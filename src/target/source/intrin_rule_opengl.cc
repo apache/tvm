@@ -36,7 +36,19 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.ceil")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.exp")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.exp2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.exp10")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.log")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.log2")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.log10")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.tanh")
@@ -49,6 +61,18 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.pow")
 .set_body(DispatchExtern<Direct>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.popcount")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.sin")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.sinh")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.cos")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opengl.cosh")
 .set_body(DispatchExtern<Direct>);
 
 }  // namespace intrin

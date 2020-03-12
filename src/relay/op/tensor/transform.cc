@@ -36,8 +36,8 @@
 #include <vector>
 #include "../op_common.h"
 #include "../../../arith/compute_expr.h"
-#include "../../pass/infer_layout_util.h"
-#include "../../pass/pattern_util.h"
+#include "../../transforms/infer_layout_util.h"
+#include "../../transforms/pattern_util.h"
 #include "transform.h"
 
 namespace tvm {

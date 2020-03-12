@@ -142,6 +142,25 @@ def test_simple_if():
     # diff
     check_result([x_data, y_data], y_data, mod=mod)
 
+def test_multiple_ifs():
+    mod = tvm.IRModule({})
+    b = relay.var('b')
+    v0 = relay.var('v0')
+    v1 = relay.var('v1')
+    v2 = relay.var('v2')
+    v3 = relay.var('v3')
+    out = relay.Tuple([v2, v3])
+    out = relay.Let(v3, relay.If(b, v1, v0), out)
+    out = relay.Let(v2, relay.If(b, v0, v1), out)
+    out = relay.Let(v1, relay.Tuple([relay.const(1)]), out)
+    out = relay.Let(v0, relay.Tuple([relay.const(0)]), out)
+    fn = relay.Function([b], out)
+    mod['main'] = fn
+    ctx = tvm.runtime.ndarray.context('llvm', 0)
+    vm = relay.create_executor(ctx=ctx, mod=mod, kind='vm')
+    res = vmobj_to_list(vm.evaluate()(False))
+    assert(res == [1, 0])
+
 def test_simple_call():
     mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')

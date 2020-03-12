@@ -30,16 +30,22 @@ rm -rf ~/.tvm
 make cython3
 
 # Set default VTA config to use TSIM cycle accurate sim
-cp vta/config/tsim_sample.json vta/config/vta_config.json
+cp vta/vta-hw/config/tsim_sample.json vta/vta-hw/config/vta_config.json
+
+# Build and run the TSIM apps (disable until refactor is complete)
+# echo "Test the TSIM apps..."
+# make -C vta/vta-hw/apps/tsim_example/ run_verilog
+# make -C vta/vta-hw/apps/tsim_example/ run_chisel
+# make -C vta/vta-hw/apps/gemm/ default
 
 # Check style of scala code
 echo "Check style of scala code..."
-make -C vta/hardware/chisel lint
+make -C vta/vta-hw/hardware/chisel lint
 
 # Build VTA chisel design and verilator simulator
 echo "Building VTA chisel design..."
-make -C vta/hardware/chisel cleanall
-make -C vta/hardware/chisel USE_THREADS=0 lib
+make -C vta/vta-hw/hardware/chisel cleanall
+make -C vta/vta-hw/hardware/chisel USE_THREADS=0 lib
 
 # Run unit tests in cycle accurate simulator
 echo "Running unittest in tsim..."
@@ -50,4 +56,4 @@ echo "Running integration test in tsim..."
 python3 -m pytest -v vta/tests/python/integration
 
 # Reset default fsim simulation
-cp vta/config/fsim_sample.json vta/config/vta_config.json
+cp vta/vta-hw/config/fsim_sample.json vta/vta-hw/config/vta_config.json
