@@ -85,7 +85,7 @@ TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
 * ones, ones_like, zeros, zeros_like will not immediately instantiate a tensor in memory,
 * rather only instantiate if needed. It also defines + and * operation
 * between GradCell types which can increase performance when using
-* zero-filled or one-filled tensors, which is the case in gradient descent.
+* zero-filled or one-filled tensors, which is the case in reverse mode ad.
 *
 * \return the pass
 */
