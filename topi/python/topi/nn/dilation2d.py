@@ -38,6 +38,8 @@ def dilation2d_nchw(input, filter, stride, padding, dilation, out_dtype=None):
         Padding size
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
+    out_dtype : Optional[str]
+        Specifies the output data type.
     Returns
     -------
     Output : tvm.Tensor
@@ -100,6 +102,8 @@ def dilation2d_nhwc(input, filter, stride, padding, dilation, out_dtype=None):
         Padding size
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
+    out_dtype : Optional[str]
+        Specifies the output data type.
     Returns
     -------
     Output : tvm.Tensor
