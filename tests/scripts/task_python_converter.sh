@@ -30,6 +30,6 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 echo "Running relay to ONNX converter..."
-python3 -m pytest -v tests/python/relay/converter/
+python3 -m pytest -v tests/python/converter/
 
 
