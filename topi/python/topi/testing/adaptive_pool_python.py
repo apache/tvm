@@ -26,13 +26,29 @@ def adaptive_pool(np_data, out_size, pool_type):
     def end_index(index, odim, idim):
         return int(np.ceil((index + 1) * idim / odim))
 
-    n, c, h, w = np_data.shape
-    oh, ow = out_size
-    oshape = (n, c) + out_size
-    np_out = np.zeros(oshape).astype(np_data.dtype)
-    np_op = np.mean if pool_type == "avg" else np.max
-    for i in range(n):
-        for j in range(c):
+    def pool2d(i, j):
+        out = np.zeros(out_size).astype(np_data.dtype)
+        n, c, h, w = np_data.shape
+        oh, ow = out_size
+        for k in range(oh):
+            k_start = start_index(k, oh, h)
+            k_end = end_index(k, oh, h)
+            k_sl = slice(k_start, k_end)
+            for l in range(ow):
+                l_start = start_index(l, ow, w)
+                l_end = end_index(l, ow, w)
+                l_sl = slice(l_start, l_end)
+                out[k, l] = np_op(np_data[i, j, k_sl, l_sl])
+        return out
+
+    def pool3d(i, j):
+        out = np.zeros(out_size).astype(np_data.dtype)
+        n, c, d, h, w = np_data.shape
+        od, oh, ow = out_size
+        for m in range(od):
+            m_start = start_index(m, od, d)
+            m_end = end_index(m, od, d)
+            m_sl = slice(m_start, m_end)
             for k in range(oh):
                 k_start = start_index(k, oh, h)
                 k_end = end_index(k, oh, h)
@@ -41,5 +57,19 @@ def adaptive_pool(np_data, out_size, pool_type):
                     l_start = start_index(l, ow, w)
                     l_end = end_index(l, ow, w)
                     l_sl = slice(l_start, l_end)
-                    np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
+                    out[m, k, l] = np_op(np_data[i, j, m_sl, k_sl, l_sl])
+        return out
+
+    if len(out_size) == 2:
+        pool_op = pool2d
+    else:
+        pool_op = pool3d
+
+    n, c = np_data.shape[:2]
+    oshape = (n, c) + out_size
+    np_out = np.zeros(oshape).astype(np_data.dtype)
+    np_op = np.mean if pool_type == "avg" else np.max
+    for i in range(n):
+        for j in range(c):
+            np_out[i, j] = pool_op(i, j)
     return np_out

@@ -349,8 +349,8 @@ def test_ndarray_size():
     verify_ndarray_size((2, 3, 5))
     verify_ndarray_size((2, 3, 5, 7))
 
-def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
-    opfunc = relay.nn.adaptive_avg_pool2d if pool_type == "avg" else relay.nn.adaptive_max_pool2d
+
+def verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc):
     x = relay.var("x", relay.TensorType(dshape, "float32"))
     y = opfunc(x, out_size, layout)
     func = relay.Function([x], y)
@@ -363,11 +363,25 @@ def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="fl
         relay_out = intrp1.evaluate(func)(np_data)
         tvm.testing.assert_allclose(relay_out.asnumpy(), np_out, rtol=1e-5, atol=1e-5)
 
-def test_adaptive_pool2d():
+
+def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+    opfunc = relay.nn.adaptive_avg_pool2d if pool_type == "avg" else relay.nn.adaptive_max_pool2d
+    verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
+
+
+def verify_adaptive_pool3d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+    opfunc = relay.nn.adaptive_avg_pool3d if pool_type == "avg" else relay.nn.adaptive_max_pool3d
+    verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
+
+
+def test_adaptive_pool():
     verify_adaptive_pool2d((1, 9, 224, 224), (1, 1), "max")
     verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg")
     verify_adaptive_pool2d((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool2d((1, 5, 46, 97), (4, 96), "avg")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "max", layout="NCDHW")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW")
+
 
 def test_sequence_mask():
     def _verify(data_shape, mask_value, axis, dtype, itype):
@@ -432,7 +446,7 @@ def test_one_hot():
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 if __name__ == "__main__":
-    test_adaptive_pool2d()
+    test_adaptive_pool()
     test_collapse_sum_like()
     test_broadcast_to_like()
     test_slice_like()
