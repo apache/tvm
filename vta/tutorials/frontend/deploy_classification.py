@@ -68,7 +68,7 @@ assert tvm.runtime.enabled("rpc")
 # -------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
-# Load VTA parameters from the vta/config/vta_config.json file
+# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # Set ``device=arm_cpu`` to run inference on the CPU

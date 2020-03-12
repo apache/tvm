@@ -52,7 +52,7 @@ You are invited to try out our [VTA programming tutorials](https://docs.tvm.ai/v
 ### Advanced Configuration (optional)
 
 VTA is a generic configurable deep learning accelerator.
-The configuration is specified by `vta_config.json` under the TVM root folder.
+The configuration is specified by `vta_config.json` under `vta/vta-hw/config`.
 This file provides an architectural specification of the VTA accelerator to parameterize the TVM compiler stack and the VTA hardware stack.
 
 The VTA configuration file also specifies the TVM compiler target.
@@ -62,9 +62,9 @@ To do so,
 
 ```bash
 cd <tvm root>
-vim vta/config/vta_config.json
+vim vta/vta-hw/config/vta_config.json
 # edit vta_config.json
-make vta
+make
 ```
 
 ## VTA Pynq-Based Test Setup
@@ -122,7 +122,7 @@ echo 'set(USE_VTA_FSIM OFF)' >> build/config.cmake
 echo 'set(USE_VTA_TSIM OFF)' >> build/config.cmake
 echo 'set(USE_VTA_FPGA ON)' >> build/config.cmake
 # Copy pynq specific configuration
-cp vta/config/pynq_sample.json vta/config/vta_config.json
+cp vta/vta-hw/config/pynq_sample.json vta/vta-hw/config/vta_config.json
 cd build
 cmake ..
 make runtime vta -j2
@@ -156,7 +156,7 @@ In addition, you'll need to edit the `vta_config.json` file on the host to indic
 ```bash
 # On the Host-side
 cd <tvm root>
-cp vta/config/pynq_sample.json vta/config/vta_config.json
+cp vta/vta-hw/config/pynq_sample.json vta/vta-hw/config/vta_config.json
 ```
 
 This time again, we will run the 2D convolution testbench.
@@ -185,7 +185,7 @@ You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tut
 
 ## VTA Custom Test Setup for Intel FPGA
 
-Similar to the PYNQ side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano. 
+Similar to the PYNQ side setup steps, this third guide bring us the details on how can we setup up the Linux environment for Intel FPGA boards like DE10-Nano.
 
 In terms of hardware components, you would need the [DE10-Nano Development Kit](https://www.terasic.com.tw/cgi-bin/page/archive.pl?Language=English&No=1046), which can be acquired for $130, or $100 for academics from [Terasic](https://www.terasic.com.tw/). A microSD card would be delivered the kit. Power cables and USB cables would be included as well. However, an additional Ethernet cable would be needed to connect the board to LAN.
 
@@ -213,7 +213,7 @@ tar xf de10-nano-image-Angstrom-v2016.12.socfpga-sdimg.2017.03.31.tgz
 
 This would produce a single SD card image named `de10-nano-image-Angstrom-v2016.12.socfpga-sdimg` (approx. 2.4 GB), it contains all the file systems to boot Angstrom Linux.
 
-Second, plugin a SD card that is ready to flash in your PC, and identify the device id for the disk with `fdisk -l`, or `gparted` if you feel better to use GUI. The typical device id for your disk would likely to be `/dev/sdb`. 
+Second, plugin a SD card that is ready to flash in your PC, and identify the device id for the disk with `fdisk -l`, or `gparted` if you feel better to use GUI. The typical device id for your disk would likely to be `/dev/sdb`.
 
 Then, flash the disk image into your physical SD card with the following command:
 
@@ -225,8 +225,8 @@ This would take a few minutes for your PC to write the whole file systems into t
 After this process completes, you are ready to unmount the SD card and insert it into your DE10-Nano board.
 Now you can connect the power cable and serial port to boot the Angstrom Linux.
 
-> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card. 
-> In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository. 
+> Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card.
+> In this case, you might need to build the `zImage` file of your own from [socfpga-4.9.78-ltsi](https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi) branch of the [linux-socfpga](https://github.com/altera-opensource/linux-socfpga) repository.
 > For a quick fix, you can also download a prebuilt version of the `zImage` file [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage).
 
 After connecting the usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
@@ -240,8 +240,8 @@ The default user name for the device would be `root`, and the password is empty 
 
 You may now start to install supporting Python3 packages (TVM has dropped the support for Python2), specifically, they are `numpy`, `attrs` and `decorator`.
 
-> Note: You might fail to install `numpy` by using `pip3` on the DE10-Nano device. 
-> In that case, you have the option to either build your own filesystem image for the board from [meta-de10-nano](https://github.com/intel/meta-de10-nano) repository; 
+> Note: You might fail to install `numpy` by using `pip3` on the DE10-Nano device.
+> In that case, you have the option to either build your own filesystem image for the board from [meta-de10-nano](https://github.com/intel/meta-de10-nano) repository;
 > an alternative option is to download prebuilt packages from existing Linux distributions, e.g. Debian.
 > For a quick fix, we have concatenated the supplementary binary files [here](https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/rootfs_supplement.tgz), and you can extract the files into the root filesystem.
 
@@ -251,8 +251,8 @@ After accessing bash terminal from the serial port, we need to install required 
 
 #### Build Additional Components to Use VTA Bitstream
 
-To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system. 
-Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux) (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem. 
+To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system.
+Specifically, to compile application executables for the system, you need to download and install [SoCEDS](http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux) (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem.
 
 ## VTA FPGA Toolchain Installation
 
@@ -310,7 +310,7 @@ export PATH=${XILINX_VIVADO}/bin:${PATH}
 
 ### Intel Toolchain Installation
 
-It is recommended to use `Intel Quartus Prime 18.1`, since the test scripts contained in this document have been tested on this version. 
+It is recommended to use `Intel Quartus Prime 18.1`, since the test scripts contained in this document have been tested on this version.
 
 You would need to install Intel's FPGA compilation toolchain, [Quartus Prime Lite](http://fpgasoftware.intel.com/?edition=lite), which is a license-free version of the Intel Quartus Prime software.
 
@@ -347,11 +347,11 @@ For this custom VTA bitstream compilation exercise, we'll change the frequency o
 * Set the `HW_FREQ` field to `142`. The Pynq board supports 100, 142, 167 and 200MHz clocks. Note that the higher the frequency, the harder it will be to close timing. Increasing the frequency can lead to timing violation and thus faulty hardware execution.
 * Set the `HW_CLK_TARGET` to `6`. This parameters refers to the target clock period in nano seconds for HLS - a lower clock period leads to more aggressive pipelining to achieve timing closure at higher frequencies. Technically a 142MHz clock would require a 7ns target, but we intentionally lower the clock target to 6ns to more aggressively pipeline our design.
 
-Bitstream generation is driven by a top-level `Makefile` under `<tvm root>/vta/hardware/xilinx/`.
+Bitstream generation is driven by a top-level `Makefile` under `<tvm root>/vta/vta-hw/hardware/xilinx/`.
 
 If you just want to simulate the VTA design in software emulation to make sure that it is functional, enter:
 ```bash
-cd <tvm root>/vta/hardware/xilinx
+cd <tvm root>/vta/vta-hw/hardware/xilinx
 make ip MODE=sim
 ```
 
@@ -359,7 +359,7 @@ If you just want to generate the HLS-based VTA IP cores without launching the en
 ```bash
 make ip
 ```
-You'll be able to view the HLS synthesis reports under `<tvm root>/vta/build/hardware/xilinx/hls/` `<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
+You'll be able to view the HLS synthesis reports under `<tvm root>/vta/vta-hw/build/hardware/xilinx/hls/` `<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
 > Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters listed in the `vta_config.json`. The `<block>` name refers to the specific module (or HLS function) that compose the high-level VTA pipeline.
 
 Finally to run the full hardware compilation and generate the VTA bitstream, run:
@@ -371,20 +371,20 @@ make
 This process is lengthy, and can take around up to an hour to complete depending on your machine's specs.
 We recommend setting the `VTA_HW_COMP_THREADS` variable in the Makefile to take full advantage of all the cores on your development machine.
 
-Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
+Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/vta-hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
 
 ### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/vta/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/vta/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
 
-For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/hardware/intel`.
+For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/vta-hw/hardware/intel`.
 
 If you just want to generate the Chisel-based VTA IP core for the DE10-Nano board without compiling the design for the FPGA hardware, enter:
 ```bash
-cd <tvmroot>/vta/hardware/intel
+cd <tvmroot>/vta/vta-hw/hardware/intel
 make ip
 ```
-Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
+Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/vta-hw/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
 
 If you would like to run the full hardware compilation for the `de10nano` board:
 ```bash
@@ -393,14 +393,14 @@ make
 
 This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
 
-Once the compilation completes, the generated bistream can be found under `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
+Once the compilation completes, the generated bistream can be found under `<tvmroot>vtay/vta-hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/vta-hw/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
 
 ### Use the Custom Bitstream
 
 We can program the new VTA FPGA bitstream by setting the bitstream path of the `vta.program_fpga()` function in the tutorial examples, or in the `test_program_rpc.py` script.
 
 ```python
-vta.program_fpga(remote, bitstream="<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
+vta.program_fpga(remote, bitstream="<tvm root>/vta/vta-hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
 ```
 
 Instead of downloading a pre-built bitstream from the VTA bitstream repository, TVM will instead use the new bitstream you just generated, which is a VTA design clocked at a higher frequency.
