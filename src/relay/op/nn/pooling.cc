@@ -692,16 +692,16 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool3d")
 RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
   .describe(R"code(Adaptive max pooling operation for 3D data.
 
-- **data**: This depends on the `layout` parameter. Input is 4D array of shape
-            (batch_size, channels, height, width) if `layout` is `NCHW`.
-- **output_size**: If this argument is not provided, input height and width will be used
-                   as output height and width.
+- **data**: This depends on the `layout` parameter. Input is 5D array of shape
+            (batch_size, channels, depth, height, width) if `layout` is `NCDHW`.
+- **output_size**: If this argument is not provided, input depth, height and width will be used
+                   as output depth, height and width.
                    If a single integer is provided for output_size, the output size is
-                   (N x C x output_size x output_size) for any input (NCHW).
-                   If a tuple of integers (height, width) are provided for output_size,
-                   the output size is (N x C x height x width) for any input (NCHW).
-- **out**: This depends on the `layout` parameter. Output is 4D array of shape
-           (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
+                   (N x C x output_size x output_size x output_size) for any input (NCDHW).
+                   If a tuple of integers (depth, height, width) are provided for output_size,
+                   the output size is (N x C x depth, height x width) for any input (NCDHW).
+- **out**: This depends on the `layout` parameter. Output is 5D array of shape
+           (batch_size, channels, output_depth, output_height, output_width)  if `layout` is `NCDHW`.
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type<AdaptivePool3DAttrs>()
@@ -729,18 +729,16 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool3d")
 
 RELAY_REGISTER_OP("nn.adaptive_avg_pool3d")
   .describe(R"code(Adaptive avg pooling operation for 3D data.
-
-- **data**: This depends on the `layout` parameter. Input is 4D array of shape
-            (batch_size, channels, height, width) if `layout` is `NCHW`.
-- **output_size**: If this argument is not provided, input height and width will be used
-                   as output height and width.
+- **data**: This depends on the `layout` parameter. Input is 5D array of shape
+            (batch_size, channels, depth, height, width) if `layout` is `NCDHW`.
+- **output_size**: If this argument is not provided, input depth, height and width will be used
+                   as output depth, height and width.
                    If a single integer is provided for output_size, the output size is
-                   (N x C x output_size x output_size) for any input (NCHW).
-                   If a tuple of integers (height, width) are provided for output_size,
-                   the output size is (N x C x height x width) for any input (NCHW).
-- **out**: This depends on the `layout` parameter. Output is 4D array of shape
-           (batch_size, channels, output_height, output_width)  if `layout` is `NCHW`.
-
+                   (N x C x output_size x output_size x output_size) for any input (NCDHW).
+                   If a tuple of integers (depth, height, width) are provided for output_size,
+                   the output size is (N x C x depth, height x width) for any input (NCDHW).
+- **out**: This depends on the `layout` parameter. Output is 5D array of shape
+           (batch_size, channels, output_depth, output_height, output_width)  if `layout` is `NCDHW`.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type<AdaptivePool3DAttrs>()
 .set_num_inputs(1)
