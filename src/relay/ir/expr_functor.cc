@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/expr_functor.cc
+ * \file src/relay/expr_functor.cc
  * \brief A wrapper around ExprFunctor which functionally updates the AST.
  *
  * ExprMutator uses memoization and self return in order to amortize

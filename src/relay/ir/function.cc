@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/ir/function.cc
+ * \file src/relay/ir/function.cc
  * \brief Function in relay.
  */
 #include <tvm/relay/function.h>

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/interpreter.cc
+ * \file src/relay/interpreter.cc
  * \brief An interpreter for the Relay IR.
  */
 #include <tvm/runtime/device_api.h>

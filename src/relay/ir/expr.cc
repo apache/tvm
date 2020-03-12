@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/ir/expr.cc
+ * \file src/relay/ir/expr.cc
  * \brief The expression AST nodes of Relay.
  */
 #include <tvm/ir/module.h>
