@@ -471,16 +471,13 @@ def test_forward_batchnorm():
             return self.batch_norm(args[0])
 
     input_data = torch.rand(input_shape).float()
-    # verify_model(BatchNorm1().float().eval(), input_data=input_data)
-    # verify_model(BatchNorm2().float().eval(), input_data=input_data)
+    verify_model(BatchNorm1().float().eval(), input_data=input_data)
+    verify_model(BatchNorm2().float().eval(), input_data=input_data)
+
     bn3d = torch.nn.BatchNorm3d(16).eval()
     torch.nn.init.normal(bn3d.weight)
     torch.nn.init.normal_(bn3d.bias)
 
-    for i in range(10):
-        bn3d(torch.rand((1, 16, 32, 32, 32)))
-
-    print(bn3d.state_dict())
     verify_model(bn3d,
                  input_data=torch.rand((1, 16, 32, 32, 32)))
 
@@ -838,6 +835,12 @@ def test_segmentaton_models():
         verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx])
 
 
+def test_3d_models():
+    input_shape = (1, 3, 4, 56, 56)
+    resnet3d = torchvision.models.video.r3d_18(pretrained=True).eval()
+    verify_model(resnet3d, [torch.rand(input_shape)])
+
+
 def verify_script_model(pt_model, ishapes):
     script_module = torch.jit.script(pt_model)
     input_names = get_graph_input_names(script_module)
@@ -1020,59 +1023,60 @@ def test_simple_rnn():
 
 if __name__ == "__main__":
     # Single operator tests
-    # test_forward_add()
-    # test_forward_subtract()
-    # test_forward_multiply()
-    # test_forward_unsqueeze()
-    # test_forward_concatenate()
-    # test_forward_relu()
-    # test_forward_adaptiveavgpool()
-    # test_forward_maxpool()
-    # test_forward_hardtanh()
-    # test_forward_conv()
-    # test_forward_threshold()
-    # test_forward_contiguous()
+    test_forward_add()
+    test_forward_subtract()
+    test_forward_multiply()
+    test_forward_unsqueeze()
+    test_forward_concatenate()
+    test_forward_relu()
+    test_forward_adaptiveavgpool()
+    test_forward_maxpool()
+    test_forward_hardtanh()
+    test_forward_conv()
+    test_forward_threshold()
+    test_forward_contiguous()
     test_forward_batchnorm()
-    # test_forward_transpose()
-    # test_forward_size()
-    # test_forward_view()
-    # test_forward_select()
-    # test_forward_clone()
-    # test_forward_logsoftmax()
-    # test_forward_sigmoid()
-    # test_forward_dense()
-    # test_forward_avgpool()
-    # test_forward_dropout()
-    # test_forward_slice()
-    # test_forward_mean()
-    # test_forward_expand()
-    # test_forward_pow()
-    # test_forward_chunk()
-    # test_upsample()
-    # test_to()
-    # test_adaptive_pool3d()
-    # test_conv3d()
+    test_forward_transpose()
+    test_forward_size()
+    test_forward_view()
+    test_forward_select()
+    test_forward_clone()
+    test_forward_logsoftmax()
+    test_forward_sigmoid()
+    test_forward_dense()
+    test_forward_avgpool()
+    test_forward_dropout()
+    test_forward_slice()
+    test_forward_mean()
+    test_forward_expand()
+    test_forward_pow()
+    test_forward_chunk()
+    test_upsample()
+    test_to()
+    test_adaptive_pool3d()
+    test_conv3d()
 
-    # # Model tests
-    # test_resnet18()
-    # test_squeezenet1_0()
-    # test_squeezenet1_1()
-    # test_densenet121()
-    # test_inception_v3()
-    # test_googlenet()
-    # test_mnasnet0_5()
-    # test_mobilenet_v2()
+    # Model tests
+    test_resnet18()
+    test_squeezenet1_0()
+    test_squeezenet1_1()
+    test_densenet121()
+    test_inception_v3()
+    test_googlenet()
+    test_mnasnet0_5()
+    test_mobilenet_v2()
 
-    # test_custom_conversion_map()
+    test_custom_conversion_map()
 
-    # test_segmentaton_models()
+    test_segmentaton_models()
+    test_3d_models()
 
-    # # Quantization test
-    # from qnn_test import test_quantized_imagenet, test_quantized_modules
+    # Quantization test
+    from qnn_test import test_quantized_imagenet, test_quantized_modules
 
-    # test_quantized_modules()
-    # test_quantized_imagenet()
+    test_quantized_modules()
+    test_quantized_imagenet()
 
-    # # Test simple conditionals and loop
-    # test_control_flow()
-    # test_simple_rnn()
+    # Test simple conditionals and loop
+    test_control_flow()
+    test_simple_rnn()

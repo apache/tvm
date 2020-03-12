@@ -1354,7 +1354,6 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     """
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
-    print(graph)
 
     if custom_convert_map:
         _convert_map.update(custom_convert_map)
