@@ -729,9 +729,14 @@ def test_conv3d():
     verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3),
                                  padding=(1, 1, 1)).eval(),
                  inp),
-    # verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3),
-    #                              padding=(1, 1, 1)).eval(),
-    #              inp)
+    verify_model(torch.nn.Conv3d(32, 16, (5, 5, 5),
+                                 padding=(2, 2, 2)).eval(),
+                 inp),
+    verify_model(torch.nn.Conv3d(32, 16, kernel_size=1).eval(),
+                 inp)
+    # downsample
+    verify_model(torch.nn.Conv3d(32, 16, kernel_size=1, stride=2).eval(),
+                 inp)
 
 
 # Model tests
