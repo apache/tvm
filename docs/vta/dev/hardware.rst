@@ -53,17 +53,17 @@ HLS Hardware Source Organization
 
 The VTA design is currently specified in Vivado HLS C++, which is only supported
 by Xilinx toolchains.
-The VTA hardware sources are contained under ``vta/hardware/xilinx/sources``:
+The VTA hardware sources are contained under ``vta/vta-hw/hardware/xilinx/sources``:
 
  - ``vta.cc`` contains the definitions for each VTA module, as well as a top
    level behavioral model for the top-level VTA design.
  - ``vta.h`` contains type definitions using Xilinx ``ap_int`` types, and
    function prototypes declarations.
 
-In addition preprocessor macros are defined under ``vta/include/vta/hw_spec.h``.
+In addition preprocessor macros are defined under ``vta/vta-hw/include/vta/hw_spec.h``.
 Much of these macro definitions are derived from the parameters listed in the
-``vta/config/vta_config.json`` file.
-The json file is processed by ``vta/config/vta_config.py`` to produce a string of
+``vta/vta-hw/config/vta_config.json`` file.
+The json file is processed by ``vta/vta-hw/config/vta_config.py`` to produce a string of
 compile flags that define the preprocessor macros.
 That string is used by the makefile in order to set those high-level
 parameters in both the HLS hardware synthesis compiler, and the C++
@@ -220,7 +220,7 @@ Microarchitectural Overview
 ---------------------------
 
 We describe the modules that compose the VTA design.
-The module definitions are contained in ``vta/hardware/xilinx/sources/vta.cc``.
+The module definitions are contained in ``vta/vta-hw/hardware/xilinx/sources/vta.cc``.
 
 Fetch Module
 ~~~~~~~~~~~~
@@ -234,7 +234,7 @@ The fetch module is the entry point of VTA to the CPU and is programmed via thre
 
 The CPU prepares the instruction stream in DRAM in a physically-contiguous buffer prepared by the VTA runtime.
 When the instruction stream is ready, the CPU writes the start physical address into the ``insns`` register, the length of the instruction stream into the ``insn_count`` register, and asserts the start signal in the ``control`` register.
-This procedure starts VTA, which reads in the instruction stream from DRAM via DMA. 
+This procedure starts VTA, which reads in the instruction stream from DRAM via DMA.
 
 Upon accessing the instruction stream, the fetch module partially decodes instructions, and pushes those instructions into command queues that feed into the load, compute, and store modules:
 

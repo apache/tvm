@@ -66,21 +66,21 @@ class PkgConfig(object):
         # Include path
         self.include_path = [
             "-I%s/include" % proj_root,
-            "-I%s/vta/include" % proj_root,
+            "-I%s/vta/vta-hw/include" % proj_root,
             "-I%s/3rdparty/dlpack/include" % proj_root,
             "-I%s/3rdparty/dmlc-core/include" % proj_root
         ]
 
         # List of source files that can be used to build standalone library.
         self.lib_source = []
-        self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
+        self.lib_source += glob.glob("%s/vta/vta-hw/src/*.cc" % proj_root)
         if self.TARGET in ["pynq", "ultra96"]:
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
-            self.lib_source += glob.glob("%s/vta/src/pynq/*.cc" % (proj_root))
+            self.lib_source += glob.glob("%s/vta/vta-hw/src/pynq/*.cc" % (proj_root))
         elif self.TARGET in ["de10nano"]:
-            self.lib_source += glob.glob("%s/vta/src/de10nano/*.cc" % (proj_root))
+            self.lib_source += glob.glob("%s/vta/vta-hw/src/de10nano/*.cc" % (proj_root))
             self.include_path += [
-                "-I%s/vta/src/de10nano" % proj_root,
+                "-I%s/vta/vta-hw/src/de10nano" % proj_root,
                 "-I%s/3rdparty" % proj_root
             ]
 
