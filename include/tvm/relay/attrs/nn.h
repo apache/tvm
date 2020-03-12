@@ -537,7 +537,7 @@ struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
       .describe("Output depth, height and width.");
     TVM_ATTR_FIELD(layout).set_default("NCDHW")
       .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
-                  "'N', 'D', 'C', 'H', 'W' stands for batch, dpeth channel, height, and width"
+                  "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                   "dimensions respectively. Convolution is applied on 'D', 'H' and"
                   "'W' dimensions.");
   }

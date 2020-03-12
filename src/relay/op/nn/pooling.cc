@@ -699,7 +699,7 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
                    If a single integer is provided for output_size, the output size is
                    (N x C x output_size x output_size x output_size) for any input (NCDHW).
                    If a tuple of integers (depth, height, width) are provided for output_size,
-                   the output size is (N x C x depth, height x width) for any input (NCDHW).
+                   the output size is (N x C x depth x height x width) for any input (NCDHW).
 - **out**: This depends on the `layout` parameter. Output is 5D array of shape
            (batch_size, channels, output_depth, output_height, output_width)  if `layout` is `NCDHW`.
 
@@ -736,7 +736,7 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool3d")
                    If a single integer is provided for output_size, the output size is
                    (N x C x output_size x output_size x output_size) for any input (NCDHW).
                    If a tuple of integers (depth, height, width) are provided for output_size,
-                   the output size is (N x C x depth, height x width) for any input (NCDHW).
+                   the output size is (N x C x depth x height x width) for any input (NCDHW).
 - **out**: This depends on the `layout` parameter. Output is 5D array of shape
            (batch_size, channels, output_depth, output_height, output_width)  if `layout` is `NCDHW`.
 )code" TVM_ADD_FILELINE)

@@ -2394,7 +2394,7 @@ def adaptive_max_pool3d(data,
         as output depth, height and width.
 
         If a single integer is provided for output_size, the output size is
-        (N x C x output_size, output_size x output_size) for any input (NCDHW).
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
 
         If a tuple of integers (depth, height, width) are provided for output_size,
         the output size is (N x C x depth x height x width) for any input (NCDHW).
@@ -2440,7 +2440,7 @@ def adaptive_avg_pool3d(data,
         as output depth, height and width.
 
         If a single integer is provided for output_size, the output size is
-        (N x C x output_size, output_size x output_size) for any input (NCDHW).
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
 
         If a tuple of integers (depth, height, width) are provided for output_size,
         the output size is (N x C x depth x height x width) for any input (NCDHW).
