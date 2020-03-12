@@ -452,34 +452,20 @@ def test_forward_contiguous():
     input_data = torch.rand(input_shape).float()
     verify_model(Contiguous1().float().eval(), input_data=input_data)
 
+
 def test_forward_batchnorm():
-    torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
+    def init_weight(m):
+        torch.nn.init.normal_(m.weight, 0, 0.01)
+        torch.nn.init.normal_(m.bias)
 
-    class BatchNorm1(Module):
-        def __init__(self):
-            super(BatchNorm1, self).__init__()
-            self.batch_norm = torch.nn.BatchNorm2d(3, affine=True)
-        def forward(self, *args):
-            return self.batch_norm(args[0])
+    inp_2d = torch.rand((1, 16, 10, 10))
+    inp_3d = torch.rand((1, 16, 10, 10, 10))
 
-    class BatchNorm2(Module):
-        def __init__(self):
-            super(BatchNorm2, self).__init__()
-            self.batch_norm = torch.nn.BatchNorm2d(3, affine=False)
-        def forward(self, *args):
-            return self.batch_norm(args[0])
+    for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d),
+                    (torch.nn.BatchNorm3d(16), inp_3d)]:
+        init_weight(bn.eval())
+        verify_model(bn.eval(), input_data=inp)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(BatchNorm1().float().eval(), input_data=input_data)
-    verify_model(BatchNorm2().float().eval(), input_data=input_data)
-
-    bn3d = torch.nn.BatchNorm3d(16).eval()
-    torch.nn.init.normal(bn3d.weight)
-    torch.nn.init.normal_(bn3d.bias)
-
-    verify_model(bn3d,
-                 input_data=torch.rand((1, 16, 32, 32, 32)))
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
