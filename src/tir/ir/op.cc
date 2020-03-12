@@ -606,6 +606,9 @@ PrimExpr fmod(PrimExpr x, PrimExpr y) {
 }
 
 PrimExpr floor(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value));
@@ -613,6 +616,9 @@ PrimExpr floor(PrimExpr x) {
 }
 
 PrimExpr ceil(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value));
@@ -620,6 +626,9 @@ PrimExpr ceil(PrimExpr x) {
 }
 
 PrimExpr round(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
@@ -627,6 +636,9 @@ PrimExpr round(PrimExpr x) {
 }
 
 PrimExpr nearbyint(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
@@ -634,6 +646,9 @@ PrimExpr nearbyint(PrimExpr x) {
 }
 
 PrimExpr trunc(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) {
