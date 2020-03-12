@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file tvm/ir/expr.h
- * \brief Base expr nodes in TVM.
+ * \file tvm/ir/function.h
+ * \brief Function nodes.
  */
 #ifndef TVM_IR_FUNCTION_H_
 #define TVM_IR_FUNCTION_H_

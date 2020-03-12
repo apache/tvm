@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/function.cc
+ * \file src/ir/function.cc
  * \brief The function data structure.
  */
 #include <tvm/runtime/registry.h>

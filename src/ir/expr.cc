@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/expr.cc
+ * \file src/ir/expr.cc
  * \brief The expression AST nodes for the common IR infra.
  */
 #include <tvm/runtime/registry.h>
