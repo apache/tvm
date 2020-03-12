@@ -820,7 +820,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   Func VisitFuncStatic(const Function& func, const Expr& var) {
     CHECK(IsAtomic(var));
-    if (func->IsPrimitive()) {
+    if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return ConstEvaluateFunc(func);
     }
     std::vector<std::pair<Var, PStatic> > free_vars;
@@ -881,7 +881,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   Expr VisitFuncDynamic(const Function& func, const Func& f, const Expr& self) {
     return store_.Extend<Expr>([&]() {
       store_.Invalidate();
-      return FunctionNode::make(func->params,
+      return Function(func->params,
                                 LetList::With([&](LetList* ll) {
         std::vector<PStatic> pv;
         for (const auto& v : func->params) {

@@ -209,7 +209,7 @@ class ConstantFolder : public ExprMutator {
       func = Downcast<Function>(expr);
     } else {
       // TODO(@jroesch): fix this
-      func = FunctionNode::make(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
+      func = Function(FreeVars(expr), expr, Type(), FreeTypeVars(expr, module_), {});
     }
     auto mod = IRModule(
       {},

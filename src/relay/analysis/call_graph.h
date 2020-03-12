@@ -30,6 +30,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 #include <tvm/runtime/object.h>
 #include <memory>
 #include <string>

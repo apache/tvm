@@ -91,7 +91,7 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map);
  */
 inline Expr TransformF(const std::function<Expr(const Expr&)>& func, const Expr& e) {
   if (const FunctionNode* f = e.as<FunctionNode>()) {
-    return FunctionNode::make(f->params, func(f->body), f->ret_type, f->type_params, f->attrs);
+    return Function(f->params, func(f->body), f->ret_type, f->type_params, f->attrs);
   } else {
     return func(e);
   }

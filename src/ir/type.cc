@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/type.cc
+ * \file src/ir/type.cc
  * \brief Common type system AST nodes throughout the IR.
  */
 #include <tvm/ir/type.h>

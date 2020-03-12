@@ -415,7 +415,7 @@ class GraphRuntimeCodegen
     } else {
       LOG(FATAL) << "TVM runtime does not support calls to " << op->op->GetTypeKey();
     }
-    if (!func->IsPrimitive()) {
+    if (!func->HasNonzeroAttr(attr::kPrimitive)) {
       LOG(FATAL) << "TVM only support calls to primitive functions "
                  << "(i.e functions composed of fusable operator invocations)";
     }

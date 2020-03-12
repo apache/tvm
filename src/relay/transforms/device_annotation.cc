@@ -521,13 +521,13 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
       }
       CHECK_GT(new_body.size(), 0U);
       if (new_body.size() == 1) {
-        return FunctionNode::make(params, new_body[0], Type(nullptr),
+        return Function(params, new_body[0], Type(nullptr),
                                   fn->type_params, fn->attrs);
       } else if (tuple->fields.size() == new_body.size()) {
           return new_expr;
       } else {
         Tuple tuple_body = TupleNode::make(new_body);
-        return FunctionNode::make(params, tuple_body, Type(nullptr),
+        return Function(params, tuple_body, Type(nullptr),
                                   fn->type_params, fn->attrs);
       }
     } else {

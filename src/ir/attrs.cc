@@ -53,21 +53,26 @@ Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
   return {};
 }
 
-Attrs DictAttrsNode::make(Map<std::string, ObjectRef> dict) {
+DictAttrs::DictAttrs(Map<std::string, ObjectRef> dict) {
   ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
   n->dict = std::move(dict);
-  return Attrs(n);
+  data_ = std::move(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const DictAttrsNode*>(node.get());
-    p->stream << op->dict;
+  auto* op = static_cast<const DictAttrsNode*>(node.get());
+  p->stream << op->dict;
 });
 
 TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 
 TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
+
+TVM_REGISTER_GLOBAL("ir.DictAttrsGetDict")
+.set_body_typed([](DictAttrs attrs) {
+  return attrs->dict;
+});
 
 
 using namespace tir;
