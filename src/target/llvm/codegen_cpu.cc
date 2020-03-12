@@ -93,6 +93,8 @@ void CodeGenCPU::Init(const std::string& module_name,
           ftype_tvm_static_init_callback_->getPointerTo(),
           t_void_p_, t_int_}
         , false);
+  ftype_tvm_prologue_epilogue_ =
+      llvm::FunctionType::get(t_void_, {t_void_}, false);
   // initialize TVM runtime API
   if (system_lib) {
     // We will need this in environment for backward registration.
@@ -552,6 +554,29 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task) {
   builder_->SetInsertPoint(par_launch_end);
 }
 
+llvm::Function* CodeGenCPU::GetExternFunc(const std::string &func_name) {
+  llvm::Function* func = module_->getFunction(func_name);
+  if (func == nullptr) {
+    func = llvm::Function::Create(
+      ftype_tvm_prologue_epilogue_, llvm::Function::ExternalLinkage, func_name, module_.get());
+  }
+  return func;
+}
+
+void CodeGenCPU::CreatePrologue(const std::string& func_name, const Stmt& body) {
+  using llvm::BasicBlock;
+  llvm::Function *func = this->GetExternFunc(func_name);
+  builder_->CreateCall(func);
+  this->VisitStmt(body);
+}
+
+void CodeGenCPU::CreateEpilogue(const std::string& func_name, const Stmt& body) {
+  using llvm::BasicBlock;
+  llvm::Function *func = this->GetExternFunc(func_name);
+  this->VisitStmt(body);
+  builder_->CreateCall(func);
+}
+
 llvm::Value* CodeGenCPU::CreateStaticHandle() {
   llvm::GlobalVariable* gv = new llvm::GlobalVariable(
       *module_, t_void_p_, false,
@@ -896,6 +921,14 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
       CHECK(value != nullptr);
       this->HandleImport(value->value);
       this->VisitStmt(op->body);
+    } else if (op->attr_key == tir::attr::pragma_prologue) {
+      const StringImmNode* value = op->value.as<StringImmNode>();
+      CHECK(value != nullptr);
+      this->CreatePrologue(value->value, op->body);
+    } else if (op->attr_key == tir::attr::pragma_epilogue) {
+      const StringImmNode* value = op->value.as<StringImmNode>();
+      CHECK(value != nullptr);
+      this->CreateEpilogue(value->value, op->body);
     } else {
       LOG(WARNING) << "Unknown pragma " << op->attr_key;
       this->VisitStmt(op->body);

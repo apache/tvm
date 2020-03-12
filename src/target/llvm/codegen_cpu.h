@@ -73,6 +73,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // Lazy entry for function call.
   llvm::FunctionType* ftype_tvm_static_init_callback_{nullptr};
   llvm::FunctionType* ftype_tvm_static_init_{nullptr};
+  llvm::FunctionType* ftype_tvm_prologue_epilogue_{nullptr};
 
  private:
   // the parallel group information
@@ -93,6 +94,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* RuntimeTVMAPISetLastError();
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
+  llvm::Function* GetExternFunc(const std::string &func_name);
   llvm::Value* CreateStaticHandle();
   llvm::Value* GetPackedFuncHandle(const std::string& str);
   llvm::Value* PackClosureData(const Array<Var>& fields, uint64_t *num_bytes);
@@ -109,6 +111,9 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateCallPacked(const CallNode* op);
   // Create trace call into tvm packed function.
   llvm::Value* CreateCallTracePacked(const CallNode *op);
+  // Create prologue and epilogue function call
+  void CreatePrologue(const std::string& func_name, const Stmt& body);
+  void CreateEpilogue(const std::string& func_name, const Stmt& body);
   // Create static initialization
   void CreateStaticInit(const std::string& init_fname, const Stmt& body);
   // Create parallel launch

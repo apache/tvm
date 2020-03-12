@@ -659,6 +659,10 @@ constexpr const char* reduce_scope = "reduce_scope";
 constexpr const char* pragma_scope_prefix = "pragma_";
 /*! \brief Import llvm source or file into the final code gen module */
 constexpr const char* pragma_import_llvm = "pragma_import_llvm";
+/*! \brief Mark prologue function to execute for scope */
+constexpr const char* pragma_prologue = "pragma_prologue";
+/*! \brief Mark epilogue function to execute for scope */
+constexpr const char* pragma_epilogue = "pragma_epilogue";
 /*! \brief Try to modify the AST to support Tensor Core */
 constexpr const char* pragma_tensor_core = "pragma_tensor_core";
 /*!
