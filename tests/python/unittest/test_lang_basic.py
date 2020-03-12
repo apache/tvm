@@ -187,14 +187,14 @@ def test_bitwise():
     assert(x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
     assert(te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
 
+
 def test_float_bitwise():
     t = tvm.tir.const(1.5,dtype='float32')
     for test in [lambda lhs, rhs : lhs << rhs,
                     lambda lhs, rhs : lhs >> rhs,
                     lambda lhs, rhs : lhs | rhs,
                     lambda lhs, rhs : lhs ^ rhs,
-                    lambda lhs, rhs : lhs & rhs
-                ]:
+                    lambda lhs, rhs : lhs & rhs]:
         try:
             test(t,10.0)
             assert False
@@ -205,6 +205,20 @@ def test_float_bitwise():
         assert False
     except RuntimeError:
         pass
+
+
+def test_divide_by_zero():
+    for test in [lambda lhs, rhs : tvm.tir.floormod(lhs,rhs),
+                    lambda lhs, rhs : tvm.tir.floordiv(lhs,rhs),
+                    lambda lhs, rhs : tvm.tir.truncmod(lhs,rhs),
+                    lambda lhs, rhs : tvm.tir.truncdiv(lhs,rhs),
+                    lambda lhs, rhs : tvm.tir.div(lhs,rhs)]:
+        try:
+            test(tvm.tir.const(5,'int32'), tvm.tir.const(0,'int32'))
+            assert False
+        except tvm.TVMError:
+            pass
+
 
 def test_isnan():
     x = te.var('x', 'float32')
@@ -250,6 +264,7 @@ if __name__ == "__main__":
     test_all()
     test_bitwise()
     test_float_bitwise()
+    test_divide_by_zero()
     test_isnan()
     test_equality()
     test_equality_string_imm()
