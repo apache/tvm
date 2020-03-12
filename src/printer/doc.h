@@ -111,6 +111,11 @@ class Doc {
    */
   static Doc Text(std::string value);
   /*!
+   * \brief Create a doc that represents raw text(can have new lines)
+   * \return The created doc.
+   */
+  static Doc RawText(std::string value);
+  /*!
    * \brief Create a doc that represents a new line.
    * \return The created doc.
    */

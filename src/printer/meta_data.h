@@ -121,7 +121,7 @@ class TextMetaDataContext {
    */
   Doc GetMetaSection() const {
     if (meta_data_.size() == 0) return Doc();
-    return Doc::Text(
+    return Doc::RawText(
         SaveJSON(Map<std::string, ObjectRef>(meta_data_.begin(), meta_data_.end())));
   }
 
