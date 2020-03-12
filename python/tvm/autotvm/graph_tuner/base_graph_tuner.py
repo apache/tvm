@@ -42,7 +42,7 @@ def get_infer_layout(task_name):
         return topi.nn.depthwise_conv2d_infer_layout
     raise ValueError("Cannot find infer layout for task %s" % task_name)
 
-@autotvm.register_customized_task("layout_transform")
+@autotvm.template("layout_transform")
 def layout_transform(*args):
     """Autotvm layout transform template."""
     cfg = get_config()

@@ -26,7 +26,7 @@ from tvm import te
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
-@autotvm.register_customized_task("testing/conv2d_no_batching")
+@autotvm.template("testing/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     """An example template for testing"""
     assert N == 1, "Only consider batch_size = 1 in this template"
