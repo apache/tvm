@@ -47,8 +47,7 @@ namespace relay {
 class GradientCellTransform: public ExprMutator, public TypeMutator {
  public:
   explicit GradientCellTransform(IRModule module):
-    module_(module)
-    {
+    module_(module) {
       module_->ImportFromStd("gradient.rly");
     }
 
