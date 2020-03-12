@@ -79,7 +79,8 @@ using namespace tir;
 // Equal handler.
 bool AttrsEqualHandler::Equal(const ObjectRef& lhs, const ObjectRef& rhs) {
   if (lhs.same_as(rhs)) return true;
-  if (!lhs.defined() || !rhs.defined()) return false;
+  if (!lhs.defined() && rhs.defined()) return false;
+  if (!rhs.defined() && lhs.defined()) return false;
   return this->VisitAttr(lhs, rhs);
 }
 
@@ -96,22 +97,25 @@ bool AttrsEqualHandler::VisitAttrDefault_(const Object* lhs, const ObjectRef& ot
 bool AttrsEqualHandler::VisitAttr_(const IntImmNode* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<IntImmNode>()) {
     return lhs->value == rhs->value;
+  } else {
+    return false;
   }
-  return false;
 }
 
 bool AttrsEqualHandler::VisitAttr_(const FloatImmNode* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<FloatImmNode>()) {
     return lhs->value == rhs->value;
+  } else {
+    return false;
   }
-  return false;
 }
 
 bool AttrsEqualHandler::VisitAttr_(const StringImmNode* lhs, const ObjectRef& other) {
   if (const auto* rhs = other.as<StringImmNode>()) {
     return lhs->value == rhs->value;
+  } else {
+    return false;
   }
-  return false;
 }
 
 bool AttrsEqualHandler::VisitAttr_(const ArrayNode* lhs, const ObjectRef& other) {
@@ -120,8 +124,10 @@ bool AttrsEqualHandler::VisitAttr_(const ArrayNode* lhs, const ObjectRef& other)
     for (size_t i = 0; i < lhs->data.size(); ++i) {
       if (!Equal(lhs->data[i], rhs->data[i])) return false;
     }
+    return true;
+  } else {
+    return false;
   }
-  return true;
 }
 
 bool AttrsEqualHandler::VisitAttr_(const StrMapNode* lhs, const ObjectRef& other) {
@@ -132,8 +138,10 @@ bool AttrsEqualHandler::VisitAttr_(const StrMapNode* lhs, const ObjectRef& other
       if (it == rhs->data.end()) return false;
       if (!Equal(kv.second, it->second)) return false;
     }
+    return true;
+  } else {
+    return false;
   }
-  return true;
 }
 
 #define TVM_DEFINE_ATTRS_BINOP_EQUAL(NodeName)                          \
@@ -340,8 +348,13 @@ bool DictAttrsNode::ContentEqual(const Object* other, AttrsEqual equal) const {
 }
 
 TVM_REGISTER_GLOBAL("ir.AttrsListFieldInfo")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = args[0].operator Attrs()->ListFieldInfo();
+.set_body_typed([](Attrs attrs) {
+  return attrs->ListFieldInfo();
+});
+
+TVM_REGISTER_GLOBAL("ir.AttrsEqual")
+.set_body_typed([](ObjectRef lhs, ObjectRef rhs) {
+  return AttrsEqual()(lhs, rhs);
 });
 
 }  // namespace tvm
