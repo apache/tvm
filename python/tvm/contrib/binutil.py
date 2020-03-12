@@ -91,7 +91,7 @@ def run_cmd(cmd):
     output = output.decode("utf-8")
     if proc.returncode != 0:
         cmd_str = " ".join(cmd)
-        msg = f"error while running command \"{cmd_str}\":\n{output}"
+        msg = "error while running command \"{}\":\n{}".format(cmd_str, output)
         raise RuntimeError(msg)
     return output
 

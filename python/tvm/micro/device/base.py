@@ -38,7 +38,7 @@ def register_device(device_id, device_funcs):
         dictionary with compilation and config generation functions as values
     """
     if device_id in _DEVICE_REGISTRY:
-        raise RuntimeError(f"\"{device_id}\" already exists in the device registry")
+        raise RuntimeError("\"{}\" already exists in the device registry".format(device_id))
     _DEVICE_REGISTRY[device_id] = device_funcs
 
 
@@ -56,7 +56,7 @@ def get_device_funcs(device_id):
         dictionary with compilation and config generation functions as values
     """
     if device_id not in _DEVICE_REGISTRY:
-        raise RuntimeError(f"\"{device_id}\" does not exist in the binutil registry")
+        raise RuntimeError("\"{}\" does not exist in the binutil registry".format(device_id))
     device_funcs = _DEVICE_REGISTRY[device_id]
     return device_funcs
 
@@ -94,7 +94,7 @@ def create_micro_lib_base(
         additional options to pass to GCC
     """
     base_compile_cmd = [
-        f"{toolchain_prefix}gcc",
+        "{}gcc".format(toolchain_prefix),
         "-std=c11",
         "-Wall",
         "-Wextra",
@@ -118,7 +118,7 @@ def create_micro_lib_base(
     new_in_src_path = in_src_path
     if lib_type == LibType.RUNTIME:
         dev_dir = _get_device_source_dir(device_id)
-        dev_src_paths = glob.glob(f"{dev_dir}/*.[csS]")
+        dev_src_paths = glob.glob("{}/*.[csS]".format(dev_dir))
         # there needs to at least be a utvm_timer.c file
         assert dev_src_paths
         assert "utvm_timer.c" in map(os.path.basename, dev_src_paths)
@@ -150,7 +150,7 @@ def create_micro_lib_base(
         curr_compile_cmd = base_compile_cmd + [src_path, "-o", curr_obj_path]
         run_cmd(curr_compile_cmd)
 
-    ld_cmd = [f"{toolchain_prefix}ld", "-relocatable"]
+    ld_cmd = ["{}ld".format(toolchain_prefix), "-relocatable"]
     ld_cmd += prereq_obj_paths
     ld_cmd += ["-o", out_obj_path]
     run_cmd(ld_cmd)

@@ -84,7 +84,7 @@ class Session:
             server_addr = ""
             server_port = 0
         else:
-            raise RuntimeError(f"unknown communication method: f{self.comms_method}")
+            raise RuntimeError("unknown communication method: f{}".format(self.comms_method))
 
         self.module = _CreateSession(
             comms_method,
