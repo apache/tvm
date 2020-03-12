@@ -26,6 +26,7 @@
 
 #include <tvm/ir/type.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/adt.h>
 
 #include <string>

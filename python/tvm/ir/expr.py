@@ -53,6 +53,11 @@ class RelayExpr(BaseExpr):
 
 class BaseFunc(RelayExpr):
     """Base class of all functions."""
+    @property
+    def attrs(self):
+        """Return the attrs member of the function.
+        """
+        return _ffi_api.BaseFunc_Attrs(self)
 
 
 @tvm._ffi.register_object("relay.GlobalVar")
