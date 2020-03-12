@@ -186,25 +186,35 @@ class Task(object):
 
 TASK_TABLE = {}
 
-class TopiTemplate(object):
-    """Topi template that holds the topi compute and schedule function"""
+class TaskTemplate(object):
+    """
+    Task template is used to creates a tunable AutoTVM task.
+
+    It can be defined by a pair of compute and schedule function using
+    `_register_task_compute` and `_register_task_schedule`,
+    or by a customized task creation function that is more flexible using
+    `_register_customized_task`.
+
+    Note that when customized func is registered, compute and schedule function
+    will be ignored
+    """
     def __init__(self):
-        self.compute = None
-        self.schedule = None
-        self.customized_func = None
+        self.fcompute = None
+        self.fschedule = None
+        self.fcustomized = None
 
     def __call__(self, *args, **kwargs):
         args = deserialize_args(args)
-        if self.customized_func is None:
+        if self.fcustomized is None:
             return self._default_func(*args, **kwargs)
-        assert callable(self.customized_func)
-        return self.customized_func(*args, **kwargs)
+        assert callable(self.fcustomized)
+        return self.fcustomized(*args, **kwargs)
 
     def _default_func(self, *args, **kwargs):
-        assert callable(self.compute) and callable(self.schedule)
-        out = self.compute(*args, **kwargs)
+        assert callable(self.fcompute) and callable(self.fschedule)
+        out = self.fcompute(*args, **kwargs)
         arg_bufs = [out] + self.get_inputs(out)
-        s = self.schedule([out])
+        s = self.fschedule([out])
         return s, arg_bufs
 
     def get_inputs(self, out):
@@ -218,7 +228,7 @@ class TopiTemplate(object):
                 queue.extend(t.op.input_tensors)
         return inputs
 
-def register_task_compute(name, func=None):
+def _register_task_compute(name, func=None):
     """Register compute function to autotvm task
 
     Parameters
@@ -237,17 +247,17 @@ def register_task_compute(name, func=None):
     """
     def _do_reg(f):
         if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
+            TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
-        if tmpl.compute is not None:
+        if tmpl.fcompute is not None:
             raise ValueError("Compute is already registered in autoTVM task %s" % name)
-        tmpl.compute = f
+        tmpl.fcompute = f
         return f
     if func:
         return _do_reg(func)
     return _do_reg
 
-def register_task_schedule(name, func=None):
+def _register_task_schedule(name, func=None):
     """Register schedule function to autotvm task
 
     Parameters
@@ -266,23 +276,18 @@ def register_task_schedule(name, func=None):
     """
     def _do_reg(f):
         if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
+            TASK_TABLE[name] = TaskTemplate()
         tmpl = TASK_TABLE[name]
-        if tmpl.schedule is not None:
+        if tmpl.fschedule is not None:
             raise ValueError("Schedule is already registered in autoTVM task %s" % name)
-        tmpl.schedule = f
+        tmpl.fschedule = f
         return f
     if func:
         return _do_reg(func)
     return _do_reg
 
-def register_customized_task(name, func=None):
+def _register_customized_task(name, func=None):
     """Register a customized function to AutoTVM task.
-
-    In most cases, you can just use register_topi_compute and register_topi_schedule
-    with the same task name to define an AutoTVM task. However, you can also
-    create a customized AutoTVM task that defines a tunable template or performs
-    extra layout transform before invoking compute/schedule function.
 
     Parameters
     ----------
@@ -297,6 +302,37 @@ def register_customized_task(name, func=None):
     -------
     decorator: callable
         A decorator
+    """
+    def _do_reg(f):
+        if name not in TASK_TABLE:
+            TASK_TABLE[name] = TaskTemplate()
+        tmpl = TASK_TABLE[name]
+        if tmpl.fcustomized is not None:
+            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
+        tmpl.fcustomized = f
+        return f
+    if func:
+        return _do_reg(func)
+    return _do_reg
+
+
+def template(task_name, func=None):
+    """Decorate a function as a tunable schedule template.
+
+    Parameters
+    ----------
+    task_name: str
+        The task name
+
+    func: None or callable
+        A callable template function.
+        If it is None, return a decorator.
+        If is callable, decorate this function.
+
+    Returns
+    -------
+    func: callable
+        The decorated function
 
     Examples
     --------
@@ -304,7 +340,7 @@ def register_customized_task(name, func=None):
 
     .. code-block:: python
 
-        @autotvm.register_customized_task("matmul")
+        @autotvm.template("matmul")
         def matmul(N, L, M, dtype):
             A = te.placeholder((N, L), name='A', dtype=dtype)
             B = te.placeholder((L, M), name='B', dtype=dtype)
@@ -331,17 +367,22 @@ def register_customized_task(name, func=None):
 
             return s, [A, B, C]
     """
-    def _do_reg(f):
-        if name not in TASK_TABLE:
-            TASK_TABLE[name] = TopiTemplate()
-        tmpl = TASK_TABLE[name]
-        if tmpl.customized_func is not None:
-            raise ValueError("Customized func is already registered in autoTVM task %s" % name)
-        tmpl.customized_func = f
-        return f
+    def _decorate(f):
+        def wrapper(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            workload = args_to_workload(args, task_name)
+            tgt = _target.Target.current()
+            cfg = DispatchContext.current.query(tgt, workload)
+            with ApplyConfig(cfg):
+                return f(*args, **kwargs)
+
+        _register_customized_task(task_name, f)
+        return wrapper
+
     if func:
-        return _do_reg(func)
-    return _do_reg
+        return _decorate(func)
+    return _decorate
+
 
 def create(task_name, args, target, target_host=None):
     """Create a tuning task and initialize its search space

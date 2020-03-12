@@ -37,7 +37,7 @@ class DummyRunner(Runner):
     def get_build_kwargs(self):
         return {}
 
-@autotvm.register_customized_task("testing/matmul")
+@autotvm.template("testing/matmul")
 def matmul(N, L, M, dtype):
     A = te.placeholder((N, L), name='A', dtype=dtype)
     B = te.placeholder((L, M), name='B', dtype=dtype)
@@ -64,7 +64,7 @@ def matmul(N, L, M, dtype):
 
     return s, [A, B, C]
 
-@autotvm.register_customized_task("testing/bad_matmul")
+@autotvm.template("testing/bad_matmul")
 def bad_matmul(N, L, M, dtype):
     if 'bad_device' in tvm.target.Target.current().keys:
         A = te.placeholder((N, L), name='A', dtype=dtype)
