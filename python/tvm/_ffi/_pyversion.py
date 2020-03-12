@@ -14,15 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Python2 version check
+"""Python version check
 """
 import sys
 
 #----------------------------
 # Python3 version.
 #----------------------------
-if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 5):
-    PY3STATEMENT = """TVM project proudly dropped support of Python2.
-    The minimal Python requirement is Python 3.5
-    """
+if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 6):
+    PY3STATEMENT = "The minimal Python requirement is Python 3.6"
     raise Exception(PY3STATEMENT)
