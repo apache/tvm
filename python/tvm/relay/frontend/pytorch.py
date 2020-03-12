@@ -183,16 +183,18 @@ def _adaptive_max_2d():
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
 
+        # returns dummy indices too
         return _op.nn.adaptive_max_pool2d(
             data,
-            output_size=output_size)
+            output_size=output_size), None
     return _impl
 
 def _adaptive_max_3d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
-        return _op.nn.adaptive_max_pool3d(data, output_size=output_size)
+        # returns dummy indices too
+        return _op.nn.adaptive_max_pool3d(data, output_size=output_size), None
 
     return _impl
 
@@ -1288,9 +1290,18 @@ def convert_operators(operators, outputs, output_index_map, ret_names):
             _update_outputs_from_pairs(zip(unpacked_names, loop_out),
                                        outputs, output_index_map)
         else:
-            output_index_map[node_name] = len(outputs)
             relay_op = _convert_map[operator]
-            outputs.append(relay_op(inputs, _get_input_types(op_node)))
+            relay_out = relay_op(inputs, _get_input_types(op_node))
+
+            if isinstance(relay_out, tuple):
+                # This is for torch operators that return multiple outputs
+                # See _adaptive_max_2d above for example
+                out_names = _get_output_names(op_node)
+                _update_outputs_from_pairs(zip(out_names, relay_out),
+                                           outputs, output_index_map)
+            else:
+                output_index_map[node_name] = len(outputs)
+                outputs.append(relay_out)
 
     return [_wrap_const(outputs[output_index_map[ret_name]])
             for ret_name in ret_names]

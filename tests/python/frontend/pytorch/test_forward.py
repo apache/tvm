@@ -710,10 +710,11 @@ def test_to():
 
 def test_adaptive_pool3d():
     inp = torch.rand((1, 32, 16, 16, 16))
+
+    verify_model(torch.nn.AdaptiveMaxPool3d((1, 1, 1)).eval(), inp)
+    verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
     verify_model(torch.nn.AdaptiveAvgPool3d((1, 1, 1)).eval(), inp)
     verify_model(torch.nn.AdaptiveAvgPool3d((2, 2, 2)).eval(), inp)
-    # verify_model(torch.nn.AdaptiveMaxPool3d((1, 1, 1)).eval(), inp)
-    # verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
 
 
 def test_conv3d():
@@ -1039,8 +1040,8 @@ if __name__ == "__main__":
     # test_forward_chunk()
     # test_upsample()
     # test_to()
-    # test_adaptive_pool3d()
-    test_conv3d()
+    test_adaptive_pool3d()
+    # test_conv3d()
 
     # # Model tests
     # test_resnet18()
