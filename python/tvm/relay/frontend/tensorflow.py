@@ -1522,6 +1522,7 @@ _freezed_graph_pruned_op_list = ['ReadVariableOp', 'ResourceGather', 'Variable',
 _convert_map = {
     'Abs'                               : AttrCvt('abs'),
     'Add'                               : _elemwise('add'),
+    'AddV2'                             : _elemwise('add'),
     'AddN'                              : _add_n(),
     'All'                               : _reduce('all'),
     'Any'                               : _reduce('any'),
