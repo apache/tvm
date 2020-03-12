@@ -499,23 +499,19 @@ Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
                             mode, layout.name()) };
 }
 
-template <typename Attr>
-Expr MakeAdaptivePool(Expr data, Array<IndexExpr> output_size,
-                      std::string layout, std::string op_name) {
-  auto attrs = make_object<Attr>();
+// relay.nn.adaptive_avg_pool2d
+Expr MakeAdaptiveAvgPool2D(Expr data,
+                           Array<IndexExpr> output_size,
+                           std::string layout) {
+  auto attrs = make_object<AdaptivePool2DAttrs>();
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
-  static const Op& op = Op::Get(op_name);
+  static const Op& op = Op::Get("nn.adaptive_avg_pool2d");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool2d")
-.set_body_typed([](Expr data,  Array<IndexExpr> output_size,
-                   std::string layout) {
-  return MakeAdaptivePool<AdaptivePool2DAttrs>(data, output_size, layout,
-					       "nn.adaptive_avg_pool2d");
-});
-
+.set_body_typed(MakeAdaptiveAvgPool2D);
 
 RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
   .describe(R"code(Adaptive average pooling operation for 2D data.
@@ -541,13 +537,19 @@ RELAY_REGISTER_OP("nn.adaptive_avg_pool2d")
                                PoolInferCorrectLayout<AdaptivePool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool2DCompute<topi::nn::kAvgPool>);
 
+// relay.nn.adaptive_max_pool2d
+Expr MakeAdaptiveMaxPool2D(Expr data,
+                           Array<IndexExpr> output_size,
+                           std::string layout) {
+  auto attrs = make_object<AdaptivePool2DAttrs>();
+  attrs->output_size = std::move(output_size);
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("nn.adaptive_max_pool2d");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool2d")
-.set_body_typed([](Expr data,  Array<IndexExpr> output_size,
-                   std::string layout) {
-  return MakeAdaptivePool<AdaptivePool2DAttrs>(data, output_size, layout,
-					       "nn.adaptive_max_pool2d");
-});
+.set_body_typed(MakeAdaptiveMaxPool2D);
 
 RELAY_REGISTER_OP("nn.adaptive_max_pool2d")
   .describe(R"code(Adaptive max pooling operation for 2D data.
@@ -673,12 +675,19 @@ Array<te::Tensor> AdaptivePool3DCompute(const Attrs& attrs,
   };
 }
 
+// relay.nn.adaptive_max_pool3d
+Expr MakeAdaptiveMaxPool3D(Expr data,
+                           Array<IndexExpr> output_size,
+                           std::string layout) {
+  auto attrs = make_object<AdaptivePool3DAttrs>();
+  attrs->output_size = std::move(output_size);
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("nn.adaptive_max_pool3d");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool3d")
-.set_body_typed([](Expr data,  Array<IndexExpr> output_size,
-                   std::string layout) {
-  return MakeAdaptivePool<AdaptivePool3DAttrs>(data, output_size, layout,
-					       "nn.adaptive_max_pool3d");
-});
+.set_body_typed(MakeAdaptiveMaxPool3D);
 
 RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
   .describe(R"code(Adaptive max pooling operation for 3D data.
@@ -704,12 +713,19 @@ RELAY_REGISTER_OP("nn.adaptive_max_pool3d")
                                PoolInferCorrectLayout<AdaptivePool3DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", AdaptivePool3DCompute<topi::nn::kMaxPool>);
 
+// relay.nn.adaptive_max_pool3d
+Expr MakeAdaptiveAvgPool3D(Expr data,
+                           Array<IndexExpr> output_size,
+                           std::string layout) {
+  auto attrs = make_object<AdaptivePool3DAttrs>();
+  attrs->output_size = std::move(output_size);
+  attrs->layout = std::move(layout);
+  static const Op& op = Op::Get("nn.adaptive_avg_pool3d");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool3d")
-.set_body_typed([](Expr data,  Array<IndexExpr> output_size,
-                   std::string layout) {
-  return MakeAdaptivePool<AdaptivePool3DAttrs>(data, output_size, layout,
-					       "nn.adaptive_avg_pool3d");
-});
+.set_body_typed(MakeAdaptiveAvgPool3D);
 
 RELAY_REGISTER_OP("nn.adaptive_avg_pool3d")
   .describe(R"code(Adaptive avg pooling operation for 3D data.
