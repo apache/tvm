@@ -1561,6 +1561,7 @@ _convert_map = {
     'FloorMod'                          : _floormod(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
     'FusedBatchNormV2'                  : _fused_batch_norm(),
+    'FusedBatchNormV3'                  : _fused_batch_norm(),
     'Gather'                            : _gather(),
     'GatherNd'                          : _gather_nd(),
     'GatherV2'                          : _gather(),
