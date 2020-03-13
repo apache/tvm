@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file ad.cc
+ * \file gradient.cc
  * \brief API for Automatic Differentiation for the Relay IR.
  */
 #include <tvm/ir/type_functor.h>
