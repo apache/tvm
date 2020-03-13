@@ -407,3 +407,25 @@ def structural_hash(value):
         msg = ("found value of type {0} expected" +
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
+
+
+def extract_fused_functions(mod):
+    """Pass to extract IRModule of only fused primitive functions.
+
+    The ExtractFusedFunctions pass invokes SimplifyInference, FuseOps(3),
+    and ExtractFusedFunctions in that order
+
+    Parameters
+    ----------
+    mod : tvm.relay.IRModule
+
+    Returns
+    -------
+    ret : Dict[int, tvm.relay.expr.Function]
+        A module containing only fused primitive functions
+    """
+    ret_mod = _analysis.ExtractFusedFunctions()(mod)
+    ret = {}
+    for hash_, func in ret_mod.functions.items():
+        ret[hash_] = func
+    return ret
