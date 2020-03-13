@@ -163,7 +163,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
             tile_size = attrs.get_int("tile_size")
             kh = pad_kh - tile_size + 1
             kw = pad_kw - tile_size + 1
-            assert kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1
+            assert kh == 3 and kw == 3
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
                 wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
