@@ -213,13 +213,58 @@ def test_annotate_with_merge():
         mod = tvm.IRModule.from_expr(f)
         return mod
 
+    def expected():
+        in_1 = relay.var('in_1', shape=(10, 10), dtype='float32')
+        in_2 = relay.var('in_2', shape=(10, 10), dtype='float32')
+        in_3 = relay.var('in_3', shape=(10, 10), dtype='float32')
+        in_4 = relay.var('in_4', shape=(10, 10), dtype='float32')
+        in_5 = relay.var('in_5', shape=(10, 10), dtype='float32')
+        in_6 = relay.var('in_6', shape=(10, 10), dtype='float32')
+        in_7 = relay.var('in_7', shape=(10, 10), dtype='float32')
+        in_8 = relay.var('in_8', shape=(10, 10), dtype='float32')
+        in_9 = relay.var('in_9', shape=(10, 10), dtype='float32')
+        in_10 = relay.var('in_10', shape=(10, 10), dtype='float32')
+
+        begin0 = relay.annotation.compiler_begin(in_1, "dnnl")
+        begin1 = relay.annotation.compiler_begin(in_2, "dnnl")
+        begin2 = relay.annotation.compiler_begin(in_3, "dnnl")
+        begin3 = relay.annotation.compiler_begin(in_4, "dnnl")
+        node0 = relay.add(begin0, begin1)
+        node1 = relay.add(begin2, begin3)
+        node2 = relay.add(node0, node1)
+
+        node3 = relay.subtract(in_5, in_6)
+        node4 = relay.subtract(in_7, node3)
+
+        begin4 = relay.annotation.compiler_begin(node4, "dnnl")
+        begin5 = relay.annotation.compiler_begin(in_9, "dnnl")
+
+        node5 = relay.add(node2, begin4)
+        end0 = relay.annotation.compiler_end(node5, "dnnl")
+
+        node6 = relay.subtract(in_8, end0)
+        node7 = relay.add(begin5, node5)
+        end1 = relay.annotation.compiler_end(node7, "dnnl")
+        begin6 = relay.annotation.compiler_begin(end1, "dnnl")
+        begin7 = relay.annotation.compiler_begin(node6, "dnnl")
+
+        node8 = relay.add(begin7, begin6)
+
+        begin8 = relay.annotation.compiler_begin(in_10, "dnnl")
+        node9 = relay.add(begin8, node8)
+        end2 = relay.annotation.compiler_end(node9, "dnnl")
+
+        f = relay.Function([in_1, in_2, in_3, in_4, in_5, in_6, in_7, in_8, in_9, in_10], end2)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
     mod = annotated()
     mod = transform.AnnotateTargetWithMerge(["dnnl"])(mod)
-    #ref_mod = expected(dtype, ishape, w1shape)
-    #assert relay.analysis.alpha_equal(mod, ref_mod)
+    ref_mod = expected()
+    assert relay.analysis.alpha_equal(mod, ref_mod)
 
 
 if __name__ == "__main__":
-    #test_extern_dnnl()
-    #test_extern_dnnl_mobilenet()
+    test_extern_dnnl()
+    test_extern_dnnl_mobilenet()
     test_annotate_with_merge()
