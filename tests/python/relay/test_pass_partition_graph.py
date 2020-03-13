@@ -678,6 +678,81 @@ def test_constant_propagation():
     check_result(mod, {"y": y_data}, (8, 8), np.log(np_add))
 
 
+def test_multiple_outputs():
+    def create_merged_graph():
+        data = relay.var('data', shape=(10, 10))
+
+        cb_1 = compiler_begin(data, 'test_target')
+        O_1 = relay.abs(cb_1)
+        ce_2 = compiler_end(O_1, 'test_target')
+        O_2 = relay.nn.relu(O_1)
+        ce_3 = compiler_end(O_2, 'test_target')
+
+        X = relay.tanh(ce_2)
+
+        cb_3 = compiler_begin(ce_3, 'test_target')
+        cb_4 = compiler_begin(X, 'test_target')
+        O_3 = relay.add(cb_3, cb_4)
+        ce_4 = compiler_end(O_3, 'test_target')
+
+        func = relay.Function([data], ce_4)
+        return func
+
+    def expected():
+        mod = tvm.IRModule()
+
+        # function 1
+        f1_cb1 = relay.var('test_target_1_i0', shape=(10, 10))
+        f1_O_1 = relay.abs(f1_cb1)
+        f1_O_2 = relay.nn.relu(f1_O_1)
+        f1_out = relay.Tuple((f1_O_2,f1_O_1))
+        func1 = relay.Function([f1_cb1], f1_out)
+
+        func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Compiler",
+                                tvm.tir.StringImm("test_target"))
+        func1 = func1.with_attr("ExternalSymbol",
+                                tvm.tir.StringImm("test_target_1"))
+        gv1 = relay.GlobalVar("test_target_1")
+        mod[gv1] = func1
+
+        # function 0
+        f2_cb3 = relay.var('test_target_0_i0', shape=(10, 10))
+        f2_cb4 = relay.var('test_target_0_i1', shape=(10, 10))
+        f2_O_3 = relay.add(f2_cb3, f2_cb4)
+        func0 = relay.Function([f2_cb3, f2_cb4], f2_O_3)
+
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler",
+                                tvm.tir.StringImm("test_target"))
+        func0 = func0.with_attr("ExternalSymbol",
+                                tvm.tir.StringImm("test_target_0"))
+        gv0 = relay.GlobalVar("test_target_0")
+        mod[gv0] = func0
+
+        # body
+        data = relay.var('data', shape=(10, 10))
+        tuple_out = gv1(data)
+        ce_2 = relay.TupleGetItem(tuple_out, 1)
+        ce_3 = relay.TupleGetItem(tuple_out, 0)
+
+        X = relay.tanh(ce_2)
+        ce_4 = gv0(ce_3, X)
+        func = relay.Function([data], ce_4)
+        mod["main"] = func
+
+        return mod
+
+    # print(create_merged_graph())
+    mod = tvm.IRModule()
+    mod["main"] = create_merged_graph()
+
+    ref_mod = expected();
+    partitioned = transform.PartitionGraph()(mod)
+    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -688,3 +763,4 @@ if __name__ == "__main__":
     test_function_lifting()
     test_function_lifting_inline()
     test_constant_propagation()
+    test_multiple_outputs()
