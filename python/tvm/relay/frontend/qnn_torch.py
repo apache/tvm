@@ -596,7 +596,6 @@ def _binop(relay_op, with_relu=False, fp32_piggy_back=False):
                               input_scale_rhs, input_zero_point_rhs,
                               output_scale, output_zero_point)
 
-        logging.info("Using QNN add/mul")
         return qnn_impl(lhs, rhs, input_scale_lhs, input_zero_point_lhs,
                         input_scale_rhs, input_zero_point_rhs,
                         output_scale, output_zero_point)
