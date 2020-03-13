@@ -683,6 +683,39 @@ def test_gather_nd():
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
+
+def test_unravel_index_infer_type():
+    n, t, d1, d2 = 10, 20, 100, 20
+    x = relay.var("x", relay.TensorType((n, t, d1, d2), "float32"))
+    y = relay.unravel_index(x, shape=(n, t, 2000))
+    assert "shape=" in y.astext()
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType(
+        (n, t, 2000), "float32")
+
+
+def test_unravel_index():
+    def verify_unravel_index(size, shape):
+        x = relay.var("x", relay.TensorType(size, "int64"))
+        z = relay.unravel_index(x, shape=shape)
+        zz = run_infer_type(z)
+        assert "shape=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(shape, "int64")
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("int64")
+        ref_res = np.unravel_index(x_data, shape)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_unravel_index((0, 1), (2, 2))
+    # verify_unravel_index((4, 7), (2, 7, 2))
+    # verify_unravel_index((2, 3, 4), (4, 0, 2))
+    # verify_unravel_index((2, 3, 4), (2, 0, 0))
+
+
 if __name__ == "__main__":
     test_arange()
     test_cast()
@@ -713,3 +746,5 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
+    test_unravel_index_infer_type()
+    test_unravel_index()

@@ -124,6 +124,7 @@ This level enables additional math and transform operators.
    tvm.relay.repeat
    tvm.relay.tile
    tvm.relay.reverse
+   tvm.relay.unravel_index
 
 
 **Level 4: Broadcast and Reductions**

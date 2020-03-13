@@ -861,3 +861,23 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
              [0, 0, 1]]
     """
     return _make.one_hot(indices, on_value, off_value, depth, axis, dtype)
+
+
+def unravel_index(indices, shape):
+    """Converts a flat index or array of flat indices into a tuple of coordinate arrays.
+    Example::
+    -   unravel_index([22,41,37], shape=(7,6)) = [[3,6,6],[4,5,1]]
+    Parameters
+    ----------
+    indices : relay.Expr
+        An integer array whose elements are indices into the flattened version
+        of an array of dimensions shape.
+    shape : relay.Expr
+        The shape of the array to use for unraveling indices.
+    Returns
+    -------
+    result : relay.Expr
+        The unraveled tuple of array.
+    """
+
+    return _make.unravel_index(indices, list(shape))
