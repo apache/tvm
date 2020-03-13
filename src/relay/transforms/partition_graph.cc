@@ -36,11 +36,14 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
-#include <string>
+#include <utility>
 #include <unordered_map>
 #include <unordered_set>
-#include <utility>
 #include <vector>
+
+#include "../analysis/subgraph_set.h"
+
+
 
 namespace tvm {
 namespace relay {
@@ -48,22 +51,8 @@ namespace partitioning {
 
 // Cache compiler_begin and compiler_end annotation ops for equivalence check to
 // reduce registry lookup overhead.
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
-
-/*!
- * \brief The subgraph properties for partitioning.
- */
-struct Subgraph {
-  /*! \brief The subgraph ID. */
-  int id;
-
-  /*! \brief The input arguments of this subgraph. */
-  std::vector<std::pair<Var, Expr>> args;
-
-  /*! \brief Nodes in this subgraph. */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> nodes;
-};
+static const Op &compiler_begin_op = Op::Get("annotation.compiler_begin");
+static const Op &compiler_end_op = Op::Get("annotation.compiler_end");
 
 /*!
  * \brief The checker that verifies if a Relay program is annotated correctly
@@ -84,7 +73,7 @@ class AnnotationChecker : public ExprVisitor {
     return true;
   }
 
-  void VisitExpr_(const CallNode* call) final {
+  void VisitExpr_(const CallNode *call) final {
     auto op_node = call->op.as<OpNode>();
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return;
@@ -105,56 +94,66 @@ class AnnotationChecker : public ExprVisitor {
  * a compiler attribute so that it will be handled by any compilers that are not
  * in the TVM stack.
  *
- * TODO(@zhiics) This following algorithm is not adequate to handle all cases,
- * i.e. multiple `compiler_end` nodes.
+ * Input : A Relay module that have functions with disjoint annotated regions
+ *         using compiler_begin and compiler_end. There could be multiple outputs.
+ *
+ * Output : A Relay module with global functions for such disjoint annotated regions
+ *          with calls inserted at the respective location
+ *
+ * Dependencies : SubgraphSet Utility class.
+ *
+ * Methodology :
+ *      1) The SubgraphSet utility class is able to construct a collection of
+ *         nodes that are bound by a given annotation -- here we use compiler_begin
+ *         and compiler_end
+ *      2) Initially, for each function in the module SubgraphSets are populated.
+ *      3) Then, Vistor pass is traversed until a compiler_end node is encountered
+ *         that belongs to a "subgraph".
+ *      4) When the first compiler_end of a given annotated region is found, a function is
+ *         formed and inserted.
+ *         a) if the region has multiple outputs, a Tuple node (capturing all outputs)
+ *            is returned.
+ *      5) Thereafter, if we encounter an another output of the same annotated region,
+ *         it is important to note that the function is already formed. Therefore, it will
+ *         lookup the function and add a TupleGetItemNode.
+ *          a) We will use the location index of "rets" of each "Subgraph" of SubgraphSet
+ *             as TupleGetItemNode index.
+ *      6) Therefore, functions will be created for all annotated regions. The name for each
+ *         global function is created using "Subgraph" id and the compiler name.
+ *
+ * Expected Usecase :
+ *      This pass is intended to run as the last pass in a series of passes as follows :
+ *      1) Annotate Supported Single Ops - annotated each single op with supported backends.
+ *                                         We use supported_begin and supported_end annotations.
+ *      2) Annotate Supported Composite Ops - annotate each composite op (that consist of
+ *                                            multiple single ops).
+ *                                            We use supported_begin and supported_end
+ *                                            annotations.
+ *      3) Deconflict Pass - Make sure each op is annotated by only a single backend.
+ *                           In other words, each Annotated Region will be disjoint.
+ *                           We promote supported_* annotations to compiler_* annotations.
+ *      4) Merge Supported Pass - Merge the disjoint compiler_* Annotated regions belonging
+ *                                to same backend.
+ *      5) *Partition Graph* - Convert Disjoint Annotated Regions into Functions.
  */
+
 class Partitioner : public ExprMutator {
  public:
-  explicit Partitioner(const IRModule& module) : module_(module) {}
+  explicit Partitioner(const IRModule &module) : module_(module) {
+    for (auto f : module->functions) {
+      GlobalVar f_var = f.first;
+      BaseFunc f_func = f.second;
 
-  std::shared_ptr<Subgraph> GetSubgraph(const Expr node) {
-    for (auto candidate : this->subgraphs_) {
-      if (candidate->nodes.find(node) != candidate->nodes.end()) {
-        return candidate;
-      }
-    }
-    return nullptr;
-  }
-
-  void MergeSubgraph(std::shared_ptr<Subgraph> subgraph1,
-                     std::shared_ptr<Subgraph> subgraph2) {
-    if (subgraph1 == subgraph2) {
-      return;
-    }
-
-    // Merge subgraph 2 to subgraph 1 and erase subgraph 2.
-    subgraph1->nodes.insert(subgraph2->nodes.begin(), subgraph2->nodes.end());
-    for (auto arg : subgraph2->args) {
-      subgraph1->args.push_back(arg);
-    }
-    this->subgraphs_.erase(subgraph2);
-  }
-
-  void AddToSubgraph(std::shared_ptr<Subgraph> subgraph, const Expr expr) {
-    auto subgraph2 = GetSubgraph(expr);
-    if (subgraph2) {
-      MergeSubgraph(subgraph, subgraph2);
-    } else {
-      subgraph->nodes.insert(expr);
+      // Creating subgraphset per function in the module
+      auto subgraph_set = SubgraphSet::Create(f_func, partitioning::compiler_begin_op,
+                                            partitioning::compiler_end_op);
+      subgraphs_sets_[subgraph_set] = f_func;
     }
   }
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr VisitExpr_(const CallNode *call) final {
     auto op_node = call->op.as<OpNode>();
-
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
-      // Propogate subgraph to arguments
-      auto subgraph = GetSubgraph(GetRef<Call>(call));
-      if (subgraph) {
-        for (auto arg : call->args) {
-          AddToSubgraph(subgraph, arg);
-        }
-      }
       return ExprMutator::VisitExpr_(call);
     } else if (call->op == compiler_begin_op) {
       // The annotation node is inserted on edge so it must have only one argument.
@@ -163,90 +162,129 @@ class Partitioner : public ExprMutator {
       // Traverse the rest graph.
       auto input_expr = VisitExpr(call->args[0]);
 
-      // Replace the begin annotation with an external call input variable.
-      auto compiler_attrs = call->attrs.as<CompilerAttrs>();
+      Subgraph sg = GetSubgraph(GetRef<Call>(call));
+      int index = GetArgIdx(sg, GetRef<Call>(call));
+      CHECK_NE(index, -1);
       // The type of the created variable is the same as the compiler_begin
       // node.
-      auto var = VarNode::make(compiler_attrs->compiler + "_input" + std::to_string(var_id_++),
-                               call->checked_type_);
+      std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+      std::string varname = target + "_" + std::to_string(sg->id) + "_i" + std::to_string(index);
+      auto var = VarNode::make(varname,
+                              GetRef<Call>(call)->checked_type_);
 
-      // Find the corresponding subgraph and add the argument.
-      auto subgraph = GetSubgraph(GetRef<Call>(call));
-      if (!subgraph) {
-        throw Error(ErrorBuilder()
-                    << "Cannot find the corresponding subgraph for start annotation:\n"
-                    << AsText(GetRef<Call>(call), false));
-      }
-      subgraph->args.push_back({var, input_expr});
+      auto cand = std::make_pair(var, input_expr);
+      if (std::find(subgraph_args[sg].begin(),
+                    subgraph_args[sg].end(), cand) == subgraph_args[sg].end()) {
+        subgraph_args[sg].push_back(cand);
+     }
       return std::move(var);
     } else {
       CHECK_EQ(call->op, compiler_end_op);
       // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
-      auto compiler_attrs = call->attrs.as<CompilerAttrs>();
+      Subgraph sg = GetSubgraph(GetRef<Call>(call));
 
-      // Check if the argument already belongs to an existing subgraph
-      auto subgraph = GetSubgraph(call->args[0]);
-      if (!subgraph) {
-        auto ret = this->subgraphs_.emplace(std::make_shared<Subgraph>());
-        subgraph = *ret.first;
-        subgraph->nodes.insert(call->args[0]);
-        subgraph->id = this->subgraph_id_++;
+      // TODO(@manupa-arm) : need to use the parent function (to which subgraph
+      // belongs to) name/key for the funtions that are created
+      BaseFunc f = GetFunc(GetRef<Call>(call));
+
+      CHECK(sg.defined()) << "Subgraph not defined for " << GetRef<Call>(call);
+
+      // functions are created for each annotated subgraphs,
+      // when their first output is encountered.
+      // If multiple outputs are there, a tuple node is inserted at the end.
+      // subgraph_function_calls is map that maintains
+      // (each annotated subgraphs) --> created function
+
+      if (subgraph_function_calls.find(sg) != subgraph_function_calls.end()) {
+      // This section is executed only if there are multiple outputs in the subgraph
+      // Thus, the function is always created and at the end there would be a tuple node
+      // Therefore, we insert a tuple get item node.
+
+      // Use the already created tuple node
+        auto sg_call = subgraph_function_calls[sg];
+        int index = GetRetIdx(sg, GetRef<Call>(call));
+        CHECK_NE(index, -1);
+
+        auto tuple_get_item_ = TupleGetItemNode::make(sg_call, index);
+        tuple_get_item_->checked_type_ = GetRef<Call>(call)->args[0]->checked_type_;
+        return std::move(tuple_get_item_);
+      } else {
+        // First time this subgraph is encountered in the traversal
+        // Creating the function
+
+        Array<Expr> fields;
+
+        for (auto ret : sg->rets) {
+          auto ret_expr = VisitExpr(Downcast<Call>(ret)->args[0]);
+          fields.push_back(ret_expr);
+        }
+        int index = GetRetIdx(sg, GetRef<Call>(call));
+        CHECK_NE(index, -1);
+
+        Array<Var> params;
+        Array<Expr> param_expr;
+        for (auto arg : subgraph_args[sg]) {
+          param_expr.push_back(arg.second);
+          params.push_back(arg.first);
+        }
+
+        Function global_subgraph_func;
+        if (sg->rets.size() == 1) {
+          // If there are only a single output; no need to add a tuple
+          global_subgraph_func = Function(params, fields[0],
+                                  call->args[0]->checked_type_, {}, DictAttrs());
+        } else {
+          auto tuple = TupleNode::make(fields);
+          global_subgraph_func = Function(params, tuple, tuple->checked_type_, {}, DictAttrs());
+        }
+
+        std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+        std::string name = target + "_" + std::to_string(sg->id);
+
+        global_subgraph_func = WithAttr(std::move(global_subgraph_func), attr::kExternalSymbol,
+                                      tir::StringImmNode::make(name));
+        global_subgraph_func = WithAttr(std::move(global_subgraph_func), attr::kPrimitive,
+                            tvm::Integer(1));
+        global_subgraph_func = WithAttr(std::move(global_subgraph_func), attr::kCompiler,
+                                      tvm::tir::StringImmNode::make(target));
+        global_subgraph_func = WithAttr(std::move(global_subgraph_func), attr::kInline,
+                            tvm::Integer(1));
+
+        std::string fname = name;
+        CHECK(!module_->ContainGlobalVar(fname))
+                << "Global function " << fname << " already exists";
+        // Create a global function and add it to the IRModule for the subgraph.
+        // This way we lift the functions that should be handled by external
+        // codegen to the module scope and rely on the pass manager to prevent relay
+        // function level passes (i.e. simplify inference and fusion) optimizing it.
+        GlobalVar glob_func(fname);
+        module_->Add(glob_func, global_subgraph_func);
+
+        // The return type of callnode is the same as the type of the
+        // compiler_end node.
+        auto ret = CallNode::make(glob_func, param_expr);
+        subgraph_function_calls[sg] = ret;
+
+        if (sg->rets.size() == 1) {
+          // If there is only a single output; no need to add a tuplegetitem node
+          return CallNode::make(glob_func, param_expr);
+        } else {
+          // Add a tuplegetitem node to select this output out of many
+          auto tuple_get_item_ = TupleGetItemNode::make(ret, index);
+          tuple_get_item_->checked_type_ = GetRef<Call>(call)->args[0]->checked_type_;
+          return std::move(tuple_get_item_);
+        }
       }
-      subgraph->nodes.insert(GetRef<Call>(call));
-
-      // Traverse subgraph inputs.
-      auto input = VisitExpr(call->args[0]);
-      Array<Var> params;
-      Array<Expr> args;
-
-      // The subgraph may be merged so we need to update it again.
-      subgraph = GetSubgraph(GetRef<Call>(call));
-      CHECK(subgraph);
-
-      for (auto pair : subgraph->args) {
-        params.push_back(pair.first);
-        args.push_back(pair.second);
-      }
-
-      auto subgraph_func =
-          Function(params, input, call->checked_type_, {});
-
-      std::string name = compiler_attrs->compiler + "_" + std::to_string(subgraph->id);
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kExternalSymbol, tir::StringImmNode::make(name));
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kPrimitive, tvm::Integer(1));
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kCompiler,
-                   tvm::tir::StringImmNode::make(compiler_attrs->compiler));
-      subgraph_func =
-          WithAttr(std::move(subgraph_func), attr::kInline, tvm::Integer(1));
-      CHECK(!module_->ContainGlobalVar(name))
-          << "Global function " << name << " already exists";
-      // Create a global function and add it to the IRModule for the subgraph.
-      // This way we lift the functions that should be handled by external
-      // codegen to the module scope and rely on the pass manager to prevent relay
-      // function level passes (i.e. simplify inference and fusion) optimizing it.
-      GlobalVar glob_func(name);
-      module_->Add(glob_func, subgraph_func);
-      // The return type of callnode is the same as the type of the
-      // compiler_end node.
-      auto ret = CallNode::make(glob_func, args);
-      ret->checked_type_ = call->checked_type_;
-      return std::move(ret);
     }
   }
 
-  Expr VisitExpr_(const TupleNode* op) final {
+  Expr VisitExpr_(const TupleNode *op) final {
     auto subgraph = GetSubgraph(GetRef<Tuple>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      for (auto field : op->fields) {
-        AddToSubgraph(subgraph, field);
-      }
       Array<Expr> fields;
       for (auto field : op->fields) {
         fields.push_back(VisitExpr(field));
@@ -255,26 +293,22 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TupleGetItemNode* g) final {
+  Expr VisitExpr_(const TupleGetItemNode *g) final {
     auto subgraph = GetSubgraph(GetRef<TupleGetItem>(g));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(g);
     } else {
-      AddToSubgraph(subgraph, g->tuple);
       auto t = VisitExpr(g->tuple);
       return TupleGetItemNode::make(t, g->index);
     }
   }
 
-  Expr VisitExpr_(const FunctionNode* op) final {
+  Expr VisitExpr_(const FunctionNode *op) final {
     auto subgraph = GetSubgraph(GetRef<Function>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
       Array<Var> params;
-      for (auto param : op->params) {
-        AddToSubgraph(subgraph, param);
-      }
       for (auto param : op->params) {
         Var new_param = Downcast<Var>(VisitExpr(param));
         params.push_back(new_param);
@@ -284,30 +318,23 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const LetNode* op) final {
+  Expr VisitExpr_(const LetNode *op) final {
     auto subgraph = GetSubgraph(GetRef<Let>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      AddToSubgraph(subgraph, op->var);
-      AddToSubgraph(subgraph, op->value);
-      AddToSubgraph(subgraph, op->body);
       Var var = Downcast<Var>(VisitExpr(op->var));
       auto value = VisitExpr(op->value);
       auto body = VisitExpr(op->body);
-
       return LetNode::make(var, value, body);
     }
   }
 
-  Expr VisitExpr_(const IfNode* op) final {
+  Expr VisitExpr_(const IfNode *op) final {
     auto subgraph = GetSubgraph(GetRef<If>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      AddToSubgraph(subgraph, op->cond);
-      AddToSubgraph(subgraph, op->true_branch);
-      AddToSubgraph(subgraph, op->false_branch);
       auto guard = VisitExpr(op->cond);
       auto true_b = VisitExpr(op->true_branch);
       auto false_b = VisitExpr(op->false_branch);
@@ -315,34 +342,31 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefCreateNode* op) final {
+  Expr VisitExpr_(const RefCreateNode *op) final {
     auto subgraph = GetSubgraph(GetRef<RefCreate>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      AddToSubgraph(subgraph, op->value);
       Expr value = VisitExpr(op->value);
       return RefCreateNode::make(value);
     }
   }
 
-  Expr VisitExpr_(const RefReadNode* op) final {
+  Expr VisitExpr_(const RefReadNode *op) final {
     auto subgraph = GetSubgraph(GetRef<RefRead>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      AddToSubgraph(subgraph, op->ref);
       Expr ref = VisitExpr(op->ref);
       return RefReadNode::make(ref);
     }
   }
 
-  Expr VisitExpr_(const RefWriteNode* op) final {
+  Expr VisitExpr_(const RefWriteNode *op) final {
     auto subgraph = GetSubgraph(GetRef<RefWrite>(op));
-    if (!subgraph) {
+    if (!subgraph.defined()) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      AddToSubgraph(subgraph, op->ref);
       Expr ref = VisitExpr(op->ref);
       Expr value = VisitExpr(op->value);
       return RefWriteNode::make(ref, value);
@@ -351,14 +375,14 @@ class Partitioner : public ExprMutator {
 
   IRModule Partition() {
     auto glob_funcs = module_->functions;
-    for (const auto& pair : glob_funcs) {
-      if (auto* fn = pair.second.as<FunctionNode>()) {
+    for (const auto &pair : glob_funcs) {
+      if (auto *fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
         func = Function(func->params,
-                                  VisitExpr(func->body),
-                                  func->ret_type,
-                                  func->type_params,
-                                  func->attrs);
+                        VisitExpr(func->body),
+                        func->ret_type,
+                        func->type_params,
+                        func->attrs);
         module_->Update(pair.first, func);
       }
     }
@@ -366,11 +390,89 @@ class Partitioner : public ExprMutator {
   }
 
  private:
-  int var_id_{0};
-  int subgraph_id_{0};
-  std::unordered_set<std::shared_ptr<Subgraph>> subgraphs_;
+  /*!
+  * \brief Get the subgraph an expression belongs to
+   * if its in a subgraph.
+  */
+  Subgraph GetSubgraph(const Expr &e) {
+    for (auto sg_set_it : subgraphs_sets_) {
+      auto sg_set = sg_set_it.first;
+      Subgraph sg = sg_set->GetSubgraph(e);
+      if (sg.defined()) {
+        return sg;
+      }
+    }
+    return Subgraph(nullptr);
+  }
+
+  /*!
+  * \brief Get the function an expression belongs to
+   * if its in a subgraph.
+  */
+  BaseFunc GetFunc(const Expr &e) {
+    for (auto sg_set_it : subgraphs_sets_) {
+      auto sg_set = sg_set_it.first;
+      auto func = sg_set_it.second;
+
+      Subgraph sg = sg_set->GetSubgraph(e);
+      if (sg.defined()) {
+        return func;
+      }
+    }
+    return BaseFunc(nullptr);
+  }
+
+  /*!
+ * \brief Get the index of the argument;
+   * this is to be used as tuplegetitem idx
+ */
+  int GetArgIdx(Subgraph sg, const Expr &arg) {
+    int idx = 0;
+    for (auto arg_ : sg->args) {
+      if (arg == arg_) {
+       return idx;
+      }
+      idx++;
+    }
+    return -1;
+  }
+
+  /*!
+  * \brief Get the index of the return(output);
+   * this is to be used as tuplegetitem idx
+  */
+  int GetRetIdx(Subgraph sg, const Expr &arg) {
+    int idx = 0;
+    for (auto arg_ : sg->rets) {
+      if (arg == arg_) {
+        return idx;
+      }
+      idx++;
+    }
+    return -1;
+  }
+
+  /*!
+  * \brief This map maintains the already created function calls.
+   * This is required in the multi-output scenario, to link rest of the outputs to call
+  */
+  std::unordered_map<Subgraph, Call, ObjectHash, ObjectEqual> subgraph_function_calls;
+
+  /*!
+  * \brief This map maintains arguments (of subgraph) visits through visitor patterns.
+   * Those arguement var and expression will be used to when creating the function.
+  */
+  std::unordered_map<Subgraph, std::vector<std::pair<Var, Expr>>,
+                                         ObjectHash, ObjectEqual> subgraph_args;
+
+  /*!
+  * \brief Each subgraph set is associated with a function in the module.
+   * This map maintains the mapping between subgraphsets and the function it belongs to
+  */
+  std::unordered_map<SubgraphSet, BaseFunc, ObjectHash, ObjectEqual> subgraphs_sets_;
   IRModule module_;
 };
+
 
 }  // namespace partitioning
 
@@ -378,9 +480,9 @@ namespace transform {
 
 Pass PartitionGraph() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) {
-        return partitioning::Partitioner(m).Partition();
-      };
+                                    [=](IRModule m, PassContext pc) {
+     return partitioning::Partitioner(m).Partition();
+  };
   auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
 }
