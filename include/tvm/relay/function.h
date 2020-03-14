@@ -115,33 +115,6 @@ class Function : public BaseFunc {
 };
 
 /*!
- * \brief Create a new function that copies func, but overrides
- *        the attribute value key with the value.
- *
- * \param func The input function.
- * \param attr_key The attribute key.
- * \param attr_value The value attribute value.
- *
- * \returns The new function with updated attributes.
- *
- * \note This function performs copy on write optimization for func.
- *       If we move a uniquely referenced func into WithAttr,
- *       then no additional copy will be performed.
- *
- *       This is also why we make it as a function instead of a member function
- *       and why we pass by value in the first argument.
- *
- * \code
- *
- *  // Recommended way to trigger copy on write
- *  func = WithAttr(std::move(func), "key1", value1);
- *  func = WithAttr(std::move(func), "key2", value2);
- *
- * \endcode
- */
-TVM_DLL Function WithAttr(Function func, const std::string& attr_key, ObjectRef attr_value);
-
-/*!
  * \brief namespace of the attributes that can be attached to a relay::Function.
  */
 namespace attr {
