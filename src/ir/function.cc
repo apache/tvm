@@ -30,4 +30,5 @@ TVM_REGISTER_GLOBAL("ir.BaseFunc_Attrs")
 .set_body_typed([](BaseFunc func) {
   return func->attrs;
 });
+
 }  // namespace tvm

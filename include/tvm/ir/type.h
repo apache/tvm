@@ -277,6 +277,13 @@ class TupleType : public Type {
 };
 
 /*!
+ * \return a type that represents void.
+ */
+inline Type VoidType() {
+  return TupleType::Empty();
+}
+
+/*!
  * \brief Potential Constraints in a function.
  * \sa TypeConstraint
  */

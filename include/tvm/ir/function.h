@@ -33,6 +33,36 @@
 namespace tvm {
 
 /*!
+ * \brief Possible Calling conventions.
+ *
+ *  NOTE: The calling convention also implies
+ *  the way we implement the function during lowering.
+ */
+enum class CallingConv : int {
+  /*!
+   * \brief Default calling convetion.
+   *
+   * - Uses the native calling convention of the target.
+   * - Implementation: specified by the native target.
+   */
+  kDefault = 0,
+  /*!
+   * \brief Device kernel launch
+   *
+   * - Call by PackedFunc calling convention.
+   * - Implementation: defined by device runtime(e.g. runtime/cuda)
+   */
+  kDeviceKernelLaunch = 2,
+  /*!
+   * \brief PackedFunc that exposes a CPackedFunc signature.
+   *
+   * - Calling by PackedFunc calling convention.
+   * - Implementation: Expose a function with the CPackedFunc signature.
+   */
+  kCPackedFunc = 3,
+};
+
+/*!
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
@@ -115,5 +145,74 @@ class BaseFunc : public RelayExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
 };
 
+/*!
+ * \brief Create a new function that copies func, but overrides
+ *        the attribute value key with the value.
+ *
+ * \param func The input function.
+ * \param attr_key The attribute key.
+ * \param attr_value The value attribute value.
+ *
+ * \tparam TFunc The corresponding function type.
+ *
+ * \returns The new function with updated attributes.
+ *
+ * \note This function performs copy on write optimization for func.
+ *       If we move a uniquely referenced func into WithAttr,
+ *       then no additional copy will be performed.
+ *
+ *       This is also why we make it as a function instead of a member function
+ *       and why we pass by value in the first argument.
+ *
+ * \code
+ *
+ *  // Recommended way to trigger copy on write
+ *  func = WithAttr(std::move(func), "key1", value1);
+ *  func = WithAttr(std::move(func), "key2", value2);
+ *
+ * \endcode
+ */
+template<typename TFunc,
+         typename = typename std::enable_if<
+           std::is_base_of<BaseFunc, TFunc>::value>::type>
+inline TFunc WithAttr(TFunc func,
+                      const std::string& attr_key,
+                      ObjectRef attr_value) {
+  using TNode = typename TFunc::ContainerType;
+  static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
+  TNode* node = func.CopyOnWrite();
+  if (node->attrs.defined()) {
+    node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
+  } else {
+    Map<std::string, ObjectRef> dict = {{attr_key, attr_value}};
+    node->attrs = DictAttrs(dict);
+  }
+  return func;
+}
+
+/*!
+ * \brief Generic attribute names that can be attached to any function.
+ *
+ * \sa tvm::tir::attr, tvm::relay::attr
+ */
+namespace attr {
+/*!
+ * \brief Indicates the special calling convention.
+ *
+ * Type: Integer
+ *
+ * \sa tvm::CallingConv
+ */
+constexpr const char* kCallingConv = "calling_conv";
+
+/*!
+ * \brief Compilation target of the function.
+ *
+ * Type: Target
+ *
+ * \sa tvm::Target
+ */
+constexpr const char* kTarget = "target";
+}  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_
