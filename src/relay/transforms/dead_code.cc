@@ -105,10 +105,20 @@ class CalcDep : private DataflowVisitor {
 
  private:
   explicit CalcDep(const VarMap<Expr>& expr_map)
-      : DataflowVisitor([](const Expr&) {}, 2), expr_map_(expr_map) {}
+      : DataflowVisitor(2), expr_map_(expr_map) {}
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
 
+  void VisitLeaf(const Expr& e) final {
+    visit_counter_[e.get()]++;
+    // The dce code seprate variable into three parts:
+    // used 0 times (remove)
+    // used 1 times (inline)
+    // used 2 times (dont do anything).
+    if (visit_counter_[e.get()] <= 2) {
+      ExprFunctor::VisitExpr(e);
+    }
+  }
 
   void VisitExpr_(const LetNode* l) final {
     VisitExpr(l->body);
