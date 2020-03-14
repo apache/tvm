@@ -21,7 +21,8 @@ from .type import Type, TypeKind, TypeVar, GlobalTypeVar, TupleType
 from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .tensor_type import TensorType
 from .type_relation import TypeCall, TypeRelation
-from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, BaseFunc, Range
+from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, Range
+from .function import BaseFunc
 from .adt import Constructor, TypeData
 from .module import IRModule
 from .attrs import Attrs, DictAttrs, make_node

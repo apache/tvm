@@ -19,6 +19,7 @@ from tvm import te
 import numpy as np
 
 
+
 def test_const():
     x = tvm.tir.const(1, "int32")
     print(x.dtype)
@@ -46,8 +47,8 @@ def test_make():
     x = tvm.tir.const(1, "int32")
     y = te.var("x")
     z = x + y
-    assert isinstance(tvm.te.max(x, y), tvm.tir.Max)
-    assert isinstance(tvm.te.min(x, y), tvm.tir.Min)
+    assert isinstance(tvm.tir.max(x, y), tvm.tir.Max)
+    assert isinstance(tvm.tir.min(x, y), tvm.tir.Min)
 
 
 def test_ir():
@@ -110,7 +111,6 @@ def test_stmt():
     tvm.tir.For(te.var('i'), 0, 1,
                  tvm.tir.For.Serial, 0,
                  x)
-
 
 def test_dir():
     x = te.var('x')
@@ -247,8 +247,26 @@ def test_equality_string_imm():
     x == y.value
     x == y
 
+def test_prim_func():
+    x = te.var('x')
+    y = te.var('y')
+    b = tvm.tir.decl_buffer((x,), "float32")
+    stmt = tvm.tir.LetStmt(
+        x, 10, tvm.tir.Evaluate(x + 1));
+
+    func = tvm.tir.PrimFunc(
+        [x, y, b], stmt)
+
+    assert func.buffer_map[func.params[2]].same_as(b)
+
+    assert len(func.buffer_map) == 1
+    f2 = func.with_attr("calling_conv", 1)
+    assert f2.attrs["calling_conv"].value == 1
+    assert func.attrs is None
+
 
 if __name__ == "__main__":
+    test_prim_func()
     test_cast()
     test_attr()
     test_const()
