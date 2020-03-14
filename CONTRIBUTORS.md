@@ -69,6 +69,7 @@ We do encourage everyone to work anything they are interested in.
 ## Reviewers
 
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri
+- [Arnaud Bergeron](https://github.com/abergeron): @abergeron
 - [Tianqi Chen](https://github.com/tqchen): @tqchen
 - [Liangfu Chen](https://github.com/liangfu): @liangfu
 - [Zhi Chen](https://github.com/zhiics): @zhiics
