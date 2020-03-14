@@ -59,6 +59,13 @@ class ConstantChecker : private ExprVisitor {
 
   void VisitExpr_(const TupleNode* n) final {
     bool result = true;
+
+    // Empy Tuple should be considered as variable
+    if (n->fields.size() == 0) {
+      memo_[GetRef<Tuple>(n)] = false;
+      return;
+    }
+
     for (const auto& field : n->fields) {
       if (!Check(field)) {
         result = false;
