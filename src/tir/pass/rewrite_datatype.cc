@@ -119,15 +119,17 @@ class DataTypeVisitor final : public StmtExprVisitor {
     }
     StmtExprVisitor::VisitExpr_(op);
   }
-
+  // the narrowed datatype of Var, IntImm, and Cast
   std::unordered_map<const Object*, DataType> vmap;
 
  protected:
-  /*! \brief internal analyzer field. */
+  // internal analyzer
   arith::Analyzer analyzer_;
 
  private:
+  // the maximum bits of all containing expressions
   int bits_;
+  // the vars to be rewritten
   std::unordered_set<const Object*> vset_;
   friend class DataTypeRewriter;
 };
@@ -219,7 +221,10 @@ class DataTypeRewriter : public StmtExprMutator {
   PrimExpr VisitExpr_(const CallNode* op) final;
 
  private:
+  // the internal visitor to deduce the narrowed dtype
   DataTypeVisitor visitor_;
+  // a map from Var before rewrite to Var after rewrite,
+  // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
   PrimExpr Cast(PrimExpr e, DataType dtype) {
     if (e.dtype() != dtype) {
@@ -230,15 +235,15 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 };
 
-#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                                    \
-  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {                      \
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)               \
+  PrimExpr DataTypeRewriter::VisitExpr_(const OP* op) {                 \
     PrimExpr a = this->VisitExpr(op->a);                                \
     PrimExpr b = this->VisitExpr(op->b);                                \
     if (a.same_as(op->a) &&                                             \
         b.same_as(op->b)) {                                             \
       return GetRef<PrimExpr>(op);                                      \
     } else {                                                            \
-      return FUNC(a, b);                                            \
+      return FUNC(a, b);                                                \
     }                                                                   \
   }
 
@@ -253,9 +258,9 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(NENode, operator!=)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator<)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator <)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator>)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator >)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=)
 
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {

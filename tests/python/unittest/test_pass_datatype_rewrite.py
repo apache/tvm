@@ -37,74 +37,62 @@ def lower(sch, args):
 
 
 def test_const():
-    m, n = 2, 2
-    A = te.placeholder((m, n), name='A')
-    B = te.placeholder((m, n), name='B')
-    C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-    s = te.create_schedule(C.op)
-    stmt = lower(s, [A, B, C])
-    assert stmt.body.loop_var.dtype == "int32"
-    assert stmt.body.body.loop_var.dtype == "int32"
-    m, n = 2**16, 2**16
-    A = te.placeholder((m, n), name='A')
-    B = te.placeholder((m, n), name='B')
-    C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-    s = te.create_schedule(C.op)
-    stmt = lower(s, [A, B, C])
+    def test(m, n, dtype):
+        A = te.placeholder((m, n), name='A')
+        B = te.placeholder((m, n), name='B')
+        C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
+        s = te.create_schedule(C.op)
+        stmt = lower(s, [A, B, C])
+        assert stmt.body.loop_var.dtype == dtype
+        assert stmt.body.body.loop_var.dtype == dtype
+
+    test(2, 2, "int32")
     # i32 + i32 is not promoted to i64 even in the case of overflow
-    assert stmt.body.loop_var.dtype == "int32"
-    assert stmt.body.body.loop_var.dtype == "int32"
+    test(2**16, 2**16, "int32")
+    test(tvm.tir.const(2, dtype='int64'), tvm.tir.const(2, dtype='int64'), "int32")
+    test(tvm.tir.const(2**16, dtype='int64'), tvm.tir.const(2**16, dtype='int64'), "int64")
 
 
 def test_symbolic():
-    m, n = te.size_var(name='m', dtype='int32'), te.size_var(name='n', dtype='int32')
-    A = te.placeholder((m, n), name='A')
-    B = te.placeholder((m, n), name='B')
-    C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-    s = te.create_schedule(C.op)
-    stmt = lower(s, [A, B, C])
-    assert stmt.body.loop_var.dtype == "int32"
-    assert stmt.body.body.loop_var.dtype == "int32"
-    m, n = te.size_var(name='m', dtype='int64'), te.size_var(name='n', dtype='int64')
-    A = te.placeholder((m, n), name='A')
-    B = te.placeholder((m, n), name='B')
-    C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-    s = te.create_schedule(C.op)
-    stmt = lower(s, [A, B, C])
-    assert stmt.body.loop_var.dtype == "int64"
-    assert stmt.body.body.loop_var.dtype == "int64"
+    def test(m, n, dtype):
+        A = te.placeholder((m, n), name='A')
+        B = te.placeholder((m, n), name='B')
+        C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
+        s = te.create_schedule(C.op)
+        stmt = lower(s, [A, B, C])
+        assert stmt.body.loop_var.dtype == dtype
+        assert stmt.body.body.loop_var.dtype == dtype
+
+    test(te.size_var(name='m', dtype='int32'), te.size_var(name='n', dtype='int32'), "int32")
+    test(te.size_var(name='m', dtype='int64'), te.size_var(name='n', dtype='int64'), "int64")
 
 
-def test_thread_axis_2dim():
-    m, n = 1024, 32
-    A = te.placeholder((m, n), name='A')
-    B = te.placeholder((m, n), name='B')
-    C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-    s = te.create_schedule(C.op)
-    s[C].bind(C.op.axis[0], te.thread_axis("blockIdx.x"))
-    s[C].bind(C.op.axis[1], te.thread_axis("threadIdx.x"))
-    stmt = lower(s, [A, B, C])
-    assert stmt.body.node.var.dtype == "int32"
-    assert stmt.body.body.node.var.dtype == "int32"
+def test_thread_axis():
+    def test(m, n, k, dtype):
+        A = te.placeholder((m, n, k), name='A')
+        B = te.placeholder((m, n, k), name='B')
+        C = te.compute((m, n, k), lambda *idx: A[idx] + B[idx])
+        s = te.create_schedule(C.op)
+        fused = s[C].fuse(*[axis for axis in C.op.axis])
+        xo, xi = s[C].split(fused, factor=32)
+        s[C].bind(xo, te.thread_axis("blockIdx.x"))
+        s[C].bind(xi, te.thread_axis("threadIdx.x"))
+        stmt = lower(s, [A, B, C])
 
-
-def test_thread_axis_3dim():
-    m, n, k = 2**12, 2**12, 2**13
-    A = te.placeholder((m, n, k), name='A')
-    B = te.placeholder((m, n, k), name='B')
-    C = te.compute((m, n, k), lambda *idx: A[idx] + B[idx])
-    s = te.create_schedule(C.op)
-    fused = s[C].fuse(*[axis for axis in C.op.axis])
-    xo, xi = s[C].split(fused, factor=32)
-    s[C].bind(xo, te.thread_axis("blockIdx.x"))
-    s[C].bind(xi, te.thread_axis("threadIdx.x"))
-    stmt = lower(s, [A, B, C])
+    test(2, 2, 2, dtype='int32')
     # i32 + i32 is not promoted to i64 even in the case of overflow
-    assert stmt.body.node.var.dtype == "int32"
-    assert stmt.body.body.node.var.dtype == "int32"
+    test(2**10, 2**11, 2**12, dtype='int32')
+    test(tvm.tir.const(2, dtype='int64'),
+         tvm.tir.const(2, dtype='int64'),
+         tvm.tir.const(2, dtype='int64'),
+         dtype='int32')
+    test(tvm.tir.const(2**10, dtype='int64'),
+         tvm.tir.const(2**11, dtype='int64'),
+         tvm.tir.const(2**12, dtype='int64'),
+         dtype='int64')
 
 
-def test_vectorize():
+def test_multilanes():
     def test(m, lanes, dtype):
         A = te.placeholder((m,), name='A', dtype='float32x{}'.format(lanes))
         B = te.placeholder((m,), name='B', dtype='float32x{}'.format(lanes))
@@ -112,6 +100,7 @@ def test_vectorize():
         s = te.create_schedule(C.op)
         stmt = lower(s, [A, B, C])
         assert stmt.body.loop_var.dtype == dtype
+
     test(tvm.tir.const(64, dtype='int32'), 2, 'int32')
     test(tvm.tir.const(2 ** 32, dtype='int64'), 2, 'int64')
 
@@ -119,6 +108,5 @@ def test_vectorize():
 if __name__ == "__main__":
     test_const()
     test_symbolic()
-    test_thread_axis_2dim()
-    test_thread_axis_3dim()
-    test_vectorize()
+    test_thread_axis()
+    test_multilanes()

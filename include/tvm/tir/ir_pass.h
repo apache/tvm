@@ -386,6 +386,11 @@ Stmt DecorateDeviceScope(Stmt stmt);
  */
 Stmt HoistIfThenElse(Stmt stmt);
 
+/*!
+ * \brief Narrow down PrimExpr datatype in stmt
+ * \param stmt The stmt to do datatype rewrite
+ * \return Transformed stmt.
+ */
 Stmt DataTypeRewrite(Stmt stmt);
 
 /*!
