@@ -99,7 +99,11 @@ class RelayTextPrinter :
   }
 
   Doc PrintFinal(const ObjectRef& node) {
-    if (node.as<ExprNode>()) {
+    if (node->IsInstance<BaseFuncNode>() &&
+        !node->IsInstance<relay::FunctionNode>()) {
+      // Temporarily skip non-relay functions.
+      // TODO(tvm-team) enhance the code to work for all functions
+    } else if (node.as<ExprNode>()) {
       Expr expr = Downcast<Expr>(node);
       dg_ = DependencyGraph::Create(&arena_, expr);
     }
@@ -122,7 +126,10 @@ class RelayTextPrinter :
   std::vector<Doc> PrintFuncAttrs(const Attrs& attrs);
 
   Doc Print(const ObjectRef& node, bool meta = false, bool try_inline = false) {
-    if (node.as<ExprNode>()) {
+    bool is_non_relay_func =
+        node->IsInstance<BaseFuncNode>() &&
+        !node->IsInstance<relay::FunctionNode>();
+    if (node.as<ExprNode>() && !is_non_relay_func) {
       return PrintExpr(Downcast<Expr>(node), meta, try_inline);
     } else if (node.as<TypeNode>()) {
       return PrintType(Downcast<Type>(node), meta);
@@ -134,7 +141,7 @@ class RelayTextPrinter :
       // default module.
       std::ostringstream os;
       os << node;
-      return Doc() << os.str();
+      return Doc::RawText(os.str());
     }
   }
 

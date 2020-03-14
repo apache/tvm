@@ -14,18 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-import
-"""Common data structures across all IR variants."""
-from .base import SourceName, Span, Node, EnvFunc, load_json, save_json
-from .type import Type, TypeKind, TypeVar, GlobalTypeVar, TupleType
-from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
-from .tensor_type import TensorType
-from .type_relation import TypeCall, TypeRelation
-from .expr import BaseExpr, PrimExpr, RelayExpr, GlobalVar, Range
-from .function import BaseFunc
-from .adt import Constructor, TypeData
-from .module import IRModule
-from .attrs import Attrs, DictAttrs, make_node
-from .container import Array, Map
+"""Function defintiions."""
+from .expr import RelayExpr
+from . import _ffi_api
 
-from . import transform
+
+class BaseFunc(RelayExpr):
+    """Base class of all functions."""
+    @property
+    def attrs(self):
+        """Return the attrs member of the function.
+        """
+        return _ffi_api.BaseFunc_Attrs(self)
