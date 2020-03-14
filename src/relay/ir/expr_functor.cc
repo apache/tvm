@@ -29,65 +29,116 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 
+#include <stack>
+
 namespace tvm {
 namespace relay {
 
-bool DataflowExpander::PushToStack(const Expr& expr, std::stack<std::pair<Expr, bool>>& stack) {
-  bool out = true;
-  if (visit_counter_[expr.get()] < visit_count_) {
-    stack.push({expr, false});
-    out = false;
-  } else {
-    visit_counter_[expr.get()]++;
-  }
-  // return true if this node was already visited,
-  // or false if we had to push it onto the stack
-  return out;
-}
-
-void DataflowExpander::ExpandDataflow(const Expr& expr) {
-  /*! \brief Internal Manually Managed Stack.
-   * The stack contains a pair of <const ExprNoe*, bool> where the boolean indicates
-   * whether or not we've already checked the status of this nodes inputs
-   * The stack is initialized locally in the ExpandDataflow function to prevent non-recursive
-   * behavior and recursive behavior interacting.
-   * */
+template <typename FCheckVisited, typename FVisitLeaf>
+void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_leaf) {
   std::stack<std::pair<Expr, bool>> stack;
-  PushToStack(expr, stack);
+  // The second state of the stack indicate whether the child has been
+  // expanded in the pre-order.
+  // NOTE: function will be inlined.
+  auto fpush_to_stack = [&fcheck_visited, &stack](const Expr& expr) {
+    if (!fcheck_visited(expr)) {
+      stack.push({expr, false});
+    }
+  };
+  fpush_to_stack(expr);
   while (stack.size() > 0) {
-    std::pair<Expr, bool>& current = stack.top();
-    Expr node = current.first;
-    if (visit_counter_[node.get()] < visit_count_) {
-      bool visit_now = true;
-      if (!current.second) {
-        if (const CallNode* op = node.as<CallNode>()) {
-          // push the children to the stack in reverse order
-          // to match recursive processing order
-          for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
-            visit_now &= PushToStack(*it, stack);
-          }
-          visit_now &= PushToStack(op->op, stack);
-        } else if (const TupleNode* op = node.as<TupleNode>()) {
-          // push the children to the stack in reverse order
-          // to match recursive processing order
-          for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
-            visit_now &= PushToStack(*it, stack);
-          }
-        } else if (const TupleGetItemNode* op = node.as<TupleGetItemNode>()) {
-          visit_now &= PushToStack(op->tuple, stack);
-        }
-        current.second = true;
+    auto node = stack.top().first;
+    // if this node was visited through another path
+    // after being added to the stack ignore it.
+    if (fcheck_visited(expr)) {
+      stack.pop();
+    } else if (stack.top().second) {
+      // all the children has already been expanded.
+      // we can just run post order visit on it.
+      fvisit_leaf(node);
+      stack.pop();
+    } else if (const CallNode* op = node.as<CallNode>()) {
+      // mark expanded = true
+      stack.top().second = true;
+      // push the children to the stack in reverse order
+      // to match recursive processing order
+      for (auto it = op->args.rbegin(); it != op->args.rend(); ++it) {
+        fpush_to_stack(*it);
       }
-      if (visit_now) {
-        // Do post order visitation
-        visit_(node);
-        visit_counter_[node.get()]++;
-        stack.pop();
+      fpush_to_stack(op->op);
+    } else if (const TupleNode* op = node.as<TupleNode>()) {
+      stack.top().second = true;
+      // push the children to the stack in reverse order
+      // to match recursive processing order
+      for (auto it = op->fields.rbegin(); it != op->fields.rend(); ++it) {
+        fpush_to_stack(*it);
       }
+    } else if (const TupleGetItemNode* op = node.as<TupleGetItemNode>()) {
+      stack.top().second = true;
+      fpush_to_stack(op->tuple);
     } else {
-      visit_counter_[node.get()]++;
+      // No need to expand the children directly run visit.
+      // terminal leaf, directly use visited.
+      fvisit_leaf(node);
       stack.pop();
     }
+  }
+}
+
+DataflowVisitor::DataflowVisitor(int visit_limit) {
+  CHECK(visit_limit > 0) << "Dataflow visit limit must be greater than 0";
+  CHECK(visit_limit < 10) << "Dataflow visit limit must be less than 10";
+  visit_limit_ = visit_limit;
+}
+
+void DataflowVisitor::VisitLeaf(const Expr& expr) {
+  if (visit_counter_[expr.get()] == 0) {
+    ExprFunctor::VisitExpr(expr);
+  }
+  visit_counter_[expr.get()]++;
+}
+
+bool DataflowVisitor::CheckVisited(const Expr& expr) {
+  if (visit_counter_[expr.get()] < visit_limit_) {
+    return false;
+  } else {
+    visit_counter_[expr.get()]++;
+    return true;
+  }
+}
+
+void DataflowVisitor::VisitExpr(const Expr& expr) {
+  auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
+  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
+  if (visit_counter_[expr.get()] < 1) {
+    ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
+  }
+}
+
+void DataflowMutator::VisitLeaf(const Expr& expr) {
+  if (!memo_.count(expr)) {
+    this->VisitExpr(expr);
+  }
+}
+
+bool DataflowMutator::CheckVisited(const Expr& expr) {
+  if (memo_.count(expr)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+Expr DataflowMutator::Mutate(const Expr& expr) {
+  auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
+  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
+  if (memo_.count(expr)) {
+    return memo_[expr];
+  } else {
+    ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
+    Expr ret = this->VisitExpr(expr);
+    memo_[expr] = ret;
+    return ret;
   }
 }
 

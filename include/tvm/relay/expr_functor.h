@@ -32,7 +32,6 @@
 #include <tvm/relay/adt.h>
 #include <tvm/relay/op.h>
 
-#include <stack>
 #include <string>
 #include <utility>
 #include <unordered_map>
@@ -234,35 +233,6 @@ class ExprMutator
 };
 
 /*!
- * \brief a helper class for expanding dataflow regions of the graph non-recursively
- *
- * DataflowExpander takes a visit function as an argument and provides a method
- * called ExpandDataflow, which will non-recursively call the visit function
- * on Dataflow subgraphs in Post-DFS order.
- *
- * This class is not meant to be used on it's own, users should instead
- * use DataflowVisitor and DataflowMutator which wrap this class
- */
-class DataflowExpander {
- public:
-  DataflowExpander(std::function<void(const Expr&)> visit, size_t visit_count = 1)
-      : visit_(visit), visit_count_(visit_count) {}
-  void ExpandDataflow(const Expr& Expr);
-  std::unordered_map<const Object*, size_t> GetVisitCounter() { return visit_counter_; }
-
- protected:
-  /* \brief Function to push a note to the stack if it hasn't been visited
-   * Also returns false if the node hasn't been visited */
-  bool PushToStack(const Expr& expr, std::stack<std::pair<Expr, bool>>& stack);
-  /*! \brief std::function used to process nodes. */
-  std::function<void(const Expr&)> visit_;
-  /*! \brief Number of times fo visit each node. */
-  size_t visit_count_;
-  // Internal visiting counter
-  std::unordered_map<const Object*, size_t> visit_counter_;
-};
-
-/*!
  * \brief A wrapper around ExprVisitor which traverses the Dataflow Normal AST.
  *
  * DataflowVisitor treats Expr as dataflow graph, and visits in post-DFS order
@@ -275,33 +245,13 @@ class DataflowExpander {
  */
 class DataflowVisitor : public ::tvm::relay::ExprVisitor {
  public:
-  DataflowVisitor() : DataflowVisitor([](const Expr&) {}) {}
-  DataflowVisitor(const std::function<void(const Expr&)>& visitor, int visit_count = 1)
-      : visitor_(visitor),
-        expander_(
-            [this](const Expr& expr) {
-              ExprFunctor<void(const Expr&)>::VisitExpr(expr);
-              visitor_(expr);
-              this->visit_counter_[expr.get()]++;
-            },
-            visit_count) {
-    CHECK(visit_count > 0) << "GraphMutator visit count must be greater than 0";
-    CHECK(visit_count < 10) << "GraphMutator visit count must be less than 10";
-    visit_count_ = visit_count;
-  }
-  void VisitExpr(const Expr& expr) override {
-    if (this->visit_counter_[expr.get()] < visit_count_) {
-      expander_.ExpandDataflow(expr);
-    }
-  }
+  DataflowVisitor(int visit_limit = 1);
+  void VisitExpr(const Expr& expr) final;
 
  protected:
-  /*! \brief std::function used to process nodes. */
-  std::function<void(const Expr&)> visitor_;
-  /*! DataflowExpander to non-recursively visit dataflow regions and prevent stack overflows */
-  DataflowExpander expander_;
-  /*! \brief Number of times fo visit each node. */
-  size_t visit_count_;
+  virtual void VisitLeaf(const Expr& expr);
+  virtual bool CheckVisited(const Expr& expr);
+  size_t visit_limit_;
 };
 
 /*!
@@ -316,30 +266,11 @@ class DataflowVisitor : public ::tvm::relay::ExprVisitor {
  * to non-recursively visit nested dataflow regions of the graph to prevent stack overflow
  */
 class DataflowMutator : protected ::tvm::relay::ExprMutator {
- public:
-  DataflowMutator()
-      : expander_(DataflowExpander([this](const Expr& expr) { this->VisitExpr(expr); })) {}
-  /*!
-   * \brief Mutate the Expression
-   * This override of Mutate aeffective does the same thing as ExprMutator's Mutate,
-   * except it prepends it by a non-recursive Dataflow expansion to prevent stack overflow
-   * \return expr.
-   */
-  Expr Mutate(const Expr& expr) final {
-    if (memo_.count(expr)) {
-      return memo_[expr];
-    } else {
-      expander_.ExpandDataflow(expr);
-      Expr ret = this->VisitExpr(expr);
-      memo_[expr] = ret;
-      return ret;
-    }
-  }
-
  protected:
-  DataflowExpander expander_;
+  virtual void VisitLeaf(const Expr& expr);
+  virtual bool CheckVisited(const Expr& expr);
+  Expr Mutate(const Expr& expr) final;
 };
-
 /*!
  * \brief recursively visit the ir in post DFS order node, apply fvisit
  * Each node is guaranteed to be visited only once.
