@@ -19,59 +19,93 @@
 import numpy as np
 
 
-def adaptive_pool(np_data, out_size, pool_type):
-    """ The reference function for adaptive pool, both 2d and 3d """
-    def start_index(index, odim, idim):
-        return int(np.floor(index * idim / odim))
+def _start_index(index, odim, idim):
+    return int(np.floor(index * idim / odim))
 
-    def end_index(index, odim, idim):
-        return int(np.ceil((index + 1) * idim / odim))
 
-    def pool2d(i, j):
-        out = np.zeros(out_size).astype(np_data.dtype)
-        n, c, h, w = np_data.shape
-        oh, ow = out_size
+def _end_index(index, odim, idim):
+    return int(np.ceil((index + 1) * idim / odim))
+
+
+def _pool2d(in_size, out_size, np_data, np_op):
+    out = np.zeros(out_size).astype(np_data.dtype)
+    oh, ow = out_size
+    for k in range(oh):
+        k_start = _start_index(k, oh, in_size[0])
+        k_end = _end_index(k, oh, in_size[0])
+        k_sl = slice(k_start, k_end)
+        for l in range(ow):
+            l_start = _start_index(l, ow, in_size[1])
+            l_end = _end_index(l, ow, in_size[1])
+            l_sl = slice(l_start, l_end)
+            out[k, l] = np_op(np_data[k_sl, l_sl])
+    return out
+
+
+def _pool3d(in_size, out_size, np_data, np_op):
+    out = np.zeros(out_size).astype(np_data.dtype)
+    od, oh, ow = out_size
+    for m in range(od):
+        m_start = _start_index(m, od, in_size[0])
+        m_end = _end_index(m, od, in_size[0])
+        m_sl = slice(m_start, m_end)
         for k in range(oh):
-            k_start = start_index(k, oh, h)
-            k_end = end_index(k, oh, h)
+            k_start = _start_index(k, oh, in_size[1])
+            k_end = _end_index(k, oh, in_size[1])
             k_sl = slice(k_start, k_end)
             for l in range(ow):
-                l_start = start_index(l, ow, w)
-                l_end = end_index(l, ow, w)
+                l_start = _start_index(l, ow, in_size[2])
+                l_end = _end_index(l, ow, in_size[2])
                 l_sl = slice(l_start, l_end)
-                out[k, l] = np_op(np_data[i, j, k_sl, l_sl])
-        return out
+                out[m, k, l] = np_op(np_data[m_sl, k_sl, l_sl])
+    return out
 
-    def pool3d(i, j):
-        out = np.zeros(out_size).astype(np_data.dtype)
-        n, c, d, h, w = np_data.shape
-        od, oh, ow = out_size
-        for m in range(od):
-            m_start = start_index(m, od, d)
-            m_end = end_index(m, od, d)
-            m_sl = slice(m_start, m_end)
-            for k in range(oh):
-                k_start = start_index(k, oh, h)
-                k_end = end_index(k, oh, h)
-                k_sl = slice(k_start, k_end)
-                for l in range(ow):
-                    l_start = start_index(l, ow, w)
-                    l_end = end_index(l, ow, w)
-                    l_sl = slice(l_start, l_end)
-                    out[m, k, l] = np_op(np_data[i, j, m_sl, k_sl, l_sl])
-        return out
 
-    if len(out_size) == 2:
-        pool_op = pool2d
-    else:
-        assert len(out_size) == 3
-        pool_op = pool3d
-
-    n, c = np_data.shape[:2]
+def adaptive_pool_nchw(np_data, out_size, pool_op, np_op):
+    """ The reference function for adaptive pool, nchw layout """
+    ishape = np_data.shape
+    n, c = ishape[:2]
     oshape = (n, c) + out_size
     np_out = np.zeros(oshape).astype(np_data.dtype)
-    np_op = np.mean if pool_type == "avg" else np.max
+
     for i in range(n):
         for j in range(c):
-            np_out[i, j] = pool_op(i, j)
+            np_out[i, j] = pool_op(ishape[2:], out_size, np_data[i, j], np_op)
+
     return np_out
+
+
+def adaptive_pool_nhwc(np_data, out_size, pool_op, np_op):
+    """ The reference function for adaptive pool, nhwc layout """
+    ishape = np_data.shape
+    n, c = ishape[0], ishape[-1]
+    oshape = (n,) + out_size + (c,)
+    np_out = np.zeros(oshape).astype(np_data.dtype)
+
+    for i in range(n):
+        for j in range(c):
+            if len(out_size) == 2:
+                np_out[i, :, :, j] = pool_op(ishape[1:-1], out_size,
+                                             np_data[i, :, :, j], np_op)
+            else:
+                np_out[i, :, :, :, j] = pool_op(ishape[1:-1], out_size,
+                                                np_data[i, :, :, :, j], np_op)
+
+    return np_out
+
+
+def adaptive_pool(np_data, out_size, pool_type, layout):
+    """ The reference function for adaptive pool, for 2d and 3d """
+    if len(out_size) == 2:
+        pool_op = _pool2d
+    else:
+        assert len(out_size) == 3
+        pool_op = _pool3d
+
+    np_op = np.mean if pool_type == "avg" else np.max
+
+    if layout in ["NCHW", "NCDHW"]:
+        return adaptive_pool_nchw(np_data, out_size, pool_op, np_op)
+
+    assert layout in ["NHWC", "NDHWC"]
+    return adaptive_pool_nhwc(np_data, out_size, pool_op, np_op)

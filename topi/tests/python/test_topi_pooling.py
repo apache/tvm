@@ -244,15 +244,10 @@ def test_global_pool():
     verify_global_pool(1, 1024, 7, 7, 'max', 'NHWC')
     verify_global_pool(4, 1024, 7, 7, 'max', 'NHWC')
 
+
 def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
-    def start_index(index, odim, idim):
-        return int(np.floor(index * idim / odim))
-
-    def end_index(index, odim, idim):
-        return int(np.ceil((index + 1) * idim / odim))
-
     np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
-    np_out = topi.testing.adaptive_pool(np_data, out_size, pool_type)
+    np_out = topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
     oshape = np_out.shape
 
     data = te.placeholder(dshape, name="data", dtype=dtype)
@@ -280,15 +275,22 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
     for device in get_all_backend():
         check_device(device)
 
+
 def test_adaptive_pool():
     verify_adaptive_pool((1, 3, 224, 224), (1, 1), "max")
     verify_adaptive_pool((1, 3, 224, 224), (1, 1), "avg")
     verify_adaptive_pool((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg")
+    verify_adaptive_pool((1, 224, 224, 3), (1, 1), "max", layout="NHWC")
+    verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg", layout="NHWC")
     verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "max", layout="NCDHW")
     verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW")
-    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "max", layout="NCDHW")
     verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 64, 32, 32), (7, 8, 9), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 64, 32, 32), (8, 16, 16), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NDHWC")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "max", layout="NDHWC")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 4, 4), "max", layout="NDHWC")
 
 
 def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
