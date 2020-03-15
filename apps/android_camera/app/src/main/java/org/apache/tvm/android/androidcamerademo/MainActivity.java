@@ -17,7 +17,6 @@
 
 package org.apache.tvm.android.androidcamerademo;
 
-import android.app.Activity;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -70,16 +69,16 @@ public class MainActivity extends AppCompatActivity implements
     }
 
     private void startFragment() {
-            getSupportFragmentManager()
-                    .beginTransaction()
-                    .replace(R.id.container, Camera2BasicFragment.newInstance())
-                    .commit();
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.container, Camera2BasicFragment.newInstance())
+                .commit();
     }
 
     @Override
     public void onRequestPermissionsResult(
             int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if(allPermissionsGranted()) {
+        if (allPermissionsGranted()) {
             startFragment();
         } else {
             Toast.makeText(this, "Required permissions are not granted. App may not run", Toast.LENGTH_SHORT).show();

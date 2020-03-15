@@ -75,7 +75,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class Camera2BasicFragment extends Fragment  {
+public class Camera2BasicFragment extends Fragment {
     private static final String TAG = Camera2BasicFragment.class.getSimpleName();
 
     // TVM constants
@@ -385,7 +385,7 @@ public class Camera2BasicFragment extends Fragment  {
         @SuppressLint("UnsafeExperimentalUsageError")
         Image image = imageProxy.getImage();
         // extract the jpeg content
-        if(image == null) {
+        if (image == null) {
             return null;
         }
         Bitmap imageBitmap = YUV_420_888_toRGB(image, image.getWidth(), image.getHeight());
