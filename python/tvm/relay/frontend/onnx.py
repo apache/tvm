@@ -1443,6 +1443,16 @@ class Resize(OnnxOpConverter):
         return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
 
 
+class NonZero(OnnxOpConverter):
+    """Operator converter for NonZero
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        if len(inputs) > 1:
+            raise ValueError("Expect 1 input only")
+        return AttrCvt(op_name='argwhere')(inputs, attr, params)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1572,6 +1582,7 @@ def _get_convert_map(opset):
         'Where': Where.get_converter(opset),
         'Or': Or.get_converter(opset),
         'Resize': Resize.get_converter(opset),
+        'NonZero': NonZero.get_converter(opset),
     }
 
 
