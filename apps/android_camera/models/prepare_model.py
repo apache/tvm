@@ -21,15 +21,15 @@ from pathlib import Path
 from typing import Union
 import os
 from os import environ
+import json
 
 import tvm
 import tvm.relay as relay
 from tvm.contrib import util, ndk, graph_runtime as runtime
 from tvm.contrib.download import download_testdata, download
 
-target = 'llvm -target=aarch64-linux-android'
+target = 'llvm -target=arm64-linux-android'
 target_host = None
-
 
 def del_dir(target: Union[Path, str], only_if_empty: bool = False):
     target = Path(target).expanduser()
@@ -71,7 +71,7 @@ def get_model(model_name, batch_size=1):
         
         img_size = 224
         data_shape = (batch_size, 3, img_size, img_size)
-        mod, params = relay.frontend.from_keras(keras_mobilenet_v2,  {"input_1": data_shape})
+        mod, params = relay.frontend.from_keras(keras_mobilenet_v2,  {'input_1': data_shape})
         return (mod, params)
 
 def main(model_str, output_path):
@@ -88,7 +88,7 @@ def main(model_str, output_path):
         pass
     print("building...")
     with relay.build_config(opt_level=3):
-        graph, lib, params = relay.build(net, target, target_host=target_host)
+        graph, lib, params = relay.build(net, target, target_host=target_host, params=params)
     print("dumping lib...")
     lib.export_library(output_path_str + '/' + 'deploy_lib_cpu.so', ndk.create_shared)
     print("dumping graph...")
@@ -98,8 +98,16 @@ def main(model_str, output_path):
     with open(output_path_str + '/' + 'deploy_param.params', 'wb') as f:
         f.write(relay.save_param_dict(params))
     print("dumping labels...")
-    download('https://raw.githubusercontent.com/dmlc/web-data/master/mxnet/doc/tutorials/onnx/image_net_labels.json', output_path_str + '/image_net_labels.json')
-
+    synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
+        '4d0b62f3d01426887599d4f7ede23ee5/raw/',
+        '596b27d23537e5a1b5751d2b0481ef172f58b539/',
+        'imagenet1000_clsid_to_human.txt'])
+    synset_path = output_path_str + '/image_net_labels'
+    download(synset_url, output_path_str + '/image_net_labels')
+    with open(synset_path) as fi:
+        synset = eval(fi.read())
+        with open(output_path_str + '/image_net_labels.json', "w") as fo:
+            json.dump(synset, fo, indent=4)
 
 if __name__ == '__main__':
     if environ.get('TVM_NDK_CC') is None:

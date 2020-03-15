@@ -23,6 +23,9 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.media.Image;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -64,11 +67,14 @@ import org.apache.tvm.TVMType;
 import org.apache.tvm.TVMValue;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.util.PriorityQueue;
 import java.util.concurrent.ExecutionException;
@@ -85,7 +91,7 @@ public class Camera2BasicFragment extends Fragment implements
     private static final int OUTPUT_INDEX = 0;
     private static final int IMG_CHANNEL = 3;
 
-    private static final String INPUT_NAME = "data";
+    private static String INPUT_NAME = "input_1";
     // Configuration values for extraction model. Note that the graph, lib and params is not
     // included with TVM and must be manually placed in the assets/ directory by the user.
     // Graphs and models downloaded from https://github.com/pjreddie/darknet/blob/ may be
@@ -102,6 +108,7 @@ public class Camera2BasicFragment extends Fragment implements
     private static String mCurModel = "";
     private final int[] mRGBValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
     private final float[] mCHW = new float[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * IMG_CHANNEL];
+    private final float[] mCHW2 = new float[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE * IMG_CHANNEL];
     private final Semaphore isProcessingDone = new Semaphore(1);
     private final ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(
             3,
@@ -120,7 +127,7 @@ public class Camera2BasicFragment extends Fragment implements
     private ListView mModelView;
     private AssetManager assetManager;
     private Module graphRuntimeModule;
-    private JSONArray labels;
+    private JSONObject labels;
     private ListenableFuture<ProcessCameraProvider> cameraProviderFuture;
     private PreviewView previewView;
     private ImageAnalysis imageAnalysis;
@@ -176,7 +183,7 @@ public class Camera2BasicFragment extends Fragment implements
                 int idx = pq.poll();
                 if (idx < labels.length()) {
                     try {
-                        results[l] = String.format("%.2f", output[idx]) + " : " + labels.getString(idx);
+                        results[l] = String.format("%.2f", output[idx]) + " : " + labels.getString(Integer.toString(idx));
                     } catch (JSONException e) {
                         Log.e(TAG, "index out of range", e);
                     }
@@ -298,6 +305,69 @@ public class Camera2BasicFragment extends Fragment implements
         }
     }
 
+//    float clamp(float input) {
+//        if(input<0f) {
+//            return 0f;
+//        } else if(input > 255f) {
+//            return 255f;
+//        }
+//        return input;
+//    }
+//
+//    float yuv2r(byte yValue, byte uValue, byte vValue) {
+//        return clamp(yValue + (1.370705f * (vValue - 128)))/255.f;
+//    }
+//
+//    float yuv2g(byte yValue, byte uValue, byte vValue) {
+//        return clamp(yValue - (0.698001f * (vValue-128)) - (0.337633f * (uValue-128)))/255f;
+//    }
+//
+//    float yuv2b(byte yValue, byte uValue, byte vValue) {
+//        return clamp(yValue + (1.732446f * (uValue-128)))/255f;
+//    }
+//
+//    float[]  YUV_420_888_toRGBPixels(ImageProxy imageProxy) {
+//        @SuppressLint("UnsafeExperimentalUsageError")
+//        Image image = imageProxy.getImage();
+//        Image.Plane[] planes = image.getPlanes();
+//        ByteBuffer yPlane = planes[0].getBuffer();
+//        ByteBuffer uPlane = planes[1].getBuffer();
+//        ByteBuffer vPlane = planes[2].getBuffer();
+//
+//        byte yVal=0,uVal=0,vVal=0;
+//        int index = 0;
+//
+//        for (int h = 0; h < image.getHeight(); h++) {
+//            for (int w = 0; w < image.getWidth(); w++) {
+//                yVal = yPlane.get(index);
+//                if(index%2==0 && index < uPlane.limit()) {
+//                    uVal = vPlane.get(index);
+//                    vVal = uPlane.get(index);
+//                }
+//                ++index;
+//
+//                //noinspection PointlessArithmeticExpression,PointlessArithmeticExpression
+//                if(w < MODEL_INPUT_SIZE && h < MODEL_INPUT_SIZE) {
+//                    mCHW2[0 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = yuv2r(yVal, uVal, vVal);
+//                    mCHW2[1 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = yuv2r(yVal, uVal, vVal);
+//                    mCHW2[2 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = yuv2r(yVal, uVal, vVal);
+//                }
+//            }
+//        }
+//        imageProxy.close();
+//        // pre-process the image rgb data transpose based on the provided parameters.
+//        for (int k = 0; k < IMG_CHANNEL; ++k) {
+//            for (int l = 0; l < MODEL_INPUT_SIZE; ++l) {
+//                for (int m = 0; m < MODEL_INPUT_SIZE; ++m) {
+//                    int dst_index = m + MODEL_INPUT_SIZE*l + MODEL_INPUT_SIZE*MODEL_INPUT_SIZE*k;
+//                    int src_index = k + IMG_CHANNEL*m + IMG_CHANNEL*MODEL_INPUT_SIZE*l;
+//                    mCHW[dst_index] = mCHW2[src_index];
+//                }
+//            }
+//        }
+//        return mCHW;
+//    }
+
     private Bitmap YUV_420_888_toRGB(Image image, int width, int height) {
         // Get the three image planes
         Image.Plane[] planes = image.getPlanes();
@@ -359,38 +429,143 @@ public class Camera2BasicFragment extends Fragment implements
 
         return outBitmap;
     }
-    public void getBitmapPixels(Bitmap bitmap) {
-        int[] pixels = new int[bitmap.getWidth() * bitmap.getHeight()];
-        bitmap.getPixels(pixels, 0, bitmap.getWidth(), 0, 0,
-                MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
-        for (int row = 0; row < MODEL_INPUT_SIZE; row++) {
-            System.arraycopy(pixels, (row * bitmap.getWidth()),
-                    mRGBValues, row * MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
-        }
-    }
 
-    private float[] getFrame(ImageProxy imageProxy) {
-        int pixel = 0;
-        @SuppressLint("UnsafeExperimentalUsageError") Image image = imageProxy.getImage();
-        if (image != null) {
-            Bitmap bitmap = YUV_420_888_toRGB(image, image.getWidth(), image.getHeight());
-            bitmap.getPixels(mRGBValues, 0, MODEL_INPUT_SIZE, 0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
-            //getBitmapPixels(bitmap);
-            bitmap.recycle();
+//    public void getBitmapPixels(Bitmap bitmap) {
+//        int[] pixels = new int[bitmap.getWidth() * bitmap.getHeight()];
+//        bitmap.getPixels(pixels, 0, bitmap.getWidth(), 0, 0,
+//                MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+//        for (int row = 0; row < MODEL_INPUT_SIZE; row++) {
+//            System.arraycopy(pixels, (row * bitmap.getWidth()),
+//                    mRGBValues, row * MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+//        }
+//    }
+
+//    private float[] getFrame(ImageProxy imageProxy) {
+//        int pixel = 0;
+//        @SuppressLint("UnsafeExperimentalUsageError") Image image = imageProxy.getImage();
+//        if (image != null) {
+//            Bitmap bitmap = YUV_420_888_toRGB(image, image.getWidth(), image.getHeight());
+//            bitmap.getPixels(mRGBValues, 0, MODEL_INPUT_SIZE, 0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+//            getBitmapPixels(bitmap);
+//            bitmap.recycle();
+//        }
+//        for (int h = 0; h < MODEL_INPUT_SIZE; h++) {
+//            for (int w = 0; w < MODEL_INPUT_SIZE; w++) {
+//                int val = mRGBValues[pixel++];
+//                float r = ((val >> 16) & 0xff) / 255.f;
+//                float g = ((val >> 8) & 0xff) / 255.f;
+//                float b = (val & 0xff) / 255.f;
+//                //noinspection PointlessArithmeticExpression,PointlessArithmeticExpression
+//                mCHW2[0 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = r;
+//                //noinspection PointlessArithmeticExpression
+//                mCHW2[1 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = g;
+//                mCHW2[2 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = b;
+//            }
+//        }
+//        for (int k = 0; k < IMG_CHANNEL; ++k) {
+//            for (int l = 0; l < MODEL_INPUT_SIZE; ++l) {
+//                for (int m = 0; m < MODEL_INPUT_SIZE; ++m) {
+//                    int dst_index = m + MODEL_INPUT_SIZE*l + MODEL_INPUT_SIZE*MODEL_INPUT_SIZE*k;
+//                    int src_index = k + IMG_CHANNEL*m + IMG_CHANNEL*MODEL_INPUT_SIZE*l;
+//                    mCHW[dst_index] = mCHW2[src_index];
+//                }
+//            }
+//        }
+//        return mCHW;
+//    }
+
+    public static Matrix getTransformationMatrix(
+            final int srcWidth,
+            final int srcHeight,
+            final int dstWidth,
+            final int dstHeight,
+            final int applyRotation,
+            final boolean maintainAspectRatio) {
+        final Matrix matrix = new Matrix();
+
+        if (applyRotation != 0) {
+            if (applyRotation % 90 != 0) {
+                Log.w(TAG, "Rotation of %d % 90 != 0 " + applyRotation);
+            }
+
+            // Translate so center of image is at origin.
+            matrix.postTranslate(-srcWidth / 2.0f, -srcHeight / 2.0f);
+
+            // Rotate around origin.
+            matrix.postRotate(applyRotation);
         }
-        for (int h = 0; h < MODEL_INPUT_SIZE; h++) {
-            for (int w = 0; w < MODEL_INPUT_SIZE; w++) {
-                int val = mRGBValues[pixel++];
-                float r = ((val >> 16) & 0xff) / 255.f;
-                float g = ((val >> 8) & 0xff) / 255.f;
-                float b = (val & 0xff) / 255.f;
-                //noinspection PointlessArithmeticExpression,PointlessArithmeticExpression
-                mCHW[0 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = r;
-                //noinspection PointlessArithmeticExpression
-                mCHW[1 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = g;
-                mCHW[2 * MODEL_INPUT_SIZE * MODEL_INPUT_SIZE + h * MODEL_INPUT_SIZE + w] = b;
+
+        // Account for the already applied rotation, if any, and then determine how
+        // much scaling is needed for each axis.
+        final boolean transpose = (Math.abs(applyRotation) + 90) % 180 == 0;
+
+        final int inWidth = transpose ? srcHeight : srcWidth;
+        final int inHeight = transpose ? srcWidth : srcHeight;
+
+        // Apply scaling if necessary.
+        if (inWidth != dstWidth || inHeight != dstHeight) {
+            final float scaleFactorX = dstWidth / (float) inWidth;
+            final float scaleFactorY = dstHeight / (float) inHeight;
+
+            if (maintainAspectRatio) {
+                // Scale by minimum factor so that dst is filled completely while
+                // maintaining the aspect ratio. Some image may fall off the edge.
+                final float scaleFactor = Math.max(scaleFactorX, scaleFactorY);
+                matrix.postScale(scaleFactor, scaleFactor);
+            } else {
+                // Scale exactly to fill dst from src.
+                matrix.postScale(scaleFactorX, scaleFactorY);
             }
         }
+
+        if (applyRotation != 0) {
+            // Translate back from origin centered reference to destination frame.
+            matrix.postTranslate(dstWidth / 2.0f, dstHeight / 2.0f);
+        }
+
+        return matrix;
+    }
+
+    private float[] getFrame2(ImageProxy imageProxy) {
+        @SuppressLint("UnsafeExperimentalUsageError")
+        Image image = imageProxy.getImage();
+        // extract the jpeg content
+        Bitmap imageBitmap = YUV_420_888_toRGB(image, image.getWidth(), image.getHeight());
+
+        imageProxy.close();
+        // crop input image at centre to model input size
+        // commecial deploy note:: instead of cropying image do resize
+        // image to model input size so we never lost the image content
+        Bitmap cropImageBitmap = Bitmap.createBitmap(MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, Bitmap.Config.ARGB_8888);
+        Matrix frameToCropTransform = getTransformationMatrix(imageBitmap.getWidth(), imageBitmap.getHeight(),
+                MODEL_INPUT_SIZE, MODEL_INPUT_SIZE, 0, true);
+        Canvas canvas = new Canvas(cropImageBitmap);
+        canvas.drawBitmap(imageBitmap, frameToCropTransform, null);
+
+        // image pixel int values
+        int[] pixelValues = new int[MODEL_INPUT_SIZE * MODEL_INPUT_SIZE];
+        // image RGB float values
+
+        // pre-process the image data from 0-255 int to normalized float based on the
+        // provided parameters.
+        cropImageBitmap.getPixels(pixelValues, 0, MODEL_INPUT_SIZE, 0, 0, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE);
+        for (int j = 0; j < pixelValues.length; ++j) {
+            mCHW2[j * 3 + 0] = ((pixelValues[j] >> 16) & 0xFF)/255.0f;
+            mCHW2[j * 3 + 1] = ((pixelValues[j] >> 8) & 0xFF)/255.0f;
+            mCHW2[j * 3 + 2] = (pixelValues[j] & 0xFF)/255.0f;
+        }
+
+        // pre-process the image rgb data transpose based on the provided parameters.
+        for (int k = 0; k < IMG_CHANNEL; ++k) {
+            for (int l = 0; l < MODEL_INPUT_SIZE; ++l) {
+                for (int m = 0; m < MODEL_INPUT_SIZE; ++m) {
+                    int dst_index = m + MODEL_INPUT_SIZE*l + MODEL_INPUT_SIZE*MODEL_INPUT_SIZE*k;
+                    int src_index = k + IMG_CHANNEL*m + IMG_CHANNEL*MODEL_INPUT_SIZE*l;
+                    mCHW[dst_index] = mCHW2[src_index];
+                }
+            }
+        }
+
         return mCHW;
     }
 
@@ -443,7 +618,9 @@ public class Camera2BasicFragment extends Fragment implements
             Log.e(TAG, "w: " + image.getWidth() + " h: " + image.getHeight());
             if (mRunClassifier && isProcessingDone.tryAcquire()) {
                 long t1 = SystemClock.uptimeMillis();
-                float[] chw = getFrame(image);
+                //float[] chw = getFrame(image);
+                //float[] chw = YUV_420_888_toRGBPixels(image);
+                float[]chw = getFrame2(image);
                 if (chw != null) {
                     long t2 = SystemClock.uptimeMillis();
                     String[] results = inference(chw);
@@ -488,6 +665,14 @@ public class Camera2BasicFragment extends Fragment implements
         super.onDestroyView();
     }
 
+    private void setInputName(String modelName) {
+        if(modelName.equals("mobilenet_v2")) {
+            INPUT_NAME = "input_1";
+        } else if(modelName.equals("resnet18_v1")) {
+            INPUT_NAME = "data";
+        }
+    }
+
     /*
        Load precompiled model on TVM graph runtime and init the system.
     */
@@ -498,12 +683,12 @@ public class Camera2BasicFragment extends Fragment implements
             mRunClassifier = false;
             // load synset name
             int modelIndex = mModelView.getCheckedItemPosition();
+            setInputName(models[modelIndex]);
             String model = MODELS + "/" + models[modelIndex];
-
             String labelFilename = MODEL_LABEL_FILE;
             Log.i(TAG, "Reading labels from: " + model + "/" + labelFilename);
             try {
-                labels = new JSONArray(new String(getBytesFromFile(assetManager, model + "/" + labelFilename)));
+                labels = new JSONObject(new String(getBytesFromFile(assetManager, model + "/" + labelFilename)));
             } catch (IOException | JSONException e) {
                 Log.e(TAG, "Problem reading labels name file!", e);
                 return -1;//failure
