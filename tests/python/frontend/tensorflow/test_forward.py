@@ -2985,6 +2985,26 @@ def test_forward_add_n():
     _test_forward_add_n(in5)
 
 
+def _test_forward_unravel_index(inputs):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        temp = []
+        for each in inputs:
+            temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
+        output = tf.unravel_index(temp[0], temp[1])
+        compare_tf_with_tvm([each for each in inputs], [
+                            each.name for each in temp], output.name)
+
+
+def test_forward_unravel_index():
+    x = np.random.randint(1, 100, size=(5,), dtype=np.int32)
+    y = np.random.randint(1, 10, size=(2,), dtype=np.int32)
+    #z = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+
+    in1 = [x, y]
+    _test_forward_unravel_index(in1)
+
+
 #######################################################################
 # Main
 # ----
@@ -3055,6 +3075,7 @@ if __name__ == '__main__':
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
+    test_forward_unravel_index()
 
     # Reductions
     test_forward_argminmax()

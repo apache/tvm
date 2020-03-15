@@ -541,6 +541,11 @@ def _decode_image():
         return inputs[0]
     return _impl
 
+def _unravel_index():
+    def _impl(inputs, attr, params):
+        return _op.unravel_index(inputs[0], inputs[1])
+    return _impl
+
 def _crop_and_resize():
     def _impl(inputs, attr, params):
         # input image is a 4-D tensor of shape [batch, image_height, image_width, depth]
@@ -1649,6 +1654,7 @@ _convert_map = {
     'Transpose'                         : _transpose(),
     'TruncateMod'                       : _elemwise('mod'),
     'Unpack'                            : _unpack(),
+    'UnravelIndex'                      : _unravel_index(),
     'Where'                             : _where(),
     'ZerosLike'                         : AttrCvt('zeros_like'),
 

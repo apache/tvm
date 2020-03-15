@@ -949,6 +949,41 @@ def test_forward_cond():
     verify(np.asarray([4.0], 'float32'), np.asarray([3.0],'float32'))
 
 
+def test_forward_unravel_index():
+    def get_tvm_output(symbol, x, args, auxs, target, ctx):
+        shape_dict = {"a": x.shape}
+        mod, params = relay.frontend.from_mxnet(symbol, shape_dict, dtype="int64")
+        with relay.build_config(opt_level=3):
+            graph, lib, params = relay.build(mod, target, params=params)
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input("a", tvm.nd.array(x))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        out = m.get_output(0, tvm.nd.empty([3,5], "int64"))
+        return out.asnumpy()
+
+    # TODO - error out for indices value greater than shape max allowable value
+    #a_np = np.random.randint(0, 4, size=(5,)).astype('int64')
+    a_np=np.array([7,5,6,6,7])
+    mx_sym = _mx_symbol(mx.sym, 'unravel_index', [mx.sym.var('a'), [5, 4]])
+    ref_res = _mx_symbol(mx.nd, 'unravel_index', [mx.nd.array(a_np), [5, 4]])
+    print(ref_res)
+    shapes = {'a': (5,)}
+    mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, "int64")
+
+
+    for target, ctx in ctx_list():
+
+        for kind in ["graph"]:
+            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+            op_res = intrp.evaluate()(a_np)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+        #get_tvm_output(mx_sym, a_np, None, None, target, ctx)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1004,3 +1039,4 @@ if __name__ == '__main__':
     test_forward_deconvolution()
     test_forward_cond()
     test_forward_make_loss()
+    test_forward_unravel_index()

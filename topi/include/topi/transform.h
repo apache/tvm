@@ -247,13 +247,15 @@ inline Tensor unravel_index(const Tensor& x,
                       const Tensor& shape,
                       std::string name = "T_unravel",
                       std::string tag = kInjective) {
+
+  std::cout << "in compute is ";
   auto x_shape = x->shape;
   auto shape_shape = shape->shape;
-
 
   Array<PrimExpr> oshape;
   oshape.push_back(shape_shape[0]);
   oshape.push_back(x_shape[0]);
+  std::cout << "os shape is" << oshape;
   // UnravelIndex(x(indices), shape_int32);
 
   return compute(
@@ -264,12 +266,15 @@ inline Tensor unravel_index(const Tensor& x,
       PrimExpr ret = 0;
       std::vector<PrimExpr> indices_divs;
       indices_divs.push_back(index);
-      for (int v = static_cast<int>(shape_shape.size()) - 1; v >= 0; --v) {
+      std::cout << "before for loop";
+      for (int v = GetConstInt(shape_shape[0]) - 1; v >= 0; --v) {
         ret = tvm::if_then_else(i == v, indexmod(indices_divs.back(), shape[v]), ret);
         indices_divs.push_back(indexdiv(indices_divs.back(), shape[v]));
       }
+      std::cout << "after for loop";
       return ret;
     }, name, tag);  
+    
 }
 
 

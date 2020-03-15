@@ -2731,11 +2731,11 @@ bool UnRavelIndexRel(const Array<Type>& types,
  shape_shape = shape->shape;
 
  Array<IndexExpr> oshape;
- oshape.push_back(static_cast<int>(shape_shape.size()));
- oshape.push_back(static_cast<int>(indices_shape.size()));
+ oshape.push_back(shape_shape[0]);
+ oshape.push_back(indices_shape[0]);
+ std::cout << "oshape is "<< oshape;
  reporter->Assign(types[2],  TensorType(oshape, indices->dtype));
  return true;
-
 }
 
 Array<te::Tensor> UnRavelIndexCompute(const Attrs& attrs,
@@ -2747,10 +2747,10 @@ Array<te::Tensor> UnRavelIndexCompute(const Attrs& attrs,
 }
 
 Expr MakeUnRavelIndex(Expr data,
-                 Array<Integer> shape) {
+                 Expr shape) {
   auto attrs = make_object<UnRavelIndexAttrs>();
   static const Op& op = Op::Get("unravel_index");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return CallNode::make(op, {data, shape}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.unravel_index")
@@ -2765,7 +2765,7 @@ Example::
 .set_attrs_type<UnRavelIndexAttrs>()
 .set_support_level(3)
 .add_type_rel("UnRavelIndexRel", UnRavelIndexRel)
-.set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute);
+.set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay

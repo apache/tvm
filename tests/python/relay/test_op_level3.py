@@ -695,25 +695,30 @@ def test_unravel_index_infer_type():
 
 
 def test_unravel_index():
+
     def verify_unravel_index(size, shape):
         x = relay.var("x", relay.TensorType(size, "int64"))
-        z = relay.unravel_index(x, shape=shape)
-        zz = run_infer_type(z)
-        assert "shape=" in z.astext()
-        assert zz.checked_type == relay.ty.TensorType(shape, "int64")
+        y = relay.var("y", relay.TensorType(shape, "int64"))
 
-        func = relay.Function([x], z)
-        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("int64")
-        ref_res = np.unravel_index(x_data, shape)
+        z = relay.unravel_index(x, y)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.ty.TensorType([2,5], "int64")
+
+        func = relay.Function([x, y], z)
+        x_data = np.random.uniform(low=1, high=size[0]-1, size=size).astype("int64")
+        x_data = np.array([7, 7, 6, 6, 6])
+        y_data = np.array([3, 3])
+        print(x_data)
+        ref_res = np.unravel_index(x_data, [3, 3])
         for target, ctx in ctx_list():
-            for kind in ["graph", "debug"]:
+            for kind in ["graph"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
-                op_res = intrp.evaluate(func)(x_data)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                print("\n")
+                print(op_res)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_unravel_index((0, 1), (2, 2))
-    # verify_unravel_index((4, 7), (2, 7, 2))
-    # verify_unravel_index((2, 3, 4), (4, 0, 2))
-    # verify_unravel_index((2, 3, 4), (2, 0, 0))
+
+    verify_unravel_index((5,), (2,))
 
 
 if __name__ == "__main__":
