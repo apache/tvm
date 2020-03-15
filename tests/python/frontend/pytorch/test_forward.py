@@ -707,6 +707,8 @@ def test_adaptive_pool3d():
     verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
     verify_model(torch.nn.AdaptiveAvgPool3d((1, 1, 1)).eval(), inp)
     verify_model(torch.nn.AdaptiveAvgPool3d((2, 2, 2)).eval(), inp)
+    verify_model(torch.nn.AdaptiveAvgPool3d((4, 8, 8)).eval(), inp)
+    verify_model(torch.nn.AdaptiveMaxPool3d((7, 8, 9)).eval(), inp)
 
 
 def test_conv3d():
