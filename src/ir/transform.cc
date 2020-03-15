@@ -132,7 +132,7 @@ class ModulePassNode : public PassNode {
    */
   PassInfo Info() const override { return pass_info; }
 
-  static constexpr const char* _type_key = "relay.ModulePass";
+  static constexpr const char* _type_key = "transform.ModulePass";
   TVM_DECLARE_FINAL_OBJECT_INFO(ModulePassNode, PassNode);
 };
 
@@ -206,7 +206,7 @@ class SequentialNode : public PassNode {
    */
   IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
 
-  static constexpr const char* _type_key = "relay.Sequential";
+  static constexpr const char* _type_key = "transform.Sequential";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
 };
 

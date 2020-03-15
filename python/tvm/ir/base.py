@@ -56,7 +56,7 @@ class Node(Object):
         return _ffi_api.PrettyPrint(self)
 
 
-@tvm._ffi.register_object("relay.SourceName")
+@tvm._ffi.register_object("SourceName")
 class SourceName(Object):
     """A identifier for a source location.
 
@@ -69,7 +69,7 @@ class SourceName(Object):
         self.__init_handle_by_constructor__(_ffi_api.SourceName, name)
 
 
-@tvm._ffi.register_object("relay.Span")
+@tvm._ffi.register_object("Span")
 class Span(Object):
     """Specifies a location in a source program.
 
