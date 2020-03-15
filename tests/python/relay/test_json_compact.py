@@ -17,7 +17,6 @@
 
 import tvm
 from tvm import te
-from tvm import relay
 import json
 
 def test_type_var():
@@ -36,13 +35,81 @@ def test_type_var():
         "b64ndarrays": [],
     }
     tvar = tvm.ir.load_json(json.dumps(data))
-    assert isinstance(tvar, relay.TypeVar)
+    assert isinstance(tvar, tvm.ir.TypeVar)
     assert tvar.name_hint == "in0"
     nodes[1]["type_key"] = "relay.GlobalTypeVar"
     tvar = tvm.ir.load_json(json.dumps(data))
-    assert isinstance(tvar, relay.GlobalTypeVar)
+    assert isinstance(tvar, tvm.ir.GlobalTypeVar)
     assert tvar.name_hint == "in0"
+
+
+def test_incomplete_type():
+    nodes = [
+        {"type_key": ""},
+        {"type_key": "relay.IncompleteType",
+         "attrs": {"kind": "0", "span": "0"}}]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar, tvm.ir.IncompleteType)
+
+
+def test_func_tuple_type():
+    nodes = [
+        {"type_key": ""},
+        {"type_key": "relay.FuncType",
+         "attrs": {
+             "arg_types": "2",
+             "ret_type": "3",
+             "span": "0",
+             "type_constraints": "6",
+             "type_params": "5"
+         }
+        },
+        {"type_key": "Array"},
+        {"type_key": "relay.TupleType",
+         "attrs": { "fields": "4", "span": "0" }},
+        {"type_key": "Array"},
+        {"type_key": "Array"},
+        {"type_key": "Array"}
+    ]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar, tvm.ir.FuncType)
+
+
+def test_global_var():
+    nodes = [
+        {"type_key": ""},
+        {"type_key": "relay.GlobalVar",
+         "attrs": {
+             "_checked_type_": "0",
+             "name_hint": "x",
+             "span": "0"
+         }
+        }
+    ]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    tvar = tvm.ir.load_json(json.dumps(data))
+    assert isinstance(tvar, tvm.ir.GlobalVar)
 
 
 if __name__ == "__main__":
     test_type_var()
+    test_incomplete_type()
+    test_func_tuple_type()
+    test_global_var()
