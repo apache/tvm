@@ -68,7 +68,7 @@ def test_resnet18():
     tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
-def test_system_lib():
+def test_cuda_lib():
     ctx = tvm.gpu(0)
     for device in ["llvm", "cuda"]:
         if not tvm.runtime.enabled(device):
@@ -85,15 +85,10 @@ def test_system_lib():
 
     from tvm.contrib import util
     temp = util.tempdir()
-    fn_add = tvm.build(s, [A, B], target="cuda", target_host="llvm -system-lib", name="add")
-    path_obj = temp.relpath("add.o")
+    fn_add = tvm.build(s, [A, B], target="cuda", target_host="llvm", name="add")
     path_lib = temp.relpath("deploy_lib.so")
-    fn_add.save(path_obj)
     fn_add.export_library(path_lib)
-    # Load dll, will trigger system library registration
-    dll = ctypes.CDLL(path_lib)
-    # Load the system wide library
-    m = tvm.runtime.system_lib()
+    m = tvm.runtime.load_module(path_lib)
     a = tvm.nd.array(np.random.uniform(size=nn).astype(A.dtype), ctx)
     b = tvm.nd.array(np.zeros(nn, dtype=A.dtype), ctx)
     m['add'](a, b)
