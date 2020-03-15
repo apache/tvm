@@ -444,7 +444,7 @@ def conv1d_transpose_strategy(attrs, inputs, out_type, target):
 
 
 # dilation2d
-def wrap_compute_dilation2d(topi_compute, need_data_layout=False, need_out_layout=False):
+def wrap_compute_dilation2d(topi_compute, need_data_layout=False):
     """Wrap dilation2d topi compute"""
     def _compute_dilation2d(attrs, inputs, out_type):
         padding = get_const_tuple(attrs.padding)
