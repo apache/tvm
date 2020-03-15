@@ -1063,14 +1063,14 @@ Expr MakeDilation2D(Expr data,
                     Expr weight,
                     Array<IndexExpr> strides,
                     Array<IndexExpr> padding,
-                    Array<IndexExpr> rates,
+                    Array<IndexExpr> dilations,
                     std::string data_layout,
                     std::string kernel_layout,
                     DataType out_dtype) {
   auto attrs = make_object<Dilation2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
-  attrs->rates = std::move(rates);
+  attrs->dilations = std::move(dilations);
   attrs->data_layout = std::move(data_layout);
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_dtype = std::move(out_dtype);

@@ -2986,7 +2986,7 @@ def test_forward_add_n():
 
 
 def _test_dilation2d(tensor_in_sizes, filter_in_sizes,
-                     strides, rates, padding):
+                     strides, dilations, padding):
     """ One iteration of dilation2d with given shapes and attributes """
 
     total_size_1 = np.prod(tensor_in_sizes)
@@ -3004,7 +3004,7 @@ def _test_dilation2d(tensor_in_sizes, filter_in_sizes,
         nn_ops.dilation2d(in_data,
                           in_filter,
                           strides=strides,
-                          rates=rates,
+                          rates=dilations,
                           padding=padding)
 
         compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),

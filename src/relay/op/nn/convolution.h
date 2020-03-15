@@ -400,8 +400,8 @@ bool Dilation2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto wshape = trans_kernel_layout.ForwardShape(weight->shape);
   channels = wshape[0];
 
-  dilated_ksize_y = 1 + (wshape[1] - 1) * param->rates[0];
-  dilated_ksize_x = 1 + (wshape[2] - 1) * param->rates[1];
+  dilated_ksize_y = 1 + (wshape[1] - 1) * param->dilations[0];
+  dilated_ksize_x = 1 + (wshape[2] - 1) * param->dilations[1];
 
   // dilation
   Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});

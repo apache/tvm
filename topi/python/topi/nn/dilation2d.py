@@ -24,22 +24,29 @@ from .pad import pad
 from .util import get_pad_tuple
 
 
-def dilation2d_nchw(input, filter, stride, padding, dilation, out_dtype=None):
+def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
     """Dilation2D operator in NCHW layout.
+
     Parameters
     ----------
     input : tvm.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
+
     filter : tvm.Tensor
         3-D with shape [ in_channel, filter_height, filter_width]
+
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
+
     padding : int or str
         Padding size
-    dilation: int or a list/tuple of two ints
+
+    dilations: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
+
     out_dtype : Optional[str]
         Specifies the output data type.
+
     Returns
     -------
     Output : tvm.Tensor
@@ -48,16 +55,16 @@ def dilation2d_nchw(input, filter, stride, padding, dilation, out_dtype=None):
     if out_dtype is None:
         out_dtype = input.dtype
     assert isinstance(stride, int) or len(stride) == 2
-    assert isinstance(dilation, int) or len(dilation) == 2
+    assert isinstance(dilations, int) or len(dilations) == 2
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
 
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
+    if isinstance(dilations, int):
+        dilation_h = dilation_w = dilations
     else:
-        dilation_h, dilation_w = dilation
+        dilation_h, dilation_w = dilations
 
     batch, in_channel, in_height, in_width = input.shape
     channel, kernel_h, kernel_w = filter.shape
@@ -88,22 +95,29 @@ def dilation2d_nchw(input, filter, stride, padding, dilation, out_dtype=None):
             axis=[ry, rx]), tag="dilation2d_nchw")
 
 
-def dilation2d_nhwc(input, filter, stride, padding, dilation, out_dtype=None):
+def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
     """Dilation2D operator in NHWC layout.
+
     Parameters
     ----------
     input : tvm.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
+
     filter : tvm.Tensor
         3-D with shape [filter_height, filter_width, in_channel]
+
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
+
     padding : int
         Padding size
-    dilation: int or a list/tuple of two ints
+
+    dilations: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
+
     out_dtype : Optional[str]
         Specifies the output data type.
+
     Returns
     -------
     Output : tvm.Tensor
@@ -112,16 +126,16 @@ def dilation2d_nhwc(input, filter, stride, padding, dilation, out_dtype=None):
     if out_dtype is None:
         out_dtype = input.dtype
     assert isinstance(stride, int) or len(stride) == 2
-    assert isinstance(dilation, int) or len(dilation) == 2
+    assert isinstance(dilations, int) or len(dilations) == 2
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
 
-    if isinstance(dilation, int):
-        dilation_h = dilation_w = dilation
+    if isinstance(dilations, int):
+        dilation_h = dilation_w = dilations
     else:
-        dilation_h, dilation_w = dilation
+        dilation_h, dilation_w = dilations
 
     batch, in_height, in_width, in_channel = input.shape
     kernel_h, kernel_w, channel = filter.shape

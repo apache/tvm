@@ -449,12 +449,12 @@ def wrap_compute_dilation2d(topi_compute, need_data_layout=False, need_out_layou
     def _compute_dilation2d(attrs, inputs, out_type):
         padding = get_const_tuple(attrs.padding)
         strides = get_const_tuple(attrs.strides)
-        rates = get_const_tuple(attrs.rates)
+        dilations = get_const_tuple(attrs.dilations)
         data_layout = attrs.get_str("data_layout")
         out_dtype = attrs.out_dtype
         out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
                      else out_dtype)
-        args = [inputs[0], inputs[1], strides, padding, rates]
+        args = [inputs[0], inputs[1], strides, padding, dilations]
         if need_data_layout:
             args.append(data_layout)
         args.append(out_dtype)
@@ -467,12 +467,12 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
     """dilation2d_strategy generic strategy"""
     logger.warning("dilation2d_strategy is not optimized for this platform.")
     strategy = _op.OpStrategy()
-    rates = get_const_tuple(attrs.rates)
+    dilations = get_const_tuple(attrs.dilations)
     layout = attrs.data_layout
     kernel_layout = attrs.kernel_layout
 
     assert layout in ["NCHW", "NHWC"]
-    (dilation_h, dilation_w) = rates
+    (dilation_h, dilation_w) = dilations
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
 

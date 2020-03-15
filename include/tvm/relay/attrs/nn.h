@@ -160,7 +160,7 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
 struct Dilation2DAttrs : public tvm::AttrsNode<Dilation2DAttrs> {
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
-  Array<IndexExpr> rates;
+  Array<IndexExpr> dilations;
   std::string data_layout;
   std::string kernel_layout;
   DataType out_dtype;
@@ -174,8 +174,8 @@ struct Dilation2DAttrs : public tvm::AttrsNode<Dilation2DAttrs> {
                   "one int : same padding used on all sides"
                   "two int : bottom, right will use same padding as top, left"
                   "four int : padding width in the order of (top, left, bottom, right)");
-    TVM_ATTR_FIELD(rates).set_default(Array<IndexExpr>({1, 1}))
-        .describe("Specifies the dilation rate to use. [rate_height, rate_width]");
+    TVM_ATTR_FIELD(dilations).set_default(Array<IndexExpr>({1, 1}))
+        .describe("Specifies the dilation rate to use. [dilation_height, dilation_width]");
     TVM_ATTR_FIELD(data_layout).set_default("NCHW")
         .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

@@ -429,9 +429,9 @@ def _dilation2d():
 
         if attr['data_format'] in ['NHWC', 'NCHW']:
             if 'rates' in attr:
-                attr['rates'] = (attr['rates'][1], attr['rates'][2])
+                attr['dilations'] = attr['rates']
             if 'dilations' in attr:
-                attr['rates'] = (attr['dilations'][1], attr['dilations'][2])
+                attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         else:
             msg = 'Value {} in attribute "data_format" of operator Dilation2D is ' \
@@ -454,8 +454,8 @@ def _dilation2d():
                 in_h = input_shape[2]
                 in_w = input_shape[3]
 
-            dilation_h = attr['rates'][0]
-            dilation_w = attr['rates'][1]
+            dilation_h = attr['dilations'][0]
+            dilation_w = attr['dilations'][1]
             dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
             dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
             pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
@@ -484,7 +484,7 @@ def _dilation2d():
         attr['kernel_layout'] = 'HWI' if attr['data_format'] == 'NHWC' else 'IHW'
         out = AttrCvt(
             op_name='dilation2d',
-            ignores=['explicit_paddings', 'dilations'],
+            ignores=['explicit_paddings', 'rates'],
             transforms={
                 'data_format': 'data_layout',
             })([inputs[0], inputs[1]], attr)

@@ -1228,7 +1228,7 @@ def test_dilation2d_infer_type():
     y = relay.nn.dilation2d(x, w,
                             # kernel_size=(3, 3),
                             strides=[1, 1, 1, 1],
-                            rates=[1, 1, 1, 1],
+                            dilations=[1, 1, 1, 1],
                             padding=[0, 0, 0, 0])
     yy = run_infer_type(y)
     assert yy.checked_type == relay.TensorType(
@@ -1240,7 +1240,7 @@ def test_dilation2d_run():
                             dtype='float32',
                             strides=[1, 1],
                             padding=[0, 0],
-                            rates=[1, 1],
+                            dilations=[1, 1],
                             except_targets=['cuda'],
                             **attrs):
 
@@ -1254,7 +1254,7 @@ def test_dilation2d_run():
         w = relay.var("w", shape=kshape, dtype=dtype)
         y = relay.nn.dilation2d(x, w,
                                 strides=strides,
-                                rates=rates,
+                                dilations=dilations,
                                 padding=padding,
                                 **attrs)
         func = relay.Function([x, w], y)
@@ -1313,8 +1313,8 @@ def test_dilation2d_run():
     image = [[[[.1], [.2], [.3]], [[.4], [.5], [.6]], [[.7], [.8], [.9]]]]
     kernel = [[[.4], [.3]], [[.1], [.2]]]
     out = [[[[.7], [.8], [.6]], [[1.0], [1.1], [.9]], [[.8], [.9], [.9]]]]
-    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), padding=[1, 1], rates=[2, 2])
-    run_test_dilation2d(*_convert_data(image, kernel, out), padding=[1, 1], rates=[2, 2],
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), padding=[1, 1], dilations=[2, 2])
+    run_test_dilation2d(*_convert_data(image, kernel, out), padding=[1, 1], dilations=[2, 2],
                         data_layout='NHWC', kernel_layout='HWI')
 
     image = [[[[.1], [.2], [.3], [.4]], [[.5], [.6], [.7], [.8]],
