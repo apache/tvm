@@ -18,9 +18,6 @@
 package org.apache.tvm.android.androidcamerademo;
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -47,7 +44,6 @@ import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
-import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.renderscript.Allocation;
@@ -79,10 +75,9 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class Camera2BasicFragment extends Fragment implements
-        ActivityCompat.OnRequestPermissionsResultCallback {
+public class Camera2BasicFragment extends Fragment  {
     private static final String TAG = Camera2BasicFragment.class.getSimpleName();
-    private static final int PERMISSIONS_REQUEST_CODE = 1;
+
     // TVM constants
     private static final int OUTPUT_INDEX = 0;
     private static final int IMG_CHANNEL = 3;
@@ -111,7 +106,7 @@ public class Camera2BasicFragment extends Fragment implements
     private RenderScript rs;
     private ScriptC_yuv420888 mYuv420;
     private boolean mRunClassifier = false;
-    private boolean mCheckedPermissions = false;
+
     private AppCompatTextView mResultView;
     private AppCompatTextView mInfoView;
     private ListView mModelView;
@@ -247,12 +242,7 @@ public class Camera2BasicFragment extends Fragment implements
 
     @Override
     public void onViewCreated(final View view, Bundle savedInstanceState) {
-        if (!mCheckedPermissions && !allPermissionsGranted()) {
-            requestPermissions(getRequiredPermissions(), PERMISSIONS_REQUEST_CODE);
-            return;
-        } else {
-            mCheckedPermissions = true;
-        }
+
         mResultView = view.findViewById(R.id.resultTextView);
         mInfoView = view.findViewById(R.id.infoTextView);
         mModelView = view.findViewById(R.id.modelListView);
@@ -330,23 +320,6 @@ public class Camera2BasicFragment extends Fragment implements
             throw new IOException("Couldn't create directory " + tempDir.getAbsolutePath());
         }
         return (tempDir + File.separator + fileName);
-    }
-
-    private String[] getRequiredPermissions() {
-        Activity activity = getActivity();
-        try {
-            PackageInfo info = activity
-                    .getPackageManager()
-                    .getPackageInfo(activity.getPackageName(), PackageManager.GET_PERMISSIONS);
-            String[] ps = info.requestedPermissions;
-            if (ps != null && ps.length > 0) {
-                return ps;
-            } else {
-                return new String[0];
-            }
-        } catch (Exception e) {
-            return new String[0];
-        }
     }
 
     private Bitmap YUV_420_888_toRGB(Image image, int width, int height) {
@@ -450,22 +423,6 @@ public class Camera2BasicFragment extends Fragment implements
         }
 
         return mCHW;
-    }
-
-    private boolean allPermissionsGranted() {
-        for (String permission : getRequiredPermissions()) {
-            if (ContextCompat.checkSelfPermission(getActivity(), permission)
-                    != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
-    public void onRequestPermissionsResult(
-            int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
 
     @Override
