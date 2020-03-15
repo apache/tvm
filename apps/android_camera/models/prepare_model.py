@@ -108,6 +108,7 @@ def main(model_str, output_path):
         synset = eval(fi.read())
         with open(output_path_str + '/image_net_labels.json', "w") as fo:
             json.dump(synset, fo, indent=4)
+    os.remove(synset_path)
 
 if __name__ == '__main__':
     if environ.get('TVM_NDK_CC') is None:
