@@ -30,13 +30,6 @@ def check_json_roundtrip(node):
     assert graph_equal(back, node)
 
 
-def test_bad_constructor():
-    try:
-        x = relay.ty.TensorType("xx", "xx")
-    except tvm.error.TVMError:
-        pass
-
-
 # Span
 def test_span():
     span = relay.Span(None, 1, 1)
@@ -54,71 +47,6 @@ def test_span():
     assert back.source == span.source
     assert back.lineno == span.lineno
     assert back.col_offset == span.col_offset
-
-# Types
-
-def test_tensor_type():
-    shape = tvm.runtime.convert([1, 2, 3])
-    dtype = 'float32'
-    tt = relay.TensorType(shape, dtype)
-    assert tt.dtype == dtype
-    assert tt.shape == shape
-    assert tt.span == None
-    str(tt)
-    check_json_roundtrip(tt)
-
-
-def test_type_param():
-    tp = relay.TypeVar('name', relay.TypeKind.Type)
-    assert tp.kind == relay.TypeKind.Type
-    # assert tp.span  # TODO allow us to set span
-    str(tp)
-    check_json_roundtrip(tp)
-
-
-def test_func_type():
-    type_params = tvm.runtime.convert([])
-    type_constraints = tvm.runtime.convert([])  # TODO: fill me in
-    arg_types = tvm.runtime.convert([])
-    ret_type = relay.TensorType((1, 2, 3), 'float32')
-    tf = relay.FuncType(arg_types, ret_type, type_params, type_constraints)
-    assert tf.type_params == type_params
-    assert tf.type_constraints == type_constraints
-    assert tf.arg_types == arg_types
-    assert tf.ret_type == ret_type
-    assert tf.span == None
-    # TODO make sure we can set span
-    str(tf)
-    check_json_roundtrip(tf)
-
-
-def test_tuple_type():
-    tp = relay.TypeVar('tp', relay.TypeKind.Type)
-    tf = relay.FuncType(tvm.runtime.convert([]), None, tvm.runtime.convert([]), tvm.runtime.convert([]))
-    tt = relay.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
-    fields = tvm.runtime.convert([tp, tf, tt])
-
-    tup_ty = relay.TupleType(fields)
-    assert tup_ty.fields == fields
-    str(tup_ty)
-    check_json_roundtrip(tup_ty)
-
-
-def test_type_relation():
-    tp = relay.TypeVar('tp', relay.TypeKind.Type)
-    tf = relay.FuncType(tvm.runtime.convert([]), None, tvm.runtime.convert([]), tvm.runtime.convert([]))
-    tt = relay.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
-    args = tvm.runtime.convert([tp, tf, tt])
-
-    num_inputs = 2
-    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
-    attrs = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
-
-    tr = relay.TypeRelation(func, args, num_inputs, attrs)
-    assert tr.args == args
-    assert tr.num_inputs == num_inputs
-    str(tr)
-    check_json_roundtrip(tr)
 
 
 def test_constant():
@@ -280,13 +208,7 @@ def test_conv2d_attrs():
 
 
 if __name__ == "__main__":
-    test_bad_constructor()
     test_span()
-    test_tensor_type()
-    test_type_param()
-    test_func_type()
-    test_tuple_type()
-    test_type_relation()
     test_constant()
     test_tuple()
     test_local_var()
