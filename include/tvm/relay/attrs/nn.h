@@ -528,6 +528,21 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
   }
 };
 
+struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
+  Array<IndexExpr> output_size;
+  std::string layout;
+
+  TVM_DECLARE_ATTRS(AdaptivePool3DAttrs, "relay.attrs.AdaptivePool3DAttrs") {
+    TVM_ATTR_FIELD(output_size).set_default(Array<IndexExpr>({}))
+      .describe("Output depth, height and width.");
+    TVM_ATTR_FIELD(layout).set_default("NCDHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
+                  "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
+                  "dimensions respectively. Convolution is applied on 'D', 'H' and"
+                  "'W' dimensions.");
+  }
+};
+
 
 /*! \brief Attributes for 1D max pool operator */
 struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
