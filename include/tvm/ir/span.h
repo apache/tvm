@@ -44,7 +44,7 @@ class SourceNameNode : public Object {
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
-  static constexpr const char* _type_key = "relay.SourceName";
+  static constexpr const char* _type_key = "SourceName";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
 
@@ -89,7 +89,7 @@ class SpanNode : public Object {
 
   TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
 
-  static constexpr const char* _type_key = "relay.Span";
+  static constexpr const char* _type_key = "Span";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
 };
 

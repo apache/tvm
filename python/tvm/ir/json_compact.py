@@ -62,11 +62,35 @@ def create_updater_06_to_07():
         # set vindex to null
         nodes[vindex]["type_key"] = ""
         del item["attrs"]["var"]
+        assert item["type_key"].startswith("relay.")
+        item["type_key"] = item["type_key"][len("relay."):]
         return item
+
+    def _rename(new_name):
+        def _convert(item, _):
+            item["type_key"] = new_name
+            return item
+        return _convert
 
     node_map = {
         "relay.TypeVar": _ftype_var,
         "relay.GlobalTypeVar": _ftype_var,
+        "relay.Type": _rename("Type"),
+        "relay.TupleType": _rename("TupleType"),
+        "relay.TypeConstraint": _rename("TypeConstraint"),
+        "relay.FuncType": _rename("FuncType"),
+        "relay.IncompleteType": _rename("IncompleteType"),
+        "relay.TypeRelation": _rename("TypeRelation"),
+        "relay.TypeCall": _rename("TypeCall"),
+        "relay.Module": _rename("IRModule"),
+        "relay.SourceName": _rename("SourceName"),
+        "relay.Span": _rename("Span"),
+        "relay.GlobalVar": _rename("GlobalVar"),
+        "relay.Pass": _rename("transform.Pass"),
+        "relay.PassInfo": _rename("transform.PassInfo"),
+        "relay.PassContext": _rename("transform.PassContext"),
+        "relay.ModulePass": _rename("transform.ModulePass"),
+        "relay.Sequantial": _rename("transform.Sequantial"),
     }
     return create_updater(node_map, "0.6", "0.7")
 
