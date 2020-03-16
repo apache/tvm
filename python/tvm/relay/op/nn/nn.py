@@ -2461,7 +2461,6 @@ def adaptive_avg_pool3d(data,
     result : tvm.relay.Expr
         The computed result.
     """
-
     output_size = [] or output_size
     return _make.adaptive_avg_pool3d(data, output_size, layout)
 
@@ -2517,7 +2516,7 @@ def dilation2d(data,
     -------
     result : tvm.relay.Expr
         The computed result.
-    """"
+    """
 
     return _make.dilation2d(data, weight, strides, padding, dilations, data_layout,
                             kernel_layout, out_dtype)
