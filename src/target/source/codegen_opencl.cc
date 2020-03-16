@@ -35,18 +35,17 @@ CodeGenOpenCL::CodeGenOpenCL() {
   restrict_keyword_ = "restrict";
 }
 
-void CodeGenOpenCL::InitFuncState(LoweredFunc f) {
+void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
-  for (Var arg : f->args) {
+  for (Var arg : f->params) {
     if (arg.dtype().is_handle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
 }
 
-void CodeGenOpenCL::AddFunction(LoweredFunc f) {
-  this->stream << "__kernel ";
-  CodeGenC::AddFunction(f);
+void CodeGenOpenCL::PrintFuncPrefix() {
+  stream << "__kernel void";
 }
 
 std::string CodeGenOpenCL::Finish() {
@@ -239,50 +238,31 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NO
   }
 }
 
-template<typename T>
-inline void PrintBinaryExpr(const T* op,
-                            const char* opstr,
-                            std::ostream& os,
-                            CodeGenOpenCL* p) {
-  if (op->dtype.lanes() == 1) {
-    os << opstr << "((";
-    p->PrintType(op->a->dtype, os);
-    os << ")";
-    p->PrintExpr(op->a, os);
-    os << ", (";
-    p->PrintType(op->b->dtype, os);
-    os << ")";
-    p->PrintExpr(op->b, os);
-    os << ')';
-  } else {
-    p->PrintVecBinaryOp(opstr, op->dtype, op->a, op->b, os);
-  }
-}
-
-void CodeGenOpenCL::VisitExpr_(const MinNode *op, std::ostream& os) {
-  PrintBinaryExpr(op, "min", os, this);
-}
-
-void CodeGenOpenCL::VisitExpr_(const MaxNode *op, std::ostream& os) {
-  PrintBinaryExpr(op, "max", os, this);
-}
-
-runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
+runtime::Module BuildOpenCL(IRModule mod) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenOpenCL cg;
   cg.Init(output_ssa);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenOpenCL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   std::string code = cg.Finish();
   if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
     code = (*f)(code).operator std::string();
   }
-  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs), code);
+  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_opencl")
+TVM_REGISTER_GLOBAL("target.build.opencl")
 .set_body_typed(BuildOpenCL);
 }  // namespace codegen
 }  // namespace tvm

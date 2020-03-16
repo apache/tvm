@@ -32,25 +32,51 @@
 namespace tvm {
 namespace tir {
 
-Var::Var(std::string name_hint, DataType t)
-    : Var(make_object<VarNode>(t, name_hint)) {}
-
-VarNode::VarNode(DataType t, std::string name_hint) {
-  this->dtype = t;
-  this->name_hint = std::move(name_hint);
+Var::Var(std::string name_hint, DataType dtype) {
+  auto n = make_object<VarNode>();
+  n->name_hint = std::move(name_hint);
+  n->dtype = std::move(dtype);
+  data_ = std::move(n);
 }
 
-SizeVar::SizeVar(std::string name_hint, DataType t)
-    : SizeVar(make_object<SizeVarNode>(t, name_hint)) {}
+Var::Var(std::string name_hint, Type type_annotation) {
+  auto n = make_object<VarNode>();
+  n->name_hint = std::move(name_hint);
+  n->dtype = GetRuntimeDataType(type_annotation);
+  n->type_annotation = std::move(type_annotation);
+  data_ = std::move(n);
+}
 
-SizeVarNode::SizeVarNode(DataType t, std::string name_hint)
-    : VarNode(t, std::move(name_hint)) {}
+
+Var Var::copy_with_suffix(const std::string& suffix) const {
+  const VarNode* node = get();
+  ObjectPtr<VarNode> new_ptr;
+  if (auto* ptr = this->as<SizeVarNode>()) {
+    new_ptr = make_object<SizeVarNode>(*ptr);
+  } else {
+    new_ptr = make_object<VarNode>(*node);
+  }
+  new_ptr->name_hint += suffix;
+
+  return Var(new_ptr);
+}
+
+SizeVar::SizeVar(std::string name_hint, DataType dtype) {
+  auto n = make_object<SizeVarNode>();
+  n->name_hint = std::move(name_hint);
+  n->dtype = std::move(dtype);
+  data_ = std::move(n);
+}
 
 
 TVM_REGISTER_GLOBAL("tir.Var")
-.set_body_typed([](std::string s, DataType t) {
-    return Var(s, t);
-  });
+.set_body_typed([](std::string name_hint, runtime::TVMArgValue type) {
+  if (type.IsObjectRef<Type>()) {
+    return Var(name_hint, type.operator Type());
+  } else {
+    return Var(name_hint, type.operator DataType());
+  }
+});
 
 TVM_REGISTER_GLOBAL("tir.SizeVar")
 .set_body_typed([](std::string s, DataType t) {
