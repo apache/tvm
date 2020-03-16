@@ -20,7 +20,7 @@ from __future__ import absolute_import
 
 from . import ty as _ty
 from . import expr as _expr
-from ..._ffi import base as _base
+from .._ffi import base as _base
 
 class WithScope(object):
     """A wrapper for builder methods which introduce scoping.

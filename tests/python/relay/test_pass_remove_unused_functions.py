@@ -19,7 +19,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.ir import Prelude
+from tvm.relay.prelude import Prelude
 
 
 def test_remove_all_prelude_functions():

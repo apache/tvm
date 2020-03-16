@@ -20,11 +20,12 @@ from __future__ import absolute_import
 from numbers import Number as _Number
 
 import numpy as _np
+import tvm._ffi
 from tvm._ffi import base as _base
 from tvm.runtime import NDArray, convert, ndarray as _nd
 from tvm.ir import RelayExpr, GlobalVar, BaseFunc
 
-from .base import RelayNode, register_relay_node
+from .base import RelayNode
 from . import _ffi_api
 from . import ty as _ty
 
@@ -159,7 +160,7 @@ class ExprWithOp(RelayExpr):
         """
         return Call(self, args)
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Constant")
 class Constant(ExprWithOp):
     """A constant expression in Relay.
 
@@ -172,7 +173,7 @@ class Constant(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.Constant, data)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Tuple")
 class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
 
@@ -196,7 +197,7 @@ class Tuple(ExprWithOp):
         raise TypeError("astype cannot be used on tuple")
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Var")
 class Var(ExprWithOp):
     """A local variable in Relay.
 
@@ -224,7 +225,7 @@ class Var(ExprWithOp):
         return name
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Function")
 class Function(BaseFunc):
     """A function declaration expression.
 
@@ -286,7 +287,7 @@ class Function(BaseFunc):
 
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Call")
 class Call(ExprWithOp):
     """Function call node in Relay.
 
@@ -315,7 +316,7 @@ class Call(ExprWithOp):
             _ffi_api.Call, op, args, attrs, type_args)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Let")
 class Let(ExprWithOp):
     """Let variable binding expression.
 
@@ -335,7 +336,7 @@ class Let(ExprWithOp):
             _ffi_api.Let, variable, value, body)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.If")
 class If(ExprWithOp):
     """A conditional expression in Relay.
 
@@ -355,7 +356,7 @@ class If(ExprWithOp):
             _ffi_api.If, cond, true_branch, false_branch)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.TupleGetItem")
 class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
 
@@ -372,7 +373,7 @@ class TupleGetItem(ExprWithOp):
             _ffi_api.TupleGetItem, tuple_value, index)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.RefCreate")
 class RefCreate(ExprWithOp):
     """Create a new reference from initial value.
     Parameters
@@ -384,7 +385,7 @@ class RefCreate(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.RefCreate, value)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.RefRead")
 class RefRead(ExprWithOp):
     """Get the value inside the reference.
     Parameters
@@ -396,7 +397,7 @@ class RefRead(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.RefRead, ref)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.RefWrite")
 class RefWrite(ExprWithOp):
     """
     Update the value inside the reference.

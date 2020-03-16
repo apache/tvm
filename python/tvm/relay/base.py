@@ -14,17 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A parser for Relay's text format."""
-from __future__ import absolute_import
-from ... import register_func
+# pylint: disable=no-else-return, unidiomatic-typecheck, unused-import
+"""The base node types for the Relay language."""
+import os
+import tvm._ffi
+
+from tvm.runtime import Object
+from tvm.ir import SourceName, Span, Node as RelayNode
 
 
-@register_func("relay.fromtext")
-def fromtext(data, source_name=None):
-    """Parse a Relay program."""
-    # pylint: disable=import-outside-toplevel
-    from . import _parser
-    x = _parser.fromtext(data + "\n", source_name)
-    if x is None:
-        raise Exception("cannot parse: ", data)
-    return x
+__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
+
+@tvm._ffi.register_func("tvm.relay.std_path")
+def _std_path():
+    return __STD_PATH__
+
+
+@tvm._ffi.register_object("relay.Id")
+class Id(Object):
+    """Unique identifier(name) used in Var.
+       Guaranteed to be stable across all passes.
+    """
+    def __init__(self):
+        raise RuntimeError("Cannot directly construct Id")

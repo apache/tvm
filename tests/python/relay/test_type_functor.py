@@ -19,9 +19,9 @@ from tvm import te
 from tvm import relay
 from tvm.relay import TypeFunctor, TypeMutator, TypeVisitor
 from tvm.relay.analysis import assert_graph_equal
-from tvm.relay.ir import (TypeVar, IncompleteType, TensorType, FuncType,
+from tvm.relay.ty import (TypeVar, IncompleteType, TensorType, FuncType,
                  TupleType, TypeRelation, RefType, GlobalTypeVar, TypeCall)
-from tvm.relay.ir import TypeData
+from tvm.relay.adt import TypeData
 
 def check_visit(typ):
     try:

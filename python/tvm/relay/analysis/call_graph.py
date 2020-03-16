@@ -19,7 +19,7 @@
 
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from ..ir import GlobalVar
+from ..expr import GlobalVar
 from . import _ffi_api
 
 

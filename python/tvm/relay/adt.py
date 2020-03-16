@@ -17,8 +17,10 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, unused-import
 """Algebraic data types in Relay."""
 from tvm.ir import Constructor, TypeData
+from tvm.runtime import Object
+import tvm._ffi
 
-from .base import RelayNode, register_relay_node, Object
+from .base import RelayNode
 from . import _ffi_api
 from .ty import Type
 from .expr import ExprWithOp, RelayExpr, Call
@@ -28,7 +30,7 @@ class Pattern(RelayNode):
     """Base type for pattern matching constructs."""
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternWildcard")
 class PatternWildcard(Pattern):
     """Wildcard pattern in Relay: Matches any ADT and binds nothing."""
 
@@ -47,7 +49,7 @@ class PatternWildcard(Pattern):
         self.__init_handle_by_constructor__(_ffi_api.PatternWildcard)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternVar")
 class PatternVar(Pattern):
     """Variable pattern in Relay: Matches anything and binds it to the variable."""
 
@@ -66,7 +68,7 @@ class PatternVar(Pattern):
         self.__init_handle_by_constructor__(_ffi_api.PatternVar, var)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternConstructor")
 class PatternConstructor(Pattern):
     """Constructor pattern in Relay: Matches an ADT of the given constructor, binds recursively."""
 
@@ -91,7 +93,7 @@ class PatternConstructor(Pattern):
         self.__init_handle_by_constructor__(_ffi_api.PatternConstructor, constructor, patterns)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternTuple")
 class PatternTuple(Pattern):
     """Constructor pattern in Relay: Matches a tuple, binds recursively."""
 
@@ -114,7 +116,7 @@ class PatternTuple(Pattern):
         self.__init_handle_by_constructor__(_ffi_api.PatternTuple, patterns)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Clause")
 class Clause(Object):
     """Clause for pattern matching in Relay."""
 
@@ -136,7 +138,7 @@ class Clause(Object):
         self.__init_handle_by_constructor__(_ffi_api.Clause, lhs, rhs)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Match")
 class Match(ExprWithOp):
     """Pattern matching expression in Relay."""
 

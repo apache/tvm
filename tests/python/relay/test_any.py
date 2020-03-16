@@ -20,7 +20,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.ir.loops import while_loop
+from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
 
 def int32(val):

@@ -24,8 +24,8 @@ from tvm.runtime import vm as _vm
 from tvm.relay import vm as rly_vm
 from tvm import relay
 
-from tvm.relay.ir import ScopeBuilder
-from tvm.relay.ir import Prelude
+from tvm.relay.scope_builder import ScopeBuilder
+from tvm.relay.prelude import Prelude
 from tvm.contrib import util
 from tvm.relay import testing
 

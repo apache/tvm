@@ -15,16 +15,16 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relay.ir.base
+tvm.relay.base
 --------------
-.. automodule:: tvm.relay.ir.base
+.. automodule:: tvm.relay.base
 
-.. autofunction:: tvm.relay.ir.base.register_relay_node
+.. autofunction:: tvm.relay.base.register_relay_node
 
-.. autofunction:: tvm.relay.ir.base.register_relay_attr_node
+.. autofunction:: tvm.relay.base.register_relay_attr_node
 
-.. autoclass:: tvm.relay.ir.base.RelayNode
+.. autoclass:: tvm.relay.base.RelayNode
     :members:
 
-.. autoclass:: tvm.relay.ir.base.Id
+.. autoclass:: tvm.relay.base.Id
     :members:

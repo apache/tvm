@@ -22,7 +22,7 @@ from tvm import relay
 from tvm.relay.analysis import free_vars, free_type_vars, assert_alpha_equal
 from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
-from tvm.relay.ir import Prelude
+from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type, check_grad, rand
 import tvm.relay.op as op
 

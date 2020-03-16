@@ -17,7 +17,7 @@
 #pylint: disable=invalid-name, too-many-lines
 """Neural network operations."""
 from __future__ import absolute_import as _abs
-from ...ir.expr import TupleWrapper
+from ...expr import TupleWrapper
 from . import _make
 from .util import get_pad_tuple2d
 

@@ -19,10 +19,9 @@ import json
 import numpy as np
 
 import tvm
-from tvm import te
 from tvm import relay
 from tvm.contrib import graph_runtime
-from tvm.relay.ir import ExprMutator
+from tvm.relay.expr_functor import ExprMutator
 from tvm.relay import transform
 
 

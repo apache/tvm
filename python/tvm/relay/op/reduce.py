@@ -20,7 +20,7 @@
 from . import _make
 from .tensor import sqrt
 from .transform import squeeze
-from ..ir.expr import Tuple, TupleWrapper
+from ..expr import Tuple, TupleWrapper
 
 def argmax(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the maximum values along an axis.

@@ -19,7 +19,7 @@
 """Transform operators."""
 
 from . import _make
-from ..ir.expr import TupleWrapper, const
+from ..expr import TupleWrapper, const
 
 
 def cast(data, dtype):
@@ -38,7 +38,7 @@ def cast(data, dtype):
     result : relay.Expr
         The casted result.
     """
-    from ..ir import _ffi_api as _relay_make
+    from .. import _ffi_api as _relay_make
     return _relay_make.cast(data, dtype)
 
 
@@ -55,7 +55,7 @@ def cast_like(data, dtype_like):
     result : relay.Expr
         The casted result.
     """
-    from .. import _make as _relay_make
+    from .. import _ffi_api as _relay_make
     return _relay_make.cast_like(data, dtype_like)
 
 

@@ -23,9 +23,9 @@ import tvm
 from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
-from tvm.relay import transform, create_executor
-from tvm.relay.ir import Function, GlobalVar, ScopeBuilder, Tuple, TupleGetItem
-from tvm.relay.ir import TensorType, TupleType
+from tvm.relay import transform
+from tvm.relay import Function, GlobalVar, ScopeBuilder, Tuple, TupleGetItem, create_executor
+from tvm.relay import TensorType, TupleType
 
 from . import mlp
 from . import resnet

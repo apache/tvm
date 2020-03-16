@@ -19,9 +19,16 @@
 import os
 from sys import setrecursionlimit
 
-from . import ir
-from .ir import adt, expr, ty, base, scope_builder
-from .ir import prelude, loops, parser
+from . import base
+from . import ty
+from . import expr
+from . import type_functor
+from . import expr_functor
+from . import adt
+from . import prelude
+from . import loops
+from . import scope_builder
+from . import parser
 
 from . import transform
 from . import analysis
@@ -60,65 +67,66 @@ from .transform import memory_alloc
 setrecursionlimit(10000)
 
 # Span
-Span = ir.Span
+Span = base.Span
+SourceName = base.SourceName
 
 # Type
-Type = ir.Type
-TupleType = ir.TupleType
-TensorType = ir.TensorType
-TypeKind = ir.TypeKind
-TypeVar = ir.TypeVar
-ShapeVar = ir.ShapeVar
-TypeConstraint = ir.TypeConstraint
-FuncType = ir.FuncType
-TypeRelation = ir.TypeRelation
-IncompleteType = ir.IncompleteType
-scalar_type = ir.scalar_type
-RefType = ir.RefType
-GlobalTypeVar = ir.GlobalTypeVar
-TypeCall = ir.TypeCall
-Any = ir.Any
+Type = ty.Type
+TupleType = ty.TupleType
+TensorType = ty.TensorType
+TypeKind = ty.TypeKind
+TypeVar = ty.TypeVar
+ShapeVar = ty.ShapeVar
+TypeConstraint = ty.TypeConstraint
+FuncType = ty.FuncType
+TypeRelation = ty.TypeRelation
+IncompleteType = ty.IncompleteType
+scalar_type = ty.scalar_type
+RefType = ty.RefType
+GlobalTypeVar = ty.GlobalTypeVar
+TypeCall = ty.TypeCall
+Any = ty.Any
 
 # Expr
-Expr = ir.Expr
-Constant = ir.Constant
-Tuple = ir.Tuple
-Var = ir.Var
-GlobalVar = ir.GlobalVar
-Function = ir.Function
-Call = ir.Call
-Let = ir.Let
-If = ir.If
-TupleGetItem = ir.TupleGetItem
-RefCreate = ir.RefCreate
-RefRead = ir.RefRead
-RefWrite = ir.RefWrite
+Expr = expr.RelayExpr
+Constant = expr.Constant
+Tuple = expr.Tuple
+Var = expr.Var
+GlobalVar = expr.GlobalVar
+Function = expr.Function
+Call = expr.Call
+Let = expr.Let
+If = expr.If
+TupleGetItem = expr.TupleGetItem
+RefCreate = expr.RefCreate
+RefRead = expr.RefRead
+RefWrite = expr.RefWrite
 
 # ADT
-Pattern = ir.Pattern
-PatternWildcard = ir.PatternWildcard
-PatternVar = ir.PatternVar
-PatternConstructor = ir.PatternConstructor
-PatternTuple = ir.PatternTuple
-Constructor = ir.Constructor
-TypeData = ir.TypeData
-Clause = ir.Clause
-Match = ir.Match
+Pattern = adt.Pattern
+PatternWildcard = adt.PatternWildcard
+PatternVar = adt.PatternVar
+PatternConstructor = adt.PatternConstructor
+PatternTuple = adt.PatternTuple
+Constructor = adt.Constructor
+TypeData = adt.TypeData
+Clause = adt.Clause
+Match = adt.Match
 
 # helper functions
-var = ir.var
-const = ir.const
-bind = ir.bind
+var = expr.var
+const = expr.const
+bind = expr.bind
 
 # TypeFunctor
-TypeFunctor = ir.TypeFunctor
-TypeVisitor = ir.TypeVisitor
-TypeMutator = ir.TypeMutator
+TypeFunctor = type_functor.TypeFunctor
+TypeVisitor = type_functor.TypeVisitor
+TypeMutator = type_functor.TypeMutator
 
 # ExprFunctor
-ExprFunctor = ir.ExprFunctor
-ExprVisitor = ir.ExprVisitor
-ExprMutator = ir.ExprMutator
+ExprFunctor = expr_functor.ExprFunctor
+ExprVisitor = expr_functor.ExprVisitor
+ExprMutator = expr_functor.ExprMutator
 
 # Prelude
 Prelude = prelude.Prelude

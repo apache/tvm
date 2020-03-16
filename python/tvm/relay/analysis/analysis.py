@@ -24,7 +24,7 @@ from tvm.ir import RelayExpr, IRModule
 
 from . import _ffi_api
 from .feature import Feature
-from ..ir import Type
+from ..ty import Type
 
 
 def post_order_visit(expr, fvisit):
@@ -34,7 +34,7 @@ def post_order_visit(expr, fvisit):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression.
 
     fvisit : function
@@ -48,7 +48,7 @@ def well_formed(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -95,7 +95,7 @@ def check_constant(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -111,7 +111,7 @@ def free_vars(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -133,7 +133,7 @@ def bound_vars(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -149,7 +149,7 @@ def all_vars(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression
 
     Returns
@@ -165,7 +165,7 @@ def free_type_vars(expr, mod=None):
 
     Parameters
     ----------
-    expr : Union[tvm.relay.ir.Expr,tvm.relay.Type]
+    expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
 
     mod : Optional[tvm.IRModule]
@@ -185,7 +185,7 @@ def bound_type_vars(expr, mod=None):
 
     Parameters
     ----------
-    expr : Union[tvm.relay.ir.Expr,tvm.relay.Type]
+    expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
 
     mod : Optional[tvm.IRModule]
@@ -205,7 +205,7 @@ def all_type_vars(expr, mod=None):
 
     Parameters
     ----------
-    expr : Union[tvm.relay.ir.Expr,tvm.relay.Type]
+    expr : Union[tvm.relay.Expr,tvm.relay.Type]
         The input expression/type
 
     mod : Optional[tvm.IRModule]
@@ -225,10 +225,10 @@ def alpha_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.relay.ir.Expr
+    lhs : tvm.relay.Expr
         One of the input Expression.
 
-    rhs : tvm.relay.ir.Expr
+    rhs : tvm.relay.Expr
         One of the input Expression.
 
     Returns
@@ -244,10 +244,10 @@ def assert_alpha_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.relay.ir.Expr
+    lhs : tvm.relay.Expr
         One of the input Expression.
 
-    rhs : tvm.relay.ir.Expr
+    rhs : tvm.relay.Expr
         One of the input Expression.
     """
     _ffi_api._assert_alpha_equal(lhs, rhs)
@@ -261,10 +261,10 @@ def graph_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.relay.ir.Expr
+    lhs : tvm.relay.Expr
       One of the input Expression.
 
-    rhs : tvm.relay.ir.Expr
+    rhs : tvm.relay.Expr
       One of the input Expression.
 
     Returns
@@ -283,10 +283,10 @@ def assert_graph_equal(lhs, rhs):
 
     Parameters
     ----------
-    lhs : tvm.relay.ir.Expr
+    lhs : tvm.relay.Expr
       One of the input Expression.
 
-    rhs : tvm.relay.ir.Expr
+    rhs : tvm.relay.Expr
       One of the input Expression.
     """
     _ffi_api._assert_graph_equal(lhs, rhs)
@@ -298,13 +298,13 @@ def collect_device_info(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression.
 
     Returns
     -------
     ret : Dict[tvm.relay.ir.expr, int]
-        A dictionary mapping tvm.relay.ir.Expr to device type.
+        A dictionary mapping tvm.relay.Expr to device type.
     """
     return _ffi_api.CollectDeviceInfo(expr)
 
@@ -314,13 +314,13 @@ def collect_device_annotation_ops(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression.
 
     Returns
     -------
-    ret : Dict[tvm.relay.ir.Expr, int]
-        A dictionary mapping tvm.relay.ir.Expr to device type where the keys are
+    ret : Dict[tvm.relay.Expr, int]
+        A dictionary mapping tvm.relay.Expr to device type where the keys are
         annotation expressions.
     """
     return _ffi_api.CollectDeviceAnnotationOps(expr)
@@ -332,7 +332,7 @@ def get_total_mac_number(expr):
 
     Parameters
     ----------
-    expr : tvm.relay.ir.Expr
+    expr : tvm.relay.Expr
         The input expression.
 
     Returns
@@ -369,10 +369,10 @@ def detect_feature(a, b=None):
 
     Parameters
     ----------
-    a : Union[tvm.relay.ir.Expr, tvm.IRModule]
+    a : Union[tvm.relay.Expr, tvm.IRModule]
       The input expression or module.
 
-    b : Optional[Union[tvm.relay.ir.Expr, tvm.IRModule]]
+    b : Optional[Union[tvm.relay.Expr, tvm.IRModule]]
       The input expression or module.
       The two arguments cannot both be expression or module.
 
@@ -391,7 +391,7 @@ def structural_hash(value):
 
     Parameters
     ----------
-    expr : Union[tvm.relay.ir.Expr, tvm.relay.Type]
+    expr : Union[tvm.relay.Expr, tvm.relay.Type]
       The expression to hash.
 
     Returns
@@ -405,7 +405,7 @@ def structural_hash(value):
         return int(_ffi_api._type_hash(value))
     else:
         msg = ("found value of type {0} expected" +
-               "relay.ir.Expr or relay.Type").format(type(value))
+               "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
 
 

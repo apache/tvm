@@ -29,7 +29,6 @@ from tvm.ir.transform import PassInfo, PassContext, Pass, ModulePass, Sequential
 
 from tvm import relay
 from . import _ffi_api
-from ..ir.base import register_relay_node
 
 
 def build_config(opt_level=2,
@@ -83,7 +82,7 @@ def build_config(opt_level=2,
                        disabled_pass, trace)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.FunctionPass")
 class FunctionPass(Pass):
     """A pass that works on each tvm.relay.Function in a module. A function
     pass class should be created through `function_pass`.

@@ -15,56 +15,56 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relay.ir.expr
+tvm.relay.expr
 --------------
 
-.. automodule:: tvm.relay.ir.expr
+.. automodule:: tvm.relay.expr
 
-.. autofunction:: tvm.relay.ir.expr.var
+.. autofunction:: tvm.relay.expr.var
 
-.. autofunction:: tvm.relay.ir.expr.const
+.. autofunction:: tvm.relay.expr.const
 
-.. autofunction:: tvm.relay.ir.expr.bind
+.. autofunction:: tvm.relay.expr.bind
 
-.. autoclass:: tvm.relay.ir.expr.Expr
+.. autoclass:: tvm.relay.expr.Expr
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.Constant
+.. autoclass:: tvm.relay.expr.Constant
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.Tuple
+.. autoclass:: tvm.relay.expr.Tuple
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.Function
+.. autoclass:: tvm.relay.expr.Function
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.Call
+.. autoclass:: tvm.relay.expr.Call
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.Let
+.. autoclass:: tvm.relay.expr.Let
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.If
+.. autoclass:: tvm.relay.expr.If
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.TupleGetItem
+.. autoclass:: tvm.relay.expr.TupleGetItem
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.RefCreate
+.. autoclass:: tvm.relay.expr.RefCreate
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.RefRead
+.. autoclass:: tvm.relay.expr.RefRead
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.RefWrite
+.. autoclass:: tvm.relay.expr.RefWrite
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.TupleGetItem
+.. autoclass:: tvm.relay.expr.TupleGetItem
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.TempExpr
+.. autoclass:: tvm.relay.expr.TempExpr
     :members:
 
-.. autoclass:: tvm.relay.ir.expr.TupleWrapper
+.. autoclass:: tvm.relay.expr.TupleWrapper
     :members:
 

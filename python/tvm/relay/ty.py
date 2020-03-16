@@ -20,7 +20,7 @@ from tvm.ir import Type, TypeKind, TypeVar, GlobalTypeVar
 from tvm.ir import TypeConstraint, FuncType, TupleType, IncompleteType
 from tvm.ir import TypeCall, TypeRelation, TensorType, RelayRefType as RefType
 
-from .base import RelayNode, register_relay_node
+from .base import RelayNode
 from . import _ffi_api
 
 Any = _ffi_api.Any

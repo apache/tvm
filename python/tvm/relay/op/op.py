@@ -19,13 +19,12 @@
 import tvm._ffi
 from tvm.driver import lower, build
 
-from ..ir.base import register_relay_node
-from ..ir.expr import RelayExpr
+from ..expr import RelayExpr
 from ...target import get_native_generic_func, GenericFunc
 from ...runtime import Object
 from . import _make
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Op")
 class Op(RelayExpr):
     """A Relay operator definition."""
 

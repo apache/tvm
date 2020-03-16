@@ -30,7 +30,7 @@ from tvm.ir import module as _module
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import op as _op
-from ..ir.loops import while_loop
+from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value

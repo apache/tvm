@@ -19,10 +19,10 @@ data type for Relay and provides some utility functions for it.
 Nats are useful for testing purposes, as they make it easy to write
 test cases for recursion and pattern matching."""
 
-from tvm.relay.ir import Constructor, TypeData, Clause, Match, PatternConstructor, PatternVar
+from tvm.relay.adt import Constructor, TypeData, Clause, Match, PatternConstructor, PatternVar
 from tvm.relay.backend.interpreter import ConstructorValue
-from tvm.relay.ir import Var, Function, GlobalVar
-from tvm.relay.ir import GlobalTypeVar, TypeVar, FuncType
+from tvm.relay.expr import Var, Function, GlobalVar
+from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType
 
 def define_nat_adt(prelude):
     """Defines a Peano (unary) natural number ADT.

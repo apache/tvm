@@ -14,39 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-#pylint: disable=wildcard-import, redefined-builtin
-"""Relay core operators."""
-# operator defs
-from .op import get, register, register_compute, register_gradient, \
-    register_pattern, register_alter_op_layout, register_legalize, \
-    Op, OpPattern, OpStrategy, debug, register_external_compiler
-from . import strategy
-
-# Operators
-from .reduce import *
-from .tensor import *
-from .transform import *
-from .algorithm import *
-from . import nn
-from . import annotation
-from . import memory
-from . import image
-from . import vision
-from . import op_attrs
+"""A parser for Relay's text format."""
+from __future__ import absolute_import
+from .. import register_func
 
 
-# operator registry
-from . import _tensor
-from . import _tensor_grad
-from . import _transform
-from . import _reduce
-from . import _algorithm
-
-
-def _register_op_make():
+@register_func("relay.fromtext")
+def fromtext(data, source_name=None):
+    """Parse a Relay program."""
     # pylint: disable=import-outside-toplevel
-    from . import _make
-    from .. import expr
-    expr._op_make = _make
-
-_register_op_make()
+    from tvm.relay import _parser
+    x = _parser.fromtext(data + "\n", source_name)
+    if x is None:
+        raise Exception("cannot parse: ", data)
+    return x

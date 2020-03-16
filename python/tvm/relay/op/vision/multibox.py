@@ -16,7 +16,7 @@
 # under the License.
 """Multibox operations."""
 from . import _make
-from ...ir.expr import TupleWrapper
+from ...expr import TupleWrapper
 
 def multibox_prior(data,
                    sizes=(1.0,),

@@ -19,12 +19,12 @@
 A pass for manifesting explicit memory allocations.
 """
 import numpy as np
-from ..ir.expr_functor import ExprMutator
-from ..ir.scope_builder import ScopeBuilder
+from ..expr_functor import ExprMutator
+from ..scope_builder import ScopeBuilder
 from . import transform
 from .. import op
 from ... import DataType, register_func
-from ..ir import ty, expr
+from .. import ty, expr
 from ..backend import compile_engine
 
 

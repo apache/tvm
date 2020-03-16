@@ -19,7 +19,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
-from tvm.relay.ir import Prelude
+from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
 
 import numpy as np

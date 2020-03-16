@@ -18,7 +18,7 @@
 """QNN dialect operators."""
 
 from __future__ import absolute_import as _abs
-from tvm.relay.ir import Tuple
+from tvm.relay.expr import Tuple
 from tvm.relay.op.nn.util import get_pad_tuple2d
 from . import _make
 
