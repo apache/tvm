@@ -26,7 +26,10 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
@@ -156,7 +159,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
-        converter = interpreter_wrapper.TFLiteConverter.from_session(
+        converter = tf.lite.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
 
         if quantized:
