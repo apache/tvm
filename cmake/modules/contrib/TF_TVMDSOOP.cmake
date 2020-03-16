@@ -46,7 +46,10 @@ if(NOT USE_TF_TVMDSOOP STREQUAL "OFF")
   add_library(${OP_LIBRARY_NAME} SHARED ${TFTVM_SRCS})
   set_target_properties(${OP_LIBRARY_NAME} PROPERTIES PREFIX "")
   set(TFTVM_LINK_FLAGS  -ltvm -L${CMAKE_CURRENT_BINARY_DIR})
-  add_dependencies(${OP_LIBRARY_NAME} tvm) 
+  
+  if (NOT BUILD_TVMDSOOP_ONLY STREQUAL "ON")
+      add_dependencies(${OP_LIBRARY_NAME} tvm) 
+  endif()
 
   # set(TFTVM_COMPILE_FLAGS  ${CMAKE_CXX_FLAGS})
   target_compile_options(${OP_LIBRARY_NAME} PUBLIC ${TFTVM_COMPILE_FLAGS} ${TF_COMPILE_FLAGS})
