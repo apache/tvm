@@ -24,19 +24,19 @@
 #ifndef TOPI_VISION_REORG_H_
 #define TOPI_VISION_REORG_H_
 
+#include <tvm/te/operation.h>
+#include <topi/detail/constant_utils.h>
+#include <topi/reduction.h>
+#include <topi/tags.h>
+#include <topi/transform.h>
+
 #include <algorithm>
 #include <string>
-
-#include "topi/detail/constant_utils.h"
-#include "topi/reduction.h"
-#include "topi/tags.h"
-#include "topi/transform.h"
-#include "tvm/operation.h"
-#include "tvm/expr_operator.h"
 
 namespace topi {
 namespace vision {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Reorg operation
@@ -60,7 +60,7 @@ inline Tensor reorg(const Tensor &data,
   int w_in = GetConstInt(input_shape[3]);
   int out_c = c_in / (stride * stride);
 
-  auto out = tvm::compute(input_shape,
+  auto out = tvm::te::compute(input_shape,
                           [&](Var b, Var k, Var j, Var i) {
                           return data(b * stride * stride,
                                       indexmod(k, out_c) * stride * stride,
@@ -74,7 +74,7 @@ inline Tensor reorg(const Tensor &data,
   int out_h = h_in / stride;
   int out_w = w_in / stride;
 
-  Array<Expr> out_shape = {batch, out_c, out_h, out_w};
+  Array<PrimExpr> out_shape = {batch, out_c, out_h, out_w};
   return reshape(out, out_shape);
 }
 }  // namespace vision

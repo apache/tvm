@@ -17,16 +17,18 @@
 """Test code for clip operator"""
 import numpy as np
 import tvm
+from tvm import te
 import topi
+import topi.testing
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
 from common import get_all_backend
 
 def verify_clip(N, a_min, a_max, dtype):
-    A = tvm.placeholder((N, N), dtype=dtype, name='A')
+    A = te.placeholder((N, N), dtype=dtype, name='A')
     B = topi.clip(A, a_min, a_max)
-    s = tvm.create_schedule([B.op])
+    s = te.create_schedule([B.op])
 
     # use memoize to pickle the test data for next time use
     @memoize("topi.tests.test_topi_clip")
@@ -43,7 +45,7 @@ def verify_clip(N, a_min, a_max, dtype):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_injective(B)
+            s = topi.testing.get_injective_schedule(device)(B)
 
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)

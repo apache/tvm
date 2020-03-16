@@ -17,14 +17,15 @@
 import os
 
 import tvm
+from tvm import te
 import json
 from tvm.contrib import graph_runtime
 
 def dump_graph_lib(target_dir):
     dim = 4
-    A = tvm.placeholder((dim,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    sched = tvm.create_schedule(B.op)
+    A = te.placeholder((dim,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    sched = te.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
     node1 = {"op": "tvm_op", "name": "add",

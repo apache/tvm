@@ -15,27 +15,26 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unused-variable,unused-argument
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
 """conv2d schedule on ARM Mali (Bifrost) GPU"""
 
 import tvm
+from tvm import te
+from tvm import relay
 from tvm import autotvm
 
 from .gemm import decl_winograd_gemm, schedule_gemm
 from .transforms import tile_and_bind, tile_and_bind3d
-from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform
 from ..util import traverse_inline, get_const_int, get_const_tuple
-from ..nn import conv2d, conv2d_winograd_without_weight_transform, \
-    get_pad_tuple, pad, conv2d_alter_layout, dilate
+from .. import nn
 from ..nn.winograd_util import winograd_transform_matrices
 
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d_spatial_pack import conv2d_spatial_pack_nchw
-from ..arm_cpu.conv2d import _alter_conv2d_layout_arm
 
 
-@autotvm.register_topi_compute(conv2d, 'bifrost', ['direct'])
-def conv2d_bifrost(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+@autotvm.register_topi_compute("conv2d_nchw_spatial_pack.bifrost")
+def conv2d_nchw_spatial_pack(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """TOPI compute callback for conv2d
 
     Parameters
@@ -43,10 +42,10 @@ def conv2d_bifrost(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     cfg: ConfigEntity
         The config for this template
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width] or
         pre-packed 5-D with shape [num_filter_chunk, in_channel, filter_height,
         filter_width, num_filter_block]
@@ -60,26 +59,20 @@ def conv2d_bifrost(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     dilation : list of two ints
         [dilation_height, dilation_width]
 
-    layout : str
-        layout of data
-
     out_dtype: str
         The output type. This is used for mixed precision.
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    if layout == 'NCHW':
-        return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
-                                        dilation, out_dtype, num_tile=3)
-    else:
-        raise ValueError("Unsupported layout {}".format(layout))
+    return conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding,
+                                    dilation, out_dtype, num_tile=3)
 
 
-@autotvm.register_topi_schedule(schedule_conv2d_nchw, 'bifrost', ['direct', 'winograd'])
-def schedule_conv2d_nchw_bifrost(cfg, outs):
+@autotvm.register_topi_schedule("conv2d_nchw_spatial_pack.bifrost")
+def schedule_conv2d_nchw_spatial_pack(cfg, outs):
     """TOPI schedule callback for conv2d
 
     Parameters
@@ -95,7 +88,7 @@ def schedule_conv2d_nchw_bifrost(cfg, outs):
     s: Schedule
         The computation schedule for conv2d
     """
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
         # schedule conv2d
@@ -112,13 +105,10 @@ def schedule_conv2d_nchw_bifrost(cfg, outs):
                 kernel = kernel_vec.op.input_tensors[0]
             else:
                 kernel = kernel_vec
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
                 s[kernel].compute_inline()
 
             _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec)
-
-        if 'winograd_conv2d_output' in op.tag:
-            _schedule_winograd(cfg, s, op)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -136,12 +126,12 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     BW, TW, VW = cfg["tile_ow"].size
 
     # schedule padding
-    if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+    if isinstance(data.op, tvm.te.ComputeOp) and "pad" in data.op.tag:
         data_pad = data
         s[data_pad].compute_inline()
 
     # schedule data packing
-    if isinstance(data_vec.op, tvm.tensor.ComputeOp) and data_vec.op.name == 'data_vec_undilated':
+    if isinstance(data_vec.op, te.tensor.ComputeOp) and data_vec.op.name == 'data_vec_undilated':
         _, h, w, ci, _, _, vh, vw = s[data_vec].op.axis
     else:
         _, h, w, ci, vh, vw = s[data_vec].op.axis
@@ -151,19 +141,19 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     if vw.dom.extent.value < max_unroll:
         s[data_vec].unroll(vw)
 
-    if isinstance(kernel_vec.op, tvm.tensor.ComputeOp) and kernel_vec.name == 'kernel_vec':
+    if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # kernel packing will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
             s[kernel_vec].pragma(s[kernel_vec].op.axis[0], 'debug_skip_region')
         else:
-            max_threads = tvm.target.current_target(allow_none=False).max_num_threads
+            max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
             co, ci, kh, kw, vc = s[kernel_vec].op.axis
             fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
             fused, vec = s[kernel_vec].split(fused, VC)
             bb, tt = s[kernel_vec].split(fused, max_threads)
-            s[kernel_vec].bind(bb, tvm.thread_axis("blockIdx.x"))
-            s[kernel_vec].bind(tt, tvm.thread_axis("threadIdx.x"))
+            s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
+            s[kernel_vec].bind(tt, te.thread_axis("threadIdx.x"))
             if VC in vec_size:
                 s[kernel_vec].vectorize(vec)
 
@@ -196,10 +186,22 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
     return s
 
 
-@autotvm.register_topi_compute(conv2d, 'bifrost', ['winograd'])
-def conv2d_bifrost_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
+@autotvm.register_topi_compute("conv2d_nchw_winograd.bifrost")
+def conv2d_nchw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
     """Use Winograd as the convolution method"""
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("conv2d_nchw_winograd.bifrost")
+def schedule_conv2d_nchw_winograd(cfg, outs):
+    s = te.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if 'winograd_conv2d_output' in op.tag:
+            _schedule_winograd(cfg, s, op)
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
 
 
 def _decl_winograd_kernel_transform(kernel, tile_size, G):
@@ -209,7 +211,7 @@ def _decl_winograd_kernel_transform(kernel, tile_size, G):
 
     Parameters
     ----------
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         The kernel to transform
 
     tile_size : int
@@ -217,7 +219,7 @@ def _decl_winograd_kernel_transform(kernel, tile_size, G):
 
     Returns
     -------
-    U : tvm.Tensor
+    U : tvm.te.Tensor
         Transformed kernel
 
     """
@@ -237,27 +239,27 @@ def _decl_winograd_kernel_transform(kernel, tile_size, G):
 
     # Padded Kernel [K_round, C, KH, KW]
     # Pad the number of kernels to multiple of ALIGN
-    padded_kernel = tvm.compute((K_round, C, KH, KW),
-                                lambda k, c, h, w:
-                                tvm.if_then_else(k < K,
-                                                 kernel[k][c][h][w],
-                                                 tvm.const(0, out_dtype)),
-                                name='padded_kernel')
+    padded_kernel = te.compute((K_round, C, KH, KW),
+                               lambda k, c, h, w:
+                               tvm.tir.if_then_else(k < K,
+                                                    kernel[k][c][h][w],
+                                                    tvm.tir.const(0, out_dtype)),
+                               name='padded_kernel')
 
     # U [alpha, alpha, K_round, C]
     # Perform the kernel transform
-    r_kh = tvm.reduce_axis((0, KH), 'r_kh')
-    r_kw = tvm.reduce_axis((0, KW), 'r_kw')
-    U = tvm.compute((alpha, alpha, K_round, C),
-                    lambda eps, nu, k, c:
-                    tvm.sum(padded_kernel[k][c][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
-                            axis=[r_kh, r_kw]),
-                    name='U')
+    r_kh = te.reduce_axis((0, KH), 'r_kh')
+    r_kw = te.reduce_axis((0, KW), 'r_kw')
+    U = te.compute((alpha, alpha, K_round, C),
+                   lambda eps, nu, k, c:
+                   te.sum(padded_kernel[k][c][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
+                          axis=[r_kh, r_kw]),
+                   name='U')
 
     return U
 
 
-def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size=2):
+def _decl_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype, tile_size=2):
     """Declare a winograd convolution - only tile_size=2 is currently supported"""
     N, CI, IH, IW = get_const_tuple(data.shape)
     if isinstance(dilation, int):
@@ -267,7 +269,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     if int(kernel.shape[2]) == 3:
         if dilation_h != 1 or dilation_w != 1:
-            kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
+            kernel = nn.dilate(kernel, (1, 1, dilation_h, dilation_w))
         pre_computed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
     else:
@@ -276,11 +278,10 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
         H_CAT, W_CAT, CO, CI = get_const_tuple(kernel.shape)
         KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    pt, pl, pb, pr = nn.get_pad_tuple(padding, (KH, KW))
 
-    assert layout == 'NCHW'
     assert KH == 3 and KW == 3 and HSTR == 1 and WSTR == 1
-    data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
+    data_pad = nn.pad(data, (0, 0, pt, pl), (0, 0, pb, pr), name="data_pad")
 
     r = KW
     m = tile_size
@@ -289,8 +290,8 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     K = CO
     C = CI
-    H = (IH + 2 * HPAD - 3) // HSTR + 1
-    W = (IW + 2 * WPAD - 3) // WSTR + 1
+    H = (IH + pt + pb - 3) // HSTR + 1
+    W = (IW + pl + pr - 3) // WSTR + 1
     nH, nW = (H + m-1) // m, (W + m-1) // m
     P = N * nH * nW
 
@@ -307,10 +308,10 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     cfg.define_knob("data_transform_wgy", [1, 2, 4, 8, 16, 32, 64])
 
     # Pack input tile
-    input_tile = tvm.compute((N, C, H + 2, W + 2),
-                             lambda n, c, h, w:
-                             data_pad[n][c][h][w],
-                             name='d')
+    input_tile = te.compute((N, C, H + 2, W + 2),
+                            lambda n, c, h, w:
+                            data_pad[n][c][h][w],
+                            name='d')
 
     if pre_computed:
         U = kernel
@@ -319,33 +320,33 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
 
     # V [alpha * alpha, C, P_round)
     # Perform the image transform
-    r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
-    r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
-    V = tvm.compute((alpha * alpha, C, P_round),
-                    lambda epsnu, c, b:
-                    tvm.sum(input_tile[b // (nH*nW)][c][b // nW % nH * m + r_eps][b % nW * m +r_nu]\
-                            * B[r_eps][epsnu // alpha] * B[r_nu][epsnu % alpha],
-                            axis=[r_eps, r_nu]),
-                    name='V')
+    r_eps = te.reduce_axis((0, alpha), 'r_eps')
+    r_nu = te.reduce_axis((0, alpha), 'r_nu')
+    V = te.compute((alpha * alpha, C, P_round),
+                   lambda epsnu, c, b:
+                   te.sum(input_tile[b // (nH*nW)][c][b // nW % nH * m + r_eps][b % nW * m +r_nu]\
+                          * B[r_eps][epsnu // alpha] * B[r_nu][epsnu % alpha],
+                          axis=[r_eps, r_nu]),
+                   name='V')
 
     # Winograd GEMM is a wrapper around batched GEMM to convert U to a 3D Tensor
     _, M = decl_winograd_gemm(cfg, U, V)
 
     # Y [K, P, m, m]
     # Winograd output transform
-    r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
-    r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
-    Y = tvm.compute((K, P, m, m), lambda k, b, vh, vw:
-                    tvm.sum(M[r_eps * alpha + r_nu][k][b] * A[r_eps][vh] * A[r_nu][vw],
-                            axis=[r_eps, r_nu]), name='Y')
+    r_eps = te.reduce_axis((0, alpha), 'r_eps')
+    r_nu = te.reduce_axis((0, alpha), 'r_nu')
+    Y = te.compute((K, P, m, m), lambda k, b, vh, vw:
+                   te.sum(M[r_eps * alpha + r_nu][k][b] * A[r_eps][vh] * A[r_nu][vw],
+                          axis=[r_eps, r_nu]), name='Y')
 
     # Output [N, K, H, W]
     # Unpack back to NCHW format
     # The last term ensures alignment is not lost to bound inference
-    output = tvm.compute((N, K, H, W), lambda n, k, h, w:
-                         Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m]
-                         + tvm.const(0, out_dtype) * M[(alpha*alpha)-1][K_round-1][P_round-1],
-                         name='output', tag='winograd_conv2d_output')
+    output = te.compute((N, K, H, W), lambda n, k, h, w:
+                        Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m]
+                        + tvm.tir.const(0, out_dtype) * M[(alpha*alpha)-1][K_round-1][P_round-1],
+                        name='output', tag='winograd_conv2d_output')
 
     return output
 
@@ -363,7 +364,7 @@ def _schedule_winograd(cfg, s, op):
     d, B = s[V].op.input_tensors
     data_pad = s[d].op.input_tensors[0]
 
-    if isinstance(U.op, tvm.tensor.ComputeOp):
+    if isinstance(U.op, tvm.te.ComputeOp):
         padded_kernel, G = s[U].op.input_tensors
         kernel = s[padded_kernel].op.input_tensors[0]
         s[G].compute_inline()
@@ -390,7 +391,7 @@ def _schedule_winograd(cfg, s, op):
             yo, xo, yi, xi = tile_and_bind(s, U, k, c, 1, 4)
 
         # Dilation
-        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
             s[kernel].compute_inline()
 
     # Pad data
@@ -455,31 +456,78 @@ def _schedule_winograd(cfg, s, op):
     tile_and_bind3d(s, output, k, h, w, 1, 2, 2)
 
 
-##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
-@autotvm.register_topi_compute(conv2d_winograd_without_weight_transform, 'bifrost', ['winograd'])
-def conv2d_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
-    """TOPI compute callback"""
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
-
-
-@autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
-                                'bifrost', ['winograd'])
-def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
-    """TOPI schedule callback"""
-    s = tvm.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if 'winograd_conv2d_output' in op.tag:
-            _schedule_winograd(cfg, s, op)
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
-
 
 ##### REGISTER ALTER OP LAYOUT #####
-@conv2d_alter_layout.register(["bifrost"])
-def _alter_conv2d_layout(attrs, inputs, tinfos, F):
-    try:
-        return _alter_conv2d_layout_arm(attrs, inputs, tinfos, F)
-    except KeyError:  # to filter out fallback opencl templates
+@nn.conv2d_alter_layout.register("bifrost")
+def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
+    target = tvm.target.Target.current(allow_none=False)
+    dispatch_ctx = autotvm.task.DispatchContext.current
+
+    _, outs = relay.backend.compile_engine.select_implementation(
+        relay.op.get("nn.conv2d"), attrs, tinfos, out_type, target)
+    workload = autotvm.task.get_workload(outs)
+    if workload is None:
+        # The best implementation is not an AutoTVM template,
+        # we then assume it's not necessary to alter this op.
         return None
+    cfg = dispatch_ctx.query(target, workload)
+    if cfg.is_fallback:  # if is fallback, clear query cache and return None
+        autotvm.task.clear_fallback_cache(target, workload)
+        return None
+
+    topi_tmpl = workload[0]
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+    strides = attrs.get_int_tuple("strides")
+    padding = attrs.get_int_tuple("padding")
+    dilation = attrs.get_int_tuple("dilation")
+    data_layout = attrs["data_layout"]
+    kernel_layout = attrs["kernel_layout"]
+    data, kernel = tinfos
+    out_dtype = out_type.dtype
+
+    idxd = tvm.tir.indexdiv
+
+    if topi_tmpl == "conv2d_nchw_spatial_pack.bifrost":
+        assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        N, CI, H, W = get_const_tuple(data.shape)
+        CO, _, KH, KW = get_const_tuple(kernel.shape)
+        VC = cfg['tile_co'].size[-1]
+
+        new_attrs['kernel_layout'] = 'OIHW%do' % VC
+
+        new_data = data
+        new_kernel = te.placeholder((idxd(CO, VC), CI, KH, KW, VC), dtype=kernel.dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, out_dtype],
+            "conv2d_nchw_spatial_pack.bifrost")
+        dispatch_ctx.update(target, new_workload, cfg)
+
+        return relay.nn.conv2d(*inputs, **new_attrs)
+
+    if topi_tmpl == "conv2d_nchw_winograd.bifrost":
+        assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        N, CI, H, W = get_const_tuple(data.shape)
+        CO, _, KH, KW = get_const_tuple(kernel.shape)
+        tile_size = 2
+
+        weight_expr = inputs[1]
+        weight_expr = relay.nn.contrib_conv2d_winograd_weight_transform(
+            weight_expr, tile_size=tile_size)
+        weight_expr = relay.reshape(
+            weight_expr, newshape=(KH + tile_size - 1, KW + tile_size - 1, CO, CI))
+
+        new_attrs['tile_size'] = tile_size
+
+        new_data = data
+        new_kernel = te.placeholder(
+            (KH + tile_size - 1, KW + tile_size -1, CO, CI), kernel.dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, out_dtype],
+            'conv2d_nchw_winograd.bifrost')
+        dispatch_ctx.update(target, new_workload, cfg)
+
+        return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+            inputs[0], weight_expr, **new_attrs)
+
+    return None

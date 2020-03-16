@@ -51,7 +51,7 @@ class XGBoostCostModel(CostModel):
                                 'itervar' is more accurate but 'knob' is much faster.
                                 There are some constraints on 'itervar', if you meet
                                 problems with feature extraction when using 'itervar',
-                                you can swith to 'knob'.
+                                you can switch to 'knob'.
 
         For cross-shape tuning (e.g. many convolutions with different shapes),
                                'itervar' and 'curve' has better transferability,
@@ -219,8 +219,7 @@ class XGBoostCostModel(CostModel):
         # filter data, only pick the data with a same task
         data = []
         for inp, res in records:
-            if inp.task.name == self.task.name and \
-                            inp.config.template_key == self.task.config_space.template_key:
+            if inp.task.name == self.task.name:
                 data.append((inp, res))
 
         logger.debug("XGB load %d entries from history log file", len(data))
@@ -420,6 +419,7 @@ def _extract_curve_feature_log(arg):
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                     maximize=False, verbose_eval=True):
     """callback function for xgboost to support multiple custom evaluation functions"""
+    # pylint: disable=import-outside-toplevel
     from xgboost.core import EarlyStopException
     from xgboost.callback import _fmt_metric
     from xgboost.training import aggcv

@@ -23,7 +23,7 @@ license = "Apache-2.0"
 build = "build.rs"
 
 [dependencies]
-ndarray = "0.12.1"
+ndarray = "0.12"
 tvm-frontend = { path = "../../" }
 
 [features]

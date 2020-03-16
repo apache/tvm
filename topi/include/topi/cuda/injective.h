@@ -24,13 +24,15 @@
 #ifndef TOPI_CUDA_INJECTIVE_H_
 #define TOPI_CUDA_INJECTIVE_H_
 
-#include "topi/tags.h"
-#include "topi/detail/fuse.h"
-#include "tvm/operation.h"
-#include "tvm/build_module.h"
+#include <tvm/te/operation.h>
+#include <tvm/te/schedule_pass.h>
+#include <tvm/target/generic_func.h>
+#include <topi/tags.h>
+#include <topi/detail/fuse.h>
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::te;
 
 namespace cuda {
 
@@ -39,7 +41,7 @@ namespace cuda {
  *
  * \param sch The schedule to update.
  * \param out The tensor representing the injective op.
- * 
+ *
  * \return The updated schedule.
  */
 inline Schedule schedule_injective_from_existing(Schedule sch, const Tensor& out) {
@@ -67,7 +69,7 @@ inline Schedule schedule_injective(const Target &target, const Array<Tensor>& ou
     out_ops.push_back(t->op);
   }
   auto s = create_schedule(out_ops);
-  tvm::schedule::AutoInlineInjective(s);
+  tvm::te::AutoInlineInjective(s);
   for (auto out : outs) {
     schedule_injective_from_existing(s, out);
   }

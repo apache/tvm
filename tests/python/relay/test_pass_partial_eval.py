@@ -17,12 +17,13 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
-from tvm.relay import TensorType, Tuple, If, Module, Clause, PatternConstructor, PatternVar, Match
+from tvm.relay import TensorType, Tuple, If, Clause, PatternConstructor, PatternVar, Match
 from tvm.relay import GlobalVar, Call
 from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
@@ -37,7 +38,7 @@ def check_eval(expr, expected_result, mod=None, rtol=1e-07):
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
        mod = seq(mod)
@@ -171,7 +172,7 @@ def test_function_invalidate():
 
 
 def test_head_cons():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     hd = p.hd
     t = TypeVar("t")
@@ -183,7 +184,7 @@ def test_head_cons():
 
 
 def test_map():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     f = GlobalVar("f")
     t = TypeVar("t")
@@ -200,7 +201,7 @@ def test_map():
 
 
 def test_loop():
-    mod = Module()
+    mod = tvm.IRModule()
     t = TypeVar("t")
     x = Var("x", t)
     loop = GlobalVar("loop")
@@ -214,7 +215,7 @@ def test_loop():
 
 
 def test_swap_loop():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     nat = p.nat()
@@ -230,7 +231,7 @@ def test_swap_loop():
 
 def test_abs_diff():
     # TODO(@M.K.): refactor using tuple pattern (not yet implemented)
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     nat = p.nat()
@@ -251,7 +252,7 @@ def test_abs_diff():
 
 
 def test_match_nat_id():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     nat = p.nat()
@@ -268,7 +269,7 @@ def test_match_nat_id():
 
 
 def test_nat_id():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     nat = p.nat()
@@ -283,7 +284,7 @@ def test_nat_id():
 
 
 def test_global_match_nat_id():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     nat = p.nat()
@@ -297,7 +298,7 @@ def test_global_match_nat_id():
 
 
 def test_double():
-    mod = Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     orig = p.double(make_nat_expr(p, 3))
@@ -324,7 +325,7 @@ def test_triangle_number():
 
 
 def test_nat_update():
-    m = Module()
+    m = tvm.IRModule()
     p = Prelude(m)
     add_nat_definitions(p)
     m = transform.ToANormalForm()(m)

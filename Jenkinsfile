@@ -41,12 +41,12 @@
 
 // Hashtag in the source to build current CI docker builds
 //
-// - ci-cpu:v0.54: e7c88a99f830de30814df14eaa980547ecbd61c1
+// - ci-cpu:v0.55: 07b45d958d4af91ec1bab66f6cf391d1ce12ddaf
 //
 
-ci_lint = "tvmai/ci-lint:v0.51"
-ci_gpu = "tvmai/ci-gpu:v0.56"
-ci_cpu = "tvmai/ci-cpu:v0.54"
+ci_lint = "tvmai/ci-lint:v0.60"
+ci_gpu = "tvmai/ci-gpu:v0.61"
+ci_cpu = "tvmai/ci-cpu:v0.60"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -57,7 +57,7 @@ tvm_multilib = "build/libtvm.so, " +
                "build/libvta_tsim.so, " +
                "build/libvta_fsim.so, " +
                "build/libtvm_topi.so, " +
-               "build/libnnvm_compiler.so, " + tvm_runtime
+               tvm_runtime
 
 // command to start a docker container
 docker_run = 'docker/bash.sh'
@@ -217,8 +217,10 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_fsim.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh"
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
+          sh "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh"
         }
       }
     }
@@ -255,6 +257,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
+          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_sphinx_precheck.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration.sh"
         }
@@ -269,7 +272,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} ${ci_i386} ./tests/scripts/task_python_vta_fsim.sh"
         }
       }
     }
@@ -306,17 +309,6 @@ stage('Integration Test') {
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh"
-        }
-      }
-    }
-  },
-  'legacy: GPU': {
-    node('GPU') {
-      ws(per_exec_ws("tvm/legacy-python-gpu")) {
-        init_git()
-        unpack_lib('gpu', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_legacy.sh"
         }
       }
     }

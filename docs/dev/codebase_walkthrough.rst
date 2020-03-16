@@ -16,7 +16,7 @@
     under the License.
 
 =======================================
-**TVM Codebase Walkthrough by Example**
+TVM Codebase Walkthrough by Example
 =======================================
 
 Getting to know a new codebase can be a challenge. This is especially true for a codebase like that of TVM, where different components interact in non-obvious ways. In this guide, we try to illustrate the key elements that comprise a compilation pipeline with a simple example. For each important step, we show where in the codebase it is implemented. The purpose is to let new developers and interested users dive into the codebase more quickly.
@@ -28,16 +28,13 @@ Codebase Structure Overview
 At the root of the TVM repository, we have following subdirectories that together comprise a bulk of the codebase.
 
 - ``src`` - C++ code for operator compilation and deployment runtimes.
-- ``src/relay`` - Implementation of Relay, a new IR for deep learning framework superseding ``nnvm`` below.
+- ``src/relay`` - Implementation of Relay, a new functional IR for deep learning framework.
 - ``python`` - Python frontend that wraps C++ functions and objects implemented in ``src``.
 - ``topi`` - Compute definitions and backend schedules for standard neural network operators.
-- ``nnvm`` - C++ code and Python frontend for graph optimization and compilation. After the introduction of Relay, it remains in the codebase for backward compatibility.
 
 Using standard Deep Learning terminology, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructure implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations of operators are in ``topi``, and they are coded in either C++ or Python.
 
-Relay is the new IR for deep networks that is intended to replace NNVM. If you have used NNVM, Relay provides equivalent or better functionality. In fact, Relay goes beyond a traditional way of thinking deep networks in terms of computational graphs. But for the purpose of this document, we can think of Relay as a traditional computational graph framework. You can read more about Relay `here <https://docs.tvm.ai/dev/relay_intro.html>`_.
-
-When a user invokes graph compilation by ``relay.build(...)`` (or ``nnvm.compiler.build(...)`` for the older API), the following sequence of actions happens for each node in the graph:
+When a user invokes graph compilation by ``relay.build(...)``, the following sequence of actions happens for each node in the graph:
 
 - Look up an operator implementation by querying the operator registry
 - Generate a compute expression and a schedule for the operator
@@ -54,41 +51,29 @@ We use a simple example that uses the low level TVM API directly. The example is
 ::
 
    n = 1024
-   A = tvm.placeholder((n,), name='A')
-   B = tvm.placeholder((n,), name='B')
-   C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
+   A = tvm.te.placeholder((n,), name='A')
+   B = tvm.te.placeholder((n,), name='B')
+   C = tvm.te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
-Here, types of ``A``, ``B``, ``C`` are ``tvm.tensor.Tensor``, defined in ``python/tvm/tensor.py``. The Python ``Tensor`` is backed by C++ ``Tensor``, implemented in ``include/tvm/tensor.h`` and ``src/lang/tensor.cc``. All Python types in TVM can be thought of as a handle to the underlying C++ type with the same name. If you look at the definition of Python ``Tensor`` type below, you can see it is a subclass of ``NodeBase``.
+Here, types of ``A``, ``B``, ``C`` are ``tvm.tensor.Tensor``, defined in ``python/tvm/te/tensor.py``. The Python ``Tensor`` is backed by C++ ``Tensor``, implemented in ``include/tvm/te/tensor.h`` and ``src/te/tensor.cc``. All Python types in TVM can be thought of as a handle to the underlying C++ type with the same name. If you look at the definition of Python ``Tensor`` type below, you can see it is a subclass of ``Object``.
 
 ::
 
-   @register_node
-   class Tensor(NodeBase, _expr.ExprOp):
+   @register_object
+   class Tensor(Object, _expr.ExprOp):
        """Tensor object, to construct, see function.Tensor"""
 
        def __call__(self, *indices):
           ...
 
-The Node system is the basis of exposing C++ types to frontend languages, including Python. The way TVM implements Python wrapping is not straightforward. It is briefly covered in `this document <https://docs.tvm.ai/dev/runtime.html#tvm-node-and-compiler-stack>`_, and details are in ``python/tvm/_ffi/`` if you are interested.
-
-``Tensor`` is created by functions in ``python/tvm/api.py``, which in turn calls into C++ functions exposed in ``src/api/api_lang.cc``. All C++ functions that are callable from Python are exposed in the ``src/api`` subdirectory. For example, the ``tvm.compute()`` function above calls into ``_ComputeOp`` API exposed in ``src/api/api_lang.cc``:
-
-::
-
-   TVM_REGISTER_API("_ComputeOp")
-   .set_body([](TVMArgs args,  TVMRetValue* ret) {
-       *ret = ComputeOpNode::make(args[0],
-                                  args[1],
-                                  args[2],
-                                  args[3],
-                                  args[4]);
-     });
+The object protocol is the basis of exposing C++ types to frontend languages, including Python. The way TVM implements Python wrapping is not straightforward. It is briefly covered in `this document <https://docs.tvm.ai/dev/runtime.html#tvm-node-and-compiler-stack>`_, and details are in ``python/tvm/_ffi/`` if you are interested.
 
 We use the ``TVM_REGISTER_*`` macro to expose C++ functions to frontend languages, in the form of a `PackedFunc <https://docs.tvm.ai/dev/runtime.html#packedfunc>`_. A ``PackedFunc`` is another mechanism by which TVM implements interoperability between C++ and Python. In particular, this is what makes calling Python functions from the C++ codebase very easy.
+You can also checkout `FFI Navigator <https://github.com/tqchen/ffi-navigator>`_ which allows you to navigate between python and c++ FFI calls.
 
-A ``Tensor`` object has an ``Operation`` object associated with it, defined in ``python/tvm/tensor.py``, ``include/tvm/operation.h``, and ``src/tvm/op`` subdirectory. A ``Tensor`` is an output of its ``Operation`` object. Each ``Operation`` object has in turn ``input_tensors()`` method, which returns a list of input ``Tensor`` to it. This way we can keep track of dependencies between ``Operation``.
+A ``Tensor`` object has an ``Operation`` object associated with it, defined in ``python/tvm/te/tensor.py``, ``include/tvm/te/operation.h``, and ``src/tvm/te/operation`` subdirectory. A ``Tensor`` is an output of its ``Operation`` object. Each ``Operation`` object has in turn ``input_tensors()`` method, which returns a list of input ``Tensor`` to it. This way we can keep track of dependencies between ``Operation``.
 
-We pass the operation corresponding to the output tensor ``C`` to ``tvm.create_schedule()`` function in ``python/tvm/schedule.py``.
+We pass the operation corresponding to the output tensor ``C`` to ``tvm.create_schedule()`` function in ``python/tvm/te/schedule.py``.
 
 ::
 
@@ -106,7 +91,7 @@ This function is mapped to the C++ function in ``include/tvm/schedule.h``.
 
 ``Stage`` corresponds to one ``Operation``. In the vector add example above, there are two placeholder ops and one compute op, so the schedule ``s`` contains three stages. Each ``Stage`` holds information about a loop nest structure, types of each loop (``Parallel``, ``Vectorized``, ``Unrolled``), and where to execute its computation in the loop nest of the next ``Stage``, if any.
 
-``Schedule`` and ``Stage`` are defined in ``tvm/python/schedule.py``, ``include/tvm/schedule.h``, and ``src/schedule/schedule_ops.cc``.
+``Schedule`` and ``Stage`` are defined in ``tvm/python/te/schedule.py``, ``include/tvm/te/schedule.h``, and ``src/te/schedule/schedule_ops.cc``.
 
 To keep it simple, we call ``tvm.build(...)`` on the default schedule created by ``create_schedule()`` function above.
 
@@ -115,7 +100,7 @@ To keep it simple, we call ``tvm.build(...)`` on the default schedule created by
    target = "cuda"
    fadd = tvm.build(s, [A, B, C], target)
 
-``tvm.build()``, defined in ``python/tvm/build_module.py``, takes a schedule, input and output ``Tensor``, and a target, and returns a ``tvm.Module`` object, defined in ``python/tvm/module.py``. A ``Module`` object contains a compiled function which can be invoked with function call syntax.
+``tvm.build()``, defined in ``python/tvm/driver/build_module.py``, takes a schedule, input and output ``Tensor``, and a target, and returns a :py:class:`tvm.runtime.Module` object. A :py:class:`tvm.runtime.Module` object contains a compiled function which can be invoked with function call syntax.
 
 The process of ``tvm.build()`` can be divided into two steps:
 
@@ -136,14 +121,14 @@ Lowering is done by ``tvm.lower()`` function, defined in ``python/tvm/build_modu
       stmt = schedule.ScheduleOps(sch, bounds)
       ...
 
-Bound inference is the process where all loop bounds and sizes of intermediate buffers are inferred. If you target the CUDA backend and you use shared memory, its required minimum size is automatically determined here. Bound inference is implemented in ``src/schedule/bound.cc``, ``src/schedule/graph.cc`` and ``src/schedule/message_passing.cc``. For more information on how bound inference works, see `InferBound Pass`_.
+Bound inference is the process where all loop bounds and sizes of intermediate buffers are inferred. If you target the CUDA backend and you use shared memory, its required minimum size is automatically determined here. Bound inference is implemented in ``src/te/schedule/bound.cc``, ``src/te/schedule/graph.cc`` and ``src/te/schedule/message_passing.cc``. For more information on how bound inference works, see `InferBound Pass`_.
 
 .. _InferBound Pass: http://docs.tvm.ai/dev/inferbound.html
 
 
-``stmt``, which is the output of ``ScheduleOps()``, represents an initial loop nest structure. If you have applied ``reorder`` or ``split`` primitives to your schedule, then the initial loop nest already reflects those changes. ``ScheduleOps()`` is defined in ``src/schedule/schedule_ops.cc``.
+``stmt``, which is the output of ``ScheduleOps()``, represents an initial loop nest structure. If you have applied ``reorder`` or ``split`` primitives to your schedule, then the initial loop nest already reflects those changes. ``ScheduleOps()`` is defined in ``src/te/schedule/schedule_ops.cc``.
 
-Next, we apply a number of lowering passes to ``stmt``. These passes are implemented in ``src/pass`` subdirectory. For example, if you have applied ``vectorize`` or ``unroll`` primitives to your schedule, they are applied in loop vectorization and unrolling passes below.
+Next, we apply a number of lowering passes to ``stmt``. These passes are implemented in ``src/tir/pass`` subdirectory. For example, if you have applied ``vectorize`` or ``unroll`` primitives to your schedule, they are applied in loop vectorization and unrolling passes below.
 
 ::
 
@@ -160,7 +145,7 @@ Next, we apply a number of lowering passes to ``stmt``. These passes are impleme
 
 After lowering is done, ``build()`` function generates target machine code from the lowered function. This code can contain SSE or AVX instructions if you target x86, or PTX instructions for CUDA target. In addition to target specific machine code, TVM also generates host side code that is responsible for memory management, kernel launch etc.
 
-Code generation is done by ``build_module()`` function, defined in ``python/tvm/codegen.py``. On the C++ side, code generation is implemented in ``src/codegen`` subdirectory. ``build_module()`` Python function will reach ``Build()`` function below in ``src/codegen/codegen.cc``:
+Code generation is done by ``build_module()`` function, defined in ``python/tvm/target/codegen.py``. On the C++ side, code generation is implemented in ``src/target/codegen`` subdirectory. ``build_module()`` Python function will reach ``Build()`` function below in ``src/target/codegen/codegen.cc``:
 
 ::
 
@@ -177,7 +162,7 @@ The ``Build()`` function looks up the code generator for the given target in the
 
 ::
 
-   TVM_REGISTER_API("codegen.build_cuda")
+   TVM_REGISTER_GLOBAL("codegen.build_cuda")
    .set_body([](TVMArgs args, TVMRetValue* rv) {
        *rv = BuildCUDA(args[0]);
      });

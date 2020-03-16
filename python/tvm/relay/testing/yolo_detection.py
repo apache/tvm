@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, unused-argument, no-init
+# pylint: disable=invalid-name, unused-variable, unused-argument, no-init,
 """
 Yolo detection boxes helper functions
 ====================
@@ -224,6 +224,7 @@ def _draw_label(im, r, c, label, rgb):
                         _set_pixel(im, i+c, j+r, k, val)#rgb[k] * val)
 
 def _get_label(font_path, labelstr, rgb):
+    # pylint: disable=import-outside-toplevel
     from PIL import Image
     from PIL import ImageDraw
     from PIL import ImageFont

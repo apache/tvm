@@ -21,8 +21,9 @@ import sys
 import numpy as np
 
 import tvm
+from tvm import te
+import tvm.runtime._ffi_api
 from tvm import relay
-from tvm import module as _tvm_module
 from tvm.contrib import util
 
 tmp_path = util.tempdir()
@@ -33,6 +34,7 @@ def generate_csource_module():
 
     code = r'''
     #include <tvm/runtime/c_runtime_api.h>
+    #include <tvm/runtime/packed_func.h>
     #include <dlpack/dlpack.h>
     #include <cstdint>
     #include <cstring>
@@ -69,21 +71,16 @@ def generate_csource_module():
       free(buf_1);
     }
 
-    extern "C" int json_rt_1(TVMValue* value, int* type_code, int nargs) {
-      if (nargs != 5) {
-        printf("Expect 5 args, but get %d", nargs);
-        return 1;
-      }
-      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-      gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
-             static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
-             static_cast<float*>(out->data));
-      return 0;
+    extern "C" int ccompiler_wrapper_1_(DLTensor* arg0, DLTensor* arg1,
+                                        DLTensor* arg2, DLTensor* arg3,
+                                        DLTensor* out) {
+        gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+               static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+               static_cast<float*>(out->data));
+        return 0;
     }
+
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_1, ccompiler_wrapper_1_);
 
     GCC_BINARY_OP_2D(gcc_0_0, *, 10, 10);
     GCC_BINARY_OP_2D(gcc_0_1, -, 10, 10);
@@ -100,23 +97,19 @@ def generate_csource_module():
       free(buf_1);
     }
 
-    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
-      if (nargs != 5) {
-        printf("Expect 5 args, but get %d", nargs);
-        return 1;
-      }
-      DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-      DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-      DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-      DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-      DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-      gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
-             static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
-             static_cast<float*>(out->data));
-      return 0;
+    extern "C" int ccompiler_wrapper_0_(DLTensor* arg0, DLTensor* arg1,
+                                        DLTensor* arg2, DLTensor* arg3,
+                                        DLTensor* out) {
+        gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+               static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
+               static_cast<float*>(out->data));
+        return 0;
     }
+
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_0, ccompiler_wrapper_0_);
+
     '''
-    csource_module = _tvm_module.csource_module_create(code, "cc")
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
     return csource_module
 
 
@@ -128,81 +121,72 @@ def generate_engine_module():
 
     code = r'''
     #include <tvm/runtime/c_runtime_api.h>
+    #include <tvm/runtime/packed_func.h>
     #include <dlpack/dlpack.h>
-    #include "gcc_engine.h"
+    #include "json_engine.h"
 
-    extern "C" void gcc_1_(float* gcc_input4, float* gcc_input5,
-            float* gcc_input6, float* gcc_input7, float* out) {
-            
+    extern "C" void json_1_(float* json_input4, float* json_input5,
+                            float* json_input6, float* json_input7, float* out) {
+
         std::string graph =
             "add_2d,10,10\n"
             "sub_2d,10,10\n"
             "mul_2d,10,10\n";
 
         Engine engine;
-        engine.run(graph, {gcc_input4, gcc_input5, gcc_input6, gcc_input7}, out);
+        engine.run(graph, {json_input4, json_input5, json_input6, json_input7}, out);
     }
 
-
-    extern "C" int json_rt_1(TVMValue* value, int* type_code, int nargs) {
-        if (nargs != 5) {
-            printf("Expect 5 args, but get %d", nargs);
-            return 1;
-        }
-        DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-        DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-        DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-        DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-        DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-        gcc_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+    extern "C" int json_wrapper_1_(DLTensor* arg0, DLTensor* arg1,
+                                   DLTensor* arg2, DLTensor* arg3,
+                                   DLTensor* out) {
+        json_1_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
                 static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
                 static_cast<float*>(out->data));
         return 0;
     }
 
-    extern "C" void gcc_0_(float* gcc_input0, float* gcc_input1,
-            float* gcc_input2, float* gcc_input3, float* out) {
-            
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_1, json_wrapper_1_);
+
+    extern "C" void json_0_(float* json_input0, float* json_input1,
+                            float* json_input2, float* json_input3, float* out) {
+
         std::string graph =
             "add_2d,10,10\n"
             "sub_2d,10,10\n"
             "mul_2d,10,10\n";
 
         Engine engine;
-        engine.run(graph, {gcc_input0, gcc_input1, gcc_input2, gcc_input3}, out);
+        engine.run(graph, {json_input0, json_input1, json_input2, json_input3}, out);
 
     }
 
-    extern "C" int json_rt_0(TVMValue* value, int* type_code, int nargs) {
-        if (nargs != 5) {
-            printf("Expect 5 args, but get %d", nargs);
-            return 1;
-        }
-        DLTensor* arg0 = static_cast<DLTensor*>(value[0].v_handle);
-        DLTensor* arg1 = static_cast<DLTensor*>(value[1].v_handle);
-        DLTensor* arg2 = static_cast<DLTensor*>(value[2].v_handle);
-        DLTensor* arg3 = static_cast<DLTensor*>(value[3].v_handle);
-        DLTensor* out = static_cast<DLTensor*>(value[4].v_handle);
-        gcc_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
+    extern "C" int json_wrapper_0_(DLTensor* arg0, DLTensor* arg1,
+                                   DLTensor* arg2, DLTensor* arg3,
+                                   DLTensor* out) {
+        json_0_(static_cast<float*>(arg0->data), static_cast<float*>(arg1->data),
                 static_cast<float*>(arg2->data), static_cast<float*>(arg3->data),
                 static_cast<float*>(out->data));
         return 0;
     }
+
+    TVM_DLL_EXPORT_TYPED_FUNC(json_rt_0, json_wrapper_0_);
+
     '''
 
-    gen_gcc_engine()
-    csource_module = _tvm_module.csource_module_create(code, "cc")
+    gen_json_engine()
+    csource_module = tvm.runtime._ffi_api.CSourceModuleCreate(code, "cc")
     return csource_module
 
 
-def gen_gcc_engine():
+def gen_json_engine():
     """An example of external backend runtime engine. This is supposed to be provided
       by third-party vendors and included when building the generated external kernel code.
     """
 
     code = r'''
-    #ifndef _GCC_ENGINE_H_
-    #define _GCC_ENGINE_H_
+    #ifndef _JSON_ENGINE_H_
+    #define _JSON_ENGINE_H_
     #include <cstdint>
     #include <string>
     #include <sstream>
@@ -298,9 +282,9 @@ def gen_gcc_engine():
         std::vector<float*> buffers;
     };
 
-    #endif
+    #endif  // _JSON_ENGINE_H_
     '''
-    header_file = tmp_path.relpath("gcc_engine.h")
+    header_file = tmp_path.relpath("json_engine.h")
     with open(header_file, 'w') as f:
         f.write(code)
 
@@ -323,8 +307,8 @@ def get_synthetic_lib():
     gcc_input3 = relay.var('gcc_input3', shape=(10, 10))
     subgraph0 = relay.Function([gcc_input0, gcc_input1, gcc_input2,
                                 gcc_input3], relay.copy(gcc_input0))
-    subgraph0 = subgraph0.set_attribute(
-        "Primitive", tvm.expr.IntImm("int32", 1))
+    subgraph0 = subgraph0.with_attr(
+        "Primitive", tvm.tir.IntImm("int32", 1))
 
     # Call subgraph0
     subgraph0_ret = relay.Call(subgraph0, [x, w0, w1, w2])
@@ -336,8 +320,8 @@ def get_synthetic_lib():
     gcc_input7 = relay.var('gcc_input7', shape=(10, 10))
     subgraph1 = relay.Function([gcc_input4, gcc_input5, gcc_input6,
                                 gcc_input7], relay.copy(gcc_input4))
-    subgraph1 = subgraph1.set_attribute(
-        "Primitive", tvm.expr.IntImm("int32", 1))
+    subgraph1 = subgraph1.with_attr(
+        "Primitive", tvm.tir.IntImm("int32", 1))
 
     # Call subgraph1
     subgraph1_ret = relay.Call(subgraph1, [x, w3, w4, w5])
@@ -347,7 +331,7 @@ def get_synthetic_lib():
     sub2 = relay.subtract(add2, w7)
     ret = relay.concatenate((subgraph0_ret, subgraph1_ret, sub2), 0)
     func = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], ret)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     _, lib, _ = relay.build(mod, "llvm")
     return lib
 
@@ -445,6 +429,7 @@ def get_whole_graph_json():
 def run_extern(label, get_extern_src, **kwargs):
     if which("gcc") is None:
         print("Skip test because gcc is not available.")
+        return
 
     obj_name = "{}.o".format(label)
     lib_name = "external_{}.so".format(label)
@@ -460,7 +445,7 @@ def run_extern(label, get_extern_src, **kwargs):
     lib_path = tmp_path.relpath(lib_name)
     csource_module.export_library(lib_path, fcompile=False, **kwargs)
     # load module for execution.
-    lib = tvm.module.load(lib_path)
+    lib = tvm.runtime.load_module(lib_path)
     mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')
@@ -492,8 +477,9 @@ def test_engine_extern():
                options=["-O2", "-std=c++11", "-I" + tmp_path.relpath("")])
 
 def test_json_extern():
-    if which("gcc") is None:
-        print("Skip test because gcc is not available.")
+    if not tvm.get_global_func("module.loadfile_examplejson", True):
+        print("Skip because JSON example runtime is not enabled.")
+        return
 
     # Get subgraph Json.
     subgraph_json = ("json_rt_0\n" +
@@ -522,14 +508,14 @@ def test_json_extern():
 
 
     lib = get_synthetic_lib()
-    ext_lib = tvm.module.load(subgraph_path, "examplejson")
+    ext_lib = tvm.runtime.load_module(subgraph_path, "examplejson")
     lib.import_module(ext_lib)
     lib_name = 'external.so'
     lib_path = tmp_path.relpath(lib_name)
     lib.export_library(lib_path)
 
     # load module for execution.
-    lib = tvm.module.load(lib_path)
+    lib = tvm.runtime.load_module(lib_path)
     mod = tvm.contrib.graph_runtime.create(graph_json, lib, tvm.cpu(0))
 
     x_data = np.random.rand(10, 10).astype('float32')

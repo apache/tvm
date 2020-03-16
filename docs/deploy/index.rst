@@ -56,7 +56,6 @@ embedded devices is through TVM's RPC API.
 Here are the links to the related tutorials.
 
 - :ref:`tutorial-cross-compilation-and-rpc`
-- :ref:`tutorial-deploy-model-on-mali-gpu`
 - :ref:`tutorial-deploy-model-on-rasp`
 
 After you finished tuning and benchmarking, you might need to deploy the model on the
@@ -67,5 +66,6 @@ target device without relying on RPC. see the following resources on how to do s
 
    cpp_deploy
    android
-   nnvm
    integrate
+   aocl_fpga
+   aws_fpga

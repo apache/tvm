@@ -32,6 +32,7 @@ The whole workflow is illustrated by a matrix multiplication example.
 # Install dependencies
 # --------------------
 # To use autotvm package in TVM, we need to install some extra dependencies.
+# This step (installing xgboost) can be skipped as it doesn't need XGBoost
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
@@ -54,6 +55,7 @@ import sys
 
 import numpy as np
 import tvm
+from tvm import te
 
 # the module is called `autotvm`
 from tvm import autotvm
@@ -69,12 +71,12 @@ from tvm import autotvm
 
 # Matmul V0: Constant tiling factor
 def matmul_v0(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -101,14 +103,14 @@ def matmul_v0(N, L, M, dtype):
 # In autotvm, we can define a tunable parameter, or a "knob" for such kind of value.
 
 # Matmul V1: List candidate values
-@autotvm.template  # 1. use a decorator
+@autotvm.template("tutorial/matmul_v1")  # 1. use a decorator
 def matmul_v1(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -171,7 +173,7 @@ def matmul_v1(N, L, M, dtype):
 # However, we also provide another set of API to make the space definition
 # easier and smarter. It is recommended to use this set of high level API.
 #
-# In the flowing example, we use :any:`ConfigSpace.define_split` to define a split
+# In the following example, we use :any:`ConfigSpace.define_split` to define a split
 # knob. It will enumerate all the possible ways to split an axis and construct
 # the space.
 #
@@ -181,14 +183,14 @@ def matmul_v1(N, L, M, dtype):
 # When the high level API cannot meet your requirement, you can always fall
 # back to use low level API.
 
-@autotvm.template
+@autotvm.template("tutorial/matmul")
 def matmul(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -271,7 +273,7 @@ def matmul(N, L, M, dtype):
 # In this case, for a 512x512 square matrix multiplication, the space size
 # is 10x10=100
 N, L, M = 512, 512, 512
-task = autotvm.task.create(matmul, args=(N, L, M, 'float32'), target='llvm')
+task = autotvm.task.create("tutorial/matmul", args=(N, L, M, 'float32'), target='llvm')
 print(task.config_space)
 
 ################################################################
@@ -294,7 +296,8 @@ measure_option = autotvm.measure_option(
     builder='local',
     runner=autotvm.LocalRunner(number=5))
 
-# begin tuning, log records to file `matmul.log`
+# Begin tuning with RandomTuner, log records to file `matmul.log`
+# You can use alternatives like XGBTuner.
 tuner = autotvm.tuner.RandomTuner(task)
 tuner.tune(n_trial=10,
            measure_option=measure_option,

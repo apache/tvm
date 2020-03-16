@@ -18,6 +18,7 @@
 tvm.autotvm
 -----------
 .. automodule:: tvm.autotvm
+.. automodule:: tvm.autotvm.apply_history_best
 
 tvm.autotvm.measure
 ~~~~~~~~~~~~~~~~~~~
@@ -81,9 +82,6 @@ tvm.autotvm.task
     :members:
 
 .. automodule:: tvm.autotvm.task.topi_integration
-    :members:
-
-.. automodule:: tvm.autotvm.task.nnvm_integration
     :members:
 
 tvm.autotvm.record

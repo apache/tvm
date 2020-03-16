@@ -36,17 +36,18 @@
 namespace tvm {
 namespace runtime {
 
+#define CHECK_TFLITE_STATUS(ret) CHECK_EQ(ret, kTfLiteOk)
 
 /*!
  * \brief Tflite runtime.
  *
- *  This runtime can be acccesibly in various language via
+ *  This runtime can be accessed in various language via
  *  TVM runtime PackedFunc API.
  */
 class TFLiteRuntime : public ModuleNode {
  public:
   /*!
-   * \brief Get member function to front-end
+   * \brief Get member function to front-end.
    * \param name The name of the function.
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
@@ -57,14 +58,10 @@ class TFLiteRuntime : public ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final {
+  const char* type_key() const {
     return "TFLiteRuntime";
   }
 
-  /*!
-   * \brief Update allocations for all tenssors. This is relatively expensive.
-   */
-  void AllocateTensors();
   /*!
    * \brief Invoke the internal tflite interpreter and run the whole model in 
    * dependency order.
@@ -100,8 +97,9 @@ class TFLiteRuntime : public ModuleNode {
    */
   NDArray GetOutput(int index) const;
 
- private:
+  // TFLite interpreter
   std::unique_ptr<tflite::Interpreter> interpreter_;
+  // TVM context
   TVMContext ctx_;
 };
 

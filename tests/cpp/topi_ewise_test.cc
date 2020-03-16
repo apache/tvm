@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/operation.h>
+#include <tvm/te/operation.h>
 #include <topi/elemwise.h>
 #include <gtest/gtest.h>
 
@@ -25,7 +25,7 @@ namespace topi {
 TEST(Tensor, Basic) {
   using namespace tvm;
   Var m("m"), n("n"), l("l");
-  Tensor A = placeholder({m, l}, Float(32), "A");
+  Tensor A = placeholder({m, l}, DataType::Float(32), "A");
   auto C = topi::exp(A);
 }
 }

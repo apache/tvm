@@ -21,6 +21,7 @@ Get Started with TVM Go
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import numpy as np
 
 # Global declarations of environment.
@@ -31,15 +32,15 @@ tgt="llvm"
 ######################################################################
 # Describe the Computation
 # ------------------------
-n = tvm.var("n")
-A = tvm.placeholder((n,), name='A')
-B = tvm.placeholder((n,), name='B')
-C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
+n = te.var("n")
+A = te.placeholder((n,), name='A')
+B = te.placeholder((n,), name='B')
+C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
 ######################################################################
 # Schedule the Computation
 # ------------------------
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 ######################################################################
 # Compilation

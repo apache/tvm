@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm.contrib import miopen
 import numpy as np
 
@@ -32,7 +33,7 @@ def test_conv2d():
     dilation_w = 1
 
     xshape = [1, in_channel, 128, 128]
-    if not tvm.module.enabled("rocm"):
+    if not tvm.runtime.enabled("rocm"):
         print("skip because rocm is not enabled...")
         return
     if not tvm.get_global_func("tvm.contrib.miopen.conv2d.setup", True):
@@ -40,8 +41,8 @@ def test_conv2d():
         return
     wshape = (out_channel, in_channel, filter_h, filter_w)
 
-    X = tvm.placeholder(xshape, name='X')
-    W = tvm.placeholder(wshape, name='W')
+    X = te.placeholder(xshape, name='X')
+    W = te.placeholder(wshape, name='W')
     Y = miopen.conv2d_forward(X,
                               W,
                               stride_h,

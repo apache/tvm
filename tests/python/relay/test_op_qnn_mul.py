@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -44,15 +45,15 @@ def test_tflite_same_io_qnn_params():
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
     z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=lhs_scale,
-                         lhs_zero_point=lhs_zero_point,
-                         rhs_scale=rhs_scale,
-                         rhs_zero_point=rhs_zero_point,
-                         output_scale=output_scale,
-                         output_zero_point=output_zero_point)
+                         lhs_scale=relay.const(lhs_scale, 'float32'),
+                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
+                         rhs_scale=relay.const(rhs_scale, 'float32'),
+                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
+                         output_scale=relay.const(output_scale, 'float32'),
+                         output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -95,15 +96,15 @@ def test_tflite_different_io_qnn_params():
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
     z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=lhs_scale,
-                         lhs_zero_point=lhs_zero_point,
-                         rhs_scale=rhs_scale,
-                         rhs_zero_point=rhs_zero_point,
-                         output_scale=output_scale,
-                         output_zero_point=output_zero_point)
+                         lhs_scale=relay.const(lhs_scale, 'float32'),
+                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
+                         rhs_scale=relay.const(rhs_scale, 'float32'),
+                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
+                         output_scale=relay.const(output_scale, 'float32'),
+                         output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -141,15 +142,15 @@ def test_saturation():
     x = relay.var("x", shape=(1, 4), dtype=data_dtype)
     y = relay.var("y", shape=(1, 4), dtype=data_dtype)
     z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=lhs_scale,
-                         lhs_zero_point=lhs_zero_point,
-                         rhs_scale=rhs_scale,
-                         rhs_zero_point=rhs_zero_point,
-                         output_scale=output_scale,
-                         output_zero_point=output_zero_point)
+                         lhs_scale=relay.const(lhs_scale, 'float32'),
+                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
+                         rhs_scale=relay.const(rhs_scale, 'float32'),
+                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
+                         output_scale=relay.const(output_scale, 'float32'),
+                         output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -172,15 +173,15 @@ def test_saturation():
     output_scale = 0.25
 
     z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=lhs_scale,
-                         lhs_zero_point=lhs_zero_point,
-                         rhs_scale=rhs_scale,
-                         rhs_zero_point=rhs_zero_point,
-                         output_scale=output_scale,
-                         output_zero_point=output_zero_point)
+                         lhs_scale=relay.const(lhs_scale, 'float32'),
+                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
+                         rhs_scale=relay.const(rhs_scale, 'float32'),
+                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
+                         output_scale=relay.const(output_scale, 'float32'),
+                         output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -204,15 +205,15 @@ def test_saturation():
     output_scale = 0.125
 
     z = relay.qnn.op.mul(lhs=x, rhs=y,
-                         lhs_scale=lhs_scale,
-                         lhs_zero_point=lhs_zero_point,
-                         rhs_scale=rhs_scale,
-                         rhs_zero_point=rhs_zero_point,
-                         output_scale=output_scale,
-                         output_zero_point=output_zero_point)
+                         lhs_scale=relay.const(lhs_scale, 'float32'),
+                         lhs_zero_point=relay.const(lhs_zero_point, 'int32'),
+                         rhs_scale=relay.const(rhs_scale, 'float32'),
+                         rhs_zero_point=relay.const(rhs_zero_point, 'int32'),
+                         output_scale=relay.const(output_scale, 'float32'),
+                         output_zero_point=relay.const(output_zero_point, 'int32'))
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 

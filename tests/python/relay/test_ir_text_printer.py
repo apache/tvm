@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 import tvm.relay.testing
 import numpy as np
@@ -58,7 +59,7 @@ def test_env():
     z = relay.add(x, y)
     z = relay.add(z, z)
     f = relay.Function([x, y], z)
-    env = relay.Module()
+    env = tvm.IRModule()
     env["myf"] = f
     text = astext(env)
     assert "def @myf" in text
@@ -70,7 +71,7 @@ def test_env():
 
 
 def test_meta_data():
-    n, c, h, w = tvm.var("n"), 10, 224, 224
+    n, c, h, w = te.size_var("n"), 10, 224, 224
     x = relay.var("x", shape=(n, c, h, w))
     w = relay.var("w")
     z = relay.nn.conv2d(x, w,
@@ -82,8 +83,8 @@ def test_meta_data():
     text_no_meta = str(f)
     assert "channels=2" in text
     assert "channels=2" in text_no_meta
-    assert "meta[Variable][0]" in text
-    assert "meta[Variable][0]" in text_no_meta
+    assert "meta[SizeVar][0]" in text
+    assert "meta[SizeVar][0]" in text_no_meta
     assert "type_key" in text
     assert "type_key" not in text_no_meta
 

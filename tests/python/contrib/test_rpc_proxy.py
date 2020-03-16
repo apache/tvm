@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import logging
 import numpy as np
 import time
@@ -37,7 +38,7 @@ def rpc_proxy_check():
         web_port = 8888
         prox = proxy.Proxy("localhost", web_port=web_port)
         def check():
-            if not tvm.module.enabled("rpc"):
+            if not tvm.runtime.enabled("rpc"):
                 return
             @tvm.register_func("rpc.test2.addone")
             def addone(x):

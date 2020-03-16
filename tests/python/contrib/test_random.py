@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import random
 
@@ -22,10 +23,10 @@ def test_randint():
     m = 1024
     n = 1024
     A = random.randint(-127, 128, size=(m, n), dtype='int32')
-    s = tvm.create_schedule(A.op)
+    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
@@ -46,10 +47,10 @@ def test_uniform():
     m = 1024
     n = 1024
     A = random.uniform(0, 1, size=(m, n))
-    s = tvm.create_schedule(A.op)
+    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
@@ -70,10 +71,10 @@ def test_normal():
     m = 1024
     n = 1024
     A = random.normal(3, 4, size=(m, n))
-    s = tvm.create_schedule(A.op)
+    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.normal", True):

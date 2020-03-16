@@ -24,7 +24,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
@@ -52,10 +52,10 @@ namespace vm {
  * (fn(...) { ... })(...)
  */
 struct PrimitiveInliner : ExprMutator {
-  Module module_;
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> var_map;
+  IRModule module_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> var_map;
 
-  explicit PrimitiveInliner(const Module& module) : module_(module) {}
+  explicit PrimitiveInliner(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) {
     var_map.insert({let_node->var, VisitExpr(let_node->value)});
@@ -86,43 +86,58 @@ struct PrimitiveInliner : ExprMutator {
     }
 
     if (auto func = op.as<FunctionNode>()) {
-      if (func->IsPrimitive()) {
-        return CallNode::make(GetRef<Function>(func), call->args, call->attrs, call->type_args);
+      if (func->HasNonzeroAttr(attr::kPrimitive)) {
+        tvm::Array<Expr> call_args;
+        for (auto arg : call->args) {
+          auto new_arg = VisitExpr(arg);
+          call_args.push_back(new_arg);
+        }
+        return CallNode::make(GetRef<Function>(func), call_args, call->attrs, call->type_args);
       }
     }
 
     if (auto global = op.as<GlobalVarNode>()) {
-      return CallNode::make(GetRef<GlobalVar>(global), call->args, call->attrs, call->type_args);
+      tvm::Array<Expr> call_args;
+      for (auto arg : call->args) {
+        auto new_arg = VisitExpr(arg);
+        call_args.push_back(new_arg);
+      }
+      return CallNode::make(GetRef<GlobalVar>(global), call_args, call->attrs, call->type_args);
     }
 
     return ExprMutator::VisitExpr_(call);
   }
 
   Expr VisitExpr_(const FunctionNode* func) {
-    if (func->IsPrimitive()) {
+    if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return GetRef<Function>(func);
     } else {
       return ExprMutator::VisitExpr_(func);
     }
   }
 
-  Module Inline() {
+  IRModule Inline() {
     auto gvar_funcs = module_->functions;
     for (auto pair : gvar_funcs) {
       auto global = pair.first;
-      auto func = pair.second;
-      DLOG(INFO) << "Before inlining primitives: " << global
-                 << std::endl << AsText(func, false);
+      auto base_func = pair.second;
+      if (auto* n = base_func.as<FunctionNode>()) {
+        if (!n->UseDefaultCompiler()) continue;
+        auto func = GetRef<Function>(n);
 
-      func = FunctionNode::make(func->params,
-                                VisitExpr(func->body),
-                                func->ret_type,
-                                func->type_params,
-                                func->attrs);
-      module_->Add(global, func, true);
+        DLOG(INFO) << "Before inlining primitives: " << global
+                   << std::endl << AsText(func, false);
 
-      DLOG(INFO) << "After inlining primitives: " << global
-                 << std::endl << AsText(func, false);
+        func = Function(func->params,
+                                  VisitExpr(func->body),
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+        module_->Add(global, func, true);
+
+        DLOG(INFO) << "After inlining primitives: " << global
+                   << std::endl << AsText(func, false);
+      }
     }
     return module_;
   }
@@ -133,8 +148,8 @@ struct PrimitiveInliner : ExprMutator {
 namespace transform {
 
 Pass InlinePrimitives() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
       return relay::vm::PrimitiveInliner(m).Inline();
   };
   auto inline_pass = CreateModulePass(pass_func, 1, "Inline", {});
@@ -142,7 +157,7 @@ Pass InlinePrimitives() {
   return Sequential({inline_pass, DeadCodeElimination()}, "InlinePrimitives");
 }
 
-TVM_REGISTER_API("relay._transform.InlinePrimitives")
+TVM_REGISTER_GLOBAL("relay._transform.InlinePrimitives")
 .set_body_typed(InlinePrimitives);
 
 }  // namespace transform

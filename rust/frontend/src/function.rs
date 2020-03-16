@@ -28,7 +28,7 @@
 use std::{
     collections::BTreeMap,
     ffi::{CStr, CString},
-    mem,
+    mem::{self, MaybeUninit},
     os::raw::{c_char, c_int, c_void},
     ptr, slice, str,
     sync::Mutex,
@@ -36,25 +36,20 @@ use std::{
 
 use failure::Error;
 
-use crate::{
-    errors,
-    ffi::{self, TVMValue},
-    Module, TVMArgValue, TVMRetValue,
-};
+use crate::{errors, ffi, Module, TVMArgValue, TVMRetValue};
 
 lazy_static! {
     static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
         let mut out_size = 0 as c_int;
-        let name = ptr::null_mut() as *mut c_char;
-        let mut out_array = name as *mut _;
+        let mut names_ptr = ptr::null_mut() as *mut *const c_char;
         check_call!(ffi::TVMFuncListGlobalNames(
             &mut out_size as *mut _,
-            &mut out_array
+            &mut names_ptr as *mut _,
         ));
-        let names_list = unsafe { slice::from_raw_parts(out_array, out_size as usize) };
+        let names_list = unsafe { slice::from_raw_parts(names_ptr, out_size as usize) };
         Mutex::new(
             names_list
-                .into_iter()
+                .iter()
                 .map(|&p| (unsafe { CStr::from_ptr(p).to_str().unwrap() }, None))
                 .collect(),
         )
@@ -80,7 +75,7 @@ unsafe impl Sync for Function {}
 impl Function {
     pub(crate) fn new(handle: ffi::TVMFunctionHandle) -> Self {
         Function {
-            handle: handle,
+            handle,
             is_global: false,
             is_cloned: false,
         }
@@ -98,15 +93,13 @@ impl Function {
                     &mut handle as *mut _
                 ));
                 maybe_func.replace(Function {
-                    handle: handle,
+                    handle,
                     is_global: true,
                     is_cloned: false,
                 });
             }
             unsafe {
-                std::mem::transmute::<Option<&Function>, Option<&'static Function>>(
-                    maybe_func.as_ref(),
-                )
+                mem::transmute::<Option<&Function>, Option<&'static Function>>(maybe_func.as_ref())
             }
         })
     }
@@ -214,7 +207,7 @@ impl<'a, 'm> Builder<'a, 'm> {
         let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
             self.arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
 
-        let mut ret_val = unsafe { std::mem::uninitialized::<TVMValue>() };
+        let mut ret_val = unsafe { MaybeUninit::uninit().assume_init() };
         let mut ret_type_code = 0i32;
         check_call!(ffi::TVMFuncCall(
             self.func.ok_or(errors::FunctionNotFoundError)?.handle,
@@ -257,20 +250,20 @@ unsafe extern "C" fn tvm_callback(
     let args_list = slice::from_raw_parts_mut(args, len);
     let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
     let mut local_args: Vec<TVMArgValue> = Vec::new();
-    let mut value = mem::uninitialized::<ffi::TVMValue>();
-    let mut tcode = mem::uninitialized::<c_int>();
+    let mut value = MaybeUninit::uninit().assume_init();
+    let mut tcode = MaybeUninit::uninit().assume_init();
     let rust_fn =
         mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>>(fhandle);
     for i in 0..len {
         value = args_list[i];
         tcode = type_codes_list[i];
-        if tcode == ffi::TVMTypeCode_kObjectHandle as c_int
-            || tcode == ffi::TVMTypeCode_kFuncHandle as c_int
-            || tcode == ffi::TVMTypeCode_kModuleHandle as c_int
+        if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
+            || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
+            || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
         {
             check_call!(ffi::TVMCbArgToReturn(&mut value as *mut _, tcode));
         }
-        local_args.push(TVMArgValue::from_tvm_value(value.into(), tcode as u32));
+        local_args.push(TVMArgValue::from_tvm_value(value, tcode as u32));
     }
 
     let rv = match rust_fn(local_args.as_slice()) {
@@ -293,9 +286,9 @@ unsafe extern "C" fn tvm_callback(
 }
 
 unsafe extern "C" fn tvm_callback_finalizer(fhandle: *mut c_void) {
-    let rust_fn =
+    let _rust_fn =
         mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>>(fhandle);
-    mem::drop(rust_fn);
+    // XXX: give converted functions lifetimes so they're not called after use
 }
 
 fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>) -> Function {

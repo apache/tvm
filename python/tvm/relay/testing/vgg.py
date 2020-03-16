@@ -124,7 +124,7 @@ def get_workload(batch_size,
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module that contains a VGG network.
 
     params : dict of str to NDArray

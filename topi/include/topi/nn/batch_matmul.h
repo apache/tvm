@@ -24,14 +24,15 @@
 #ifndef TOPI_NN_BATCH_MATMUL_H_
 #define TOPI_NN_BATCH_MATMUL_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
 
-#include "topi/tags.h"
-#include "tvm/operation.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Creates an operation that calculates matrix multiplication in batch.
@@ -41,8 +42,8 @@ using namespace tvm;
 *
 * \return Tensor with shape [batch, M, N]
 */
-inline tvm::Tensor batch_matmul(const tvm::Tensor& x,
-                                const tvm::Tensor& y) {
+inline tvm::te::Tensor batch_matmul(const tvm::te::Tensor& x,
+                                const tvm::te::Tensor& y) {
   CHECK_EQ(x->shape.size(), 3) << "batch_matmul requires 3-D data";
   CHECK_EQ(y->shape.size(), 3) << "batch_matmul requires 3-D data";
 
@@ -51,8 +52,8 @@ inline tvm::Tensor batch_matmul(const tvm::Tensor& x,
   auto K = x->shape[2];
   auto N = y->shape[1];
 
-  auto k = tvm::reduce_axis(Range(0, K), "k");
-  auto result = tvm::compute(
+  auto k = tvm::te::reduce_axis(Range(0, K), "k");
+  auto result = tvm::te::compute(
       { batch, M, N },
       [&](Var b, Var i, Var j) {
         return tvm::sum(x(b, i, k) * y(b, j, k), { k });

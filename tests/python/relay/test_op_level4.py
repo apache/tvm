@@ -15,21 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.relay import transform
-from tvm.relay.testing import ctx_list
+from tvm.relay.testing import ctx_list, run_infer_type
 import topi.testing
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_binary_op():
     def check_binary_op(opfunc, ref):
-        n = tvm.var("n")
+        n = te.size_var("n")
         t1 = relay.TensorType((5, n, 5))
         t2 = relay.TensorType((n, 1))
         x = relay.var("x", t1)
@@ -92,33 +88,54 @@ def test_cmp_type():
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 
-def test_binary_int_broadcast():
+def test_binary_int_broadcast_1():
     for op, ref in [(relay.right_shift, np.right_shift),
-               (relay.left_shift, np.left_shift),
-                (relay.mod, np.mod),
-               (relay.maximum, np.maximum),
-               (relay.minimum, np.minimum)]:
+                    (relay.left_shift, np.left_shift)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
         zz = run_infer_type(z)
         assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
 
-    if ref is not None:
-        x_shape = (10, 4)
-        y_shape = (5, 10, 1)
-        t1 = relay.TensorType(x_shape, 'int32')
-        t2 = relay.TensorType(y_shape, 'int32')
-        x_data = np.random.rand(*x_shape).astype(t1.dtype)
-        y_data = np.random.rand(*y_shape).astype(t2.dtype)
-        func = relay.Function([x, y], z)
-        ref_res = ref(x_data, y_data)
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape, 'int32')
+            t2 = relay.TensorType(y_shape, 'int32')
+            x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
+            y_data = np.random.randint(1, 31, size=(y_shape)).astype(t2.dtype)
+            func = relay.Function([x, y], z)
+            ref_res = ref(x_data, y_data)
 
-        for target, ctx in ctx_list():
-            intrp = relay.create_executor("graph", ctx=ctx, target=target)
-            op_res = intrp.evaluate(func)(x_data, y_data)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
+def test_binary_int_broadcast_2():
+    for op, ref in [(relay.maximum, np.maximum),
+                    (relay.minimum, np.minimum),
+                    (relay.mod, np.mod)]:
+        x = relay.var("x", relay.TensorType((10, 4), "int32"))
+        y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
+        z = op(x, y)
+        zz = run_infer_type(z)
+        assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
+
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape, 'int32')
+            t2 = relay.TensorType(y_shape, 'int32')
+            x_data = np.random.randint(1, 10000, size=(x_shape)).astype(t1.dtype)
+            y_data = np.random.randint(1, 10000, size=(y_shape)).astype(t2.dtype)
+            func = relay.Function([x, y], z)
+            ref_res = ref(x_data, y_data)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 def test_where():
     shape = (3, 4)
@@ -159,7 +176,7 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
     out_type = "int32" if test_func in [relay.argmin, relay.argmax] else dtype
     assert zz.checked_type == relay.ty.TensorType(output, out_type)
 
-    if all(isinstance(v, tvm.expr.Var) == 1 for v in data):
+    if all(isinstance(v, tvm.tir.Var) == 1 for v in data):
         return
 
     func = relay.Function([x], z)
@@ -198,7 +215,7 @@ def test_reduce_functions():
                 return func(data, axis=axis).reshape(out_shape)
         return _wrapper
 
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     for func in [[relay.sum, np.sum],
                  [relay.max, np.max],
                  [relay.min, np.min],
@@ -287,7 +304,7 @@ def test_strided_slice():
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     verify((d1, d2, 3), [None, None, 1], [None, None, 2], None, (d1, d2, 1), False)
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
@@ -328,6 +345,7 @@ def test_strided_set():
             op_res = intrp.evaluate(func)(x_data, v_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
+    verify((3, 4, 16), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
     verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
@@ -344,7 +362,8 @@ if __name__ == "__main__":
     test_strided_set()
     test_binary_op()
     test_cmp_type()
-    test_binary_int_broadcast()
+    test_binary_int_broadcast_1()
+    test_binary_int_broadcast_2()
     test_where()
     test_reduce_functions()
     test_mean_var_std()

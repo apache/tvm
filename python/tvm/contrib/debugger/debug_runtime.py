@@ -19,10 +19,11 @@
 import os
 import tempfile
 import shutil
+import tvm._ffi
+
 from tvm._ffi.base import string_types
-from tvm._ffi.function import get_global_func
 from tvm.contrib import graph_runtime
-from tvm.ndarray import array
+from tvm.runtime.ndarray import array
 from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
@@ -35,7 +36,7 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
     Parameters
     ----------
     graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
+        The graph to be deployed in json format output by graph compiler.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
 
@@ -64,7 +65,7 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
             fcreate = ctx[0]._rpc_sess.get_function(
                 "tvm.graph_runtime_debug.create")
         else:
-            fcreate = get_global_func("tvm.graph_runtime_debug.create")
+            fcreate = tvm._ffi.get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
         raise ValueError(
             "Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in "
@@ -85,7 +86,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
     Parameters
     ----------
     module : Module
-        The interal tvm module that holds the actual graph functions.
+        The internal tvm module that holds the actual graph functions.
 
     ctx : TVMContext
         The context this module is under.
@@ -188,7 +189,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 out_tensor = array(out_tensor)
                 self.debug_datum._output_tensor_list.append(out_tensor)
 
-    def debug_get_output(self, node, out):
+    def debug_get_output(self, node, out=None):
         """Run graph up to node and get the output to out
 
         Parameters
@@ -199,12 +200,11 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         out : NDArray
             The output array container
         """
-        ret = None
         if isinstance(node, str):
             output_tensors = self.debug_datum.get_output_tensors()
             try:
-                ret = output_tensors[node]
-            except:
+                out = output_tensors[node]
+            except KeyError:
                 node_list = output_tensors.keys()
                 raise RuntimeError(
                     "Node "
@@ -215,10 +215,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 )
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list
-            ret = output_tensors[node]
+            out = output_tensors[node]
         else:
             raise RuntimeError("Require node index or name only.")
-        return ret
+        return out
 
     def run(self, **input_dict):
         """Run forward execution of the graph with debug
@@ -243,7 +243,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
         ret = self._run_individual(number, repeat, min_repeat_ms)
         return ret.strip(",").split(",") if ret else []
-
 
     def exit(self):
         """Exits the dump folder and all its contents"""

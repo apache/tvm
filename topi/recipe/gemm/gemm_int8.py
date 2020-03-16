@@ -19,6 +19,7 @@ import logging
 import sys
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 from topi.cuda.tensor_intrin import dp4a
 
@@ -29,15 +30,15 @@ intrin_dp4a = dp4a('local', 'local', 'local')
 
 @autotvm.template
 def gemm_int8(n, m, l):
-    A = tvm.placeholder((n, l), name='A', dtype='int8')
-    B = tvm.placeholder((m, l), name='B', dtype='int8')
+    A = te.placeholder((n, l), name='A', dtype='int8')
+    B = te.placeholder((m, l), name='B', dtype='int8')
 
-    k = tvm.reduce_axis((0, l), name='k')
-    C = tvm.compute((n, m), lambda i, j: tvm.sum(A[i, k].astype('int32') * B[j, k].astype(
+    k = te.reduce_axis((0, l), name='k')
+    C = te.compute((n, m), lambda i, j: te.sum(A[i, k].astype('int32') * B[j, k].astype(
         'int32'), axis=k), name='C')
 
     cfg = autotvm.get_config()
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     y, x = C.op.axis
 
     AA = s.cache_read(A, 'shared', [C])
@@ -56,10 +57,10 @@ def gemm_int8(n, m, l):
 
     s[CC].tensorize(ki, intrin_dp4a)
 
-    block_x = tvm.thread_axis('blockIdx.x')
-    block_y = tvm.thread_axis('blockIdx.y')
-    thread_x = tvm.thread_axis('threadIdx.x')
-    thread_y = tvm.thread_axis('threadIdx.y')
+    block_x = te.thread_axis('blockIdx.x')
+    block_y = te.thread_axis('blockIdx.y')
+    thread_x = te.thread_axis('threadIdx.x')
+    thread_y = te.thread_axis('threadIdx.y')
 
     def block_size_filter(entity):
         return entity.size[0] * 2 >= entity.size[1] * 2 and \
@@ -71,8 +72,8 @@ def gemm_int8(n, m, l):
 
     s[C].bind(by, block_y)
     s[C].bind(bx, block_x)
-    s[C].bind(tyz, tvm.thread_axis('vthread'))
-    s[C].bind(txz, tvm.thread_axis('vthread'))
+    s[C].bind(tyz, te.thread_axis('vthread'))
+    s[C].bind(txz, te.thread_axis('vthread'))
     s[C].bind(ty, thread_y)
     s[C].bind(tx, thread_x)
     s[C].reorder(by, bx, tyz, txz, ty, tx, yi, xi)

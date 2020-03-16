@@ -25,6 +25,10 @@ rm -rf docs/_build/html/javadoc
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials
+rm -rf docs/vta/tutorials
+
+# cleanup stale log files
+find . -type f -path "*.log" | xargs rm -f
 
 # C++ doc
 make doc
@@ -37,7 +41,7 @@ mv out docs/_build/html/jsdoc
 make javadoc
 mv jvm/core/target/site/apidocs docs/_build/html/javadoc
 
-rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
+find . -type f -path "*.pyc" | xargs rm -f
 
 cd docs
 PYTHONPATH=`pwd`/../python make html

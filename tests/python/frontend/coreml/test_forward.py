@@ -20,6 +20,7 @@ from coremltools.models.neural_network import NeuralNetworkBuilder
 from coremltools.models import datatypes
 
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 import topi
 import topi.testing

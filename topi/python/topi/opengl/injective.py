@@ -16,10 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
-import tvm
-from .. import generic
+from tvm import te
 
-@generic.schedule_injective_from_existing.register(["opengl"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -38,14 +36,13 @@ def schedule_injective_from_existing(sch, out):
     sch[out].opengl()
     return sch
 
-@generic.schedule_injective.register(["opengl"])
 def schedule_injective(outs):
     """Schedule for injective op.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of injective in the format
           of an array of tensors.
 
     Returns
@@ -53,10 +50,10 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    tvm.schedule.AutoInlineInjective(s)
+    te.schedule.AutoInlineInjective(s)
     for out in outs:
         schedule_injective_from_existing(s, out)
     return s

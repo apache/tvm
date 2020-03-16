@@ -21,6 +21,7 @@
  * \brief Object type management system.
  */
 #include <dmlc/logging.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/runtime/object.h>
 #include <mutex>
 #include <string>
@@ -202,6 +203,11 @@ uint32_t Object::TypeKey2Index(const std::string& key) {
   return TypeContext::Global()->TypeKey2Index(key);
 }
 
+
+TVM_REGISTER_GLOBAL("runtime.ObjectHash")
+.set_body_typed([](ObjectRef obj) {
+  return static_cast<int64_t>(ObjectHash()(obj));
+});
 }  // namespace runtime
 }  // namespace tvm
 

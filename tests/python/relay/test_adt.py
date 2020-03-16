@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
@@ -23,7 +24,7 @@ from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_val
 
 import numpy as np
 
-mod = relay.Module()
+mod = tvm.IRModule()
 p = Prelude(mod)
 add_nat_definitions(p)
 
@@ -112,6 +113,38 @@ def tree_to_dict(t):
         l = tree_to_dict(subtree)
         ret['children'].append(l)
     return ret
+
+
+def vmobj_to_list(o, dtype="float32"):
+    if isinstance(o, tvm.nd.NDArray):
+        return [o.asnumpy().tolist()]
+    elif isinstance(o, tvm.runtime.container.ADT):
+        if len(o) == 0:
+            tensor_nil = p.get_var("tensor_nil", dtype=dtype)
+            if tensor_nil.tag == o.tag:
+                return [0]
+            return []
+
+        result = []
+        for f in o:
+            result.extend(vmobj_to_list(f, dtype))
+        return result
+    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
+        if o.constructor.name_hint == 'Cons':
+            tl = vmobj_to_list(o.fields[1], dtype)
+            hd = vmobj_to_list(o.fields[0], dtype)
+            hd.extend(tl)
+            return hd
+        elif o.constructor.name_hint == 'Nil':
+            return []
+        elif 'tensor_nil' in o.constructor.name_hint:
+            return [0]
+        elif 'tensor' in o.constructor.name_hint:
+            return [o.fields[0].asnumpy()]
+        else:
+            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
+    else:
+        raise RuntimeError("Unknown object type: %s" % type(o))
 
 
 # turns a scalar-valued relay tensor value into a python number
@@ -685,130 +718,118 @@ def test_iterate():
     res = intrp.evaluate(relay.Function([], expr)())
     assert count(res) == 12
 
+
+def check_tensor_array(ta_mod, ref_res, *args, dtype="float32",
+                       ta_ctx=tvm.cpu(), target="llvm", rtol=1e-5):
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=ta_mod, ctx=ta_ctx, target=target)
+        result = ex.evaluate()(*args)
+        got = vmobj_to_list(result, dtype)
+        tvm.testing.assert_allclose(ref_res, got, rtol=rtol, atol=rtol)
+
+
 def test_tensor_expand_dims():
     def run(dtype):
         x = relay.var('x')
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         expand_dims_func = p.get_var('tensor_expand_dims', dtype)
         tensor1 = p.get_var('tensor1', dtype)
         mod["main"] = relay.Function([x], expand_dims_func(tensor1(x)))
-        for kind in ["debug"]:
-            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-            x_np = np.random.uniform(size=(1,)).astype(dtype)
-            result = ex.evaluate()(x_np)
-            got = vmobj_to_list(result)
-            expected = [np.expand_dims(x_np, axis=0)]
-            tvm.testing.assert_allclose(expected, got)
+        x_np = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
+        expected = [np.expand_dims(x_np, axis=0)]
+        check_tensor_array(mod, expected, x_np)
     run('float32')
     run('int32')
+
 
 def test_tensor_array_constructor():
     def run(dtype):
         x = relay.var('x')
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         tensor_array = p.get_var('tensor_array', dtype)
         mod["main"] = relay.Function([x], tensor_array(x))
-        for kind in ["debug"]:
-            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-            result = ex.evaluate()(5)
-            got = vmobj_to_list(result)
-            expected = np.array([0, 0, 0, 0, 0])
-            tvm.testing.assert_allclose(expected, got)
+        expected = np.array([0, 0, 0, 0, 0])
+        check_tensor_array(mod, expected, 5, dtype=dtype)
     run('float32')
     run('int32')
 
+
 def test_tensor_array_read():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         l = relay.var('l')
         i = relay.var('i')
         read_func = p.get_var('tensor_array_read', dtype)
         tensor_array = p.get_var('tensor_array', dtype)
         mod["main"] = relay.Function([l, i], read_func(tensor_array(l), i))
-        for kind in ["debug"]:
-            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-            result = ex.evaluate()(10, 5)
-            got = vmobj_to_list(result)
-            expected = [0]
-            tvm.testing.assert_allclose(expected, got)
+        expected = [0]
+        check_tensor_array(mod, expected, *(1, 0), dtype=dtype)
+        check_tensor_array(mod, expected, *(5, 1), dtype=dtype)
     run('float32')
     run('int32')
 
-def vmobj_to_list(o):
-    if isinstance(o, tvm.relay.backend.vmobj.Tensor):
-        return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
-        return [o.asnumpy()]
-    elif isinstance(o, tvm.relay.backend.vmobj.ADT):
-        result = []
-        for f in o:
-            result.extend(vmobj_to_list(f))
-        return result
-    elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
-        if o.constructor.name_hint == 'Cons':
-            tl = vmobj_to_list(o.fields[1])
-            hd = vmobj_to_list(o.fields[0])
-            hd.extend(tl)
-            return hd
-        elif o.constructor.name_hint == 'Nil':
-            return []
-        elif 'tensor_nil' in o.constructor.name_hint:
-            return [0]
-        elif 'tensor' in o.constructor.name_hint:
-            return [o.fields[0].asnumpy()]
-        else:
-            raise RuntimeError("Unknown object type: %s" % o.constructor.name_hint)
-    else:
-        raise RuntimeError("Unknown object type: %s" % type(o))
+
+def test_tensor_array_write():
+    def run(dtype):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        tensor_array = p.get_var('tensor_array', dtype)
+        init_tensor_array = tensor_array(relay.const(2))
+        write_func = p.get_var('tensor_array_write', dtype)
+        tensor1 = p.get_var('tensor1', dtype)
+        tensor_array1 = write_func(init_tensor_array, relay.const(0),
+                                   tensor1(v1))
+        tensor_array2 = write_func(tensor_array1, relay.const(1), tensor1(v2))
+        mod["main"] = relay.Function([v1, v2], tensor_array2)
+        expected = [3, 7]
+        check_tensor_array(mod, expected, *(3, 7), dtype=dtype)
+    run('float32')
+    run('int32')
+
 
 def test_tensor_array_stack():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         tensor_array = p.get_var('tensor_array', dtype)
         tensor1 = p.get_var('tensor1', dtype)
         write = p.get_var('tensor_array_write', dtype)
         stack = p.get_var('tensor_array_stack', dtype)
-        l = relay.var('l')
         v = relay.var('v')
         init_tensor_array = tensor_array(relay.const(3))
         tensor_array1 = write(init_tensor_array, relay.const(0), tensor1(v))
-        tensor_array2 = write(tensor_array1, relay.const(1), tensor1(v))    
-        tensor_array3 = write(tensor_array2, relay.const(2), tensor1(v))        
+        tensor_array2 = write(tensor_array1, relay.const(1), tensor1(v))
+        tensor_array3 = write(tensor_array2, relay.const(2), tensor1(v))
         tensor_array4 = stack(tensor_array3)
         mod["main"] = relay.Function([v], tensor_array4)
-        for kind in ["debug"]:
-            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-            t = np.random.uniform(size=(1,)).astype(dtype)
-            result = ex.evaluate()(t)
-            res = vmobj_to_list(result)
-            expected = [np.stack([t, t, t])]
-            tvm.testing.assert_allclose(expected, res)
+        t = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
+        expected = [np.stack([t, t, t])]
+        check_tensor_array(mod, expected, t, dtype=dtype)
     run('float32')
     run('int32')
 
+
 def test_tensor_array_unstack():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         unstack_tensor1 = p.get_var('tensor_array_unstack_tensor1', dtype)
         v = relay.var('v')
         mod["main"] = relay.Function([v], unstack_tensor1(v))
-        for kind in ["debug"]:
-            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-            t = np.random.uniform(size=(1,)).astype(dtype)
-            result = ex.evaluate()(t)
-            res = vmobj_to_list(result)
-            tvm.testing.assert_allclose(t, res)
+        t = np.random.uniform(low=0.0, high=8.0, size=(1,)).astype(dtype)
+        check_tensor_array(mod, t, t, dtype=dtype)
     run('float32')
     run('int32')
 
+
 def test_tensor_take():
     def run(dtype):
-        mod = relay.Module()
+        mod = tvm.IRModule()
         p = Prelude(mod)
         take = p.get_var('tensor_take', dtype)
         tensor2 = p.get_var('tensor2', dtype)
@@ -816,15 +837,149 @@ def test_tensor_take():
         lower = relay.var('lower')
         upper = relay.var('upper')
         mod["main"] = relay.Function([v, lower, upper], take(tensor2(v), lower, upper))
-        for kind in ["debug"]:
-            ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-            t = np.random.uniform(size=(10, 10)).astype(dtype)
-            result = ex.evaluate()(t, 2, 5)
-            res = vmobj_to_list(result)
-            expected = [np.take(t, range(2, 5), axis=0)]
-            tvm.testing.assert_allclose(expected, res)
+        v_data = np.random.uniform(low=0.0, high=8.0, size=(10, 10)).astype(dtype)
+        expected = [np.take(v_data, range(2, 5), axis=0)]
+        check_tensor_array(mod, expected, *(v_data, 2, 5), dtype=dtype)
+        expected = [np.take(v_data, range(0, 9), axis=0)]
+        check_tensor_array(mod, expected, *(v_data, 0, 9), dtype=dtype)
     run('float32')
     run('int32')
+
+
+def test_tensor_concatenate():
+    def run(dtype):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        concat = p.get_var('tensor_concatenate', dtype)
+        tensor1 = p.get_var('tensor1', dtype)
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        mod["main"] = relay.Function([v1, v2], concat(tensor1(v1),
+                                                      tensor1(v2)))
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(5,)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(5,)).astype(dtype)
+        expected = [np.concatenate((v1_data, v2_data))]
+        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
+    run('float32')
+    run('int32')
+
+
+def test_tensor_array_concat():
+    def run(dtype):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        tensor_array = p.get_var('tensor_array', dtype)
+        tensor_array1 = tensor_array(relay.const(2))
+        write_func = p.get_var('tensor_array_write', dtype)
+        concat_func = p.get_var('tensor_array_concat', dtype)
+        tensor1 = p.get_var('tensor2', dtype)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor1(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor1(v2))
+        tensor_array_concat = concat_func(tensor_array1)
+        mod["main"] = relay.Function([v1, v2], tensor_array_concat)
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(1, 3)).astype(dtype)
+        expected = [np.concatenate((v1_data, v2_data), axis=0)]
+        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
+    run('float32')
+    run('int32')
+
+
+def test_tensor_array_scatter():
+    def run(dtype):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+
+        # tensor array
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        v3 = relay.var('v2')
+        tensor_array = p.get_var('tensor_array', dtype)
+        tensor_array1 = tensor_array(relay.const(3))
+        write_func = p.get_var('tensor_array_write', dtype)
+        scatter_func = p.get_var('tensor_array_scatter', dtype)
+        tensor2 = p.get_var('tensor2', dtype)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor2(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor2(v2))
+        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor2(v3))
+
+        # indices array
+        index = relay.var('index')
+
+        # values array
+        value_0 = relay.var('value_0')
+        value_1 = relay.var('value_1')
+        values_array = tensor_array(relay.const(2))
+        values_array = write_func(values_array, relay.const(0),
+                                  tensor2(value_0))
+        values_array = write_func(values_array, relay.const(1),
+                                  tensor2(value_1))
+
+        # create the scatter function
+        tensor_array_scatter = scatter_func(tensor_array1, index, values_array)
+        mod["main"] = relay.Function([v1, v2, v3, index, value_0, value_1],
+                                     tensor_array_scatter)
+
+        # initialize and check
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v3_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        index_data = np.array([0, 1], dtype="int32")
+        val1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        val2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        expected = [val1_data, val2_data, v3_data]
+        check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
+                                            index_data, val1_data,
+                                            val2_data), dtype=dtype)
+    run('float32')
+    run('int32')
+
+
+def test_tensor_array_split():
+    def run(dtype):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+
+        # tensor array
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        v3 = relay.var('v2')
+        tensor_array = p.get_var('tensor_array', dtype)
+        tensor_array1 = tensor_array(relay.const(3))
+        write_func = p.get_var('tensor_array_write', dtype)
+        split_func = p.get_var('tensor_array_split', dtype)
+        tensor2 = p.get_var('tensor2', dtype)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor2(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor2(v2))
+        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor2(v3))
+
+        # value tensor
+        value = relay.var('value')
+
+        # lengths tensor
+        ta_len = relay.var('length')
+
+        # create the scatter function
+        tensor_array_split = split_func(tensor_array1, tensor2(value), ta_len)
+        mod["main"] = relay.Function([v1, v2, v3, value, ta_len],
+                                     tensor_array_split)
+
+        # initialize and check
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v3_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        value_data = np.random.uniform(low=0.0, high=8.0, size=(4, 3)).astype(dtype)
+        length_data = np.array([2, 2], dtype="int32")
+        expected = np.concatenate([value_data, v3_data])
+        expected = np.split(expected, indices_or_sections=[2, 4])
+        check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
+                                            value_data, length_data),
+                           dtype=dtype)
+    run('float32')
+    run('int32')
+
 
 if __name__ == "__main__":
     test_nat_constructor()
@@ -853,5 +1008,11 @@ if __name__ == "__main__":
     test_tensor_expand_dims()
     test_tensor_array_constructor()
     test_tensor_array_read()
+    test_tensor_array_write()
     test_tensor_array_stack()
     test_tensor_array_unstack()
+    test_tensor_take()
+    test_tensor_concatenate()
+    test_tensor_array_concat()
+    test_tensor_array_scatter()
+    test_tensor_array_split()

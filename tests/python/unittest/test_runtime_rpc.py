@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
+import tvm.testing
 import os
 import logging
 import time
@@ -33,9 +35,9 @@ def test_bigendian_rpc():
     if host is None:
         return
     def verify_rpc(remote, target, shape, dtype):
-        A = tvm.placeholder(shape, dtype=dtype)
-        B = tvm.compute(A.shape, lambda i: A[i]+tvm.const(1, A.dtype))
-        s = tvm.create_schedule(B.op)
+        A = te.placeholder(shape, dtype=dtype)
+        B = te.compute(A.shape, lambda i: A[i]+tvm.tir.const(1, A.dtype))
+        s = te.create_schedule(B.op)
         f = tvm.build(s, [A, B], target, name="myadd")
 
         ctx = remote.cpu(0)
@@ -57,7 +59,7 @@ def test_bigendian_rpc():
 
 
 def test_rpc_simple():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     @tvm.register_func("rpc.test.addone")
     def addone(x):
@@ -78,14 +80,14 @@ def test_rpc_simple():
     try:
         f3("abc")
         assert False
-    except tvm.TVMError as e:
+    except tvm.error.TVMError as e:
         assert "abc" in str(e)
 
     f2 = client.get_function("rpc.test.strcat")
     assert f2("abc", 11) == "abc:11"
 
 def test_rpc_array():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     x = np.random.randint(0, 10, size=(3, 4))
     @tvm.register_func("rpc.test.remote_array_func")
@@ -100,7 +102,7 @@ def test_rpc_array():
     fremote(r_cpu)
 
 def test_rpc_file_exchange():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
@@ -110,18 +112,18 @@ def test_rpc_file_exchange():
     assert(rev == blob)
 
 def test_rpc_remote_module():
-    if not tvm.module.enabled("rpc"):
+    if not tvm.runtime.enabled("rpc"):
         return
     server = rpc.Server("localhost")
     client = rpc.connect(server.host, server.port)
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
 
     def check_remote(remote):
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         temp = util.tempdir()
@@ -146,18 +148,18 @@ def test_rpc_remote_module():
         runtime initializes. We leave it as an example
         on how to do rpc when we want to do linking on remote.
         """
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
-        if not tvm.module.enabled("opencl"):
+        if not tvm.runtime.enabled("opencl"):
             print("Skip because opencl is not enabled")
             return
         temp = util.tempdir()
         ctx = remote.cl(0)
-        s = tvm.create_schedule(B.op)
+        s = te.create_schedule(B.op)
         xo, xi = s[B].split(B.op.axis[0], factor=32)
-        s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-        s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+        s[B].bind(xo, te.thread_axis("blockIdx.x"))
+        s[B].bind(xi, te.thread_axis("threadIdx.x"))
         f = tvm.build(s, [A, B], "opencl", target_host="llvm", name="myadd")
         # Option 1: save modules separately and rely on remote compiler
         path_o = temp.relpath("myadd.o")
@@ -210,7 +212,7 @@ def test_rpc_return_ndarray():
         if name == "get_arr":
             return lambda : nd
         elif name == "ref_count":
-            return lambda : tvm._api_internal._ndarray_use_count(nd)
+            return lambda : tvm.testing.ndarray_use_count(nd)
         elif name == "get_elem":
             return lambda idx: nd.asnumpy()[idx]
         elif name == "get_arr_elem":

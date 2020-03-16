@@ -16,7 +16,7 @@
 # under the License.
 """
 Using External Libraries in Relay
-================================
+=================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This is a short tutorial on how to use external libraries such as cuDNN, or cuBLAS with Relay.
@@ -32,6 +32,7 @@ For example, to use cuDNN, USE_CUDNN option in `cmake/config.cmake` needs to be 
 To begin with, we import Relay and TVM.
 """
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import graph_runtime as runtime
 from tvm import relay

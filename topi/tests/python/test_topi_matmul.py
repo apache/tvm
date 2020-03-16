@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 import topi
 from topi.util import get_const_tuple
 
@@ -27,12 +28,12 @@ def with_tvm(lam, *args):
     pls = []     # placeholders
     vals_nd = [] # initial values
     for i,arg in enumerate(args):
-        pls.append(tvm.placeholder(arg.shape, name='pl'+str(i)))
+        pls.append(te.placeholder(arg.shape, name='pl'+str(i)))
         vals_nd.append(tvm.nd.array(arg, ctx))
 
     out = lam(*pls)
     out_nd = tvm.nd.array(np.zeros(get_const_tuple(out.shape), dtype=out.dtype), ctx)
-    s = tvm.create_schedule([out.op])
+    s = te.create_schedule([out.op])
     m = tvm.build(s, pls + [out], "llvm")
     m(*(vals_nd+[out_nd]))
     return out_nd.asnumpy()

@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """
+.. _tune_relay_arm:
+
 Auto-tuning a convolutional network for ARM CPU
 ===============================================
 **Author**: `Lianmin Zheng <https://github.com/merrymercy>`_, `Zhao Wu <https://github.com/FrozenGene>`_, `Eddie Yan <https://github.com/eqy>`_
@@ -60,6 +62,7 @@ import os
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm import relay
 import tvm.relay.testing
@@ -99,7 +102,7 @@ def get_network(name, batch_size):
         mod, params = relay.frontend.from_mxnet(block, shape={'data': input_shape}, dtype=dtype)
         net = mod["main"]
         net = relay.Function(net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs)
-        mod = relay.Module.from_expr(net)
+        mod = tvm.IRModule.from_expr(net)
     else:
         raise ValueError("Unsupported network: " + name)
 
@@ -151,7 +154,7 @@ def get_network(name, batch_size):
 # * For Android:
 #   Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
 #   install the TVM RPC APK on the android device. Make sure you can pass the android rpc test.
-#   Then you have already registred your device. During tuning, you have to go to developer option
+#   Then you have already registered your device. During tuning, you have to go to developer option
 #   and enable "Keep screen awake during changing" and charge your phone to make it stable.
 #
 # After registering devices, we can confirm it by querying rpc_tracker
@@ -248,30 +251,7 @@ def tune_tasks(tasks,
                n_trial=1000,
                early_stopping=None,
                log_filename='tuning.log',
-               use_transfer_learning=True,
-               try_winograd=True,
-               try_spatial_pack_depthwise=False):
-    if try_winograd:
-        for i in range(len(tasks)):
-            try:  # try winograd template
-                tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
-                                          tasks[i].target, tasks[i].target_host, 'winograd')
-                input_channel = tsk.workload[1][1]
-                if input_channel >= 64:
-                    tasks[i] = tsk
-            except Exception:
-                pass
-
-    # if we want to use spatial pack for depthwise convolution
-    if try_spatial_pack_depthwise:
-        tuner = 'xgb_knob'
-        for i in range(len(tasks)):
-            if tasks[i].name == 'topi_nn_depthwise_conv2d_nchw':
-                tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
-                                          tasks[i].target, tasks[i].target_host,
-                                          'contrib_spatial_pack')
-                tasks[i] = tsk
-
+               use_transfer_learning=True):
     # create tmp log file
     tmp_log_file = log_filename + ".tmp"
     if os.path.exists(tmp_log_file):
@@ -299,13 +279,14 @@ def tune_tasks(tasks,
                 tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
         # do tuning
-        n_trial = min(n_trial, len(tsk.config_space))
-        tuner_obj.tune(n_trial=n_trial,
+        tsk_trial = min(n_trial, len(tsk.config_space))
+        tuner_obj.tune(n_trial=tsk_trial,
                        early_stopping=early_stopping,
                        measure_option=measure_option,
                        callbacks=[
-                           autotvm.callback.progress_bar(n_trial, prefix=prefix),
-                           autotvm.callback.log_to_file(tmp_log_file)])
+                           autotvm.callback.progress_bar(tsk_trial, prefix=prefix),
+                           autotvm.callback.log_to_file(tmp_log_file)
+                       ])
 
     # pick best records to a cache file
     autotvm.record.pick_best(tmp_log_file, log_filename)
@@ -321,7 +302,7 @@ def tune_and_evaluate(tuning_opt):
     mod, params, input_shape, _ = get_network(network, batch_size=1)
     tasks = autotvm.task.extract_from_program(mod["main"], target=target,
                                               params=params,
-                                              ops=(relay.op.nn.conv2d,))
+                                              ops=(relay.op.get("nn.conv2d"),))
 
     # run tuning tasks
     print("Tuning...")

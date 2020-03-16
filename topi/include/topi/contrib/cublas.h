@@ -24,12 +24,13 @@
 #ifndef TOPI_CONTRIB_CUBLAS_H_
 #define TOPI_CONTRIB_CUBLAS_H_
 
-#include "tvm/operation.h"
-#include "topi/detail/extern.h"
+#include <tvm/te/operation.h>
+#include <topi/detail/extern.h>
 
 namespace topi {
 namespace contrib {
 using namespace tvm;
+using namespace tvm::te;
 using namespace topi::detail;
 /*!
 * \brief Create an op that multiplies lhs and rhs with cuBLAS
@@ -52,7 +53,7 @@ inline Tensor cublas_matmul(const Tensor& lhs,
     { { n, m } }, { lhs->dtype }, { lhs, rhs },
     [&](Array<Buffer> ins, Array<Buffer> outs) {
       return call_packed({
-        Expr("tvm.contrib.cublas.matmul"),
+        PrimExpr("tvm.contrib.cublas.matmul"),
         pack_buffer(ins[0]),
         pack_buffer(ins[1]),
         pack_buffer(outs[0]),
@@ -62,7 +63,7 @@ inline Tensor cublas_matmul(const Tensor& lhs,
 }
 
 /*!
-* \brief Create an op that multiplies batch matrices 
+* \brief Create an op that multiplies batch matrices
 *        lhs and rhs with cuBLAS
 *
 * \param lhs The left matrix operand
@@ -84,7 +85,7 @@ inline Tensor cublas_batch_matmul(const Tensor& lhs,
     { { b, n, m } }, { lhs->dtype }, { lhs, rhs },
     [&](Array<Buffer> ins, Array<Buffer> outs) {
       return call_packed({
-        Expr("tvm.contrib.cublas.batch_matmul"),
+        PrimExpr("tvm.contrib.cublas.batch_matmul"),
         pack_buffer(ins[0]),
         pack_buffer(ins[1]),
         pack_buffer(outs[0]),

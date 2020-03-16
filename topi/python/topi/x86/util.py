@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common x86 related utilities"""
-from __future__ import absolute_import as _abs
 import tvm
 
+
 def get_fp32_len():
-    mcpu = tvm.target.current_target().mcpu
+    mcpu = tvm.target.Target.current().mcpu
     fp32_vec_len = 8
-    if mcpu == 'skylake-avx512' or mcpu == 'cascadelake':
+    if mcpu in ('skylake-avx512', 'cascadelake'):
         fp32_vec_len = 16
     return fp32_vec_len

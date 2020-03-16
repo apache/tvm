@@ -31,6 +31,7 @@ from PIL import Image
 import keras
 from keras.applications.mobilenet_v2 import MobileNetV2
 import tvm
+from tvm import te
 import tvm.relay as relay
 from tvm import rpc
 from tvm.contrib import util, ndk, graph_runtime as runtime
@@ -78,7 +79,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   echo 'export PYTHONPATH=/workspace/python:/workspacem/topi/python:/workspace/nnvm/python/:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
+#   echo 'export PYTHONPATH=/workspace/python:/workspacem/topi/python:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
 #   source ~/.bashrc
 
 #################################################################

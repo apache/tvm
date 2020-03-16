@@ -16,16 +16,17 @@
 # under the License.
 import numpy as np
 import math
+import onnx
+from onnx import helper, TensorProto, mapping
 import torch
 import torchvision
 import topi
 import topi.testing
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.contrib import graph_runtime
-from nnvm.testing.config import ctx_list
-import onnx
-from onnx import helper, TensorProto, mapping
+from tvm.relay.testing.config import ctx_list
 import scipy
 
 
@@ -56,6 +57,12 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
     # set inputs
     if isinstance(input_data, list):
         for i, e in enumerate(input_names):
+            # Its possible for some onnx inputs to not be needed in the tvm
+            # module, confirm its present before setting.
+            try:
+                m.get_input(input_names[i])
+            except:
+                continue
             m.set_input(input_names[i], tvm.nd.array(
                 input_data[i].astype(input_data[i].dtype)))
     else:
@@ -77,11 +84,14 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         return tvm_output.asnumpy()
 
 
-def get_onnxruntime_output(model, x, dtype='float32'):
+def get_onnxruntime_output(model, inputs, dtype='float32'):
     import onnxruntime.backend
     rep = onnxruntime.backend.prepare(model, 'CPU')
-    x = x.astype(dtype)
-    ort_out = rep.run(x)[0]
+    if isinstance(inputs, list) and len(inputs) > 1:
+        ort_out = rep.run(inputs)
+    else:
+        x = inputs.astype(dtype)
+        ort_out = rep.run(x)[0]
     return ort_out
 
 
@@ -93,23 +103,6 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
         tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
-
-
-def verify_super_resolution_example():
-    verify_onnx_forward_impl(
-        super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
-
-
-def verify_squeezenet1_1():
-    verify_onnx_forward_impl(squeezenet1_1, (1, 3, 224, 224), (1, 1000))
-
-
-def verify_lenet():
-    verify_onnx_forward_impl(lenet, (1, 1, 28, 28), (1, 10))
-
-
-def verify_resnet18():
-    verify_onnx_forward_impl(resnet18_1_0, (1, 3, 224, 224), (1, 1000))
 
 
 def test_reshape():
@@ -140,6 +133,46 @@ def test_reshape():
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
     tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
+
+
+def test_expand():
+
+    def _test_expand(name, data, shape, ref_data):
+        shape_array = np.array(shape)
+        shape_node = onnx.helper.make_node('Constant',
+                                    inputs=[],
+                                    outputs=['shape'],
+                                    value=onnx.helper.make_tensor(name = 'const_tensor',
+                                                                  data_type = onnx.TensorProto.INT32,
+                                                                  dims = shape_array.shape,
+                                                                  vals = shape_array.flatten().astype('int32')))
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+
+        graph = helper.make_graph([shape_node, expand_node],
+                                "expand_test",
+                                inputs = [helper.make_tensor_value_info("in",
+                                                TensorProto.FLOAT, list(data.shape))],
+                                outputs = [helper.make_tensor_value_info("out",
+                                                TensorProto.FLOAT, list(ref_data.shape))])
+
+        model = helper.make_model(graph, producer_name=name)
+
+        for target, ctx in ctx_list():
+            tvm_out = get_tvm_output(model, data, target, ctx, ref_data.shape, 'float32')
+
+        tvm.testing.assert_allclose(ref_data, tvm_out)
+
+    in_shape = (3, 1)
+    shape = (3, 4)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = np.tile(data, 4)
+    _test_expand('expand_with_dim_unchanged_test', data, shape, ref_data)
+
+    in_shape = (3, 1)
+    shape = (2, 1, 6)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = data * np.ones(shape, dtype=np.float32)
+    _test_expand('expand_with_dim_changed_test', data, shape, ref_data)
 
 
 def verify_depth_to_space(inshape, outshape, mode, blockSize):
@@ -1658,6 +1691,22 @@ def test_where():
     outdata = np.where(condition, x, y)
     verify_where(condition, x, y, TensorProto.FLOAT, outdata)
 
+    x = np.array([2], dtype=np.float32)
+    y = np.array(1, dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
+    condition = np.array(1, dtype=np.bool)
+    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    y = np.array([[5, 6], [7, 8]], dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
+    x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    y = np.array([[1], [7]], dtype=np.float32)
+    outdata = np.where(condition, x, y)
+    verify_where(condition, x, y, TensorProto.FLOAT, outdata)
+
 
 def verify_or(indata, dtype):
     x = indata[0].astype(dtype)
@@ -1706,10 +1755,465 @@ def test_or():
     verify_or(indata=[x, y], dtype=bool)
 
 
+def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilations, auto_pad="NOTSET"):
+    if padding is None:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                auto_pad=auto_pad)
+    else:
+        node = helper.make_node('Conv',
+                                inputs=['x', 'W'],
+                                outputs=['y'],
+                                kernel_shape=kernel_shape,
+                                # Default values for other attributes:
+                                strides=strides,
+                                dilations=dilations,
+                                # groups=1
+                                pads=padding)
+
+    graph = helper.make_graph([node],
+                              'conv_test',
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+
+    model = helper.make_model(graph, producer_name='conv_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=x_shape).astype('float32')
+        W = np.random.uniform(size=w_shape).astype('float32')
+        tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
+        onnx_out = get_onnxruntime_output(model, [x, W], 'float32')[0]
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_conv():
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+    for D in [1, 2, 3]:
+        # Convolution with padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    2 * repeat(1, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D))
+        # Convolution without padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    2 * repeat(0, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D))
+        # Convolution with autopadding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    None,
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    auto_pad="SAME_UPPER")
+        # Convolution with non uniform stride
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    None,
+                    repeat(3, D),
+                    repeat(2, D),
+                    repeat(1, D),
+                    auto_pad="SAME_UPPER")
+        # Convolution with dilation
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    2 * repeat(2, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(2, D))
+
+def verify_convtranspose(x_shape, w_shape, y_shape, p):
+    node = onnx.helper.make_node("ConvTranspose",
+                                 inputs=["x", "W"],
+                                 outputs=['y'],
+                                 strides=[3, 2],
+                                 group=1,
+                                 kernel_shape=[3, 3],
+                                 pads=p)
+
+    graph = helper.make_graph([node],
+                              'verify_convtranspose_test',
+                              inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                      helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_shape))],
+                              outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))])
+
+    model = helper.make_model(graph, producer_name='convtranspose_trest')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=x_shape).astype('float32')
+        W = np.random.uniform(size=w_shape).astype('float32')
+        tvm_out = get_tvm_output(model, [x, W], target, ctx, y_shape)
+        onnx_out = get_onnxruntime_output(model, [x, W], 'float32')[0]
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_convtranspose():
+    # Convolution Transpose with padding
+    # (1, 1, 3, 3) input tensor
+    # (1, 2, 3, 3) tensor for convolution weights
+    # (1, 2, 7, 3) output tensor
+    # [1, 2, 1, 2] list for pads
+    verify_convtranspose((1, 1, 3, 3), (1, 2, 3, 3), (1, 2, 7, 3), [1, 2, 1, 2])
+
+
+def test_unsqueeze_constant():
+    from torch.nn import Linear, Sequential, Module
+    class Flatten(Module):
+        def forward(self, input):
+            return input.view(input.size(0), -1)
+
+    import tempfile
+    with tempfile.NamedTemporaryFile() as fp:
+        file_name = fp.name
+        input_size = (1, 16, 32, 32)
+        dummy_input = torch.randn(*input_size)
+        layer = Sequential(Flatten(), Linear(16 * 32 * 32, 64))
+        torch.onnx.export(layer, dummy_input, file_name, export_params=True)
+
+        onnx_model = onnx.load(file_name)
+        relay.frontend.from_onnx(onnx_model, {'0': input_size})
+
+
+def verify_pooling(x_shape, kernel_shape, strides, pads, out_shape, mode, auto_pad="NOTSET"):
+    x_np = np.random.uniform(size=x_shape).astype('float32')
+
+    if mode == 'max':
+        node_type = "MaxPool"
+    elif mode == 'average':
+        node_type = "AveragePool"
+    else:
+        raise ValueError("Pool method {} is not supported.".format(mode))
+
+    if pads is None:
+        pool_node = helper.make_node(node_type,
+                                    inputs=["x"],
+                                    outputs=["y"],
+                                    kernel_shape=kernel_shape,
+                                    auto_pad=auto_pad,
+                                    strides=strides)
+    else:
+        pool_node = helper.make_node(node_type,
+                                    inputs=["x"],
+                                    outputs=["y"],
+                                    kernel_shape=kernel_shape,
+                                    pads=pads,
+                                    strides=strides)
+
+    graph = helper.make_graph([pool_node],
+                              "pooling_test",
+                              inputs=[helper.make_tensor_value_info("x",
+                                                                    TensorProto.FLOAT, list(x_shape))],
+                              outputs=[helper.make_tensor_value_info("y",
+                                                                     TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='pooling_test')
+
+    for target, ctx in ctx_list():
+        onnx_out = get_onnxruntime_output(model, x_np, 'float32')
+        tvm_out = get_tvm_output(
+            model, [x_np], target, ctx, out_shape)
+        tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-5, atol=1e-5)
+
+
+def test_pooling():
+    for mode in ['max', 'average']:
+        # Pool1D
+        verify_pooling(x_shape=[1, 1, 32],
+                       kernel_shape=[3],
+                       strides=[1],
+                       pads=[1, 1],
+                       out_shape=[1, 1, 32],
+                       mode=mode)
+        # Pool2D
+        verify_pooling(x_shape=[1, 1, 32, 32],
+                       kernel_shape=[3, 3],
+                       strides=[1, 1],
+                       pads=[1, 1, 1, 1],
+                       out_shape=[1, 1, 32, 32],
+                       mode=mode)
+
+        # Pool1D with stride
+        verify_pooling(x_shape=[1, 1, 32],
+                       kernel_shape=[3],
+                       strides=[2],
+                       pads=[1, 1],
+                       out_shape=[1, 1, 16],
+                       mode=mode)
+        # Pool2D with stride
+        verify_pooling(x_shape=[1, 1, 32, 32],
+                       kernel_shape=[3, 3],
+                       strides=[2, 2],
+                       pads=[1, 1, 1, 1],
+                       out_shape=[1, 1, 16, 16],
+                       mode=mode)
+
+        # Pool1D with stride and autopadding
+        verify_pooling(x_shape=[1, 1, 32],
+                       kernel_shape=[3],
+                       strides=[2],
+                       pads=None,
+                       out_shape=[1, 1, 16],
+                       mode=mode,
+                       auto_pad='SAME_UPPER')
+        # Pool2D with stride and autopadding
+        verify_pooling(x_shape=[1, 1, 32, 32],
+                       kernel_shape=[3, 3],
+                       strides=[2, 2],
+                       pads=None,
+                       out_shape=[1, 1, 16, 16],
+                       mode=mode,
+                       auto_pad='SAME_UPPER')
+
+
+def verify_lstm(seq_length,
+                batch_size,
+                input_size,
+                hidden_size,
+                use_bias=False,
+                activations=None,
+                alphas=None,
+                betas=None,
+                use_initial_state=False,
+                use_peep=False):
+    x_np = np.random.uniform(size=(seq_length, batch_size, input_size)).astype('float32')
+    w_np = np.random.uniform(size=(1, 4 * hidden_size, input_size)).astype('float32')
+    r_np = np.random.uniform(size=(1, 4 * hidden_size, hidden_size)).astype('float32')
+    input_names = ["X", "W", "R"]
+    input_tensors = [
+        helper.make_tensor_value_info("X", TensorProto.FLOAT, list(x_np.shape)),
+        helper.make_tensor_value_info("W", TensorProto.FLOAT, list(w_np.shape)),
+        helper.make_tensor_value_info("R", TensorProto.FLOAT, list(r_np.shape))
+    ]
+    input_values = [x_np, w_np, r_np]
+
+    if use_bias:
+        b_np = np.random.uniform(size=(1, 8 * hidden_size)).astype('float32')
+        input_names.append("B")
+        input_tensors.append(
+            helper.make_tensor_value_info("B", TensorProto.FLOAT, [1, 8 * hidden_size]))
+        input_values.append(b_np)
+
+    if use_initial_state:
+        assert use_bias == True, "Initial states must have bias specified."
+        sequence_np = np.repeat(seq_length, batch_size).astype('int32')
+        input_names.append("sequence_lens")
+        input_tensors.append(helper.make_tensor_value_info("sequence_lens", TensorProto.INT32, [batch_size]))
+        input_values.append(sequence_np)
+
+        initial_h_np = np.random.uniform(size=(1, batch_size, hidden_size)).astype('float32')
+        input_names.append("initial_h")
+        input_tensors.append(
+            helper.make_tensor_value_info("initial_h", TensorProto.FLOAT,
+                                          [1, batch_size, hidden_size]))
+        input_values.append(initial_h_np)
+
+        initial_c_np = np.random.uniform(size=(1, batch_size, hidden_size)).astype('float32')
+        input_names.append("initial_c")
+        input_tensors.append(
+            helper.make_tensor_value_info("initial_c", TensorProto.FLOAT,
+                                          [1, batch_size, hidden_size]))
+        input_values.append(initial_c_np)
+
+    if use_peep:
+        assert use_initial_state == True, "Peepholes require initial state to be specified."
+        p_np = np.random.uniform(size=(1, 3 * hidden_size)).astype('float32')
+        input_names.append("P")
+        input_tensors.append(
+            helper.make_tensor_value_info("P", TensorProto.FLOAT, [1, 3 * hidden_size]))
+        input_values.append(p_np)
+
+    Y_shape = [seq_length, 1, batch_size, hidden_size]
+    Y_h_shape = [1, batch_size, hidden_size]
+    Y_c_shape = [1, batch_size, hidden_size]
+
+    if activations is None:
+        lstm_node = helper.make_node(
+            'LSTM', inputs=input_names, outputs=["Y", "Y_h", "Y_c"], hidden_size=hidden_size)
+    elif alphas is None:
+        lstm_node = helper.make_node(
+            'LSTM',
+            inputs=input_names,
+            outputs=["Y", "Y_h", "Y_c"],
+            hidden_size=hidden_size,
+            activations=activations)
+    else:
+        lstm_node = helper.make_node(
+            'LSTM',
+            inputs=input_names,
+            outputs=["Y", "Y_h", "Y_c"],
+            hidden_size=hidden_size,
+            activations=activations,
+            activation_alpha=alphas,
+            activation_beta=betas)
+
+    graph = helper.make_graph([lstm_node],
+                              "lstm_test",
+                              inputs=input_tensors,
+                              outputs=[
+                                  helper.make_tensor_value_info("Y", TensorProto.FLOAT,
+                                                                list(Y_shape)),
+                                  helper.make_tensor_value_info("Y_h", TensorProto.FLOAT,
+                                                                list(Y_h_shape)),
+                                  helper.make_tensor_value_info("Y_c", TensorProto.FLOAT,
+                                                                list(Y_c_shape))
+                              ])
+
+    model = helper.make_model(graph, producer_name='lstm_test')
+
+    for target, ctx in ctx_list():
+        onnx_out = get_onnxruntime_output(model, input_values, 'float32')
+        tvm_out = get_tvm_output(
+            model,
+            input_values,
+            target,
+            ctx, [Y_shape, Y_h_shape, Y_c_shape],
+            output_dtype=['float32', 'float32', 'float32'])
+        for o_out, t_out in zip(onnx_out, tvm_out):
+            tvm.testing.assert_allclose(o_out, t_out, rtol=5e-3, atol=5e-3)
+
+
+def test_lstm():
+    # No bias.
+    verify_lstm(seq_length=2, batch_size=1, input_size=16, hidden_size=32, use_bias=False)
+    # large batch.
+    verify_lstm(seq_length=4, batch_size=8, input_size=16, hidden_size=32, use_bias=True)
+    # Non power of two.
+    verify_lstm(seq_length=3, batch_size=3, input_size=16, hidden_size=40, use_bias=True)
+    # Long sequence.
+    verify_lstm(seq_length=8, batch_size=1, input_size=16, hidden_size=32, use_bias=True)
+    # Large hidden.
+    verify_lstm(seq_length=2, batch_size=1, input_size=16, hidden_size=128, use_bias=True)
+    # Large input.
+    verify_lstm(seq_length=2, batch_size=1, input_size=64, hidden_size=32, use_bias=True)
+
+    # Different activation testing.
+    # Default value hardsigmoid.
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'Tanh', 'Tanh'])
+    # Multiple parameterized activations.
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'LeakyRelu', 'Tanh'],
+        alphas=[2.0, 0.5],
+        betas=[.3])
+    # All parameterized with new Affine activation.
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=False,
+        activations=['HardSigmoid', 'LeakyRelu', 'Affine'],
+        alphas=[2.0, 0.5, 0.8],
+        betas=[.3, 0.1])
+
+    # Testing with initial state and peepholes
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        use_initial_state=True)
+    verify_lstm(
+        seq_length=2,
+        batch_size=1,
+        input_size=16,
+        hidden_size=32,
+        use_bias=True,
+        use_initial_state=True,
+        use_peep=True)
+
+
+def test_resize():
+    def make_constant_node(name, data_type, dims, vals):
+        return helper.make_node('Constant',
+                                inputs=[],
+                                outputs=[name],
+                                value=helper.make_tensor(name=name,
+                                                         data_type=data_type,
+                                                         dims=dims,
+                                                         vals=vals))
+
+    def verify(ishape, oshape, scales, mode, coord_trans):
+        nodes = [
+            make_constant_node('roi', onnx.TensorProto.FLOAT, (0,), []),
+            make_constant_node('scales', onnx.TensorProto.FLOAT, (len(scales),), scales)
+        ]
+        input_names = ['X', 'roi', 'scales']
+        if oshape != []:
+            nodes.append(make_constant_node('sizes', onnx.TensorProto.INT64, (len(oshape),), oshape))
+            input_names.append('sizes')
+        nodes.append(helper.make_node(
+            'Resize',
+            inputs=input_names,
+            outputs=['Y'],
+            mode=mode,
+            coordinate_transformation_mode=coord_trans
+        ))
+
+        if oshape == []:
+            oshape = [round(dim * scale) for (dim, scale) in zip(ishape, scales)]
+
+        graph = helper.make_graph(nodes,
+                                  "resize_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, ishape)],
+                                  outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, oshape)])
+
+        model = helper.make_model(graph, producer_name='resize_test')
+
+        for target, ctx in ctx_list():
+            x = np.random.uniform(size=ishape).astype('float32')
+            onnx_out = get_onnxruntime_output(model, x, 'float32')
+            tvm_out = get_tvm_output(model, x, target, ctx, oshape, 'float32', opset=11)
+
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+
+    # upsampling
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 64, 64], [], "linear", "half_pixel")
+    # downsampling
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "align_corners")
+    verify([1, 16, 32, 32], [1, 16, 16, 16], [], "linear", "half_pixel")
+    # scales are specified instead of sizes
+    verify([1, 16, 32, 32], [], [1, 1, 2, 2], "nearest", "asymmetric")
+    verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
     test_shape()
+    test_expand()
     test_power()
     test_squeeze()
     test_unsqueeze()
@@ -1759,3 +2263,9 @@ if __name__ == '__main__':
     test_or()
     test_depth_to_space()
     test_space_to_depth()
+    test_conv()
+    test_convtranspose()
+    test_unsqueeze_constant()
+    test_pooling()
+    test_lstm()
+    test_resize()

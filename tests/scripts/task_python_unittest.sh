@@ -21,7 +21,8 @@ set -u
 
 export PYTHONPATH=python:topi/python
 
-rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
+# cleanup pycache
+find . -type f -path "*.pyc" | xargs rm -f
 
 TVM_FFI=ctypes python3 -m pytest -v tests/python/unittest
 make cython3

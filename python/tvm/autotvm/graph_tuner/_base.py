@@ -23,3 +23,5 @@
 INVALID_LAYOUT_TIME = 10e9
 
 MAX_OUTPUT_NODES = 16
+
+OPT_OUT_OP = ["layout_transform"]

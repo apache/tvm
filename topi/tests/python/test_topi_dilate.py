@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 import topi.testing
 import numpy as np
@@ -25,9 +26,9 @@ def test_dilate():
     ctx = tvm.cpu(0)
 
     def _test_dilate(input_size, strides):
-        Input = tvm.placeholder((input_size))
+        Input = te.placeholder((input_size))
         Output = topi.nn.dilate(Input, strides)
-        schedule = tvm.create_schedule(Output.op)
+        schedule = te.create_schedule(Output.op)
         input_np = np.random.uniform(size=input_size).astype(Input.dtype)
         output_np = topi.testing.dilate_python(input_np, strides)
         input_tvm = tvm.nd.array(input_np, ctx=ctx)

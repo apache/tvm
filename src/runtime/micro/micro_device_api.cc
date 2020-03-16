@@ -48,7 +48,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t nbytes,
                        size_t alignment,
-                       TVMType type_hint) final {
+                       DLDataType type_hint) final {
     ObjectPtr<MicroSession>& session = MicroSession::Current();
     void* data = session->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
     CHECK(data != nullptr) << "unable to allocate " << nbytes << " bytes on device heap";
@@ -72,7 +72,7 @@ class MicroDeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
-                      TVMType type_hint,
+                      DLDataType type_hint,
                       TVMStreamHandle stream) final {
     std::tuple<int, int> type_from_to(ctx_from.device_type, ctx_to.device_type);
     if (type_from_to == std::make_tuple(kDLMicroDev, kDLMicroDev)) {
@@ -123,7 +123,7 @@ class MicroDeviceAPI final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
+  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
     ObjectPtr<MicroSession>& session = MicroSession::Current();
 
     void* data = session->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();

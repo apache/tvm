@@ -19,6 +19,7 @@
 
 import logging
 import tvm
+from tvm import te
 from . import util
 from .. import rpc
 
@@ -79,17 +80,17 @@ def measure_bandwidth_sum(total_item, item_per_thread, stride,
     base_type = str(base_type) + str(bits)
     dtype = base_type if lanes == 1 else base_type + "x" + str(lanes)
 
-    k = tvm.reduce_axis((0, m), name="k")
+    k = te.reduce_axis((0, m), name="k")
 
-    x = tvm.placeholder((n,), dtype=dtype, name="x")
-    op = tvm.comm_reducer(lambda x, y: x*y, lambda t: tvm.const(1, dtype=t), name="sum")
-    y = tvm.compute((n // m,),
-                    lambda i: op(x[i // stride * stride * m + i % stride + k * stride], axis=k))
-    s = tvm.create_schedule(y.op)
+    x = te.placeholder((n,), dtype=dtype, name="x")
+    op = te.comm_reducer(lambda x, y: x*y, lambda t: tvm.tir.const(1, dtype=t), name="sum")
+    y = te.compute((n // m,),
+                   lambda i: op(x[i // stride * stride * m + i % stride + k * stride], axis=k))
+    s = te.create_schedule(y.op)
 
     yo, yi = s[y].split(y.op.axis[0], target.max_num_threads)
-    s[y].bind(yo, tvm.thread_axis("blockIdx.x"))
-    s[y].bind(yi, tvm.thread_axis("threadIdx.x"))
+    s[y].bind(yo, te.thread_axis("blockIdx.x"))
+    s[y].bind(yi, te.thread_axis("threadIdx.x"))
     s[y].unroll(k)
 
     try:
@@ -207,10 +208,10 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
     def extern(ins, outs):
         # pylint: disable=unused-argument
         """construct measurement function by building IR directly"""
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
-        bx = tvm.thread_axis("blockIdx.x")
-        tx = tvm.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
 
         ib.scope_attr(bx, "thread_extent", n // max_threads)
         ib.scope_attr(tx, "thread_extent", max_threads)
@@ -235,8 +236,8 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         ib.emit(outs[0].vstore(idx, b[0]))
         return ib.get()
 
-    y = tvm.extern((n,), [], extern, name="y", dtype=dtype)
-    s = tvm.create_schedule(y.op)
+    y = te.extern((n,), [], extern, name="y", dtype=dtype)
+    s = te.create_schedule(y.op)
 
     try:
         func = tvm.build(s, [y], target, target_host=target_host)

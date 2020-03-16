@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -306,7 +306,7 @@ void PostOrderDFSVisit(const std::vector<GNode>& heads,
 template<typename FVisit>
 inline void DFSVisit(const std::vector<NodeEntry>& heads,
                      FVisit fvisit) {
-  typedef const NodePtr* GNode;
+  typedef const ObjectPtr* GNode;
   std::vector<GNode> head_nodes(heads.size());
   std::transform(heads.begin(), heads.end(), head_nodes.begin(),
                  [](const NodeEntry& e)->GNode {

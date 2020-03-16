@@ -17,18 +17,34 @@
 """Common utilities for testing autotvm"""
 import time
 
+import numpy as np
+
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
+from tvm.autotvm.measure.measure import Runner
 
-@autotvm.template
+
+class DummyRunner(Runner):
+    def __init__(self):
+        super(DummyRunner, self).__init__(1, 1)
+
+    def run(self, measure_inputs, build_results):
+        return [MeasureResult((np.random.random(),), 0, 0.2, time.time())
+                for _ in range(len(measure_inputs))]
+
+    def get_build_kwargs(self):
+        return {}
+
+@autotvm.template("testing/matmul")
 def matmul(N, L, M, dtype):
-    A = tvm.placeholder((N, L), name='A', dtype=dtype)
-    B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    A = te.placeholder((N, L), name='A', dtype=dtype)
+    B = te.placeholder((L, M), name='B', dtype=dtype)
 
-    k = tvm.reduce_axis((0, L), name='k')
-    C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-    s = tvm.create_schedule(C.op)
+    k = te.reduce_axis((0, L), name='k')
+    C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+    s = te.create_schedule(C.op)
 
     # schedule
     y, x = s[C].op.axis
@@ -48,15 +64,15 @@ def matmul(N, L, M, dtype):
 
     return s, [A, B, C]
 
-@autotvm.template
+@autotvm.template("testing/bad_matmul")
 def bad_matmul(N, L, M, dtype):
-    if 'bad_device' in tvm.target.current_target().keys:
-        A = tvm.placeholder((N, L), name='A', dtype=dtype)
-        B = tvm.placeholder((L, M), name='B', dtype=dtype)
+    if 'bad_device' in tvm.target.Target.current().keys:
+        A = te.placeholder((N, L), name='A', dtype=dtype)
+        B = te.placeholder((L, M), name='B', dtype=dtype)
 
-        k = tvm.reduce_axis((0, L-1), name='k')
-        C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
-        s = tvm.create_schedule(C.op)
+        k = te.reduce_axis((0, L-1), name='k')
+        C = te.compute((N, M), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name='C')
+        s = te.create_schedule(C.op)
 
         # schedule
         y, x = s[C].op.axis
@@ -70,7 +86,7 @@ def bad_matmul(N, L, M, dtype):
 def get_sample_task(n=128):
     """return a sample task for testing"""
     target = tvm.target.create("llvm")
-    task = autotvm.task.create(matmul, args=(n, n, n, 'float32'), target=target)
+    task = autotvm.task.create("testing/matmul", args=(n, n, n, 'float32'), target=target)
     return task, target
 
 def get_sample_records(n):
@@ -82,4 +98,3 @@ def get_sample_records(n):
         inps.append(MeasureInput(target, tsk, tsk.config_space.get(i)))
         ress.append(MeasureResult((i+1,), 0, i, time.time()))
     return list(zip(inps, ress))
-

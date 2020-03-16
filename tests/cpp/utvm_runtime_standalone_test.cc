@@ -31,9 +31,8 @@
 
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
-#include <tvm/build_module.h>
-#include <tvm/operation.h>
-#include <tvm/packed_func_ext.h>
+#include <tvm/driver/driver_api.h>
+#include <tvm/te/operation.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
@@ -52,14 +51,14 @@ TVM_REGISTER_GLOBAL("test.sch").set_body([](tvm::TVMArgs args, tvm::TVMRetValue*
 
 TEST(MicroStandaloneRuntime, BuildModule) {
   using namespace tvm;
-  auto tensor_type = relay::TensorTypeNode::make({2, 3}, ::tvm::Float(32));
+  auto tensor_type = relay::TensorType({2, 3}, ::tvm::Float(32));
   auto a = relay::VarNode::make("a", tensor_type);
   auto b = relay::VarNode::make("b", tensor_type);
   auto add_op = relay::Op::Get("add");
   auto x = relay::CallNode::make(add_op, {a, b}, tvm::Attrs(), {});
   auto c = relay::VarNode::make("c", tensor_type);
   auto y = relay::CallNode::make(add_op, {x, c}, tvm::Attrs(), {});
-  auto func = relay::FunctionNode::make(relay::FreeVars(y), y, relay::Type(), {});
+  auto func = relay::Function(relay::FreeVars(y), y, relay::Type(), {});
   auto A = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});

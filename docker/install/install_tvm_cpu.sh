@@ -21,7 +21,7 @@ set -u
 set -o pipefail
 
 cd /usr
-git clone --depth=1 https://github.com/apache/incubator-tvm tvm --recursive
+git clone https://github.com/apache/incubator-tvm tvm --recursive
 cd /usr/tvm
 # checkout a hash-tag
 git checkout 4b13bf668edc7099b38d463e5db94ebc96c80470
@@ -31,8 +31,6 @@ echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_GRAPH_RUNTIME ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
-echo set\(USE_SGX /opt/sgxsdk\) >> config.cmake
-echo set\(RUST_SGX_SDK /opt/rust-sgx-sdk\) >> config.cmake
 mkdir -p build
 cd build
 cmake ..

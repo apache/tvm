@@ -16,10 +16,12 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.testing import to_python, run_as_python
 from tvm.relay.prelude import Prelude
-from tvm.relay.backend.interpreter import TensorValue, TupleValue, RefValue, ConstructorValue
+from tvm.runtime.container import ADT
+from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 
 # helper: uses a dummy let binding to sequence a list
 # of expressions: expr1; expr2; expr3, etc.
@@ -39,16 +41,16 @@ def init_box_adt(mod):
     return (box, box_ctor)
 
 
-# assert that the candidate is a TensorValue with value val
+# assert that the candidate is a NDArray with value val
 def assert_tensor_value(candidate, val):
-    assert isinstance(candidate, TensorValue)
+    assert isinstance(candidate, tvm.nd.NDArray)
     assert np.array_equal(candidate.asnumpy(), np.array(val))
 
 
-# assert that the candidate is a TupleValue with the indicate number of fields
-def assert_tuple_value(candidate, fields):
-    assert isinstance(candidate, TupleValue)
-    assert len(candidate.fields) == fields
+# assert that the candidate is an ADT with the indicated number of fields
+def assert_adt_len(candidate, fields):
+    assert isinstance(candidate, ADT)
+    assert len(candidate) == fields
 
 
 # assert that the candidate is a ConstructorValue with the approrpaite constructor
@@ -62,12 +64,13 @@ def assert_constructor_value(candidate, constructor, fields):
 def test_create_empty_tuple():
     empty = relay.Tuple([])
     tup_val = run_as_python(empty)
-    assert_tuple_value(tup_val, 0)
+    assert_adt_len(tup_val, 0)
 
 
 def test_create_scalar():
     scalar = relay.const(1)
     tensor_val = run_as_python(scalar)
+    print(type(tensor_val))
     assert_tensor_value(tensor_val, 1)
 
 
@@ -86,12 +89,12 @@ def test_create_nested_tuple():
         ])
     ])
     tup_val = run_as_python(relay_tup)
-    assert_tuple_value(tup_val, 3)
+    assert_adt_len(tup_val, 3)
     for i in range(2):
-        assert_tensor_value(tup_val.fields[i], i + 1)
-    assert_tuple_value(tup_val.fields[2], 2)
+        assert_tensor_value(tup_val[i], i + 1)
+    assert_adt_len(tup_val[2], 2)
     for i in range(2):
-        assert_tensor_value(tup_val.fields[2].fields[i], i + 3)
+        assert_tensor_value(tup_val[2][i], i + 3)
 
 
 def test_tuple_get_item():
@@ -117,23 +120,23 @@ def test_create_let():
     v = relay.Var('v')
     let = relay.Let(v, relay.Tuple([]), relay.Tuple([v, v]))
     tup_val = run_as_python(let)
-    assert_tuple_value(tup_val, 2)
-    assert_tuple_value(tup_val.fields[0], 0)
-    assert_tuple_value(tup_val.fields[1], 0)
+    assert_adt_len(tup_val, 2)
+    assert_adt_len(tup_val[0], 0)
+    assert_adt_len(tup_val[1], 0)
 
 
 def test_create_ref():
     relay_ref = relay.RefCreate(relay.Tuple([]))
     ref_val = run_as_python(relay_ref)
     assert isinstance(ref_val, RefValue)
-    assert_tuple_value(ref_val.value, 0)
+    assert_adt_len(ref_val.value, 0)
 
 
 def test_ref_read():
     v = relay.Var('v')
     assign = relay.Let(v, relay.RefCreate(relay.Tuple([])), relay.RefRead(v))
     read_val = run_as_python(assign)
-    assert_tuple_value(read_val, 0)
+    assert_adt_len(read_val, 0)
 
 
 def test_ref_write():
@@ -142,7 +145,7 @@ def test_ref_write():
     initial_write = relay.Let(v, relay.RefCreate(relay.Tuple([relay.const(1)])),
                               relay.RefWrite(v, relay.Tuple([relay.const(2)])))
     write_val = run_as_python(initial_write)
-    assert_tuple_value(write_val, 0)
+    assert_adt_len(write_val, 0)
 
     # now ensure that the value, once written, can be read back
     # (we read the value before and after mutation)
@@ -154,11 +157,11 @@ def test_ref_write():
             seq(relay.RefWrite(v, relay.Tuple([relay.const(2)])),
                 relay.Tuple([relay.RefRead(w), relay.RefRead(v)]))))
     read_val = run_as_python(read_after_write)
-    assert_tuple_value(read_val, 2)
-    assert_tuple_value(read_val.fields[0], 1)
-    assert_tuple_value(read_val.fields[1], 1)
-    assert_tensor_value(read_val.fields[0].fields[0], 1)
-    assert_tensor_value(read_val.fields[1].fields[0], 2)
+    assert_adt_len(read_val, 2)
+    assert_adt_len(read_val[0], 1)
+    assert_adt_len(read_val[1], 1)
+    assert_tensor_value(read_val[0][0], 1)
+    assert_tensor_value(read_val[1][0], 2)
 
 
 def test_if():
@@ -190,14 +193,14 @@ def test_local_function():
     call2 = relay.Let(f, ident, f(relay.const(2)))
 
     call_val1 = run_as_python(call1)
-    assert_tuple_value(call_val1, 0)
+    assert_adt_len(call_val1, 0)
 
     call_val2 = run_as_python(call2)
     assert_tensor_value(call_val2, 2)
 
 
 def test_global_function():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     ident = relay.GlobalVar('ident')
     a = relay.TypeVar('a')
     v = relay.Var('v', a)
@@ -210,13 +213,13 @@ def test_global_function():
     assert_tensor_value(call_val1, 1)
 
     call_val2 = run_as_python(call2, mod)
-    assert_tuple_value(call_val2, 2)
-    assert_tensor_value(call_val2.fields[0], 2)
-    assert_tensor_value(call_val2.fields[1], 2)
+    assert_adt_len(call_val2, 2)
+    assert_tensor_value(call_val2[0], 2)
+    assert_tensor_value(call_val2[1], 2)
 
 
 def test_constructor():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
 
     init_box_int = box_ctor(relay.const(1))
@@ -229,11 +232,11 @@ def test_constructor():
     box_val_tup = run_as_python(init_box_tup, mod)
 
     assert_constructor_value(box_val_tup, box_ctor, 1)
-    assert_tuple_value(box_val_tup.fields[0], 0)
+    assert_adt_len(box_val_tup.fields[0], 0)
 
 
 def test_match_wildcard():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     match = relay.Let(
@@ -247,7 +250,7 @@ def test_match_wildcard():
 
 
 def test_match_var():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -263,7 +266,7 @@ def test_match_var():
 
 
 def test_match_pattern():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -277,7 +280,7 @@ def test_match_pattern():
 
 
 def test_nested_match_pattern():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -294,7 +297,7 @@ def test_nested_match_pattern():
     assert_tensor_value(match_val, 2)
 
 def test_match_order():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box, box_ctor = init_box_adt(mod)
     v = relay.Var('v')
     w = relay.Var('w')
@@ -314,7 +317,7 @@ def test_match_order():
 
 
 def test_local_recursion():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -344,7 +347,7 @@ def test_local_recursion():
 
 
 def test_global_recursion():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     copy = relay.GlobalVar('copy')
     # same as above: it copies the given list
@@ -371,7 +374,7 @@ def test_global_recursion():
     call2 = copy_def(p.cons(relay.Tuple([]), p.nil()))
     val2 = run_as_python(call2, mod)
     assert_constructor_value(val2, p.cons, 2)
-    assert_tuple_value(val2.fields[0], 0)
+    assert_adt_len(val2.fields[0], 0)
     assert_constructor_value(val2.fields[1], p.nil, 0)
 
 
@@ -396,7 +399,7 @@ def test_higher_order_call():
 
 
 def test_match_effect_exactly_once():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     # the list should be of length 1!
@@ -421,7 +424,7 @@ def test_match_effect_exactly_once():
 
 def test_arbitrary_let_nesting():
     # something that is tricky to do in Python but comes naturally in Relay
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     x = relay.Var('x')
     r = relay.Var('r')
@@ -436,10 +439,10 @@ def test_arbitrary_let_nesting():
     ])
 
     tup_val = run_as_python(expr, mod)
-    assert_tuple_value(tup_val, 3)
-    assert_tensor_value(tup_val.fields[0], 2)
-    assert_tensor_value(tup_val.fields[1], 3)
-    assert_tensor_value(tup_val.fields[2], 4)
+    assert_adt_len(tup_val, 3)
+    assert_tensor_value(tup_val[0], 2)
+    assert_tensor_value(tup_val[1], 3)
+    assert_tensor_value(tup_val[2], 4)
 
 
 def test_ref_execution_order():
@@ -474,12 +477,12 @@ def test_ref_execution_order():
                   ])))
 
     tup_val = run_as_python(expr)
-    assert_tuple_value(tup_val, 5)
-    assert_tensor_value(tup_val.fields[0], 1)
-    assert_tensor_value(tup_val.fields[1], 2)
-    assert_tensor_value(tup_val.fields[2], 3)
-    assert_tensor_value(tup_val.fields[3], 4)
-    assert_tensor_value(tup_val.fields[4], 5)
+    assert_adt_len(tup_val, 5)
+    assert_tensor_value(tup_val[0], 1)
+    assert_tensor_value(tup_val[1], 2)
+    assert_tensor_value(tup_val[2], 3)
+    assert_tensor_value(tup_val[3], 4)
+    assert_tensor_value(tup_val[4], 5)
 
 
 def test_op_add():
@@ -500,6 +503,7 @@ def test_op_stack():
             args.append(relay.const(data))
         call = relay.stack(relay.Tuple(args), axis)
         call_val = run_as_python(call)
+        type(call_val)
         assert_tensor_value(call_val, ref_res)
 
     verify_stack([(2,), (2,), (2,)], -1)
@@ -510,16 +514,15 @@ def test_op_stack():
 
 # test an op with a tuple output
 # adapted from test_split_infer_type in test_op_level3
-# and test_split in nnvm's test_top_level1
 def test_split():
     def verify_split(shape, indices_or_sections, axis=0):
         x = np.random.normal(size=shape).astype('float32')
         ref_res = np.split(x, indices_or_sections, axis=axis)
         call = relay.split(relay.const(x), indices_or_sections, axis=axis)
         call_val = run_as_python(call)
-        assert_tuple_value(call_val, len(ref_res))
+        assert_adt_len(call_val, len(ref_res))
         for i in range(len(ref_res)):
-            assert_tensor_value(call_val.fields[i], ref_res[i])
+            assert_tensor_value(call_val[i], ref_res[i])
 
     verify_split((2, 3), 2)
     verify_split((5, 3), [3])
@@ -529,7 +532,6 @@ def test_split():
 
 
 # ensure we can generate code for batch_norm, since it requires simplify_inference
-# adapted from test_batchnorm in nnvm's test_top_level1
 def test_batch_norm():
     def verify_batch_norm(shapes):
         data = [np.absolute(np.random.normal(size=shape).astype('float32'))
@@ -546,7 +548,7 @@ def test_batch_norm():
 
         # there will be a change in accuracy so we need to check
         # approximate equality
-        assert isinstance(call_val, TensorValue)
+        assert isinstance(call_val, tvm.nd.NDArray)
         tvm.testing.assert_allclose(call_val.asnumpy(), ref_res, atol=eps, rtol=eps)
 
     verify_batch_norm([(10, 20), (20,), (20,), (20,), (20,)])

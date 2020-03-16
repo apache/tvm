@@ -19,15 +19,22 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python:apps/extension/python
+export PYTHONPATH=`pwd`/python:`pwd`/topi/python:`pwd`/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
-rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
+# cleanup pycache
+find . -type f -path "*.pyc" | xargs rm -f
 
 # Test TVM
 make cython3
+
+# Test MISRA-C runtime
+cd apps/bundle_deploy
+rm -rf build
+make test
+cd ../..
 
 # Test extern package
 cd apps/extension
@@ -35,7 +42,23 @@ rm -rf lib
 make
 cd ../..
 
-python3 -m pytest -v apps/extension/tests
+TVM_FFI=cython python3 -m pytest -v apps/extension/tests
+TVM_FFI=ctypes python3 -m pytest -v apps/extension/tests
+
+# Test dso plugin
+cd apps/dso_plugin_module
+rm -rf lib
+make
+cd ../..
+TVM_FFI=cython python3 -m pytest -v apps/dso_plugin_module
+TVM_FFI=ctypes python3 -m pytest -v apps/dso_plugin_module
+
+# Test TensorFlow TVMDSOOP
+cd apps/tf_tvmdsoop
+sh prepare_tfop_module.sh
+cd ../..
+TVM_FFI=ctypes LD_LIBRARY_PATH=apps/tf_tvmdsoop/build:$LD_LIBRARY_PATH \
+  python3 -m pytest -v apps/tf_tvmdsoop/tests
 
 TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
 TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib

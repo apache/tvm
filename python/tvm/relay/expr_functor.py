@@ -131,22 +131,22 @@ class ExprVisitor(ExprFunctor):
 
     The default behavior recursively traverses the AST.
     """
-    def visit_tuple(self, t):
-        for x in t.fields:
+    def visit_tuple(self, tup):
+        for x in tup.fields:
             self.visit(x)
 
-    def visit_call(self, c):
-        self.visit(c.op)
-        for a in c.args:
+    def visit_call(self, call):
+        self.visit(call.op)
+        for a in call.args:
             self.visit(a)
 
-    def visit_var(self, v):
+    def visit_var(self, var):
         pass
 
-    def visit_let(self, l):
-        self.visit(l.var)
-        self.visit(l.value)
-        self.visit(l.body)
+    def visit_let(self, let):
+        self.visit(let.var)
+        self.visit(let.value)
+        self.visit(let.body)
 
     def visit_function(self, f):
         self.visit(f.body)

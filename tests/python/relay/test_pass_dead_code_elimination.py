@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import Function, transform
 from tvm.relay.analysis import alpha_equal, graph_equal, free_vars, assert_alpha_equal
@@ -25,7 +26,7 @@ import pytest
 
 class env:
     def __init__(self):
-        self.shape = tvm.convert([1, 2, 3])
+        self.shape = tvm.runtime.convert([1, 2, 3])
         self.tt = relay.TensorType(self.shape, "float32")
         self.int32 = relay.TensorType([], "int32")
         self.float32 = relay.TensorType([], "float32")
@@ -47,7 +48,7 @@ e = env()
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body

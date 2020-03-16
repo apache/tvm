@@ -22,19 +22,20 @@ This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
 import numpy as np
+import pytest
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import nn
 from tensorflow.python.ops import array_ops
-from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import init_ops
 from distutils.version import LooseVersion
 import tvm
+from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 
@@ -61,17 +62,12 @@ tf_dtypes = {
 }
 
 def vmobj_to_list(o):
-    if isinstance(o, tvm.relay.backend.vmobj.Tensor):
+    if isinstance(o, tvm.nd.NDArray):
         return [o.asnumpy().tolist()]
-    elif isinstance(o, tvm.relay.backend.vmobj.ADT):
+    elif isinstance(o, tvm.runtime.container.ADT):
         result = []
         for f in o:
             result.extend(vmobj_to_list(f))
-        return result
-    elif isinstance(o, tvm.relay.backend.interpreter.TupleValue):
-        result = []
-        for f in o.fields:
-            result.append(vmobj_to_list(f))
         return result
     elif isinstance(o, tvm.relay.backend.interpreter.ConstructorValue):
         if o.constructor.name_hint == 'Cons':
@@ -88,20 +84,19 @@ def vmobj_to_list(o):
         else:
             raise RuntimeError("Unknown object type: %s" %
                                o.constructor.name_hint)
-    elif isinstance(o, tvm.relay.backend.interpreter.TensorValue):
-        return [o.data.asnumpy()]
     else:
         raise RuntimeError("Unknown object type: %s" % type(o))
 
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1,
-                  target='llvm', out_names=None, opt_level=3, mode='graph_runtime'):
+                  target='llvm', out_names=None, opt_level=3, mode='graph_runtime',
+                  cuda_layout="NCHW"):
     """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
     layout = None
     if target == "cuda":
-        layout = "NCHW"
+        layout = cuda_layout
     target_host = None
     shape_dict = {e: i.shape for e, i in zip(input_node, input_data)}
     mod, params = relay.frontend.from_tensorflow(graph_def,
@@ -161,7 +156,8 @@ def run_tf_graph(sess, input_data, input_node, output_node):
 
 
 def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
-                        no_gpu=False, opt_level=3, mode='graph_runtime'):
+                        no_gpu=False, opt_level=3, mode='graph_runtime',
+                        cuda_layout="NCHW"):
     """Generic function to generate and compare tensorflow and TVM output"""
     def name_without_num(name):
         return name.split(':')[0] if ":" in name else name
@@ -175,11 +171,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
     with tf.Session() as sess:
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            out_node,
-        )
+        final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
 
         for device in ["llvm", "cuda"]:
@@ -192,7 +184,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
                                        target=device, out_names=out_name,
-                                       num_output=len(out_name), opt_level=opt_level, mode=mode)
+                                       num_output=len(out_name), opt_level=opt_level, mode=mode,
+                                       cuda_layout=cuda_layout)
             # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -238,16 +231,58 @@ def _test_pooling_iteration(input_shape, **kwargs):
 def _test_pooling(input_shape, **kwargs):
     _test_pooling_iteration(input_shape, **kwargs)
 
-    if is_gpu_available() and (len(input_shape) == 4):
-        input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
-        kwargs['data_format'] = 'NCHW'
-        _test_pooling_iteration(input_shape, **kwargs)
+    if is_gpu_available():
+        if len(input_shape) == 4:
+            input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            kwargs['data_format'] = 'NCHW'
+            _test_pooling_iteration(input_shape, **kwargs)
 
 
 def test_forward_pooling():
     """ Pooling """
-
+    # TensorFlow only supports NDHWC for max_pool3d on CPU
     for pool_type in ['AVG', 'MAX']:
+        # NDHWC is the default layout for max_pool3d and avg_pool3d in TensorFlow
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[2, 2, 2],
+                      padding='VALID',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[2, 2, 2])
+
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[1, 1, 1],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[1, 1, 1])
+
+        _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                      window_shape=[2, 2, 2],
+                      padding='SAME',
+                      pooling_type=pool_type,
+                      dilation_rate=[1, 1, 1],
+                      strides=[2, 2, 2])
+
+        # test cases for max_pool3d & avg_pool3d with layout NCDHW
+        # TensorFlow pool3d  doesn't support NCDHW on cpu
+        if is_gpu_available():
+            _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                          window_shape=[1, 1, 1],
+                          padding='SAME',
+                          pooling_type=pool_type,
+                          dilation_rate=[1, 1, 1],
+                          strides=[1, 1, 1],
+                          data_format='NCDHW')
+
+            _test_pooling(input_shape=[1, 3, 32, 32, 32],
+                          window_shape=[2, 2, 2],
+                          padding='VALID',
+                          pooling_type=pool_type,
+                          dilation_rate=[1, 1, 1],
+                          strides=[2, 2, 2],
+                          data_format='NCDHW')
+
         _test_pooling(input_shape=[2, 9, 10, 2],
                       window_shape=[1, 1],
                       padding='SAME',
@@ -362,12 +397,32 @@ def test_forward_convolution():
         _test_convolution('depthwise', [4, 12, 17, 17], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NCHW')
         _test_convolution('conv_transpose', [4, 32, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
                           'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [2, 2, 176, 32], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [2, 2, 176, 32], [1, 1], [2, 2], 'SAME',
+                          'NCHW', [4, 176, 15, 15])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 176, 32], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 176, 8, 8])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                          'NCHW', [4, 176, 15, 15])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                          'NCHW', [4, 176, 16, 16])
         _test_convolution('conv_transpose', [4, 19, 8, 8], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
                           'NCHW', [4, 19, 17, 17])
         _test_convolution('conv_transpose', [4, 19, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
                           'NCHW', [4, 124, 17, 17])
+        _test_convolution('conv_transpose', [4, 19, 17, 17], [3, 3, 124, 19], [1, 1], [1, 1], 'SAME',
+                          'NCHW', [4, 124, 17, 17])
         _test_convolution('conv_transpose', [4, 32, 8, 8], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
                           'NCHW', [4, 12, 17, 17])
+        # kernel 2x2, strides (2,2)
+        _test_convolution('conv_transpose', [4, 19, 8, 8], [2, 2, 19, 19], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 19, 16, 16])
+        _test_convolution('conv_transpose', [4, 32, 8, 8], [2, 2, 12, 32], [1, 1], [2, 2], 'VALID',
+                          'NCHW', [4, 12, 16, 16])
+        # output channel is 1
+        _test_convolution('conv_transpose', [1, 19, 8, 8], [1, 1, 1, 19], [1, 1], [1, 1], 'VALID',
+                          'NCHW', [1, 1, 8, 8])
 
     _test_convolution('conv', [4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution('conv', [4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
@@ -380,12 +435,83 @@ def test_forward_convolution():
     _test_convolution('depthwise', [4, 17, 17, 12], [3, 3, 12, 2], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution('conv_transpose', [4, 8, 8, 32], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME',
                       'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [2, 2, 176, 32], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [2, 2, 176, 32], [1, 1], [2, 2], 'SAME',
+                      'NHWC', [4, 15, 15, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 176, 32], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 8, 8, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                      'NHWC', [4, 15, 15, 176])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 176, 32], [1, 1], [2, 2], 'SAME',
+                      'NHWC', [4, 16, 16, 176])
     _test_convolution('conv_transpose', [4, 8, 8, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID',
                       'NHWC', [4, 17, 17, 19])
     _test_convolution('conv_transpose', [4, 17, 17, 19], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME',
                       'NHWC', [4, 17, 17, 124])
+    _test_convolution('conv_transpose', [4, 17, 17, 19], [3, 3, 124, 19], [1, 1], [1, 1], 'SAME',
+                      'NHWC', [4, 17, 17, 124])
     _test_convolution('conv_transpose', [4, 8, 8, 32], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID',
                       'NHWC', [4, 17, 17, 12])
+    # kernel 2x2, strides (2,2)
+    _test_convolution('conv_transpose', [4, 8, 8, 19], [2, 2, 19, 19], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 16, 16, 19])
+    _test_convolution('conv_transpose', [4, 8, 8, 32], [2, 2, 12, 32], [1, 1], [2, 2], 'VALID',
+                      'NHWC', [4, 16, 16, 12])
+    # output channel is 1
+    _test_convolution('conv_transpose', [1, 8, 8, 19], [1, 1, 1, 19], [1, 1], [1, 1], 'VALID',
+                      'NHWC', [1, 8, 8, 1])
+
+
+#######################################################################
+# Convolution3D
+# -----------
+
+
+def _test_convolution3d(opname, tensor_in_sizes, filter_in_sizes,
+                        dilations, strides, padding, data_format,
+                        deconv_output_shape=[]):
+    """ One iteration of 3D convolution with given shapes and attributes """
+
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(
+            filter_array, shape=filter_in_sizes, dtype='float32')
+        if data_format == 'NDHWC':
+            strides = [1] + strides + [1]
+            dilations = [1] + dilations + [1]
+        else:
+            strides = [1, 1] + strides
+            dilations = [1, 1] + dilations
+
+        if opname == 'conv':
+            nn_ops.conv3d(in_data,
+                          in_filter,
+                          strides=strides,
+                          dilations=dilations,
+                          padding=padding,
+                          data_format=data_format)
+
+            compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                                'Placeholder:0', 'Conv3D:0', cuda_layout="NCDHW")
+
+def test_forward_convolution3d():
+    if is_gpu_available():
+        _test_convolution3d('conv', [4, 176, 8, 8, 8], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
+        _test_convolution3d('conv', [4, 19, 17, 17, 17], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NCDHW')
+        _test_convolution3d('conv', [4, 124, 17, 17, 17], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NCDHW')
+        _test_convolution3d('conv', [4, 12, 17, 17, 17], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NCDHW')
+    _test_convolution3d('conv', [4, 8, 8, 8, 176], [1, 1, 1, 176, 32], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 19], [3, 3, 3, 19, 19], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 124], [1, 1, 1, 124, 19], [1, 1, 1], [1, 1, 1], 'SAME', 'NDHWC')
+    _test_convolution3d('conv', [4, 17, 17, 17, 12], [3, 3, 3, 12, 32], [1, 1, 1], [2, 2, 2], 'VALID', 'NDHWC')
 
 
 #######################################################################
@@ -932,6 +1058,62 @@ def test_forward_variable():
     _test_variable(np.random.uniform(size=(32, 100)).astype('float32'))
 
 
+def test_read_variable_op():
+    """ Read Variable op test """
+
+    tf.reset_default_graph()
+    data = np.random.uniform(size=(32, 100)).astype('float32')
+    input_tensor = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+
+    size = input_tensor.shape.dims[1]
+    var_data = np.random.uniform(-5, 5, size=[size, size]).astype(np.float32)
+    input_var = tf.Variable(var_data, name='var1', use_resource=True)
+    math_ops.matmul(input_tensor, input_var)
+
+    out_name = ['MatMul:0']
+    out_node = ['MatMul']
+    in_name = ['Placeholder:0']
+    in_node = ['Placeholder']
+    in_data = [data]
+
+    with tf.Session() as sess:
+        sess.run(variables.global_variables_initializer())
+
+        final_graph_def = sess.graph.as_graph_def(add_shapes=True)
+        tf_output = run_tf_graph(sess, in_data, in_name, out_name)
+
+        shape_dict = {e: i.shape for e, i in zip(in_name, in_data)}
+        with pytest.raises(Exception) as exexcinfo:
+            mod, params = relay.frontend.from_tensorflow(final_graph_def,
+                                                         layout=None,
+                                                         shape=shape_dict,
+                                                         outputs=None)
+
+        assert exexcinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph.")
+
+        # Now convert the variables to constant and run inference on the converted graph
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            out_node,
+        )
+
+        for device in ["llvm", "cuda"]:
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                continue
+
+            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
+                                       target=device, out_names=out_name,
+                                       num_output=len(out_name))
+            for i in range(len(tf_output)):
+                tvm.testing.assert_allclose(
+                    tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+
+        sess.close()
+
+
 #######################################################################
 # MatMul, BatchMatMul, BatchMatMulV2
 # ----------------------------------
@@ -1422,8 +1604,8 @@ def _test_resize_bilinear_from_tensor(in_shape, align_corners):
 
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(
-            shape=[in_shape[0], in_shape[1], None, None], dtype=data.dtype)
-        to_shape = tf.shape(in_data)[2:]
+            shape=[in_shape[0], None, None, in_shape[3]], dtype=data.dtype)
+        to_shape = tf.shape(in_data)[1:3]
         tf.image.resize_bilinear(
             in_data, to_shape, align_corners=align_corners)
 
@@ -1446,14 +1628,29 @@ def _test_resize_nearest_neighbor(in_shape, to_shape):
         compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
 
 
+def _test_resize_nearest_neighbor_dynamic_shape(in_shape, scale):
+    """ One iteration of resize nearest neighbor for graph with dynamic input shape """
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=None, dtype=data.dtype)
+        # multiply input shape by scale factor
+        new_shape = tf.shape(in_data)[1:3] * tf.constant(scale, dtype=tf.int32)
+        tf.image.resize_nearest_neighbor(
+            in_data, new_shape, name='resize_nearest_neighbor')
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'resize_nearest_neighbor:0')
+
+
 def test_forward_resize():
     """ Resize Bilinear, Nearest_Neighbor """
-
-    _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
-    _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
-    _test_resize_bilinear_from_tensor((4, 16, 32, 32), False)
-    _test_resize_bilinear_from_tensor((6, 32, 50, 50), True)
-    _test_resize_nearest_neighbor((6, 32, 64, 64), [20, 20])
+    # TF default layout is NHWC
+    _test_resize_bilinear((4, 32, 32, 3), [50, 50], False)
+    _test_resize_bilinear((6, 32, 32, 3), [20, 20], True)
+    _test_resize_bilinear_from_tensor((4, 32, 32, 3), False)
+    _test_resize_bilinear_from_tensor((6, 50, 50, 3), True)
+    _test_resize_nearest_neighbor((6, 32, 32, 3), [20, 20])
+    _test_resize_nearest_neighbor_dynamic_shape((1, 16, 16, 3), scale=[2, 2])
 
 
 #######################################################################
@@ -1558,39 +1755,47 @@ def test_forward_crop():
 # CropAndResize
 # -------------
 
-def _test_forward_crop_and_resize(img_shape, boxes, box_idx, crop_size, method='bilinear', dtype="float32"):
+def _test_forward_crop_and_resize(img_shape, boxes, box_idx, crop_size,
+                                  extrapolation_value=0.0, method='bilinear', dtype="float32"):
     image = np.random.uniform(0, 10, size=img_shape).astype(dtype)
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, image.shape, name="in_data")
-    tf.image.crop_and_resize(in_data, boxes=boxes, box_ind=box_idx, crop_size=crop_size,
-                             method=method, name="crop_and_resize")
+    tf.image.crop_and_resize(in_data, boxes=boxes, box_ind=box_idx,
+                             crop_size=crop_size, method=method,
+                             extrapolation_value=extrapolation_value,
+                             name="crop_and_resize")
     compare_tf_with_tvm([image], ['in_data:0'], 'crop_and_resize:0')
 
 
 def test_forward_crop_and_resize():
     """ CropAndResize """
-    _test_forward_crop_and_resize([1, 11, 11, 3], [[0, 0, 1, 1]], [0], [5, 5])
-    _test_forward_crop_and_resize(
-        [1, 11, 11, 3], [[0, 0, .9, .9]], [0], [5, 5])
-    _test_forward_crop_and_resize(
-        [1, 11, 11, 3], [[.1, .2, 1, 1]], [0], [5, 5])
-    _test_forward_crop_and_resize(
-        [1, 21, 21, 3], [[.2, .3, .7, .9]], [0], [3, 4])
-    _test_forward_crop_and_resize(
-        [1, 41, 41, 3], [[0.2, 0.4, 0.8, 0.8]], [0], [3, 3])
-    _test_forward_crop_and_resize([10, 11, 11, 3],
-                                  [[0, 0, 0.9, 0.9], [0.2, 0.2, 0.8, 0.8]],
-                                  [0, 1],
-                                  [5, 5])
-    _test_forward_crop_and_resize([3, 11, 11, 3],
-                                  [[0, 0, 0.9, 0.9], [
-                                      0.2, 0.2, 0.8, 0.8], [0, 0, 1, 1]],
-                                  [0, 1, 2],
-                                  [3, 3])
-    _test_forward_crop_and_resize([3, 11, 11, 3],
-                                  [[0, 0, 1, 0.8], [0, 0, 0.9, 0.9], [0, 0, 1, 0.8]],
-                                  [2, 1, 0],
-                                  [3, 3])
+    _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3])
+    _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3], 0.2)
+    _test_forward_crop_and_resize([1, 6, 6, 3], [[0, 0, 1, 1]], [0], [3, 3], 0.2, 'nearest')
+    _test_forward_crop_and_resize([1, 11, 11, 3], [[.3, .3,  1,  1]], [0], [21, 21])
+    _test_forward_crop_and_resize([1, 41, 41, 3], [[.2, .4, .8, .8]], [0], [21, 11])
+    _test_forward_crop_and_resize([1, 100, 100, 3], [[ 0,  0, .9, .9]], [0], [30, 30])
+    _test_forward_crop_and_resize([1, 224, 224, 3], [[.1, .2,  1,  1]], [0], [9, 9])
+    _test_forward_crop_and_resize([1, 249, 249, 3], [[ 0,  0,  1,  1]], [0], [9, 9])
+    _test_forward_crop_and_resize([1, 201, 301, 3], [[.2, .3, .7, .8]], [0], [51, 51])
+    _test_forward_crop_and_resize(img_shape=[10, 11, 11, 3],
+                                  boxes=[[ 0,  0, .9, .9],
+                                         [.2, .2, .8, .8]],
+                                  box_idx=[0, 1], crop_size=[5, 5])
+    _test_forward_crop_and_resize(img_shape=[20, 576, 576, 3],
+                                  boxes=[[ 0,  0,  1,  1],
+                                         [ 0,  0, .8, .8],
+                                         [.1, .2, .9,  1],
+                                         [.2,  0,  1,  1]],
+                                  box_idx=[1, 0, 2, 3], crop_size=[24, 24],
+                                  extrapolation_value=0.3)
+    _test_forward_crop_and_resize(img_shape=[20, 229, 229, 3],
+                                  boxes=[[ 0,  0, .9, .9],
+                                         [.3, .3,  1,  1],
+                                         [.2, .1, .7, .8],
+                                         [ 0,  0,  1,  1]],
+                                  box_idx=[3, 0, 2, 1], crop_size=[58, 58],
+                                  extrapolation_value=0.2, method='nearest')
 
 
 #######################################################################
@@ -2193,14 +2398,15 @@ def _test_forward_slice_operation_input(input_value, begin_value, size_value):
     with tf.Graph().as_default():
         input_tensor = tf.placeholder(
             shape=input_data.shape, dtype=input_data.dtype, name="input")
-        begin_tensor = tf.expand_dims(begin_value, axis=0)
-        size_tensor = tf.expand_dims(size_value, axis=0)
-        slice_tensor = tf.slice(input_tensor, begin_tensor, size_tensor, name='slice_output')
+        tf.slice(input_tensor, begin_value, size_value, name='slice_output')
         compare_tf_with_tvm([input_data], ['input:0'], 'slice_output:0')
 
 
 def test_forward_slice():
-    _test_forward_slice_operation_input([1, 1], 0, 2)
+    _test_forward_slice_operation_input([1, 1], [0], [2])
+    _test_forward_slice_operation_input([0, 1, 2, 3], [3], [-1])
+    _test_forward_slice_operation_input([[0, 1, 2, 3], [4, 5, 6, 7]],
+                                        begin_value=[0, 1], size_value=[-1, -1])
 
 def test_forward_ceil():
     ishape = (1, 3, 10, 10)
@@ -2418,6 +2624,15 @@ def test_forward_cos():
     compare_tf_with_tvm([np_data], ['in_data:0'], 'cos:0')
 
 
+def test_forward_tan():
+    """test operator tan """
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.tan(in_data, name="tan")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
+
+
 def test_forward_sin():
     """test operator sin """
     np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
@@ -2565,7 +2780,7 @@ def test_forward_reduce_any():
     in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
     tf.reduce_any(in_data, name="any")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'any:0')
-    
+
 def test_forward_reduce_max():
     def check_max(ishape, axis, keepdims, dtype):
         tf.reset_default_graph()
@@ -2821,11 +3036,11 @@ if __name__ == '__main__':
     test_forward_sign()
     test_forward_log()
     test_forward_log1p()
+    test_forward_tan()
     test_forward_cos()
     test_forward_sin()
     test_forward_negative()
     test_forward_divide()
-    test_forward_floordiv()
     test_forward_abs()
     test_forward_softplus()
     test_forward_sqrt()
@@ -2887,4 +3102,5 @@ if __name__ == '__main__':
     test_forward_matmul()
     test_forward_batch_matmul()
 
-    # TODO missing tests: rank
+    # Internal misc. ops
+    test_read_variable_op()

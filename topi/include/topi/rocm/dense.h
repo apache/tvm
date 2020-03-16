@@ -24,9 +24,9 @@
 #ifndef TOPI_ROCM_DENSE_H_
 #define TOPI_ROCM_DENSE_H_
 
-#include "tvm/operation.h"
-#include "tvm/build_module.h"
-#include "topi/tags.h"
+#include <tvm/te/operation.h>
+#include <tvm/target/generic_func.h>
+#include <topi/tags.h>
 #include "topi/detail/array_utils.h"
 #include "topi/nn/dense.h"
 #include "topi/contrib/rocblas.h"
@@ -35,6 +35,7 @@
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::te;
 
 namespace rocm {
 /*!
@@ -48,11 +49,11 @@ namespace rocm {
 *
 * \return Tensor with shape [batch, out_dim]
 */
-inline tvm::Tensor dense_rocm(const Target& target,
-                              const tvm::Tensor& data,
-                              const tvm::Tensor& weight,
-                              const tvm::Tensor& bias,
-                              const Type& out_dtype) {
+inline tvm::te::Tensor dense_rocm(const Target& target,
+                              const tvm::te::Tensor& data,
+                              const tvm::te::Tensor& weight,
+                              const tvm::te::Tensor& bias,
+                              const DataType& out_dtype) {
   CHECK_EQ(data->shape.size(), 2) << "dense requires 2-D data";
   CHECK_EQ(weight->shape.size(), 2) << "dense requires 2-D weight";
   if (bias.defined()) {
@@ -67,7 +68,7 @@ inline tvm::Tensor dense_rocm(const Target& target,
     CHECK_EQ(data->dtype, out_dtype) << "Mixed precision not supported.";
     auto mm = topi::contrib::rocblas_matmul(data, weight, false, true);
     if (bias.defined()) {
-      mm = tvm::compute({ batch, out_dim },
+      mm = tvm::te::compute({ batch, out_dim },
                         [&](Var i, Var j) {
                           return mm(i, j) + bias(j);
                         }, "tensor", kBroadcast);

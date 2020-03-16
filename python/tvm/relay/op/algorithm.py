@@ -28,7 +28,7 @@ def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     data : relay.Expr
         The input data tensor.
 
-    valid_count : tvm.Tensor
+    valid_count : tvm.te.Tensor
         The number of valid elements to be sorted.
 
     axis : int, optional

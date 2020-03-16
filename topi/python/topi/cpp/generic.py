@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for generic TOPI ops and schedules"""
+import tvm._ffi
 
-from tvm._ffi.function import _init_api_prefix
-
-_init_api_prefix("topi.cpp.generic", "topi.generic")
+tvm._ffi._init_api("topi.generic", "topi.cpp.generic")

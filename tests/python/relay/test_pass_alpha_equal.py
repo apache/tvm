@@ -16,8 +16,10 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import analysis
+from tvm.relay.testing import run_opt_pass
 
 def alpha_equal(x, y):
     """
@@ -25,6 +27,15 @@ def alpha_equal(x, y):
     the hash function respects equality.
     """
     return analysis.alpha_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
+
+def alpha_equal_commutative(x, y):
+    """
+    Check for commutative property of equality
+    """
+    xy = analysis.alpha_equal(x, y)
+    yx = analysis.alpha_equal(y, x)
+    assert xy == yx
+    return xy
 
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
@@ -39,9 +50,9 @@ def test_tensor_type_alpha_equal():
 
 
 def test_incomplete_type_alpha_equal():
-    t1 = relay.IncompleteType(relay.Kind.Shape)
-    t2 = relay.IncompleteType(relay.Kind.Type)
-    t3 = relay.IncompleteType(relay.Kind.Type)
+    t1 = relay.IncompleteType(relay.TypeKind.ShapeVar)
+    t2 = relay.IncompleteType(relay.TypeKind.Type)
+    t3 = relay.IncompleteType(relay.TypeKind.Type)
 
     # only equal when there is pointer equality
     assert t2 == t2
@@ -51,9 +62,9 @@ def test_incomplete_type_alpha_equal():
 
 
 def test_type_param_alpha_equal():
-    t1 = relay.TypeVar("v1", relay.Kind.Type)
-    t2 = relay.TypeVar("v2", relay.Kind.Shape)
-    t3 = relay.TypeVar("v3", relay.Kind.Type)
+    t1 = relay.TypeVar("v1", relay.TypeKind.Type)
+    t2 = relay.TypeVar("v2", relay.TypeKind.ShapeVar)
+    t3 = relay.TypeVar("v3", relay.TypeKind.Type)
 
     # only pointer equality and eq_map allow equal params
     assert t1 == t1
@@ -63,10 +74,10 @@ def test_type_param_alpha_equal():
 
     # function types are the only way to put type params
     # in eq map
-    ft1 = relay.FuncType(tvm.convert([]), t1, tvm.convert([t1]), tvm.convert([]))
-    ft2 = relay.FuncType(tvm.convert([]), t3, tvm.convert([t3]), tvm.convert([]))
+    ft1 = relay.FuncType(tvm.runtime.convert([]), t1, tvm.runtime.convert([t1]), tvm.runtime.convert([]))
+    ft2 = relay.FuncType(tvm.runtime.convert([]), t3, tvm.runtime.convert([t3]), tvm.runtime.convert([]))
     # actually an invalid type because t2 is wrong kind
-    ft3 = relay.FuncType(tvm.convert([]), t2, tvm.convert([t2]), tvm.convert([]))
+    ft3 = relay.FuncType(tvm.runtime.convert([]), t2, tvm.runtime.convert([t2]), tvm.runtime.convert([]))
 
     assert ft1 == ft2
     assert ft1 != ft3 # kinds still do not match
@@ -76,72 +87,72 @@ def test_func_type_alpha_equal():
     t1 = relay.TensorType((1, 2), "float32")
     t2 = relay.TensorType((1, 2, 3), "float32")
 
-    tp1 = relay.TypeVar("v1", relay.Kind.Type)
-    tp2 = relay.TypeVar("v2", relay.Kind.Type)
-    tp3 = relay.TypeVar("v3", relay.Kind.Shape)
-    tp4 = relay.TypeVar("v3", relay.Kind.Shape)
+    tp1 = relay.TypeVar("v1", relay.TypeKind.Type)
+    tp2 = relay.TypeVar("v2", relay.TypeKind.Type)
+    tp3 = relay.TypeVar("v3", relay.TypeKind.ShapeVar)
+    tp4 = relay.TypeVar("v3", relay.TypeKind.ShapeVar)
 
-    broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
-    identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
+    broadcast = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
+    identity = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
 
-    tr1 = relay.TypeRelation(broadcast, tvm.convert([tp1, tp3]), 1, None)
-    tr2 = relay.TypeRelation(broadcast, tvm.convert([tp2, tp4]), 1, None)
-    tr3 = relay.TypeRelation(identity, tvm.convert([tp1, tp3]), 1, None)
+    tr1 = relay.TypeRelation(broadcast, tvm.runtime.convert([tp1, tp3]), 1, None)
+    tr2 = relay.TypeRelation(broadcast, tvm.runtime.convert([tp2, tp4]), 1, None)
+    tr3 = relay.TypeRelation(identity, tvm.runtime.convert([tp1, tp3]), 1, None)
 
-    ft = relay.FuncType(tvm.convert([t1, t2]), tp1,
-                         tvm.convert([tp1, tp3]),
-                         tvm.convert([tr1]))
-    translate_vars = relay.FuncType(tvm.convert([t1, t2]), tp1,
-                         tvm.convert([tp2, tp4]),
-                         tvm.convert([tr2]))
+    ft = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+                         tvm.runtime.convert([tp1, tp3]),
+                         tvm.runtime.convert([tr1]))
+    translate_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+                         tvm.runtime.convert([tp2, tp4]),
+                         tvm.runtime.convert([tr2]))
     assert ft == translate_vars
 
-    different_args = relay.FuncType(tvm.convert([t1]), tp1,
-                         tvm.convert([tp1, tp3]),
-                         tvm.convert([tr1]))
+    different_args = relay.FuncType(tvm.runtime.convert([t1]), tp1,
+                         tvm.runtime.convert([tp1, tp3]),
+                         tvm.runtime.convert([tr1]))
     assert ft != different_args
 
-    different_order = relay.FuncType(tvm.convert([t2, t1]), tp1,
-                         tvm.convert([tp1, tp3]),
-                         tvm.convert([tr1]))
+    different_order = relay.FuncType(tvm.runtime.convert([t2, t1]), tp1,
+                         tvm.runtime.convert([tp1, tp3]),
+                         tvm.runtime.convert([tr1]))
     assert ft != different_order
 
-    no_rel = relay.FuncType(tvm.convert([t1, t2]), tp1,
-                         tvm.convert([tp1, tp3]),
-                         tvm.convert([]))
+    no_rel = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+                         tvm.runtime.convert([tp1, tp3]),
+                         tvm.runtime.convert([]))
     assert ft != no_rel
 
-    more_vars = relay.FuncType(tvm.convert([t1, t2]), tp2,
-                         tvm.convert([tp1, tp2, tp3]),
-                         tvm.convert([tr1]))
+    more_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp2,
+                         tvm.runtime.convert([tp1, tp2, tp3]),
+                         tvm.runtime.convert([tr1]))
     assert ft != more_vars
 
-    all_the_vars = relay.FuncType(tvm.convert([t1, t2]), tp1,
-                         tvm.convert([tp1, tp2, tp3, tp4]),
-                         tvm.convert([tr1, tr2]))
+    all_the_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+                         tvm.runtime.convert([tp1, tp2, tp3, tp4]),
+                         tvm.runtime.convert([tr1, tr2]))
     assert ft != all_the_vars
 
-    different_rel = relay.FuncType(tvm.convert([t1, t2]), tp1,
-                                   tvm.convert([tp1, tp3]),
-                                   tvm.convert([tr3]))
+    different_rel = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+                                   tvm.runtime.convert([tp1, tp3]),
+                                   tvm.runtime.convert([tr3]))
     assert ft != different_rel
 
-    more_rels = relay.FuncType(tvm.convert([t1, t2]), tp1,
-                                   tvm.convert([tp1, tp3]),
-                                   tvm.convert([tr1, tr3]))
+    more_rels = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+                                   tvm.runtime.convert([tp1, tp3]),
+                                   tvm.runtime.convert([tr1, tr3]))
     assert ft != more_rels
 
 
 def test_tuple_type_alpha_equal():
     t1 = relay.TensorType((1, 2, 3), "float32")
     t2 = relay.TensorType((1, 2, 3, 4), "float32")
-    tp1 = relay.TypeVar("v1", relay.Kind.Type)
-    tp2 = relay.TypeVar("v2", relay.Kind.Type)
+    tp1 = relay.TypeVar("v1", relay.TypeKind.Type)
+    tp2 = relay.TypeVar("v2", relay.TypeKind.Type)
 
-    tup1 = relay.TupleType(tvm.convert([t1, t2, tp1]))
-    tup2 = relay.TupleType(tvm.convert([t1, t2, tp1]))
-    tup3 = relay.TupleType(tvm.convert([t2, t1, tp1]))
-    tup4 = relay.TupleType(tvm.convert([t1, t2, tp2]))
+    tup1 = relay.TupleType(tvm.runtime.convert([t1, t2, tp1]))
+    tup2 = relay.TupleType(tvm.runtime.convert([t1, t2, tp1]))
+    tup3 = relay.TupleType(tvm.runtime.convert([t2, t1, tp1]))
+    tup4 = relay.TupleType(tvm.runtime.convert([t1, t2, tp2]))
 
     # as long as types are alpha-equal and in same order,
     # tuples should be alpha-equal
@@ -157,23 +168,23 @@ def test_type_relation_alpha_equal():
 
     # functions are compared only by pointer equality so
     # we need to be sure to use the same pointers
-    broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
-    identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
+    broadcast = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
+    identity = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Identity")
 
-    attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
+    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4,4))
 
-    tr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
-    same = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
-    diff_func = relay.TypeRelation(identity, tvm.convert([t1, t2]), 1, attr1)
-    diff_order = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, attr1)
-    diff_args = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, attr1)
-    diff_attr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr2)
-    same_attr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1_same)
+    tr = relay.TypeRelation(broadcast, tvm.runtime.convert([t1, t2]), 1, attr1)
+    same = relay.TypeRelation(broadcast, tvm.runtime.convert([t1, t2]), 1, attr1)
+    diff_func = relay.TypeRelation(identity, tvm.runtime.convert([t1, t2]), 1, attr1)
+    diff_order = relay.TypeRelation(broadcast, tvm.runtime.convert([t2, t1]), 1, attr1)
+    diff_args = relay.TypeRelation(broadcast, tvm.runtime.convert([t2, t3]), 1, attr1)
+    diff_attr = relay.TypeRelation(broadcast, tvm.runtime.convert([t1, t2]), 1, attr2)
+    same_attr = relay.TypeRelation(broadcast, tvm.runtime.convert([t1, t2]), 1, attr1_same)
 
-    bigger = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, attr1)
-    diff_num_inputs = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, attr2)
+    bigger = relay.TypeRelation(identity, tvm.runtime.convert([t1, t3, t2]), 2, attr1)
+    diff_num_inputs = relay.TypeRelation(identity, tvm.runtime.convert([t1, t3, t2]), 1, attr2)
 
     # func, number of args, input count, and order should be the same
     assert tr == same
@@ -217,6 +228,26 @@ def test_constant_alpha_equal():
     assert not alpha_equal(x, y)
     assert alpha_equal(x, relay.const(1))
 
+def test_type_node_alpha_equal():
+    v1 = relay.TypeVar('v1', 6)
+    v2 = relay.TypeVar('v2', 6)
+    assert not alpha_equal(v1, v2)
+
+    v1 = relay.TypeVar('v1', 0)
+    v2 = relay.TypeVar('v2', 6)
+    assert not alpha_equal(v1, v2)
+
+    assert alpha_equal_commutative(v1, v1)
+
+def test_type_node_incompatible_alpha_equal():
+    v1 = relay.TypeVar('v1', 6)
+    v2 = relay.Var("v2")
+    assert not alpha_equal_commutative(v1, v2)
+
+def test_expr_node_incompatible_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.PatternVar(relay.Var("v2"))
+    assert not alpha_equal_commutative(v1, v2)
 
 def test_var_alpha_equal():
     v1 = relay.Var("v1")
@@ -313,6 +344,29 @@ def test_tuple_get_item_alpha_equal():
     assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 
+def test_function_attr():
+    x0 = relay.var('x0', shape=(10, 10))
+    w00 = relay.var('w00', shape=(10, 10))
+    w01 = relay.var('w01', shape=(10, 10))
+    w02 = relay.var('w02', shape=(10, 10))
+    z00 = relay.add(x0, w00)
+    p00 = relay.subtract(z00, w01)
+    q00 = relay.multiply(p00, w02)
+    func0 = relay.Function([x0, w00, w01, w02], q00)
+    func0 = func0.with_attr("FuncName", tvm.tir.StringImm("a"))
+
+    x1 = relay.var('x1', shape=(10, 10))
+    w10 = relay.var('w10', shape=(10, 10))
+    w11 = relay.var('w11', shape=(10, 10))
+    w12 = relay.var('w12', shape=(10, 10))
+    z10 = relay.add(x1, w10)
+    p10 = relay.subtract(z10, w11)
+    q10 = relay.multiply(p10, w12)
+    func1 = relay.Function([x1, w10, w11, w12], q10)
+    func1 = func1.with_attr("FuncName", tvm.tir.StringImm("b"))
+    assert not alpha_equal(func0, func1)
+
+
 def test_function_alpha_equal():
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((4, 5, 6), "int8")
@@ -324,10 +378,10 @@ def test_function_alpha_equal():
     v4 = relay.Var("v4", tt2)
     vret = relay.Constant(tvm.nd.array(np.ones(1)))
 
-    tp1 = relay.TypeVar("tp1", relay.Kind.Type)
-    tp2 = relay.TypeVar("tp2", relay.Kind.Type)
-    tp3 = relay.TypeVar("tp3", relay.Kind.Shape)
-    tp4 = relay.TypeVar("tp4", relay.Kind.Shape)
+    tp1 = relay.TypeVar("tp1", relay.TypeKind.Type)
+    tp2 = relay.TypeVar("tp2", relay.TypeKind.Type)
+    tp3 = relay.TypeVar("tp3", relay.TypeKind.ShapeVar)
+    tp4 = relay.TypeVar("tp4", relay.TypeKind.ShapeVar)
 
     basic_args = [relay.Var("v3", tt1), relay.Var("v4", tt2)]
     basic_tps = [tp1, tp2]
@@ -390,9 +444,9 @@ def test_call_alpha_equal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
+    attr1 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr1_same = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3,4,4))
 
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((), "int8")
@@ -492,7 +546,7 @@ def test_if_alpha_equal():
 
 def test_constructor_alpha_equal():
     # smoke test: it should be pointer equality
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
     assert alpha_equal(p.nil, p.nil)
@@ -501,7 +555,7 @@ def test_constructor_alpha_equal():
 
 
 def test_match_alpha_equal():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = relay.prelude.Prelude(mod)
 
     x = relay.Var('x')
@@ -585,6 +639,7 @@ def test_graph_equal():
     z3 = relay.add(relay.add(x, x), relay.add(x, x))
 
     assert alpha_equal(z0, z1)
+    assert alpha_equal(z0, z1)
 
     # z3's dataflow format is different from z0
     # z0 is computed from a common y0 node
@@ -626,10 +681,33 @@ def test_tuple_match():
     assert analysis.structural_hash(x) == analysis.structural_hash(y)
 
 
+def test_fn_attribute():
+    # create function that performs add
+    a = relay.var('a', shape=(10, 10))
+    b = relay.var('b', shape=(10, 10))
+    add = relay.add(a, b)
+    add_fn = relay.Function([a, b], add)
+    add_fn = run_opt_pass(add_fn, relay.transform.InferType())
+
+    # create function that performs add with test attribute
+    c = relay.var('c', shape=(10, 10))
+    d = relay.var('d', shape=(10, 10))
+    add_1 = relay.add(c, d)
+    add_1_fn = relay.Function([c, d], add_1)
+    add_1_fn = add_1_fn.with_attr("TestAttribute", tvm.tir.StringImm("test"))
+    add_1_fn = run_opt_pass(add_1_fn, relay.transform.InferType())
+
+    assert not relay.analysis.alpha_equal(add_1_fn, add_fn)
+    assert not relay.analysis.alpha_equal(add_fn, add_1_fn)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
     test_constant_alpha_equal()
+    test_type_node_alpha_equal()
+    test_type_node_incompatible_alpha_equal()
+    test_expr_node_incompatible_alpha_equal()
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
@@ -639,6 +717,7 @@ if __name__ == "__main__":
     test_tuple_alpha_equal()
     test_tuple_get_item_alpha_equal()
     test_function_alpha_equal()
+    test_function_attr()
     test_call_alpha_equal()
     test_let_alpha_equal()
     test_if_alpha_equal()
@@ -648,3 +727,4 @@ if __name__ == "__main__":
     test_var_alpha_equal()
     test_graph_equal()
     test_hash_unequal()
+    test_fn_attribute()

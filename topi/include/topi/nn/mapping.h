@@ -24,14 +24,15 @@
 #ifndef TOPI_NN_MAPPING_H_
 #define TOPI_NN_MAPPING_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
 
-#include "topi/tags.h"
-#include "tvm/operation.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Scale and shift with NCHW order
@@ -49,7 +50,7 @@ inline Tensor scale_shift_nchw(const Tensor& x,
                                const Tensor& shift,
                                std::string name = "ScaleShift",
                                std::string tag = kBroadcast) {
-  return tvm::compute(
+  return tvm::te::compute(
     x->shape,
     [&](Var b, Var c, Var h, Var w) {
       return x(b, c, h, w) * scale(c) + shift(w);
@@ -72,7 +73,7 @@ inline Tensor scale_shift_nhwc(const Tensor& x,
                                const Tensor& shift,
                                std::string name = "ScaleShift",
                                std::string tag = kBroadcast) {
-  return tvm::compute(
+  return tvm::te::compute(
     x->shape,
     [&](Var b, Var h, Var w, Var c) {
       return x(b, h, w, c) * scale(c) + shift(w);

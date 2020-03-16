@@ -142,10 +142,11 @@ class ExampleJsonModule : public ModuleNode {
       this->curr_subgraph_ = name;
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         for (auto i = 0; i < args.size(); ++i) {
-          CHECK(args[i].type_code() == kNDArrayContainer || args[i].type_code() == kArrayHandle)
+          CHECK(args[i].type_code() == kTVMNDArrayHandle ||
+                args[i].type_code() == kTVMDLTensorHandle)
               << "Expect NDArray or DLTensor as inputs"
               << "\n";
-          if (args[i].type_code() == kArrayHandle) {
+          if (args[i].type_code() == kTVMDLTensorHandle) {
             DLTensor* arg = args[i];
             this->data_entry_[i].CopyFrom(arg);
           } else {
@@ -158,7 +159,7 @@ class ExampleJsonModule : public ModuleNode {
         }
         CHECK_GT(graph_.count(this->curr_subgraph_), 0U);
         auto out_idx = graph_[this->curr_subgraph_].back().output;
-        if (args[args.size() - 1].type_code() == kArrayHandle) {
+        if (args[args.size() - 1].type_code() == kTVMDLTensorHandle) {
           DLTensor* arg = args[args.size() - 1];
           this->data_entry_[out_idx].CopyTo(arg);
         } else {
@@ -331,14 +332,13 @@ class ExampleJsonModule : public ModuleNode {
   std::vector<std::string> op_id_;
 };
 
-TVM_REGISTER_GLOBAL("module.loadfile_examplejson")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_examplejson")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   *rv = ExampleJsonModule::Create(args[0]);
 });
 
-TVM_REGISTER_GLOBAL("module.loadbinary_examplejson")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_examplejson")
 .set_body_typed(ExampleJsonModule::LoadFromBinary);
 
 }  // namespace runtime
 }  // namespace tvm
-

@@ -17,9 +17,9 @@
 # pylint: disable=invalid-name, unused-variable,
 """Schedule for composition of injective operator"""
 import tvm
-from .. import generic, util
+from tvm import te
+from .. import util
 
-@generic.schedule_injective_from_existing.register(["cuda", "gpu"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -36,37 +36,43 @@ def schedule_injective_from_existing(sch, out):
          The updated schedule.
     """
     fused = sch[out].fuse(*sch[out].op.axis)
-    num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+    num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
     max_block = 256
+
+    # vectorize on fp16 data type. This allows to better utilize the memory
+    # bandwidth.
+    vector_width = 4 if out.dtype == "float16" else 1
 
     try:
         const_size = util.get_const_int(util.prod(out.shape))
-        max_block = 256
-        need_block_split = const_size > max_block * num_thread
+        need_block_split = const_size > max_block * num_thread * vector_width
     except ValueError:
         need_block_split = False
+
+    if vector_width > 1:
+        fused, v = sch[out].split(fused, vector_width)
+        sch[out].vectorize(v)
 
     if need_block_split:
         xo, xi = sch[out].split(fused, factor=num_thread * max_block)
         bx, tx = sch[out].split(xi, factor=num_thread)
         sch[out].reorder(bx, tx, xo)
-        sch[out].bind(bx, tvm.thread_axis("blockIdx.x"))
-        sch[out].bind(tx, tvm.thread_axis("threadIdx.x"))
+        sch[out].bind(bx, te.thread_axis("blockIdx.x"))
+        sch[out].bind(tx, te.thread_axis("threadIdx.x"))
     else:
         bx, tx = sch[out].split(fused, factor=num_thread)
-        sch[out].bind(tx, tvm.thread_axis("threadIdx.x"))
-        sch[out].bind(bx, tvm.thread_axis("blockIdx.x"))
+        sch[out].bind(tx, te.thread_axis("threadIdx.x"))
+        sch[out].bind(bx, te.thread_axis("blockIdx.x"))
 
     return sch
 
-@generic.schedule_injective.register(["cuda", "gpu"])
 def schedule_injective(outs):
     """Schedule for injective op.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of injective in the format
           of an array of tensors.
 
     Returns
@@ -74,12 +80,13 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
-    tvm.schedule.AutoInlineInjective(s)
+    tvm.te.schedule.AutoInlineInjective(s)
     for out in outs:
-        schedule_injective_from_existing(s, out)
+        if not util.is_empty_shape(out.shape):
+            schedule_injective_from_existing(s, out)
     return s
 
 schedule_elemwise = schedule_injective

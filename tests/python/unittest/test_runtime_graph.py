@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 import json
 from tvm import rpc
@@ -22,9 +23,9 @@ from tvm.contrib import util, graph_runtime
 
 def test_graph_simple():
     n = 4
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = te.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
     node1 = {"op": "tvm_op", "name": "add",
@@ -51,7 +52,7 @@ def test_graph_simple():
     graph = json.dumps(graph)
 
     def check_verify():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -62,7 +63,7 @@ def test_graph_simple():
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
     def check_remote():
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
@@ -92,7 +93,7 @@ def test_graph_simple():
         params = {'x': x_in}
         graph, lib, params = relay.build(func, target="llvm", params=params)
 
-        if not tvm.module.enabled("llvm"):
+        if not tvm.runtime.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mod_shared = graph_runtime.create(graph, lib, tvm.cpu(0))

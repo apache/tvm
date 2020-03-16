@@ -40,7 +40,7 @@ def _get_lib_name(lib_name):
 
 
 def find_libvta(lib_vta, optional=False):
-    """Find VTA library
+    """Find VTA Chisel-based library
 
     Returns
     -------
@@ -56,10 +56,8 @@ def find_libvta(lib_vta, optional=False):
         Enable error check
     """
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    lib_search = [curr_path]
-    lib_search += [os.path.join(curr_path, "..", "..", "build",)]
-    lib_search += [os.path.join(curr_path, "..", "..", "..", "build",)]
-    lib_search += [os.path.join(curr_path, "..", "..", "..", "build", "Release")]
+    lib_search = [os.path.join(curr_path, "..", "..", "..", "build",)]
+    lib_search += [os.path.join(curr_path, "..", "..", "vta-hw", "build")]
     lib_name = _get_lib_name(lib_vta)
     lib_path = [os.path.join(x, lib_name) for x in lib_search]
     lib_found = [x for x in lib_path if os.path.exists(x)]

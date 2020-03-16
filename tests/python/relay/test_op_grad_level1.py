@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.testing import check_grad, ctx_list, run_infer_type
 from tvm.relay.transform import gradient
@@ -63,6 +64,7 @@ def test_unary_op():
                         (relay.nn.relu, lambda x: np.where(x < 0, np.zeros_like(x), np.ones_like(x))),
                         (tvm.relay.cos, lambda x: -1.0 * np.sin(x)),
                         (tvm.relay.sin, lambda x: np.cos(x)),
+                        (tvm.relay.tan, lambda x: 1.0 / (np.cos(x) ** 2)),
                         (tvm.relay.atan, lambda x: 1 / (1 + np.power(x, 2.0)))]:
         check_single_op(opfunc, ref)
 
@@ -110,11 +112,18 @@ def test_log_softmax_grad():
     check_grad(fwd_func, scale=1)
 
 
-def test_bias_add_grad():
-    data = relay.var("data", relay.TensorType((1, 16), "float32"))
-    bias = relay.var("bias", relay.TensorType((16,), "float32"))
-    fwd_func = relay.Function([data, bias], relay.nn.bias_add(data, bias))
+def verify_bias_add(d_shape, b_shape, axis=1):
+    data = relay.var("data", relay.TensorType(d_shape, "float32"))
+    bias = relay.var("bias", relay.TensorType(b_shape, "float32"))
+    fwd_func = relay.Function([data, bias], relay.nn.bias_add(data, bias, axis=axis))
     check_grad(fwd_func)
+
+
+def test_bias_add_grad():
+    verify_bias_add((1, 16), (16,))
+    verify_bias_add((1, 8, 2, 2), (8,))
+    verify_bias_add((1, 2, 2, 8), (8,), 3)
+    verify_bias_add((4, 8), (8,))
 
 
 if __name__ == "__main__":

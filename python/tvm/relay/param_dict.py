@@ -17,9 +17,11 @@
 # pylint: disable=invalid-name
 """Helper utility to save parameter dicts."""
 import tvm
+import tvm._ffi
 
-_save_param_dict = tvm.get_global_func("tvm.relay._save_param_dict")
-_load_param_dict = tvm.get_global_func("tvm.relay._load_param_dict")
+
+_save_param_dict = tvm._ffi.get_global_func("tvm.relay._save_param_dict")
+_load_param_dict = tvm._ffi.get_global_func("tvm.relay._load_param_dict")
 
 def save_param_dict(params):
     """Save parameter dictionary to binary bytes.

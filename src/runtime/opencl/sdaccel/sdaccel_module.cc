@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -50,8 +50,7 @@ Module SDAccelModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
-  std::shared_ptr<SDAccelModuleNode> n =
-      std::make_shared<SDAccelModuleNode>(data, fmt, fmap, source);
+  auto n = make_object<SDAccelModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
 }
@@ -78,10 +77,10 @@ Module SDAccelModuleLoadBinary(void* strm) {
   return SDAccelModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_xclbin")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_xclbin")
 .set_body_typed(SDAccelModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadfile_awsxclbin")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_awsxclbin")
 .set_body_typed(SDAccelModuleLoadFile);
 }  // namespace runtime
 }  // namespace tvm

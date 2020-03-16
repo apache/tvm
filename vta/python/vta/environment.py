@@ -22,6 +22,7 @@ import os
 import json
 import copy
 import tvm
+from tvm import te
 from . import intrin
 from .pkg_config import PkgConfig
 
@@ -61,12 +62,12 @@ class DevContext(object):
     QID_COMPUTE = 2
 
     def __init__(self, env):
-        self.vta_axis = tvm.thread_axis("vta")
-        self.vta_push_uop = tvm.make.StringImm("VTAPushGEMMOp")
-        ctx = tvm.call_extern("handle", "VTATLSCommandHandle")
-        self.command_handle = tvm.make.Call(
+        self.vta_axis = te.thread_axis("vta")
+        self.vta_push_uop = tvm.tir.StringImm("VTAPushGEMMOp")
+        ctx = tvm.tir.call_extern("handle", "VTATLSCommandHandle")
+        self.command_handle = tvm.tir.Call(
             "handle", "tvm_thread_context", [ctx],
-            tvm.expr.Call.Intrinsic, None, 0)
+            tvm.tir.Call.Intrinsic, None, 0)
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
@@ -231,9 +232,9 @@ class Environment(object):
         """The target host"""
         if self.TARGET in ["pynq", "de10nano"]:
             return "llvm -target=armv7-none-linux-gnueabihf"
-        elif self.TARGET == "ultra96":
+        if self.TARGET == "ultra96":
             return "llvm -target=aarch64-linux-gnu"
-        elif self.TARGET in ["sim", "tsim"]:
+        if self.TARGET in ["sim", "tsim"]:
             return "llvm"
         raise ValueError("Unknown target %s" % self.TARGET)
 
@@ -256,42 +257,42 @@ def get_env():
 @tvm.register_func("tvm.info.mem.%s" % Environment.inp_scope)
 def mem_info_inp_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.INP_ELEM_BITS,
-                         max_simd_bits=spec.INP_ELEM_BITS,
-                         max_num_bits=spec.INP_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.INP_ELEM_BITS,
+                            max_simd_bits=spec.INP_ELEM_BITS,
+                            max_num_bits=spec.INP_BUFF_SIZE * 8,
+                            head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.wgt_scope)
 def mem_info_wgt_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.WGT_ELEM_BITS,
-                         max_simd_bits=spec.WGT_ELEM_BITS,
-                         max_num_bits=spec.WGT_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.WGT_ELEM_BITS,
+                            max_simd_bits=spec.WGT_ELEM_BITS,
+                            max_num_bits=spec.WGT_BUFF_SIZE * 8,
+                            head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
 def mem_info_acc_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.ACC_ELEM_BITS,
-                         max_simd_bits=spec.ACC_ELEM_BITS,
-                         max_num_bits=spec.ACC_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.ACC_ELEM_BITS,
+                            max_simd_bits=spec.ACC_ELEM_BITS,
+                            max_num_bits=spec.ACC_BUFF_SIZE * 8,
+                            head_address=None)
 
 # TVM related registration
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")
 def coproc_sync(op):
     _ = op
-    return tvm.call_extern(
+    return tvm.tir.call_extern(
         "int32", "VTASynchronize",
         get_env().dev.command_handle, 1<<31)
 
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
 def coproc_dep_push(op):
-    return tvm.call_extern(
+    return tvm.tir.call_extern(
         "int32", "VTADepPush",
         get_env().dev.command_handle,
         op.args[0], op.args[1])
@@ -299,7 +300,7 @@ def coproc_dep_push(op):
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_pop")
 def coproc_dep_pop(op):
-    return tvm.call_extern(
+    return tvm.tir.call_extern(
         "int32", "VTADepPop",
         get_env().dev.command_handle,
         op.args[0], op.args[1])
@@ -311,7 +312,7 @@ def _init_env():
         os.path.abspath(os.path.expanduser(__file__)))
     proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
     path_list = [
-        os.path.join(proj_root, "vta/config/vta_config.json")
+        os.path.join(proj_root, "vta/vta-hw/config/vta_config.json")
     ]
     path_list = [p for p in path_list if os.path.exists(p)]
     if not path_list:

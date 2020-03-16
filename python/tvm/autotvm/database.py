@@ -104,6 +104,7 @@ class RedisDatabase(Database):
     MAGIC_SPLIT = "$"
 
     def __init__(self, db_index=REDIS_PROD):
+        # pylint: disable=import-outside-toplevel
         import redis
 
         if db_index == RedisDatabase.REDIS_TEST:
@@ -124,7 +125,7 @@ class RedisDatabase(Database):
         current = self.get(measure_str_key(inp))
         if current is not None:
             records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
-            results = [rec[1] for rec in records]
+            results = [rec[1] for rec in records if rec is not None]
             if get_all:
                 return results
             return max(results, key=lambda result: result.timestamp)
@@ -156,7 +157,7 @@ class RedisDatabase(Database):
         Examples
         --------
         get records for a target
-        >>> db.filter(lambda inp, resulst: "cuda" in inp.target.keys)
+        >>> db.filter(lambda inp, results: "cuda" in inp.target.keys)
         get records with errors
         >>> db.filter(lambda inp, results: any(r.error_no != 0 for r in results))
         """
@@ -166,9 +167,12 @@ class RedisDatabase(Database):
             current = self.get(key)
             try:
                 records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
+                records = [rec for rec in records if rec is not None]
             except TypeError: # got a badly formatted/old format record
                 continue
 
+            if not records:
+                continue
             inps, results = zip(*records)
             inp = inps[0]
             if not func(inp, results):
