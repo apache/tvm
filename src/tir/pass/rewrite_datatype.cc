@@ -108,18 +108,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const CastNode* op) {
-    if (op->dtype.is_int()) {
-      int bits = std::min(op->dtype.bits(), bits_);
-      if (vmap.find(op) == vmap.end()) {
-        vmap[op] = op->dtype.with_bits(bits);
-      } else {
-        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits));
-      }
-    }
-    StmtExprVisitor::VisitExpr_(op);
-  }
-  // the narrowed datatype of Var, IntImm, and Cast
+  // the narrowed datatype of Var and IntImm
   std::unordered_map<const Object*, DataType> vmap;
 
  protected:
@@ -139,6 +128,18 @@ class DataTypeRewriter : public StmtExprMutator {
   Stmt operator()(Stmt s) {
     visitor_(s);
     return VisitStmt(s);
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    PrimExpr value = this->VisitExpr(op->value);
+    is_index_ = true;
+    PrimExpr index = this->VisitExpr(op->index);
+    is_index_ = false;
+    Stmt s = StoreNode::make(op->buffer_var,
+                             op->value,
+                             index,
+                             op->predicate);
+    return StmtExprMutator::VisitStmt_(s.as<StoreNode>());
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -187,18 +188,26 @@ class DataTypeRewriter : public StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    is_index_ = true;
+    PrimExpr index = this->VisitExpr(op->index);
+    is_index_ = false;
+    PrimExpr e = LoadNode::make(op->dtype, op->buffer_var, index, op->predicate);
+    return StmtExprMutator::VisitExpr_(e.as<LoadNode>());
+  }
+
   PrimExpr VisitExpr_(const IntImmNode* op) final {
-    if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
-      return IntImm(visitor_.vmap[op], op->value);
+    if (is_index_) {
+      if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
+        return IntImm(visitor_.vmap[op], op->value);
+      }
     }
     return StmtExprMutator::VisitExpr_(op);
   }
 
   PrimExpr VisitExpr_(const CastNode* op) final {
-    if (visitor_.vmap.find(op) != visitor_.vmap.end()) {
-      PrimExpr e = StmtExprMutator::VisitExpr_(op);
-      const CastNode* new_op = e.as<CastNode>();
-      return CastNode::make(visitor_.vmap[op], new_op->value);
+    if (is_index_) {
+      return StmtExprMutator::VisitExpr(op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
@@ -226,6 +235,7 @@ class DataTypeRewriter : public StmtExprMutator {
   // a map from Var before rewrite to Var after rewrite,
   // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
+  bool is_index_{false};
   PrimExpr Cast(PrimExpr e, DataType dtype) {
     if (e.dtype() != dtype) {
       return CastNode::make(dtype, e);
