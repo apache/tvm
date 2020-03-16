@@ -73,7 +73,7 @@ bool ConstantCheck(const Expr& e) {
   return ConstantChecker().Check(e);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.check_constant")
+TVM_REGISTER_GLOBAL("relay.analysis.check_constant")
 .set_body_typed(ConstantCheck);
 
 // TODO(tvm-team) consider combine dead-code with constant folder.

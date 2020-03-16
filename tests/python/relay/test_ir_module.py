@@ -18,7 +18,7 @@
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.prelude import Prelude
+from tvm.relay.ir import Prelude
 from tvm.relay.testing import add_nat_definitions
 
 def constructor_list(p):

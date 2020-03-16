@@ -16,7 +16,7 @@
 # under the License.
 """Non-maximum suppression operations."""
 from . import _make
-from ...expr import TupleWrapper
+from ...ir.expr import TupleWrapper
 
 def get_valid_counts(data,
                      score_threshold,

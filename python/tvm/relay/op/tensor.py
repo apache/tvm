@@ -20,7 +20,7 @@ from tvm.runtime import ndarray as _nd
 from tvm.runtime import TVMContext as _TVMContext
 
 from . import _make
-from ..expr import Tuple
+from ..ir.expr import Tuple
 
 
 # We create a wrapper function for each operator in the

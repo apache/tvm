@@ -20,11 +20,11 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay.analysis import alpha_equal, assert_alpha_equal
-from tvm.relay.prelude import Prelude
+from tvm.relay.ir import Prelude
 from tvm.relay import op, create_executor, transform
-from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
-from tvm.relay import TensorType, Tuple, If, Clause, PatternConstructor, PatternVar, Match
-from tvm.relay import GlobalVar, Call
+from tvm.relay.ir import Var, TypeVar, TupleGetItem, Let, const, RefRead, RefWrite, RefCreate
+from tvm.relay.ir import TensorType, Tuple, If, Clause, PatternConstructor, PatternVar, Match
+from tvm.relay.ir import GlobalVar, Call, Function
 from tvm.relay.transform import gradient
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, run_infer_type
 

@@ -19,35 +19,33 @@
 import os
 from sys import setrecursionlimit
 
-from . import call_graph
-from . import base
-from . import ty
-from . import expr
-from . import type_functor
-from . import expr_functor
-from . import adt
-from . import analysis
+from . import ir
+from .ir import adt, expr, ty, base, scope_builder
+from .ir import prelude, loops, parser
+
 from . import transform
+from . import analysis
+from .analysis import call_graph, feature, alpha_equal
 from .build_module import build, create_executor, optimize
 from .transform import build_config
-from . import prelude
-from . import parser
 from . import debug
 from . import param_dict
-from . import feature
 from .backend import vm
 
 # Root operators
 from .op import Op
+from .op import nn
+from .op import image
+from .op import vision
+from .op import annotation
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
 from .op.algorithm import *
-from . import nn
-from . import annotation
-from . import vision
-from . import contrib
-from . import image
+from .op.nn import *
+from .op.vision import *
+from .op.contrib import *
+from .op.image import *
 from . import frontend
 from . import backend
 from . import quantize
@@ -55,75 +53,81 @@ from . import quantize
 # Dialects
 from . import qnn
 
-from .scope_builder import ScopeBuilder
 # Load Memory pass
-from . import memory_alloc
+from .transform import memory_alloc
 
 # Required to traverse large programs
 setrecursionlimit(10000)
 
 # Span
-Span = base.Span
+Span = ir.Span
 
 # Type
-Type = ty.Type
-TupleType = ty.TupleType
-TensorType = ty.TensorType
-TypeKind = ty.TypeKind
-TypeVar = ty.TypeVar
-ShapeVar = ty.ShapeVar
-TypeConstraint = ty.TypeConstraint
-FuncType = ty.FuncType
-TypeRelation = ty.TypeRelation
-IncompleteType = ty.IncompleteType
-scalar_type = ty.scalar_type
-RefType = ty.RefType
-GlobalTypeVar = ty.GlobalTypeVar
-TypeCall = ty.TypeCall
-Any = ty.Any
+Type = ir.Type
+TupleType = ir.TupleType
+TensorType = ir.TensorType
+TypeKind = ir.TypeKind
+TypeVar = ir.TypeVar
+ShapeVar = ir.ShapeVar
+TypeConstraint = ir.TypeConstraint
+FuncType = ir.FuncType
+TypeRelation = ir.TypeRelation
+IncompleteType = ir.IncompleteType
+scalar_type = ir.scalar_type
+RefType = ir.RefType
+GlobalTypeVar = ir.GlobalTypeVar
+TypeCall = ir.TypeCall
+Any = ir.Any
 
 # Expr
-Expr = expr.RelayExpr
-Constant = expr.Constant
-Tuple = expr.Tuple
-Var = expr.Var
-GlobalVar = expr.GlobalVar
-Function = expr.Function
-Call = expr.Call
-Let = expr.Let
-If = expr.If
-TupleGetItem = expr.TupleGetItem
-RefCreate = expr.RefCreate
-RefRead = expr.RefRead
-RefWrite = expr.RefWrite
+Expr = ir.Expr
+Constant = ir.Constant
+Tuple = ir.Tuple
+Var = ir.Var
+GlobalVar = ir.GlobalVar
+Function = ir.Function
+Call = ir.Call
+Let = ir.Let
+If = ir.If
+TupleGetItem = ir.TupleGetItem
+RefCreate = ir.RefCreate
+RefRead = ir.RefRead
+RefWrite = ir.RefWrite
 
 # ADT
-PatternWildcard = adt.PatternWildcard
-PatternVar = adt.PatternVar
-PatternConstructor = adt.PatternConstructor
-PatternTuple = adt.PatternTuple
-Constructor = adt.Constructor
-TypeData = adt.TypeData
-Clause = adt.Clause
-Match = adt.Match
+Pattern = ir.Pattern
+PatternWildcard = ir.PatternWildcard
+PatternVar = ir.PatternVar
+PatternConstructor = ir.PatternConstructor
+PatternTuple = ir.PatternTuple
+Constructor = ir.Constructor
+TypeData = ir.TypeData
+Clause = ir.Clause
+Match = ir.Match
 
 # helper functions
-var = expr.var
-const = expr.const
-bind = expr.bind
-module_pass = transform.module_pass
-function_pass = transform.function_pass
-alpha_equal = analysis.alpha_equal
+var = ir.var
+const = ir.const
+bind = ir.bind
 
 # TypeFunctor
-TypeFunctor = type_functor.TypeFunctor
-TypeVisitor = type_functor.TypeVisitor
-TypeMutator = type_functor.TypeMutator
+TypeFunctor = ir.TypeFunctor
+TypeVisitor = ir.TypeVisitor
+TypeMutator = ir.TypeMutator
 
 # ExprFunctor
-ExprFunctor = expr_functor.ExprFunctor
-ExprVisitor = expr_functor.ExprVisitor
-ExprMutator = expr_functor.ExprMutator
+ExprFunctor = ir.ExprFunctor
+ExprVisitor = ir.ExprVisitor
+ExprMutator = ir.ExprMutator
+
+# Prelude
+Prelude = prelude.Prelude
+
+# Scope builder
+ScopeBuilder = scope_builder.ScopeBuilder
+
+module_pass = transform.module_pass
+function_pass = transform.function_pass
 
 # Parser
 fromtext = parser.fromtext

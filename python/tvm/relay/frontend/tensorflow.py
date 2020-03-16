@@ -27,12 +27,12 @@ import numpy as np
 import tvm
 
 from tvm.ir import IRModule
-from tvm.relay.prelude import Prelude
+from tvm.relay.ir import Prelude
 
 from .. import analysis
 from .. import expr as _expr
 from .. import op as _op
-from ..expr_functor import ExprMutator
+from ..ir import ExprMutator
 from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
 from .common import infer_shape as _infer_shape

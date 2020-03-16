@@ -40,11 +40,11 @@ import tvm
 import tvm.ir._ffi_api
 from tvm.ir import IRModule
 
-from .base import Span, SourceName
+from . import Span, SourceName
 from . import adt
 from . import expr
 from . import ty
-from . import op
+from .. import op
 
 PYTHON_VERSION = sys.version_info.major
 try:
@@ -56,9 +56,9 @@ except ImportError:
                     .format(version=PYTHON_VERSION))
 
 try:
-    from .grammar.py3.RelayVisitor import RelayVisitor
-    from .grammar.py3.RelayParser import RelayParser
-    from .grammar.py3.RelayLexer import RelayLexer
+    from ..grammar.py3.RelayVisitor import RelayVisitor
+    from ..grammar.py3.RelayParser import RelayParser
+    from ..grammar.py3.RelayLexer import RelayLexer
 except ImportError:
     raise Exception("Couldn't find ANTLR parser. Try building with USE_ANTLR=ON.")
 

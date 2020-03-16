@@ -14,7 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI exposing the Relay type inference and checking."""
-import tvm._ffi
+# pylint: disable=wildcard-import, redefined-builtin, invalid-name
+"""The Relay IR namespace containing the analysis passes."""
+# Analysis passes
+from .analysis import *
 
-tvm._ffi._init_api("relay._transform", __name__)
+# Call graph
+from . import call_graph
+
+# Feature
+from . import feature

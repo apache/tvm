@@ -19,8 +19,8 @@
 import tvm._ffi
 from tvm.driver import lower, build
 
-from ..base import register_relay_node
-from ..expr import RelayExpr
+from ..ir.base import register_relay_node
+from ..ir.expr import RelayExpr
 from ...target import get_native_generic_func, GenericFunc
 from ...runtime import Object
 from . import _make

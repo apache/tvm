@@ -86,7 +86,7 @@ bool IsDynamic(const Type& ty) {
 }
 
 // TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay._make.IsDynamic")
+TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
 .set_body_typed(IsDynamic);
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {

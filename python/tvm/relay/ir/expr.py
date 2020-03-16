@@ -25,8 +25,7 @@ from tvm.runtime import NDArray, convert, ndarray as _nd
 from tvm.ir import RelayExpr, GlobalVar, BaseFunc
 
 from .base import RelayNode, register_relay_node
-from . import _make
-from . import _expr
+from . import _ffi_api
 from . import ty as _ty
 
 # alias relay expr as Expr.
@@ -54,7 +53,7 @@ class ExprWithOp(RelayExpr):
         result : tvm.relay.Expr
             The result expression.
         """
-        return _make.cast(self, dtype)
+        return _ffi_api.cast(self, dtype)
 
     def __neg__(self):
         return _op_make.negative(self)
@@ -170,7 +169,7 @@ class Constant(ExprWithOp):
         The data content of the constant expression.
     """
     def __init__(self, data):
-        self.__init_handle_by_constructor__(_make.Constant, data)
+        self.__init_handle_by_constructor__(_ffi_api.Constant, data)
 
 
 @register_relay_node
@@ -183,7 +182,7 @@ class Tuple(ExprWithOp):
         The fields in the tuple.
     """
     def __init__(self, fields):
-        self.__init_handle_by_constructor__(_make.Tuple, fields)
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields)
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -216,7 +215,7 @@ class Var(ExprWithOp):
     """
     def __init__(self, name_hint, type_annotation=None):
         self.__init_handle_by_constructor__(
-            _make.Var, name_hint, type_annotation)
+            _ffi_api.Var, name_hint, type_annotation)
 
     @property
     def name_hint(self):
@@ -254,7 +253,7 @@ class Function(BaseFunc):
             type_params = convert([])
 
         self.__init_handle_by_constructor__(
-            _make.Function, params, body, ret_type, type_params, attrs)
+            _ffi_api.Function, params, body, ret_type, type_params, attrs)
 
     def __call__(self, *args):
         """Invoke the global function.
@@ -282,7 +281,7 @@ class Function(BaseFunc):
         func : Function
             A new copy of the function
         """
-        return _expr.FunctionWithAttr(
+        return _ffi_api.FunctionWithAttr(
             self, attr_key, convert(attr_value))
 
 
@@ -313,7 +312,7 @@ class Call(ExprWithOp):
         if not type_args:
             type_args = []
         self.__init_handle_by_constructor__(
-            _make.Call, op, args, attrs, type_args)
+            _ffi_api.Call, op, args, attrs, type_args)
 
 
 @register_relay_node
@@ -333,7 +332,7 @@ class Let(ExprWithOp):
     """
     def __init__(self, variable, value, body):
         self.__init_handle_by_constructor__(
-            _make.Let, variable, value, body)
+            _ffi_api.Let, variable, value, body)
 
 
 @register_relay_node
@@ -353,7 +352,7 @@ class If(ExprWithOp):
     """
     def __init__(self, cond, true_branch, false_branch):
         self.__init_handle_by_constructor__(
-            _make.If, cond, true_branch, false_branch)
+            _ffi_api.If, cond, true_branch, false_branch)
 
 
 @register_relay_node
@@ -370,7 +369,7 @@ class TupleGetItem(ExprWithOp):
     """
     def __init__(self, tuple_value, index):
         self.__init_handle_by_constructor__(
-            _make.TupleGetItem, tuple_value, index)
+            _ffi_api.TupleGetItem, tuple_value, index)
 
 
 @register_relay_node
@@ -382,7 +381,7 @@ class RefCreate(ExprWithOp):
        The initial value.
     """
     def __init__(self, value):
-        self.__init_handle_by_constructor__(_make.RefCreate, value)
+        self.__init_handle_by_constructor__(_ffi_api.RefCreate, value)
 
 
 @register_relay_node
@@ -394,7 +393,7 @@ class RefRead(ExprWithOp):
          The reference.
     """
     def __init__(self, ref):
-        self.__init_handle_by_constructor__(_make.RefRead, ref)
+        self.__init_handle_by_constructor__(_ffi_api.RefRead, ref)
 
 
 @register_relay_node
@@ -410,7 +409,7 @@ class RefWrite(ExprWithOp):
         The new value.
     """
     def __init__(self, ref, value):
-        self.__init_handle_by_constructor__(_make.RefWrite, ref, value)
+        self.__init_handle_by_constructor__(_ffi_api.RefWrite, ref, value)
 
 
 class TempExpr(ExprWithOp):
@@ -427,7 +426,7 @@ class TempExpr(ExprWithOp):
         -------
         The corresponding normal expression.
         """
-        return _expr.TempExprRealize(self)
+        return _ffi_api.TempExprRealize(self)
 
 
 class TupleWrapper(object):
@@ -587,4 +586,4 @@ def bind(expr, binds):
     result : tvm.relay.Expr
         The expression or function after binding.
     """
-    return _expr.Bind(expr, binds)
+    return _ffi_api.Bind(expr, binds)

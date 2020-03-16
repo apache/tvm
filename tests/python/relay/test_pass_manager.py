@@ -21,8 +21,7 @@ import pytest
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay import ExprFunctor
-from tvm.relay import Function, Call
+from tvm.relay.ir import ExprFunctor, Function, Call
 from tvm.relay import analysis
 from tvm.relay import transform as _transform
 from tvm.relay.testing import ctx_list, run_infer_type

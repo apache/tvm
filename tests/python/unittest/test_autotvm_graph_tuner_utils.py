@@ -28,7 +28,7 @@ from tvm.relay.testing import resnet
 from tvm.autotvm.graph_tuner.utils import has_multiple_inputs, get_direct_ancestor, get_in_nodes, \
     get_out_nodes, expr2graph, bind_inputs
 from tvm.autotvm.graph_tuner._base import OPT_OUT_OP
-from tvm.relay.expr import Call, TupleGetItem, Tuple, Var
+from tvm.relay.ir import Call, TupleGetItem, Tuple, Var
 
 
 def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result):

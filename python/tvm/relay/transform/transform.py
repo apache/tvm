@@ -28,8 +28,8 @@ from tvm.runtime import ndarray as _nd
 from tvm.ir.transform import PassInfo, PassContext, Pass, ModulePass, Sequential, module_pass
 
 from tvm import relay
-from . import _transform
-from .base import register_relay_node
+from . import _ffi_api
+from ..ir.base import register_relay_node
 
 
 def build_config(opt_level=2,
@@ -98,7 +98,7 @@ def InferType():
     ret : tvm.relay.Pass
         The registered type inference pass.
     """
-    return _transform.InferType()
+    return _ffi_api.InferType()
 
 
 def FoldScaleAxis():
@@ -116,7 +116,7 @@ def FoldScaleAxis():
     forward_fold_scale_axis as backward folding targets the common conv->bn
     pattern.
     """
-    return _transform.FoldScaleAxis()
+    return _ffi_api.FoldScaleAxis()
 
 
 def BackwardFoldScaleAxis():
@@ -133,7 +133,7 @@ def BackwardFoldScaleAxis():
     before using forward_fold_scale_axis as backward folding targets the common
     conv->bn pattern.
     """
-    return _transform.BackwardFoldScaleAxis()
+    return _ffi_api.BackwardFoldScaleAxis()
 
 def RemoveUnusedFunctions(entry_functions=None):
     """Remove unused global relay functions in a relay module.
@@ -150,7 +150,7 @@ def RemoveUnusedFunctions(entry_functions=None):
     """
     if entry_functions is None:
         entry_functions = ['main']
-    return _transform.RemoveUnusedFunctions(entry_functions)
+    return _ffi_api.RemoveUnusedFunctions(entry_functions)
 
 def ForwardFoldScaleAxis():
     """Fold the scaling of axis into weights of conv2d/dense.
@@ -166,7 +166,7 @@ def ForwardFoldScaleAxis():
     before using forward_fold_scale_axis, as backward folding targets the
     common conv->bn pattern.
     """
-    return _transform.ForwardFoldScaleAxis()
+    return _ffi_api.ForwardFoldScaleAxis()
 
 
 def SimplifyInference():
@@ -178,7 +178,7 @@ def SimplifyInference():
     ret: tvm.relay.Pass
         The registered pass to perform operator simplification.
     """
-    return _transform.SimplifyInference()
+    return _ffi_api.SimplifyInference()
 
 
 def FastMath():
@@ -189,7 +189,7 @@ def FastMath():
     ret: tvm.relay.Pass
         The registered pass to perform fast math operations.
     """
-    return _transform.FastMath()
+    return _ffi_api.FastMath()
 
 
 def CanonicalizeOps():
@@ -202,7 +202,7 @@ def CanonicalizeOps():
     ret: tvm.relay.Pass
         The registered pass performing the canonicalization.
     """
-    return _transform.CanonicalizeOps()
+    return _ffi_api.CanonicalizeOps()
 
 
 def DeadCodeElimination(inline_once=False):
@@ -218,7 +218,7 @@ def DeadCodeElimination(inline_once=False):
     ret: tvm.relay.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
-    return _transform.DeadCodeElimination(inline_once)
+    return _ffi_api.DeadCodeElimination(inline_once)
 
 
 def FoldConstant():
@@ -229,7 +229,7 @@ def FoldConstant():
     ret : tvm.relay.Pass
         The registered pass for constant folding.
     """
-    return _transform.FoldConstant()
+    return _ffi_api.FoldConstant()
 
 
 def FuseOps(fuse_opt_level=-1):
@@ -246,7 +246,7 @@ def FuseOps(fuse_opt_level=-1):
     ret : tvm.relay.Pass
         The registered pass for operator fusion.
     """
-    return _transform.FuseOps(fuse_opt_level)
+    return _ffi_api.FuseOps(fuse_opt_level)
 
 
 def CombineParallelConv2D(min_num_branches=3):
@@ -263,7 +263,7 @@ def CombineParallelConv2D(min_num_branches=3):
     ret: tvm.relay.Pass
         The registered pass that combines parallel conv2d operators.
     """
-    return _transform.CombineParallelConv2D(min_num_branches)
+    return _ffi_api.CombineParallelConv2D(min_num_branches)
 
 
 def CombineParallelDense(min_num_branches=3):
@@ -295,7 +295,7 @@ def CombineParallelDense(min_num_branches=3):
     ret: tvm.relay.Pass
         The registered pass that combines parallel dense operators.
     """
-    return _transform.CombineParallelDense(min_num_branches)
+    return _ffi_api.CombineParallelDense(min_num_branches)
 
 
 def AlterOpLayout():
@@ -309,7 +309,7 @@ def AlterOpLayout():
     ret : tvm.relay.Pass
         The registered pass that alters the layout of operators.
     """
-    return _transform.AlterOpLayout()
+    return _ffi_api.AlterOpLayout()
 
 
 def ConvertLayout(desired_layout):
@@ -337,7 +337,7 @@ def ConvertLayout(desired_layout):
     pass: FunctionPass
       The pass.
     """
-    return _transform.ConvertLayout(desired_layout)
+    return _ffi_api.ConvertLayout(desired_layout)
 
 
 def Legalize(legalize_map_attr_name="FTVMLegalize"):
@@ -357,7 +357,7 @@ def Legalize(legalize_map_attr_name="FTVMLegalize"):
     ret : tvm.relay.Pass
         The registered pass that rewrites an expr.
     """
-    return _transform.Legalize(legalize_map_attr_name)
+    return _ffi_api.Legalize(legalize_map_attr_name)
 
 
 def MergeComposite(pattern_table):
@@ -382,7 +382,7 @@ def MergeComposite(pattern_table):
         pattern_names.append(pattern_name)
         patterns.append(pattern)
 
-    return _transform.MergeComposite(pattern_names, patterns)
+    return _ffi_api.MergeComposite(pattern_names, patterns)
 
 
 def RewriteAnnotatedOps(fallback_device):
@@ -403,7 +403,7 @@ def RewriteAnnotatedOps(fallback_device):
         The registered pass that rewrites an expression with annotated
         `on_device` operators.
     """
-    return _transform.RewriteDeviceAnnotation(fallback_device)
+    return _ffi_api.RewriteDeviceAnnotation(fallback_device)
 
 
 def ToANormalForm():
@@ -417,7 +417,7 @@ def ToANormalForm():
     ret: Union[tvm.relay.Pass, tvm.relay.Expr]
         The registered pass that transforms an expression into A Normal Form.
     """
-    return _transform.ToANormalForm()
+    return _ffi_api.ToANormalForm()
 
 
 def ToCPS(expr, mod=None):
@@ -431,7 +431,7 @@ def ToCPS(expr, mod=None):
     result: tvm.relay.Pass
         The registered pass that transforms an expression into CPS.
     """
-    return _transform.to_cps(expr, mod)
+    return _ffi_api.to_cps(expr, mod)
 
 
 def EtaExpand(expand_constructor=False, expand_global_var=False):
@@ -450,7 +450,7 @@ def EtaExpand(expand_constructor=False, expand_global_var=False):
     ret: tvm.relay.Pass
         The registered pass that eta expands an expression.
     """
-    return _transform.EtaExpand(expand_constructor, expand_global_var)
+    return _ffi_api.EtaExpand(expand_constructor, expand_global_var)
 
 
 def ToGraphNormalForm():
@@ -461,7 +461,7 @@ def ToGraphNormalForm():
     ret : tvm.relay.Pass
         The registered pass that transforms an expression into Graph Normal Form.
     """
-    return _transform.ToGraphNormalForm()
+    return _ffi_api.ToGraphNormalForm()
 
 
 def EliminateCommonSubexpr(fskip=None):
@@ -478,7 +478,7 @@ def EliminateCommonSubexpr(fskip=None):
     ret : tvm.relay.Pass
         The registered pass that eliminates common subexpressions.
     """
-    return _transform.EliminateCommonSubexpr(fskip)
+    return _ffi_api.EliminateCommonSubexpr(fskip)
 
 
 def PartialEvaluate():
@@ -496,7 +496,7 @@ def PartialEvaluate():
     ret: tvm.relay.Pass
         The registered pass that performs partial evaluation on an expression.
     """
-    return _transform.PartialEvaluate()
+    return _ffi_api.PartialEvaluate()
 
 
 def CanonicalizeCast():
@@ -508,7 +508,7 @@ def CanonicalizeCast():
     ret : tvm.relay.Pass
         The registered pass that canonicalizes cast expression.
     """
-    return _transform.CanonicalizeCast()
+    return _ffi_api.CanonicalizeCast()
 
 
 def LambdaLift():
@@ -520,7 +520,7 @@ def LambdaLift():
     ret : tvm.relay.Pass
         The registered pass that lifts the lambda function.
     """
-    return _transform.LambdaLift()
+    return _ffi_api.LambdaLift()
 
 
 def PrintIR(show_meta_data=True):
@@ -537,7 +537,7 @@ def PrintIR(show_meta_data=True):
     ret : tvm.relay.Pass
         The registered pass that prints the module IR.
     """
-    return _transform.PrintIR(show_meta_data)
+    return _ffi_api.PrintIR(show_meta_data)
 
 
 def PartitionGraph():
@@ -549,7 +549,7 @@ def PartitionGraph():
     ret: tvm.relay.Pass
         The registered pass that partitions the Relay program.
     """
-    return _transform.PartitionGraph()
+    return _ffi_api.PartitionGraph()
 
 
 
@@ -568,7 +568,7 @@ def AnnotateTarget(target):
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
-    return _transform.AnnotateTarget(target)
+    return _ffi_api.AnnotateTarget(target)
 
 
 def Inline():
@@ -581,7 +581,7 @@ def Inline():
     ret: tvm.relay.Pass
         The registered pass that performs inlining for a Relay IR module.
     """
-    return _transform.Inline()
+    return _ffi_api.Inline()
 
 
 def gradient(expr, mod=None, mode='higher_order'):
@@ -609,9 +609,9 @@ def gradient(expr, mod=None, mode='higher_order'):
       The transformed expression.
     """
     if mode == 'first_order':
-        return _transform.first_order_gradient(expr, mod)
+        return _ffi_api.first_order_gradient(expr, mod)
     if mode == 'higher_order':
-        return _transform.gradient(expr, mod)
+        return _ffi_api.gradient(expr, mod)
     raise Exception('unknown mode')
 
 
@@ -634,7 +634,7 @@ def to_cps(func, mod=None):
     result: tvm.relay.Function
       The output function.
     """
-    return _transform.to_cps(func, mod)
+    return _ffi_api.to_cps(func, mod)
 
 
 def un_cps(func):
@@ -654,7 +654,7 @@ def un_cps(func):
     result: tvm.relay.Function
         The output function
     """
-    return _transform.un_cps(func)
+    return _ffi_api.un_cps(func)
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
@@ -670,7 +670,7 @@ def _wrap_class_function_pass(pass_cls, pass_info):
             def _pass_func(func, mod, ctx):
                 return inst.transform_function(func, mod, ctx)
             self.__init_handle_by_constructor__(
-                _transform.MakeFunctionPass, _pass_func, pass_info)
+                _ffi_api.MakeFunctionPass, _pass_func, pass_info)
             self._inst = inst
 
         def __getattr__(self, name):
@@ -778,7 +778,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):
             raise TypeError("pass_func must be a callable for Module pass")
-        return _transform.MakeFunctionPass(pass_arg, info)
+        return _ffi_api.MakeFunctionPass(pass_arg, info)
 
     if pass_func:
         return create_function_pass(pass_func)

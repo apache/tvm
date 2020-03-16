@@ -18,13 +18,12 @@ import numpy as np
 import pytest
 
 import tvm
-from tvm import te
 from tvm import runtime
 from tvm import relay
-from tvm.relay.scope_builder import ScopeBuilder
+from tvm.relay.ir import ScopeBuilder
 from tvm.relay.testing.config import ctx_list
-from tvm.relay.prelude import Prelude
-from tvm.relay.loops import while_loop
+from tvm.relay.ir import Prelude
+from tvm.relay.ir.loops import while_loop
 from tvm.relay import testing
 
 def check_result(args, expected_result, mod=None):

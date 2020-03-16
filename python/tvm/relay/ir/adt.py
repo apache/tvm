@@ -19,7 +19,7 @@
 from tvm.ir import Constructor, TypeData
 
 from .base import RelayNode, register_relay_node, Object
-from . import _make
+from . import _ffi_api
 from .ty import Type
 from .expr import ExprWithOp, RelayExpr, Call
 
@@ -44,7 +44,7 @@ class PatternWildcard(Pattern):
         wildcard: PatternWildcard
             a wildcard pattern.
         """
-        self.__init_handle_by_constructor__(_make.PatternWildcard)
+        self.__init_handle_by_constructor__(_ffi_api.PatternWildcard)
 
 
 @register_relay_node
@@ -63,7 +63,7 @@ class PatternVar(Pattern):
         pv: PatternVar
             A variable pattern.
         """
-        self.__init_handle_by_constructor__(_make.PatternVar, var)
+        self.__init_handle_by_constructor__(_ffi_api.PatternVar, var)
 
 
 @register_relay_node
@@ -88,7 +88,7 @@ class PatternConstructor(Pattern):
         """
         if patterns is None:
             patterns = []
-        self.__init_handle_by_constructor__(_make.PatternConstructor, constructor, patterns)
+        self.__init_handle_by_constructor__(_ffi_api.PatternConstructor, constructor, patterns)
 
 
 @register_relay_node
@@ -111,7 +111,7 @@ class PatternTuple(Pattern):
         """
         if patterns is None:
             patterns = []
-        self.__init_handle_by_constructor__(_make.PatternTuple, patterns)
+        self.__init_handle_by_constructor__(_ffi_api.PatternTuple, patterns)
 
 
 @register_relay_node
@@ -133,7 +133,7 @@ class Clause(Object):
         clause: Clause
             The Clause.
         """
-        self.__init_handle_by_constructor__(_make.Clause, lhs, rhs)
+        self.__init_handle_by_constructor__(_ffi_api.Clause, lhs, rhs)
 
 
 @register_relay_node
@@ -160,4 +160,4 @@ class Match(ExprWithOp):
         match: tvm.relay.Expr
             The match expression.
         """
-        self.__init_handle_by_constructor__(_make.Match, data, clauses, complete)
+        self.__init_handle_by_constructor__(_ffi_api.Match, data, clauses, complete)

@@ -21,12 +21,10 @@ import tvm._ffi
 
 from tvm.runtime import Object
 from tvm.ir import SourceName, Span, Node as RelayNode
-from . import _make
-from . import _expr
-from . import _base
 
 
-__STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+__STD_PATH__ = os.path.join(os.path.join(os.path.dirname(os.path.realpath(__file__)), \
+                            os.pardir), "std")
 
 @tvm._ffi.register_func("tvm.relay.std_path")
 def _std_path():

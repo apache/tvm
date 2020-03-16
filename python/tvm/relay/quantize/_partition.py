@@ -19,7 +19,7 @@
 import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
-from ..base import register_relay_node
+from ..ir.base import register_relay_node
 from ..op import op as _reg
 from . import _quantize
 from .quantize import _forward_op

@@ -15,10 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.relay.scope_builder
+tvm.relay.ir.scope_builder
 -----------------------
 
-.. automodule:: tvm.relay.scope_builder
+.. automodule:: tvm.relay.ir.scope_builder
 
-.. autoclass:: tvm.relay.scope_builder.ScopeBuilder
+.. autoclass:: tvm.relay.ir.scope_builder.ScopeBuilder
     :members:

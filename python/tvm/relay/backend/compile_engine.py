@@ -22,7 +22,7 @@ import logging
 import numpy as np
 import tvm
 from tvm import te
-from ..base import register_relay_node, Object
+from ..ir.base import register_relay_node, Object
 from ... import target as _target
 from ... import autotvm
 from .. import expr as _expr

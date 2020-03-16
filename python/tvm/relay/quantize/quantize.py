@@ -22,7 +22,7 @@ from . import _quantize
 from ._calibrate import calibrate
 from .. import expr as _expr
 from .. import transform as _transform
-from ..base import Object, register_relay_node
+from ..ir.base import Object, register_relay_node
 
 
 class QAnnotateKind(object):

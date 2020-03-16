@@ -17,7 +17,7 @@
 """Classic algorithm operation"""
 from __future__ import absolute_import as _abs
 from . import _make
-from ..expr import TupleWrapper
+from ..ir.expr import TupleWrapper
 
 def argsort(data, axis=-1, is_ascend=1, dtype="int32"):
     """Performs sorting along the given axis and returns an array of indicies

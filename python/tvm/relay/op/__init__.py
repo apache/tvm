@@ -41,13 +41,13 @@ from . import _tensor_grad
 from . import _transform
 from . import _reduce
 from . import _algorithm
-from ..base import register_relay_node
+from ..ir.base import register_relay_node
 
 
 def _register_op_make():
     # pylint: disable=import-outside-toplevel
     from . import _make
-    from .. import expr
+    from ..ir import expr
     expr._op_make = _make
 
 _register_op_make()

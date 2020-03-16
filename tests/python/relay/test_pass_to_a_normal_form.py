@@ -20,9 +20,9 @@ from tvm import te
 from tvm import relay
 from tvm.relay.analysis import alpha_equal, detect_feature
 from tvm.relay import op, create_executor, transform
-from tvm.relay.prelude import Prelude
+from tvm.relay.ir import Prelude
 from tvm.relay.testing import add_nat_definitions, count
-from tvm.relay.feature import Feature
+from tvm.relay.analysis import Feature
 
 
 def run_opt_pass(expr, passes):

@@ -17,7 +17,7 @@
 """The attributes node used for Relay operators"""
 
 from tvm.ir import Attrs
-from ..base import register_relay_attr_node
+from ..ir.base import register_relay_attr_node
 
 
 @register_relay_attr_node

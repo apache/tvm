@@ -14,7 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI exposing the passes for Relay program analysis."""
-import tvm._ffi
+"""A parser for Relay's text format."""
+from __future__ import absolute_import
+from ... import register_func
 
-tvm._ffi._init_api("relay._analysis", __name__)
+
+@register_func("relay.fromtext")
+def fromtext(data, source_name=None):
+    """Parse a Relay program."""
+    # pylint: disable=import-outside-toplevel
+    from . import _parser
+    x = _parser.fromtext(data + "\n", source_name)
+    if x is None:
+        raise Exception("cannot parse: ", data)
+    return x

@@ -25,8 +25,8 @@ from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
 from tvm.contrib import util
-from tvm.relay.annotation import compiler_begin, compiler_end
-from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.ir import ExprMutator
 
 # Leverage the pass manager to write a simple white list based annotator
 @transform.function_pass(opt_level=0)

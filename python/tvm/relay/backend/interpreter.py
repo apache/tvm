@@ -26,9 +26,9 @@ from tvm.ir import IRModule
 from . import _backend
 from .. import _make, analysis, transform
 from ... import nd
-from ..base import Object, register_relay_node
-from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
-from ..scope_builder import ScopeBuilder
+from ..ir.base import Object, register_relay_node
+from ..ir import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
+from ..ir.scope_builder import ScopeBuilder
 
 
 @register_relay_node
