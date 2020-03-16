@@ -55,6 +55,12 @@ if(USE_CUDA)
     endif()
   endif(USE_CUBLAS)
 
+  if(USE_THRUST)
+    message(STATUS "Build with Thrust support")
+    file(GLOB CONTRIB_THRUST_SRC src/runtime/contrib/thrust/*.cu)
+    list(APPEND RUNTIME_SRCS ${CONTRIB_THRUST_SRC})
+  endif(USE_THRUST)
+
 else(USE_CUDA)
   list(APPEND COMPILER_SRCS src/target/opt/build_cuda_off.cc)
 endif(USE_CUDA)
