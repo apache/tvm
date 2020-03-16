@@ -19,25 +19,25 @@ from ..base import get_last_ffi_error
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
-from libc.stdint cimport int32_t, int64_t, uint64_t, uint8_t, uint16_t
+from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
 import ctypes
 
 cdef enum TVMTypeCode:
     kInt = 0
     kUInt = 1
     kFloat = 2
-    kHandle = 3
-    kNull = 4
-    kTVMType = 5
+    kTVMOpaqueHandle = 3
+    kTVMNullptr = 4
+    kTVMDataType = 5
     kTVMContext = 6
-    kArrayHandle = 7
-    kObjectHandle = 8
-    kModuleHandle = 9
-    kFuncHandle = 10
-    kStr = 11
-    kBytes = 12
-    kNDArrayContainer = 13
-    kExtBegin = 15
+    kTVMDLTensorHandle = 7
+    kTVMObjectHandle = 8
+    kTVMModuleHandle = 9
+    kTVMPackedFuncHandle = 10
+    kTVMStr = 11
+    kTVMBytes = 12
+    kTVMNDArrayHandle = 13
+    kTVMExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
     ctypedef struct DLDataType:
@@ -75,17 +75,14 @@ ctypedef int64_t tvm_index_t
 ctypedef DLTensor* DLTensorHandle
 ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
-ctypedef void* TVMFunctionHandle
+ctypedef void* TVMPackedFuncHandle
 ctypedef void* ObjectHandle
 
+ctypedef struct TVMObject:
+    uint32_t type_index_
+    int32_t ref_counter_
+    void (*deleter_)(TVMObject* self)
 
-ctypedef struct TVMNDArrayContainer:
-    DLTensor dl_tensor
-    void* manager_ctx
-    void (*deleter)(DLManagedTensor* self)
-    int32_t array_type_info
-
-ctypedef TVMNDArrayContainer* TVMNDArrayContainerHandle
 
 ctypedef int (*TVMPackedCFunc)(
     TVMValue* args,
@@ -99,13 +96,15 @@ ctypedef void (*TVMPackedCFuncFinalizer)(void* resource_handle)
 cdef extern from "tvm/runtime/c_runtime_api.h":
     void TVMAPISetLastError(const char* msg)
     const char *TVMGetLastError()
-    int TVMFuncCall(TVMFunctionHandle func,
+    int TVMFuncGetGlobal(const char* name,
+                         TVMPackedFuncHandle* out);
+    int TVMFuncCall(TVMPackedFuncHandle func,
                     TVMValue* arg_values,
                     int* type_codes,
                     int num_args,
                     TVMValue* ret_val,
                     int* ret_type_code)
-    int TVMFuncFree(TVMFunctionHandle func)
+    int TVMFuncFree(TVMPackedFuncHandle func)
     int TVMCFuncSetReturn(TVMRetValueHandle ret,
                           TVMValue* value,
                           int* type_code,
@@ -113,7 +112,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMFuncCreateFromCFunc(TVMPackedCFunc func,
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,
-                               TVMFunctionHandle *out)
+                               TVMPackedFuncHandle *out)
     int TVMCbArgToReturn(TVMValue* value, int code)
     int TVMArrayAlloc(tvm_index_t* shape,
                       tvm_index_t ndim,

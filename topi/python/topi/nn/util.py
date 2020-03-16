@@ -47,6 +47,42 @@ def infer_pad(data, data_pad):
     wpad = (TW - IW) // 2
     return get_const_int(hpad), get_const_int(wpad)
 
+def infer_pad3d(data, data_pad, layout):
+    """Infer the padding from stages in reverse.
+
+    Parameters
+    ----------
+    data : Tensor
+        data stage.
+
+    data_pad : Tensor
+        pad stage.
+
+    Returns
+    -------
+    dpad : int
+        padding depth
+    hpad : int
+        padding height
+    wpad : int
+        padding width
+    """
+    if data_pad is None:
+        return 0, 0, 0
+
+    if layout == "NDHWC":
+        _, ID, IH, IW, _ = data.shape
+        _, TD, TH, TW, _ = data_pad.shape
+    elif layout == "NCDHW":
+        _, _, ID, IH, IW = data.shape
+        _, _, TD, TH, TW = data_pad.shape
+    else:
+        raise ValueError("Layout {} is not supported".format(layout))
+    dpad = (TD - ID)
+    hpad = (TH - IH)
+    wpad = (TW - IW)
+    return get_const_int(dpad), get_const_int(hpad), get_const_int(wpad)
+
 def infer_stride(data, kernel, out):
     """Infer the stride from stages in reverse.
 
@@ -71,8 +107,8 @@ def infer_stride(data, kernel, out):
     _, _, IH, IW = data.shape
     _, _, KH, KW = kernel.shape
     _, _, OH, OW = out.shape
-    hstride = (IH - KH) // tvm.make.Max(OH - 1, 1) + tvm.expr.Select(OH == 1, 1, 0)
-    wstride = (IW - KW) // tvm.make.Max(OW - 1, 1) + tvm.expr.Select(OW == 1, 1, 0)
+    hstride = (IH - KH) // tvm.te.max(OH - 1, 1) + tvm.tir.Select(OH == 1, 1, 0)
+    wstride = (IW - KW) // tvm.te.max(OW - 1, 1) + tvm.tir.Select(OW == 1, 1, 0)
     return get_const_int(hstride), get_const_int(wstride)
 
 
@@ -103,8 +139,13 @@ def get_pad_tuple(padding, kernel):
     """
     # compute the padding size
     if isinstance(padding, (tuple, list)):
-        pad_h = padding[0] * 2
-        pad_w = padding[1] * 2
+        if len(padding) == 2:
+            pad_h = padding[0] * 2
+            pad_w = padding[1] * 2
+        elif len(padding) == 4:
+            return padding[0], padding[1], padding[2], padding[3]
+        else:
+            raise ValueError("Size of padding can only be 2 or 4")
     elif isinstance(padding, int):
         pad_h = pad_w = padding * 2
     elif padding == "VALID":
@@ -153,9 +194,15 @@ def get_pad_tuple3d(padding, kernel):
     """
     # compute the padding size
     if isinstance(padding, (tuple, list)):
-        pad_h = padding[0] * 2
-        pad_w = padding[1] * 2
-        pad_d = padding[2] * 2
+        if len(padding) == 3:
+            pad_d = padding[0] * 2
+            pad_h = padding[1] * 2
+            pad_w = padding[2] * 2
+        elif len(padding) == 6:
+            return padding[0], padding[1], padding[2], padding[3], \
+                padding[4], padding[5]
+        else:
+            raise ValueError("Size of padding can only be 3 or 6")
     elif isinstance(padding, int):
         pad_d = pad_w = pad_h = padding * 2
     elif padding == "VALID":
@@ -172,3 +219,42 @@ def get_pad_tuple3d(padding, kernel):
     pad_left = (pad_w + 1) // 2
     pad_front = (pad_d + 1) // 2
     return pad_front, pad_top, pad_left, pad_d - pad_front, pad_h - pad_top, pad_w - pad_left
+
+
+def get_pad_tuple1d(padding, kernel):
+    """Common code to get the pad option
+
+    Parameters
+    ----------
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    kernel : tuple of int
+        Conv kernel size
+
+    Returns
+    -------
+    pad_left : int
+        Padding size on left
+
+    pad_right : int
+        Padding size on right.
+    """
+    # compute the padding size
+    if isinstance(padding, (tuple, list)):
+        if len(padding) == 1:
+            pad_w = padding[0] * 2
+        elif len(padding) == 2:
+            return  padding[0], padding[1]
+        else:
+            raise ValueError("Size of padding can only be 2 or 4")
+    elif isinstance(padding, int):
+        pad_w = padding * 2
+    elif padding == "VALID":
+        pad_w = 0
+    elif padding == "SAME":
+        pad_w = kernel[0] - 1
+    else:
+        raise ValueError("Unknown padding option %s" % padding)
+    pad_left = (pad_w + 1) // 2
+    return pad_left, pad_w - pad_left

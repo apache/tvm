@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -36,8 +36,8 @@ struct VariableParam {
   uint32_t version{0};
 };
 
-NodePtr CreateVariableNode(const std::string& name) {
-  NodePtr n = Node::Create();
+ObjectPtr CreateVariableNode(const std::string& name) {
+  ObjectPtr n = Node::Create();
   n->attrs.op = nullptr;
   n->attrs.name = name;
   n->attrs.parsed = VariableParam();
@@ -114,10 +114,10 @@ inline bool IsAtomic(const std::vector<NodeEntry>& outputs) {
 
 // public functions
 Symbol Symbol::Copy() const {
-  std::unordered_map<Node*, NodePtr> old_new;
+  std::unordered_map<Node*, ObjectPtr> old_new;
   // use DFSVisit to copy all the nodes
-  DFSVisit(this->outputs, [&old_new](const NodePtr& node) {
-      NodePtr np = Node::Create();
+  DFSVisit(this->outputs, [&old_new](const ObjectPtr& node) {
+      ObjectPtr np = Node::Create();
       np->attrs = node->attrs;
       old_new[node.get()] = std::move(np);
     });
@@ -127,7 +127,7 @@ Symbol Symbol::Copy() const {
       Node *ptr = e.node.get();
       kv.second->inputs.emplace_back(NodeEntry{old_new[ptr], e.index, e.version});
     }
-    for (const NodePtr& p : kv.first->control_deps) {
+    for (const ObjectPtr& p : kv.first->control_deps) {
       kv.second->control_deps.emplace_back(old_new[p.get()]);
     }
   }
@@ -155,7 +155,7 @@ void Symbol::Print(std::ostream &os) const {
       os << "\toutput[" << i << "]=" << outputs[i].node->attrs.name
          << '(' << outputs[i].index << ")\n";
     }
-    DFSVisit(this->outputs, [&os](const NodePtr& node) {
+    DFSVisit(this->outputs, [&os](const ObjectPtr& node) {
         if (node->is_variable()) {
           os << "Variable:" << node->attrs.name << '\n';
         } else {
@@ -204,21 +204,21 @@ Symbol Symbol::operator[] (size_t index) const {
   }
 }
 
-std::vector<NodePtr> Symbol::ListInputs(ListInputOption option) const {
-  std::vector<NodePtr> ret;
+std::vector<ObjectPtr> Symbol::ListInputs(ListInputOption option) const {
+  std::vector<ObjectPtr> ret;
   if (option == kAll) {
     ret.reserve(this->outputs.size());
-    DFSVisit(this->outputs, [&ret](const NodePtr &node) {
+    DFSVisit(this->outputs, [&ret](const ObjectPtr &node) {
         if (node->is_variable()) {
           ret.push_back(node);
         }
       });
   } else {
     std::unordered_set<Node*> mutable_set;
-    std::vector<NodePtr> vlist;
+    std::vector<ObjectPtr> vlist;
     vlist.reserve(this->outputs.size());
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
-    DFSVisit(this->outputs, [&mutable_set, &vlist](const NodePtr &node) {
+    DFSVisit(this->outputs, [&mutable_set, &vlist](const ObjectPtr &node) {
         if (node->is_variable()) {
           vlist.push_back(node);
         } else if (fmutate_inputs.count(node->op())) {
@@ -228,7 +228,7 @@ std::vector<NodePtr> Symbol::ListInputs(ListInputOption option) const {
         }
       });
     ret.reserve(vlist.size());
-    for (const NodePtr& node : vlist) {
+    for (const ObjectPtr& node : vlist) {
       if ((option == kReadOnlyArgs && mutable_set.count(node.get()) == 0) ||
           (option == kAuxiliaryStates && mutable_set.count(node.get()) != 0)) {
         ret.emplace_back(node);
@@ -239,7 +239,7 @@ std::vector<NodePtr> Symbol::ListInputs(ListInputOption option) const {
 }
 
 std::vector<std::string> Symbol::ListInputNames(ListInputOption option) const {
-  std::vector<NodePtr> inputs = ListInputs(option);
+  std::vector<ObjectPtr> inputs = ListInputs(option);
   std::vector<std::string> ret(inputs.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
     ret[i] = inputs[i]->attrs.name;
@@ -416,7 +416,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
     std::unordered_map<Node *, const NodeEntry*> replace_map;
     // replace map stores the existing replacement plan for arguments node
     auto find_replace_map = [&nmatched, &arg_counter, &args, &kwargs, &replace_map]
-        (const NodePtr &node) {
+        (const ObjectPtr &node) {
       if (node->is_variable()) {
         if (arg_counter < args.size()) {
           replace_map[node.get()] = &(args[arg_counter]->outputs[0]);
@@ -437,7 +437,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
       std::vector<Node*> update_nodes;
       std::vector<std::pair<NodeEntry*, const NodeEntry*> > replace_plan;
       auto find_replace_plan = [&replace_map, &replace_plan, &update_nodes]
-          (const NodePtr &node) {
+          (const ObjectPtr &node) {
         // visit all the childs, find possible replacement
         bool repl = false;
         for (size_t i = 0; i < node->inputs.size(); ++i) {
@@ -499,7 +499,7 @@ void Symbol::AddControlDeps(const Symbol& src) {
 Symbol Symbol::GetInternals() const {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol ret;
-  DFSVisit(this->outputs, [&ret](const NodePtr& node) {
+  DFSVisit(this->outputs, [&ret](const ObjectPtr& node) {
       Node* n = node.get();
       if (n->is_variable()) {
         // grab version from variable.
@@ -582,7 +582,7 @@ bool Symbol::GetAttr(const std::string& key, std::string* out) const {
 std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption option) const {
   if (option == kRecursive) {
     std::unordered_map<std::string, std::string> ret;
-    DFSVisit(this->outputs, [&ret](const NodePtr& n) {
+    DFSVisit(this->outputs, [&ret](const ObjectPtr& n) {
         for (const auto& it : n->attrs.dict) {
           ret[n->attrs.name + symbol_constants::kNamespaceSeparator + it.first] = it.second;
         }
@@ -596,7 +596,7 @@ std::unordered_map<std::string, std::string> Symbol::ListAttrs(ListAttrOption op
 std::vector<std::tuple<std::string, std::string, std::string> >
     Symbol::ListAttrsRecursive() const {
   std::vector<std::tuple<std::string, std::string, std::string> > ret;
-  DFSVisit(this->outputs, [&ret](const NodePtr& n) {
+  DFSVisit(this->outputs, [&ret](const ObjectPtr& n) {
       for (const auto& it : n->attrs.dict) {
         ret.emplace_back(std::make_tuple(n->attrs.name, it.first, it.second));
       }
@@ -608,7 +608,7 @@ Symbol Symbol::CreateFunctor(const Op* op,
                              std::unordered_map<std::string, std::string> attrs) {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol s;
-  NodePtr n = Node::Create();
+  ObjectPtr n = Node::Create();
   n->attrs.op = op;
   n->attrs.dict = std::move(attrs);
   if (n->op()->attr_parser != nullptr) {
@@ -628,7 +628,7 @@ Symbol Symbol::CreateFunctor(const Op* op,
 Symbol Symbol::CreateFunctor(const NodeAttrs& attrs) {
   static auto& fnum_vis_output = Op::GetAttr<FNumVisibleOutputs>("FNumVisibleOutputs");
   Symbol s;
-  NodePtr n = Node::Create();
+  ObjectPtr n = Node::Create();
   n->attrs = attrs;
 
   uint32_t nout = n->num_outputs();

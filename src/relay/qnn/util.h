@@ -25,11 +25,13 @@
 #ifndef TVM_RELAY_QNN_UTIL_H_
 #define TVM_RELAY_QNN_UTIL_H_
 
-#include <tvm/expr.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <limits>
 #include <string>
+#include <vector>
 #include <utility>
 
 namespace tvm {
@@ -43,15 +45,11 @@ static inline Array<IndexExpr> get_shape(const Type& type) {
   return input_tt->shape;
 }
 
-static inline const int32_t GetQmin(const DataType& dtype) {
+static inline int32_t GetQmin(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
-  if (dtype.is_int()) {
-    auto* min_value = as_const_int(dtype.min());
-    CHECK(min_value != nullptr);
-    return static_cast<int32_t>(min_value[0]);
-  } else if (dtype.is_uint()) {
-    auto* min_value = as_const_uint(dtype.min());
+  if (dtype.is_int() || dtype.is_uint()) {
+    auto* min_value = tir::as_const_int(tvm::min_value(dtype));
     CHECK(min_value != nullptr);
     return static_cast<int32_t>(min_value[0]);
   } else {
@@ -60,15 +58,11 @@ static inline const int32_t GetQmin(const DataType& dtype) {
   }
 }
 
-static inline const int32_t GetQmax(const DataType& dtype) {
+static inline int32_t GetQmax(const DataType& dtype) {
   CHECK_LE(dtype.bits(), 32)
       << "QNN ops support int32 or lower precision";
-  if (dtype.is_int()) {
-    auto* max_value = as_const_int(dtype.max());
-    CHECK(max_value != nullptr);
-    return static_cast<int32_t>(max_value[0]);
-  } else if (dtype.is_uint()) {
-    auto* max_value = as_const_uint(dtype.max());
+  if (dtype.is_int() || dtype.is_uint()) {
+    auto* max_value = tir::as_const_int(tvm::max_value(dtype));
     CHECK(max_value != nullptr);
     return static_cast<int32_t>(max_value[0]);
   } else {
@@ -77,25 +71,24 @@ static inline const int32_t GetQmax(const DataType& dtype) {
   }
 }
 
-Expr RequantizeLower(const Expr& input_tensor, const RequantizeAttrs* param,
+Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
+                     const Expr& input_zero_point, const Expr& output_scale,
+                     const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype);
 
 static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_shape,
-                              double input_scale, int32_t input_zero_point, double output_scale,
-                              int32_t output_zero_point, const DataType& out_dtype,
-                              const std::string& rounding = "UPWARD") {
-  auto attrs = make_node<RequantizeAttrs>();
-  attrs->input_scale = std::move(input_scale);
-  attrs->input_zero_point = std::move(input_zero_point);
-  attrs->output_scale = std::move(output_scale);
-  attrs->output_zero_point = std::move(output_zero_point);
+                              const Expr& input_scale, const Expr& input_zero_point,
+                              const Expr& output_scale, const Expr& output_zero_point,
+                              const DataType& out_dtype, const std::string& rounding = "UPWARD") {
+  auto attrs = make_object<RequantizeAttrs>();
   attrs->rounding = std::move(rounding);
   attrs->out_dtype = std::move(out_dtype);
-  return RequantizeLower(data, attrs.operator->(), input_shape, out_dtype);
+  return RequantizeLower(data, input_scale, input_zero_point, output_scale, output_zero_point,
+                         attrs.operator->(), input_shape, out_dtype);
 }
 
-static inline int64_t get_const_int(const tvm::Expr& x) {
-  auto* value_ptr = as_const_int(x);
+static inline int64_t get_const_int(const tvm::PrimExpr& x) {
+  auto* value_ptr = tir::as_const_int(x);
   CHECK(value_ptr) << "Expr is not a constant int";
   return value_ptr[0];
 }
@@ -122,9 +115,85 @@ static inline int64_t get_const_int(const tvm::Expr& x) {
  *       2) Round the result.
  *       3) Right shift the result
  */
-Expr FixedPointMultiply(Expr tensor, double multiplier,
-                        const Array<IndexExpr>& input_shape,
+Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& input_shape,
                         const std::string& rounding);
+
+/*
+ * \brief Fixed point multiplication between integer tensor with floating point
+ scalar where the input tensor is per-axis/per-channel quantized..
+ * \param tensor The quantized input tensor of dtype int64.
+ * \param multiplier The scalar multiplier.
+ * \param input_shape Shape of the input tensor.
+ * \param channel_axis The channel_axis along which the input tensor is quantized. Default value is
+ -1 which corresponds to the last channel_axis.
+ * \param rounding "UPWARD" or "TONEAREST". The rounding direction when the value
+ is midway between" "two representable values.
+ * \return The sequence of Relay ops for fixed point multiplication.
+
+ * \note Original compuation is scale_fp32 * quantized_tensor.  To convert into
+ *       integer computation, the multiplication with fp32 vector can be
+ *       replaced by multiplication with an int vector and then right shifting
+ *       the result. This approximates the floating point computation with a
+ *       fixed point computation.
+ *
+ *       Computation of fixed point multiplication is consist of following
+ steps:
+ *       1) Multiply the fixed point multiplier with quantized tensor.
+ *       2) Round the result.
+ *       3) Right shift the result
+ */
+Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multiplier,
+                                  const Array<IndexExpr>& input_shape, int channel_axis,
+                                  const std::string& rounding);
+/*
+ * \brief Checks whether an expr type is scalar of a given data type.
+ * \param expr_type The type of expr to be checked.
+ * \param dtype The expected dtype.
+ * \return True if the type is a scalar of given dtype
+ */
+static inline bool IsScalarType(const Type& expr_type, const DataType& dtype) {
+  const auto* tensor_type = expr_type.as<TensorTypeNode>();
+  CHECK(tensor_type) << "Only tensor type can be checked for scalar values. But got"
+                     << AsText(expr_type, false);
+  CHECK_EQ(tensor_type->shape.size(), 0);
+  CHECK(tensor_type->dtype == dtype) << "Expected " << dtype << " but got " << tensor_type->dtype;
+  return true;
+}
+
+/*
+ * \brief Checks and assigns types to scale and zero points.
+ * \param expr_type The type of expr to be checked.
+ * \param dtype The expected dtype.
+ * \param shape The shape at C dim of original tensor.
+ * \param reporter The type reported of original InferType call.
+ */
+static inline void AssignType(const Type& expr_type, const DataType& dtype, const IndexExpr& shape,
+                              const TypeReporter& reporter) {
+  // Scale/Zero_points can be either const scalar or a vector with C axis num elems.
+  const auto* tensor_type = expr_type.as<TensorTypeNode>();
+  CHECK(tensor_type) << "Can assign type to Tensor type only. But got "
+                     << AsText(expr_type, false);
+  const auto tensor_dtype = tensor_type->dtype;
+  CHECK(tensor_dtype == dtype) << "Expected type is " << dtype << " but received " << tensor_dtype;
+  if (tensor_type->shape.size() != 0) {
+    reporter->Assign(expr_type, TensorType({shape}, tensor_type->dtype));
+  }
+}
+
+static inline std::vector<float> GetFloatVectorFromConstant(const Expr& expr) {
+  const auto* n = expr.as<ConstantNode>();
+  std::vector<float> vals;
+  CHECK(n) << "Expr must be a constant expr - " << AsText(expr, false);
+  int64_t num_elems = 1;
+  auto shape = n->data.Shape();
+  for (size_t i = 0; i < shape.size(); i++) {
+    num_elems *= shape[i];
+  }
+  for (int64_t i = 0; i < num_elems; i++) {
+    vals.push_back(static_cast<float*>(n->data->data)[i]);
+  }
+  return vals;
+}
 
 }  // namespace qnn
 }  // namespace relay

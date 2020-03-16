@@ -17,7 +17,7 @@
 
 ROOTDIR = $(CURDIR)
 
-.PHONY: clean all test doc pylint cpplint lint\
+.PHONY: clean all test doc pylint cpplint scalalint lint\
 	 cython cython2 cython3 web runtime vta
 
 ifndef DMLC_CORE_PATH
@@ -69,20 +69,21 @@ build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
 cpplint:
 	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
-	python3 3rdparty/dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp include src \
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
 	python3 -m pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	python3 -m pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
-	python3 -m pylint nnvm/python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	python3 -m pylint vta/python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
-lint: cpplint pylint jnilint
+scalalint:
+	make -C vta/vta-hw/hardware/chisel lint
+
+lint: cpplint pylint jnilint scalalint
 
 doc:
 	doxygen docs/Doxyfile
@@ -93,10 +94,7 @@ javadoc:
 
 # Cython build
 cython:
-	cd python; python setup.py build_ext --inplace
-
-cython2:
-	cd python; python2 setup.py build_ext --inplace
+	cd python; python3 setup.py build_ext --inplace
 
 cython3:
 	cd python; python3 setup.py build_ext --inplace

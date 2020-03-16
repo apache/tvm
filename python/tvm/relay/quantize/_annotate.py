@@ -16,11 +16,10 @@
 # under the License.
 #pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
-from __future__ import absolute_import
 import warnings
-
 import topi
-from ..._ffi.function import register_func
+import tvm._ffi
+
 from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import op as _op
@@ -32,7 +31,7 @@ from .quantize import _forward_op
 
 
 @_reg.register_compute("relay.op.annotation.simulated_quantize")
-def simulated_quantize_compute(attrs, inputs, out_type, target):
+def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 4
     assert attrs.sign
@@ -53,11 +52,10 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     return [rdata]
 
 
-_reg.register_schedule("relay.op.annotation.simulated_quantize",
-                       _reg.schedule_injective)
+_reg.register_injective_schedule("relay.op.annotation.simulated_quantize")
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
                       _reg.OpPattern.ELEMWISE)
-_reg.register_schedule("annotation.cast_hint", _reg.schedule_injective)
+_reg.register_injective_schedule("annotation.cast_hint")
 
 
 @register_relay_node
@@ -144,7 +142,8 @@ def attach_simulated_quantize(data, kind, sign=True, rounding="round"):
     qctx.qnode_map[key] = qnode
     return qnode
 
-register_func("relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
+tvm._ffi.register_func(
+    "relay.quantize.attach_simulated_quantize", attach_simulated_quantize)
 
 
 @register_annotate_function("nn.contrib_conv2d_NCHWc")
@@ -214,8 +213,10 @@ def multiply_rewrite(ref_call, new_args, ctx):
         # quantize lhs to INPUT field
         if lhs_kind == QAnnotateKind.ACTIVATION:
             lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
-        # quantize rhs to WEIGHT field
-        rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+        if _analysis.check_constant(rhs_expr):
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+        else:
+            rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.INPUT)
         expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
         return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 

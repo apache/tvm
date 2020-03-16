@@ -62,8 +62,7 @@ The minimal building requirements are
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
 - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.
-- It is possible to build TVM without the LLVM dependency if you only want to use CUDA/OpenCL
-- If you want to use the NNVM compiler, then LLVM is required
+
 
 We use cmake to build the library.
 The configuration of TVM can be modified by `config.cmake`.
@@ -107,6 +106,14 @@ The configuration of TVM can be modified by `config.cmake`.
       cmake ..
       make -j4
 
+  - You can also use Ninja build system instead of Unix Makefiles. It can be faster to build than using Makefiles.
+
+  .. code:: bash
+
+      cd build
+      cmake .. -G Ninja
+      ninja
+
 If everything goes well, we can go to :ref:`python-package-installation`
 
 Building on Windows
@@ -124,7 +131,6 @@ In order to generate the VS solution file using cmake, make sure you have a rece
 This will generate the VS project using the MSVC 14 64 bit generator.
 Open the .sln file in the build directory and build with Visual Studio.
 In order to build with LLVM in windows, you will need to build LLVM from source.
-You need to run build the nnvm by running the same script under the nnvm folder.
 
 Building ROCm support
 ~~~~~~~~~~~~~~~~~~~~~
@@ -157,7 +163,7 @@ Method 1
    .. code:: bash
 
        export TVM_HOME=/path/to/tvm
-       export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:$TVM_HOME/nnvm/python:${PYTHONPATH}
+       export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:${PYTHONPATH}
 
 
 Method 2
@@ -172,7 +178,6 @@ Method 2
        export MACOSX_DEPLOYMENT_TARGET=10.9  # This is required for mac to avoid symbol conflicts with libstdc++
        cd python; python setup.py install --user; cd ..
        cd topi/python; python setup.py install --user; cd ../..
-       cd nnvm/python; python setup.py install --user; cd ../..
 
 
 Python dependencies

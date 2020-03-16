@@ -18,6 +18,7 @@ import os
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime, util
 from tvm import relay
 import tvm.micro as micro
@@ -43,10 +44,10 @@ def relay_micro_build(func, dev_config, params=None):
 
     Return
     ------
-    mod : tvm.module.Module
+    mod : tvm.runtime.Module
         graph runtime module for the target device
     """
-    with tvm.build_config(disable_vectorize=True):
+    with tvm.target.build_config(disable_vectorize=True):
         graph, c_mod, params = relay.build(func, target="c", params=params)
     micro_mod = create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)
@@ -57,7 +58,7 @@ def relay_micro_build(func, dev_config, params=None):
 
 def test_alloc():
     """Test tensor allocation on the device."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
@@ -70,17 +71,17 @@ def test_alloc():
 
 def test_add():
     """Test a module which performs addition."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
 
     # Construct TVM expression.
-    tvm_shape = tvm.convert(shape)
-    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
-    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = tvm.create_schedule(C.op)
+    tvm_shape = tvm.runtime.convert(shape)
+    A = te.placeholder(tvm_shape, name="A", dtype=dtype)
+    B = te.placeholder(tvm_shape, name="B", dtype=dtype)
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
+    s = te.create_schedule(C.op)
 
     func_name = "fadd"
     c_mod = tvm.build(s, [A, B, C], target="c", name=func_name)
@@ -99,18 +100,18 @@ def test_add():
 
 def test_workspace_add():
     """Test a module which uses a workspace to compute an intermediate value."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
 
     # Construct TVM expression.
-    tvm_shape = tvm.convert(shape)
-    A = tvm.placeholder(tvm_shape, name="A", dtype=dtype)
-    B = tvm.placeholder(tvm_shape, name="B", dtype=dtype)
-    B = tvm.compute(A.shape, lambda *i: A(*i) + 1, name="B")
-    C = tvm.compute(A.shape, lambda *i: B(*i) + 1, name="C")
-    s = tvm.create_schedule(C.op)
+    tvm_shape = tvm.runtime.convert(shape)
+    A = te.placeholder(tvm_shape, name="A", dtype=dtype)
+    B = te.placeholder(tvm_shape, name="B", dtype=dtype)
+    B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
+    C = te.compute(A.shape, lambda *i: B(*i) + 1, name="C")
+    s = te.create_schedule(C.op)
 
     func_name = "fadd_two_workspace"
     c_mod = tvm.build(s, [A, C], target="c", name=func_name)
@@ -129,7 +130,7 @@ def test_workspace_add():
 
 def test_graph_runtime():
     """Test a program which uses the graph runtime."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
@@ -153,7 +154,7 @@ def test_graph_runtime():
 
 def test_multiple_modules():
     """Test loading multiple modules on the device simultaneously."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
@@ -185,7 +186,7 @@ def test_multiple_modules():
 
 def test_interleave_sessions():
     """Test closing and reopening sessions."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
@@ -219,7 +220,7 @@ def test_interleave_sessions():
 
 def test_nested_sessions():
     """Test entering and exiting nested session contexts."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"
@@ -246,7 +247,7 @@ def test_nested_sessions():
 
 def test_inactive_session_use():
     """Test the use of objects allocated in a session that is no longer active."""
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
     shape = (1024,)
     dtype = "float32"

@@ -25,10 +25,10 @@
 #ifndef TVM_RELAY_BACKEND_VM_COMPILER_H_
 #define TVM_RELAY_BACKEND_VM_COMPILER_H_
 
-#include <tvm/relay/error.h>
+#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
 #include <iostream>
@@ -41,7 +41,7 @@
 #include "../../../runtime/vm/profiler/vm.h"
 #include "../../../runtime/vm/naive_allocator.h"
 #include "../../backend/compile_engine.h"
-#include "../../pass/pass_util.h"
+#include "../../transforms/pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -52,7 +52,7 @@ using namespace tvm::runtime::vm;
 using namespace relay::transform;
 
 template <typename T, typename U>
-using NodeMap = std::unordered_map<T, U, NodeHash, NodeEqual>;
+using NodeMap = std::unordered_map<T, U, ObjectHash, ObjectEqual>;
 using TagMap = NodeMap<tvm::relay::Constructor, Index>;
 using TagNameMap = std::unordered_map<size_t, tvm::relay::Constructor>;
 using GlobalMap = NodeMap<GlobalVar, Index>;
@@ -62,7 +62,7 @@ using TargetsMap = Map<tvm::Integer, tvm::Target>;
 
 struct VMCompilerContext {
   // The module context for the compilation
-  Module module;
+  IRModule module;
   // Error reporter
   ErrorReporter err_reporter;
   // Map from a unique integer to ADT constructor tag
@@ -76,7 +76,7 @@ struct VMCompilerContext {
   // List of cached functions
   std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
-  std::unordered_map<LoweredFunc, size_t, NodeHash, NodeEqual> seen_funcs;
+  std::unordered_map<tir::LoweredFunc, size_t, ObjectHash, ObjectEqual> seen_funcs;
 };
 
 
@@ -91,10 +91,6 @@ class VMCompiler : public runtime::ModuleNode {
     return "VMCompiler";
   }
 
-  void InitVM() {
-    exec_ = make_object<Executable>();
-  }
-
   /*!
    * \brief Set the parameters
    *
@@ -104,33 +100,24 @@ class VMCompiler : public runtime::ModuleNode {
   void SetParam(const std::string& name, runtime::NDArray data_in);
 
   /*!
-   * \brief Compile functions in a Module
+   * \brief Lower the functions in a Module
    *
    * \param mod Relay Module
    * \param targets For heterogeneous compilation, it is a dictionary indicating context
                     to target mapping. For homogeneous compilation, it is a build target.
    * \param target_host Host compilation target, if target is device.
    */
-  void Compile(Module mod,
-               const TargetsMap& targets,
-               const tvm::Target& target_host);
+  void Lower(IRModule mod,
+             const TargetsMap& targets,
+             const tvm::Target& target_host);
+
+  /*! \brief Generate the machine code for lowered functions. */
+  void Codegen();
 
  protected:
-  /*!
-   * \brief Bind params to function by using name
-   * \param func Relay function
-   * \param params params dict
-   * \return relay::Function
-   */
-  relay::Function BindParamsByName(
-      relay::Function func,
-      const std::unordered_map<std::string, runtime::NDArray>& params);
-
-  Module OptimizeModule(const Module& mod, const TargetsMap& targets);
+  IRModule OptimizeModule(const IRModule& mod, const TargetsMap& targets);
 
   void PopulateGlobalMap();
-
-  void LibraryCodegen();
 
  protected:
   /*! \brief Target devices. */

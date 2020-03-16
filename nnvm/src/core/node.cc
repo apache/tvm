@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -30,7 +30,7 @@ Node::~Node() {
     // explicit deletion via DFS
     // this is used to avoid stackoverflow caused by chain of deletions
     std::vector<Node*> stack{this};
-    std::vector<NodePtr> to_delete;
+    std::vector<ObjectPtr> to_delete;
     while (!stack.empty()) {
       Node* n = stack.back();
       stack.pop_back();
@@ -42,7 +42,7 @@ Node::~Node() {
           e.node.reset();
         }
       }
-      for (NodePtr& sp : n->control_deps) {
+      for (ObjectPtr& sp : n->control_deps) {
         if (sp.unique()) {
           stack.push_back(sp.get());
           to_delete.emplace_back(std::move(sp));

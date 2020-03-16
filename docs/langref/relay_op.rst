@@ -71,10 +71,13 @@ This level enables typical convnet models.
    tvm.relay.nn.conv2d_transpose
    tvm.relay.nn.dense
    tvm.relay.nn.max_pool2d
+   tvm.relay.nn.max_pool3d
    tvm.relay.nn.avg_pool2d
+   tvm.relay.nn.avg_pool3d
    tvm.relay.nn.global_max_pool2d
    tvm.relay.nn.global_avg_pool2d
    tvm.relay.nn.upsampling
+   tvm.relay.nn.upsampling3d
    tvm.relay.nn.batch_flatten
    tvm.relay.nn.pad
    tvm.relay.nn.lrn
@@ -166,6 +169,7 @@ This level enables additional math and transform operators.
    :nosignatures:
 
    tvm.relay.image.resize
+   tvm.relay.image.crop_and_resize
    tvm.relay.vision.multibox_prior
    tvm.relay.vision.multibox_transform_loc
    tvm.relay.vision.nms
@@ -192,15 +196,15 @@ This level support backpropagation of broadcast operators. It is temporary.
    tvm.relay.collapse_sum_like
    tvm.relay.slice_like
    tvm.relay.shape_of
-   tvm.relay.contrib.ndarray_size
+   tvm.relay.ndarray_size
    tvm.relay.layout_transform
    tvm.relay.device_copy
    tvm.relay.annotation.on_device
    tvm.relay.reverse_reshape
    tvm.relay.sequence_mask
    tvm.relay.nn.batch_matmul
-   tvm.relay.contrib.adaptive_max_pool2d
-   tvm.relay.contrib.adaptive_avg_pool2d
+   tvm.relay.nn.adaptive_max_pool2d
+   tvm.relay.nn.adaptive_avg_pool2d
    tvm.relay.one_hot
 
 
@@ -246,10 +250,13 @@ Level 2 Definitions
 .. autofunction:: tvm.relay.nn.conv2d_transpose
 .. autofunction:: tvm.relay.nn.dense
 .. autofunction:: tvm.relay.nn.max_pool2d
+.. autofunction:: tvm.relay.nn.max_pool3d
 .. autofunction:: tvm.relay.nn.avg_pool2d
+.. autofunction:: tvm.relay.nn.avg_pool3d
 .. autofunction:: tvm.relay.nn.global_max_pool2d
 .. autofunction:: tvm.relay.nn.global_avg_pool2d
 .. autofunction:: tvm.relay.nn.upsampling
+.. autofunction:: tvm.relay.nn.upsampling3d
 .. autofunction:: tvm.relay.nn.batch_flatten
 .. autofunction:: tvm.relay.nn.pad
 .. autofunction:: tvm.relay.nn.lrn
@@ -329,6 +336,7 @@ Level 4 Definitions
 Level 5 Definitions
 -------------------
 .. autofunction:: tvm.relay.image.resize
+.. autofunction:: tvm.relay.image.crop_and_resize
 .. autofunction:: tvm.relay.vision.multibox_prior
 .. autofunction:: tvm.relay.vision.multibox_transform_loc
 .. autofunction:: tvm.relay.vision.nms
@@ -347,15 +355,15 @@ Level 10 Definitions
 .. autofunction:: tvm.relay.collapse_sum_like
 .. autofunction:: tvm.relay.slice_like
 .. autofunction:: tvm.relay.shape_of
-.. autofunction:: tvm.relay.contrib.ndarray_size
+.. autofunction:: tvm.relay.ndarray_size
 .. autofunction:: tvm.relay.layout_transform
 .. autofunction:: tvm.relay.device_copy
 .. autofunction:: tvm.relay.annotation.on_device
 .. autofunction:: tvm.relay.reverse_reshape
 .. autofunction:: tvm.relay.sequence_mask
 .. autofunction:: tvm.relay.nn.batch_matmul
-.. autofunction:: tvm.relay.contrib.adaptive_max_pool2d
-.. autofunction:: tvm.relay.contrib.adaptive_avg_pool2d
+.. autofunction:: tvm.relay.nn.adaptive_max_pool2d
+.. autofunction:: tvm.relay.nn.adaptive_avg_pool2d
 .. autofunction:: tvm.relay.one_hot
 
 

@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker CPU env
-# tag: v0.41
+# tag: v0.55
 FROM ubuntu:16.04
 
 RUN apt-get update --fix-missing
@@ -32,11 +32,6 @@ RUN bash /install/ubuntu_install_python_package.sh
 
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
-
-# SGX deps (build early; changes infrequently)
-COPY install/ubuntu_install_sgx.sh /install/ubuntu_install_sgx.sh
-RUN bash /install/ubuntu_install_sgx.sh
-ENV LD_LIBRARY_PATH /opt/sgxsdk/lib64:${LD_LIBRARY_PATH}
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh

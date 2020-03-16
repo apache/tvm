@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -111,18 +111,26 @@ class CUDADeviceAPI final : public DeviceAPI {
   void* AllocDataSpace(TVMContext ctx,
                        size_t nbytes,
                        size_t alignment,
-                       TVMType type_hint) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id));
+                       DLDataType type_hint) final {
     CHECK_EQ(256 % alignment, 0U)
-        << "CUDA space is aligned at 256 bytes";
+          << "CUDA space is aligned at 256 bytes";
     void *ret;
-    CUDA_CALL(cudaMalloc(&ret, nbytes));
+    if (ctx.device_type == kDLCPUPinned) {
+      CUDA_CALL(cudaMallocHost(&ret, nbytes));
+    } else {
+      CUDA_CALL(cudaSetDevice(ctx.device_id));
+      CUDA_CALL(cudaMalloc(&ret, nbytes));
+    }
     return ret;
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
-    CUDA_CALL(cudaSetDevice(ctx.device_id));
-    CUDA_CALL(cudaFree(ptr));
+    if (ctx.device_type == kDLCPUPinned) {
+      CUDA_CALL(cudaFreeHost(ptr));
+    } else {
+      CUDA_CALL(cudaSetDevice(ctx.device_id));
+      CUDA_CALL(cudaFree(ptr));
+    }
   }
 
   void CopyDataFromTo(const void* from,
@@ -132,11 +140,26 @@ class CUDADeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
-                      TVMType type_hint,
+                      DLDataType type_hint,
                       TVMStreamHandle stream) final {
     cudaStream_t cu_stream = static_cast<cudaStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
     to = static_cast<char*>(to) + to_offset;
+
+    if (ctx_from.device_type == kDLCPUPinned) {
+      ctx_from.device_type = kDLCPU;
+    }
+
+    if (ctx_to.device_type == kDLCPUPinned) {
+      ctx_to.device_type = kDLCPU;
+    }
+
+    // In case there is a copy from host mem to host mem */
+    if (ctx_to.device_type == kDLCPU && ctx_from.device_type == kDLCPU) {
+        memcpy(to, from, size);
+        return;
+    }
+
     if (ctx_from.device_type == kDLGPU && ctx_to.device_type == kDLGPU) {
       CUDA_CALL(cudaSetDevice(ctx_from.device_id));
       if (ctx_from.device_id == ctx_to.device_id) {
@@ -191,7 +214,7 @@ class CUDADeviceAPI final : public DeviceAPI {
         ->stream = static_cast<cudaStream_t>(stream);
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
+  void* AllocWorkspace(TVMContext ctx, size_t size, DLDataType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
 
@@ -230,6 +253,12 @@ CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() {
 }
 
 TVM_REGISTER_GLOBAL("device_api.gpu")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    DeviceAPI* ptr = CUDADeviceAPI::Global().get();
+    *rv = static_cast<void*>(ptr);
+  });
+
+TVM_REGISTER_GLOBAL("device_api.cpu_pinned")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     DeviceAPI* ptr = CUDADeviceAPI::Global().get();
     *rv = static_cast<void*>(ptr);

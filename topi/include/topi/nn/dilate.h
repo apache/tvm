@@ -24,15 +24,16 @@
 #ifndef TOPI_NN_DILATE_H_
 #define TOPI_NN_DILATE_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <tvm/tir/ir_pass.h>
+#include <topi/tags.h>
 
-#include "tvm/operation.h"
-#include "tvm/ir_pass.h"
-#include "topi/tags.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Create a new expression of the logical and of all
@@ -42,10 +43,10 @@ using namespace tvm;
 *
 * \return The logical conjunction expression
 */
-Expr all(Array<Expr> args) {
+PrimExpr all(Array<PrimExpr> args) {
   CHECK_GT(args.size(), 0) << "all requires at least one argument";
 
-  Expr ret = args[0];
+  PrimExpr ret = args[0];
   for (size_t i = 1; i < args.size(); ++i) {
     ret = ret && args[i];
   }
@@ -65,7 +66,7 @@ Expr all(Array<Expr> args) {
 * \return The output tensor.
 */
 inline Tensor dilate(const Tensor& x,
-                     Array<Expr> strides,
+                     Array<PrimExpr> strides,
                      std::string name = "tensor",
                      std::string tag = kInjective) {
   auto n = x->shape.size();
@@ -73,17 +74,17 @@ inline Tensor dilate(const Tensor& x,
     << "strides size (" << strides.size()
     << ") must match dimension of x (" << n << ")";
 
-  Array<Expr> out_shape;
+  Array<PrimExpr> out_shape;
   for (size_t i = 0; i < n; ++i) {
-    out_shape.push_back(tvm::ir::Simplify(
-      (x->shape[i] - 1) * cast(Int(32), strides[i] + 1)));
+    out_shape.push_back(tvm::tir::Simplify(
+      (x->shape[i] - 1) * cast(DataType::Int(32), strides[i] + 1)));
   }
 
-  return tvm::compute(
+  return tvm::te::compute(
     out_shape,
     [&](const Array<Var>& indices) {
-      Array<Expr> not_zero;
-      Array<Expr> index_tuple;
+      Array<PrimExpr> not_zero;
+      Array<PrimExpr> index_tuple;
       for (size_t i = 0; i < n; ++i) {
         if (IsConstInt(strides[i]) && GetConstInt(strides[i]) == 1) {
           index_tuple.push_back(indices[i]);

@@ -24,15 +24,15 @@
 #ifndef TOPI_ELEMWISE_H_
 #define TOPI_ELEMWISE_H_
 
+#include <tvm/tir/expr.h>
+#include <tvm/tir/ir_pass.h>
+#include <topi/tags.h>
 #include <string>
-
-#include "topi/tags.h"
-#include "tvm/ir.h"
-#include "tvm/ir_pass.h"
 #include "broadcast.h"
 
 namespace topi {
 using namespace tvm;
+using namespace tvm::te;
 
 // Unary intrinsic operators
 #define TOPI_DECLARE_UNARY_OP(OpName)                           \
@@ -55,9 +55,11 @@ TOPI_DECLARE_UNARY_OP(round);
 TOPI_DECLARE_UNARY_OP(trunc);
 TOPI_DECLARE_UNARY_OP(abs);
 TOPI_DECLARE_UNARY_OP(cos);
+TOPI_DECLARE_UNARY_OP(tan);
 TOPI_DECLARE_UNARY_OP(sin);
 TOPI_DECLARE_UNARY_OP(atan);
 TOPI_DECLARE_UNARY_OP(isnan);
+TOPI_DECLARE_UNARY_OP(tanh);
 
 /*
  * \brief Fast_tanh_float implementation from Eigen
@@ -113,10 +115,10 @@ inline Tensor fast_tanh_float(const Tensor& in,
 *
 * \return A Tensor whose op member is tanh
 */
-inline Tensor tanh(const Tensor& x,
-                   std::string name = "T_tanh",
-                   std::string tag = kElementWise) {
-  if (x->dtype == Float(32)) {
+inline Tensor fast_tanh(const Tensor& x,
+                        std::string name = "T_fast_tanh",
+                        std::string tag = kElementWise) {
+  if (x->dtype == DataType::Float(32)) {
     // invoke fast_tanh_float implementation
     return fast_tanh_float(x, name, tag);
   } else {
@@ -179,6 +181,23 @@ inline Tensor logical_not(const Tensor& x,
 }
 
 /*!
+* \brief Creates an operation that returns the bitwise NOT of a given tensor
+*
+* \param x The input tensor
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the bitwise NOT operation
+*/
+inline Tensor bitwise_not(const Tensor& x,
+                          std::string name = "T_bitwise_not",
+                          std::string tag = kElementWise) {
+  return compute(x->shape, [&](const Array<Var>& i) {
+    return ~x(i);
+  }, name, tag);
+}
+
+/*!
 * \brief Returns the sign of the tensor
 *
 * \param x The input tensor
@@ -191,11 +210,11 @@ inline Tensor sign(const Tensor& x,
                    std::string name = "T_sign",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
-    Expr zero = make_zero(x->dtype);
-    Expr one = make_const(x->dtype, 1);
-    Expr minus_one = make_const(x->dtype, -1);
-    auto s1 = tvm::ir::Select::make((x(i) < zero), minus_one, zero);
-    auto s2 = tvm::ir::Select::make((x(i) > zero), one, s1);
+    PrimExpr zero = make_zero(x->dtype);
+    PrimExpr one = make_const(x->dtype, 1);
+    PrimExpr minus_one = make_const(x->dtype, -1);
+    auto s1 = tvm::tir::SelectNode::make((x(i) < zero), minus_one, zero);
+    auto s2 = tvm::tir::SelectNode::make((x(i) > zero), one, s1);
     return s2;
   }, name, tag);
 }
@@ -213,7 +232,7 @@ inline Tensor rsqrt(const Tensor& x,
                        std::string name = "tensor",
                        std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
-    Expr one = make_const(x->dtype, 1);
+    PrimExpr one = make_const(x->dtype, 1);
     return one/tvm::sqrt(x(i));
   }, name, tag);
 }
@@ -231,8 +250,8 @@ inline Tensor rsqrt(const Tensor& x,
 * \return A Tensor whose op member is the clip operation
 */
 inline Tensor clip(const Tensor& x,
-                   const Expr& a_min,
-                   const Expr& a_max,
+                   const PrimExpr& a_min,
+                   const PrimExpr& a_max,
                    std::string name = "T_clip",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
@@ -255,16 +274,16 @@ inline Tensor clip(const Tensor& x,
  * \return A Tensor whose op member is the cast operation
  */
 inline Tensor cast(const Tensor& x,
-                   Type type,
+                   DataType type,
                    std::string name = "T_cast",
                    std::string tag = kElementWise) {
   return compute(x->shape, [&](const Array<Var>& i) {
     auto expr = x(i);
-    if (expr.type().code() == type.code() && expr.type().bits() == type.bits()) {
-      if (expr.type().lanes() == type.lanes()) {
+    if (expr.dtype().code() == type.code() && expr.dtype().bits() == type.bits()) {
+      if (expr.dtype().lanes() == type.lanes()) {
         return expr;
-      } else if (expr.type().lanes() == 1 && type.lanes() > 1) {
-        return tvm::ir::Broadcast::make(expr, type.lanes());
+      } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
+        return tvm::tir::BroadcastNode::make(expr, type.lanes());
       }
     }
 
@@ -282,12 +301,12 @@ inline Tensor cast(const Tensor& x,
  *
  * \return A Tensor whose op member is the reinterpret operation
  */
-inline Tensor reinterpret(const Tensor& x, Type type, std::string name = "tensor",
+inline Tensor reinterpret(const Tensor& x, DataType type, std::string name = "tensor",
                           std::string tag = kElementWise) {
   return compute(x->shape,
                  [&](const Array<Var>& i) {
-                   return tvm::ir::Call::make(type, "reinterpret", {x(i)},
-                                              tvm::ir::Call::PureIntrinsic);
+                   return tvm::tir::CallNode::make(type, "reinterpret", {x(i)},
+                                              tvm::tir::CallNode::PureIntrinsic);
                  },
                  name, tag);
 }
@@ -325,12 +344,12 @@ inline Tensor elemwise_sum(const Array<Tensor>& xs,
 *
 * \return A Tensor whose op member is the full operation
 */
-inline Tensor full(const Array<Expr>& shape,
-                   Type dtype,
-                   const Expr fill_value,
+inline Tensor full(const Array<PrimExpr>& shape,
+                   DataType dtype,
+                   const PrimExpr fill_value,
                    std::string name = "T_full",
                    std::string tag = kElementWise) {
-  Expr ev = cast(dtype, fill_value);
+  PrimExpr ev = cast(dtype, fill_value);
   if (!ev.defined()) {
     LOG(ERROR) << "Can't cast fill_value to " << dtype;
   }
@@ -351,13 +370,93 @@ inline Tensor full(const Array<Expr>& shape,
 * \return A Tensor whose op memeber is the full_like operation
 */
 inline Tensor full_like(const Tensor& x,
-                        const Expr fill_value,
+                        const PrimExpr fill_value,
                         std::string name = "T_full_like",
                         std::string tag = kElementWise) {
-  Expr ev = cast(x->dtype, fill_value);
+  PrimExpr ev = cast(x->dtype, fill_value);
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);
+}
+
+/*!
+ * \brief Fast exponential function implementation
+ *
+ * \param _x The input tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is exponent operation
+ *
+ * \note Function computes:
+ * log2(e^x) = x * log2(e) * log2(2) =>
+ * log2(e^x) = log2(2^(x*log2(e))) =>
+ * e^x = 2^(x*log2(e))
+ * Splitting power x*log2(e) into integer and fractional parts:
+ * e^(n+f) = e^n * e^f
+ * n = floor(x*log2(e) + 1/2)
+ * f = x - n * ln(2)
+ * exp(x) = 2^n * exp(y)
+ * Approximation for fractional part:
+ * y = exp(f) = 1 + 2 * P(x**2)/(Q(x**2) - P(x**2))
+ */
+inline Tensor fast_exp_float32(const Tensor& _x,
+                               std::string name,
+                               std::string tag) {
+  auto x_hi = make_const(DataType::Float(32), 88.3762626647950f);
+  auto x_lo = make_const(DataType::Float(32), -88.3762626647949f);
+  auto log2e = make_const(DataType::Float(32), 1.44269504088896341f);
+  auto ln2 = make_const(DataType::Float(32), 0.6931471805599453f);
+  PrimExpr p[6] = {make_const(DataType::Float(32), 1.9875691500E-4f),
+                   make_const(DataType::Float(32), 1.3981999507E-3f),
+                   make_const(DataType::Float(32), 8.3334519073E-3f),
+                   make_const(DataType::Float(32), 4.1665795894E-2f),
+                   make_const(DataType::Float(32), 1.6666665459E-1f),
+                   make_const(DataType::Float(32), 5.0000001201E-1f)};
+  auto one = make_const(DataType::Float(32), 1.0f);
+  auto one_half = make_const(DataType::Float(32), 0.5f);
+  auto b = make_const(DataType::Float(32), 127.0f);
+
+  return compute(_x->shape,
+                 [&](const Array<Var>& i) {
+                   // clamp x
+                   auto x = ::tvm::max(::tvm::min(_x(i), x_hi), x_lo);
+                   // integer part
+                   auto n = ::tvm::floor(x * log2e + one_half);
+                   // fractional part
+                   auto f = x - n * ln2;
+                   auto y = (((((p[0] * f + p[1]) * f + p[2]) * f + p[3])* f+ p[4]) * f
+                             + p[5]) * f * f + f + one;
+                   // Return 2^m * exp(r).
+                   auto ef = tvm::reinterpret(DataType::Float(32),
+                                              ::tvm::cast(DataType::Int(32), n + b) << 23);
+                   return ::tvm::max(ef * y, _x(i)); // NOLINT(*)
+                 },
+                 name, tag);
+}
+
+
+/*!
+ * \brief Fast exponential function implementation
+ *
+ * \param x The input tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is exponent operation
+ *
+ */
+inline Tensor fast_exp(const Tensor& x,
+                  std::string name = "T_fast_exp",
+                  std::string tag = kElementWise) {
+  if (x->dtype == DataType::Float(32)) {
+    auto ret = fast_exp_float32(x, name, tag);
+    return ret;
+  } else {
+    return compute(x->shape, [&](const Array<Var>& i) {
+        return ::tvm::exp(x(i));
+      }, name, tag);
+  }
 }
 
 }  // namespace topi

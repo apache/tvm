@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.analysis import well_formed
 from tvm.relay.prelude import Prelude
@@ -50,7 +51,7 @@ def test_tuple_get_item():
 
 
 def test_adt():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     x = relay.Var("x")
     some_case = relay.Clause(relay.PatternConstructor(p.some,

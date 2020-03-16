@@ -16,13 +16,15 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """A prelude containing useful global functions and ADT definitions."""
+from tvm.ir import IRModule
+
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
 from .expr import Var, Function, GlobalVar, If, const
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
 from . import op
-from .module import Module
+
 
 class TensorArrayOps(object):
     """Contains tensor array related ops"""
@@ -33,11 +35,11 @@ class TensorArrayOps(object):
         self.dtype = dtype
 
     def get_name(self, canonical):
-        """Get name corresponding to the caninical name"""
+        """Get name corresponding to the canonical name"""
         return self.prelude.get_name(canonical, self.dtype)
 
     def get_var(self, canonical):
-        """Get var corresponding to the caninical name"""
+        """Get var corresponding to the canonical name"""
         return self.prelude.get_var(canonical, self.dtype)
 
     def define_tensor_adt(self):
@@ -648,7 +650,7 @@ class Prelude:
 
     def __init__(self, mod=None):
         if mod is None:
-            mod = Module()
+            mod = IRModule()
         self.mod = mod
         self.load_prelude()
 

@@ -19,10 +19,12 @@
 set -e
 set -u
 
-export PYTHONPATH=nnvm/python:python:topi/python
+export PYTHONPATH=python:topi/python
 # to avoid openblas threading error
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
+
+find . -type f -path "*.pyc" | xargs rm -f
 
 # Rebuild cython
 make cython3
@@ -42,9 +44,6 @@ python3 -m pytest -v tests/python/frontend/onnx
 echo "Running relay CoreML frontend test..."
 python3 -m pytest -v tests/python/frontend/coreml
 
-echo "Running nnvm to relay frontend test..."
-python3 -m pytest -v tests/python/frontend/nnvm_to_relay
-
 echo "Running relay Tensorflow frontend test..."
 python3 -m pytest -v tests/python/frontend/tensorflow
 
@@ -53,3 +52,6 @@ python3 -m pytest -v tests/python/frontend/caffe2
 
 echo "Running relay DarkNet frontend test..."
 python3 -m pytest -v tests/python/frontend/darknet
+
+echo "Running relay PyTorch frontend test..."
+python3 -m pytest -v tests/python/frontend/pytorch

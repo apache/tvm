@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -45,13 +45,13 @@ bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // assign output type
   std::vector<IndexExpr> oshape(
       {rshape[0], dshape[1], roi_align_attrs->pooled_size[0], roi_align_attrs->pooled_size[1]});
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
 Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
                   int sample_ratio, std::string layout) {
-  auto attrs = make_node<ROIAlignAttrs>();
+  auto attrs = make_object<ROIAlignAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
   attrs->sample_ratio = sample_ratio;
@@ -60,7 +60,7 @@ Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spa
   return CallNode::make(op, {data, rois}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.roi_align")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.roi_align")
 .set_body_typed(MakeROIAlign);
 
 RELAY_REGISTER_OP("vision.roi_align")
@@ -96,13 +96,13 @@ bool ROIPoolRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   // assign output type
   std::vector<IndexExpr> oshape(
       {rshape[0], dshape[1], roi_pool_attrs->pooled_size[0], roi_pool_attrs->pooled_size[1]});
-  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  reporter->Assign(types[2], TensorType(oshape, data->dtype));
   return true;
 }
 
 Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spatial_scale,
                  std::string layout) {
-  auto attrs = make_node<ROIPoolAttrs>();
+  auto attrs = make_object<ROIPoolAttrs>();
   attrs->pooled_size = pooled_size;
   attrs->spatial_scale = spatial_scale;
   attrs->layout = layout;
@@ -110,7 +110,7 @@ Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spat
   return CallNode::make(op, {data, rois}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.roi_pool")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.roi_pool")
 .set_body_typed(MakeROIPool);
 
 RELAY_REGISTER_OP("vision.roi_pool")
@@ -155,7 +155,7 @@ bool ProposalRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
   std::vector<IndexExpr> oshape(
       {batch * proposal_attrs->rpn_post_nms_top_n, 5});
-  reporter->Assign(types[3], TensorTypeNode::make(oshape, cls_prob->dtype));
+  reporter->Assign(types[3], TensorType(oshape, cls_prob->dtype));
   return true;
 }
 
@@ -163,7 +163,7 @@ Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> 
                   Array<IndexExpr> ratios, int feature_stride, double threshold,
                   int rpn_pre_nms_top_n, int rpn_post_nms_top_n, int rpn_min_size,
                   bool iou_loss) {
-  auto attrs = make_node<ProposalAttrs>();
+  auto attrs = make_object<ProposalAttrs>();
   attrs->scales = scales;
   attrs->ratios = ratios;
   attrs->feature_stride = feature_stride;
@@ -176,7 +176,7 @@ Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> 
   return CallNode::make(op, {cls_prob, bbox_pred, im_info}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.vision._make.proposal")
+TVM_REGISTER_GLOBAL("relay.op.vision._make.proposal")
 .set_body_typed(MakeProposal);
 
 RELAY_REGISTER_OP("vision.proposal")

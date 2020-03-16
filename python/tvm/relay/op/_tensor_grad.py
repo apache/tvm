@@ -61,6 +61,13 @@ def log_grad(orig, grad):
     return [grad * ones_like(x) / x]
 
 
+@register_gradient("tan")
+def tan_grad(orig, grad):
+    """Returns [grad / (cos^2(x))]"""
+    x = orig.args[0]
+    return [grad / (cos(x) * cos(x))]
+
+
 @register_gradient("cos")
 def cos_grad(orig, grad):
     """Returns [grad * (-sin(x))]"""
@@ -379,9 +386,9 @@ def log_softmax_grad(orig, grad):
 @register_gradient("nn.bias_add")
 def bias_add_grad(orig, grad):
     """Returns gradient of bias_add"""
-    data, bias = orig.args
+    data = orig.args[0]
     return [collapse_sum_like(grad, data),
-            collapse_sum_like(grad, bias)]
+            _sum(grad, orig.attrs.axis, keepdims=False, exclude=True)]
 
 
 @register_gradient("nn.dense")

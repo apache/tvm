@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.contrib.nvcc import have_fp16
 
@@ -41,9 +42,9 @@ def test_basic_build():
     }
     # build
     targets = {
-        tvm.expr.IntImm("int32", ctx.device_type): tgt
+        tvm.tir.IntImm("int32", ctx.device_type): tgt
     }
-    g_json, mmod, params = relay.build(relay.Module.from_expr(func), targets, "llvm", params=params)
+    g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), targets, "llvm", params=params)
 
     # test
     rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)
@@ -61,7 +62,7 @@ def test_basic_build():
 def test_fp16_build():
     dtype = "float16"
 
-    if not tvm.module.enabled("cuda") or not tvm.gpu(0).exist:
+    if not tvm.runtime.enabled("cuda") or not tvm.gpu(0).exist:
         print("skip because cuda is not enabled.")
         return
 
@@ -96,7 +97,7 @@ def test_fp16_build():
 
 def test_fp16_conversion():
     def check_conversion(tgt, ctx):
-        if not tvm.module.enabled(tgt):
+        if not tvm.runtime.enabled(tgt):
             print("skip because {} is not enabled.".format(tgt))
             return
         elif tgt == "cuda" and ctx.exist and not have_fp16(ctx.compute_version):
@@ -115,7 +116,7 @@ def test_fp16_conversion():
 
             # build
             with relay.build_config(opt_level=1):
-                g_json, mmod, params = relay.build(relay.Module.from_expr(func), tgt)
+                g_json, mmod, params = relay.build(tvm.IRModule.from_expr(func), tgt)
 
             # test
             rt = tvm.contrib.graph_runtime.create(g_json, mmod, ctx)

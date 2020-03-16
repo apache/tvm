@@ -16,11 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name
 """Runtime NDArray api"""
-from __future__ import absolute_import
-
 import ctypes
 from ..base import _LIB, check_call, c_str
-from ..runtime_ctypes import TVMArrayHandle, TVMNDArrayContainerHandle
+from ..runtime_ctypes import TVMArrayHandle
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _return_handle
 
 
@@ -85,6 +83,16 @@ class NDArrayBase(object):
     def _tvm_handle(self):
         return ctypes.cast(self.handle, ctypes.c_void_p).value
 
+    def _copyto(self, target_nd):
+        """Internal function that implements copy to target ndarray."""
+        check_call(_LIB.TVMArrayCopyFromTo(self.handle, target_nd.handle, None))
+        return target_nd
+
+    @property
+    def shape(self):
+        """Shape of this array"""
+        return tuple(self.handle.contents.shape[i] for i in range(self.handle.contents.ndim))
+
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory
 
@@ -100,12 +108,17 @@ class NDArrayBase(object):
 def _make_array(handle, is_view, is_container):
     global _TVM_ND_CLS
     handle = ctypes.cast(handle, TVMArrayHandle)
-    fcreate = _CLASS_NDARRAY
-    if is_container and _TVM_ND_CLS:
-        array_type_info = ctypes.cast(handle, TVMNDArrayContainerHandle).array_type_info.value
-        if array_type_info > 0:
-            fcreate = _TVM_ND_CLS[array_type_info]
-    return fcreate(handle, is_view)
+    if is_container:
+        tindex = ctypes.c_uint()
+        check_call(_LIB.TVMArrayGetTypeIndex(handle, ctypes.byref(tindex)))
+        cls = _TVM_ND_CLS.get(tindex.value, _CLASS_NDARRAY)
+    else:
+        cls = _CLASS_NDARRAY
+
+    ret = cls.__new__(cls)
+    ret.handle = handle
+    ret.is_view = is_view
+    return ret
 
 _TVM_COMPATS = ()
 
@@ -119,9 +132,9 @@ def _reg_extension(cls, fcreate):
 
 _TVM_ND_CLS = {}
 
-def _reg_ndarray(cls, fcreate):
+def _register_ndarray(index, cls):
     global _TVM_ND_CLS
-    _TVM_ND_CLS[cls._array_type_code] = fcreate
+    _TVM_ND_CLS[index] = cls
 
 _CLASS_NDARRAY = None
 

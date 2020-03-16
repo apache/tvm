@@ -393,8 +393,7 @@ class Tracker(object):
             except socket.error as sock_err:
                 if sock_err.errno in [98, 48]:
                     continue
-                else:
-                    raise sock_err
+                raise sock_err
         if not self.port:
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
         logger.info("bind to %s:%d", host, self.port)

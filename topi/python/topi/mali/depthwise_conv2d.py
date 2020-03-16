@@ -18,19 +18,21 @@
 """depthwise_conv2d schedule on ARM Mali GPU"""
 
 import tvm
+from tvm import te
 from tvm import autotvm
 
-from ..generic import schedule_depthwise_conv2d_nchw
-from ..nn import depthwise_conv2d_nchw
+from .. import nn
 from ..util import traverse_inline
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.register_topi_compute(depthwise_conv2d_nchw, 'mali', 'direct',
-                              depthwise_conv2d_nchw.fdefault)
+@autotvm.register_topi_compute("depthwise_conv2d_nchw.mali")
+def depthwise_conv2d_nchw(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    return nn.depthwise_conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
+
 
 # register customized schedule for arm cpu.
-@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'mali', 'direct')
-def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
+@autotvm.register_topi_schedule("depthwise_conv2d_nchw.mali")
+def schedule_depthwise_conv2d_nchw(cfg, outs):
     """Schedule depthwise conv2d
 
     Parameters
@@ -46,8 +48,8 @@ def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
     s: Schedule
         The computation schedule for depthwise_conv2d nchw.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
 
     def _schedule(pad_data, kernel, conv):
         """schedule depthwise_conv2d"""
@@ -64,7 +66,7 @@ def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
         # fallback support
         if cfg.is_fallback:
             ref_log = autotvm.tophub.load_reference_log(
-                'mali', 'rk3399', 'depthwise_conv2d_nchw', 'direct')
+                'mali', 'rk3399', 'depthwise_conv2d_nchw.mali')
             cfg.fallback_with_reference_log(ref_log)
         ###### space definition end ######
 
@@ -74,7 +76,7 @@ def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
         tile_and_bind3d(s, pad_data, c, y, x, cfg["tile_c"].size[1], 1, 1)
 
         # schedule dilation
-        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
             s[kernel].compute_inline()
 
         # schedule conv
@@ -92,12 +94,12 @@ def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
         bx, tx, xi = cfg['tile_x'].apply(s, output, x)
 
         bc = s[output].fuse(n, bc)
-        s[output].bind(bc, tvm.thread_axis("blockIdx.z"))
-        s[output].bind(tc, tvm.thread_axis("threadIdx.z"))
-        s[output].bind(by, tvm.thread_axis("blockIdx.y"))
-        s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-        s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[output].bind(bc, te.thread_axis("blockIdx.z"))
+        s[output].bind(tc, te.thread_axis("threadIdx.z"))
+        s[output].bind(by, te.thread_axis("blockIdx.y"))
+        s[output].bind(ty, te.thread_axis("threadIdx.y"))
+        s[output].bind(bx, te.thread_axis("blockIdx.x"))
+        s[output].bind(tx, te.thread_axis("threadIdx.x"))
 
         di, dj = s[OL].op.reduce_axis
         s[OL].unroll(di)
@@ -133,10 +135,10 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
     zo, zi = s[tensor].split(z, z_factor)
     yo, yi = s[tensor].split(y, y_factor)
     xo, xi = s[tensor].split(x, x_factor)
-    s[tensor].bind(zo, tvm.thread_axis("blockIdx.z"))
-    s[tensor].bind(zi, tvm.thread_axis("threadIdx.z"))
-    s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-    s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-    s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[tensor].bind(zo, te.thread_axis("blockIdx.z"))
+    s[tensor].bind(zi, te.thread_axis("threadIdx.z"))
+    s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
+    s[tensor].bind(yi, te.thread_axis("threadIdx.y"))
+    s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
+    s[tensor].bind(xi, te.thread_axis("threadIdx.x"))
     return zo, zi, yo, yi, xo, xi

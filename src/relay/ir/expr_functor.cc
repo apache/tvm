@@ -18,16 +18,16 @@
  */
 
 /*!
- * \file src/tvm/relay/expr_functor.cc
+ * \file src/relay/expr_functor.cc
  * \brief A wrapper around ExprFunctor which functionally updates the AST.
  *
  * ExprMutator uses memoization and self return in order to amortize
  * the cost of using functional updates.
  */
+#include <tvm/ir/type_functor.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
-#include "type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -109,7 +109,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return FunctionNode::make(params, body, ret_type, ty_params, op->attrs);
+    return Function(params, body, ret_type, ty_params, op->attrs);
   }
 }
 
@@ -340,15 +340,15 @@ class ExprApplyVisit : public ExprVisitor {
 
  private:
   std::function<void(const Expr&)> f_;
-  std::unordered_set<const Node*> visited_;
+  std::unordered_set<const Object*> visited_;
 };
 
 void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_API("relay._analysis.post_order_visit")
-.set_body_typed<void(Expr, PackedFunc)>([](Expr expr, PackedFunc f) {
+TVM_REGISTER_GLOBAL("relay._analysis.post_order_visit")
+.set_body_typed([](Expr expr, PackedFunc f) {
     PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
       });
@@ -417,12 +417,12 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         new_params.size() == func->params.size()) {
       return expr;
     }
-    auto ret = FunctionNode::make(new_params,
+    auto ret = Function(new_params,
                                   new_body,
                                   func->ret_type,
                                   func->type_params,
                                   func->attrs);
-    std::unordered_set<Var, NodeHash, NodeEqual> set;
+    std::unordered_set<Var, ObjectHash, ObjectEqual> set;
     for (const auto& v : FreeVars(expr)) {
       set.insert(v);
     }
@@ -431,7 +431,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
         new_params.push_back(v);
       }
     }
-    ret = FunctionNode::make(new_params,
+    ret = Function(new_params,
                              new_body,
                              func->ret_type,
                              func->type_params,
@@ -443,9 +443,9 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
-TVM_REGISTER_API("relay._expr.Bind")
+TVM_REGISTER_GLOBAL("relay._expr.Bind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    NodeRef input = args[0];
+    ObjectRef input = args[0];
     if (input->IsInstance<ExprNode>()) {
       *ret = Bind(Downcast<Expr>(input), args[1]);
     } else {

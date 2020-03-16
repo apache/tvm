@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
@@ -40,8 +41,8 @@ def verify_depthwise_conv2d_back_input(batch, in_channel, in_h, channel_multipli
     oshape = [batch, out_h, out_w, out_channel]
 
     # placeholder
-    Out_grad = tvm.placeholder(oshape, name='Out_grad')
-    Filter = tvm.placeholder((filter_h, filter_w, filter_channel, channel_multiplier))
+    Out_grad = te.placeholder(oshape, name='Out_grad')
+    Filter = te.placeholder((filter_h, filter_w, filter_channel, channel_multiplier))
     # declare
     In_grad = topi.nn.depthwise_conv2d_backward_input_nhwc(Filter, Out_grad, oshape, ishape,
         stride=[stride_h, stride_w], padding=[padding_h, padding_w])

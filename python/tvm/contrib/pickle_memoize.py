@@ -40,8 +40,12 @@ class Cache(object):
     cache_by_key = {}
     def __init__(self, key, save_at_exit):
         cache_dir = ".pkl_memoize_py{0}".format(sys.version_info[0])
-        if not os.path.exists(cache_dir):
+        try:
             os.mkdir(cache_dir)
+        except FileExistsError:
+            pass
+        else:
+            self.cache = {}
         self.path = os.path.join(cache_dir, key)
         if os.path.exists(self.path):
             try:
@@ -84,7 +88,7 @@ def memoize(key, save_at_exit=False):
     """
     def _register(f):
         """Registration function"""
-        allow_types = (string_types, int, float)
+        allow_types = (string_types, int, float, tuple)
         fkey = key + "." + f.__name__ + ".pkl"
         if fkey not in Cache.cache_by_key:
             Cache.cache_by_key[fkey] = Cache(fkey, save_at_exit)

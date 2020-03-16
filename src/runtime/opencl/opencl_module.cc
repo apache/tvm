@@ -131,9 +131,9 @@ PackedFunc OpenCLModuleNode::GetFunction(
   OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
   for (size_t i = 0; i < info.arg_types.size(); ++i) {
-    TVMType t = info.arg_types[i];
+    DLDataType t = info.arg_types[i];
     CHECK_EQ(t.lanes, 1U);
-    if (t.code == kHandle) {
+    if (t.code == kTVMOpaqueHandle) {
       // specially store pointer type size in OpenCL driver
       arg_size[i] = sizeof(void*);
     } else {
@@ -278,13 +278,13 @@ Module OpenCLModuleLoadBinary(void* strm) {
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("module.loadfile_cl")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_cl")
 .set_body_typed(OpenCLModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadfile_clbin")
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_clbin")
 .set_body_typed(OpenCLModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_opencl")
 .set_body_typed(OpenCLModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

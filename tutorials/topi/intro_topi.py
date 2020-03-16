@@ -26,6 +26,7 @@ In this tutorial, we will see how TOPI can save us from writing boilerplates cod
 from __future__ import absolute_import, print_function
 
 import tvm
+from tvm import te
 import topi
 import numpy as np
 
@@ -36,12 +37,12 @@ import numpy as np
 # To compute the sum of rows of a two dimensional TVM tensor A, we should
 # specify the symbolic operation as well as schedule as follows
 #
-n = tvm.var("n")
-m = tvm.var("m")
-A = tvm.placeholder((n, m), name='A')
-k = tvm.reduce_axis((0, m), "k")
-B = tvm.compute((n,), lambda i: tvm.sum(A[i, k], axis=k), name="B")
-s = tvm.create_schedule(B.op)
+n = te.var("n")
+m = te.var("m")
+A = te.placeholder((n, m), name='A')
+k = te.reduce_axis((0, m), "k")
+B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
+s = te.create_schedule(B.op)
 
 ######################################################################
 # and to examine the IR code in human readable format, we can do
@@ -50,11 +51,11 @@ print(tvm.lower(s, [A], simple_mode=True))
 
 ######################################################################
 # However, for such a common operation we had to define the reduce axis ourselves as well as explicit computation with
-# :code:`tvm.compute`. Imagine for more complicated operations how much details we need to provide.
+# :code:`te.compute`. Imagine for more complicated operations how much details we need to provide.
 # Fortunately, we can replace those two lines with simple :code:`topi.sum` much like :code:`numpy.sum`
 #
 C = topi.sum(A, axis=1)
-ts = tvm.create_schedule(C.op)
+ts = te.create_schedule(C.op)
 print(tvm.lower(ts, [A], simple_mode=True))
 
 ######################################################################
@@ -64,8 +65,8 @@ print(tvm.lower(ts, [A], simple_mode=True))
 # Even shorter, TOPI provides operator overloading for such common operations. For example,
 #
 x, y = 100, 10
-a = tvm.placeholder((x, y, y), name="a")
-b = tvm.placeholder((y, y), name="b")
+a = te.placeholder((x, y, y), name="a")
+b = te.placeholder((y, y), name="b")
 c = a + b  # same as topi.broadcast_add
 d = a * b  # same as topi.broadcast_mul
 
@@ -85,7 +86,7 @@ e = topi.elemwise_sum([c, d])
 f = e / 2.0
 g = topi.sum(f)
 with tvm.target.cuda():
-    sg = topi.generic.schedule_reduce(g)
+    sg = topi.cuda.schedule_reduce(g)
     print(tvm.lower(sg, [a, b], simple_mode=True))
 
 ######################################################################
@@ -110,10 +111,10 @@ tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
 ######################################################################
 # TOPI also provides common neural nets operations such as _softmax_ with optimized schedule
 #
-tarray = tvm.placeholder((512, 512), name="tarray")
+tarray = te.placeholder((512, 512), name="tarray")
 softmax_topi = topi.nn.softmax(tarray)
 with tvm.target.create("cuda"):
-    sst = topi.generic.schedule_softmax(softmax_topi)
+    sst = topi.cuda.schedule_softmax(softmax_topi)
     print(tvm.lower(sst, [tarray], simple_mode=True))
 
 ######################################################################
@@ -129,13 +130,13 @@ with tvm.target.create("cuda"):
 #    compute declaration and schedule. TVM will choose the right function to call with
 #    the target information.
 
-data = tvm.placeholder((1, 3, 224, 224))
-kernel = tvm.placeholder((10, 3, 5, 5))
+data = te.placeholder((1, 3, 224, 224))
+kernel = te.placeholder((10, 3, 5, 5))
 
 with tvm.target.create("cuda"):
-    conv = topi.nn.conv2d(data, kernel, strides=1, padding=2, dilation=1)
+    conv = topi.cuda.conv2d_nchw(data, kernel, 1, 2, 1)
     out = topi.nn.relu(conv)
-    sconv = topi.generic.nn.schedule_conv2d_nchw([out])
+    sconv = topi.cuda.schedule_conv2d_nchw([out])
     print(tvm.lower(sconv, [data, kernel], simple_mode=True))
 
 ######################################################################

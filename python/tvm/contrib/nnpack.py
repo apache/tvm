@@ -15,11 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to NNPACK libraries."""
-from __future__ import absolute_import as _abs
+import tvm
+from tvm import te
+import tvm._ffi
 
-from .. import api as _api
-from .. import intrin as _intrin
-from .._ffi.function import _init_api
 
 def is_available():
     """Check whether NNPACK is available, that is, `nnp_initialize()`
@@ -44,9 +43,9 @@ def fully_connected_inference(lhs, rhs, nthreads=1):
         lhs 1D array out[output_channels] of FP32 elements.
     """
     m = rhs.shape[0]
-    return _api.extern(
+    return te.extern(
         (m, ), [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.nnpack.fully_connected_inference",
             ins[0], ins[1], outs[0], nthreads), name="C")
 
@@ -101,16 +100,16 @@ def convolution_inference(
     assert isinstance(stride, list) and len(stride) == 2
     batch, _, input_height, input_width = data.shape
     output_channels, _, kernel_height, kernel_width = kernel.shape
-    idxdiv = _api.indexdiv
+    idxdiv = te.indexdiv
     output_height = idxdiv(
         input_height + padding[0] + padding[1] - kernel_height, stride[0]) + 1
     output_width = idxdiv(
         input_width + padding[0] + padding[1] - kernel_width, stride[1]) + 1
 
-    return _api.extern(
+    return te.extern(
         (batch, output_channels, output_height, output_width),
         [data, kernel, bias] if bias is not None else [data, kernel],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.nnpack.convolution_inference",
             ins[0],
             ins[1],
@@ -156,14 +155,14 @@ def convolution_inference_without_weight_transform(
     batch, _, input_height, input_width = data.shape
     output_channels, _, _, _ = transformed_kernel.shape
     kernel_height, kernel_width = (3, 3)
-    idxdiv = _api.indexdiv
+    idxdiv = te.indexdiv
     output_height = idxdiv(input_height + padding[0] + padding[1] - kernel_height, stride[0]) + 1
     output_width = idxdiv(input_width + padding[0] + padding[1] - kernel_width, stride[1]) + 1
 
-    return _api.extern(
+    return te.extern(
         (batch, output_channels, output_height, output_width),
         [data, transformed_kernel, bias] if bias is not None else [data, transformed_kernel],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.nnpack.convolution_inference_without_weight_transform",
             ins[0],
             ins[1],
@@ -195,11 +194,11 @@ def convolution_inference_weight_transform(
     transform_tile_size = 8
     if not isinstance(dtype, str):
         dtype = dtype.dtype
-    return _api.extern(
+    return te.extern(
         (output_channels, input_channels, transform_tile_size, transform_tile_size),
         [kernel],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.nnpack.convolution_inference_weight_transform",
             ins[0], outs[0], nthreads, algorithm), name="transform_kernel", dtype=dtype)
 
-_init_api("tvm.contrib.nnpack")
+tvm._ffi._init_api("tvm.contrib.nnpack")

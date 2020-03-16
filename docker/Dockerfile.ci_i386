@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker i386 env
-# tag: v0.50
+# tag: v0.53
 
 FROM ioft/i386-ubuntu:16.04
 

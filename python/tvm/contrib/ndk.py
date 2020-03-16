@@ -21,6 +21,7 @@ from __future__ import absolute_import as _abs
 import subprocess
 import os
 from .._ffi.base import py_str
+from .cc import get_target_by_dump_machine
 
 def create_shared(output,
                   objects,
@@ -50,7 +51,7 @@ def create_shared(output,
     else:
         cmd += objects
 
-    options = options if options else ["-shared", "-fPIC"]
+    options = options if options else ["-shared", "-fPIC", "-lm"]
     cmd += options
 
     proc = subprocess.Popen(
@@ -64,5 +65,8 @@ def create_shared(output,
         msg += py_str(out)
         raise RuntimeError(msg)
 
+
 # assign output format
 create_shared.output_format = "so"
+create_shared.get_target_triple = get_target_by_dump_machine(
+    os.environ["TVM_NDK_CC"]) if "TVM_NDK_CC" in os.environ else None

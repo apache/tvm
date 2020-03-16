@@ -24,14 +24,15 @@
 #ifndef TOPI_NN_LOCAL_RESPONSE_NORM_H_
 #define TOPI_NN_LOCAL_RESPONSE_NORM_H_
 
-#include <string>
+#include <tvm/te/operation.h>
+#include <topi/tags.h>
 
-#include "topi/tags.h"
-#include "tvm/operation.h"
+#include <string>
 
 namespace topi {
 namespace nn {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
 * \brief Local response normalization inference operator
@@ -59,29 +60,29 @@ inline Tensor lrn(const Tensor& data,
   CHECK_EQ(size % 2, 1) << "size should be odd number";
   CHECK(axis == 1 || axis == 3) << "axis should be 1 or 3 for NCHW and NHWC";
   auto input_shape = data->shape;
-  Array<Expr> pad_before{ 0, 0, 0, 0};
-  Array<Expr> pad_after{ 0, 0, 0, 0};
-  pad_before.Set(axis, static_cast<Expr>(size/2));
-  pad_after.Set(axis, static_cast<Expr>(size/2));
+  Array<PrimExpr> pad_before{ 0, 0, 0, 0};
+  Array<PrimExpr> pad_after{ 0, 0, 0, 0};
+  pad_before.Set(axis, static_cast<PrimExpr>(size/2));
+  pad_after.Set(axis, static_cast<PrimExpr>(size/2));
   auto pad_data = pad(data, pad_before, pad_after, 0, "pad_data");
-  auto rxs = tvm::reduce_axis(Range(0, size), "rxs");
+  auto rxs = tvm::te::reduce_axis(Range(0, size), "rxs");
   Tensor sqr_sum;
   if (axis == 1) {
-    sqr_sum = tvm::compute(input_shape,
+    sqr_sum = tvm::te::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l + rxs, j, k) *
                                            pad_data(i, l + rxs, j, k),
                                            {rxs});
                            });
   } else if (axis == 3) {
-    sqr_sum = tvm::compute(input_shape,
+    sqr_sum = tvm::te::compute(input_shape,
                            [&](Var i, Var l, Var j, Var k) {
                            return tvm::sum(pad_data(i, l, j, k + rxs) *
                                            pad_data(i, l, j, k + rxs),
                                            {rxs});
                            });
   }
-  auto sqrt_sum_up = tvm::compute(
+  auto sqrt_sum_up = tvm::te::compute(
       input_shape,
       [&](Var i, Var j, Var k, Var l) {
         return tvm::pow(bias +

@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,
 """Extract feature of iter vars
 
 There are two types of feature
@@ -28,8 +28,12 @@ There are two types of feature
 
 import struct
 import numpy as np
+import tvm._ffi
 
-from tvm import schedule, ir_pass, build_module, get_global_func, target as _target
+from tvm import target as _target
+from tvm.tir import ir_pass
+from tvm.te import schedule
+from tvm.driver import build_module
 
 def ana_lower(sch, args,
               binds=None,
@@ -48,10 +52,12 @@ def ana_lower(sch, args,
     return stmt
 
 try:
-    _get_buffer_curve_sample_flatten = get_global_func(
+    _get_buffer_curve_sample_flatten = tvm._ffi.get_global_func(
         "autotvm.feature.GetCurveSampleFeatureFlatten")
-    _get_itervar_feature = get_global_func("autotvm.feature.GetItervarFeature")
-    _get_itervar_feature_flatten = get_global_func("autotvm.feature.GetItervarFeatureFlatten")
+    _get_itervar_feature = tvm._ffi.get_global_func(
+        "autotvm.feature.GetItervarFeature")
+    _get_itervar_feature_flatten = tvm._ffi.get_global_func(
+        "autotvm.feature.GetItervarFeatureFlatten")
 except ValueError as e:
     def raise_error(*args, **kwargs):  # pylint: disable=unused-argument
         raise RuntimeError("Cannot load autotvm c++ API")
@@ -63,8 +69,8 @@ def get_itervar_feature(sch, args, take_log=False):
 
     Parameters
     ----------
-    sch: tvm.schedule.Schedule
-    args: Array of tvm.tensor.Tensor
+    sch: tvm.te.schedule.Schedule
+    args: Array of te.tensor.Tensor
         the buffer args for lower
     take_log: bool
         whether take log of numerical statics
@@ -111,8 +117,8 @@ def get_itervar_feature_flatten(sch, args, take_log=True):
 
     Parameters
     ----------
-    sch: tvm.schedule.Schedule
-    args: Array of tvm.tensor.Tensor
+    sch: tvm.te.schedule.Schedule
+    args: Array of te.tensor.Tensor
         the buffer args for lower
     take_log: bool
         whether take log of numerical statics
@@ -148,10 +154,14 @@ def get_flatten_name(fea):
     }
 
     if isinstance(fea, str):
+        # pylint: disable=import-outside-toplevel
         from .record import decode
         # flatten line to feature
         line = fea
-        inp, _ = decode(line)
+        ret = decode(line)
+        if ret is None:
+            raise ValueError("Unsupported AutoTVM log format")
+        inp, _ = ret
         target = _target.create(inp.target)
         with target:
             s, args = inp.template.instantiate(inp.config)
@@ -180,8 +190,8 @@ def get_buffer_curve_sample_flatten(sch, args, sample_n=30):
 
     Parameters
     ----------
-    sch: tvm.schedule.Schedule
-    args: Array of tvm.tensor.Tensor
+    sch: tvm.te.schedule.Schedule
+    args: Array of te.tensor.Tensor
         the buffer args for lower
     sample_n: int
         number of sample points along one dimension

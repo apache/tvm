@@ -24,6 +24,7 @@ from PIL import Image
 
 import topi
 import tvm
+from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.autotvm.measure.measure_methods import request_remote
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
@@ -60,13 +61,13 @@ def parse_arguments():
 def register_vta_tuning_tasks():
     from tvm.autotvm.task.topi_integration import TaskExtractEnv, deserialize_args
 
-    @tvm.tag_scope(tag=topi.tag.ELEMWISE)
+    @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
     def my_clip(x, a_min, a_max):
         """Unlike topi's current clip, put min and max into two stages."""
-        const_min = tvm.const(a_min, x.dtype)
-        const_max = tvm.const(a_max, x.dtype)
-        x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-        x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+        const_min = tvm.tir.const(a_min, x.dtype)
+        const_max = tvm.tir.const(a_max, x.dtype)
+        x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+        x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
         return x
 
     # init autotvm env to register VTA operator
@@ -84,10 +85,10 @@ def register_vta_tuning_tasks():
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
-        if tvm.target.current_target().device_name == 'vta':
+        if tvm.target.Target.current().device_name == 'vta':
             s = topi.generic.schedule_conv2d_nchw([res])
         else:
-            s = tvm.create_schedule([res.op])
+            s = te.create_schedule([res.op])
         return s, [A, W, res]
 
     @autotvm.task.register("topi_nn_dense", override=True)
@@ -102,10 +103,10 @@ def register_vta_tuning_tasks():
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
-        if tvm.target.current_target().device_name == 'vta':
+        if tvm.target.Target.current().device_name == 'vta':
             s = topi.generic.schedule_dense([res])
         else:
-            s = tvm.create_schedule([res.op])
+            s = te.create_schedule([res.op])
 
         return s, [A, W, res]
 
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     opt = parse_arguments()
 
     # Make sure that TVM was compiled with RPC=1
-    assert tvm.module.enabled("rpc")
+    assert tvm.runtime.enabled("rpc")
 
     # Read in VTA environment
     env = vta.get_env()
@@ -234,7 +235,7 @@ if __name__ == '__main__':
     # VTA target and execution context
     target = env.target if opt.device == "vta" else env.target_vta_cpu
     ctx = remote.ext_dev(0) if opt.device == "vta" else remote.cpu(0)
-    
+
     # Compile Relay program
     print("Initial compile...")
     relay_prog, params = compile_network(opt, env, target)
@@ -246,7 +247,7 @@ if __name__ == '__main__':
     print("Extracting tasks...")
     tasks = extract_from_program(func=relay_prog,
                                  params=params,
-                                 ops=(tvm.relay.op.nn.conv2d,),
+                                 ops=(relay.op.get("nn.conv2d"),),
                                  target=target,
                                  target_host=env.target_host)
 
@@ -266,7 +267,7 @@ if __name__ == '__main__':
     tune_tasks(tasks, **tuning_opt)
 
     # Compile kernels with history best records
-    with autotvm.tophub.context(target, extra_files=[opt.log_filename]): 
+    with autotvm.tophub.context(target, extra_files=[opt.log_filename]):
 
         # Compile network
         print("Compiling network with best tuning parameters...")

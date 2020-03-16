@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -25,9 +25,10 @@
 #ifndef TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
 #define TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
 
-#include <tvm/ir.h>
-#include <tvm/ir_visitor.h>
-#include <tvm/api_registry.h>
+#include <tvm/tir/expr.h>
+#include <tvm/tir/expr_functor.h>
+#include <tvm/runtime/registry.h>
+
 #include <stack>
 #include <vector>
 #include <map>
@@ -54,7 +55,7 @@ struct TouchPattern {
 
 // all the feature of an iter var
 struct ItervarFeature {
-  ItervarFeature(VarExpr var,
+  ItervarFeature(Var var,
                  int64_t extent,
                  int nest,
                  AnnotationType ann_type,
@@ -85,56 +86,56 @@ struct ItervarFeature {
 // extract iter vars and their touch pattern from ir
 class TouchExtractor : public FeatureVisitor {
  public:
-  void Analyze(Stmt stmt) {
-    this->Visit(stmt);
+  void Analyze(const Stmt& stmt) {
+    operator()(stmt);
   }
 
   // arithmetic stats
-  void Visit_(const Add *op) {
-    if (op->type.is_float())
+  void VisitExpr_(const AddNode* op) final {
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Sub *op) {
-    if (op->type.is_float())
+  void VisitExpr_(const SubNode* op) final {
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].add_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Mul *op) {
-    if (op->type.is_float())
+  void VisitExpr_(const MulNode* op) final {
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].mul_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Div *op) {
-    if (op->type.is_float())
+  void VisitExpr_(const DivNode* op) final {
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  void Visit_(const Mod *op) {
-    if (op->type.is_float())
+  void VisitExpr_(const ModNode* op) final {
+    if (op->dtype.is_float())
       itervar_map[itervar_stack_.back()].div_ct++;
-    IRVisitor::Visit_(op);
+    FeatureVisitor::VisitExpr_(op);
   }
 
-  std::unordered_map<VarExpr, ItervarFeature, tvm::ExprHash, tvm::ExprEqual> itervar_map;
+  std::unordered_map<Var, ItervarFeature, tvm::ObjectHash, tvm::ObjectEqual> itervar_map;
 
  private:
-  bool EnterItervar_(VarExpr var, int64_t length, AnnotationType ann_type);
+  bool EnterItervar_(Var var, int64_t length, AnnotationType ann_type);
   void ExitItervar_();
-  void EnterMem_(VarExpr buffer_var, Expr index);
+  void EnterMem_(Var buffer_var, PrimExpr index);
   void ExitMem_();
 
   int64_t topdown_product_{1};
   std::map<std::string, size_t> buffer_counter_;
   size_t itervar_counter_{0};
-  std::deque<VarExpr> itervar_stack_;  // use deque instead of stack for indexing
+  std::deque<Var> itervar_stack_;  // use deque instead of stack for indexing
   std::deque<size_t> skip_stack_size_;
 
-  using IRVisitor::Visit_;
+  using FeatureVisitor::VisitExpr_;
 };
 
 }  // namespace autotvm

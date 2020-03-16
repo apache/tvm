@@ -19,15 +19,11 @@
 import numpy as np
 import pytest
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import create_executor, transform
-from tvm.relay.testing import ctx_list, check_grad
+from tvm.relay.testing import ctx_list, check_grad, run_infer_type
 
-def run_infer_type(expr):
-    mod = relay.Module.from_expr(expr)
-    mod = transform.InferType()(mod)
-    entry = mod["main"]
-    return entry if isinstance(expr, relay.Function) else entry.body
 
 def test_zeros_ones():
     for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
@@ -171,7 +167,7 @@ def test_squeeze():
 
 
 def test_transpose_infer_type():
-    n, t, d = tvm.var("n"), tvm.var("t"), 100
+    n, t, d = te.size_var("n"), te.size_var("t"), 100
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
     y = relay.transpose(x, axes=(1, 0, 2))
     assert "axes=" in y.astext()
@@ -279,7 +275,7 @@ def test_reshape_like_infer_type():
     assert zz.checked_type == relay.TensorType((1, 6), "float32")
 
     # symbolic shape
-    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.var("y", relay.TensorType((1, 8, 8), "float32"))
     z = relay.reshape_like(x, y)
@@ -318,8 +314,8 @@ def test_take_infer_type():
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType(oshape, "float32")
 
-    d1, d2, d3 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3")
-    d4, d5, d6 = tvm.var("d4"), tvm.var("d5"), tvm.var("d6")
+    d1, d2, d3 = te.var("d1"), te.var("d2"), te.var("d3")
+    d4, d5, d6 = te.var("d4"), te.var("d5"), te.var("d6")
     verify_take((d1,), (1,), (1,), 0)
     verify_take((4,), (d1, d2), (d1, d2))
     verify_take((3, 3, 3), (1, d2), (1, d2))
@@ -373,12 +369,12 @@ def test_split_infer_type():
         yy = run_infer_type(y.astuple())
         assert yy.checked_type == ret_type
 
-    idxd = tvm.indexdiv
+    idxd = tvm.tir.indexdiv
 
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
-    axis = tvm.var("axis")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
+    axis = te.var("axis")
     verify_split((5, 5, 2, 2), 5,
-                 relay.ty.TupleType(tvm.convert([
+                 relay.ty.TupleType(tvm.runtime.convert([
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
@@ -386,7 +382,7 @@ def test_split_infer_type():
                      relay.ty.TensorType((5, 1, 2, 2), "float32")])),
                   axis=1)
     verify_split((5, 5, 2, 2), 5,
-                 relay.ty.TupleType(tvm.convert([
+                 relay.ty.TupleType(tvm.runtime.convert([
                      relay.ty.TensorType((1, 5, 2, 2), "float32"),
                      relay.ty.TensorType((1, 5, 2, 2), "float32"),
                      relay.ty.TensorType((1, 5, 2, 2), "float32"),
@@ -394,19 +390,19 @@ def test_split_infer_type():
                      relay.ty.TensorType((1, 5, 2, 2), "float32")])),
                   axis=0)
     verify_split((d1, d2, d3, d4), 4,
-                 relay.ty.TupleType(tvm.convert([
+                 relay.ty.TupleType(tvm.runtime.convert([
                      relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
                      relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
                      relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32"),
                      relay.ty.TensorType((d1, d2, idxd(d3, 4), d4), "float32")])),
                   axis=2)
     verify_split((d1, d2, d3, d4), 2,
-                 relay.ty.TupleType(tvm.convert([
+                 relay.ty.TupleType(tvm.runtime.convert([
                      relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32"),
                      relay.ty.TensorType((idxd(d1, 2), d2, d3, d4), "float32")])),
                   axis=0)
     verify_split((d1, d2, d3, d4), (2, 4, 7),
-                 relay.ty.TupleType(tvm.convert([
+                 relay.ty.TupleType(tvm.runtime.convert([
                      relay.ty.TensorType((d1, 2, d3, d4), "float32"),
                      relay.ty.TensorType((d1, 2, d3, d4), "float32"),
                      relay.ty.TensorType((d1, 3, d3, d4), "float32"),
@@ -452,7 +448,7 @@ def test_full_like_infer_type():
     assert yy.checked_type == relay.TensorType((1, 2, 3), "float32")
 
     # symbolic shape
-    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    n, c, h, w = te.size_var("n"), 2, 3, te.size_var("w")
     base = relay.var("base", relay.TensorType((n, c, h, w), "float32"))
     fill = relay.var("fill", relay.TensorType((), "float32"))
     y = relay.full_like(base, fill)
@@ -480,7 +476,7 @@ def test_full_like():
 
 
 def test_infer_type_leaky_relu():
-    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
     y = relay.nn.leaky_relu(x, alpha=0.1)
     "alpha=0.1" in y.astext()
@@ -522,7 +518,7 @@ def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
         alpha_shape = (data[axis],)
         assert zz.args[1].checked_type == relay.TensorType(alpha_shape, "float32")
 
-    if all(isinstance(v, tvm.expr.Var) == 1 for v in data) or not alpha:
+    if all(isinstance(v, tvm.tir.Var) == 1 for v in data) or not alpha:
         return
 
     func = relay.Function([x, y], z)
@@ -544,7 +540,7 @@ def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
 
 
 def test_infer_type_prelu():
-    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    n, c , h, w = te.size_var("n"), te.size_var("c"), te.size_var("h"), te.size_var("w")
     verify_infer_type_prelu((n, c, h, w), (c,), 1, (n, c, h, w))
     verify_infer_type_prelu((n, h, w, c), (c,), 3, (n, h, w, c))
     verify_infer_type_prelu((n, c, h, w), None, 1, (n, c, h, w))

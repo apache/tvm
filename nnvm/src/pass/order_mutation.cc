@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -45,7 +45,7 @@ inline bool IsMutate(const std::vector<uint32_t>& mutate_inputs, uint32_t i) {
 
 Graph OrderMutation(const Graph& src) {
   std::unordered_map<Node*, std::vector<NodeEntry> > version_hist;
-  DFSVisit(src.outputs, [&version_hist](const NodePtr& n) {
+  DFSVisit(src.outputs, [&version_hist](const ObjectPtr& n) {
       for (const NodeEntry& e : n->inputs) {
         if (e.node->is_variable()) {
           if (e.version != 0 && version_hist.count(e.node.get()) == 0) {
@@ -57,8 +57,8 @@ Graph OrderMutation(const Graph& src) {
   // no mutation happens, everything if fine.
   if (version_hist.size() == 0) return src;
   // start preparing for remapping the nodes.
-  std::unordered_map<Node*, NodePtr> old_new;
-  auto prepare = [&version_hist, &old_new] (const NodePtr& n) {
+  std::unordered_map<Node*, ObjectPtr> old_new;
+  auto prepare = [&version_hist, &old_new] (const ObjectPtr& n) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
     std::vector<uint32_t> mutate_inputs;
     if (!n->is_variable() && fmutate_inputs.count(n->op())) {
@@ -80,11 +80,11 @@ Graph OrderMutation(const Graph& src) {
         if (old_new.count(e.node.get()) != 0) need_repl = true;
       }
     }
-    for (const NodePtr& p : n->control_deps) {
+    for (const ObjectPtr& p : n->control_deps) {
       if (old_new.count(p.get()) != 0) need_repl = true;
     }
     if (need_repl) {
-      NodePtr np = Node::Create();
+      ObjectPtr np = Node::Create();
       np->attrs = n->attrs;
       old_new[n.get()] = std::move(np);
     }
@@ -111,7 +111,7 @@ Graph OrderMutation(const Graph& src) {
         kv.second->inputs.push_back(e);
       }
     }
-    for (const NodePtr& p : kv.first->control_deps) {
+    for (const ObjectPtr& p : kv.first->control_deps) {
       kv.second->control_deps.emplace_back(
           get_with_default(old_new, p.get(), p));
     }

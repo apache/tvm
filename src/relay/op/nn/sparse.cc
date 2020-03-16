@@ -22,12 +22,12 @@
  * \brief Property def of nn.sparse_dense operator.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
-#include "../../pass/alter_op_layout.h"
+#include "../../transforms/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {
@@ -47,7 +47,7 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (weight_data->shape.size() == 1) {
     // CSR case.
     Array<IndexExpr> oshape({data->shape[0], weight_indptr->shape[0] - 1});
-    reporter->Assign(types[4], TensorTypeNode::make(oshape, data->dtype));
+    reporter->Assign(types[4], TensorType(oshape, data->dtype));
     return true;
   }
 
@@ -56,7 +56,7 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
     Array<IndexExpr> oshape({
         data->shape[0],
           (weight_indptr->shape[0] - 1) * weight_data->shape[1]});
-    reporter->Assign(types[4], TensorTypeNode::make(oshape, data->dtype));
+    reporter->Assign(types[4], TensorType(oshape, data->dtype));
     return true;
   }
   LOG(FATAL) << "Unknown weight ndim for nn.sparse_dense, should be 1 (CSR) or 3 (BSR)";
@@ -65,12 +65,12 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr) {
-  auto attrs = make_node<SparseDenseAttrs>();
+  auto attrs = make_object<SparseDenseAttrs>();
   static const Op& op = Op::Get("nn.sparse_dense");
   return CallNode::make(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.sparse_dense")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 4>(MakeSparseDense, args, rv);
 });
@@ -105,21 +105,21 @@ bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
   const auto* sparse_indptr = types[2].as<TensorTypeNode>();
 
   std::vector<Type> output_types;
-  output_types.push_back(TensorTypeNode::make(sparse_data->shape, sparse_data->dtype));
-  output_types.push_back(TensorTypeNode::make(sparse_indices->shape, sparse_indices->dtype));
-  output_types.push_back(TensorTypeNode::make(sparse_indptr->shape, sparse_indptr->dtype));
+  output_types.push_back(TensorType(sparse_data->shape, sparse_data->dtype));
+  output_types.push_back(TensorType(sparse_indices->shape, sparse_indices->dtype));
+  output_types.push_back(TensorType(sparse_indptr->shape, sparse_indptr->dtype));
 
-  reporter->Assign(types[3], TupleTypeNode::make(Array<Type>(output_types)));
+  reporter->Assign(types[3], TupleType(Array<Type>(output_types)));
   return true;
 }
 
 Expr MakeSparseTranspose(Expr sparse_data, Expr sparse_indices, Expr sparse_indptr) {
-  auto attrs = make_node<SparseTransposeAttrs>();
+  auto attrs = make_object<SparseTransposeAttrs>();
   static const Op& op = Op::Get("nn.sparse_transpose");
   return CallNode::make(op, {sparse_data, sparse_indices, sparse_indptr}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay.op.nn._make.sparse_transpose")
+TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_transpose")
 .set_body_typed(MakeSparseTranspose);
 
 

@@ -59,7 +59,8 @@ class RPCWrappedFunc {
                             const TVMArgValue& arg);
 
   // deleter of RPC remote array
-  static void RemoteNDArrayDeleter(NDArray::Container* ptr) {
+  static void RemoteNDArrayDeleter(Object* obj) {
+    auto* ptr = static_cast<NDArray::Container*>(obj);
     RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
     space->sess->CallRemote(RPCCode::kNDArrayFree, ptr->manager_ctx);
     delete space;
@@ -71,12 +72,12 @@ class RPCWrappedFunc {
                                    void* nd_handle) {
     NDArray::Container* data = new NDArray::Container();
     data->manager_ctx = nd_handle;
-    data->deleter = RemoteNDArrayDeleter;
+    data->SetDeleter(RemoteNDArrayDeleter);
     RemoteSpace* space = new RemoteSpace();
     space->sess = sess;
     space->data = tensor->data;
     data->dl_tensor.data = space;
-    NDArray ret(data);
+    NDArray ret(GetObjectPtr<Object>(data));
     // RAII now in effect
     data->shape_ = std::vector<int64_t>(
         tensor->shape, tensor->shape + tensor->ndim);
@@ -186,7 +187,7 @@ class RPCModuleNode final : public ModuleNode {
 
 void* RPCWrappedFunc::UnwrapRemote(int rpc_sess_table_index,
                                    const TVMArgValue& arg) {
-  if (arg.type_code() == kModuleHandle) {
+  if (arg.type_code() == kTVMModuleHandle) {
     Module mod = arg;
     std::string tkey = mod->type_key();
     CHECK_EQ(tkey, "rpc")
@@ -210,15 +211,15 @@ void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
   int tcode = args.type_codes[0];
 
   if (handle == nullptr) return;
-  if (tcode == kFuncHandle) {
+  if (tcode == kTVMPackedFuncHandle) {
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
         return wf->operator()(args, rv);
       });
-  } else if (tcode == kModuleHandle) {
+  } else if (tcode == kTVMModuleHandle) {
     auto n = make_object<RPCModuleNode>(handle, sess);
     *rv = Module(n);
-  } else if (tcode == kArrayHandle || tcode == kNDArrayContainer) {
+  } else if (tcode == kTVMDLTensorHandle || tcode == kTVMNDArrayHandle) {
     CHECK_EQ(args.size(), 2);
     DLTensor* tensor = args[0];
     void* nd_handle = args[1];
@@ -233,7 +234,7 @@ Module CreateRPCModule(std::shared_ptr<RPCSession> sess) {
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
+TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     std::string tkey = m->type_key();

@@ -16,12 +16,12 @@
 # under the License.
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
 import numpy as _np
-from .. import expr as _expr
-from .. import api as _api
-from .. import tensor as _tensor
-from .. import ndarray as _nd
+from tvm.runtime import ndarray as _nd
+from tvm import te
+from tvm.tir import expr as _expr
+from tvm.te import tensor as _tensor
+
 
 float32 = "float32"
 itype = 'int32'
@@ -37,7 +37,7 @@ class CSRNDArray(object):
             The corresponding a dense numpy array,
             or a tuple for constructing a sparse matrix directly.
 
-        ctx: tvm.TVMContext
+        ctx: tvmContext
             The corresponding context.
 
         shape : tuple of int
@@ -135,9 +135,9 @@ class CSRPlaceholderOp(SparsePlaceholderOp):
         """
         SparsePlaceholderOp.__init__(self, shape, nonzeros, dtype, name)
         self.stype = 'csr'
-        self.data = _api.placeholder((nonzeros,), dtype=dtype, name=self.name+'_data')
-        self.indices = _api.placeholder((nonzeros,), dtype=itype, name=self.name+'_indices')
-        self.indptr = _api.placeholder((self.shape[0]+1,), dtype=itype, name=self.name+'_indptr')
+        self.data = te.placeholder((nonzeros,), dtype=dtype, name=self.name+'_data')
+        self.indices = te.placeholder((nonzeros,), dtype=itype, name=self.name+'_indices')
+        self.indptr = te.placeholder((self.shape[0]+1,), dtype=itype, name=self.name+'_indptr')
         assert isinstance(self.data, _tensor.Tensor)
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
@@ -167,7 +167,7 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     tensor: SparsePlaceholderOp
         The created sparse tensor placeholder
     """
-    shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    shape = (shape,) if isinstance(shape, _expr.PrimExpr) else shape
     nonzeros = 0 if nonzeros is None else nonzeros
     dtype = float32 if dtype is None else dtype
     stype = 'csr' if stype is None else stype

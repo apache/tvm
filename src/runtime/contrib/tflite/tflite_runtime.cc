@@ -21,7 +21,6 @@
  * \file tflite_runtime.cc
  */
 #include <tvm/runtime/registry.h>
-#include <tvm/dtype.h>
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
@@ -33,37 +32,37 @@ namespace tvm {
 namespace runtime {
 
 #define TVM_DTYPE_DISPATCH(type, DType, ...)            \
-  if (type == Float(64)) {                              \
+  if (type == DataType::Float(64)) {                    \
     typedef double DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(32)) {                       \
+  } else if (type == DataType::Float(32)) {             \
     typedef float DType;                                \
     {__VA_ARGS__}                                       \
-  } else if (type == Float(16)) {                       \
+  } else if (type == DataType::Float(16)) {             \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(64)) {                         \
+  } else if (type == DataType::Int(64)) {               \
     typedef int64_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(32)) {                         \
+  } else if (type == DataType::Int(32)) {               \
     typedef int32_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(16)) {                         \
+  } else if (type == DataType::Int(16)) {               \
     typedef int16_t DType;                              \
     {__VA_ARGS__}                                       \
-  } else if (type == Int(8)) {                          \
+  } else if (type == DataType::Int(8)) {                \
     typedef int8_t DType;                               \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(64)) {                        \
+  } else if (type == DataType::UInt(64)) {              \
     typedef uint64_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(32)) {                        \
+  } else if (type == DataType::UInt(32)) {              \
     typedef uint32_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(16)) {                        \
+  } else if (type == DataType::UInt(16)) {              \
     typedef uint16_t DType;                             \
     {__VA_ARGS__}                                       \
-  } else if (type == UInt(8)) {                         \
+  } else if (type == DataType::UInt(8)) {               \
     typedef uint8_t DType;                              \
     {__VA_ARGS__}                                       \
   } else {                                              \
@@ -73,25 +72,24 @@ namespace runtime {
 DataType TfLiteDType2TVMDType(TfLiteType dtype) {
   switch (dtype) {
     case kTfLiteFloat32:
-      return Float(32);
+      return DataType::Float(32);
     case kTfLiteInt32:
-      return Int(32);
+      return DataType::Int(32);
     case kTfLiteInt64:
-      return Int(64);
+      return DataType::Int(64);
     case kTfLiteInt16:
-      return Int(16);
+      return DataType::Int(16);
     case kTfLiteInt8:
-      return Int(8);
+      return DataType::Int(8);
     case kTfLiteUInt8:
-      return UInt(8);
+      return DataType::UInt(8);
     case kTfLiteFloat16:
-      return Float(16);
+      return DataType::Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
-      return Float(32);
+      return DataType::Float(32);
   }
 }
-
 
 void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
                          TVMContext ctx) {
@@ -100,12 +98,14 @@ void TFLiteRuntime::Init(const std::string& tflite_model_bytes,
   std::unique_ptr<tflite::FlatBufferModel> model =
     tflite::FlatBufferModel::BuildFromBuffer(buffer, buffer_size);
   tflite::ops::builtin::BuiltinOpResolver resolver;
-  tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
-  ctx_ = ctx;
-}
+  // Build interpreter
+  TfLiteStatus status = tflite::InterpreterBuilder(*model, resolver)(&interpreter_);
+  CHECK_TFLITE_STATUS(status) << "Failed to build interpreter.";
+  // Allocate tensors
+  status = interpreter_->AllocateTensors();
+  CHECK_TFLITE_STATUS(status) << "Failed to allocate tensors.";
 
-void TFLiteRuntime::AllocateTensors() {
-  interpreter_->AllocateTensors();
+  ctx_ = ctx;
 }
 
 void TFLiteRuntime::Invoke() {
@@ -129,7 +129,7 @@ void TFLiteRuntime::SetInput(int index, DLTensor* data_in) {
 }
 
 NDArray TFLiteRuntime::GetOutput(int index) const {
-  TfLiteTensor* output = interpreter_->output_tensor(index);
+  TfLiteTensor* output = interpreter_->tensor(interpreter_->outputs()[index]);
   DataType dtype = TfLiteDType2TVMDType(output->type);
   TfLiteIntArray* dims = output->dims;
   int64_t size = 1;
@@ -166,10 +166,6 @@ PackedFunc TFLiteRuntime::GetFunction(
   } else if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Invoke();
-      });
-  } else if (name == "allocate_tensors") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->AllocateTensors();
       });
   } else {
     return PackedFunc();

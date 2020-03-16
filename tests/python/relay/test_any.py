@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import pytest
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.loops import while_loop
 from tvm.relay.testing import run_infer_type as infer_type
@@ -37,7 +39,7 @@ def verify_any_broadcast(x_shape, y_shape, x_np_shape, y_np_shape, op, np_op):
     dtype = 'float32'
     x = relay.var('x', shape=x_shape, dtype=dtype)
     y = relay.var('y', shape=y_shape, dtype=dtype)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x, y], op(x, y))
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
     y_np = np.random.uniform(size=y_np_shape).astype(dtype)
@@ -59,6 +61,22 @@ def test_any_broadcast():
     verify_any_broadcast((relay.Any(),), (3, 2), (2,), (3, 2), relay.add, np.add)
     verify_any_broadcast((relay.Any(), 2), (3, 2), (3, 2), (3, 2), relay.add, np.add)
 
+def verify_any_elemwise(x_shape, x_np_shape, op, np_op):
+    dtype = 'float32'
+    x = relay.var('x', shape=x_shape, dtype=dtype)
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], op(x))
+    x_np = np.random.uniform(size=x_np_shape).astype(dtype)
+    res_np = np_op(x_np)
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(x_np)
+        tvm.testing.assert_allclose(result.asnumpy(), res_np)
+
+def test_any_elemwise():
+    verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
+    verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
+    verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
 
 def test_any_broadcast_fail():
     # Test broadcast with incompatible values at runtime
@@ -80,7 +98,7 @@ def test_any_broadcast_fail():
 
 def verify_any_full(x_shape, x_np_shape, relay_op, np_op, dtype='float32'):
     x = relay.var('x', shape=x_shape, dtype=dtype)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod['main'] = relay.Function([x], relay.zeros_like(x))
     x_np = np.random.uniform(size=x_np_shape).astype(dtype)
     res_np = np.zeros_like(x_np)
@@ -107,12 +125,14 @@ def test_any_full():
 def test_any_concat():
     x = relay.var('x', shape=(relay.Any(), 2), dtype="float32")
     y = relay.var('y', shape=(1, 2), dtype="float32")
-    z = relay.op.concatenate([x, y], axis=0)
-    mod = relay.module.Module()
+    xx = x - relay.expr.const(3.0)
+    yy = y * relay.expr.const(5.0)
+    z = relay.op.concatenate([xx, yy], axis=0)
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x, y], z)
     x_np = np.random.uniform(size=(3, 2)).astype('float32')
     y_np = np.random.uniform(size=(1, 2)).astype('float32')
-    ref = np.concatenate([x_np, y_np], axis=0)
+    ref = np.concatenate([x_np - 3.0, y_np * 5.0], axis=0)
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(x_np, y_np)
@@ -121,7 +141,7 @@ def test_any_concat():
 def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape):
     x = relay.var('x', shape=x_shape, dtype="float32")
     y = relay.reshape(x, newshape=newshape)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y)
     data = np.random.uniform(size=x_np_shape).astype('float32')
     for kind in ["debug", "vm"]:
@@ -140,7 +160,7 @@ def test_any_reshape():
 def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
     x = relay.var('x', shape=x_shape, dtype=dtype)
     y = relay.argwhere(x)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y)
     data = np.random.choice([0, 1, 2, 3], size=x_np_shape).astype(dtype)
     expected = np.argwhere(data)
@@ -168,7 +188,7 @@ def test_any_argwhere():
     verify_any_argwhere(any_dims(5), (5, 5, 5, 5, 5), "int8")
 
 def verify_any_take(data_shape, indices_shape, axis, data_np_shape, indices_np_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     data = relay.var('data', shape=data_shape, dtype='float32')
     indices = relay.var('indices', shape=indices_shape, dtype='int32')
     y = relay.take(data, indices, axis=axis)
@@ -194,7 +214,7 @@ def test_any_take():
     verify_any_take(any_dims(2), any_dims(4), -1, (4, 5), (2, 3, 4, 5))
 
 def verify_any_tile(dshape, reps, np_dshape, np_reps):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     x = relay.var("x", shape=dshape, dtype="float32")
     y = relay.tile(x, reps=reps)
     mod["main"] = relay.Function([x], y)
@@ -215,7 +235,7 @@ def test_any_tile():
 def test_any_shape_of():
     x = relay.var('x', shape=any_dims(2), dtype='float32')
     y = relay.shape_of(x)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y)
     data = np.random.uniform(size=(3, 4)).astype('float32')
     for kind in ["debug", "vm"]:
@@ -226,7 +246,7 @@ def test_any_shape_of():
     x = relay.var('x', shape=any_dims(3), dtype='float32')
     y0 = relay.shape_of(x)
     y1 = relay.take(y0, relay.const(1, 'int32'))
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y1)
     data = np.random.uniform(size=(2, 3, 4)).astype('float32')
     for kind in ["debug", "vm"]:
@@ -236,7 +256,7 @@ def test_any_shape_of():
 
 def verify_any_reduce(reduce_op, data_shape, axis, exclude, keepdims,
                       static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "bool" if reduce_op == relay.all else "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = reduce_op(data, axis, keepdims, exclude)
@@ -259,7 +279,7 @@ def test_any_reduce():
     verify_any_reduce(relay.variance, any_dims(5), (2, 4), False, False, (3, 4, 5, 6, 7), (3, 4, 6))
 
 def verify_any_layout_transform(data_shape, src_layout, dst_layout, static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.layout_transform(data, src_layout, dst_layout)
@@ -279,7 +299,7 @@ def test_any_layout_transform():
     verify_any_layout_transform((16, 1), "CH", "C4cH", (16, 1), (4, 4, 1))
 
 def verify_any_expand_dims(data_shape, axis, num_newaxis, static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
@@ -296,7 +316,7 @@ def test_any_expand_dims():
     verify_any_expand_dims(any_dims(3), -1, 2, (1, 2, 3), (1, 2, 3, 1, 1))
 
 def verify_any_transpose(data_shape, axes, static_data_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.transpose(data, axes=axes)
@@ -314,7 +334,7 @@ def test_any_transpose():
     verify_any_transpose(any_dims(6), (0, 1, 3, 2, 5, 4), (11, 12, 2, 1, 9, 17))
 
 def verify_any_squeeze(data_shape, axis, static_data_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.squeeze(data, axis=axis)
@@ -331,7 +351,7 @@ def test_any_squeeze():
     verify_any_squeeze((1, relay.Any(), relay.Any(), 1, relay.Any(), relay.Any()), (0, 3), (1, 12, 2, 1, 9, 17))
 
 def test_any_reshape_like():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=(relay.Any(), 3, 10), dtype=dtype)
     shape_like = relay.var('data', shape=(relay.Any(), 5, 6), dtype=dtype)
@@ -348,7 +368,7 @@ def test_any_reshape_like():
 def verify_any_conv2d_NCHWc(data_shape, kernel_shape, strides, padding, dilation,
                             data_layout, kernel_layout, out_layout,
                             static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     kernel = relay.var('kernel', shape=kernel_shape, dtype=dtype)
@@ -366,6 +386,8 @@ def verify_any_conv2d_NCHWc(data_shape, kernel_shape, strides, padding, dilation
         assert result.asnumpy().shape == ref_out_shape, \
             "Shape mismatch: expect %s but got %s." % (str(ref_out_shape), str(result.asnumpy().shape))
 
+# TODO(@kevinthesun): Need to fix the compute in conv2d_NCHWc to support any
+@pytest.mark.skip
 def test_any_conv2d_NCHWc():
     verify_any_conv2d_NCHWc((relay.Any(), 8, relay.Any(), relay.Any(), 8), (8, 8, 3, 3, 8, 8), (1, 1), (1, 1), (1, 1),
                             "NCHW8c", "OIHW8i8o", "NCHW8c", (1, 8, 224, 224, 8), (1, 8, 224, 224, 8))
@@ -374,7 +396,7 @@ def test_any_conv2d_NCHWc():
 
 def verify_any_pool2d(pool_type, data_shape, pool_size, strides, padding,
                       layout, static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     pool_func = relay.nn.max_pool2d if pool_type == "max" else relay.nn.avg_pool2d
     data = relay.var('data', shape=data_shape, dtype=dtype)
@@ -396,7 +418,7 @@ def test_any_pool2d():
                       (3, 3), (2, 2), (1, 1), "NCHW4c", (2, 3, 220, 220, 4), (2, 3, 110, 110, 4))
 
 def verify_any_global_pool2d(pool_type, data_shape, layout, static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     pool_func = relay.nn.global_max_pool2d if pool_type == "max" else relay.nn.global_avg_pool2d
     data = relay.var('data', shape=data_shape, dtype=dtype)
@@ -417,8 +439,26 @@ def test_any_global_pool2d():
     verify_any_global_pool2d("max", (relay.Any(), 3, relay.Any(), relay.Any(), 4),
                       "NCHW4c", (2, 3, 220, 220, 4), (2, 3, 1, 1, 4))
 
+def verify_any_split(data_shape, indices_or_sections, axis, static_data_shape, ref_out_shape):
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.split(data, indices_or_sections, axis)
+    mod["main"] = relay.Function([data], y.astuple())
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    for kind in ["vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        for ret, ref_ret in zip(result, ref_out_shape):
+            assert ret.asnumpy().shape == ref_ret, \
+                "Shape mismatch: expect %s but got %s." % (str(ref_ret), str(ret.asnumpy().shape))
+
+def test_any_split():
+    verify_any_split((relay.Any(), 4), 2, 1, (9, 4), [(9, 2), (9, 2)])
+    verify_any_split((relay.Any(), 12), (1, 4, 8), 1, (7, 12), [(7, 1), (7, 3), (7, 4)])
+
 def test_any_batch_flatten():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=any_dims(3), dtype=dtype)
     y = relay.nn.batch_flatten(data)
@@ -433,7 +473,7 @@ def test_any_batch_flatten():
 
 def verify_any_dense(data_shape, weight_shape, units, static_data_shape,
                      static_weight_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     weight = relay.var('weight', shape=weight_shape, dtype=dtype)
@@ -452,7 +492,7 @@ def test_any_dense():
     verify_any_dense(any_dims(2), (50, relay.Any()), 50, (4, 40), (50, 40), (4, 50))
 
 def verify_any_pad(data_shape, pad_width, static_data_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.nn.pad(data, pad_width)
@@ -469,7 +509,7 @@ def test_any_pad():
     verify_any_pad(any_dims(4), ((1, 0), (1, 3), (0, 2), (9, 0)), (13, 11, 3, 1))
 
 def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
-    mod = relay.Module()
+    mod = tvm.IRModule()
     dtype = "float32"
     data = relay.var('data', shape=data_shape, dtype=dtype)
     y = relay.nn.softmax(data, axis)
@@ -489,7 +529,7 @@ def test_fused_ops():
     x = relay.var('x', shape=(relay.Any(), relay.Any()), dtype='float32')
     y0 = x + relay.const(1.0, 'float32')
     y1 = y0 * relay.const(2.0, 'float32')
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], y1)
     data = np.random.uniform(size=(5, 4)).astype('float32')
     for kind in ["vm"]:
@@ -498,15 +538,16 @@ def test_fused_ops():
         tvm.testing.assert_allclose(result.asnumpy(), (data + 1) * 2)
 
 def test_arange_with_dynamic_shape():
-    m, n, k = relay.ShapeVar('m'), relay.ShapeVar('n'), relay.ShapeVar('k')
-    x = relay.var('x', shape=(m.var, n.var, k.var), dtype='float32')
+    # m, n, k = relay.ShapeVar('m'), relay.ShapeVar('n'), relay.ShapeVar('k')
+    m, n, k = relay.Any(), relay.Any(), relay.Any()
+    x = relay.var('x', shape=(m, n, k), dtype='float32')
     y0 = relay.shape_of(x)
     y1 = relay.take(y0, relay.const(0, 'int32'))
     y2 = relay.op.arange(y1, dtype="int32")
     y3 = y2 + relay.const(1, dtype="int32")
     data = np.random.rand(10, 5, 3).astype('float32')
-    mod = relay.module.Module()
-    mod["main"] = relay.Function([x], y3, type_params=[m, n, k])
+    mod = tvm.IRModule()
+    mod["main"] = relay.Function([x], y3)
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
         result = ex.evaluate()(data)
@@ -540,7 +581,7 @@ def test_recursive_concat():
     start = relay.var('start', shape=(), dtype='int32')
     body = loop(start, relay.op.reshape(relay.const(0), newshape=(1, 1)))
     func = relay.Function([start], relay.TupleGetItem(body, 1))
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = func
     data = np.array(0.0, dtype='int32')
     ref = np.array([0] + list(range(10))).reshape((11, 1)).astype("int32")
@@ -601,11 +642,13 @@ def test_recursive_concat_with_wrong_annotation():
 if __name__ == "__main__":
     test_any_full()
     test_any_broadcast()
+    test_any_elemwise()
     test_any_broadcast_fail()
     test_any_concat()
     test_any_reshape()
     test_any_take()
     test_any_tile()
+    test_any_split()
     test_any_shape_of()
     test_any_reduce()
     test_any_layout_transform()

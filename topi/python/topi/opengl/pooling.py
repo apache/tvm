@@ -16,11 +16,9 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for pooling operators"""
-import tvm
+from tvm import te
 from .. import tag
-from .. import generic
 
-@generic.schedule_adaptive_pool.register(["opengl"])
 def schedule_adaptive_pool(outs):
     """Schedule for adaptive pool.
 
@@ -35,8 +33,8 @@ def schedule_adaptive_pool(outs):
     s: Schedule
         The computation schedule for adaptive pool.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def _schedule(Pool):
@@ -48,13 +46,13 @@ def schedule_adaptive_pool(outs):
         s[Out].opengl()
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].opengl()
             for tensor in OP.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule global_pool
         elif OP.tag.startswith('adaptive_pool'):
@@ -69,7 +67,6 @@ def schedule_adaptive_pool(outs):
     return s
 
 
-@generic.schedule_pool.register(["opengl"])
 def schedule_pool(outs, layout):
     """Schedule for pool.
 
@@ -87,12 +84,12 @@ def schedule_pool(outs, layout):
     s: Schedule
         The computation schedule for pool.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def _schedule(PaddedInput, Pool):
-        if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
+        if isinstance(PaddedInput.op, te.tensor.ComputeOp):
             s[PaddedInput].opengl()
         if Pool.op in s.outputs:
             Out = Pool
@@ -102,13 +99,13 @@ def schedule_pool(outs, layout):
         s[Out].opengl()
 
     def traverse(OP):
-        """Internal travserse function"""
+        """Internal traverse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op not in scheduled_ops and isinstance(tensor.op, tvm.tensor.ComputeOp):
+                if tensor.op not in scheduled_ops and isinstance(tensor.op, te.tensor.ComputeOp):
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):

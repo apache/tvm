@@ -40,6 +40,7 @@ from .transform import *
 from .broadcast import *
 from .sort import *
 from .argwhere import *
+from . import generic
 from . import nn
 from . import x86
 from . import cuda

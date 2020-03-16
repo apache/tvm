@@ -16,11 +16,11 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, line-too-long, unused-argument
 """Caffe2 frontend"""
-from __future__ import absolute_import as _abs
 import tvm
+from tvm.ir import IRModule
+
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
 from .. import op as _op
 from ... import nd as _nd
 from .common import AttrCvt, Renamer
@@ -383,7 +383,7 @@ class Caffe2NetDef(object):
         self._ops = {}
         self._shape = shape
         self._dtype = dtype
-        self._mod = _module.Module({})
+        self._mod = IRModule({})
 
     def from_caffe2(self, init_net, predict_net):
         """Construct Relay expression from caffe2 graph.
@@ -395,12 +395,13 @@ class Caffe2NetDef(object):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The module that optimizations will be performed on.
 
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
+        # pylint: disable=import-outside-toplevel
         from caffe2.python import workspace
         workspace.RunNetOnce(init_net)
 
@@ -564,11 +565,11 @@ def from_caffe2(init_net, predict_net, shape=None, dtype="float32"):
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module that optimizations will be performed on.
 
-    params : dict of str to tvm.ndarray
-        Dict of converted parameters stored in tvm.ndarray format
+    params : dict of str to tvm.nd.NDArray
+        Dict of converted parameters stored in tvm.nd.NDArray format
     """
 
     caffe2 = Caffe2NetDef(shape, dtype)

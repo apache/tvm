@@ -16,12 +16,15 @@
 # under the License.
 
 """Maps object type to its constructor"""
-from ..node_generic import _set_class_node_base
-
-OBJECT_TYPE = []
+cdef list OBJECT_TYPE = []
 
 def _register_object(int index, object cls):
     """register object class"""
+    if issubclass(cls, NDArrayBase):
+        _register_ndarray(index, cls)
+        return
+
+    global OBJECT_TYPE
     while len(OBJECT_TYPE) <= index:
         OBJECT_TYPE.append(None)
     OBJECT_TYPE[index] = cls
@@ -29,24 +32,21 @@ def _register_object(int index, object cls):
 
 cdef inline object make_ret_object(void* chandle):
     global OBJECT_TYPE
-    global _CLASS_NODE
+    global _CLASS_OBJECT
     cdef unsigned tindex
-    cdef list object_type
     cdef object cls
     cdef object handle
     object_type = OBJECT_TYPE
     handle = ctypes_handle(chandle)
     CALL(TVMObjectGetTypeIndex(chandle, &tindex))
-    if tindex < len(object_type):
-        cls = object_type[tindex]
+    if tindex < len(OBJECT_TYPE):
+        cls = OBJECT_TYPE[tindex]
         if cls is not None:
             obj = cls.__new__(cls)
         else:
-            # default use node base class
-            # TODO(tqchen) change to object after Node unifies with Object
-            obj = _CLASS_NODE.__new__(_CLASS_NODE)
+            obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
     else:
-        obj = _CLASS_NODE.__new__(_CLASS_NODE)
+        obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
     (<ObjectBase>obj).chandle = chandle
     return obj
 
@@ -96,9 +96,23 @@ cdef class ObjectBase:
         self.chandle = NULL
         cdef void* chandle
         ConstructorCall(
-            (<FunctionBase>fconstructor).chandle,
-            kObjectHandle, args, &chandle)
+            (<PackedFuncBase>fconstructor).chandle,
+            kTVMObjectHandle, args, &chandle)
         self.chandle = chandle
 
+    def same_as(self, other):
+        """Check object identity.
 
-_set_class_node_base(ObjectBase)
+        Parameters
+        ----------
+        other : object
+            The other object to compare against.
+
+        Returns
+        -------
+        result : bool
+             The comparison result.
+        """
+        if not isinstance(other, ObjectBase):
+            return False
+        return self.chandle == (<ObjectBase>other).chandle

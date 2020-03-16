@@ -20,10 +20,11 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+from tvm import te
 
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import simplify, get_const_tuple
+from ..util import simplify, get_const_tuple, get_const_int, tag
 from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
@@ -31,23 +32,24 @@ Workload = namedtuple('Workload',
                       ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'groups',
                        'out_filter', 'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
-@tvm.target.generic_func
 def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=None):
     """Conv2D operator.
 
     Parameters
     ----------
-    input : tvm.Tensor
+    input : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    filter : tvm.Tensor
+    filter : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -57,16 +59,16 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     # search platform specific declaration first
     # default declaration
     if layout == 'NCHW':
         return conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'HWCN':
+    if layout == 'HWCN':
         return conv2d_hwcn(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'NHWC':
+    if layout == 'NHWC':
         return conv2d_nhwc(input, filter, strides, padding, dilation, out_dtype)
     raise ValueError("not support this layout {} yet".format(layout))
 
@@ -77,7 +79,7 @@ def conv2d_legalize(attrs, inputs, types):
 
     Parameters
     ----------
-    attrs : tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
     inputs : list of tvm.relay.Expr
         The args of the Relay expr to be legalized
@@ -94,24 +96,23 @@ def conv2d_legalize(attrs, inputs, types):
 
 
 @tvm.target.generic_func
-def conv2d_alter_layout(attrs, inputs, tinfos, F):
+def conv2d_alter_layout(attrs, inputs, tinfos, out_type):
     """Change Conv2D layout.
 
     Parameters
     ----------
-    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+    attrs : tvm.ir.Attrs
         Attributes of current convolution
-    inputs : nnvm.symbol or tvm.relay.Expr
+    inputs : tvm.relay.Expr
         Grouped input symbols
     tinfos : list
         Input shape and dtype
-    F: symbol
-        The context, can be either nnvm.sym or relay.op
+    out_type: type
+        The output type
 
     Note
     ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level,
-    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
     """
     # not to change by default
     return None
@@ -140,20 +141,20 @@ def conv2d_infer_layout(workload, cfg):
 def _get_workload(data, kernel, stride, padding, out_dtype, data_layout='NCHW'):
     """ Get the workload structure. """
     if data_layout == 'NCHW':
-        _, CI, IH, IW = [x.value for x in data.shape]
+        _, CI, IH, IW = get_const_tuple(data.shape)
     elif data_layout == 'NHWC':
-        _, IH, IW, CI = [x.value for x in data.shape]
+        _, IH, IW, CI = get_const_tuple(data.shape)
     elif data_layout == 'HWCN':
-        IH, IW, CI, _ = [x.value for x in data.shape]
+        IH, IW, CI, _ = get_const_tuple(data.shape)
     else:
         raise ValueError("not support this layout {} yet".format(data_layout))
 
     if data_layout == 'NCHW':
-        CO, CIG, KH, KW = [x.value for x in kernel.shape]
+        CO, CIG, KH, KW = get_const_tuple(kernel.shape)
     else:
-        KH, KW, CIG, CO = [x.value for x in kernel.shape]
+        KH, KW, CIG, CO = get_const_tuple(kernel.shape)
 
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    HPAD, WPAD, _, _ = get_pad_tuple(padding, (get_const_int(KH), get_const_int(KW)))
     GRPS = CI // CIG
     if isinstance(stride, (tuple, list)):
         HSTR, WSTR = stride
@@ -170,24 +171,26 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         4-D with shape [num_filter, in_channel, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     if out_dtype is None:
@@ -218,13 +221,12 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
-
-    return tvm.compute(
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
+    return te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda nn, ff, yy, xx: tvm.sum(
+        lambda nn, ff, yy, xx: te.sum(
             temp[nn, rc, yy * stride_h + ry * dilation_h,
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
@@ -236,24 +238,26 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         4-D with shape [in_height, in_width, in_channel, batch]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [out_height, out_width, out_channel, batch]
     """
     if out_dtype is None:
@@ -284,12 +288,12 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     pad_before = [pad_top, pad_left, 0, 0]
     pad_after = [pad_down, pad_right, 0, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
-    Output = tvm.compute(
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
+    Output = te.compute(
         (out_height, out_width, out_channel, batch),
-        lambda yy, xx, ff, nn: tvm.sum(
+        lambda yy, xx, ff, nn: te.sum(
             PaddedInput[yy * stride_h + ry * dilation_h, xx * stride_w + rx * dilation_w,
                         rc, nn].astype(out_dtype) *
             Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
@@ -302,24 +306,26 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         4-D with shape [batch, in_height, in_width, in_channel]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         4-D with shape [filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     assert isinstance(stride, int) or len(stride) == 2
@@ -348,12 +354,12 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     pad_before = [0, pad_top, pad_left, 0]
     pad_after = [0, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
-    Output = tvm.compute(
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
+    Output = te.compute(
         (batch, out_height, out_width, out_channel),
-        lambda nn, yy, xx, ff: tvm.sum(
+        lambda nn, yy, xx, ff: te.sum(
             PaddedInput[nn, yy * stride_h + ry * dilation_h,
                         xx * stride_w + rx * dilation_w, rc].astype(out_dtype) *
             Filter[ry, rx, rc, ff].astype(out_dtype), axis=[ry, rx, rc]),
@@ -361,16 +367,15 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     return Output
 
 
-@tvm.target.generic_func
 def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype='float32'):
     """Conv2D operator for nChw[x]c layout.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         6-D with shape
         [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
         in_channel_block, num_filter_block]
@@ -378,8 +383,10 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -395,67 +402,19 @@ def conv2d_NCHWc(data, kernel, stride, padding, dilation, layout, out_layout, ou
 
     Returns
     -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
-    """
-
-    return conv2d_NCHWc_compute(data,
-                                kernel,
-                                stride,
-                                padding,
-                                dilation,
-                                layout,
-                                out_layout,
-                                out_dtype)
-
-
-def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_layout, out_dtype):
-    """Conv2D operator compute for nChw[x]c layout.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
-
-    kernel : tvm.Tensor
-        6-D with shape
-        [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
-        in_channel_block, num_filter_block]
-
-    stride : int or a list/tuple of two ints
-        stride size, or [stride_height, stride_width]
-
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
-
-    dilation: int or a list/tuple of two ints
-        dilation size, or [dilation_height, dilation_width]
-
-    layout : str
-        Input data layout
-
-    out_layout : str
-        Output data layout
-
-    out_dtype : str
-        output data type
-
-    Returns
-    -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
-    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
     dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
         else (dilation, dilation)
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
-    target = tvm.target.current_target(allow_none=False)
+    target = tvm.target.Target.current(allow_none=False)
     oc_chunk, ic_chunk_group, kernel_height, kernel_width, _, oc_bn = \
         get_const_tuple(kernel.shape)
     num_filter = oc_chunk * oc_bn
@@ -464,52 +423,58 @@ def conv2d_NCHWc_compute(data, kernel, strides, padding, dilation, layout, out_l
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
 
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
+
     # output shape
-    out_height = (ih + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    out_width = (iw + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+    out_height = (ih + HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (iw + WPAD - dilated_kernel_w) // WSTR + 1
     oshape = (n, oc_chunk, out_height, out_width, oc_bn)
+    pad_before = (0, 0, pad_top, pad_left, 0)
+    pad_after = (0, 0, pad_down, pad_right, 0)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+        data_pad = pad(data, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data
 
-    ic = tvm.reduce_axis((0, in_channel), name='ic')
-    kh = tvm.reduce_axis((0, kernel_height), name='kh')
-    kw = tvm.reduce_axis((0, kernel_width), name='kw')
+    ic = te.reduce_axis((0, in_channel), name='ic')
+    kh = te.reduce_axis((0, kernel_height), name='kh')
+    kw = te.reduce_axis((0, kernel_width), name='kw')
 
-    idxdiv = tvm.indexdiv
-    idxmod = tvm.indexmod
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
 
-    return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_pad[n,
-                                        idxdiv(ic, ic_bn),
-                                        oh * HSTR + kh * dilation_h,
-                                        ow * WSTR + kw * dilation_w,
-                                        idxmod(ic, ic_bn)].astype(out_dtype)
-                               * kernel[oc_chunk,
-                                        idxdiv(ic, ic_bn),
-                                        kh,
-                                        kw,
-                                        idxmod(ic, ic_bn),
-                                        oc_block],
-                               axis=[ic, kh, kw]),
-                       name='conv2d_NCHWc', tag="conv2d_NCHWc")
+    return te.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                      te.sum(data_pad[n,
+                                      idxdiv(ic, ic_bn),
+                                      oh * HSTR + kh * dilation_h,
+                                      ow * WSTR + kw * dilation_w,
+                                      idxmod(ic, ic_bn)].astype(out_dtype)
+                             * kernel[oc_chunk,
+                                      idxdiv(ic, ic_bn),
+                                      kh,
+                                      kw,
+                                      idxmod(ic, ic_bn),
+                                      oc_block],
+                             axis=[ic, kh, kw]),
+                      name='conv2d_NCHWc', tag="conv2d_NCHWc")
 
 
-@tvm.target.generic_func
-def conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, layout, out_layout,
+def conv2d_NCHWc_int8(data, kernel, stride, padding, dilation, layout, out_layout,
                       out_dtype='int32'):
     """Conv2D operator for nChw[x]c layout.
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
-    kernel : tvm.Tensor
+    kernel : tvm.te.Tensor
         7-D with shape
         [num_filter_chunk, in_channel_chunk, filter_height, filter_width, in_channel_block/4,
         num_filter_block, 4]
@@ -517,8 +482,10 @@ def conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, layout, out_layo
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
 
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation: int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -534,62 +501,13 @@ def conv2d_NCHWc_int8(data, kernel, strides, padding, dilation, layout, out_layo
 
     Returns
     -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
-    """
-
-    return conv2d_NCHWc_int8_compute(data,
-                                     kernel,
-                                     strides,
-                                     padding,
-                                     dilation,
-                                     layout,
-                                     out_layout,
-                                     out_dtype)
-
-
-def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, out_layout,
-                              out_dtype='int32'):
-    """Conv2D operator for nChw[x]c layout.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
-
-    kernel : tvm.Tensor
-        7-D with shape
-        [num_filter_chunk, in_channel_chunk, filter_height, filter_width, in_channel_block/4,
-        num_filter_block, 4]
-
-    stride : int or a list/tuple of two ints
-        stride size, or [stride_height, stride_width]
-
-    padding : int or a list/tuple of two ints
-        padding size, or [pad_height, pad_width]
-
-    dilation: int or a list/tuple of two ints
-        dilation size, or [dilation_height, dilation_width]
-
-    layout : str
-        Input data layout
-
-    out_layout : str
-        Output data layout
-
-    out_dtype : str
-        output data type
-
-    Returns
-    -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
 
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
-    HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
-    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    HSTR, WSTR = stride if isinstance(stride, (tuple, list)) else (stride, stride)
     dilation_h, dilation_w = dilation if isinstance(dilation, (tuple, list)) \
         else (dilation, dilation)
 
@@ -603,65 +521,73 @@ def conv2d_NCHWc_int8_compute(data, kernel, strides, padding, dilation, layout, 
     dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
 
+
+    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
+    HPAD = pad_top + pad_down
+    WPAD = pad_left + pad_right
+
     # output shape
-    out_height = (ih + 2 * HPAD - dilated_kernel_h) // HSTR + 1
-    out_width = (iw + 2 * WPAD - dilated_kernel_w) // WSTR + 1
+    out_height = (ih + HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (iw + WPAD - dilated_kernel_w) // WSTR + 1
     oshape = (n, oc_chunk, out_height, out_width, oc_bn)
+    pad_before = (0, 0, pad_top, pad_left, 0)
+    pad_after = (0, 0, pad_down, pad_right, 0)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+        data_pad = pad(data, pad_before, pad_after, name="data_pad")
     else:
         data_pad = data
 
-    ic = tvm.reduce_axis((0, in_channel), name='ic')
-    kh = tvm.reduce_axis((0, kernel_height), name='kh')
-    kw = tvm.reduce_axis((0, kernel_width), name='kw')
+    ic = te.reduce_axis((0, in_channel), name='ic')
+    kh = te.reduce_axis((0, kernel_height), name='kh')
+    kw = te.reduce_axis((0, kernel_width), name='kw')
 
     if groups == 1:
         n_elems = 4
-        ic_outer = tvm.reduce_axis((0, in_channel//ic_bn), name='ic_outer')
-        ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
-        ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
-        return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                           tvm.sum(data_pad[n,
-                                            ic_outer,
-                                            oh * HSTR + kh * dilation_h,
-                                            ow * WSTR + kw * dilation_w,
-                                            ic_f_inner * n_elems + ic_s_inner].astype(out_dtype)
-                                   * kernel[oc_chunk,
-                                            ic_outer,
-                                            kh,
-                                            kw,
-                                            ic_f_inner,
-                                            oc_block,
-                                            ic_s_inner].astype(out_dtype),
-                                   axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
-                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
+        ic_outer = te.reduce_axis((0, in_channel//ic_bn), name='ic_outer')
+        ic_f_inner = te.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
+        ic_s_inner = te.reduce_axis((0, n_elems), name='ic_s_inner')
+        return te.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                          te.sum(data_pad[n,
+                                          ic_outer,
+                                          oh * HSTR + kh * dilation_h,
+                                          ow * WSTR + kw * dilation_w,
+                                          ic_f_inner * n_elems + ic_s_inner].astype(out_dtype)
+                                 * kernel[oc_chunk,
+                                          ic_outer,
+                                          kh,
+                                          kw,
+                                          ic_f_inner,
+                                          oc_block,
+                                          ic_s_inner].astype(out_dtype),
+                                 axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
+                          name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
     # for int8 group conv support
     n_elems = 4
     ic_chunk = in_channel//ic_bn
-    ic_outer = tvm.reduce_axis((0, ic_chunk//groups), name='ic_outer')
-    ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
-    ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
+    ic_outer = te.reduce_axis((0, ic_chunk//groups), name='ic_outer')
+    ic_f_inner = te.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
+    ic_s_inner = te.reduce_axis((0, n_elems), name='ic_s_inner')
     oshape = (n, oc_chunk, out_height, out_width, oc_bn)
-    return tvm.compute(oshape, lambda n, occ, oh, ow, oc_block:
-                       tvm.sum(data_pad[n,
-                                        (occ * oc_bn // (oc_chunk * oc_bn // groups))
-                                        * (ic_chunk // groups) + ic_outer,
-                                        oh * HSTR + kh,
-                                        ow * WSTR + kw,
-                                        ic_f_inner * n_elems +  ic_s_inner].astype(out_dtype)
-                               * kernel[occ,
-                                        ic_outer,
-                                        kh,
-                                        kw,
-                                        ic_f_inner,
-                                        oc_block,
-                                        ic_s_inner].astype(out_dtype),
-                               axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
-                       name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
+    return te.compute(oshape, lambda n, occ, oh, ow, oc_block:
+                      te.sum(data_pad[n,
+                                      (occ * oc_bn // (oc_chunk * oc_bn // groups))
+                                      * (ic_chunk // groups) + ic_outer,
+                                      oh * HSTR + kh,
+                                      ow * WSTR + kw,
+                                      ic_f_inner * n_elems +  ic_s_inner].astype(out_dtype)
+                             * kernel[occ,
+                                      ic_outer,
+                                      kh,
+                                      kw,
+                                      ic_f_inner,
+                                      oc_block,
+                                      ic_s_inner].astype(out_dtype),
+                             axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
+                      name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
 
 
 def conv2d_winograd_weight_transform(kernel, tile_size):
@@ -676,7 +602,7 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [alpha, alpha, CO, CI]
     """
     shape = get_const_tuple(kernel.shape)
@@ -688,39 +614,12 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
 
     _, _, G = winograd_transform_matrices(tile_size, K, kernel.dtype)
 
-    r_kh = tvm.reduce_axis((0, K), name='r_kh')
-    r_kw = tvm.reduce_axis((0, K), name='r_kw')
-    return tvm.compute(shape, lambda eps, nu, co, ci:
-                       tvm.sum(kernel[co][ci][r_kh][r_kw] *
-                               G[eps][r_kh] * G[nu][r_kw],
-                               axis=[r_kh, r_kw]), name='transform_weight')
-
-
-@tvm.target.generic_func
-def conv2d_winograd_without_weight_transform(input, filter, strides, padding, dilation,
-                                             layout, out_dtype, tile_size):
-    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
-    in advance.
-
-    Parameters
-    ----------
-    input : tvm.Tensor
-        4-D with shape [batch, in_height, in_width, in_channel]
-    filter : tvm.Tensor
-        4-D with shape [filter_height, filter_width, in_channel, num_filter]
-    strides : int or a list/tuple of two ints
-        Stride size, or [stride_height, stride_width]
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
-    tile_size: int
-        Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
-
-    Returns
-    -------
-    output : tvm.Tensor
-        4-D with shape [batch, out_height, out_width, out_channel]
-    """
-    raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
+    r_kh = te.reduce_axis((0, K), name='r_kh')
+    r_kw = te.reduce_axis((0, K), name='r_kw')
+    return te.compute(shape, lambda eps, nu, co, ci:
+                      te.sum(kernel[co][ci][r_kh][r_kw] *
+                             G[eps][r_kh] * G[nu][r_kw],
+                             axis=[r_kh, r_kw]), name='transform_weight')
 
 
 def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_dtype):
@@ -733,55 +632,33 @@ def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_d
         The convolution algorithm for Winograd NNPACK.
      Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         4-D with shape [alpha, alpha, CO, CI]
     """
+    # pylint: disable=import-outside-toplevel
     from tvm.contrib import nnpack
     return nnpack.convolution_inference_weight_transform(
         kernel, algorithm=convolution_algorithm, dtype=out_dtype)
 
-@tvm.target.generic_func
-def conv2d_winograd_nnpack_without_weight_transform(
-        input, filter, bias, strides, padding, dilation, layout, out_dtype):
-    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
-    in advance.
-     Parameters
-    ----------
-    input : tvm.Tensor
-        4-D with shape [batch, in_height, in_width, in_channel]
-    filter : tvm.Tensor
-        4-D with shape [num_filter, in_channel, 8, 8]
-    bias : tvm.Tensor
-        1-D with shape [num_filter]
-    strides : int or a list/tuple of two ints
-        Stride size, or [stride_height, stride_width]
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
-     Returns
-    -------
-    output : tvm.Tensor
-        4-D with shape [batch, out_height, out_width, out_channel]
-    """
-    raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
 
-
-@tvm.target.generic_func
 def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtype=None):
     """Group convolution operator in NCHW layout.
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         4-D with shape [batch, in_channel, in_height, in_width]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         4-D with shape [num_filter, in_channel // groups, filter_height, filter_width]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or a list/tuple of 2 or 4 ints
+        padding size, or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 4 ints
 
     dilation : int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
@@ -794,7 +671,7 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     if out_dtype is None:
@@ -829,14 +706,46 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
-    rc = tvm.reduce_axis((0, in_channel // groups), name='rc')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
-    return tvm.compute(
+    rc = te.reduce_axis((0, in_channel // groups), name='rc')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
+    return te.compute(
         (batch, out_channel, out_height, out_width),
-        lambda nn, ff, yy, xx: tvm.sum(
+        lambda nn, ff, yy, xx: te.sum(
             temp[nn, ff // (num_filter//groups) * (in_channel//groups) + rc,
                  yy * stride_h + ry * dilation_h,
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag='group_conv2d_nchw')
+
+
+def unpack_NCHWc_to_nchw(packed_out, out_dtype):
+    """Unpack conv2d_NCHWc output from layout NCHWc to NCHW
+
+     Parameters
+    -----------
+    packed_out : tvm.te.Tensor
+        The output tensor of conv2d_NCHWc.
+
+    out_dtype : str
+        The output dtype.
+
+    Returns
+    -------
+    unpacked_out : tvm.te.Tensor
+        The unpacked output tensor in NCHW layout.
+    """
+    n, oc_chunk, oh, ow, oc_bn = get_const_tuple(packed_out.shape)
+
+    idxmod = tvm.tir.indexmod
+    idxdiv = tvm.tir.indexdiv
+
+    oshape = (n, oc_chunk * oc_bn, oh, ow)
+    unpacked_out = \
+        te.compute(oshape,
+                   lambda n, c, h, w:
+                   packed_out[n, idxdiv(c, oc_bn), h, w, idxmod(c, oc_bn)]
+                   .astype(out_dtype),
+                   name='output_unpack',
+                   tag=tag.INJECTIVE+",unpack_nchwc")
+    return unpacked_out

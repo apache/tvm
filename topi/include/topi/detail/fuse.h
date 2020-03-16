@@ -24,11 +24,12 @@
 #ifndef TOPI_DETAIL_FUSE_H_
 #define TOPI_DETAIL_FUSE_H_
 
-#include "tvm/operation.h"
+#include <tvm/te/operation.h>
 
 namespace topi {
 namespace detail {
 using namespace tvm;
+using namespace tvm::te;
 
 /*!
  * \brief Fuse all of the given args

@@ -28,14 +28,11 @@ HalideIR.
 # TODO(@were): Make this module more complete.
 # 1. Support HalideIR dumping to Hybrid Script
 # 2. Support multi-level HalideIR
-
-from __future__ import absolute_import as _abs
-
 import inspect
+import tvm._ffi
+from tvm.driver.build_module import form_body
 
 from .._ffi.base import decorate
-from .._ffi.function import _init_api
-from ..build_module import form_body
 
 from .module import HybridModule
 from .parser import source_to_op
@@ -53,7 +50,8 @@ def script(pyfunc):
     hybrid_func : function
         A decorated hybrid script function.
     """
-    def wrapped_func(func, *args, **kwargs): #pylint: disable=missing-docstring
+    # pylint: disable=import-outside-toplevel, missing-docstring
+    def wrapped_func(func, *args, **kwargs):
         from .util import _is_tvm_arg_types
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)
@@ -97,4 +95,4 @@ def build(sch, inputs, outputs, name="hybrid_func"):
     return HybridModule(src, name)
 
 
-_init_api("tvm.hybrid")
+tvm._ffi._init_api("tvm.hybrid")

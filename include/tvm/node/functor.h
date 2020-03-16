@@ -24,14 +24,16 @@
 #define TVM_NODE_FUNCTOR_H_
 
 #include <dmlc/logging.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
 
 #include <vector>
 #include <type_traits>
 #include <utility>
 
 namespace tvm {
+
+using runtime::ObjectRef;
+
 /*!
  * \brief A dynamically dispatched functor on the type of the first argument.
  *
@@ -137,11 +139,11 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  * \brief Useful macro to set NodeFunctor dispatch in a global static field.
  *
  * \code
- *  // Use NodeFunctor to implement IRPrinter similar to Visitor Pattern.
+ *  // Use NodeFunctor to implement ReprPrinter similar to Visitor Pattern.
  *  // vtable allows easy patch of new Node types, without changing
- *  // interface of IRPrinter.
+ *  // interface of ReprPrinter.
  *
- *  class IRPrinter {
+ *  class ReprPrinter {
  *   public:
  *    std::ostream& stream;
  *    // the dispatch function.
@@ -150,18 +152,18 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
  *      f(e, this);
  *    }
  *
- *    using FType = NodeFunctor<void (const ObjectRef&, IRPrinter *)>;
+ *    using FType = NodeFunctor<void (const ObjectRef&, ReprPrinter* )>;
  *    // function to return global function table
  *    static FType& vtable();
  *  };
  *
  *  // in cpp/cc file
- *  IRPrinter::FType& IRPrinter::vtable() { // NOLINT(*)
+ *  ReprPrinter::FType& ReprPrinter::vtable() { // NOLINT(*)
  *    static FType inst; return inst;
  *  }
  *
- *  TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
- *  .set_dispatch<Add>([](const ObjectRef& ref, IRPrinter* p) {
+ *  TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+ *  .set_dispatch<Add>([](const ObjectRef& ref, ReprPrinter* p) {
  *    auto* n = static_cast<const Add*>(ref.get());
  *    p->print(n->a);
  *    p->stream << '+'

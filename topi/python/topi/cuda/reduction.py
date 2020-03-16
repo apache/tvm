@@ -18,8 +18,8 @@
 """Schedule for reduce operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 from .. import tag
-from .. import generic
 from .injective import schedule_injective_from_existing
 
 def _schedule_reduce(op, sch, is_idx_reduce=False):
@@ -35,18 +35,18 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     if len(sch[data_out].op.axis) > 0:
         all_reduce = False
         num_thread = 32
-        target = tvm.target.current_target()
+        target = tvm.target.Target.current()
         if target and target.target_name == "opencl":
             # without it, CL_INVALID_WORK_GROUP_SIZE occurred when running test_topi_reduce.py
             # don't know why
             num_thread = 16
-        block_x = tvm.thread_axis("blockIdx.x")
-        thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
-        thread_y = tvm.thread_axis((0, num_thread), "threadIdx.y")
+        block_x = te.thread_axis("blockIdx.x")
+        thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
+        thread_y = te.thread_axis((0, num_thread), "threadIdx.y")
     else:
         all_reduce = True
-        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
-        thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
+        num_thread = tvm.target.Target.current(allow_none=False).max_num_threads
+        thread_x = te.thread_axis((0, num_thread), "threadIdx.x")
 
     # Fuse and refactor the reduce axis
     fused_reduce = sch[data_out].fuse(*[sch[data_out].op.reduce_axis[i]
@@ -80,7 +80,7 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     else:
         if is_idx_reduce:
             spatial_axis = sch[real_output].fuse(*(sch[real_output].op.axis))
-            sch[real_output].bind(spatial_axis, tvm.thread_axis("blockIdx.x"))
+            sch[real_output].bind(spatial_axis, te.thread_axis("blockIdx.x"))
             sch[temp_idx_input].compute_at(sch[real_output],
                                            spatial_axis)
             sch[temp_val_input].compute_at(sch[real_output],
@@ -89,7 +89,6 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     return sch
 
 
-@generic.schedule_reduce.register(["cuda", "gpu"])
 def schedule_reduce(outs):
     """Schedule for inject->reduce->bcast ops.
 
@@ -104,13 +103,13 @@ def schedule_reduce(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    sch = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    sch = te.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
     def traverse_before_reduce(operator):
-        """Internal travserse function"""
-        if isinstance(operator, tvm.tensor.PlaceholderOp):
+        """Internal traverse function"""
+        if isinstance(operator, tvm.te.PlaceholderOp):
             return
         if tag.is_injective(operator.tag):
             sch[operator].compute_inline()
@@ -123,7 +122,7 @@ def schedule_reduce(outs):
         scheduled_ops.append(operator)
 
     def traverse_after_reduce(operator):
-        """Internal travserse function"""
+        """Internal traverse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
                 schedule_injective_from_existing(sch, operator.output(0))

@@ -19,3 +19,5 @@ tvm.target
 ----------
 .. automodule:: tvm.target
     :members:
+    :imported-members:
+    :autosummary:

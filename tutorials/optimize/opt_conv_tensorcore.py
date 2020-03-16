@@ -18,7 +18,7 @@
 .. _opt-conv-tensorcore:
 
 How to optimize convolution using TensorCores
-==================================
+=============================================
 **Author**: `Siyuan Feng <https://github.com/Hzfengsy>`_
 
 In this tutorial, we will demonstrate how to write a high performance convolution
@@ -29,7 +29,7 @@ convolution has a large batch. We strongly recommend covering the :ref:`opt-conv
 
 ################################################################
 # TensorCore Introduction
-# -------------------------
+# -----------------------
 # Each Tensor Core provides a 4x4x4 matrix processing array that operates
 # :code:`D = A * B + C`, where A, B, C and D are 4x4 matrices as Figure shows.
 # The matrix multiplication inputs A and B are FP16 matrices, while the accumulation
@@ -45,13 +45,14 @@ convolution has a large batch. We strongly recommend covering the :ref:`opt-conv
 
 ################################################################
 # Preparation and Algorithm
-# --------------------------
+# -------------------------
 # We use the fixed size for input tensors with 256 channels and 14 x 14 dimensions.
 # The batch size is 256. Convolution filters contain 512 filters of size 3 x 3.
 # We use stride size 1 and padding size 1 for the convolution. In the example, we use
 # NHWCnc memory layout.The following code defines the convolution algorithm in TVM.
 
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import nvcc
 
@@ -98,36 +99,35 @@ output_shape = (batch_size // block_size,
                 block_size)
 
 # Reduction axes
-kh = tvm.reduce_axis((0, kernel_h), name='kh')
-kw = tvm.reduce_axis((0, kernel_w), name='kw')
-ic = tvm.reduce_axis((0, in_channels // block_size), name='ic')
-ii = tvm.reduce_axis((0, block_size), name='ii')
+kh = te.reduce_axis((0, kernel_h), name='kh')
+kw = te.reduce_axis((0, kernel_w), name='kw')
+ic = te.reduce_axis((0, in_channels // block_size), name='ic')
+ii = te.reduce_axis((0, block_size), name='ii')
 
 # Algorithm
-A = tvm.placeholder(data_shape, name='A', dtype="float16")
-W = tvm.placeholder(kernel_shape, name='W', dtype="float16")
-Apad = tvm.compute(
+A = te.placeholder(data_shape, name='A', dtype="float16")
+W = te.placeholder(kernel_shape, name='W', dtype="float16")
+Apad = te.compute(
     (batch_size // block_size, height + 2 * pad_h, width + 2 * pad_w, in_channels // block_size, block_size,
      block_size),
-    lambda n, h, w, i, nn, ii: tvm.if_then_else(
-        tvm.all(h >= pad_h, h - pad_h < height,
+    lambda n, h, w, i, nn, ii: tvm.tir.if_then_else(
+        tvm.tir.all(h >= pad_h, h - pad_h < height,
                 w >= pad_w, w - pad_w < width),
-        A[n, h - pad_h, w - pad_w, i, nn, ii], tvm.const(0., "float16")),
+        A[n, h - pad_h, w - pad_w, i, nn, ii], tvm.tir.const(0., "float16")),
     name='Apad')
-Conv = tvm.compute(output_shape,
-                   lambda n, h, w, o, nn, oo: tvm.sum(
+Conv = te.compute(output_shape,
+                   lambda n, h, w, o, nn, oo: te.sum(
                        Apad[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("float32") *
                        W[kh, kw, ic, o, ii, oo].astype("float32"),
                        axis=[ic, kh, kw, ii]),
                    name="Conv")
 
-s = tvm.create_schedule(Conv.op)
+s = te.create_schedule(Conv.op)
 s[Apad].compute_inline()
 
 ###############################################################################
 # Memory Scope
-# ----------------
-#
+# ------------
 # In traditional GPU schedule, we have global, shared and local memory scope.
 # To support TensorCores, we add another three special memory scope: :code:`wmma.matrix_a`,
 # :code:`wmma.matrix_b` and :code:`wmma.accumulator`. On hardware, all fragments scope
@@ -142,6 +142,7 @@ ConvF = s.cache_write(Conv, 'wmma.accumulator')
 
 ###############################################################################
 # Define Tensor Intrinsic
+# -----------------------
 # In fact, TensorCore is a special hardware operation. So, we can just use tensorize
 # to replace a unit of computation with the TensorCore instruction. The first thing is
 # that we need to define tensor intrinsic.
@@ -152,49 +153,49 @@ ConvF = s.cache_write(Conv, 'wmma.accumulator')
 
 def intrin_wmma_load_matrix(scope):
     n = 16
-    A = tvm.placeholder((n, n), name='A', dtype='float16')
-    BA = tvm.decl_buffer(A.shape, A.dtype, scope='shared', data_alignment=32, offset_factor=256)
-    C = tvm.compute((n, n), lambda i, j: A[i, j], name='C')
-    BC = tvm.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=256)
+    A = te.placeholder((n, n), name='A', dtype='float16')
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='shared', data_alignment=32, offset_factor=256)
+    C = te.compute((n, n), lambda i, j: A[i, j], name='C')
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=256)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
 
         BA = ins[0]
         BC = outs[0]
-        ib.emit(tvm.call_intrin('handle', 'tvm_load_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tvm_load_matrix_sync',
                                 BC.data, n, n, n, BC.elem_offset // 256,
                                 BA.access_ptr('r'), n, 'row_major'))
         return ib.get()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
 def intrin_wmma_gemm():
     n = 16
-    A = tvm.placeholder((n, n), name='A', dtype='float16')
-    B = tvm.placeholder((n, n), name='B', dtype='float16')
-    k = tvm.reduce_axis((0, n), name="k")
-    C = tvm.compute((n, n),
+    A = te.placeholder((n, n), name='A', dtype='float16')
+    B = te.placeholder((n, n), name='B', dtype='float16')
+    k = te.reduce_axis((0, n), name="k")
+    C = te.compute((n, n),
                     lambda ii, jj:
-                    tvm.sum(A[ii, k].astype('float') * B[k, jj].astype('float'), axis=k),
+                    te.sum(A[ii, k].astype('float') * B[k, jj].astype('float'), axis=k),
                     name='C')
-    BA = tvm.decl_buffer(A.shape, A.dtype, name='BA', scope='wmma.matrix_a', data_alignment=32, offset_factor=256)
-    BB = tvm.decl_buffer(B.shape, B.dtype, name='BB', scope='wmma.matrix_b', data_alignment=32, offset_factor=256)
-    BC = tvm.decl_buffer(C.shape, C.dtype, name='BC', scope='wmma.accumulator', data_alignment=32, offset_factor=256)
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA', scope='wmma.matrix_a', data_alignment=32, offset_factor=256)
+    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB', scope='wmma.matrix_b', data_alignment=32, offset_factor=256)
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC', scope='wmma.accumulator', data_alignment=32, offset_factor=256)
 
     def intrin_func(ins, outs):
         BA, BB = ins
         BC, = outs
 
         def init():
-            ib = tvm.ir_builder.create()
-            ib.emit(tvm.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, n, n, BC.elem_offset // 256, 0.0))
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, n, n, n, BC.elem_offset // 256, 0.0))
             return ib.get()
 
         def update():
-            ib = tvm.ir_builder.create()
-            ib.emit(tvm.call_intrin('handle', 'tvm_mma_sync',
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
                                     BC.data, BC.elem_offset // 256,
                                     BA.data, BA.elem_offset // 256,
                                     BB.data, BB.elem_offset // 256,
@@ -203,26 +204,26 @@ def intrin_wmma_gemm():
 
         return update(), init(), update()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
 
 
 def intrin_wmma_store_matrix():
     n = 16
-    A = tvm.placeholder((n, n), name='A', dtype='float32')
-    BA = tvm.decl_buffer(A.shape, A.dtype, scope='wmma.accumulator', data_alignment=32, offset_factor=256)
-    C = tvm.compute((n, n), lambda i, j: A[i, j], name='C')
-    BC = tvm.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=256)
+    A = te.placeholder((n, n), name='A', dtype='float32')
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='wmma.accumulator', data_alignment=32, offset_factor=256)
+    C = te.compute((n, n), lambda i, j: A[i, j], name='C')
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope='global', data_alignment=32, offset_factor=256)
 
     def intrin_func(ins, outs):
-        ib = tvm.ir_builder.create()
+        ib = tvm.tir.ir_builder.create()
         BA = ins[0]
         BC = outs[0]
-        ib.emit(tvm.call_intrin('handle', 'tvm_store_matrix_sync',
+        ib.emit(tvm.tir.call_intrin('handle', 'tvm_store_matrix_sync',
                                 BA.data, n, n, n, BA.elem_offset // 256,
                                 BC.access_ptr('w'), n, 'row_major'))
         return ib.get()
 
-    return tvm.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 ###############################################################################
 # Scheduling the Computation
@@ -246,7 +247,6 @@ def intrin_wmma_store_matrix():
 #   easiest way to solve this. Then We can bind threadIdx.x to any loops except those contain
 #   TensorCore intrinsics directly or indirectly. Also note that it is not the unique solution.
 #   The only thing we should do is to make sure all threads in a warp can call TensorCore at the same time.
-#
 
 # Define tiling sizes
 block_row_warps = 4
@@ -256,12 +256,12 @@ warp_col_tiles = 4
 warp_size = 32
 chunk = 2
 
-block_x = tvm.thread_axis('blockIdx.x')
-block_y = tvm.thread_axis('blockIdx.y')
-block_z = tvm.thread_axis('blockIdx.z')
-thread_x = tvm.thread_axis('threadIdx.x')
-thread_y = tvm.thread_axis('threadIdx.y')
-thread_z = tvm.thread_axis('threadIdx.z')
+block_x = te.thread_axis('blockIdx.x')
+block_y = te.thread_axis('blockIdx.y')
+block_z = te.thread_axis('blockIdx.z')
+thread_x = te.thread_axis('threadIdx.x')
+thread_y = te.thread_axis('threadIdx.y')
+thread_z = te.thread_axis('threadIdx.z')
 
 nc, hc, wc, oc, nnc, ooc = Conv.op.axis
 block_k = s[Conv].fuse(hc, wc)
@@ -312,10 +312,9 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ###############################################################################
 # Lowering Computation to Intrinsics
-# --------------------------
+# ----------------------------------
 # The last phase is to lower the computation loops down to TensorCore hardware intrinsics
 # by mapping the 2D convolution to tensor intrinsics
-#
 
 s[AF].tensorize(AF.op.axis[-2], intrin_wmma_load_matrix('wmma.matrix_a'))
 s[WF].tensorize(WF.op.axis[-2], intrin_wmma_load_matrix('wmma.matrix_b'))
@@ -332,7 +331,7 @@ print(tvm.lower(s, [A, W, Conv], simple_mode=True))
 
 ctx = tvm.gpu(0)
 if nvcc.have_tensorcore(ctx.compute_version):
-    with tvm.build_config(auto_unroll_max_step=16):
+    with tvm.target.build_config(auto_unroll_max_step=16):
         func = tvm.build(s, [A, W, Conv], 'cuda')
     a_np = np.random.uniform(size=data_shape).astype(A.dtype)
     w_np = np.random.uniform(size=kernel_shape).astype(W.dtype)
@@ -344,5 +343,6 @@ if nvcc.have_tensorcore(ctx.compute_version):
 
 ###############################################################################
 # Summary
+# -------
 # This tutorial demonstrates how TVM scheduling primitives can be used to
 # call TensorCores on specific GPUs.

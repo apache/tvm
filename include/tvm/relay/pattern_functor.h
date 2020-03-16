@@ -26,12 +26,14 @@
 #define TVM_RELAY_PATTERN_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/ir/error.h>
+
 #include <string>
 #include <utility>
 #include <unordered_map>
+
 #include "./expr.h"
 #include "./op.h"
-#include "./error.h"
 #include "./adt.h"
 
 namespace tvm {
@@ -102,7 +104,7 @@ class PatternFunctor<R(const Pattern& n, Args...)> {
                           Args... args) PATTERN_FUNCTOR_DEFAULT;
   virtual R VisitPattern_(const PatternTupleNode* op,
                           Args... args) PATTERN_FUNCTOR_DEFAULT;
-  virtual R VisitPatternDefault_(const Node* op, Args...) {
+  virtual R VisitPatternDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;
   }
@@ -162,7 +164,7 @@ class PatternMutator
   /*! \brief Used to visit the vars inside of patterns. */
   virtual Constructor VisitConstructor(const Constructor& c);
  private:
-  std::unordered_map<Var, Var, NodeHash, NodeEqual> var_map_;
+  std::unordered_map<Var, Var, ObjectHash, ObjectEqual> var_map_;
 };
 
 }  // namespace relay

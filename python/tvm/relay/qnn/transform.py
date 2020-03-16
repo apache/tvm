@@ -42,7 +42,7 @@ def CanonicalizeOps():
 
         # We want to utilize all the existing Relay infrastructure. So, instead of supporting this
         # QNN requantize op, we convert it into a sequence of existing Relay operators.
-        mod = relay.Module.from_expr(qnn_expr)
+        mod = tvm.IRModule.from_expr(qnn_expr)
         mod = relay.qnn.transform.CanonicalizeOps()(mod)
         relay_expr = mod['main']
         print(relay_expr)

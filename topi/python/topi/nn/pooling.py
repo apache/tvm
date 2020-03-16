@@ -34,7 +34,7 @@ def global_pool(data, pool_type, layout="NCHW"):
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     pool_type : str
@@ -51,7 +51,7 @@ def global_pool(data, pool_type, layout="NCHW"):
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in same layout with height and width dimension size of 1.
         e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
     """
@@ -76,7 +76,7 @@ def pool(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     kernel : list/tuple of two ints
@@ -108,7 +108,7 @@ def pool(data,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.pool(data, kernel, stride, padding,
@@ -133,10 +133,10 @@ def pool_grad(grads,
 
     Parameters
     ----------
-    grads : tvm.Tensor
+    grads : tvm.te.Tensor
         n-D with shape of layout
 
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     kernel : list/tuple of two ints
@@ -168,7 +168,7 @@ def pool_grad(grads,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.pool_grad(grads, data, kernel,
@@ -192,7 +192,7 @@ def adaptive_pool(data,
 
     Parameters
     ----------
-    data : tvm.Tensor
+    data : tvm.te.Tensor
         n-D with shape of layout
 
     output_size : tuple of int
@@ -212,7 +212,135 @@ def adaptive_pool(data,
 
     Returns
     -------
-    output : tvm.Tensor
+    output : tvm.te.Tensor
         n-D in the same layout
     """
     return cpp.nn.adaptive_pool(data, output_size, POOL_TYPE_CODE[pool_type], layout)
+
+
+def adaptive_pool3d(data,
+                    output_size,
+                    pool_type,
+                    layout="NCDHW"):
+    """Perform pooling on three dimensional data.
+       See the two dimensional version above for details.
+    """
+    return cpp.nn.adaptive_pool3d(data, output_size, POOL_TYPE_CODE[pool_type], layout)
+
+
+def pool1d(data,
+           kernel,
+           stride,
+           padding,
+           pool_type,
+           ceil_mode=False,
+           layout="NCW",
+           count_include_pad=True):
+    """Perform pooling on width dimension of data.
+       Width axis is determined according to the layout string.
+       in which 'w' means width.
+       Width dimension cannot be split.
+       For example, NCW, NCW16c, etc. are valid for pool,
+       while NCW16w is not.
+       See parameter `layout` for more information of the layout string convention.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        n-D with shape of layout
+
+    kernel : list/tuple of one int or int
+        Kernel size, [kernel_width]
+
+    stride : list/tuple of one int or int
+        Stride size, [stride_width]
+
+    padding : list/tuple of two ints
+        Pad size, [pad_left, pad_right]
+
+    pool_type : str
+        Pool type, 'max' or 'avg'
+
+    ceil_mode : bool
+        Whether to use ceil when calculating output size.
+
+    layout: string
+        Layout of the input data.
+        The layout is supposed to be composed of upper cases, lower cases and numbers,
+        where upper case indicates a dimension and
+        the corresponding lower case with factor size indicates the split dimension.
+        For example, NCW16c can describe a 4-D tensor of
+        [batch_size, channel, width, channel_block],
+        in which channel_block=16 is a split of dimension channel.
+
+    count_include_pad: bool
+        Whether include padding in the calculation when pool_type is 'avg'
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        n-D in the same layout
+    """
+    if isinstance(kernel, int):
+        kernel = [kernel, ]
+    if isinstance(stride, int):
+        stride = [stride, ]
+    return cpp.nn.pool1d(data, kernel, stride, padding,
+                         POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)
+
+
+def pool3d(data,
+           kernel,
+           stride,
+           padding,
+           pool_type,
+           ceil_mode=False,
+           layout="NCDHW",
+           count_include_pad=True):
+    """Perform pooling on depth, height and width dimension of data.
+       It decides the depth, height and width dimension according to the layout string,
+       in which 'D', 'W' and 'H' means depth, width and height respectively.
+       Depth, width and height dimension cannot be split.
+       For example, NCDHW, NCDHW16c, etc. are valid for pool,
+       while NCDHW16d, NCDHW16w, NCDHW16h are not.
+       See parameter `layout` for more information of the layout string convention.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        n-D with shape of layout
+
+    kernel : list/tuple of three ints
+        Kernel size, [kernel_depth, kernel_height, kernel_width]
+
+    stride : list/tuple of three ints
+        Stride size, [stride_depth, stride_height, stride_width]
+
+    padding : list/tuple of six ints
+        Pad size, [pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right]
+
+    pool_type : str
+        Pool type, 'max' or 'avg'
+
+    ceil_mode : bool
+        Whether to use ceil when calculating output size.
+
+    layout: string
+        Layout of the input data.
+        The layout is supposed to be composed of upper cases, lower cases and numbers,
+        where upper case indicates a dimension and
+        the corresponding lower case with factor size indicates the split dimension.
+        For example, NCDHW16c can describe a 6-D tensor of
+        [batch_size, channel, depth, height, width, channel_block],
+        in which channel_block=16 is a split of dimension channel.
+
+    count_include_pad: bool
+        Whether include padding in the calculation when pool_type is 'avg'
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        n-D in the same layout
+    """
+    return cpp.nn.pool3d(data, kernel, stride, padding,
+                         POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)

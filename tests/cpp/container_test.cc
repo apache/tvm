@@ -19,13 +19,15 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/packed_func_ext.h>
 #include <tvm/runtime/container.h>
+#include <tvm/tir/op.h>
+
 #include <new>
 #include <unordered_map>
 #include <vector>
 
 using namespace tvm;
+using namespace tvm::tir;
 using namespace tvm::runtime;
 
 class TestErrorSwitch {
@@ -144,11 +146,11 @@ TEST(InplaceArrayBase, ExceptionSafety) {
   ASSERT_EXIT(correct_init(), ::testing::ExitedWithCode(0), "");
 }
 
-TEST(Array, Expr) {
+TEST(Array, PrimExpr) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Array<Expr> list{x, z, z};
+  Array<PrimExpr> list{x, z, z};
   LOG(INFO) << list.size();
   LOG(INFO) << list[0];
   LOG(INFO) << list[1];
@@ -158,7 +160,7 @@ TEST(Array, Mutate) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Array<Expr> list{x, z, z};
+  Array<PrimExpr> list{x, z, z};
   auto list2 = list;
   list.Set(1, x);
   CHECK(list[1].same_as(x));
@@ -167,9 +169,9 @@ TEST(Array, Mutate) {
 
 TEST(Array, Iterator) {
   using namespace tvm;
-  Array<Expr> array{1, 2, 3};
-  std::vector<Expr> vector(array.begin(), array.end());
-  CHECK(vector[1].as<IntImm>()->value == 2);
+  Array<PrimExpr> array{1, 2, 3};
+  std::vector<PrimExpr> vector(array.begin(), array.end());
+  CHECK(vector[1].as<IntImmNode>()->value == 2);
 }
 
 TEST(Map, Expr) {
@@ -177,7 +179,7 @@ TEST(Map, Expr) {
   Var x("x");
   auto z = max(x + 1 + 2, 100);
   auto zz = z + 1;
-  Map<Expr, Expr> dict{{x, z}, {z, 2}};
+  Map<PrimExpr, PrimExpr> dict{{x, z}, {z, 2}};
   CHECK(dict.size() == 2);
   CHECK(dict[x].same_as(z));
   CHECK(dict.count(z));
@@ -188,7 +190,7 @@ TEST(StrMap, Expr) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Map<std::string, Expr> dict{{"x", z}, {"z", 2}};
+  Map<std::string, PrimExpr> dict{{"x", z}, {"z", 2}};
   CHECK(dict.size() == 2);
   CHECK(dict["x"].same_as(z));
 }
@@ -197,7 +199,7 @@ TEST(Map, Mutate) {
   using namespace tvm;
   Var x("x");
   auto z = max(x + 1 + 2, 100);
-  Map<Expr, Expr> dict{{x, z}, {z, 2}};
+  Map<PrimExpr, PrimExpr> dict{{x, z}, {z, 2}};
   auto zz = z + 1;
   CHECK(dict[x].same_as(z));
   dict.Set(x, zz);
@@ -218,11 +220,185 @@ TEST(Map, Mutate) {
 
 TEST(Map, Iterator) {
   using namespace tvm;
-  Expr a = 1, b = 2;
-  Map<Expr, Expr> map1{{a, b}};
-  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> map2(map1.begin(),
-                                                           map1.end());
-  CHECK(map2[a].as<IntImm>()->value == 2);
+  PrimExpr a = 1, b = 2;
+  Map<PrimExpr, PrimExpr> map1{{a, b}};
+  std::unordered_map<PrimExpr, PrimExpr, ObjectHash, ObjectEqual> map2(
+      map1.begin(), map1.end());
+  CHECK(map2[a].as<IntImmNode>()->value == 2);
+}
+
+TEST(String, MoveFromStd) {
+  using namespace std;
+  string source = "this is a string";
+  string expect = source;
+  String s(std::move(source));
+  string copy = (string)s;
+  CHECK_EQ(copy, expect);
+  CHECK_EQ(source.size(), 0);
+}
+
+TEST(String, CopyFromStd) {
+  using namespace std;
+  string source = "this is a string";
+  string expect = source;
+  String s{source};
+  string copy = (string)s;
+  CHECK_EQ(copy, expect);
+  CHECK_EQ(source.size(), expect.size());
+}
+
+TEST(String, Assignment) {
+  using namespace std;
+  String s{string{"hello"}};
+  s = string{"world"};
+  CHECK_EQ(s == "world", true);
+  string s2{"world2"};
+  s = std::move(s2);
+  CHECK_EQ(s == "world2", true);
+}
+
+TEST(String, empty) {
+  using namespace std;
+  String s{"hello"};
+  CHECK_EQ(s.empty(), false);
+  s = "";
+  CHECK_EQ(s.empty(), true);
+}
+
+TEST(String, Comparisons) {
+  using namespace std;
+  string source = "a string";
+  string mismatch = "a string but longer";
+  String s{source};
+
+  CHECK_EQ(s == source, true);
+  CHECK_EQ(s == mismatch, false);
+  CHECK_EQ(s == source.data(), true);
+  CHECK_EQ(s == mismatch.data(), false);
+}
+
+// Check '\0' handling
+TEST(String, null_byte_handling) {
+  using namespace std;
+  // Ensure string still compares equal if it contains '\0'.
+  string v1 = "hello world";
+  size_t v1_size = v1.size();
+  v1[5] = '\0';
+  CHECK_EQ(v1[5], '\0');
+  CHECK_EQ(v1.size(), v1_size);
+  String str_v1{v1};
+  CHECK_EQ(str_v1.compare(v1), 0);
+  CHECK_EQ(str_v1.size(), v1_size);
+
+  // Ensure bytes after '\0' are taken into account for mismatches.
+  string v2 = "aaa one";
+  string v3 = "aaa two";
+  v2[3] = '\0';
+  v3[3] = '\0';
+  String str_v2{v2};
+  String str_v3{v3};
+  CHECK_EQ(str_v2.compare(str_v3), -1);
+  CHECK_EQ(str_v2.size(), 7);
+  // strcmp won't be able to detect the mismatch
+  CHECK_EQ(strcmp(v2.data(), v3.data()), 0);
+  // string::compare can handle \0 since it knows size
+  CHECK_LT(v2.compare(v3), 0);
+
+  // If there is mismatch before '\0', should still handle it.
+  string v4 = "acc one";
+  string v5 = "abb two";
+  v4[3] = '\0';
+  v5[3] = '\0';
+  String str_v4{v4};
+  String str_v5{v5};
+  CHECK_GT(str_v4.compare(str_v5), 0);
+  CHECK_EQ(str_v4.size(), 7);
+  // strcmp is able to detect the mismatch
+  CHECK_GT(strcmp(v4.data(), v5.data()), 0);
+  // string::compare can handle \0 since it knows size
+  CHECK_GT(v4.compare(v5), 0);
+}
+
+TEST(String, compare_same_memory_region_different_size) {
+  using namespace std;
+  string source = "a string";
+  String str_source{source};
+  char* memory = const_cast<char*>(str_source.data());
+  CHECK_EQ(str_source.compare(memory), 0);
+  // This changes the string size
+  memory[2] = '\0';
+  // memory is logically shorter now
+  CHECK_GT(str_source.compare(memory), 0);
+}
+
+TEST(String, compare) {
+  using namespace std;
+  string source = "a string";
+  string mismatch1 = "a string but longer";
+  string mismatch2 = "a strin";
+  string mismatch3 = "a b";
+  string mismatch4 = "a t";
+  String str_source{source};
+  String str_mismatch1{mismatch1};
+  String str_mismatch2{mismatch2};
+  String str_mismatch3{mismatch3};
+  String str_mismatch4{mismatch4};
+
+  // compare with string
+  CHECK_EQ(str_source.compare(source), 0);
+  CHECK_LT(str_source.compare(mismatch1), 0);
+  CHECK_GT(str_source.compare(mismatch2), 0);
+  CHECK_GT(str_source.compare(mismatch3), 0);
+  CHECK_LT(str_source.compare(mismatch4), 0);
+
+  // compare with char*
+  CHECK_EQ(str_source.compare(source.data()), 0);
+  CHECK_LT(str_source.compare(mismatch1.data()), 0);
+  CHECK_GT(str_source.compare(mismatch2.data()), 0);
+  CHECK_GT(str_source.compare(mismatch3.data()), 0);
+  CHECK_LT(str_source.compare(mismatch4.data()), 0);
+
+  // compare with String
+  CHECK_LT(str_source.compare(str_mismatch1), 0);
+  CHECK_GT(str_source.compare(str_mismatch2), 0);
+  CHECK_GT(str_source.compare(str_mismatch3), 0);
+  CHECK_LT(str_source.compare(str_mismatch4), 0);
+}
+
+TEST(String, c_str) {
+  using namespace std;
+  string source = "this is a string";
+  string mismatch = "mismatch";
+  String s{source};
+
+  CHECK_EQ(std::strcmp(s.c_str(), source.data()), 0);
+  CHECK_NE(std::strcmp(s.c_str(), mismatch.data()), 0);
+}
+
+TEST(String, hash) {
+  using namespace std;
+  string source = "this is a string";
+  String s{source};
+  std::hash<String>()(s);
+
+  std::unordered_map<String, std::string> map;
+  String k1{string{"k1"}};
+  string v1{"v1"};
+  String k2{string{"k2"}};
+  string v2{"v2"};
+  map[k1] = v1;
+  map[k2] = v2;
+
+  CHECK_EQ(map[k1], v1);
+  CHECK_EQ(map[k2], v2);
+}
+
+TEST(String, Cast) {
+  using namespace std;
+  string source = "this is a string";
+  String s{source};
+  ObjectRef r = s;
+  String s2 = Downcast<String>(r);
 }
 
 int main(int argc, char** argv) {

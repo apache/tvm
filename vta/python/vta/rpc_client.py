@@ -49,6 +49,9 @@ def program_fpga(remote, bitstream=None):
     else:
         bitstream = get_bitstream_path()
         if not os.path.isfile(bitstream):
+            env = get_env()
+            if env.TARGET == 'de10nano':
+                return
             download_bitstream()
 
     fprogram = remote.get_function("tvm.contrib.vta.init")

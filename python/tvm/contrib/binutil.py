@@ -18,8 +18,9 @@
 """Utilities for binary file manipulation"""
 import os
 import subprocess
+import tvm._ffi
 from . import util
-from ..api import register_func
+
 
 RELOCATION_LD_SCRIPT_TEMPLATE = """
 /* linker symbol for use in UTVMInit */
@@ -95,7 +96,7 @@ def run_cmd(cmd):
     return output
 
 
-@register_func("tvm_callback_get_section_size")
+@tvm._ffi.register_func("tvm_callback_get_section_size")
 def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     """Finds size of the section in the binary.
     Assumes `size` shell command exists (typically works only on Linux machines)
@@ -162,7 +163,7 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
     return section_size
 
 
-@register_func("tvm_callback_relocate_binary")
+@tvm._ffi.register_func("tvm_callback_relocate_binary")
 def tvm_callback_relocate_binary(
         binary_path,
         word_size,
@@ -233,7 +234,7 @@ def tvm_callback_relocate_binary(
     return rel_bin
 
 
-@register_func("tvm_callback_read_binary_section")
+@tvm._ffi.register_func("tvm_callback_read_binary_section")
 def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     """Returns the contents of the specified section in the binary byte array
 
@@ -273,7 +274,7 @@ def tvm_callback_read_binary_section(binary, section, toolchain_prefix):
     return section_bin
 
 
-@register_func("tvm_callback_get_symbol_map")
+@tvm._ffi.register_func("tvm_callback_get_symbol_map")
 def tvm_callback_get_symbol_map(binary, toolchain_prefix):
     """Obtains a map of symbols to addresses in the passed binary
 

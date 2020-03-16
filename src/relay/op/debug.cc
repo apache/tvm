@@ -22,7 +22,7 @@
  * \brief Property def of nn operators.
  */
 
-#include <tvm/data_layout.h>
+#include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/debug.h>
 #include <topi/elemwise.h>
@@ -35,11 +35,10 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(DebugAttrs);
 
-Array<Tensor> DebugCompute(const Attrs& attrs,
-                           const Array<Tensor>& inputs,
-                           const Type& out_type,
-                           const Target& target) {
-  return Array<Tensor>{ topi::identity(inputs[0]) };
+Array<te::Tensor> DebugCompute(const Attrs& attrs,
+                               const Array<te::Tensor>& inputs,
+                               const Type& out_type) {
+  return Array<te::Tensor>{ topi::identity(inputs[0]) };
 }
 
 RELAY_REGISTER_OP("debug")
@@ -55,7 +54,7 @@ RELAY_REGISTER_OP("debug")
 .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
 
 Expr MakeDebug(Expr expr, std::string name) {
-  auto dattrs = make_node<DebugAttrs>();
+  auto dattrs = make_object<DebugAttrs>();
   if (name.size() > 0) {
     dattrs->debug_func = EnvFunc::Get(name);
   } else {
@@ -65,7 +64,7 @@ Expr MakeDebug(Expr expr, std::string name) {
   return CallNode::make(op, {expr}, Attrs(dattrs), {});
 }
 
-TVM_REGISTER_API("relay.op._make.debug")
+TVM_REGISTER_GLOBAL("relay.op._make.debug")
 .set_body_typed(MakeDebug);
 
 }  // namespace relay

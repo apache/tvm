@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -86,7 +86,7 @@ struct JSONNode {
   };
 
   // pointer to the graph node
-  NodePtr node;
+  ObjectPtr node;
   // inputs
   std::vector<Entry> inputs;
   // control flow dependencies
@@ -190,7 +190,7 @@ struct JSONGraph {
 void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph *jgraph) {
   std::unordered_map<Node*, uint32_t> node2index;
   jgraph->node_row_ptr.push_back(0);
-  DFSVisit(src->outputs, [&node2index, jgraph](const NodePtr& n) {
+  DFSVisit(src->outputs, [&node2index, jgraph](const ObjectPtr& n) {
     uint32_t nid = static_cast<uint32_t>(jgraph->nodes.size());
     node2index[n.get()] = nid;
     if (n->is_variable()) {
@@ -202,7 +202,7 @@ void Symbol2JSONGraph(std::shared_ptr<Symbol> src, JSONGraph *jgraph) {
     for (const NodeEntry& e : n->inputs) {
       jnode.inputs.emplace_back(node2index.at(e.node.get()), e.index, e.version);
     }
-    for (const NodePtr& c : n->control_deps) {
+    for (const ObjectPtr& c : n->control_deps) {
       jnode.control_deps.push_back(node2index.at(c.get()));
     }
     jgraph->node_row_ptr.push_back(jgraph->node_row_ptr.back() + n->num_outputs());

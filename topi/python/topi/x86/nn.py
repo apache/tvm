@@ -16,11 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 nn operators"""
-from __future__ import absolute_import as _abs
-import tvm
-from .. import generic
+from tvm import te
 
-@generic.schedule_softmax.register(["cpu"])
 def schedule_softmax(outs):
     """Schedule for softmax
 
@@ -35,9 +32,9 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     softmax = outs[0]
-    s = tvm.create_schedule([x.op for x in outs])
+    s = te.create_schedule([x.op for x in outs])
 
     op_tag = softmax.op.tag
     if op_tag == 'softmax_output':
@@ -63,7 +60,7 @@ def schedule_softmax(outs):
     s[max_elem].compute_at(s[softmax], fused_outer_axes)
     s[expsum].compute_at(s[softmax], fused_outer_axes)
 
-    if exp != None:
+    if exp is not None:
         s[exp].compute_at(s[softmax], fused_outer_axes)
 
     return s

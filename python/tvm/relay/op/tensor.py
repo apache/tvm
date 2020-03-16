@@ -16,11 +16,12 @@
 # under the License.
 """Basic tensor operations."""
 # pylint: disable=redefined-builtin
-from __future__ import absolute_import as _abs
+from tvm.runtime import ndarray as _nd
+from tvm.runtime import TVMContext as _TVMContext
+
 from . import _make
 from ..expr import Tuple
-from ... import nd as _nd
-from ... import TVMContext as _TVMContext
+
 
 # We create a wrapper function for each operator in the
 # python side to call into the positional _make.OpName function.
@@ -45,6 +46,21 @@ def log(data):
         The computed result.
     """
     return _make.log(data)
+
+def tan(data):
+    """Compute elementwise tan of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.tan(data)
 
 def cos(data):
     """Compute elementwise cos of data.
@@ -317,6 +333,22 @@ def logical_not(data):
     return _make.logical_not(data)
 
 
+def bitwise_not(data):
+    """Compute element-wise bitwise not of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_not(data)
+
+
 def add(lhs, rhs):
     """Addition with numpy-style broadcasting.
 
@@ -503,6 +535,60 @@ def logical_or(lhs, rhs):
         The computed result.
     """
     return _make.logical_or(lhs, rhs)
+
+
+def bitwise_and(lhs, rhs):
+    """bitwise AND with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_and(lhs, rhs)
+
+
+def bitwise_or(lhs, rhs):
+    """bitwise OR with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_or(lhs, rhs)
+
+
+def bitwise_xor(lhs, rhs):
+    """bitwise XOR with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.bitwise_xor(lhs, rhs)
 
 
 def equal(lhs, rhs):
@@ -776,6 +862,7 @@ def clip(a, a_min, a_max):
     Examples
     --------
     .. code:: python
+
       x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
       relay.clip(x, 1., 4.)
       # [1, 1, 4, 3, 4, 2]
@@ -902,3 +989,22 @@ def shape_of(data, dtype="int32"):
         The shape tensor.
     """
     return _make.shape_of(data, dtype)
+
+
+def ndarray_size(data, dtype="int32"):
+    """Get number of elements of input tensor.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The number of elements of input tensor.
+    """
+    return _make.ndarray_size(data, dtype)

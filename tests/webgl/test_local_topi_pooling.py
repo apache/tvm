@@ -20,6 +20,7 @@ Should be removed once we fix OpenGL testing on Jenkins.
 """
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import math
 from topi.util import get_const_tuple
@@ -29,7 +30,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     kw = kh
     sw = sh
     ph, pw = padding
-    A = tvm.placeholder((n, ic, ih, iw), name='A')
+    A = te.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                      pool_type=pool_type, ceil_mode=ceil_mode)
     B = topi.nn.relu(B)
@@ -63,7 +64,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -91,7 +92,7 @@ def test_pool():
 
 
 def verify_global_pool(n, c, h, w, pool_type):
-    A = tvm.placeholder((n, c, h, w), name='A')
+    A = te.placeholder((n, c, h, w), name='A')
     B = topi.nn.global_pool(A, pool_type=pool_type)
     B = topi.nn.relu(B)
 
@@ -103,7 +104,7 @@ def verify_global_pool(n, c, h, w, pool_type):
     b_np = np.maximum(b_np, 0.0)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        if not tvm.runtime.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)

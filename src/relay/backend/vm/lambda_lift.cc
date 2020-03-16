@@ -24,7 +24,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/logging.h>
+#include <tvm/support/logging.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/transform.h>
 #include <tvm/runtime/vm.h>
@@ -37,21 +37,17 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
-static const char* kIsClosure = "IsClosure";
-
 inline std::string GenerateName(const Function& func) {
   size_t hash = StructuralHash()(func);
   return std::string("lifted_name") + std::to_string(hash);
 }
 
 bool IsClosure(const Function& func) {
-  NodeRef res = FunctionGetAttr(func, kIsClosure);
-  const ir::IntImm* pval = res.as<ir::IntImm>();
-  return pval && pval->value != 0;
+  return func->GetAttr<Integer>(attr::kClosure, 0)->value != 0;
 }
 
-Function MarkClosure(const Function& func) {
-  return FunctionSetAttr(func, kIsClosure, tvm::Integer(1));
+Function MarkClosure(Function func) {
+  return WithAttr(std::move(func), attr::kClosure, tvm::Integer(1));
 }
 
 /* The goal of this class is to lift out any nested functions into top-level
@@ -62,12 +58,12 @@ Function MarkClosure(const Function& func) {
  */
 class LambdaLifter : public ExprMutator {
  public:
-  explicit LambdaLifter(const Module& module) : module_(module) {}
+  explicit LambdaLifter(const IRModule& module) : module_(module) {}
 
   Expr VisitExpr_(const LetNode* let_node) final {
     bool is_lambda = false;
     if (auto func = let_node->value.as<FunctionNode>()) {
-      if (!func->IsPrimitive()) {
+      if (!func->HasNonzeroAttr(attr::kPrimitive)) {
         is_lambda = true;
         letrec_.push_back(let_node->var);
       }
@@ -98,12 +94,12 @@ class LambdaLifter : public ExprMutator {
     auto func = GetRef<Function>(func_node);
 
     // We should not transform primitive functions.
-    if (func->IsPrimitive()) {
+    if (func->HasNonzeroAttr(attr::kPrimitive)) {
       return std::move(func);
     }
 
     auto name = GenerateName(func);
-    auto global = GlobalVarNode::make(name);
+    auto global = GlobalVar(name);
     auto free_vars = FreeVars(func);
     auto free_type_vars = FreeTypeVars(func, module_);
 
@@ -153,10 +149,10 @@ class LambdaLifter : public ExprMutator {
     // code for the closure.
     Function lifted_func;
     if (captured_vars.size() == 0 && free_type_vars.size() == 0) {
-      lifted_func = FunctionNode::make(body->params, body->body, body->ret_type, body->type_params);
+      lifted_func = Function(body->params, body->body, body->ret_type, body->type_params);
     } else {
       lifted_func =
-          FunctionNode::make(captured_vars, body, func->func_type_annotation(), free_type_vars);
+          Function(captured_vars, body, func->func_type_annotation(), free_type_vars);
       lifted_func = MarkClosure(lifted_func);
     }
 
@@ -186,25 +182,28 @@ class LambdaLifter : public ExprMutator {
     }
   }
 
-  Module Lift() {
+  IRModule Lift() {
     // There is an ordering bug here.
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
-      auto func = pair.second;
-      func = FunctionNode::make(func->params,
-                                VisitExpr(func->body),
-                                func->ret_type,
-                                func->type_params,
-                                func->attrs);
-      module_->Add(pair.first, func, true);
+      if (auto* n = pair.second.as<FunctionNode>()) {
+        if (!n->UseDefaultCompiler()) continue;
+        auto func = GetRef<Function>(n);
+        func = Function(func->params,
+                                  VisitExpr(func->body),
+                                  func->ret_type,
+                                  func->type_params,
+                                  func->attrs);
+        module_->Add(pair.first, func, true);
+      }
     }
     return module_;
   }
 
  private:
-  std::unordered_map<Var, Expr, NodeHash, NodeEqual> lambda_map_;
+  std::unordered_map<Var, Expr, ObjectHash, ObjectEqual> lambda_map_;
   std::vector<Var> letrec_;
-  Module module_;
+  IRModule module_;
 };
 
 }  // namespace vm
@@ -212,14 +211,14 @@ class LambdaLifter : public ExprMutator {
 namespace transform {
 
 Pass LambdaLift() {
-  runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func =
-    [=](Module m, PassContext pc) {
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
+    [=](IRModule m, PassContext pc) {
     return relay::vm::LambdaLifter(m).Lift();
   };
   return CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_REGISTER_API("relay._transform.LambdaLift")
+TVM_REGISTER_GLOBAL("relay._transform.LambdaLift")
 .set_body_typed(LambdaLift);
 
 }  // namespace transform

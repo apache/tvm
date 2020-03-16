@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 import os
 
@@ -29,17 +30,17 @@ def tvm_callback_vhls_postproc(code):
 
 def test_exp():
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.compute(A.shape, lambda *i: tvm.exp(A(*i)), name='B')
-    s = tvm.create_schedule(B.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.compute(A.shape, lambda *i: te.exp(A(*i)), name='B')
+    s = te.create_schedule(B.op)
     # create iter var and assign them tags.
     px, x = s[B].split(B.op.axis[0], nparts=1)
-    s[B].bind(px, tvm.thread_axis("pipeline"))
+    s[B].bind(px, te.thread_axis("pipeline"))
 
     # one line to build the function.
     def check_device(device, host="llvm"):
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -64,21 +65,21 @@ def test_exp():
 
 def test_multi_kernel():
     # graph
-    n = tvm.convert(1024)
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-    D = tvm.compute(A.shape, lambda *i: A(*i) + C(*i), name='D')
-    s = tvm.create_schedule(D.op)
+    n = tvm.runtime.convert(1024)
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    D = te.compute(A.shape, lambda *i: A(*i) + C(*i), name='D')
+    s = te.create_schedule(D.op)
     # create iter var and assign them tags.
     px, x = s[C].split(C.op.axis[0], nparts=1)
-    s[C].bind(px, tvm.thread_axis("pipeline"))
+    s[C].bind(px, te.thread_axis("pipeline"))
     px, x = s[D].split(D.op.axis[0], nparts=1)
-    s[D].bind(px, tvm.thread_axis("pipeline"))
+    s[D].bind(px, te.thread_axis("pipeline"))
 
     # one line to build the function.
     def check_device(device, host="llvm"):
-        if not tvm.module.enabled(host):
+        if not tvm.runtime.enabled(host):
             return
         ctx = tvm.context(device, 0)
         if not ctx.exist:

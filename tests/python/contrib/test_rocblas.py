@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import rocblas
 
@@ -22,13 +23,13 @@ def test_matmul_add():
     n = 1024
     l = 128
     m = 235
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((l, m), name='B')
+    A = te.placeholder((n, l), name='A')
+    B = te.placeholder((l, m), name='B')
     C = rocblas.matmul(A, B)
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
 
     def verify(target="rocm"):
-        if not tvm.module.enabled(target):
+        if not tvm.runtime.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.rocblas.matmul", True):

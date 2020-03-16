@@ -1,0 +1,13 @@
+{
+  "TARGET" : "ultra96",
+  "HW_VER" : "0.0.1",
+  "LOG_INP_WIDTH" : 3,
+  "LOG_WGT_WIDTH" : 3,
+  "LOG_ACC_WIDTH" : 5,
+  "LOG_BATCH" : 0,
+  "LOG_BLOCK" : 4,
+  "LOG_UOP_BUFF_SIZE" : 15,
+  "LOG_INP_BUFF_SIZE" : 15,
+  "LOG_WGT_BUFF_SIZE" : 18,
+  "LOG_ACC_BUFF_SIZE" : 17
+}

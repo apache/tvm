@@ -18,6 +18,8 @@
 tvm.relay.build_module
 ----------------------
 
+.. automodule:: tvm.relay.build
+
 .. automodule:: tvm.relay.build_module
 
 .. autofunction:: tvm.relay.build_module.build

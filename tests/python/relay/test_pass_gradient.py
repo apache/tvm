@@ -17,6 +17,7 @@
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.analysis import free_vars, free_type_vars, assert_alpha_equal
 from tvm.relay import create_executor, transform
@@ -188,7 +189,7 @@ def test_tuple():
 
 
 def test_pow():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     shape = (10, 10)

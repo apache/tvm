@@ -82,7 +82,7 @@ class Allocator {
    *  \param type_hint A type hint to the allocator.
    *  \return A sized allocation in the form of a buffer.
   */
-  virtual Buffer Alloc(size_t nbytes, size_t alignment, TVMType type_hint) = 0;
+  virtual Buffer Alloc(size_t nbytes, size_t alignment, DLDataType type_hint) = 0;
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -120,7 +120,7 @@ class StorageObj : public Object {
                        DLDataType dtype);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(NDArray::Container* ptr);
+  static void Deleter(Object* ptr);
 
   ~StorageObj() {
     auto alloc = MemoryManager::Global()->GetAllocator(buffer.ctx);
@@ -137,7 +137,7 @@ class Storage : public ObjectRef {
  public:
   explicit Storage(Buffer buffer);
 
-  TVM_DEFINE_OBJECT_REF_METHODS_MUT(Storage, ObjectRef, StorageObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Storage, ObjectRef, StorageObj);
 };
 
 }  // namespace vm

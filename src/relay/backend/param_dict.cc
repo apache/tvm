@@ -95,7 +95,7 @@ TVM_REGISTER_GLOBAL("tvm.relay._load_param_dict")
     for (size_t i = 0; i < size; ++i) {
       tvm::runtime::NDArray temp;
       temp.Load(strm);
-      auto n = tvm::make_node<NamedNDArrayNode>();
+      auto n = tvm::make_object<NamedNDArrayNode>();
       n->name = std::move(names[i]);
       n->array = temp;
       ret.push_back(NamedNDArray(n));

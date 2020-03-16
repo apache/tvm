@@ -16,17 +16,15 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
-import tvm
-from .. import generic
+from tvm import te
 
-@generic.schedule_softmax.register(["opengl"])
 def schedule_softmax(outs):
     """Schedule for softmax op.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of softmax in the format
           of an array of tensors.
 
     Returns
@@ -34,8 +32,8 @@ def schedule_softmax(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     softmax = outs[0]
 
     op_tag = softmax.op.tag
@@ -51,7 +49,7 @@ def schedule_softmax(outs):
         raise ValueError('Tag is expected to be softmax_output or log_softmax_output. \
                          Got {0}'.format(op_tag))
 
-    if exp != None:
+    if exp is not None:
         s[exp].opengl()
 
     s[max_elem].opengl()

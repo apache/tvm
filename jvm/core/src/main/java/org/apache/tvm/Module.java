@@ -38,7 +38,7 @@ public class Module extends TVMValue {
   private static Function getApi(String name) {
     Function func = apiFuncs.get().get(name);
     if (func == null) {
-      func = Function.getFunction("module." + name);
+      func = Function.getFunction("runtime." + name);
       apiFuncs.get().put(name, func);
     }
     return func;
@@ -126,7 +126,7 @@ public class Module extends TVMValue {
    * @return type key of the module.
    */
   public String typeKey() {
-    return getApi("_GetTypeKey").pushArg(this).invoke().asString();
+    return getApi("ModuleGetTypeKey").pushArg(this).invoke().asString();
   }
 
   /**
@@ -137,7 +137,7 @@ public class Module extends TVMValue {
    * @return The loaded module
    */
   public static Module load(String path, String fmt) {
-    TVMValue ret = getApi("_LoadFromFile").pushArg(path).pushArg(fmt).invoke();
+    TVMValue ret = getApi("ModuleLoadFromFile").pushArg(path).pushArg(fmt).invoke();
     assert ret.typeCode == TypeCode.MODULE_HANDLE;
     return ret.asModule();
   }
@@ -154,7 +154,7 @@ public class Module extends TVMValue {
    * @return Whether runtime is enabled.
    */
   public static boolean enabled(String target) {
-    TVMValue ret = getApi("_Enabled").pushArg(target).invoke();
+    TVMValue ret = getApi("RuntimeEnabled").pushArg(target).invoke();
     return ret.asLong() != 0;
   }
 }

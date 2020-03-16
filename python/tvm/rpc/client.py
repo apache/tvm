@@ -21,13 +21,13 @@ import os
 import socket
 import struct
 import time
+import tvm._ffi
+from tvm.contrib import util
+from tvm._ffi.base import TVMError
+from tvm.runtime import ndarray as nd
+from tvm.runtime import load_module as _load_module
 
 from . import base
-from ..contrib import util
-from .._ffi.base import TVMError
-from .._ffi import function
-from .._ffi import ndarray as nd
-from ..module import load as _load_module
 
 
 class RPCSession(object):
@@ -185,7 +185,7 @@ class LocalSession(RPCSession):
     def __init__(self):
         # pylint: disable=super-init-not-called
         self.context = nd.context
-        self.get_function = function.get_global_func
+        self.get_function = tvm._ffi.get_global_func
         self._temp = util.tempdir()
 
     def upload(self, data, target=None):

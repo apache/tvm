@@ -1,4 +1,4 @@
-.. _tutorial-frontend:
+.. _vta-tutorial-frontend:
 
 Compile Deep Learning Models
 ----------------------------
