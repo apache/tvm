@@ -2373,7 +2373,6 @@ def adaptive_avg_pool2d(data,
     return _make.adaptive_avg_pool2d(data, output_size, layout)
 
 
-
 def adaptive_max_pool3d(data,
                         output_size=None,
                         layout="NCDHW"):
@@ -2513,6 +2512,12 @@ def dilation2d(data,
 
     out_dtype : Optional[str]
         Specifies the output data type.
+    
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """"
 
     return _make.dilation2d(data, weight, strides, padding, dilations, data_layout,
                             kernel_layout, out_dtype)
