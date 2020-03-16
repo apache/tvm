@@ -91,7 +91,7 @@ Stmt MakeCrossThreadReduction(
       freduce_args, CallNode::Intrinsic));
   reduce_body = AttrStmtNode::make(
       reduces[0]->combiner,
-      attr::reduce_scope,
+      tir::attr::reduce_scope,
       make_zero(DataType::Handle()),
       reduce_body);
   std::vector<Stmt> assigns(size);
@@ -109,7 +109,7 @@ Stmt MakeCrossThreadReduction(
     body = AllocateNode::make(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
     body = AttrStmtNode::make(
-      res_handles[idx - 1], attr::storage_scope, StringImmNode::make("local"), body);
+      res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
   }
   body = Substitute(body, value_map);
   return MergeNest(nest, body);

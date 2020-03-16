@@ -1016,6 +1016,47 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
   return LoweredFunc(n);
 }
 
+PrimFunc PointerValueTypeRewrite(PrimFunc f) {
+  auto* n = f.CopyOnWrite();
+  VectorAllocRewriter rewriter;
+  n->body = rewriter(n->body);
+
+  Array<tir::Var> args;
+  Map<tir::Var, PrimExpr> remap_vars;
+
+  for (Var var : f->params) {
+    if (var.dtype().is_handle()) {
+      const auto& tvec = rewriter.acc_map_[var.get()];
+
+      if (tvec.size() == 1) {
+        tir::Var new_var(var->name_hint,
+                         PointerType(PrimType(tvec[0])));
+        args.push_back(new_var);
+        remap_vars.Set(var, new_var);
+
+      } else {
+        // always set data type to be non vectorized so
+        // load/store can still work via scalarization
+        if (tvec.size() != 0 && !var->type_annotation.defined()) {
+          tir::Var new_var(var->name_hint,
+                           PointerType(PrimType(tvec[0].with_lanes(1))));
+          args.push_back(new_var);
+          remap_vars.Set(var, new_var);
+        } else {
+          args.push_back(var);
+        }
+      }
+    } else {
+      args.push_back(var);
+    }
+  }
+
+  CHECK_EQ(args.size(), n->params.size());
+  n->params = args;
+  n->body = Substitute(n->body, remap_vars);
+  return f;
+}
+
 Stmt StorageRewrite(Stmt stmt) {
   stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
   return VectorAllocRewriter()(std::move(stmt));

@@ -53,7 +53,7 @@ class CodeGenSPIRV:
    * \param f The function to be added.
    * \return The final spirv module.
    */
-  virtual std::vector<uint32_t> BuildFunction(const LoweredFunc& f);
+  virtual std::vector<uint32_t> BuildFunction(const PrimFunc& f);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.

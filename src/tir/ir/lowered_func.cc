@@ -31,5 +31,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 TVM_REGISTER_NODE_TYPE(LoweredFuncNode);
+
+
 }  // namespace tir
 }  // namespace tvm

@@ -33,14 +33,34 @@ namespace tvm {
 using namespace tir;
 
 
+runtime::DataType GetRuntimeDataType(const Type& type) {
+  if (auto * n = type.as<PrimTypeNode>()) {
+    return n->dtype;
+  } else if (type.as<PointerTypeNode>()) {
+    return DataType::Handle();
+  } else {
+    LOG(FATAL) << "Type " << type
+               << " does not have a corresponding runtime::DataType";
+    return DataType::Handle();
+  }
+}
+
 Type GetType(const PrimExpr& expr) {
+  // TODO(tqchen): add recursive type inference for Call here
+  // once we introduced the corresponding fields to the IR.
+  if (auto* ptr = expr.as<tir::VarNode>()) {
+    // If Var has a more refined type annotation,
+    // return the type anotation
+    if (ptr->type_annotation.defined()) {
+      return ptr->type_annotation;
+    }
+  }
+  // Default: return the type indicated by the dtype.
   runtime::DataType dtype = expr.dtype();
   // These types already implies the specific type.
   if (dtype.is_int() || dtype.is_uint() || dtype.is_float()) {
     return PrimType(dtype);
   }
-  // TODO(tqchen): add recursive type inference for Var and Call here
-  // once we introduced the corresponding fields to the IR.
   return PrimType(dtype);
 }
 
