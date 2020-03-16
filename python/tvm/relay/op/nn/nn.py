@@ -2511,7 +2511,7 @@ def dilation2d(data,
 
     out_dtype : Optional[str]
         Specifies the output data type.
-    
+
     Returns
     -------
     result : tvm.relay.Expr
