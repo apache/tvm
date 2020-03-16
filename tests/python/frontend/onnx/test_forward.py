@@ -30,8 +30,31 @@ from tvm.relay.testing.config import ctx_list
 import scipy
 
 
-def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32',
-                   opset=None, mode=None):
+def get_tvm_output_with_vm(graph_def, input_data, target, ctx,
+                           opset=None, mode=None):
+    """ Generic function to execute and get tvm output with vm executor"""
+    if isinstance(input_data, list):
+        input_names = {}
+        shape_dict = {}
+        dtype_dict = {}
+        for i, _ in enumerate(input_data):
+            input_names[i] = graph_def.graph.input[i].name
+            shape_dict[input_names[i]] = input_data[i].shape
+            dtype_dict[input_names[i]] = input_data[i].dtype
+    else:
+        input_names = graph_def.graph.input[0].name
+        shape_dict = {input_names: input_data.shape}
+        dtype_dict = {input_names: input_data.dtype}
+
+    mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+
+    ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target=target)
+    indata = tvm.nd.array(input_data)
+    result = ex.evaluate()(indata)
+    return result.asnumpy().transpose()
+
+
+def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32', opset=None):
     """ Generic function to execute and get tvm output"""
     target = 'llvm'
     if isinstance(input_data, list):
@@ -48,48 +71,41 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         dtype_dict = {input_names: input_data.dtype}
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+    with relay.build_config(opt_level=1):
+        graph, lib, params = relay.build(mod,
+                                         target,
+                                         params=params)
 
-    if mode in ['debug', 'vm']:
-        ex = relay.create_executor(mode, mod=mod, ctx=tvm.cpu(), target=target)
-        indata = tvm.nd.array(input_data)
-        result = ex.evaluate()(indata)
-        return result.asnumpy().transpose()
+    ctx = tvm.cpu(0)
+    m = graph_runtime.create(graph, lib, ctx)
+    # set inputs
+    if isinstance(input_data, list):
+        for i, e in enumerate(input_names):
+            # Its possible for some onnx inputs to not be needed in the tvm
+            # module, confirm its present before setting.
+            try:
+                m.get_input(input_names[i])
+            except:
+                continue
+            m.set_input(input_names[i], tvm.nd.array(
+                input_data[i].astype(input_data[i].dtype)))
     else:
-        with relay.build_config(opt_level=1):
-            graph, lib, params = relay.build(mod,
-                                             target,
-                                             params=params)
+        m.set_input(input_names, tvm.nd.array(
+            input_data.astype(input_data.dtype)))
 
-        ctx = tvm.cpu(0)
-        m = graph_runtime.create(graph, lib, ctx)
-        # set inputs
-        if isinstance(input_data, list):
-            for i, e in enumerate(input_names):
-                # Its possible for some onnx inputs to not be needed in the tvm
-                # module, confirm its present before setting.
-                try:
-                    m.get_input(input_names[i])
-                except:
-                    continue
-                m.set_input(input_names[i], tvm.nd.array(
-                    input_data[i].astype(input_data[i].dtype)))
-        else:
-            m.set_input(input_names, tvm.nd.array(
-                input_data.astype(input_data.dtype)))
-
-        m.set_input(**params)
-        # execute
-        m.run()
-        # get outputs
-        if isinstance(output_shape, list) and isinstance(output_dtype, list):
-            tvm_output_list = []
-            for i, _ in enumerate(output_shape):
-                tvm_output = m.get_output(i)
-                tvm_output_list.append(tvm_output.asnumpy())
-            return tvm_output_list
-        else:
-            tvm_output = m.get_output(0)
-            return tvm_output.asnumpy()
+    m.set_input(**params)
+    # execute
+    m.run()
+    # get outputs
+    if isinstance(output_shape, list) and isinstance(output_dtype, list):
+        tvm_output_list = []
+        for i, _ in enumerate(output_shape):
+            tvm_output = m.get_output(i)
+            tvm_output_list.append(tvm_output.asnumpy())
+        return tvm_output_list
+    else:
+        tvm_output = m.get_output(0)
+        return tvm_output.asnumpy()
 
 
 def get_onnxruntime_output(model, inputs, dtype='float32'):
@@ -2234,7 +2250,7 @@ def test_nonzero():
         onnx_out = get_onnxruntime_output(model, indata, dtype)  # expected output [[0, 1, 1], [0, 0, 1]]
 
         for target, ctx in ctx_list():
-            tvm_out = get_tvm_output(model, indata, target, ctx, dtype, opset=9, mode="vm")
+            tvm_out = get_tvm_output_with_vm(model, indata, target, ctx, opset=9, mode='vm')
             tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
 
     input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
