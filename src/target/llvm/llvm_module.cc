@@ -356,6 +356,28 @@ TVM_REGISTER_GLOBAL("codegen.build_llvm")
     *rv = runtime::Module(n);
   });
 
+TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  auto n = make_object<LLVMModuleNode>();
+  auto target = args[0].operator std::string();
+  auto module_name = args[1].operator std::string();
+
+  // Generate a LLVM module from an input target string
+  InitializeLLVM();
+  auto tm = GetLLVMTargetMachine(target);
+  auto ctx = std::make_shared<llvm::LLVMContext>();
+  std::unique_ptr<llvm::Module> module(new llvm::Module(module_name, *ctx));
+
+  // Use a default data layout and target triple
+  auto triple = tm->getTargetTriple();
+  module->setTargetTriple(triple.str());
+  module->setDataLayout(tm->createDataLayout());
+
+  n->Init(std::move(module), ctx);
+
+  *rv = runtime::Module(n);
+});
+
 TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
