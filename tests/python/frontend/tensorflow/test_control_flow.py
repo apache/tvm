@@ -16,7 +16,11 @@
 # under the License.
 """Unit tests for converting TensorFlow control flow op to Relay."""
 import pytest
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+    tf.disable_v2_behavior()
+except ImportError:
+    import tensorflow as tf
 import numpy as np
 from tvm import nd
 from tvm import relay
