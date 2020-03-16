@@ -2995,6 +2995,15 @@ def _test_forward_unravel_index(inputs):
         compare_tf_with_tvm([each for each in inputs], [
                             each.name for each in temp], output.name)
 
+def test_unravel_index():
+    tf.reset_default_graph()
+    dtype = "int32"
+    with tf.Graph().as_default():
+        indices_1 = constant_op.constant([1621], dtype=dtype)
+        dims_1 = constant_op.constant([1, 2, 2, 2], dtype=dtype)
+        out_1 = array_ops.unravel_index(indices_1, dims_1)
+        compare_tf_with_tvm([], [], out_1.name)
+
 
 def test_forward_unravel_index():
     x = np.random.randint(1, 100, size=(5,), dtype=np.int32)

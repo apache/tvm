@@ -266,12 +266,10 @@ inline Tensor unravel_index(const Tensor& x,
       PrimExpr ret = 0;
       std::vector<PrimExpr> indices_divs;
       indices_divs.push_back(index);
-      std::cout << "before for loop";
       for (int v = GetConstInt(shape_shape[0]) - 1; v >= 0; --v) {
         ret = tvm::if_then_else(i == v, indexmod(indices_divs.back(), shape[v]), ret);
         indices_divs.push_back(indexdiv(indices_divs.back(), shape[v]));
       }
-      std::cout << "after for loop";
       return ret;
     }, name, tag);  
     
