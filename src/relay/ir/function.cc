@@ -60,18 +60,6 @@ bool FunctionNode::UseDefaultCompiler() const {
   return !val.defined() || val->value == "default";
 }
 
-Function WithAttr(Function func, const std::string& attr_key, ObjectRef attr_value) {
-  FunctionNode* node = func.CopyOnWrite();
-  if (node->attrs.defined()) {
-    node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
-  } else {
-    Map<std::string, ObjectRef> dict = {{attr_key, attr_value}};
-    node->attrs = DictAttrs(dict);
-  }
-  return func;
-}
-
-
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_GLOBAL("relay._make.Function")
@@ -94,9 +82,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_GLOBAL("relay._expr.FunctionWithAttr")
 .set_body_typed(
-  [](Function func, std::string name, ObjectRef ref) {
-    return WithAttr(std::move(func), name, ref);
-});
+    [](Function func, std::string name, ObjectRef ref) {
+      return WithAttr(std::move(func), name, ref);
+    });
 
 }  // namespace relay
 }  // namespace tvm

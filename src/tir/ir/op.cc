@@ -32,6 +32,18 @@ namespace tvm {
 
 using namespace tir;
 
+
+Type GetType(const PrimExpr& expr) {
+  runtime::DataType dtype = expr.dtype();
+  // These types already implies the specific type.
+  if (dtype.is_int() || dtype.is_uint() || dtype.is_float()) {
+    return PrimType(dtype);
+  }
+  // TODO(tqchen): add recursive type inference for Var and Call here
+  // once we introduced the corresponding fields to the IR.
+  return PrimType(dtype);
+}
+
 // simple cast that only checks if type matches and cast
 inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
   if (value.dtype() == t) return value;
