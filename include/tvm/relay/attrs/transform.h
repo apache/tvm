@@ -330,5 +330,3 @@ struct UnRavelIndexAttrs : public tvm::AttrsNode<UnRavelIndexAttrs> {
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
-
-

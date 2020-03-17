@@ -872,16 +872,15 @@ def unravel_index(indices, shape):
     Parameters
     ----------
     indices : relay.Expr
-        An integer array whose elements are indices into the flattened version
-        of an array of dimensions shape.
+        An integer array containing indices.
 
     shape : relay.Expr
-        The shape of the array to use for unraveling indices.
+        The shape of the array.
 
     Returns
     -------
     result : relay.Expr
-        The unraveled tuple of array.
+        The tuple of coordinate arrays.
     """
 
     return _make.unravel_index(indices, shape)
