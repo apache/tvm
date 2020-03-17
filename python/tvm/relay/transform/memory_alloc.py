@@ -28,19 +28,21 @@ from .. import ty, expr
 from ..backend import compile_engine
 from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
 from ...import cpu
+from ..op.memory import alloc_storage
 
+def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
+    offset = expr.const(0, dtype="int64")
+    return op.memory.alloc_tensor(storage, offset, shape, dtype, assert_shape)
 
 def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
 
 class ManifestAllocPass(ExprMutator):
-    """A pass for explictly manifesting all memory allocations in Relay."""
+    """A pass for explicitly manifesting all memory allocations in Relay."""
 
     def __init__(self, target_host):
         self.invoke_tvm = op.memory.invoke_tvm_op
-        self.alloc_storage = op.memory.alloc_storage
-        self.alloc_tensor = op.memory.alloc_tensor
         self.shape_func = op.memory.shape_func
         self.scopes = [ScopeBuilder()]
         self.target_host = target_host
@@ -101,10 +103,10 @@ class ManifestAllocPass(ExprMutator):
         size = self.compute_storage(tensor_type)
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
-        sto = scope.let("storage_{0}".format(i), self.alloc_storage(
+        sto = scope.let("storage_{0}".format(i), alloc_storage(
             size, alignment, self.default_context, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
-        tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
+        tensor = alloc_tensor(sto, shape, dtype, tensor_type.shape)
         return scope.let("tensor_{0}".format(i), tensor)
 
     def visit_let(self, let):
@@ -179,7 +181,7 @@ class ManifestAllocPass(ExprMutator):
         outs = []
         sh_ty_storage = zip(out_shapes, out_types, storages)
         for i, (out_shape, out_type, storage) in enumerate(sh_ty_storage):
-            alloc = self.alloc_tensor(
+            alloc = alloc_tensor(
                 storage,
                 out_shape,
                 out_type.dtype,
