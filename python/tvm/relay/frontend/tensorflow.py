@@ -410,6 +410,91 @@ def _conv(opname):
         return out
     return _impl
 
+
+# Dilation2d
+def _dilation2d():
+    def _impl(inputs, attr, params):
+        if 'data_format' not in attr:
+            attr['data_format'] = 'NHWC'
+
+        input_shape = attr['_input_shapes'][inputs[0]]
+        weights_shape = attr['_input_shapes'][inputs[1]]
+
+        if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
+            input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            inputs[0] = _op.transpose(inputs[0], axes=(0, 3, 1, 2))
+            weights_shape = [weights_shape[ii] for ii in (2, 0, 1)]
+            inputs[1] = _op.transpose(inputs[1], axes=(2, 0, 1))
+            attr['data_format'] = "NCHW"
+
+        if attr['data_format'] in ['NHWC', 'NCHW']:
+            if 'rates' in attr:
+                attr['dilations'] = attr['rates']
+            if 'dilations' in attr:
+                attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
+            attr['strides'] = (attr['strides'][1], attr['strides'][2])
+        else:
+            msg = 'Value {} in attribute "data_format" of operator Dilation2D is ' \
+                  'not valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['data_format']))
+
+        attr['padding'] = attr['padding'].decode("utf-8")
+        if attr['padding'] == 'VALID':
+            attr['padding'] = [0, 0]
+        elif attr['padding'] == 'SAME':
+            stride_h, stride_w = attr['strides']
+            if attr['data_format'] == 'NHWC':
+                kernel_h, kernel_w = weights_shape[0], weights_shape[1]
+            else:
+                kernel_h, kernel_w = weights_shape[1], weights_shape[2]
+            if attr['data_format'] == 'NHWC':
+                in_h = input_shape[1]
+                in_w = input_shape[2]
+            else:
+                in_h = input_shape[2]
+                in_w = input_shape[3]
+
+            dilation_h = attr['dilations'][0]
+            dilation_w = attr['dilations'][1]
+            dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+            dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+            pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
+
+            if attr['data_format'] == 'NHWC':
+                inputs[0] = _op.nn.pad(data=inputs[0],
+                                       pad_width=((0, 0),
+                                                  (pad_v[0], pad_v[1]),
+                                                  (pad_h[0], pad_h[1]),
+                                                  (0, 0)))
+            else:
+                inputs[0] = _op.nn.pad(data=inputs[0],
+                                       pad_width=((0, 0),
+                                                  (0, 0),
+                                                  (pad_v[0], pad_v[1]),
+                                                  (pad_h[0], pad_h[1])))
+
+            attr['padding'] = [0, 0]
+
+        else:
+            msg = 'Value {} in attribute "padding" of operator Dilation2d is not ' \
+                  'valid.'
+            raise tvm.error.OpAttributeInvalid(msg.format(attr['padding']))
+
+        attr['kernel_layout'] = 'HWI' if attr['data_format'] == 'NHWC' else 'IHW'
+        out = AttrCvt(
+            op_name='dilation2d',
+            ignores=['explicit_paddings', 'rates'],
+            transforms={
+                'data_format': 'data_layout',
+            })([inputs[0], inputs[1]], attr)
+        if attr['_target_layout'] == "NCHW":
+            out = _op.transpose(out, axes=(0, 2, 3, 1))
+        return out
+
+    return _impl
+
+
 def _conv3d(opname):
     def _impl(inputs, attr, params):
         attr['data_format'] = attr['data_format'].decode("utf-8")
@@ -1550,6 +1635,7 @@ _convert_map = {
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'DepthToSpace'                      : _depth_to_space(),
+    'Dilation2D'                        : _dilation2d(),
     'Equal'                             : _broadcast('equal'),
     'Elu'                               : _elu(),
     'Erf'                               : AttrCvt('erf'),
