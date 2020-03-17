@@ -544,6 +544,14 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
       status = -1;
     }
 
+    if (runtime->data_entry[eid].dl_tensor.shape) {
+      vfree(runtime->data_entry[eid].dl_tensor.shape);
+      runtime->data_entry[eid].dl_tensor.shape = 0;
+    }
+    if (runtime->data_entry[eid].dl_tensor.data) {
+      vfree(runtime->data_entry[eid].dl_tensor.data);
+      runtime->data_entry[eid].dl_tensor.data = 0;
+    }
     status |= TVMNDArray_Load(&(runtime->data_entry[eid]), &bptr);
 #if TVM_CRT_DEBUG
     TVMNDArray * entry = &(runtime->data_entry[eid]);
@@ -791,4 +799,5 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
     vfree(runtime->data_entry[idx].dl_tensor.shape);
   }
   vfree(*pptr);
+  CHECK_EQ(vleak_size, 0, "found memory leak.");
 }
