@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name,consider-using-enumerate
+# pylint: disable=invalid-name,consider-using-enumerate,redefined-outer-name
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 import tvm

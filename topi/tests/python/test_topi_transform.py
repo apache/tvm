@@ -948,3 +948,4 @@ if __name__ == "__main__":
     test_ndarray_size()
     test_where_fusion()
     test_one_hot()
+    test_unravel_index()
