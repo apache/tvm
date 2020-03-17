@@ -830,6 +830,7 @@ class CallNode : public PrimExprNode {
   static constexpr const char* prefetch = "prefetch";
   static constexpr const char* isnan = "isnan";
   static constexpr const char* isfinite = "isfinite";
+  static constexpr const char* isinf = "isinf";
 
   /*! \brief Vectorizable intrinsic list. */
   static const char* vectorizable_intrinsics[];

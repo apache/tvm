@@ -424,5 +424,14 @@ RELAY_REGISTER_UNARY_OP("isfinite")
 .add_type_rel("IdentityCompRel", IdentityCompRel)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::isfinite));
 
+RELAY_REGISTER_UNARY_OP("isinf")
+.describe(R"code(Returns the infiniteness of input, computed element-wise.
+.. math::
+   isfinite(x)
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("IdentityCompRel", IdentityCompRel)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::isinf));
+
 }  // namespace relay
 }  // namespace tvm

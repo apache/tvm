@@ -1655,6 +1655,7 @@ _convert_map = {
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Identity'                          : _identity(),
     'IsFinite'                          : AttrCvt('isfinite'),
+    'IsInf'                             : AttrCvt('isinf'),
     'LeakyRelu'                         : AttrCvt('leaky_relu'),
     'LeftShift'                         : AttrCvt('left_shift'),
     'Less'                              : _broadcast('less'),

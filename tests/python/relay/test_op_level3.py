@@ -684,11 +684,11 @@ def test_gather_nd():
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 
-def test_isfinite():
-    for dtype in ['float32', 'float16', 'float64', 'int32', 'int16']:
-        shape = (2, 2, 2)
+def _verify_infiniteness_ops(relay_op, ref_op):
+    for dtype in ['float32', 'float16', 'float16', 'int32', 'int16']:
+        shape = (2, 8, 8)
         x = relay.var("x", relay.TensorType(shape, dtype))
-        y = relay.isfinite(x)
+        y = relay_op(x)
         yy = run_infer_type(y)
         assert yy.checked_type == relay.TensorType(shape, "bool")
 
@@ -699,8 +699,16 @@ def test_isfinite():
 
         intrp = create_executor()
         op_res = intrp.evaluate(y, {x: data})
-        ref_res = np.isfinite(data)
+        ref_res = ref_op(data)
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+
+def test_isfinite():
+    _verify_infiniteness_ops(relay.isfinite, np.isfinite)
+
+
+def test_inf():
+    _verify_infiniteness_ops(relay.isinf, np.isinf)
 
 
 if __name__ == "__main__":
@@ -734,3 +742,4 @@ if __name__ == "__main__":
     test_repeat()
     test_gather_nd()
     test_isfinite()
+    test_isinf()

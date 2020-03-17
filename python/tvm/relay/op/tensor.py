@@ -1012,13 +1012,31 @@ def ndarray_size(data, dtype="int32"):
 
 def isfinite(data):
     """Compute element-wise finiteness of data.
+
     Parameters
     ----------
     data : relay.Expr
         The input data
+
     Returns
     -------
     result : relay.Expr
         The computed result.
     """
     return _make.isfinite(data)
+
+
+def isinf(data):
+    """Compute element-wise infiniteness of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.isinf(data)

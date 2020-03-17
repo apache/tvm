@@ -113,19 +113,19 @@ def test_ewise():
         for target in get_all_backend():
             check_device(target)
 
-    def test_isfinite():
+    def test_infiniteness_ops(topi_op, ref_op, name):
         for dtype in ['float32', 'float64', 'int32', 'int16']:
             m = te.var("m")
             l = te.var("l")
             A = te.placeholder((m, l), dtype=dtype, name="A")
-
-            B = topi.isfinite(A)
+            B = topi_op(A)
             assert tuple(B.shape) == tuple(A.shape)
-            a_np = np.random.uniform(size=(4, 4)).astype(A.dtype) * 10
+
+            a_np = np.random.uniform(size=(8, 8)).astype(A.dtype) * 10
             if dtype.startswith('float'):
                 a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.infty
                 a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
-            b_np = np.isfinite(a_np)
+            b_np = ref_op(a_np)
 
             def check_device(device):
                 ctx = tvm.context(device, 0)
@@ -134,7 +134,7 @@ def test_ewise():
                     return
                 with tvm.target.create(device):
                     s = topi.testing.get_injective_schedule(device)(B)
-                foo = tvm.build(s, [A, B], device, name="isfinite")
+                foo = tvm.build(s, [A, B], device, name=name)
                 a = tvm.nd.array(a_np, ctx)
                 b = tvm.nd.array(np.zeros_like(b_np), ctx)
                 foo(a, b)
@@ -162,7 +162,8 @@ def test_ewise():
     test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
     test_isnan(-100, 100)
-    test_isfinite()
+    test_infiniteness_ops(topi.isfinite, np.isfinite, 'isifinite')
+    test_infiniteness_ops(topi.isinf, np.isinf, 'isinf')
 
 
 def test_cast():

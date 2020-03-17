@@ -161,6 +161,7 @@ Supported Ops
 - GreaterEqual
 - Identity
 - IsFinite
+- IsInf
 - LeakyRelu
 - LeftShift
 - Less
