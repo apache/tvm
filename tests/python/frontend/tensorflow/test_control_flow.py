@@ -312,7 +312,7 @@ def test_vanilla_loop_bound():
         dtype = "float32"
         dname = "data"
         np_data = np.random.uniform(size=dshape).astype(dtype)
-        data = tf.compat.v1.placeholder(shape=dshape, dtype=dtype, name=dname)
+        data = tf.placeholder(shape=dshape, dtype=dtype, name=dname)
         x = tf.slice(data, [1, 4], [1, 4])
         outer = x + 5.0
         def body(x, y):
@@ -339,7 +339,7 @@ def test_nested_loop_bound():
         dtype = "float32"
         dname = "data"
         np_data = np.random.uniform(size=dshape).astype(dtype)
-        data = tf.compat.v1.placeholder(shape=dshape, dtype=dtype, name=dname)
+        data = tf.placeholder(shape=dshape, dtype=dtype, name=dname)
         x = tf.slice(data, [1, 4], [1, 4])
         outer = x + 5.0
         def body(x, y):

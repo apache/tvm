@@ -409,12 +409,12 @@ def _conv(opname):
 
 # Dilation2d
 def _dilation2d():
-    def _impl(inputs, attr, params):
+    def _impl(inputs, attr, params, mod):
         if 'data_format' not in attr:
             attr['data_format'] = 'NHWC'
 
-        input_shape = attr['_input_shapes'][inputs[0]]
-        weights_shape = attr['_input_shapes'][inputs[1]]
+        input_shape = _infer_shape(inputs[0], mod)
+        weights_shape = _infer_shape(inputs[1], mod)
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
