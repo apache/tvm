@@ -140,6 +140,7 @@ Supported Ops
 - DecodeJpeg
 - DepthwiseConv2dNative
 - DepthToSpace
+- Dilation2D
 - Equal
 - Elu
 - Enter

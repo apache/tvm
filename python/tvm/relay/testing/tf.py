@@ -219,9 +219,9 @@ def get_workload(model_path, model_sub_path=None):
 
     # Creates graph from saved graph_def.pb.
     with tf_compat_v1.gfile.FastGFile(path_model, 'rb') as f:
-        graph_def = tf.GraphDef()
+        graph_def = tf_compat_v1.GraphDef()
         graph_def.ParseFromString(f.read())
-        graph = tf.import_graph_def(graph_def, name='')
+        graph = tf_compat_v1.import_graph_def(graph_def, name='')
         return graph_def
 
 #######################################################################

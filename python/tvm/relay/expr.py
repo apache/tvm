@@ -282,7 +282,8 @@ class Function(BaseFunc):
         func : Function
             A new copy of the function
         """
-        return _expr.FunctionWithAttr(self, attr_key, attr_value)
+        return _expr.FunctionWithAttr(
+            self, attr_key, convert(attr_value))
 
 
 

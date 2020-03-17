@@ -70,6 +70,7 @@ class OperatorConverter(object):
             'CONCATENATION': self.convert_concatenation,
             'CONV_2D': self.convert_conv2d,
             'COS': self.convert_cos,
+            'DEPTH_TO_SPACE': self.convert_depth_to_space,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'DIV': self.convert_div,
@@ -116,6 +117,7 @@ class OperatorConverter(object):
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
+            'SPACE_TO_DEPTH': self.convert_space_to_depth,
             'SPLIT': self.convert_split,
             'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
@@ -1895,6 +1897,56 @@ class OperatorConverter(object):
         reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
 
         return reshaped_permuted_reshaped_padded
+
+    def convert_depth_to_space(self, op):
+        """Convert TFLite DEPTH_TO_SPACE"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.DepthToSpaceOptions import DepthToSpaceOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.DepthToSpaceOptions
+        op_options = op.BuiltinOptions()
+        depth_to_space_options = DepthToSpaceOptions()
+        depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
+        block_size = depth_to_space_options.BlockSize()
+        out = _op.nn.depth_to_space(in_expr, block_size, layout='NHWC')
+
+        return out
+
+    def convert_space_to_depth(self, op):
+        """Convert TFLite SPACE_TO_DEPTH"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.SpaceToDepthOptions import SpaceToDepthOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SpaceToDepthOptions
+        op_options = op.BuiltinOptions()
+        space_to_depth_options = SpaceToDepthOptions()
+        space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
+        block_size = space_to_depth_options.BlockSize()
+        out = _op.nn.space_to_depth(in_expr, block_size, layout='NHWC')
+
+        return out
 
     def convert_prelu(self, op):
         """Convert TFLite PReLU"""

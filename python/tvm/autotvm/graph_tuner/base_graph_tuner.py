@@ -34,6 +34,7 @@ from .utils import is_boundary_node, get_in_nodes, get_out_nodes, has_multiple_i
     bind_inputs, expr2graph
 from ._base import INVALID_LAYOUT_TIME
 
+from ._base import OPT_OUT_OP
 
 def get_infer_layout(task_name):
     if task_name.startswith("conv2d"):
@@ -153,6 +154,7 @@ class BaseGraphTuner(object):
         self._in_nodes_dict = get_in_nodes(self._node_list, self._target_ops, input_shapes.keys())
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
         self._fetch_cfg()
+        self._opt_out_op = OPT_OUT_OP
 
         # Setup infer_layout for elemwise-like nodes
         # Note: graph tuner currently only supports tuning of single input and single output
@@ -162,7 +164,7 @@ class BaseGraphTuner(object):
         # elemwise-like node, and use infer_layout function from input op to generate layouts.
         input_names = self._input_shapes.keys()
         for idx in sorted(self._in_nodes_dict.keys()):
-            if has_multiple_inputs(self._node_list, idx, input_names):
+            if has_multiple_inputs(self._node_list, idx, input_names, self._opt_out_op):
                 node_entry = self._node_list[idx]
                 node_entry["topi_op"] = []
                 node_entry["workloads"] = []
@@ -246,7 +248,7 @@ class BaseGraphTuner(object):
             node_entry = self._node_list[key]
             target_input_idx = -1
             target_input_pos = -1
-            if has_multiple_inputs(self._node_list, key, input_names):
+            if has_multiple_inputs(self._node_list, key, input_names, self._opt_out_op):
                 for i, item in enumerate(val):
                     node = self._node_list[item]
                     if not is_boundary_node(node, input_names):

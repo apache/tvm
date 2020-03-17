@@ -186,6 +186,9 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 reg.register_strategy("nn.conv3d", strategy.conv3d_strategy)
 reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+# dilation2d
+reg.register_strategy("nn.dilation2d", strategy.dilation2d_strategy)
+reg.register_pattern("nn.dilation2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # conv1d_transpose
 reg.register_strategy("nn.conv1d_transpose", strategy.conv1d_transpose_strategy)
@@ -255,6 +258,16 @@ reg.register_pattern("nn.adaptive_max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 # adaptive_avg_pool2d
 reg.register_schedule("nn.adaptive_avg_pool2d", strategy.schedule_adaptive_pool)
 reg.register_pattern("nn.adaptive_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_max_pool3d
+reg.register_schedule("nn.adaptive_max_pool3d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_max_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+# adaptive_avg_pool3d
+reg.register_schedule("nn.adaptive_avg_pool3d", strategy.schedule_adaptive_pool)
+reg.register_pattern("nn.adaptive_avg_pool3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # leaky_relu
