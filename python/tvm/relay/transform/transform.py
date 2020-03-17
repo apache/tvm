@@ -584,7 +584,7 @@ def AnnotateTargetWithMerge(target):
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
-    return _transform.AnnotateTargetWithMerge(target)
+    return _ffi_api.AnnotateTargetWithMerge(target)
 
 
 def Inline():
