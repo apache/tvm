@@ -71,14 +71,6 @@ $(build_dir)/graph.json.c: $(build_dir)/graph.json
 $(build_dir)/params.bin.c: $(build_dir)/params.bin
 	xxd -i $^  > $@
 
-# # Serialize our test_graph.json file.
-# $(build_dir)/test_graph.json.c: $(build_dir)/test_graph.json
-# 	xxd -i $^  > $@
-# 
-# # Serialize our test_params.bin file.
-# $(build_dir)/test_params.bin.c: $(build_dir)/test_params.bin
-# 	xxd -i $^  > $@
-
 $(build_dir)/model.o $(build_dir)/graph.json $(build_dir)/params.bin $(build_dir)/cat.bin: build_model.py
 	python3 $< -o $(build_dir)
 

@@ -18,31 +18,27 @@
  */
 
 /*!
- * \file src/runtime/crt/module.h
- * \brief Runtime container of the functions
+ * \file memory.h
+ * \brief The virtual memory manager for micro-controllers
  */
-#ifndef TVM_RUNTIME_CRT_MODULE_H_
-#define TVM_RUNTIME_CRT_MODULE_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <string.h>
+#ifndef TVM_RUNTIME_CRT_MEMORY_H_
+#define TVM_RUNTIME_CRT_MEMORY_H_
 
-struct TVMPackedFunc;
-typedef struct TVMPackedFunc TVMPackedFunc;
+/** \brief Allocate memory from manager */
+void * vmalloc(size_t size);
 
-/*!
- * \brief Module container of TVM.
- */
-typedef struct TVMModule {
-  /*!
-   * \brief Get packed function from current module by name.
-   *
-   * \param name The name of the function.
-   * \param pf The result function.
-   *
-   *  This function will return PackedFunc(nullptr) if function do not exist.
-   */
-  void (*GetFunction)(const char * name, TVMPackedFunc * pf);
-} TVMModule;
+/** \brief Release memory from manager */
+void vfree(void * ptr);
 
-#endif  // TVM_RUNTIME_CRT_MODULE_H_
+static int vleak_size = 0;
+
+// #define vmalloc(size)                                      \
+//   vmalloc_(size);                                          \
+//   printf("%s: %d: info: size=%d, vleak=%d\n", __FILE__, __LINE__, size, ++vleak_size)
+
+// #define vfree(ptr)                                                      \
+//   vfree_(ptr);                                                          \
+//   printf("%s: %d: error: addr=%p, vleak=%d\n", __FILE__, __LINE__, ptr, --vleak_size)
+
+#endif  // TVM_RUNTIME_CRT_MEMORY_H_

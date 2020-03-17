@@ -21,6 +21,10 @@
  * \file graph_runtime.c
  * \brief implement graph runtime in pure C
  */
+
+#include <tvm/runtime/crt/logging.h>
+#include <tvm/runtime/crt/memory.h>
+
 #include "graph_runtime.h"
 
 #ifndef MAX
@@ -380,7 +384,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *reader) {
             break;
 #if TVM_CRT_DEBUG
           } else {
-            printf("layer %u: `%s` loaded.\n", runtime->nodes_count, node->name);
+            printf("loading: node (%u) %s loaded.\n", runtime->nodes_count, node->name);
 #endif  // TVM_CRT_DEBUG
           }
           runtime->nodes_count++;
@@ -458,9 +462,7 @@ int TVMGraphRuntime_GetInputIndex(TVMGraphRuntime * runtime, const char * name) 
       break;
     }
   }
-  if (rv < 0) {
-    fprintf(stderr, "cannot find \"%s\" among input\n", name);
-  }
+  CHECK_GE(rv, 0, "cannot find '%s' among input.", name);
   return rv;
 }
 
@@ -476,7 +478,7 @@ void TVMGraphRuntime_SetInput(TVMGraphRuntime * runtime, const char * name, DLTe
     fprintf(stderr, "given index is greater than num of input nodes.\n");
   }
   uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[index], 0);
-  runtime->data_entry[eid].dl_tensor = *data_in;
+  runtime->data_entry[eid].dl_tensor.data = data_in->data;
 }
 
 /*!
@@ -545,7 +547,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
     status |= TVMNDArray_Load(&(runtime->data_entry[eid]), &bptr);
 #if TVM_CRT_DEBUG
     TVMNDArray * entry = &(runtime->data_entry[eid]);
-    printf("param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
+    printf("loading: param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
            names[idx], in_idx, eid, entry->dl_tensor.ndim,
            ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
 #endif  // TVM_CRT_DEBUG
@@ -564,7 +566,7 @@ void TVMGraphRuntime_Run(TVMGraphRuntime * runtime) {
   for (idx = 0; idx < runtime->op_execs_count; ++idx) {
     if (runtime->op_execs[idx].fexec) {
 #if TVM_CRT_DEBUG
-      printf("calling %s (%d)\n", runtime->op_execs[idx].name, idx);
+      printf("calling: %s (%d)\n", runtime->op_execs[idx].name, idx);
 #endif  // TVM_CRT_DEBUG
       runtime->op_execs[idx].Call(&(runtime->op_execs[idx]));
     }
@@ -581,9 +583,9 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTe
   int32_t elem_bytes = out->dtype.bits / 8;
   int64_t size = Shape_Accumulate(out->shape, out->ndim);
   DLTensor * tensor = &(runtime->data_entry[eid].dl_tensor);
-  assert(out->ndim == tensor->ndim);
-  assert(out->dtype.bits == tensor->dtype.bits);
-  assert(Shape_Accumulate(out->shape, out->ndim) == Shape_Accumulate(tensor->shape, tensor->ndim));
+  CHECK(out->ndim == tensor->ndim);
+  CHECK(out->dtype.bits == tensor->dtype.bits);
+  CHECK(Shape_Accumulate(out->shape, out->ndim) == Shape_Accumulate(tensor->shape, tensor->ndim));
   memcpy(out->data, tensor->data, size * elem_bytes);
   return status;
 }
@@ -628,9 +630,8 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
     DLDataType dtype = {kDLFloat, 32, 1};
     shape[0] = (pit.size + 3) / 4;
     runtime->storage_pool[runtime->storage_pool_count] = TVMNDArray_Empty(1, shape, dtype, ctx);
-    if (runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data == 0) {
-      fprintf(stderr, "fail to create storage_pool with idx=%d\n", idx);
-    }
+    CHECK_NE(runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data, 0,
+             "fail to create storage_pool with idx=%d\n", idx);
     runtime->storage_pool_count++;
   }
 
@@ -640,13 +641,12 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
   runtime->data_entry_count = runtime->node_row_ptr[runtime->node_row_ptr_count - 1];
   for (idx = 0; idx < runtime->data_entry_count; ++idx) {
     size_t storage_id = attrs->storage_id[idx];
-    assert(storage_id < runtime->storage_pool_count);
+    CHECK(storage_id < runtime->storage_pool_count);
     runtime->data_entry[idx] =
       TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
                          attrs->shape[idx], attrs->ndim[idx], vtype[idx]);
-    if (runtime->data_entry[idx].dl_tensor.data == 0) {
-      fprintf(stderr, "fail to create for node with idx=%d, storage_id=%d\n", idx, storage_id);
-    }
+    CHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
+             "fail to create for node with idx=%d, storage_id=%d\n", idx, storage_id);
   }
 }
 
@@ -682,7 +682,7 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime * runtime) {
         break;
       }
 #if TVM_CRT_DEBUG
-      printf("creating tvm_op: %s with node_id=%d\n", inode->param.func_name, nid);
+      printf("tvm_op: creating %s with node_id=%d\n", inode->param.func_name, nid);
 #endif  // TVM_CRT_DEBUG
       TVMPackedFunc pf;
       runtime->CreateTVMOp(runtime, &(inode->param), args, args_count, inode->inputs_count, &pf);
@@ -762,7 +762,7 @@ void TVMGraphRuntime_Init(TVMGraphRuntime * runtime, const char * graph_json,
 
 TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
                                         const TVMModule * m, const TVMContext * ctxs) {
-  TVMGraphRuntime * runtime = (TVMGraphRuntime*)malloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
+  TVMGraphRuntime * runtime = (TVMGraphRuntime*)vmalloc(sizeof(TVMGraphRuntime));  // NOLINT(*)
   memset(runtime, 0, sizeof(TVMGraphRuntime));
   runtime->GetEntryId = TVMGraphRuntime_GetEntryId;
   runtime->GetInputIndex = TVMGraphRuntime_GetInputIndex;
@@ -787,5 +787,8 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
   for (idx = 0; idx < runtime->storage_pool_count; ++idx) {
     TVMNDArray_Release(&(runtime->storage_pool[idx]));
   }
-  free(*pptr);
+  for (idx = 0; idx < runtime->data_entry_count; ++idx) {
+    vfree(runtime->data_entry[idx].dl_tensor.shape);
+  }
+  vfree(*pptr);
 }
