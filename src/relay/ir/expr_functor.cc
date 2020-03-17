@@ -347,7 +347,7 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.post_order_visit")
+TVM_REGISTER_GLOBAL("relay.analysis.post_order_visit")
 .set_body_typed([](Expr expr, PackedFunc f) {
     PostOrderVisit(expr, [f](const Expr& n) {
         f(n);
@@ -443,7 +443,7 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relay._expr.Bind")
+TVM_REGISTER_GLOBAL("relay.ir.Bind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     ObjectRef input = args[0];
     if (input->IsInstance<ExprNode>()) {

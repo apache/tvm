@@ -22,9 +22,9 @@ configuring the passes and scripting them in Python.
 """
 from tvm.ir import RelayExpr, IRModule
 
-from . import _analysis
-from .ty import Type
+from . import _ffi_api
 from .feature import Feature
+from ..ty import Type
 
 
 def post_order_visit(expr, fvisit):
@@ -40,7 +40,7 @@ def post_order_visit(expr, fvisit):
     fvisit : function
         The visitor function to be applied.
     """
-    return _analysis.post_order_visit(expr, fvisit)
+    return _ffi_api.post_order_visit(expr, fvisit)
 
 
 def well_formed(expr):
@@ -56,7 +56,7 @@ def well_formed(expr):
     well_form : bool
         Whether the input expression is well formed
     """
-    return _analysis.well_formed(expr)
+    return _ffi_api.well_formed(expr)
 
 
 def check_kind(t, mod=None):
@@ -85,9 +85,9 @@ def check_kind(t, mod=None):
         assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)])) == Type
     """
     if mod is not None:
-        return _analysis.check_kind(t, mod)
+        return _ffi_api.check_kind(t, mod)
     else:
-        return _analysis.check_kind(t)
+        return _ffi_api.check_kind(t)
 
 
 def check_constant(expr):
@@ -103,7 +103,7 @@ def check_constant(expr):
     result : bool
         Whether the expression is constant.
     """
-    return _analysis.check_constant(expr)
+    return _ffi_api.check_constant(expr)
 
 
 def free_vars(expr):
@@ -125,7 +125,7 @@ def free_vars(expr):
     neural networks: usually this means weights of previous
     are ordered first.
     """
-    return _analysis.free_vars(expr)
+    return _ffi_api.free_vars(expr)
 
 
 def bound_vars(expr):
@@ -141,7 +141,7 @@ def bound_vars(expr):
     free : List[tvm.relay.Var]
         The list of bound variables in post-DFS order.
     """
-    return _analysis.bound_vars(expr)
+    return _ffi_api.bound_vars(expr)
 
 
 def all_vars(expr):
@@ -157,7 +157,7 @@ def all_vars(expr):
     free : List[tvm.relay.Var]
         The list of all variables in post-DFS order.
     """
-    return _analysis.all_vars(expr)
+    return _ffi_api.all_vars(expr)
 
 
 def free_type_vars(expr, mod=None):
@@ -177,7 +177,7 @@ def free_type_vars(expr, mod=None):
         The list of free type variables in post-DFS order
     """
     use_mod = mod if mod is not None else IRModule()
-    return _analysis.free_type_vars(expr, use_mod)
+    return _ffi_api.free_type_vars(expr, use_mod)
 
 
 def bound_type_vars(expr, mod=None):
@@ -197,7 +197,7 @@ def bound_type_vars(expr, mod=None):
         The list of bound type variables in post-DFS order
     """
     use_mod = mod if mod is not None else IRModule()
-    return _analysis.bound_type_vars(expr, use_mod)
+    return _ffi_api.bound_type_vars(expr, use_mod)
 
 
 def all_type_vars(expr, mod=None):
@@ -217,7 +217,7 @@ def all_type_vars(expr, mod=None):
         The list of all type variables in post-DFS order
     """
     use_mod = mod if mod is not None else IRModule()
-    return _analysis.all_type_vars(expr, use_mod)
+    return _ffi_api.all_type_vars(expr, use_mod)
 
 
 def alpha_equal(lhs, rhs):
@@ -236,7 +236,7 @@ def alpha_equal(lhs, rhs):
     result : bool
         True iff lhs is alpha equal to rhs.
     """
-    return bool(_analysis._alpha_equal(lhs, rhs))
+    return bool(_ffi_api._alpha_equal(lhs, rhs))
 
 
 def assert_alpha_equal(lhs, rhs):
@@ -250,7 +250,7 @@ def assert_alpha_equal(lhs, rhs):
     rhs : tvm.relay.Expr
         One of the input Expression.
     """
-    _analysis._assert_alpha_equal(lhs, rhs)
+    _ffi_api._assert_alpha_equal(lhs, rhs)
 
 
 def graph_equal(lhs, rhs):
@@ -272,7 +272,7 @@ def graph_equal(lhs, rhs):
     result : bool
       True iff lhs is data-flow equivalent to rhs.
     """
-    return bool(_analysis._graph_equal(lhs, rhs))
+    return bool(_ffi_api._graph_equal(lhs, rhs))
 
 
 def assert_graph_equal(lhs, rhs):
@@ -289,7 +289,7 @@ def assert_graph_equal(lhs, rhs):
     rhs : tvm.relay.Expr
       One of the input Expression.
     """
-    _analysis._assert_graph_equal(lhs, rhs)
+    _ffi_api._assert_graph_equal(lhs, rhs)
 
 
 def collect_device_info(expr):
@@ -303,10 +303,10 @@ def collect_device_info(expr):
 
     Returns
     -------
-    ret : Dict[tvm.relay.expr, int]
+    ret : Dict[tvm.relay.ir.expr, int]
         A dictionary mapping tvm.relay.Expr to device type.
     """
-    return _analysis.CollectDeviceInfo(expr)
+    return _ffi_api.CollectDeviceInfo(expr)
 
 
 def collect_device_annotation_ops(expr):
@@ -319,11 +319,11 @@ def collect_device_annotation_ops(expr):
 
     Returns
     -------
-    ret : Dict[tvm.relay.expr, int]
+    ret : Dict[tvm.relay.Expr, int]
         A dictionary mapping tvm.relay.Expr to device type where the keys are
         annotation expressions.
     """
-    return _analysis.CollectDeviceAnnotationOps(expr)
+    return _ffi_api.CollectDeviceAnnotationOps(expr)
 
 
 def get_total_mac_number(expr):
@@ -340,7 +340,7 @@ def get_total_mac_number(expr):
     result : int64
       The number of MACs (multiply-accumulate) of a model
     """
-    return _analysis.GetTotalMacNumber(expr)
+    return _ffi_api.GetTotalMacNumber(expr)
 
 
 def unmatched_cases(match, mod=None):
@@ -360,7 +360,7 @@ def unmatched_cases(match, mod=None):
     missing_patterns : [tvm.relay.Pattern]
         Patterns that the match expression does not catch.
     """
-    return _analysis.unmatched_cases(match, mod)
+    return _ffi_api.unmatched_cases(match, mod)
 
 
 def detect_feature(a, b=None):
@@ -383,7 +383,7 @@ def detect_feature(a, b=None):
     """
     if isinstance(a, IRModule):
         a, b = b, a
-    return {Feature(int(x)) for x in _analysis.detect_feature(a, b)}
+    return {Feature(int(x)) for x in _ffi_api.detect_feature(a, b)}
 
 
 def structural_hash(value):
@@ -400,9 +400,9 @@ def structural_hash(value):
       The hash value
     """
     if isinstance(value, RelayExpr):
-        return int(_analysis._expr_hash(value))
+        return int(_ffi_api._expr_hash(value))
     elif isinstance(value, Type):
-        return int(_analysis._type_hash(value))
+        return int(_ffi_api._type_hash(value))
     else:
         msg = ("found value of type {0} expected" +
                "relay.Expr or relay.Type").format(type(value))
@@ -421,10 +421,10 @@ def extract_fused_functions(mod):
 
     Returns
     -------
-    ret : Dict[int, tvm.relay.expr.Function]
+    ret : Dict[int, tvm.relay.ir.expr.Function]
         A module containing only fused primitive functions
     """
-    ret_mod = _analysis.ExtractFusedFunctions()(mod)
+    ret_mod = _ffi_api.ExtractFusedFunctions()(mod)
     ret = {}
     for hash_, func in ret_mod.functions.items():
         ret[hash_] = func

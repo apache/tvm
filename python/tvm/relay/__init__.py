@@ -19,35 +19,37 @@
 import os
 from sys import setrecursionlimit
 
-from . import call_graph
 from . import base
 from . import ty
 from . import expr
 from . import type_functor
 from . import expr_functor
 from . import adt
-from . import analysis
+from . import prelude
+from . import loops
+from . import scope_builder
+from . import parser
+
 from . import transform
+from . import analysis
+from .analysis import alpha_equal
 from .build_module import build, create_executor, optimize
 from .transform import build_config
-from . import prelude
-from . import parser
 from . import debug
 from . import param_dict
-from . import feature
 from .backend import vm
 
 # Root operators
 from .op import Op
+from .op import nn
+from .op import image
+from .op import annotation
+from .op import vision
+from .op import contrib
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
 from .op.algorithm import *
-from . import nn
-from . import annotation
-from . import vision
-from . import contrib
-from . import image
 from . import frontend
 from . import backend
 from . import quantize
@@ -55,15 +57,12 @@ from . import quantize
 # Dialects
 from . import qnn
 
-from .scope_builder import ScopeBuilder
-# Load Memory pass
-from . import memory_alloc
-
 # Required to traverse large programs
 setrecursionlimit(10000)
 
 # Span
 Span = base.Span
+SourceName = base.SourceName
 
 # Type
 Type = ty.Type
@@ -98,6 +97,7 @@ RefRead = expr.RefRead
 RefWrite = expr.RefWrite
 
 # ADT
+Pattern = adt.Pattern
 PatternWildcard = adt.PatternWildcard
 PatternVar = adt.PatternVar
 PatternConstructor = adt.PatternConstructor
@@ -111,9 +111,6 @@ Match = adt.Match
 var = expr.var
 const = expr.const
 bind = expr.bind
-module_pass = transform.module_pass
-function_pass = transform.function_pass
-alpha_equal = analysis.alpha_equal
 
 # TypeFunctor
 TypeFunctor = type_functor.TypeFunctor
@@ -124,6 +121,15 @@ TypeMutator = type_functor.TypeMutator
 ExprFunctor = expr_functor.ExprFunctor
 ExprVisitor = expr_functor.ExprVisitor
 ExprMutator = expr_functor.ExprMutator
+
+# Prelude
+Prelude = prelude.Prelude
+
+# Scope builder
+ScopeBuilder = scope_builder.ScopeBuilder
+
+module_pass = transform.module_pass
+function_pass = transform.function_pass
 
 # Parser
 fromtext = parser.fromtext
@@ -139,9 +145,3 @@ Pass = transform.Pass
 ModulePass = transform.ModulePass
 FunctionPass = transform.FunctionPass
 Sequential = transform.Sequential
-
-# Feature
-Feature = feature.Feature
-
-# CallGraph
-CallGraph = call_graph.CallGraph

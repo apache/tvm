@@ -14,7 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""FFI exposing the Relay type inference and checking."""
-import tvm._ffi
+# pylint: disable=wildcard-import, redefined-builtin, invalid-name
+""" Utility functions that are used across many directories. """
+from __future__ import absolute_import
+import numpy as np
+from .. import expr as _expr
 
-tvm._ffi._init_api("relay._transform", __name__)
+def get_scalar_from_constant(expr):
+    """ Returns scalar value from Relay constant scalar. """
+    assert isinstance(expr, _expr.Constant) and not expr.data.shape, \
+            "Expr is not a constant scalar."
+    value = expr.data.asnumpy()
+    if value.dtype == np.dtype(np.int32):
+        return int(value)
+    if value.dtype == np.dtype(np.float32):
+        return float(value)
+    assert False, "Constant expr must be float32/int32"
+    return None  # To suppress pylint

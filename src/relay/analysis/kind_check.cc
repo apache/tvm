@@ -186,7 +186,7 @@ Kind KindCheck(const Type& t, const IRModule& mod) {
   return kc.Check(t);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.check_kind")
+TVM_REGISTER_GLOBAL("relay.analysis.check_kind")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     if (args.size() == 1) {
       *ret = KindCheck(args[0], IRModule({}, {}));

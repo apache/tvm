@@ -20,10 +20,10 @@ from tvm.ir import Type, TypeKind, TypeVar, GlobalTypeVar
 from tvm.ir import TypeConstraint, FuncType, TupleType, IncompleteType
 from tvm.ir import TypeCall, TypeRelation, TensorType, RelayRefType as RefType
 
-from .base import RelayNode, register_relay_node
-from . import _make
+from .base import RelayNode
+from . import _ffi_api
 
-Any = _make.Any
+Any = _ffi_api.Any
 
 def type_has_any(tensor_type):
     """Check whether type has any as a shape.
@@ -36,7 +36,7 @@ def type_has_any(tensor_type):
     has_any : bool
         The check result.
     """
-    return _make.IsDynamic(tensor_type)
+    return _ffi_api.IsDynamic(tensor_type)
 
 
 def ShapeVar(name):
