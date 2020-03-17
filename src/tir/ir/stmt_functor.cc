@@ -130,6 +130,7 @@ Stmt IRTransform(Stmt ir_node,
 }
 
 void StmtVisitor::VisitStmt_(const LetStmtNode* op) {
+  this->VisitExpr(op->var);
   this->VisitExpr(op->value);
   this->VisitStmt(op->body);
 }
@@ -140,6 +141,7 @@ void StmtVisitor::VisitStmt_(const AttrStmtNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const ForNode* op) {
+  this->VisitExpr(op->loop_var);
   this->VisitExpr(op->min);
   this->VisitExpr(op->extent);
   this->VisitStmt(op->body);
@@ -147,6 +149,7 @@ void StmtVisitor::VisitStmt_(const ForNode* op) {
 
 void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
+  this->VisitExpr(op->buffer_var);
   this->VisitStmt(op->body);
   this->VisitExpr(op->condition);
   if (op->new_expr.defined()) {
@@ -155,6 +158,7 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
+  this->VisitExpr(op->buffer_var);
   this->VisitExpr(op->value);
   this->VisitExpr(op->index);
   this->VisitExpr(op->predicate);
@@ -253,13 +257,16 @@ Stmt StmtMutator::VisitStmt_(const AttrStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
+  PrimExpr var = this->VisitExpr(op->var);
   PrimExpr value = this->VisitExpr(op->value);
   Stmt body = this->VisitStmt(op->body);
-  if (value.same_as(op->value) &&
+  if (var.same_as(op->var) &&
+      value.same_as(op->value) &&
       body.same_as(op->body)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->var = Downcast<Var>(var);
     n->value = std::move(value);
     n->body = std::move(body);
     return Stmt(n);
@@ -267,15 +274,18 @@ Stmt StmtMutator::VisitStmt_(const LetStmtNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const ForNode* op) {
+  PrimExpr loop_var = this->VisitExpr(op->loop_var);
   PrimExpr min = this->VisitExpr(op->min);
   PrimExpr extent = this->VisitExpr(op->extent);
   Stmt body = this->VisitStmt(op->body);
-  if (min.same_as(op->min) &&
+  if (loop_var.same_as(op->loop_var) &&
+      min.same_as(op->min) &&
       extent.same_as(op->extent) &&
       body.same_as(op->body)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->loop_var = Downcast<Var>(loop_var);
     n->min = std::move(min);
     n->extent = std::move(extent);
     n->body = std::move(body);
@@ -284,6 +294,7 @@ Stmt StmtMutator::VisitStmt_(const ForNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
+  PrimExpr buffer_var = this->VisitExpr(op->buffer_var);
   Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
   Stmt body = this->VisitStmt(op->body);
   PrimExpr condition = this->VisitExpr(op->condition);
@@ -291,13 +302,15 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   if (op->new_expr.defined()) {
     new_expr = this->VisitExpr(op->new_expr);
   }
-  if (extents.same_as(op->extents) &&
+  if (buffer_var.same_as(op->buffer_var) &&
+      extents.same_as(op->extents) &&
       body.same_as(op->body) &&
       condition.same_as(op->condition) &&
       new_expr.same_as(op->new_expr)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->buffer_var = Downcast<Var>(buffer_var);
     n->extents = std::move(extents);
     n->body = std::move(body);
     n->condition = std::move(condition);
@@ -327,15 +340,18 @@ Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
+  PrimExpr buffer_var = this->VisitExpr(op->buffer_var);
   PrimExpr value = this->VisitExpr(op->value);
   PrimExpr index = this->VisitExpr(op->index);
   PrimExpr predicate = this->VisitExpr(op->predicate);
-  if (value.same_as(op->value) &&
+  if (buffer_var.same_as(op->buffer_var) &&
+      value.same_as(op->value) &&
       index.same_as(op->index) &&
       predicate.same_as(op->predicate)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->buffer_var = Downcast<Var>(buffer_var);
     n->value = std::move(value);
     n->index = std::move(index);
     n->predicate = std::move(predicate);

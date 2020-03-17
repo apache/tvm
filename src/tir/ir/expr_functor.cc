@@ -37,6 +37,7 @@ void ExprVisitor::VisitExpr_(const LoadNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const LetNode* op) {
+  this->VisitExpr(op->var);
   this->VisitExpr(op->value);
   this->VisitExpr(op->body);
 }
@@ -119,23 +120,28 @@ PrimExpr ExprMutator::VisitExpr_(const SizeVarNode* op) {
 }
 
 PrimExpr ExprMutator::VisitExpr_(const LoadNode* op) {
+  PrimExpr buffer_var = this->VisitExpr(op->buffer_var);
   PrimExpr index = this->VisitExpr(op->index);
   PrimExpr predicate = this->VisitExpr(op->predicate);
-  if (index.same_as(op->index) && predicate.same_as(op->predicate)) {
+  if (buffer_var.same_as(op->buffer_var) &&
+      index.same_as(op->index) &&
+      predicate.same_as(op->predicate)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return LoadNode::make(op->dtype, op->buffer_var, index, predicate);
+    return LoadNode::make(op->dtype, Downcast<Var>(buffer_var), index, predicate);
   }
 }
 
 PrimExpr ExprMutator::VisitExpr_(const LetNode* op) {
+  PrimExpr var = this->VisitExpr(op->var);
   PrimExpr value = this->VisitExpr(op->value);
   PrimExpr body = this->VisitExpr(op->body);
-  if (value.same_as(op->value) &&
+  if (var.same_as(op->var) &&
+      value.same_as(op->value) &&
       body.same_as(op->body)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return LetNode::make(op->var, value, body);
+    return LetNode::make(Downcast<Var>(var), value, body);
   }
 }
 

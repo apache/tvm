@@ -20,7 +20,7 @@ from tvm import te
 def test_simplify():
   tdiv = tvm.tir.truncdiv
   tmod = tvm.tir.truncmod
-  x = te.var('x')
+  x = te.var("x")
   e1 = tvm.tir.ir_pass.Simplify(x + 2 + 1)
   assert(tvm.tir.ir_pass.Equal(e1, x + 3))
   e2 = tvm.tir.ir_pass.Simplify(x * 3 + 5 * x)
@@ -30,14 +30,14 @@ def test_simplify():
 
 
 def test_verify_ssa():
-    x = te.var('x')
+    x = te.var("x")
     y = te.var()
     z = tvm.tir.Evaluate(x + y)
     assert(tvm.tir.ir_pass.VerifySSA(z))
 
 
 def test_convert_ssa():
-    x = te.var('x')
+    x = te.var("x")
     y = te.var()
     let1 = tvm.tir.Let(x, 1, x + 1)
     let2 = tvm.tir.Let(x, 1, x + y)
@@ -48,10 +48,19 @@ def test_convert_ssa():
 
 
 def test_expr_use_var():
-    x = te.var('x')
+    x = te.var("x")
     assert(tvm.tir.ir_pass.ExprUseVar(x+1, x))
     assert(not tvm.tir.ir_pass.ExprUseVar(1+10, x))
 
 
+def test_expr_substitute():
+    x = te.var("x")
+    y = te.var("y")
+    let1 = tvm.tir.LetStmt(x, 1, tvm.tir.Evaluate(x + 1))
+    let2 = tvm.tir.ir_pass.Substitute(let1, {x: y})
+    assert let2.var.same_as(y)
+
+
 if __name__ == "__main__":
     test_expr_use_var()
+    test_expr_substitute()
