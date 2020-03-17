@@ -58,6 +58,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     analyzer_.Bind(op->loop_var,
                    Range::make_by_min_extent(op->min, op->extent));
     vset_.insert(op->loop_var.as<Object>());
+    vextent_[op->loop_var.as<Object>()] = op->extent.dtype();
     return StmtExprVisitor::VisitStmt_(op);
   }
 
@@ -69,6 +70,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
       analyzer_.Bind(iv->var,
                       Range::make_by_min_extent(0, op->value));
       vset_.insert(iv->var.as<Object>());
+      vextent_[iv->var.as<Object>()] = op->value.dtype();
       StmtExprVisitor::VisitStmt_(op);
     } else {
       StmtExprVisitor::VisitStmt_(op);
@@ -80,6 +82,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
     for (const IterVar& iv : op->axis) {
       analyzer_.Bind(iv->var, iv->dom);
       vset_.insert(iv->var.as<Object>());
+      vextent_[iv->var.as<Object>()] = iv->dom->extent.dtype();
     }
     // Recursively call simplification when necessary.
     StmtExprVisitor::VisitExpr_(op);
@@ -87,10 +90,11 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
   void VisitExpr_(const VarNode* op) {
     if (vset_.find(op) != vset_.end()) {
+      int bits = std::min(vextent_[op].bits(), bits_);
       if (vmap.find(op) == vmap.end()) {
-        vmap[op] = op->dtype.with_bits(bits_);
+        vmap[op] = op->dtype.with_bits(bits);
       } else {
-        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits_));
+        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits));
       }
     }
     StmtExprVisitor::VisitExpr_(op);
@@ -120,7 +124,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
   int bits_;
   // the vars to be rewritten
   std::unordered_set<const Object*> vset_;
-  friend class DataTypeRewriter;
+  // the extent of vars to be rewritten
+  std::unordered_map<const Object*, DataType> vextent_;
 };
 
 class DataTypeRewriter : public StmtExprMutator {
