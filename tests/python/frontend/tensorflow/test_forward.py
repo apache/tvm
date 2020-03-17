@@ -42,8 +42,6 @@ from tvm import te
 from tvm import relay
 import tvm.relay.testing.tf as tf_testing
 from packaging import version as package_version
-from tensorflow.python.framework import dtypes
-
 
 #######################################################################
 # Generic run functions for TVM & tensorflow
@@ -3084,7 +3082,6 @@ def test_forward_dilation():
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
 
 
-# #######################################################################
 #######################################################################
 # infinity ops
 # ------------
