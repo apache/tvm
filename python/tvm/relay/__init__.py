@@ -32,7 +32,7 @@ from . import parser
 
 from . import transform
 from . import analysis
-from .analysis import call_graph, feature, alpha_equal
+from .analysis import alpha_equal
 from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import debug
@@ -43,25 +43,19 @@ from .backend import vm
 from .op import Op
 from .op import nn
 from .op import image
-from .op import vision
 from .op import annotation
+from .op import vision
+from .op import contrib
 from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
 from .op.algorithm import *
-from .op.nn import *
-from .op.vision import *
-from .op.contrib import *
-from .op.image import *
 from . import frontend
 from . import backend
 from . import quantize
 
 # Dialects
 from . import qnn
-
-# Load Memory pass
-from .transform import memory_alloc
 
 # Required to traverse large programs
 setrecursionlimit(10000)
@@ -151,9 +145,3 @@ Pass = transform.Pass
 ModulePass = transform.ModulePass
 FunctionPass = transform.FunctionPass
 Sequential = transform.Sequential
-
-# Feature
-Feature = feature.Feature
-
-# CallGraph
-CallGraph = call_graph.CallGraph

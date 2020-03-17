@@ -24,3 +24,5 @@ from . import call_graph
 
 # Feature
 from . import feature
+
+CallGraph = call_graph.CallGraph

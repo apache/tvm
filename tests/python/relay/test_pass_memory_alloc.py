@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 import numpy as np
 from tvm import relay
-from tvm.relay import memory_alloc
+from tvm.relay.transform import memory_alloc
 
 def check_vm_alloc(func, check_fn):
     mod = tvm.IRModule()
