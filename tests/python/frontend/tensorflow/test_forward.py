@@ -3037,7 +3037,51 @@ def test_forward_add_n():
     _test_forward_add_n(in5)
 
 
-#######################################################################
+def _test_dilation2d(tensor_in_sizes, filter_in_sizes,
+                     strides, dilations, padding):
+    """ One iteration of dilation2d with given shapes and attributes """
+
+    total_size_1 = np.prod(tensor_in_sizes)
+    total_size_2 = np.prod(filter_in_sizes)
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        in_filter = constant_op.constant(
+            filter_array, shape=filter_in_sizes, dtype='float32')
+
+        nn_ops.dilation2d(in_data,
+                          in_filter,
+                          strides=strides,
+                          rates=dilations,
+                          padding=padding)
+
+        compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                            'Placeholder:0', 'Dilation2D:0', no_gpu=True)
+
+
+def test_forward_dilation():
+    _test_dilation2d([1, 18, 18, 32], [4, 4, 32], [1, 1, 1, 1], [1, 2, 1, 1], "VALID")
+    _test_dilation2d([1, 15, 15, 32], [4, 4, 32], [1, 1, 1, 1], [1, 2, 1, 1], "SAME")
+    _test_dilation2d([1, 5, 5, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 1, 1], "VALID")
+    _test_dilation2d([1, 5, 5, 1], [3, 3, 1], [1, 1, 1, 1], [1, 2, 2, 1], "VALID")
+    _test_dilation2d([1, 5, 5, 3], [3, 3, 3], [1, 1, 1, 1], [1, 1, 1, 1], "SAME")
+    _test_dilation2d([1, 28, 28, 3], [5, 5, 3], [1, 2, 2, 1], [1, 1, 1, 1], "VALID")
+    _test_dilation2d([1, 224, 224, 10], [8, 8, 10], [1, 1, 1, 1], [1, 1, 1, 1], "VALID")
+    _test_dilation2d([1, 18, 18, 32], [4, 4, 32], [1, 1, 1, 1], [1, 2, 1, 1], "SAME")
+    _test_dilation2d([1, 15, 15, 32], [4, 4, 32], [1, 1, 1, 1], [1, 2, 1, 1], "VALID")
+    _test_dilation2d([1, 5, 5, 1], [7, 2, 1], [1, 3, 1, 1], [1, 1, 1, 1], "SAME")
+    _test_dilation2d([1, 5, 5, 1], [3, 4, 1], [1, 2, 1, 1], [1, 2, 2, 1], "SAME")
+    _test_dilation2d([1, 5, 5, 3], [3, 3, 3], [1, 1, 4, 1], [1, 1, 1, 1], "VALID")
+    _test_dilation2d([1, 28, 28, 3], [5, 6, 3], [1, 1, 2, 1], [1, 1, 1, 1], "SAME")
+    _test_dilation2d([1, 224, 224, 10], [8, 8, 10], [1, 3, 1, 1], [1, 1, 1, 1], "SAME")
+    _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 2, 2, 1], "SAME")
+    _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
+
+# #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -3131,6 +3175,7 @@ if __name__ == '__main__':
     test_forward_l2_normalize()
     test_forward_space_to_batch_nd()
     test_forward_batch_to_space_nd()
+    test_forward_dilation()
 
     # End to End
     test_forward_inception_v3()
