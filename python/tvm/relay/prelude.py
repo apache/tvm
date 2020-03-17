@@ -19,7 +19,8 @@
 from tvm.ir import IRModule
 
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
-from .expr import Var, Function, GlobalVar, If, const
+from .expr import Var, GlobalVar, If, const
+from .function import Function
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard

@@ -21,6 +21,7 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from ... import nd as _nd
 from .common import AttrCvt, Renamer
@@ -451,7 +452,7 @@ class Caffe2NetDef(object):
         else:
             outputs = out[0]
 
-        func = _expr.Function(analysis.free_vars(outputs), outputs)
+        func = _function.Function(analysis.free_vars(outputs), outputs)
         self._mod["main"] = func
 
         return self._mod, self._params
@@ -517,7 +518,7 @@ class Caffe2NetDef(object):
         ----------
         op_type : str
             Operator name, such as Convolution, FullyConnected
-        inputs : list of tvm.relay.expr.Function
+        inputs : list of tvm.relay.function.Function
             List of input inputs.
         args : dict
             Dict of operator attributes
@@ -530,7 +531,7 @@ class Caffe2NetDef(object):
 
         Returns
         -------
-        func : tvm.relay.expr.Function
+        func : tvm.relay.function.Function
             Converted relay function
         """
         identity_list = identity_list if identity_list else _identity_list
