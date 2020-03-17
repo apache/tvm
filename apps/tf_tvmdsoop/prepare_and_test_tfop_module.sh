@@ -23,11 +23,14 @@ export PYTHONPATH=${TVM_ROOT}/python
 
 python3 -c "import tvm; print(tvm.runtime.enabled('gpu'))" | grep -e 1
 if [ "$?" -eq 0 ]; then 
-    echo "Build TF_TVMDSOOP with gpu support"
+    echo "Build TF_TVMDSOOP with gpu support and execute tests"
     CMAKE_OPTIONS="-DUSE_CUDA=ON -DTVM_ROOT=${TVM_ROOT}"
-else
-    CMAKE_OPTIONS="-DUSE_CUDA=OFF -DTVM_ROOT=${TVM_ROOT}"
-fi
+ 
+    mkdir -p build
+    pushd build
+    cmake .. ${CMAKE_OPTIONS} && make
+    popd
 
-mkdir -p build; cd build; cmake .. ${CMAKE_OPTIONS}; make
+    LD_LIBRARY_PATH=./build:$LD_LIBRARY_PATH python3 -m pytest -v ./tests
+fi
 

@@ -55,10 +55,9 @@ TVM_FFI=ctypes python3 -m pytest -v apps/dso_plugin_module
 
 # Test TensorFlow TVMDSOOP
 cd apps/tf_tvmdsoop
-sh prepare_tfop_module.sh
+TVM_FFI=cython sh prepare_and_test_tfop_module.sh
+TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 cd ../..
-LD_LIBRARY_PATH=apps/tf_tvmdsoop/build:$LD_LIBRARY_PATH \
-  python3 -m pytest -v apps/tf_tvmdsoop/tests
 
 TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
 TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
