@@ -1450,7 +1450,9 @@ class NonZero(OnnxOpConverter):
     def _impl_v9(cls, inputs, attr, params):
         if len(inputs) > 1:
             raise ValueError("Expect 1 input only")
-        return AttrCvt(op_name='argwhere')(inputs, attr, params)
+
+        output = AttrCvt(op_name='argwhere')(inputs, attr, params)
+        return _op.transpose(output, axes=(1, 0))
 
 
 # compatible operators that do NOT require any conversion.
