@@ -20,13 +20,13 @@
 Relay Operator Strategy
 =======================
 
-In order to lower Relay operators to implementation defined in TOPI library, the
-compute and schedule functions need to be registered to Relay operators.
-However, compute and schedule functions are usually specialized for each target,
-and further, even for the same target, we may have multiple algorithms and
-implementations available. To deal with the complexity, we introduce operator
-strategy to allow developers to define a flexible lowering strategy for each
-operator and target.
+In order to lower Relay operators to the implementations defined in TOPI
+library, a compute and schedule function need to be registered to each Relay
+operator.  However, compute and schedule functions are usually specialized for
+each target, and further, even for the same target, we may have multiple
+algorithms and implementations available. To deal with the complexity, we
+introduce operator strategy to allow developers to define a flexible lowering
+strategy for each operator and target.
 
 
 Operator Strategy Design
@@ -34,19 +34,15 @@ Operator Strategy Design
 
 The basic element in operator strategy is an ``OpImplementation``. It includes
 the a pair of compute and schedule function, the name of the implementation,
-and a priority level (the usability of priority level will be explained below).
+and a priority level (the use of priority level is explained in
+`Select Implementation from Op Strategy`_).
 
-The ``OpStrategy`` includes a list of specializations. Each specialization
+The ``OpStrategy`` includes a list of ``OpSpecialization``. Each ``OpSpecialization``
 contains a list of ``OpImplementation`` associated with a specialized condition
 (see ``SpecializedCondition`` definition in ``include/tvm/te/schedule.h``).  The
 specialized condition can be null, indicating the implementations are generally
 applicable; otherwise, the implementations should only be used when the
-specialized condition is satisfied. ``OpStrategy`` provides only one API,
-adding an implementation to the strategy:
-
-.. code:: python
-
-    def add_implementation(self, compute, schedule, name="default", plevel=10)
+specialized condition is satisfied.
 
 Last, a ``FTVMStrategy`` function is registered to each Relay operator.
 ``FTVMStrategy`` is a generic function (see ``include/tvm/target/generic_func.h``),
@@ -56,12 +52,12 @@ that can be overwritten for each target. The function signature is
 
     OpStrategy(const Attrs& attrs, const Array<Tensor>& inputs, const Type& out_type, const Target& target)
 
-, that the function returns an ``OpStrategy`` given the op attributes, input
-tensors, output types, and target to compile to,
+that the function returns an ``OpStrategy`` given the op attributes, input
+tensors, output types, and target to compile to.
 
 
 
-Register strategy for a new operator
+Register Strategy for A New Operator
 ------------------------------------
 
 There are three methods to register a strategy function for an operator,
@@ -71,8 +67,8 @@ First, for operators that have injective, broadcast, or reduction pattern, we
 can call ``register_injective_schedule``, ``register_broadcast_schedule``, and
 ``register_reduce_schedule`` repsectively. The schedule function for these
 patterns are already registered by each target and can be applied to these
-operators. We assume the compute function should be same across all targets, and
-``FTVMCompute`` needs to be registered to the op before invoking register
+operators. We assume the compute function should be the same across all targets,
+and ``FTVMCompute`` needs to be registered to the op before invoking register
 schedule.
 
 .. code:: python
@@ -81,7 +77,7 @@ schedule.
 
 Second, for operators that doesn't have these common patterns mentioned before,
 but also have the same compute function for all targets, we can use
-``register_schedule`` API. But before that, we need to first define the
+``register_schedule`` API. Before that, we need to first define the
 ``FTVMSchedule`` function as follows:
 
 .. code:: python
@@ -104,8 +100,15 @@ register the strategy using ``register_schedule``:
     register_schedule("my_new_op", strategy.schedule_my_new_op)
 
 Third, for most comprehensive usage of op strategy, we can allow operator to use
-different implementation for both compute and schedule for different targets.
-Similarly, we need to first define the ``FTVMStrategy`` function as follows:
+different implementations for both compute and schedule for different targets.
+In python, ``OpStrategy`` provides only one API, adding an implementation to the
+strategy:
+
+.. code:: python
+
+    def add_implementation(self, compute, schedule, name="default", plevel=10)
+
+Now let's define the ``FTVMStrategy`` function as follows:
 
 .. code:: python
 
@@ -132,15 +135,15 @@ Similarly, we need to first define the ``FTVMStrategy`` function as follows:
 In this example, we use two wrapper function that wrap the topi compute and
 schedule function to conform with the required function signature. Usually we
 need to write a customized compute wrap function to retrieve different fields
-from op attributes. After that, we can then register this strategy to the new
-operator by
+from op attributes. After that, we can register this strategy to the new
+operator with
 
 .. code:: python
 
     register_strategy("my_new_op", strategy.my_new_op_strategy)
 
 
-Advanced strategy function
+Advanced Strategy Function
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The example above only shows the very basic strategy function.
@@ -165,10 +168,10 @@ same operator:
             plevel=15)
 
 In this example, we add two implementations to the op strategy where
-implementation 2 is added with certain condition. ``my_implementation2`` will be
+implementation 2 is added with a certain condition. ``my_implementation2`` will be
 used to compile this operator when ``some_condition`` is true as it has higher
 priority level (this could be changed if certain implementation is an AutoTVM
-template. See `Select implementation from op strategy`_ for more
+template. See `Select Implementation from Op Strategy`_ for more
 details). Otherwise, ``my_implementation1`` is used.
 
 We can extend the example above to third party library implementation. For
@@ -191,7 +194,7 @@ that is specialized for ``m`` greater than 16. The main difference between
 hardcode python condition like examples above and specialized condition is that
 it allows TVM to generate multiple kernels when the input tensors have symbolic
 shapes. The compile engine will generate a dispatch function that invokes the
-specialized kernel first when the corresponding condition is met; otherwise,
+specialized kernel when the corresponding condition is met; otherwise,
 invoke the kernel that has no associated specialized condition (``dense_common``
 in this example). This part is still work in progress. More details will be
 provided after it is done.
@@ -216,7 +219,7 @@ provided after it is done.
         return strategy
 
 
-Register strategy for a new target
+Register Strategy for A New Target
 ----------------------------------
 
 There are two ways to register strategies for a new target. The more
@@ -236,7 +239,7 @@ so. You can find more examples in ``vta/python/vta/top/op.py``.
         ...
 
 
-Select implementation from op strategy
+Select Implementation from Op Strategy
 --------------------------------------
 
 During the compilation, Relay compile engine needs to determine which
