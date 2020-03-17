@@ -57,8 +57,8 @@ tensors, output types, and target to compile to.
 
 
 
-Register Strategy for A New Operator
-------------------------------------
+Register Strategy for An Operator
+---------------------------------
 
 There are three methods to register a strategy function for an operator,
 defined in ``python/tvm/relay/op/op.py``.
@@ -73,7 +73,7 @@ schedule.
 
 .. code:: python
 
-    register_injective_schedule("my_new_op")
+    register_broadcast_schedule("add")
 
 Second, for operators that doesn't have these common patterns mentioned before,
 but also have the same compute function for all targets, we can use
@@ -84,12 +84,12 @@ but also have the same compute function for all targets, we can use
 
     # add to python/tvm/relay/op/strategy/generic.py
     @generic_func
-    def schedule_my_new_op(attrs, outs, target):
+    def schedule_pool(attrs, outs, target):
         ...
 
     # add to each target file in python/tvm/relay/op/strategy, e.g., x86.py, cuda.py, etc.
-    @schedule_my_new_op.register("cpu")
-    def schedule_my_new_op_cpu(attrs, outs, target):
+    @schedule_pool.register("cpu")
+    def schedule_pool_cpu(attrs, outs, target):
         ...
 
 Now that we've created the ``FTVMSchedule`` for this new operator, we can
@@ -97,7 +97,7 @@ register the strategy using ``register_schedule``:
 
 .. code:: python
 
-    register_schedule("my_new_op", strategy.schedule_my_new_op)
+    register_schedule("nn.max_pool2d", strategy.schedule_pool)
 
 Third, for most comprehensive usage of op strategy, we can allow operator to use
 different implementations for both compute and schedule for different targets.
@@ -113,26 +113,26 @@ Now let's define the ``FTVMStrategy`` function as follows:
 .. code:: python
 
     # add to python/tvm/relay/op/strategy/generic.py
-    @override_native_generic_func("my_new_op_strategy")
-    def my_new_op_strategy(attrs, inputs, out_type, target):
+    @override_native_generic_func("topk_strategy")
+    def topk_strategy(attrs, inputs, out_type, target):
         strategy = _op.OpStrategy()
         strategy.add_implementation(
-            wrap_compute_my_new_op(topi.my_new_op),
-            wrap_topi_schedule(topi.generic.schedule_my_new_op),
-            name="my_new_op.generic")
+            wrap_compute_topk(topi.topk),
+            wrap_topi_schedule(topi.generic.schedule_topk),
+            name="topk.generic")
         return strategy
 
     # add to each target file in python/tvm/relay/op/strategy, e.g., x86.py, cuda.py, etc.
-    @my_new_op_strategy.register("cpu")
-    def my_new_op_strategy_cpu(attrs, inputs, out_type, target):
+    @dense_strategy.register(["cuda", "gpu"])
+    def topk_strategy_cuda(attrs, inputs, out_type, target):
         strategy = _op.OpStrategy()
         strategy.add_implementation(
-            wrap_compute_my_new_op(topi.x86.my_new_op),
-            wrap_topi_schedule(topi.x86.schedule_my_new_op),
-            name="my_new_op.generic")
+            wrap_compute_my_new_op(topi.cuda.topk),
+            wrap_topi_schedule(topi.cuda.schedule_topk),
+            name="topk.cuda")
         return strategy
 
-In this example, we use two wrapper function that wrap the topi compute and
+In this example, we use two wrapper functions that wrap the topi compute and
 schedule function to conform with the required function signature. Usually we
 need to write a customized compute wrap function to retrieve different fields
 from op attributes. After that, we can register this strategy to the new
@@ -140,7 +140,7 @@ operator with
 
 .. code:: python
 
-    register_strategy("my_new_op", strategy.my_new_op_strategy)
+    register_strategy("topk", strategy.topk_strategy)
 
 
 Advanced Strategy Function
@@ -155,37 +155,38 @@ same operator:
 .. code:: python
 
     strategy.add_implementation(
-        wrap_compute_my_op(my_op_compute1),
-        wrap_topi_schedule(my_op_schedule1),
-        name="my_implementation1",
+        wrap_compute_conv2d(topi.cuda.conv2d_nchw),
+        wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw),
+        name="conv2d_nchw.cuda",
         plevel=10)
 
-    if some_condition:
+    if winograd_condition:
         strategy.add_implementation(
-            wrap_compute_my_op(my_op_compute2),
-            wrap_topi_schedule(my_op_schedule2),
-            name="my_implementation2",
+            wrap_compute_conv2d(topi.cuda.conv2d_nchw_winograd),
+            wrap_topi_schedule(topi.cuda.schedule_conv2d_nchw_winograd),
+            name="conv2d_nchw_winograd.cuda",
             plevel=15)
 
-In this example, we add two implementations to the op strategy where
-implementation 2 is added with a certain condition. ``my_implementation2`` will be
-used to compile this operator when ``some_condition`` is true as it has higher
+In this example, we add two implementations to the conv2d strategy where
+winograd algorithm is only added when ``winograd_condition`` is true.
+The implementation ``"conv2d_nchw_winograd.cuda"`` will be used to compile
+conv2d when ``winograd_condition`` is true as it has higher
 priority level (this could be changed if certain implementation is an AutoTVM
 template. See `Select Implementation from Op Strategy`_ for more
-details). Otherwise, ``my_implementation1`` is used.
+details). Otherwise, ``"conv2d_nchw.cuda"`` is used.
 
 We can extend the example above to third party library implementation. For
-example, we can add the implementation that invokes kernel in the third party
-library when the library is included in the target.
+example, we can add the implementation that invokes kernel in the cblas
+library when cblas is included in the target.
 
 .. code:: python
 
-    if "some_lib" in target.libs:
+    if "cblas" in target.libs:
         strategy.add_implementation(
-            wrap_compute_my_op(my_op_compute_lib),
-            wrap_topi_schedule(my_op_schedule_lib),
-            name="my_implementation_lib",
-            plevel=20)
+            wrap_compute_dense(topi.x86.dense_cblas),
+            wrap_topi_schedule(topi.x86.schedule_dense_cblas),
+            name="dense_cblas.x86",
+            plevel=15)
 
 
 Further, we can add implementation specialized for a certain range of shapes.
@@ -257,3 +258,11 @@ The selection policy for ops with symbolic input shapes is still work in
 progess. Currently, if any input tensor has a symbolic shape, only the
 implementation with highest priority level will be used for this operator. This
 will be updated after the implemention finishes.
+
+For debug purpose, you can add the following lines before you compile the Relay
+model to learn which implementation is used for each operator.
+
+.. code:: python
+
+    logging.getLogger("compile_engine").setLevel(logging.INFO)
+    logging.getLogger("compile_engine").addHandler(logging.StreamHandler(sys.stdout))
