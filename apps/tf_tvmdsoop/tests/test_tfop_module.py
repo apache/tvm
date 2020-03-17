@@ -23,16 +23,17 @@ import logging
 import tensorflow as tf
 import numpy as np
 import tvm
+from tvm import te
 from tvm.contrib import tf_op
 
 
 def export_cpu_add_lib():
     """create cpu add op lib"""
-    n = tvm.var("n")
-    ph_a = tvm.placeholder((n,), name='ph_a')
-    ph_b = tvm.placeholder((n,), name='ph_b')
-    ph_c = tvm.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
-    sched = tvm.create_schedule(ph_c.op)
+    n = te.var("n")
+    ph_a = te.placeholder((n,), name='ph_a')
+    ph_b = te.placeholder((n,), name='ph_b')
+    ph_c = te.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
+    sched = te.create_schedule(ph_c.op)
     fadd_dylib = tvm.build(sched, [ph_a, ph_b, ph_c], "c", name="vector_add")
     lib_path = tempfile.mktemp("tvm_add_dll.so")
     fadd_dylib.export_library(lib_path)
@@ -41,14 +42,14 @@ def export_cpu_add_lib():
 
 def export_gpu_add_lib():
     """create gpu add op lib"""
-    n = tvm.var("n")
-    ph_a = tvm.placeholder((n,), name='ph_a')
-    ph_b = tvm.placeholder((n,), name='ph_b')
-    ph_c = tvm.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
-    sched = tvm.create_schedule(ph_c.op)
+    n = te.var("n")
+    ph_a = te.placeholder((n,), name='ph_a')
+    ph_b = te.placeholder((n,), name='ph_b')
+    ph_c = te.compute(ph_a.shape, lambda i: ph_a[i] + ph_b[i], name='ph_c')
+    sched = te.create_schedule(ph_c.op)
     b_axis, t_axis = sched[ph_c].split(ph_c.op.axis[0], factor=64)
-    sched[ph_c].bind(b_axis, tvm.thread_axis("blockIdx.x"))
-    sched[ph_c].bind(t_axis, tvm.thread_axis("threadIdx.x"))
+    sched[ph_c].bind(b_axis, te.thread_axis("blockIdx.x"))
+    sched[ph_c].bind(t_axis, te.thread_axis("threadIdx.x"))
     fadd_dylib = tvm.build(sched, [ph_a, ph_b, ph_c], "cuda", name="vector_add")
     lib_path = tempfile.mktemp("tvm_add_cuda_dll.so")
     fadd_dylib.export_library(lib_path)
@@ -105,10 +106,10 @@ def gpu_test(session):
 def main():
     """main test function"""
     with tf.Session() as session:
-        if tvm.module.enabled("cpu"):
+        if tvm.runtime.enabled("cpu"):
             logging.info("Test TensorFlow op on cpu kernel")
             cpu_test(session)
-        if tvm.module.enabled("gpu"):
+        if tvm.runtime.enabled("gpu"):
             logging.info("Test TensorFlow op on gpu kernel")
             gpu_test(session)
 

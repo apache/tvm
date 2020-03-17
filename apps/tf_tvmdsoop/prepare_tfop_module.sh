@@ -21,8 +21,8 @@ echo "TVM_ROOT=${TVM_ROOT}"
 
 export PYTHONPATH=${TVM_ROOT}/python
 
-python -c "import tvm; print(tvm.module.enabled('gpu'))" | grep -e 1
-if [[ $? -eq 0 ]]; then 
+python3 -c "import tvm; print(tvm.runtime.enabled('gpu'))" | grep -e 1
+if [ "$?" -eq 0 ]; then 
     echo "Build TF_TVMDSOOP with gpu support"
     CMAKE_OPTIONS="-DUSE_CUDA=ON -DTVM_ROOT=${TVM_ROOT}"
 else
