@@ -18,9 +18,9 @@
 """Call graph used in Relay."""
 
 from tvm.ir import IRModule
-from .base import Object
-from .expr import GlobalVar
-from . import _analysis
+from tvm.runtime import Object
+from ..expr import GlobalVar
+from . import _ffi_api
 
 
 class CallGraph(Object):
@@ -39,7 +39,7 @@ class CallGraph(Object):
         call_graph: CallGraph
             A constructed call graph.
         """
-        self.__init_handle_by_constructor__(_analysis.CallGraph, module)
+        self.__init_handle_by_constructor__(_ffi_api.CallGraph, module)
 
     @property
     def module(self):
@@ -54,7 +54,7 @@ class CallGraph(Object):
         ret : tvm.ir.IRModule
             The contained IRModule
         """
-        return _analysis.GetModule(self)
+        return _ffi_api.GetModule(self)
 
     def ref_count(self, var):
         """Return the number of references to the global var
@@ -69,7 +69,7 @@ class CallGraph(Object):
             The number reference to the global var
         """
         var = self._get_global_var(var)
-        return _analysis.GetRefCountGlobalVar(self, var)
+        return _ffi_api.GetRefCountGlobalVar(self, var)
 
     def global_call_count(self, var):
         """Return the number of global function calls from a given global var.
@@ -84,7 +84,7 @@ class CallGraph(Object):
             The number of global function calls from the given var.
         """
         var = self._get_global_var(var)
-        return _analysis.GetGlobalVarCallCount(self, var)
+        return _ffi_api.GetGlobalVarCallCount(self, var)
 
     def is_recursive(self, var):
         """Return if the function corresponding to a var is a recursive
@@ -100,7 +100,7 @@ class CallGraph(Object):
             If the function corresponding to var is recurisve.
         """
         var = self._get_global_var(var)
-        return _analysis.IsRecursive(self, var)
+        return _ffi_api.IsRecursive(self, var)
 
     def _get_global_var(self, var):
         """Return the global var using a given name or GlobalVar.
@@ -137,8 +137,8 @@ class CallGraph(Object):
             The call graph represented in string.
         """
         var = self._get_global_var(var)
-        return _analysis.PrintCallGraphGlobalVar(self, var)
+        return _ffi_api.PrintCallGraphGlobalVar(self, var)
 
     def __str__(self):
         """Print the call graph in the topological order."""
-        return _analysis.PrintCallGraph(self)
+        return _ffi_api.PrintCallGraph(self)

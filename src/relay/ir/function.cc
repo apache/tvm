@@ -62,7 +62,7 @@ bool FunctionNode::UseDefaultCompiler() const {
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-TVM_REGISTER_GLOBAL("relay._make.Function")
+TVM_REGISTER_GLOBAL("relay.ir.Function")
 .set_body_typed([](tvm::Array<Var> params,
                    Expr body,
                    Type ret_type,
@@ -80,7 +80,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
             << node->attrs << ")";
 });
 
-TVM_REGISTER_GLOBAL("relay._expr.FunctionWithAttr")
+TVM_REGISTER_GLOBAL("relay.ir.FunctionWithAttr")
 .set_body_typed(
     [](Function func, std::string name, ObjectRef ref) {
       return WithAttr(std::move(func), name, ref);

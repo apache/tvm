@@ -18,9 +18,8 @@
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.analysis import detect_feature
+from tvm.relay.analysis import detect_feature, Feature
 from tvm.relay.transform import gradient
-from tvm.relay.feature import Feature
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import run_infer_type
 

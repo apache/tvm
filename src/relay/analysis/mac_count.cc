@@ -206,7 +206,7 @@ int64_t GetTotalMacNumber(const Expr& expr) {
   return MacCounter::GetTotalMacNumber(expr);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.GetTotalMacNumber")
+TVM_REGISTER_GLOBAL("relay.analysis.GetTotalMacNumber")
 .set_body_typed(GetTotalMacNumber);
 
 }  // namespace mac_count

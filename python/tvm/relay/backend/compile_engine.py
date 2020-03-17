@@ -22,7 +22,7 @@ import logging
 import numpy as np
 import tvm
 from tvm import te
-from ..base import register_relay_node, Object
+from tvm.runtime import Object
 from ... import target as _target
 from ... import autotvm
 from .. import expr as _expr
@@ -33,7 +33,7 @@ from . import _backend
 logger = logging.getLogger('compile_engine')
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.LoweredOutput")
 class LoweredOutput(Object):
     """Lowered output"""
     def __init__(self, outputs, implement):
@@ -41,7 +41,7 @@ class LoweredOutput(Object):
             _backend._make_LoweredOutput, outputs, implement)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.CCacheKey")
 class CCacheKey(Object):
     """Key in the CompileEngine.
 
@@ -58,7 +58,7 @@ class CCacheKey(Object):
             _backend._make_CCacheKey, source_func, target)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.CCacheValue")
 class CCacheValue(Object):
     """Value in the CompileEngine, including usage statistics.
     """
@@ -261,7 +261,7 @@ def lower_call(call, inputs, target):
     return LoweredOutput(outputs, best_impl)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.CompileEngine")
 class CompileEngine(Object):
     """CompileEngine to get lowered code.
     """

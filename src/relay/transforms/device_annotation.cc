@@ -560,10 +560,10 @@ Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceInfo")
+TVM_REGISTER_GLOBAL("relay.analysis.CollectDeviceInfo")
 .set_body_typed(CollectDeviceInfo);
 
-TVM_REGISTER_GLOBAL("relay._analysis.CollectDeviceAnnotationOps")
+TVM_REGISTER_GLOBAL("relay.analysis.CollectDeviceAnnotationOps")
 .set_body_typed(CollectDeviceAnnotationOps);
 
 namespace transform {
