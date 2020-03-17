@@ -108,6 +108,76 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
         check_device(device)
 
 
+def verify_conv2d_nchw_int8(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False):
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (kernel, kernel))
+    padding_sum = pad_top + pad_left + pad_bottom + pad_right
+    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+
+    in_height = in_width = in_size
+
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='int8')
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W', dtype='int8')
+    bias = te.placeholder((num_filter, 1, 1), name='bias', dtype='int8')
+
+    a_shape = get_const_tuple(A.shape)
+    w_shape = get_const_tuple(W.shape)
+    bias_shape = get_const_tuple(bias.shape)
+    dtype = A.dtype
+
+    @memoize("topi.tests.test_topi_conv2d_int8.verify_conv2d_nchw")
+    def get_ref_data():
+        a_np = np.random.randint(low=-128, high=127, size=a_shape).astype(dtype)
+        w_np = np.random.randint(low=-128, high=128, size=w_shape).astype(dtype)
+        b_np = np.random.uniform(size=bias_shape).astype(dtype)
+        dw_np = topi.testing.dilate_python(w_np, (1, 1, dilation, dilation))
+        c_np = topi.testing.conv2d_nchw_python(a_np, dw_np, stride, padding).astype(dtype)
+
+        if add_bias:
+            b_np = np.random.uniform(size=bias_shape).astype(dtype)
+            c_np += b_np
+        if add_relu:
+            c_np = np.maximum(c_np, 0)
+
+        return a_np, w_np, b_np, c_np
+
+    a_np, w_np, b_np, c_np = get_ref_data()
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
+            print("Skip because int8 intrinsics are not available")
+            return
+
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            C = topi.cuda.conv2d_nchw_int8(A, W, (stride, stride), padding, (dilation, dilation),
+                                           dtype)
+            if add_bias:
+                C = topi.add(C, bias)
+            if add_relu:
+                C = topi.nn.relu(C)
+            s = topi.cuda.schedule_conv2d_nchw_int8([C])
+
+        a = tvm.nd.array(a_np, ctx)
+        w = tvm.nd.array(w_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
+        if add_bias:
+            tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func(a, w, b, c)
+        else:
+            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func(a, w, c)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+
+    for device in ["cuda"]:
+        check_device(device)
+
+
 def test_conv2d_nchw():
     with Int8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor
@@ -203,6 +273,17 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(1,  64,    8,  64,  5, 2, (1, 3), add_bias=True)
         verify_conv2d_NCHWc_int8(1,  64,   56,  64,  3, 1, "VALID", add_bias=True, add_relu=True)
         verify_conv2d_NCHWc_int8(1,  64,   56,  64, 24, 1, "SAME", add_bias=True, add_relu=True)
+
+        # Conv2d NCHW int8 schedule testing. Internally, it uses NCHWc schedule. So, just
+        # performing basic testing - one test for all different scenarios - batch, dilation etc..
+        verify_conv2d_nchw_int8(1,  64,  56,  64, 3, 1, 1)
+        verify_conv2d_nchw_int8(1, 64, 56, 64, 3, 1, 1, add_relu=True)
+        verify_conv2d_nchw_int8(1, 64, 56, 64, 3, 1, 1, dilation=2)
+        verify_conv2d_nchw_int8(9, 64, 56, 64, 3, 1, 1)
+        verify_conv2d_nchw_int8(4, 4, 4, 4, 4, 4, 4)
+        verify_conv2d_nchw_int8(1,   32, 149,  32, 3, 1, 0)
+        verify_conv2d_nchw_int8(7,   32, 149,  32, 3, 1, 0)
+        verify_conv2d_nchw_int8(1,  32,   35,  64,  7, 2, (0, 0, 1, 1))
 
 
 if __name__ == "__main__":

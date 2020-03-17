@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/adt.cc
+ * \file src/ir/adt.cc
  * \brief AST nodes for Relay algebraic data types (ADTs).
  */
 #include <tvm/relay/type.h>

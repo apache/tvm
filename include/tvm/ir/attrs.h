@@ -143,8 +143,13 @@ class AttrsEqualHandler;
 class AttrsEqual {
  public:
   bool operator()(const double& lhs, const double& rhs) const {
-    return lhs == rhs;
+    // fuzzy float pt comparison
+    constexpr double atol = 1e-9;
+    if (lhs == rhs) return true;
+    double diff = lhs - rhs;
+    return diff > -atol && diff < atol;
   }
+
   bool operator()(const int64_t& lhs, const int64_t& rhs) const {
     return lhs == rhs;
   }
@@ -277,26 +282,13 @@ class BaseAttrsNode : public Object {
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
 
-/*! \brief Base attribute container for all attributes */
+/*!
+ * \brief Managed reference to BaseAttrsNode.
+ * \sa AttrsNode, BaseAttrsNode
+ */
 class Attrs : public ObjectRef {
  public:
-  // normal constructor
-  Attrs() {}
-  // construct from shared ptr.
-  explicit Attrs(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  /*! \return The attribute node */
-  const BaseAttrsNode* operator->() const {
-    return ptr();
-  }
-  /*! \brief specify container node */
-  using ContainerType = BaseAttrsNode;
-
- private:
-  /*! \return the internal attribute node */
-  const BaseAttrsNode* ptr() const {
-    return static_cast<const BaseAttrsNode*>(get());
-  }
+  TVM_DEFINE_OBJECT_REF_METHODS(Attrs, ObjectRef, BaseAttrsNode);
 };
 
 /*!
@@ -309,12 +301,7 @@ class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
   Map<std::string, ObjectRef> dict;
-  /*!
-   * \brief Consruct a Attrs backed by DictAttrsNode.
-   * \param dict The attributes.
-   * \return The dict attributes.
-   */
-  TVM_DLL static Attrs make(Map<std::string, ObjectRef> dict);
+
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
@@ -327,6 +314,23 @@ class DictAttrsNode : public BaseAttrsNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
 };
 
+/*!
+ * \brief Managed reference to DictAttrsNode
+ * \sa DictAttrsNode.
+ */
+class DictAttrs : public Attrs {
+ public:
+  /*!
+   * \brief Consruct a Attrs backed by DictAttrsNode.
+   * \param dict The attributes.
+   * \return The dict attributes.
+   */
+  TVM_DLL explicit DictAttrs(Map<std::string, ObjectRef> dict);
+
+
+  TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
+};
 
 // Namespace containing detail implementations
 namespace detail {

@@ -303,11 +303,11 @@ def test_extern_ccompiler_default_ops():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
-        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Compiler",
+        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Compiler",
                                   tvm.tir.StringImm("ccompiler"))
-        func = func.set_attribute("ExternalSymbol",
+        func = func.with_attr("ExternalSymbol",
                                   tvm.tir.StringImm("ccompiler_0"))
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
@@ -318,7 +318,7 @@ def test_extern_ccompiler_default_ops():
         exp = relay.exp(p0)
         concat = relay.concatenate([log, exp], axis=0)
         fused_func = relay.Function([p0], concat)
-        fused_func = fused_func.set_attribute("Primitive",
+        fused_func = fused_func.with_attr("Primitive",
                                               tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
@@ -390,10 +390,10 @@ def test_extern_dnnl():
         out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
         func = relay.Function([data0, input0, input1], out)
-        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Compiler", tvm.tir.StringImm("dnnl"))
-        func = func.set_attribute("ExternalSymbol",
+        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Compiler", tvm.tir.StringImm("dnnl"))
+        func = func.with_attr("ExternalSymbol",
                                   tvm.tir.StringImm("dnnl_0"))
         glb_var = relay.GlobalVar("dnnl_0")
         mod = tvm.IRModule()
@@ -516,11 +516,11 @@ def test_function_lifting():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Compiler",
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func0 = func0.set_attribute("ExternalSymbol",
+        func0 = func0.with_attr("ExternalSymbol",
                                     tvm.tir.StringImm("test_compiler_0"))
         gv0 = relay.GlobalVar("test_compiler_0")
         mod[gv0] = func0
@@ -535,11 +535,11 @@ def test_function_lifting():
             channels=16,
             padding=(1, 1))
         func1 = relay.Function([data1, weight1], conv)
-        func1 = func1.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func1 = func1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func1 = func1.set_attribute("Compiler",
+        func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func1 = func1.set_attribute("ExternalSymbol",
+        func1 = func1.with_attr("ExternalSymbol",
                                     tvm.tir.StringImm("test_compiler_1"))
         gv1 = relay.GlobalVar("test_compiler_1")
         mod[gv1] = func1
@@ -609,11 +609,11 @@ def test_function_lifting_inline():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Compiler",
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func0 = func0.set_attribute("ExternalSymbol",
+        func0 = func0.with_attr("ExternalSymbol",
                                     tvm.tir.StringImm("test_compiler_0"))
 
         # main function

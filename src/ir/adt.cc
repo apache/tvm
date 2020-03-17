@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/adt.cc
+ * \file src/ir/adt.cc
  * \brief ADT type definitions.
  */
 #include <tvm/relay/type.h>

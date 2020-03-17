@@ -151,7 +151,7 @@ class StatsCollector : private ExprMutator {
     const FunctionNode* func = new_e.as<FunctionNode>();
     CHECK(func) << "Input shoule be Function";
     Expr new_body = TupleNode::make(std::move(profile_data_));
-    return FunctionNode::make(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
+    return Function(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
             func->attrs);
   }
 

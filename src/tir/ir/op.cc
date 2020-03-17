@@ -32,6 +32,18 @@ namespace tvm {
 
 using namespace tir;
 
+
+Type GetType(const PrimExpr& expr) {
+  runtime::DataType dtype = expr.dtype();
+  // These types already implies the specific type.
+  if (dtype.is_int() || dtype.is_uint() || dtype.is_float()) {
+    return PrimType(dtype);
+  }
+  // TODO(tqchen): add recursive type inference for Var and Call here
+  // once we introduced the corresponding fields to the IR.
+  return PrimType(dtype);
+}
+
 // simple cast that only checks if type matches and cast
 inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
   if (value.dtype() == t) return value;
@@ -635,6 +647,9 @@ PrimExpr fmod(PrimExpr x, PrimExpr y) {
 }
 
 PrimExpr floor(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value));
@@ -642,6 +657,9 @@ PrimExpr floor(PrimExpr x) {
 }
 
 PrimExpr ceil(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value));
@@ -649,6 +667,9 @@ PrimExpr ceil(PrimExpr x) {
 }
 
 PrimExpr round(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
@@ -656,6 +677,9 @@ PrimExpr round(PrimExpr x) {
 }
 
 PrimExpr nearbyint(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
@@ -663,6 +687,9 @@ PrimExpr nearbyint(PrimExpr x) {
 }
 
 PrimExpr trunc(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) {

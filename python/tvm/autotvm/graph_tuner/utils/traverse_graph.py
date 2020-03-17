@@ -26,7 +26,7 @@ from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
 
 from .utils import has_multiple_inputs, is_boundary_node, is_skipped_node
-
+from .._base import OPT_OUT_OP
 
 def expr2graph(expr, target_ops, node_dict, node_list):
     """Convert relay expr to graph data structure
@@ -204,7 +204,8 @@ def get_direct_ancestor(node_list, visited_dict, target_ops, node_idx, input_nam
     node_direct_ancestor = []
     for item_idx in node["inputs"]:
         item = node_list[item_idx[0]]
-        is_multiple_inputs = has_multiple_inputs(node_list, item_idx[0], input_names)
+        is_multiple_inputs = has_multiple_inputs(node_list, item_idx[0], \
+                input_names, OPT_OUT_OP)
         if item["op"] in target_ops or is_multiple_inputs:
             node_direct_ancestor.append(item_idx[0])
         else:
@@ -245,7 +246,8 @@ def get_in_nodes(node_list, target_ops, input_names):
         get_direct_ancestor(node_list, visited_dict, target_ops, i, input_names)
     for key, val in visited_dict.items():
         node = node_list[key]
-        is_multiple_inputs = has_multiple_inputs(node_list, key, input_names)
+        is_multiple_inputs = has_multiple_inputs(node_list, key, \
+                input_names, OPT_OUT_OP)
         if node["op"] in target_ops or is_multiple_inputs:
             in_node_dict[key] = val
 

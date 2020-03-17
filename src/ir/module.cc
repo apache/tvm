@@ -138,7 +138,7 @@ relay::Function RunTypeCheck(const IRModule& mod,
         << std::endl;
   }
   func =
-      relay::FunctionNode::make(concat(func->params, fv),
+      relay::Function(concat(func->params, fv),
                                 func->body,
                                 func->ret_type,
                                 concat(func->type_params, ftv),
@@ -296,7 +296,7 @@ IRModule IRModule::FromExpr(
   if (auto* func_node = expr.as<relay::FunctionNode>()) {
     func = GetRef<relay::Function>(func_node);
   } else {
-    func = relay::FunctionNode::make(
+    func = relay::Function(
         relay::FreeVars(expr), expr, Type(),
         relay::FreeTypeVars(expr, mod), {});
   }
@@ -363,7 +363,7 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
     auto func = mod_copy->Lookup(gv->name_hint);
     mod->Add(var, Downcast<relay::Function>(func), update);
   } else {
-    auto func = relay::FunctionNode::make({}, Downcast<RelayExpr>(val), Type(nullptr), {});
+    auto func = relay::Function({}, Downcast<RelayExpr>(val), Type(nullptr), {});
     mod->Add(var, func, update);
   }
   *ret = mod;

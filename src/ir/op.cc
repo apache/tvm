@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/op.cc
+ * \file src/ir/op.cc
  * \brief Primitive operators and intrinsics.
  */
 #include <tvm/ir/op.h>

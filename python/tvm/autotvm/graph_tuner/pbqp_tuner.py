@@ -249,7 +249,7 @@ class PBQPTuner(BaseGraphTuner):
         for key, val in self._in_nodes_dict.items():
             target_input_idx = -1
             target_input_pos = -1
-            if has_multiple_inputs(self._node_list, key, input_names):
+            if has_multiple_inputs(self._node_list, key, input_names, self._opt_out_op):
                 for i, item in enumerate(val):
                     node = self._node_list[item]
                     if not is_boundary_node(node, input_names):

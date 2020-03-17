@@ -54,33 +54,6 @@ def test_make_node():
     assert AA.value_index == A.value_index
 
 
-def test_make_attrs():
-    try:
-        x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
-        assert False
-    except tvm.error.TVMError as e:
-        assert str(e).find("unknown_key") != -1
-
-    try:
-        x = tvm.ir.make_node("attrs.TestAttrs", axis=100, name="xx")
-        assert False
-    except tvm.error.TVMError as e:
-        assert str(e).find("upper bound") != -1
-
-    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4))
-    assert x.name == "xx"
-    assert x.padding[0].value == 3
-    assert x.padding[1].value == 4
-    assert x.axis == 10
-
-
-    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
-    assert dattr.x.value == 1
-    datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
-    assert dattr.name.value == "xyz"
-
-
-
 def test_make_sum():
     A = te.placeholder((2, 10), name='A')
     k = te.reduce_axis((0,10), "k")

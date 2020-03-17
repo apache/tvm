@@ -310,7 +310,7 @@ def register_vta_tuning_tasks():
     # init autotvm env to register VTA operator
     TaskExtractEnv()
 
-    @autotvm.register_customized_task("conv2d_packed.vta")
+    @autotvm.template("conv2d_packed.vta")
     def _topi_nn_conv2d(*args, **kwargs):
         assert not kwargs, "Do not support kwargs in template function call"
         A, W = args[:2]

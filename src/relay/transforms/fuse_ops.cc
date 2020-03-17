@@ -852,7 +852,7 @@ class FuseMutator : private ExprMutator {
 
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
-    if (fn_node->IsPrimitive()) {
+    if (fn_node->HasNonzeroAttr(attr::kPrimitive)) {
       return GetRef<Expr>(fn_node);
     } else {
       return ExprMutator::VisitExpr_(fn_node);
@@ -932,8 +932,8 @@ class FuseMutator : private ExprMutator {
     } visitor;
     visitor(body);
     const GroupInfo& ginfo = ginfo_[group];
-    auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
-    func = FunctionSetAttr(func, attr::kPrimitive, tvm::Integer(visitor.has_call));
+    auto func = Function(ginfo.params, body, ret_type, {});
+    func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
     return CallNode::make(func, ginfo.arguments, Attrs());
   }
 

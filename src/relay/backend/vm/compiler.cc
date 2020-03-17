@@ -442,7 +442,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK(func->IsPrimitive())
+    CHECK_NE(func->GetAttr<Integer>(attr::kPrimitive, 0)->value, 0)
       << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
@@ -650,7 +650,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const FunctionNode* func_node) {
-    if (!func_node->IsPrimitive()) {
+    if (!func_node->HasNonzeroAttr(attr::kPrimitive)) {
       LOG(FATAL) << "local functions should have been removed by lambda lifting:" << std::endl
                  << "Program: " << AsText(GetRef<Function>(func_node), false) << std::endl
                  << "AST: " << GetRef<Function>(func_node);

@@ -26,6 +26,7 @@
 
 #include <tvm/ir/type.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/adt.h>
 
 #include <string>
@@ -225,7 +226,7 @@ class IRModuleNode : public Object {
    */
   TVM_DLL std::unordered_set<std::string> Imports() const;
 
-  static constexpr const char* _type_key = "relay.Module";
+  static constexpr const char* _type_key = "IRModule";
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
 
  private:
