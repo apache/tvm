@@ -38,11 +38,13 @@ and a priority level (the use of priority level is explained in
 `Select Implementation from Op Strategy`_).
 
 The ``OpStrategy`` includes a list of ``OpSpecialization``. Each ``OpSpecialization``
-contains a list of ``OpImplementation`` associated with a specialized condition
-(see ``SpecializedCondition`` definition in ``include/tvm/te/schedule.h``).  The
-specialized condition can be null, indicating the implementations are generally
-applicable; otherwise, the implementations should only be used when the
-specialized condition is satisfied.
+contains a list of ``OpImplementation`` associated with a ``SpecializedCondition``
+(see definition in ``include/tvm/te/schedule.h``).  The ``SpecializedCondition``
+can be null, indicating the implementations are generally applicable;
+otherwise, the implementations are only considered when the specialized
+condition is satisfied. ``SpecializedCondition`` consists of a list
+of clauses defined in Tensor Expression in conjunctive normal form (CNF) and
+only supports conditions on tensor shapes.
 
 Last, a ``FTVMStrategy`` function is registered to each Relay operator.
 ``FTVMStrategy`` is a generic function (see ``include/tvm/target/generic_func.h``),
