@@ -558,8 +558,9 @@ void PassUpBoundCheck(const Stage& s,
 
 bool IsRangeSame(const Range input_1, const Range input_2) {
   arith::Analyzer analyzer;
-  if(input_1.same_as(input_2)) return true;
-  if ( !analyzer.CanProve(input_1->min == input_2->min) || !analyzer.CanProve(input_1->extent == input_2->extent)) {
+  if (input_1.same_as(input_2)) return true;
+  if ( !analyzer.CanProve(input_1->min == input_2->min)
+        || !analyzer.CanProve(input_1->extent == input_2->extent)) {
     return false;
   }
   return true;
