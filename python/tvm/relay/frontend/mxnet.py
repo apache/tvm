@@ -122,7 +122,7 @@ def _mx_compare(new_op, wrapper):
 def _mx_unravel_index(inputs, attrs):
     assert len(inputs) == 1
     shape = attrs.get_int_tuple("shape")
-    shape_expr =_expr.const(list(shape), dtype="int32")
+    shape_expr = _expr.const(list(shape))
     return _op.unravel_index(inputs[0], shape_expr)
 
 

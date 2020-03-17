@@ -684,41 +684,41 @@ def test_gather_nd():
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 
-def test_unravel_index_infer_type():
-    n, t, d1, d2 = 10, 20, 100, 20
-    x = relay.var("x", relay.TensorType((n, t, d1, d2), "float32"))
-    y = relay.unravel_index(x, shape=(n, t, 2000))
-    assert "shape=" in y.astext()
-    yy = run_infer_type(y)
-    assert yy.checked_type == relay.TensorType(
-        (n, t, 2000), "float32")
-
-
 def test_unravel_index():
-
-    def verify_unravel_index(size, shape):
-        x = relay.var("x", relay.TensorType(size, "int64"))
-        y = relay.var("y", relay.TensorType(shape, "int64"))
+    def verify_unravel_index(indices, shape, dtype):
+        x_data = np.array(indices).astype(dtype)
+        y_data = np.array(shape).astype(dtype)
+        x = relay.var("x", relay.TensorType(x_data.shape, dtype))
+        y = relay.var("y", relay.TensorType(y_data.shape, dtype))
 
         z = relay.unravel_index(x, y)
         zz = run_infer_type(z)
-        assert zz.checked_type == relay.ty.TensorType([2,5], "int64")
+
+        if len(x_data.shape) == 1:
+            out_shape = [y_data.shape[0], x_data.shape[0]]
+        else:
+            out_shape = [y_data.shape[0]]
+        assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
 
         func = relay.Function([x, y], z)
-        x_data = np.random.uniform(low=1, high=size[0]-1, size=size).astype("int64")
-        x_data = np.array([7, 7, 6, 6, 6])
-        y_data = np.array([3, 3])
-        print(x_data)
-        ref_res = np.unravel_index(x_data, [3, 3])
+        ref_res = np.unravel_index(x_data, y_data)
         for target, ctx in ctx_list():
-            for kind in ["graph"]:
+            for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data, y_data)
-                print("\n")
-                print(op_res)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
-    verify_unravel_index((5,), (2,))
+    for dtype in ["int64", "int32"]:
+        verify_unravel_index([0, 1, 2, 3], [2, 2], dtype)
+        verify_unravel_index([144], [5, 5, 5, 2], dtype)
+        verify_unravel_index(144, [5, 5, 5, 2], dtype)
+        verify_unravel_index([100, 13, 5], [5, 5, 5, 2], dtype)
+
+        # In below example, 5 is out of bound for array of size 4.
+        # Numpy implementation throws error for it
+        # TVM implementation does not throw error instead it produces
+        # output which is inline with Tensorflow
+        # verify_unravel_index([0, 1, 2, 5], [2, 2], dtype)
 
 
 if __name__ == "__main__":
@@ -751,5 +751,4 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
-    test_unravel_index_infer_type()
     test_unravel_index()

@@ -298,6 +298,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.repeat
 .. autofunction:: tvm.relay.tile
 .. autofunction:: tvm.relay.reverse
+.. autofunction:: tvm.relay.unravel_index
 
 
 Level 4 Definitions

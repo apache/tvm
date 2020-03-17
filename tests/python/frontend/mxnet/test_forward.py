@@ -950,38 +950,29 @@ def test_forward_cond():
 
 
 def test_forward_unravel_index():
-    def get_tvm_output(symbol, x, args, auxs, target, ctx):
-        shape_dict = {"a": x.shape}
-        mod, params = relay.frontend.from_mxnet(symbol, shape_dict, dtype="int64")
-        with relay.build_config(opt_level=3):
-            graph, lib, params = relay.build(mod, target, params=params)
-        m = graph_runtime.create(graph, lib, ctx)
-        # set inputs
-        m.set_input("a", tvm.nd.array(x))
-        m.set_input(**params)
-        m.run()
-        # get outputs
-        out = m.get_output(0, tvm.nd.empty([3,5], "int64"))
-        return out.asnumpy()
+    def verify(x, shape, dtype):
+        a_np = np.array(x).astype(dtype)
+        mx_sym = _mx_symbol(mx.sym, 'unravel_index', [mx.sym.var('a'), shape])
+        ref_res = _mx_symbol(mx.nd, 'unravel_index', [mx.nd.array(a_np), shape])
+        shapes = {'a': a_np.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
 
-    # TODO - error out for indices value greater than shape max allowable value
-    #a_np = np.random.randint(0, 4, size=(5,)).astype('int64')
-    a_np=np.array([7,5,6,6,7])
-    mx_sym = _mx_symbol(mx.sym, 'unravel_index', [mx.sym.var('a'), [5, 4]])
-    ref_res = _mx_symbol(mx.nd, 'unravel_index', [mx.nd.array(a_np), [5, 4]])
-    print(ref_res)
-    shapes = {'a': (5,)}
-    mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, "int64")
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(a_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
 
+    for dtype in ["int32", "int64"]:
+        verify([0, 1, 2, 3], [2, 2], dtype)
+        verify([144, 13, 45], [6, 7, 10, 2], dtype)
+        verify([456], [6, 7, 10, 2], dtype)
 
-    for target, ctx in ctx_list():
-
-        for kind in ["graph"]:
-            intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
-            op_res = intrp.evaluate()(a_np)
-            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
-
-        #get_tvm_output(mx_sym, a_np, None, None, target, ctx)
+    # In below example, 5 is out of bound for array of size 4.
+    # MXNet implementation provides different result than TVM
+    # TVM implementation is inline with Tensorflow
+    # Ideally error should be thrown just like Numpy
+    # verify([0, 1, 2, 5], [2, 2], dtype)
 
 
 if __name__ == '__main__':

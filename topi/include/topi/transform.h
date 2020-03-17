@@ -233,48 +233,50 @@ inline Tensor reshape(const Tensor& x,
 }
 
 /*!
-* \brief Unravel Index a tensor
-*
-* \param x The input tensor
-* \param newshape The new shape
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is the reshape operation
-*/
+ * \brief Converts a flat index or array of flat indices into a tuple of coordinate arrays
+ *
+ * \param x The input tensor having indices.
+ * \param shape The shape tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor of coordinate arrays.
+ */
 
-inline Tensor unravel_index(const Tensor& x,
-                      const Tensor& shape,
-                      std::string name = "T_unravel",
-                      std::string tag = kInjective) {
-
-  std::cout << "in compute is ";
+inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string name = "T_unravel",
+                            std::string tag = kInjective) {
   auto x_shape = x->shape;
   auto shape_shape = shape->shape;
 
   Array<PrimExpr> oshape;
   oshape.push_back(shape_shape[0]);
-  oshape.push_back(x_shape[0]);
-  std::cout << "os shape is" << oshape;
-  // UnravelIndex(x(indices), shape_int32);
+  if (x_shape.size() != 0) {
+    oshape.push_back(x_shape[0]);
+  }
 
-  return compute(
-    oshape, [&](const Array<Var>& indices) {
-      auto i = indices[0];
-      auto j = indices[1];
-      auto index = x[j];
-      PrimExpr ret = 0;
-      std::vector<PrimExpr> indices_divs;
-      indices_divs.push_back(index);
-      for (int v = GetConstInt(shape_shape[0]) - 1; v >= 0; --v) {
-        ret = tvm::if_then_else(i == v, indexmod(indices_divs.back(), shape[v]), ret);
-        indices_divs.push_back(indexdiv(indices_divs.back(), shape[v]));
-      }
-      return ret;
-    }, name, tag);  
-    
+  return compute(oshape,
+                 [&](const Array<Var>& indices) {
+                   auto i = indices[0];
+                   std::vector<PrimExpr> indices_divs;
+                   PrimExpr ret = 0;
+                   PrimExpr cur_val = 0;
+                   PrimExpr index_val = 0;
+
+                   if (x_shape.size() != 0) {
+                     index_val = x[indices[1]];
+                   } else {
+                     index_val = x();
+                   }
+                   indices_divs.push_back(index_val);
+                   for (int v = GetConstInt(shape_shape[0]) - 1; v >= 0; --v) {
+                     ret = tvm::if_then_else(i == v, indexmod(indices_divs.back(), shape[v]), ret);
+                     cur_val = indexdiv(indices_divs.back(), shape[v]);
+                     indices_divs.push_back(cur_val);
+                   }
+                   return ret;
+                 },
+                 name, tag);
 }
-
 
 /*!
 * \brief Remove size 1 dimensions from the shape of a tensor.

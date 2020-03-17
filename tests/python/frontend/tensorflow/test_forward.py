@@ -2993,26 +2993,41 @@ def _test_forward_unravel_index(inputs):
             temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
         output = tf.unravel_index(temp[0], temp[1])
         compare_tf_with_tvm([each for each in inputs], [
-                            each.name for each in temp], output.name)
+            each.name for each in temp], output.name)
 
-def test_unravel_index():
+
+def _test_forward_unravel_index_scalar(x, y, dtype="int32"):
     tf.reset_default_graph()
-    dtype = "int32"
     with tf.Graph().as_default():
-        indices_1 = constant_op.constant([1621], dtype=dtype)
-        dims_1 = constant_op.constant([1, 2, 2, 2], dtype=dtype)
+        indices_1 = constant_op.constant(x, dtype=dtype)
+        dims_1 = constant_op.constant(y, dtype=dtype)
         out_1 = array_ops.unravel_index(indices_1, dims_1)
         compare_tf_with_tvm([], [], out_1.name)
 
 
 def test_forward_unravel_index():
-    x = np.random.randint(1, 100, size=(5,), dtype=np.int32)
-    y = np.random.randint(1, 10, size=(2,), dtype=np.int32)
-    #z = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+    x = np.array([0, 1, 2, 3])
+    y = np.array([2, 2])
+    _test_forward_unravel_index([x, y])
 
-    in1 = [x, y]
-    _test_forward_unravel_index(in1)
+    x = np.array([0, 1, 2, 5])
+    y = np.array([2, 2])
+    _test_forward_unravel_index([x, y])
 
+    x = np.array([0, 1, 2, 5])
+    y = np.array([2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([102, 300, 16])
+    y = np.array([10, 10, 9, 6])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([100])
+    y = np.array([10, 10, 9, 6])
+    _test_forward_unravel_index([x, y])
+
+    # Test scalar input
+    _test_forward_unravel_index_scalar(13, [1, 4, 5, 2])
 
 #######################################################################
 # Main
