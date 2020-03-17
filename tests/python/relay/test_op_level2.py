@@ -1219,6 +1219,113 @@ def test_depthwise_conv2d_int8():
                 graph, lib, params = relay.build(func, target, params=parameters)
 
 
+def test_dilation2d_infer_type():
+    # symbolic in batch dimension
+    n, h, w, c = te.var("n"), 224, 224, 10
+    x = relay.var("x", relay.ty.TensorType((n, c, h, w), "float32"))
+    kc, kh, kw = 10, 8, 8
+    w = relay.var("w", relay.ty.TensorType((kc, kw, kh), "float32"))
+    y = relay.nn.dilation2d(x, w,
+                            # kernel_size=(3, 3),
+                            strides=[1, 1, 1, 1],
+                            dilations=[1, 1, 1, 1],
+                            padding=[0, 0, 0, 0])
+    yy = run_infer_type(y)
+    assert yy.checked_type == relay.TensorType(
+        (n, 10, 217, 217), "float32")
+
+
+def test_dilation2d_run():
+    def run_test_dilation2d(indata, kernel, out,
+                            dtype='float32',
+                            strides=[1, 1],
+                            padding=[0, 0],
+                            dilations=[1, 1],
+                            except_targets=['cuda'],
+                            **attrs):
+
+        dshape = indata.shape
+        kshape = kernel.shape
+
+        if except_targets is None:
+            except_targets = []
+
+        x = relay.var("x", shape=dshape, dtype=dtype)
+        w = relay.var("w", shape=kshape, dtype=dtype)
+        y = relay.nn.dilation2d(x, w,
+                                strides=strides,
+                                dilations=dilations,
+                                padding=padding,
+                                **attrs)
+        func = relay.Function([x, w], y)
+
+        for target, ctx in ctx_list():
+            if target in except_targets:
+                continue
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(indata, kernel)
+            tvm.testing.assert_allclose(op_res.asnumpy(), out, rtol=1e-5, atol=1e-5)
+
+    def _convert_data(indata, kernel, out, layout=None):
+        indata = np.asarray(indata)
+        kernel = np.asarray(kernel)
+        out = np.asarray(out)
+        if layout == 'NCHW':
+            indata = indata.transpose([0, 3, 1, 2])
+            kernel = kernel.transpose([2, 0, 1])
+            out = out.transpose([0, 3, 1, 2])
+        return indata, kernel, out
+
+    image = [[[[.1], [.2]], [[.3], [.4]]]]
+    kernel = [[[.4], [.3]], [[.1], [.0]]]
+    out = [[[[.5]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'))
+    run_test_dilation2d(*_convert_data(image, kernel, out), data_layout='NHWC', kernel_layout='HWI')
+
+    image = [[[[.1], [.2]], [[.3], [.4]]]]
+    kernel = [[[.4], [.3]], [[.1], [.0]]]
+    out = [[[[.5], [.6]], [[.7], [.8]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), padding=[0, 0, 1, 1])
+    run_test_dilation2d(*_convert_data(image, kernel, out), padding=[0, 0, 1, 1],
+                        data_layout='NHWC', kernel_layout='HWI')
+
+    image = [[[[.1, .2, .0], [.2, .3, .1]], [[.3, .4, .2], [.4, .5, .3]]]]
+    kernel = [[[.4, .5, .3], [.3, .4, .2]], [[.1, .2, .0], [.0, .1, -.1]]]
+    out = [[[[.5, .7, .3], [.6, .8, .4]], [[.7, .9, .5], [.8, 1., .6]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), padding=[0, 0, 1, 1])
+    run_test_dilation2d(*_convert_data(image, kernel, out), padding=[0, 0, 1, 1],
+                        data_layout='NHWC', kernel_layout='HWI')
+
+    image = [[[[.1], [.2]], [[.3], [.4]]], [[[.2], [.3]], [[.4], [.5]]]]
+    kernel = [[[.4], [.3]], [[.1], [.0]]]
+    out = [[[[.5], [.6]], [[.7], [.8]]], [[[.6], [.7]], [[.8], [.9]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), padding=[0, 0, 1, 1])
+    run_test_dilation2d(*_convert_data(image, kernel, out), padding=[0, 0, 1, 1],
+                        data_layout='NHWC', kernel_layout='HWI')
+
+    image = [[[[.1], [.2]], [[.3], [.4]]]]
+    kernel = [[[.4], [.3]]]
+    out = [[[[.5]], [[.7]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'))
+    run_test_dilation2d(*_convert_data(image, kernel, out),
+                        data_layout='NHWC', kernel_layout='HWI')
+
+    image = [[[[.1], [.2], [.3]], [[.4], [.5], [.6]], [[.7], [.8], [.9]]]]
+    kernel = [[[.4], [.3]], [[.1], [.2]]]
+    out = [[[[.7], [.8], [.6]], [[1.0], [1.1], [.9]], [[.8], [.9], [.9]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), padding=[1, 1], dilations=[2, 2])
+    run_test_dilation2d(*_convert_data(image, kernel, out), padding=[1, 1], dilations=[2, 2],
+                        data_layout='NHWC', kernel_layout='HWI')
+
+    image = [[[[.1], [.2], [.3], [.4]], [[.5], [.6], [.7], [.8]],
+              [[.9], [1.0], [1.1], [1.2]]]]
+    kernel = [[[.4], [.3]], [[.1], [.2]]]
+    out = [[[[.8], [1.0]], [[1.2], [1.4]]]]
+    run_test_dilation2d(*_convert_data(image, kernel, out, layout='NCHW'), strides=[1, 2])
+    run_test_dilation2d(*_convert_data(image, kernel, out), strides=[1, 2],
+                        data_layout='NHWC', kernel_layout='HWI')
+
+
 def test_bitserial_conv2d_infer_type():
     # Basic shape test with ambiguous batch.
     n, c, h, w = te.size_var("n"), 32, 224, 224
@@ -1274,3 +1381,5 @@ if __name__ == "__main__":
     test_upsampling3d()
     test_conv2d_int8_intrinsics()
     test_depthwise_conv2d_int8()
+    test_dilation2d_infer_type()
+    test_dilation2d_run()

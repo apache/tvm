@@ -2371,3 +2371,152 @@ def adaptive_avg_pool2d(data,
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool2d(data, output_size, layout)
+
+
+def adaptive_max_pool3d(data,
+                        output_size=None,
+                        layout="NCDHW"):
+    r"""3D adaptive max pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 3D max value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_depth, output_height, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input depth, height and width will be used
+        as output depth, height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
+
+        If a tuple of integers (depth, height, width) are provided for output_size,
+        the output size is (N x C x depth x height x width) for any input (NCDHW).
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    output_size : tuple of int. optional
+        Output height and width.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [] or output_size
+    return _make.adaptive_max_pool3d(data, output_size, layout)
+
+
+def adaptive_avg_pool3d(data,
+                        output_size=None,
+                        layout="NCDHW"):
+    r"""3D adaptive avg pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 3D avg value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_depth, output_height, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input depth, height and width will be used
+        as output depth, height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
+
+        If a tuple of integers (depth, height, width) are provided for output_size,
+        the output size is (N x C x depth x height x width) for any input (NCDHW).
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    output_size : tuple of int. optional
+        Output height and width.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [] or output_size
+    return _make.adaptive_avg_pool3d(data, output_size, layout)
+
+
+def dilation2d(data,
+               weight,
+               strides=(1, 1),
+               padding=(0, 0),
+               dilations=(1, 1),
+               data_layout="NCHW",
+               kernel_layout="IHW",
+               out_dtype=""):
+    r"""Dilation 2D.
+    This operator takes the weight as the dilation kernel and dilates it with
+    data to produce an output. In the default case, where the data_layout is `NCHW`
+    and kernel_layout is `OIHW`, dilation2d takes in a data Tensor with shape
+    `(batch_size, in_channels, height, width)`, and a weight Tensor with shape
+    `(channels, kernel_height, kernel_width)` to produce an output Tensor
+    with the following rule:
+
+    .. math::
+        \mbox{out}[b, c, y, x] = \max_{dy, dx}
+           \mbox{data}[b, c, \mbox{strides}[0] * y  + dy, \mbox{strides}[1] * x + dx] +
+           \mbox{weight}[c, dy, dx]
+
+    Padding and dilation are applied to data and weight respectively before the computation.
+    This operator accepts data layout specification. Semantically, the operator
+    will convert the layout to the canonical layout
+    (`NCHW` for data and `IHW` for weight) and perform the computation.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    strides : Optional[Tuple[int]]
+        The strides of convolution.
+
+    padding : Optional[Tuple[int]]
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilations : Optional[Tuple[int]]
+        Specifies the dilation rate to be used for dilated convolution.
+
+    data_layout : Optional[str]
+        Layout of the input.
+
+    kernel_layout : Optional[str]
+        Layout of the weight.
+
+    out_dtype : Optional[str]
+        Specifies the output data type.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+
+    return _make.dilation2d(data, weight, strides, padding, dilations, data_layout,
+                            kernel_layout, out_dtype)

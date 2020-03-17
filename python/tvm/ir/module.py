@@ -24,7 +24,7 @@ from . import type as _ty
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("relay.Module")
+@tvm._ffi.register_object("IRModule")
 class IRModule(Node):
     """IRModule that holds functions and type definitions.
 

@@ -218,6 +218,16 @@ def adaptive_pool(data,
     return cpp.nn.adaptive_pool(data, output_size, POOL_TYPE_CODE[pool_type], layout)
 
 
+def adaptive_pool3d(data,
+                    output_size,
+                    pool_type,
+                    layout="NCDHW"):
+    """Perform pooling on three dimensional data.
+       See the two dimensional version above for details.
+    """
+    return cpp.nn.adaptive_pool3d(data, output_size, POOL_TYPE_CODE[pool_type], layout)
+
+
 def pool1d(data,
            kernel,
            stride,

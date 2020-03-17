@@ -22,11 +22,16 @@ from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 import keras
 
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
+
 from tensorflow import keras as tf_keras
+from packaging import version as package_version
 # prevent Keras from using up all gpu memory
 if tf.executing_eagerly():
-    gpus = tf.config.list_physical_devices('GPU')
+    gpus = tf.config.experimental.list_physical_devices('GPU')
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 else:
@@ -363,7 +368,7 @@ class TestKeras:
                     keras.layers.SimpleRNN(units=16, return_state=False,
                         activation='tanh'),
                     keras.layers.GRU(units=16, return_state=False,
-                        recurrent_activation='sigmoid', activation='tanh')]
+                        recurrent_activation='sigmoid', activation='tanh', reset_after=False)]
         for rnn_func in rnn_funcs:
             x = rnn_func(data)
             keras_model = keras.models.Model(data, x)
