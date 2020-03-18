@@ -494,9 +494,9 @@ struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
                 "two int : bottom, right will use same padding as top, left"
                 "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(layout).set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                "dimensions respectively. Convolution is applied on the 'H' and"
+                "dimensions respectively. Pooling is applied on the 'H' and"
                 "'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false)
       .describe("When true, will use ceil instead of floor to compute the output shape.");
@@ -524,9 +524,9 @@ struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
                 "two int : bottom, right will use same padding as top, left"
                 "four int : padding width in the order of (top, left, bottom, right)");
     TVM_ATTR_FIELD(layout).set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                "dimensions respectively. Convolution is applied on the 'H' and"
+                "dimensions respectively. Pooling is applied on the 'H' and"
                 "'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false)
       .describe("When true, will use ceil instead of floor to compute the output shape.");
@@ -541,9 +541,9 @@ struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
 
   TVM_DECLARE_ATTRS(GlobalPool2DAttrs, "relay.attrs.GlobalPool2DAttrs") {
     TVM_ATTR_FIELD(layout).set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                "dimensions respectively. Convolution is applied on the 'H' and"
+                "dimensions respectively. Pooling is applied on the 'H' and"
                 "'W' dimensions.");
   }
 };
@@ -557,9 +557,9 @@ struct AdaptivePool2DAttrs : public tvm::AttrsNode<AdaptivePool2DAttrs> {
     TVM_ATTR_FIELD(output_size).set_default(Array<IndexExpr>({}))
       .describe("Output height and width.");
     TVM_ATTR_FIELD(layout).set_default("NCHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
-                  "dimensions respectively. Convolution is applied on the 'H' and"
+                  "dimensions respectively. Pooling is applied on the 'H' and"
                   "'W' dimensions.");
   }
 };
@@ -572,9 +572,9 @@ struct AdaptivePool3DAttrs : public tvm::AttrsNode<AdaptivePool3DAttrs> {
     TVM_ATTR_FIELD(output_size).set_default(Array<IndexExpr>({}))
       .describe("Output depth, height and width.");
     TVM_ATTR_FIELD(layout).set_default("NCDHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                   "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
-                  "dimensions respectively. Convolution is applied on 'D', 'H' and"
+                  "dimensions respectively. Pooling is applied on 'D', 'H' and"
                   "'W' dimensions.");
   }
 };
@@ -600,7 +600,7 @@ struct MaxPool1DAttrs : public tvm::AttrsNode<MaxPool1DAttrs> {
                 "three int : back, bottom, right will use same padding as front, top, left"
                 "six int : padding width in the order of (front, top, left, back, bottom, right)");
     TVM_ATTR_FIELD(layout).set_default("NCW")
-      .describe("Dimension ordering of data and weight. Can be 'NCW', 'NWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCW', 'NWC', etc."
                 "'N', 'C', 'W' stands for batch, channel, and width"
                 "dimensions respectively. Pooling is applied on the 'W' dimensions.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false)
@@ -629,7 +629,7 @@ struct AvgPool1DAttrs : public tvm::AttrsNode<AvgPool1DAttrs> {
                 "three int : back, bottom, right will use same padding as front, top, left"
                 "six int : padding width in the order of (front, top, left, back, bottom, right)");
     TVM_ATTR_FIELD(layout).set_default("NCW")
-      .describe("Dimension ordering of data and weight. Can be 'NCW', 'NHC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCW', 'NHC', etc."
                 "'N', 'C', 'W' stands for batch, channel, and width"
                 "dimensions respectively. Pooling is applied on the 'W' dimension.");
     TVM_ATTR_FIELD(ceil_mode).set_default(false)
@@ -660,7 +660,7 @@ struct MaxPool3DAttrs : public tvm::AttrsNode<MaxPool3DAttrs> {
                 "three int : back, bottom, right will use same padding as front, top, left"
                 "six int : padding width in the order of (front, top, left, back, bottom, right)");
     TVM_ATTR_FIELD(layout).set_default("NCDHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Pooling is applied on the 'D', 'H' and"
                 "'W' dimensions.");
@@ -690,7 +690,7 @@ struct AvgPool3DAttrs : public tvm::AttrsNode<AvgPool3DAttrs> {
                 "three int : back, bottom, right will use same padding as front, top, left"
                 "six int : padding width in the order of (front, top, left, back, bottom, right)");
     TVM_ATTR_FIELD(layout).set_default("NCDHW")
-      .describe("Dimension ordering of data and weight. Can be 'NCDHW', 'NDHWC', etc."
+      .describe("Dimension ordering of input data. Can be 'NCDHW', 'NDHWC', etc."
                 "'N', 'C', 'D', 'H', 'W' stands for batch, channel, depth, height, and width"
                 "dimensions respectively. Pooling is applied on the 'D', 'H' and"
                 "'W' dimensions.");
