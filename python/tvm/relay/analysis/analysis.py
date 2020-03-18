@@ -421,7 +421,7 @@ def extract_fused_functions(mod):
 
     Returns
     -------
-    ret : Dict[int, tvm.relay.ir.expr.Function]
+    ret : Dict[int, tvm.relay.function.Function]
         A module containing only fused primitive functions
     """
     ret_mod = _ffi_api.ExtractFusedFunctions()(mod)

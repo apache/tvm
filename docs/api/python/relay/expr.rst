@@ -35,9 +35,6 @@ tvm.relay.expr
 .. autoclass:: tvm.relay.expr.Tuple
     :members:
 
-.. autoclass:: tvm.relay.expr.Function
-    :members:
-
 .. autoclass:: tvm.relay.expr.Call
     :members:
 

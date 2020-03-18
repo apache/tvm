@@ -25,7 +25,7 @@ from tvm import te
 from tvm.runtime import Object
 from ... import target as _target
 from ... import autotvm
-from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from .. import ty as _ty
 from . import _backend
@@ -65,7 +65,7 @@ class CCacheValue(Object):
 
 
 def _get_cache_key(source_func, target):
-    if isinstance(source_func, _expr.Function):
+    if isinstance(source_func, _function.Function):
         if isinstance(target, str):
             target = _target.create(target)
             if not target:

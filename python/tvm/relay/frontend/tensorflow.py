@@ -31,6 +31,7 @@ from tvm.relay.prelude import Prelude
 
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from ..expr_functor import ExprMutator
 from .common import AttrCvt, get_relay_op
@@ -2461,7 +2462,7 @@ class GraphProto(object):
                 out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        func = _expr.Function(analysis.free_vars(out), out)
+        func = _function.Function(analysis.free_vars(out), out)
         self._mod["main"] = func
         return self._mod, self._params
 

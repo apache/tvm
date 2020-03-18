@@ -120,7 +120,7 @@ Additionally, functions in Relay are higher-order, which means that a function c
 function or returned by a function, as function expressions evaluate to closures (see the `Closures`_ subsection),
 which are values like tensors and tuples.
 
-See :py:class:`~tvm.relay.expr.Function` for the definition and documentation of function nodes.
+See :py:class:`~tvm.relay.function.Function` for the definition and documentation of function nodes.
 
 Syntax
 ~~~~~~

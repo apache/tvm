@@ -21,7 +21,8 @@ import threading
 import tvm
 from tvm import relay, autotvm
 from tvm.relay import transform
-from tvm.relay.expr import Call, Function, TupleGetItem, Var, Constant, Tuple
+from tvm.relay.expr import Call, TupleGetItem, Var, Constant, Tuple
+from tvm.relay.function import Function
 from tvm.relay.ty import TupleType, TensorType
 from tvm.autotvm.task import TaskExtractEnv
 
