@@ -36,7 +36,7 @@ with open('compiled.json', 'r') as f_graph_json:
   graph = f_graph_json.read()
 with open('compiled.params', 'rb') as f_params:
   params = tvm.relay.load_param_dict(f_params.read())
-lib = tvm.module.load("compiled.tensorrt")
+lib = tvm.runtime.load_module("compiled.tensorrt")
 ```
 
 6. Run inference. The first invocation will trigger creation of the TensorRT engine. This could take up to a few minutes.

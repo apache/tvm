@@ -509,7 +509,6 @@ def test_tensorrt_serialize():
     mod, params = relay.frontend.from_mxnet(block, shape={'data': (1, 3, 224, 224)}, dtype='float32')
     # Compile
     mod = relay.tensorrt.EnableTrt(mod, params)
-    assert mod['main'].attrs and mod['main'].attrs.Compiler == 'tensorrt'
     with relay.build_config(opt_level=2, disabled_pass={"SimplifyInference"}):
         graph, lib, params = relay.build(mod, "cuda")
     # Serialize
@@ -523,7 +522,7 @@ def test_tensorrt_serialize():
         graph = f_graph_json.read()
     with open('compiled.params', 'rb') as f_params:
         params = bytearray(f_params.read())
-    lib = tvm.runtime.load("compiled.tensorrt")
+    lib = tvm.runtime.load_module("compiled.tensorrt")
     # Run
     mod = graph_runtime.create(graph, lib, ctx=tvm.gpu(0))
     mod.load_params(params)
