@@ -172,7 +172,7 @@ def _adaptive_avg_2d():
             return _op.nn.adaptive_avg_pool2d(x, output_size=output_size)
 
         if input_types[0] == "quint8":
-            return qnn_torch.quantized_adaptive_avg_2d(data, func)
+            return qnn_torch.apply_with_upcast(data, func)
 
         return func(data)
 
@@ -484,13 +484,21 @@ def _avg_pool2d():
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
-        return _op.nn.avg_pool2d(data,
-                                 pool_size=pool_size,
-                                 strides=strides,
-                                 padding=padding,
-                                 ceil_mode=ceil_mode,
-                                 count_include_pad=count_include_pad)
+        def func(x):
+            return _op.nn.avg_pool2d(x,
+                                     pool_size=pool_size,
+                                     strides=strides,
+                                     padding=padding,
+                                     ceil_mode=ceil_mode,
+                                     count_include_pad=count_include_pad)
+
+        if input_types[0] == "quint8":
+            return qnn_torch.apply_with_upcast(data, func)
+
+        return func(data)
+
     return _impl
+
 
 def _dropout():
     def _impl(inputs, input_types):
