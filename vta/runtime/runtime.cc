@@ -36,6 +36,7 @@
 #include <cstring>
 #include <memory>
 #include <vector>
+#include <set>
 
 namespace vta {
 
@@ -101,6 +102,8 @@ struct DataBuffer {
     DataBuffer* buffer = new DataBuffer();
     buffer->data_ = data;
     buffer->phy_addr_ = VTAMemGetPhyAddr(data);
+
+    allocated_.insert(buffer);
     return buffer;
   }
   /*!
@@ -108,6 +111,7 @@ struct DataBuffer {
    * \param buffer The buffer to be freed.
    */
   static void Free(DataBuffer* buffer) {
+    allocated_.erase(buffer);
     VTAMemFree(buffer->data_);
     delete buffer;
   }
@@ -117,7 +121,12 @@ struct DataBuffer {
    * \return The corresponding data buffer header.
    */
   static DataBuffer* FromHandle(const void* buffer) {
-    return const_cast<DataBuffer*>(reinterpret_cast<const DataBuffer*>(buffer));
+    if (allocated_.count(buffer)) {
+      return const_cast<DataBuffer*>(
+          reinterpret_cast<const DataBuffer*>(buffer));
+    } else {
+      return nullptr;
+    }
   }
 
  private:
@@ -125,7 +134,12 @@ struct DataBuffer {
   void* data_;
   /*! \brief The physical address of the buffer, excluding header. */
   vta_phy_addr_t phy_addr_;
+
+  static std::set<const void*> allocated_;
 };
+
+// init static member
+std::set<const void*> DataBuffer::allocated_;
 
 /*!
  * \brief Micro op kernel.
@@ -1207,10 +1221,12 @@ void VTABufferCopy(const void* from, size_t from_offset, void* to, size_t to_off
   if (kind_mask & 2) {
     from_buffer = vta::DataBuffer::FromHandle(from);
     from = from_buffer->virt_addr();
+    // LOG(WARNING) << "BufferCopy from " << from << ", from_offset " << from_offset << ", size = " << size;
   }
   if (kind_mask & 1) {
     to_buffer = vta::DataBuffer::FromHandle(to);
     to = to_buffer->virt_addr();
+    // LOG(WARNING) << "BufferCopy to " << to << ", to_offset " << to_offset << ", size = " << size;
   }
 
   if (from_buffer) {
@@ -1234,8 +1250,15 @@ void VTASetDebugMode(VTACommandHandle cmd, int debug_flag) {
   static_cast<vta::CommandQueue*>(cmd)->SetDebugFlag(debug_flag);
 }
 
+// TODO(zhanghao): now we do the check here
+// it would be better to do the check in ir_pass before adding the "VTABufferCPUPtr"
 void* VTABufferCPUPtr(VTACommandHandle cmd, void* buffer) {
-  return vta::DataBuffer::FromHandle(buffer)->virt_addr();
+  auto data_buf = vta::DataBuffer::FromHandle(buffer);
+  if (data_buf) {
+    return data_buf->virt_addr();
+  } else {  // it is a raw ptr allocated by CPU
+    return buffer;
+  }
 }
 
 void VTAWriteBarrier(VTACommandHandle cmd, void* buffer, uint32_t elem_bits, uint32_t start,

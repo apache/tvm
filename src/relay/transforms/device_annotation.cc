@@ -60,8 +60,10 @@ bool IsDeviceCopyNode(const ExprNode* node) {
 
 class ValidateAnnotation : private ExprVisitor {
  public:
-  static std::unordered_map<const ExprNode*, int> Validate(const Expr& expr) {
-    ValidateAnnotation valid;
+  ValidateAnnotation(int fallback_device): fallback_device_(fallback_device) {}
+
+  static std::unordered_map<const ExprNode*, int> Validate(const Expr& expr, int fallback_device) {
+    ValidateAnnotation valid(fallback_device);
     valid(expr);
     return valid.annotation_map_;
   }
@@ -80,12 +82,24 @@ class ValidateAnnotation : private ExprVisitor {
 
       CHECK_EQ(call_node->args.size(), 1U);
       const auto* node = call_node->args[0].operator->();
+      // LOG(WARNING) << "annotated node, device_type = " << device_type << " : " << GetRef<Expr>(node);
       if (annotation_map_.count(node)) {
         CHECK_EQ(annotation_map_.at(node), device_type)
             << "An expression node can only be annotated to one device.";
       } else {
         annotation_map_.insert({node, GetDeviceId(call_node)});
       }
+
+      // FIXME(zhanghao): find a better way
+      // here assume there are max two device types
+      if (device_type == fallback_device_ && extra_device_ && extra_device_ != fallback_device_) {
+        const auto* child = GetRef<Expr>(node).as<CallNode>()->args[0].operator->();
+        // here we mark as negative to indicate this is for copy from only
+        int ext_dev = -extra_device_;
+        annotation_map_.insert({child, ext_dev});
+      }
+
+      if (device_type != fallback_device_) extra_device_ = device_type;
     }
   }
 
@@ -109,6 +123,8 @@ class ValidateAnnotation : private ExprVisitor {
   }
 
   std::unordered_map<const ExprNode*, int> annotation_map_;
+  int fallback_device_ = 0;
+  int extra_device_ = 0;
 };
 
 // Replace the use of an expression with the output of a `copy_device` operator
@@ -122,7 +138,7 @@ class RewriteAnnotation : public ExprMutator {
  public:
   Expr Rewrite(const Expr& expr, int fallback_device) {
     fallback_device_ = fallback_device;
-    annotation_map_ = ValidateAnnotation::Validate(expr);
+    annotation_map_ = ValidateAnnotation::Validate(expr, fallback_device);
     return this->VisitExpr(expr);
   }
 
@@ -229,6 +245,7 @@ class RewriteAnnotation : public ExprMutator {
       CHECK(dit != annotation_map_.end())
           << "Device copy op is not required when both src and dst ops are not "
              "annotated.";
+      // LOG(WARNING) << "Create device copy " << fallback_device_ << " to " << dit->second << ": " << src;
       return CreateDeviceCopy(src, fallback_device_, dit->second);
     } else {
       const auto dit = annotation_map_.find(dst);
@@ -244,10 +261,15 @@ class RewriteAnnotation : public ExprMutator {
       if (annotation_map_.count(dst)) {
         return src_dev_type != annotation_map_.at(dst);
       } else {
-        return src_dev_type != fallback_device_;
+        // TODO(zhanghao): for now, we only make a device_copy when dst is "on_device" marked
+        // This allows us to do a start-end mark (mark two points)
+        // to mark all the middle ops with a device_type
+        return false;
+        // return src_dev_type != fallback_device_;
       }
     } else {
-      if (annotation_map_.count(dst)) {
+      // if annotation value < 0, it means this is for "copy from" only
+      if (annotation_map_.count(dst) && annotation_map_.at(dst) > 0) {
         // Though data copy op could be inserted whenever the `src` and `dst`
         // ops are annotated to different devices, it leads to high overhead.
         //
@@ -494,6 +516,66 @@ class DeviceInfo {
   Map<Expr, Integer> device_map_;
 };
 
+
+class AddDeviceCopy : public ExprMutator {
+ public:
+  Expr Rewrite(const Expr& expr) {
+    device_map_ = DeviceInfo::GetDeviceMap(expr);
+    return this->Mutate(expr);
+  }
+
+ private:
+  // add device copy if two nodes not on the same device
+  Expr VisitExpr_(const CallNode* call_node) override {
+    auto func_node = call_node->op.as<FunctionNode>();
+    bool src_is_copy_node = false;
+    if (func_node && IsDeviceCopyNode(func_node->body.as<CallNode>())) {
+      // LOG(WARNING) << "DeviceCopy skip device_copy node";
+      src_is_copy_node = true;
+    }
+
+    tvm::Array<Expr> call_args;
+    auto call_expr = GetRef<Expr>(call_node);
+    CHECK(device_map_.count(call_expr));
+
+    for (auto& arg: call_node->args) {
+      CHECK(device_map_.count(arg));
+      bool dst_is_copy_node = false;
+      if (auto arg_node = arg.as<CallNode>()) {
+        auto func_node = arg_node->op.as<FunctionNode>();
+        if (func_node && IsDeviceCopyNode(func_node->body.as<CallNode>())) {
+          // LOG(WARNING) << "DeviceCopy skip dst device_copy node";
+          dst_is_copy_node = true;
+        }
+      }
+
+      int src_dev_type = device_map_.count(arg) ? device_map_[arg]->value : 1;
+      int dst_dev_type = device_map_.count(call_expr) ? device_map_[call_expr]->value : 1;
+      if (!src_is_copy_node && !dst_is_copy_node && src_dev_type != dst_dev_type) {
+        // LOG(WARNING) << "Not consistent device type, src = " << src_dev_type << ":" << arg;
+        // LOG(WARNING) << "Not consistent device type, dst = " << dst_dev_type << ":" << call_expr;
+        auto attrs = make_object<DeviceCopyAttrs>();
+        attrs->src_dev_type = src_dev_type;
+        attrs->dst_dev_type = dst_dev_type;
+        static const Op& op = Op::Get("device_copy");
+        Call device_copy = CallNode::make(op, {this->Mutate(arg)}, Attrs(attrs), {});
+        device_copy->checked_type_ = arg->checked_type_;
+        call_args.push_back(device_copy);
+      } else {
+        call_args.push_back(this->Mutate(arg));
+      }
+    }
+
+    auto ret = CallNode::make(call_node->op, call_args, call_node->attrs, call_node->type_args);
+    // manually add the checked_type_
+    // alternatively, can call InferType Pass after this
+    ret->checked_type_ = call_node->checked_type_;
+    return ret;
+  }
+
+  Map<Expr, Integer> device_map_;
+};
+
 Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
   RewriteAnnotation rewrote = RewriteAnnotation();
   Expr new_expr = rewrote.Rewrite(expr, fallback_device);
@@ -541,7 +623,15 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
   }
 }
 
-Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) { return DeviceInfo::GetDeviceMap(expr); }
+Expr AddDeviceCopyOps(const Expr& expr) {
+  auto rewrote = AddDeviceCopy();
+  Expr new_expr = rewrote.Rewrite(expr);
+  return new_expr;
+}
+
+Map<Expr, Integer> CollectDeviceInfo(const Expr& expr) {
+  return DeviceInfo::GetDeviceMap(expr);
+}
 
 Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr) {
   return AnnotatationVisitor::GetAnnotations(expr);
@@ -563,6 +653,18 @@ Pass RewriteAnnotatedOps(int fallback_device) {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation").set_body_typed(RewriteAnnotatedOps);
+
+Pass AddDeviceCopyOps() {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+    [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(AddDeviceCopyOps(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "AddDeviceCopyOps",
+                            {tir::StringImmNode::make("InferType")});
+}
+
+TVM_REGISTER_GLOBAL("relay._transform.AddDeviceCopy")
+.set_body_typed(AddDeviceCopyOps);
 
 }  // namespace transform
 

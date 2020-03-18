@@ -441,6 +441,10 @@ def RewriteAnnotatedOps(fallback_device):
     return _ffi_api.RewriteDeviceAnnotation(fallback_device)
 
 
+def AddDeviceCopy():
+    return _transform.AddDeviceCopy()
+
+
 def ToANormalForm():
     """Turn Graph Normal Form expression into A Normal Form Expression.
     The scope of the root expression is the global scope.

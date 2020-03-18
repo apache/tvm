@@ -117,6 +117,16 @@ TVM_DLL Pass FuseOps(int fuse_opt_level = -1);
 TVM_DLL Pass RewriteAnnotatedOps(int fallback_device);
 
 /*!
+ * \brief add device_copy if two adjacent nodes are on different devices
+ *
+ * \param expr The expression.
+ *
+ * \return The updated program.
+ */
+TVM_DLL Pass AddDeviceCopyOps();
+
+
+/*!
  * \brief turn a dataflow graph into Administrative Normal Form, or A-Normal Form (ANF).
  *
  * It will turn an expression that is in a graph form (with sharing implicit),
@@ -417,6 +427,24 @@ TVM_DLL Expr ForwardRewrite(const Expr& expr, const FForwardRewrite& rewrite_fun
  * \return The updated program.
  */
 TVM_DLL Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device);
+
+/*!
+ * \brief add device_copy if two adjacent nodes are on different devices
+ *
+ * \param expr The expression.
+ *
+ * \return The updated program.
+ */
+TVM_DLL Expr AddDeviceCopyOps(const Expr& expr);
+
+/*!
+ * \brief Fuse operations into expr into seperate functions.
+ *
+ * \param fuse_opt_level Optimization level. If it is -1 it will be inferred from pass context.
+ *
+ * \return The pass.
+ */
+TVM_DLL Expr FuseOps(const Expr& expr, int fuse_opt_level, const IRModule& module);
 
 /*!
  * \brief Turn an expression into continuation passing style(CPS).

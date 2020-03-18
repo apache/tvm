@@ -21,6 +21,7 @@ import tvm
 from tvm import relay
 from tvm.relay import op, transform
 from tvm.relay import ExprMutator
+from tvm.contrib.util import eprint
 
 def run_opt_pass(expr, opt_pass):
     """Exectue a relay pass."""
@@ -173,6 +174,95 @@ def _operator_idx_inc(expr, count_meta, operator_current_idx):
     else:
         operator_current_idx = operator_current_idx + 1
     return operator_current_idx
+
+
+class ExprDeviceAnnot(ExprMutator):
+    """Visitor to perform graph annotation on an AST.
+
+    Parameters
+    ----------
+    start: int
+        the start location to mark run on vta (inclusive)
+    end: int
+        the end location to mark run on vta (exclusive)
+
+    Returns
+    ---------
+    None
+    """
+    def __init__(self, start=-1, end=-1):
+        self.ext_ctx = tvm.context("ext_dev")
+        self.cpu_ctx = tvm.context("cpu")
+        self.counter = -1
+        self.start = start
+        self.end = end
+        super().__init__()
+
+    def visit_call(self, call):
+        """ Visit the children. """
+        # First visit the children.
+        oshape = _get_tensor_shape(call)
+        odtype = _get_tensor_type(call)
+        input_types = [arg.checked_type for arg in call.args]
+        args = [self.visit(arg) for arg in call.args]
+
+        self.counter += 1
+        if self.counter == self.start:
+            ret = relay.Call(call.op, args, call.attrs)
+            ret = relay.annotation.on_device(ret, self.ext_ctx)
+            eprint("add on_device {}: {}".format("ext", ret))
+            return ret
+        elif self.counter == self.end:
+            ret = relay.Call(call.op, args, call.attrs)
+            ret = relay.annotation.on_device(ret, self.cpu_ctx)
+            eprint("add on_device {}: {}".format("cpu", ret))
+            return ret
+
+#        if call.op == self.global_avg_pool2d:
+#            eprint("graphpack call = ", call)
+#            eprint("graphpack call annot relu, ", args[0])
+#            ret = relay.Call(call.op, args, call.attrs)
+#            ret = relay.annotation.on_device(ret, self.cpu_ctx)
+#            return ret
+#
+#        if call.op == self.conv2d and odtype == 'int32':
+#            if not self.first_conv2d:
+#                ret = relay.Call(call.op, args, call.attrs)
+#                ret = relay.annotation.on_device(ret, self.ext_ctx)
+#                eprint("graphpack call conv2d", type(ret.op), ret.op, type(ret), ret)
+#                self.first_conv2d = True
+#                return ret
+
+        return relay.Call(
+            self.visit(call.op),
+            args,
+            call.attrs)
+
+
+class ExprLocater(ExprMutator):
+    """Visitor to locate op on an AST.
+    """
+    def __init__(self):
+        self.counter = -1
+        self.op2nodes = {}
+        super().__init__()
+
+    def visit_call(self, call):
+        """ Visit the children. """
+        # First visit the children.
+        args = [self.visit(arg) for arg in call.args]
+
+        self.counter += 1
+        if call.op in self.op2nodes:
+            self.op2nodes[call.op].append(self.counter)
+        else:
+            self.op2nodes[call.op] = [self.counter]
+
+        return relay.Call(
+            self.visit(call.op),
+            args,
+            call.attrs)
+
 
 class ExprPack(ExprMutator):
     """Visitor to perform graph packing on an AST.
@@ -468,4 +558,28 @@ def graph_pack(expr,
         weight_bits)
     expr = packer.visit(expr)
     assert not packer.start_pack
-    return run_opt_pass(expr, transform.InferType())
+    expr = run_opt_pass(expr, transform.InferType())
+
+    expr_locator = ExprLocater()
+    expr_locator.visit(expr)
+
+    # from the second conv2d to the global_avg_pool2d, all will run on vta
+    conv2d = op.op.get("nn.conv2d")
+    avg_pool2d = op.op.get("nn.global_avg_pool2d")
+    start = expr_locator.op2nodes[conv2d][1]
+    # preceeding the nn.global_avg_pool2d, it will look like this
+    #
+    # %310 = annotation.stop_fusion(%309) /* ty=Tensor[(1, 16, 7, 7, 1, 32), int8] */;
+    # %311 = cast(%310, dtype="int32") /* ty=Tensor[(1, 16, 7, 7, 1, 32), int32] */;
+    # %312 = transpose(%311, axes=[0, 4, 1, 5, 2, 3]) /* ty=Tensor[(1, 1, 16, 32, 7, 7), int32] */;
+    # %313 = reshape(%312, newshape=[1, 512, 7, 7]) /* ty=Tensor[(1, 512, 7, 7), int32] */;
+    # %314 = nn.global_avg_pool2d(%313) /* ty=Tensor[(1, 512, 1, 1), int32] */;
+    #
+    # we mark the preceeding three ops also on cpu device
+    end = expr_locator.op2nodes[avg_pool2d][0] - 3
+
+    device_annot = ExprDeviceAnnot(start=start, end=end)
+    expr = device_annot.visit(expr)
+    ret = run_opt_pass(expr, transform.InferType())
+
+    return ret

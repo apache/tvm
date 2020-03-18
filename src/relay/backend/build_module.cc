@@ -419,6 +419,14 @@ class RelayBuildModule : public runtime::ModuleNode {
     // Get the updated function.
     auto func = Downcast<Function>(relay_module->Lookup("main"));
 
+    // do extra pass to check to insert device_copy if necessary
+    if (targets_.size() > 1) {
+      func = Downcast<Function>(relay::AddDeviceCopyOps(func));
+      // we have to do fuseops again as we may add new device_copy ops
+      func = Downcast<Function>(relay::FuseOps(func, -1, relay_module));
+      func = Downcast<Function>(relay::InferType(func, relay_module));
+    }
+
     // Generate code for the updated function.
     graph_codegen_ = std::unique_ptr<GraphCodegen>(new GraphCodegen());
     graph_codegen_->Init(nullptr, targets_);
