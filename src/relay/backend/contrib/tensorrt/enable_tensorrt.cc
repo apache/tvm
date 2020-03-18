@@ -199,7 +199,7 @@ bool SqueezeOpChecker(const CallNode* call, const std::string& op_name,
     return false;
   } else {
     for (size_t i = 0; i < attrs->axis.size(); ++i) {
-      if (attrs->axis[i].as<IntImm>()->value == 0) {
+      if (attrs->axis[i].as<IntImmNode>()->value == 0) {
         LOG(INFO) << op_name
                   << " not supported: cannot modify batch dimension.";
         return false;
@@ -242,8 +242,8 @@ bool Conv2DTransposeOpChecker(const CallNode* call, const std::string& op_name,
     LOG(INFO) << op_name << " not supported: must be NCHW.";
     return false;
   }
-  if (conv2d_attr->dilation[0].as<IntImm>()->value != 1 ||
-      conv2d_attr->dilation[1].as<IntImm>()->value != 1) {
+  if (conv2d_attr->dilation[0].as<IntImmNode>()->value != 1 ||
+      conv2d_attr->dilation[1].as<IntImmNode>()->value != 1) {
     LOG(INFO) << op_name << " not supported: dilation rate must be 1.";
     return false;
   }
@@ -253,7 +253,7 @@ bool Conv2DTransposeOpChecker(const CallNode* call, const std::string& op_name,
 bool TransposeOpChecker(const CallNode* call, const std::string& op_name,
                         const std::tuple<int, int, int>& trt_version) {
   const auto* attrs = call->attrs.as<TransposeAttrs>();
-  if (attrs->axes[0].as<IntImm>()->value != 0) {
+  if (attrs->axes[0].as<IntImmNode>()->value != 0) {
     LOG(INFO) << op_name << " not supported: can't modify batch dimension.";
     return false;
   }
@@ -265,7 +265,7 @@ bool ReshapeOpChecker(const CallNode* call, const std::string& op_name,
   const auto* attrs = call->attrs.as<ReshapeAttrs>();
   // TODO(trevmorr): check for modified batch dim.
   for (size_t i = 0; i < attrs->newshape.size(); ++i) {
-    if (attrs->newshape[i].as<IntImm>()->value < -1) {
+    if (attrs->newshape[i].as<IntImmNode>()->value < -1) {
       LOG(INFO) << op_name << " not supported: reshape dims must be explicit.";
       return false;
     }
@@ -293,15 +293,15 @@ bool StridedSliceOpChecker(const CallNode* call, const std::string& op_name,
   if (!TrtVersionChecker<5, 1, 5>(call, op_name, trt_version)) return false;
   auto shape = GetShape(call->type_args[0]);
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
-  if (attrs->begin[0].as<IntImm>()->value != 0 ||
-      (attrs->end[0].as<IntImm>()->value != -1 &&
-       attrs->end[0].as<IntImm>()->value != shape[0])) {
+  if (attrs->begin[0].as<IntImmNode>()->value != 0 ||
+      (attrs->end[0].as<IntImmNode>()->value != -1 &&
+       attrs->end[0].as<IntImmNode>()->value != shape[0])) {
     LOG(INFO) << op_name << " not supported: can't modify batch dimension.";
     return false;
   }
   for (size_t i = 0; i < attrs->begin.size(); ++i) {
-    if (attrs->begin[i].as<IntImm>()->value < 0 ||
-        attrs->end[i].as<IntImm>()->value < 0) {
+    if (attrs->begin[i].as<IntImmNode>()->value < 0 ||
+        attrs->end[i].as<IntImmNode>()->value < 0) {
       LOG(INFO) << op_name
                 << " not supported: start/end values must be positive.";
       return false;
@@ -340,7 +340,7 @@ bool ReduceOpChecker(const CallNode* call, const std::string& op_name,
     return false;
   }
   for (size_t i = 0; i < attrs->axis.size(); ++i) {
-    if (attrs->axis[i].as<IntImm>()->value == 0) {
+    if (attrs->axis[i].as<IntImmNode>()->value == 0) {
       LOG(INFO) << op_name << " not supported: can't modify batch dimension.";
       return false;
     }
@@ -505,9 +505,9 @@ class TrtEnabler : public ExprMutator {
     subgraph_func =
         FunctionSetAttr(subgraph_func, "Primitive", tvm::Integer(1));
     subgraph_func = FunctionSetAttr(subgraph_func, "Compiler",
-                                    tvm::ir::StringImm::make("tensorrt"));
+                                    tvm::tir::StringImmNode::make("tensorrt"));
     subgraph_func = FunctionSetAttr(subgraph_func, "ExternalSymbol",
-                                    tvm::ir::StringImm::make("tensorrt_0"));
+                                    tvm::tir::StringImmNode::make("tensorrt_0"));
     auto call = CallNode::make(subgraph_func, args);
 
     // Build outer func
@@ -565,8 +565,8 @@ Array<Integer> GetTrtVersion() {
 }
 
 Pass EnableTrt(int trt_ver_major, int trt_ver_minor, int trt_ver_patch) {
-  runtime::TypedPackedFunc<Function(Function, Module, PassContext)> part_func =
-      [=](Function f, Module m, PassContext pc) {
+  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> part_func =
+      [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(contrib::EnableTrt(
             f, std::make_tuple(trt_ver_major, trt_ver_minor, trt_ver_patch)));
       };
@@ -574,8 +574,8 @@ Pass EnableTrt(int trt_ver_major, int trt_ver_minor, int trt_ver_patch) {
   return Sequential({enable_trt, InferType()});
 }
 
-TVM_REGISTER_API("relay._transform.EnableTrt").set_body_typed(EnableTrt);
-TVM_REGISTER_API("relay._transform.GetTrtVersion")
+TVM_REGISTER_GLOBAL("relay._transform.EnableTrt").set_body_typed(EnableTrt);
+TVM_REGISTER_GLOBAL("relay._transform.GetTrtVersion")
     .set_body_typed(GetTrtVersion);
 
 }  // namespace transform

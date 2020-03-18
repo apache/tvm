@@ -34,7 +34,7 @@ std::vector<int> GetShape(const Type& type) {
   std::vector<int> _shape;
   _shape.reserve(ttype->shape.size());
   for (size_t i = 0; i < ttype->shape.size(); ++i) {
-    auto* val = ttype->shape[i].as<IntImm>();
+    auto* val = ttype->shape[i].as<IntImmNode>();
     CHECK(val);
     _shape.push_back(val->value);
   }

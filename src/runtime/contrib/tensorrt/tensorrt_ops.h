@@ -295,7 +295,7 @@ class Conv2DOpConverter : public TrtOpConverter {
     CHECK(conv2d_attr->out_layout == "" || conv2d_attr->out_layout == "NCHW");
     CHECK_EQ(conv2d_attr->kernel_layout, "OIHW");
 
-    // Could use conv2d_attr->channels.as<IntImm>()->value
+    // Could use conv2d_attr->channels.as<IntImmNode>()->value
     const int num_outputs = weight_shape[0];
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
@@ -303,20 +303,32 @@ class Conv2DOpConverter : public TrtOpConverter {
         params->network->addConvolution(*input_tensor, num_outputs, kernel_size,
                                         params->inputs.at(1).weight, bias);
     CHECK(conv_layer != nullptr);
-    CHECK_EQ(conv2d_attr->padding.size(), 2);
-    const auto padding =
-        nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImm>()->value,
-                         conv2d_attr->padding[1].as<IntImm>()->value);
-    conv_layer->setPadding(padding);
+    // CHECK_EQ(conv2d_attr->padding.size(), 2);
+    if (conv2d_attr->padding.size() == 2) {
+      const auto padding =
+          nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImmNode>()->value,
+                          conv2d_attr->padding[1].as<IntImmNode>()->value);
+      conv_layer->setPadding(padding);
+    } else if (conv2d_attr->padding.size() == 4) {
+      // (top, left, bottom, right)
+      const auto pre_padding =
+          nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImmNode>()->value,
+                           conv2d_attr->padding[1].as<IntImmNode>()->value);
+      const auto post_padding =
+          nvinfer1::DimsHW(conv2d_attr->padding[2].as<IntImmNode>()->value,
+                           conv2d_attr->padding[3].as<IntImmNode>()->value);
+      conv_layer->setPrePadding(pre_padding);
+      conv_layer->setPostPadding(post_padding);
+    }
     CHECK_EQ(conv2d_attr->strides.size(), 2);
     const auto strides =
-        nvinfer1::DimsHW(conv2d_attr->strides[0].as<IntImm>()->value,
-                         conv2d_attr->strides[1].as<IntImm>()->value);
+        nvinfer1::DimsHW(conv2d_attr->strides[0].as<IntImmNode>()->value,
+                         conv2d_attr->strides[1].as<IntImmNode>()->value);
     conv_layer->setStride(strides);
     CHECK_EQ(conv2d_attr->dilation.size(), 2);
     const auto dilation =
-        nvinfer1::DimsHW(conv2d_attr->dilation[0].as<IntImm>()->value,
-                         conv2d_attr->dilation[1].as<IntImm>()->value);
+        nvinfer1::DimsHW(conv2d_attr->dilation[0].as<IntImmNode>()->value,
+                         conv2d_attr->dilation[1].as<IntImmNode>()->value);
     conv_layer->setDilation(dilation);
     conv_layer->setNbGroups(conv2d_attr->groups);
     params->outputs.push_back(conv_layer->getOutput(0));
@@ -461,24 +473,24 @@ class PoolingOpConverter : public TrtOpConverter {
     if (attrs->padding.size() == 4) {
       // Asymmetric padding.
       *prepadding =
-          nvinfer1::DimsHW(attrs->padding[0].template as<IntImm>()->value,
-                           attrs->padding[1].template as<IntImm>()->value);
+          nvinfer1::DimsHW(attrs->padding[0].template as<IntImmNode>()->value,
+                           attrs->padding[1].template as<IntImmNode>()->value);
       *postpadding =
-          nvinfer1::DimsHW(attrs->padding[2].template as<IntImm>()->value,
-                           attrs->padding[3].template as<IntImm>()->value);
+          nvinfer1::DimsHW(attrs->padding[2].template as<IntImmNode>()->value,
+                           attrs->padding[3].template as<IntImmNode>()->value);
       *use_asymmetric_padding = true;
     } else if (attrs->padding.size() == 2) {
       // Symmetric padding.
       *prepadding =
-          nvinfer1::DimsHW(attrs->padding[0].template as<IntImm>()->value,
-                           attrs->padding[1].template as<IntImm>()->value);
+          nvinfer1::DimsHW(attrs->padding[0].template as<IntImmNode>()->value,
+                           attrs->padding[1].template as<IntImmNode>()->value);
       *use_asymmetric_padding = false;
     }
     *window_size =
-        nvinfer1::DimsHW(attrs->pool_size[0].template as<IntImm>()->value,
-                         attrs->pool_size[1].template as<IntImm>()->value);
-    *strides = nvinfer1::DimsHW(attrs->strides[0].template as<IntImm>()->value,
-                                attrs->strides[1].template as<IntImm>()->value);
+        nvinfer1::DimsHW(attrs->pool_size[0].template as<IntImmNode>()->value,
+                         attrs->pool_size[1].template as<IntImmNode>()->value);
+    *strides = nvinfer1::DimsHW(attrs->strides[0].template as<IntImmNode>()->value,
+                                attrs->strides[1].template as<IntImmNode>()->value);
     *ceil_mode = attrs->ceil_mode;
   }
 
@@ -607,7 +619,7 @@ class SqueezeOpConverter : public TrtOpConverter {
     CHECK(attrs->axis.defined());
     for (size_t i = 0; i < attrs->axis.size(); ++i) {
       const int axis =
-          ConvertAxis(attrs->axis[i].as<IntImm>()->value, input_dims.size());
+          ConvertAxis(attrs->axis[i].as<IntImmNode>()->value, input_dims.size());
       input_dims[axis] = 0;
     }
     input_dims.erase(std::remove(input_dims.begin(), input_dims.end(), 0),
@@ -719,10 +731,10 @@ class Conv2DTransposeOpConverter : public TrtOpConverter {
     CHECK_EQ(conv2d_attr->data_layout, "NCHW");
     CHECK(conv2d_attr->out_layout == "" || conv2d_attr->out_layout == "NCHW");
     CHECK_EQ(conv2d_attr->kernel_layout, "OIHW");
-    CHECK(conv2d_attr->dilation[0].as<IntImm>()->value == 1 &&
-          conv2d_attr->dilation[1].as<IntImm>()->value == 1);
+    CHECK(conv2d_attr->dilation[0].as<IntImmNode>()->value == 1 &&
+          conv2d_attr->dilation[1].as<IntImmNode>()->value == 1);
 
-    // Could use conv2d_attr->channels.as<IntImm>()->value
+    // Could use conv2d_attr->channels.as<IntImmNode>()->value
     const int num_outputs = weight_shape[1];
     const auto kernel_size = nvinfer1::DimsHW(weight_shape[2], weight_shape[3]);
     nvinfer1::Weights bias{nvinfer1::DataType::kFLOAT, nullptr, 0};
@@ -731,12 +743,12 @@ class Conv2DTransposeOpConverter : public TrtOpConverter {
         bias);
     CHECK(deconv_layer != nullptr);
     const auto padding =
-        nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImm>()->value,
-                         conv2d_attr->padding[1].as<IntImm>()->value);
+        nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImmNode>()->value,
+                         conv2d_attr->padding[1].as<IntImmNode>()->value);
     deconv_layer->setPadding(padding);
     const auto strides =
-        nvinfer1::DimsHW(conv2d_attr->strides[0].as<IntImm>()->value,
-                         conv2d_attr->strides[1].as<IntImm>()->value);
+        nvinfer1::DimsHW(conv2d_attr->strides[0].as<IntImmNode>()->value,
+                         conv2d_attr->strides[1].as<IntImmNode>()->value);
     deconv_layer->setStride(strides);
     deconv_layer->setNbGroups(conv2d_attr->groups);
     params->outputs.push_back(deconv_layer->getOutput(0));
@@ -752,7 +764,7 @@ class TransposeOpConverter : public TrtOpConverter {
     const auto* attrs = params->call->attrs.as<TransposeAttrs>();
     std::vector<int> order;
     for (size_t i = 0; i < attrs->axes.size(); ++i) {
-      order.push_back(attrs->axes[i].as<IntImm>()->value);
+      order.push_back(attrs->axes[i].as<IntImmNode>()->value);
     }
     params->outputs.push_back(Transpose(params, input, order));
   }
@@ -766,11 +778,11 @@ class ReshapeOpConverter : public TrtOpConverter {
     auto input = params->inputs.at(0).tensor;
     const auto* attrs = params->call->attrs.as<ReshapeAttrs>();
     CHECK_EQ(attrs->reverse, false);
-    // CHECK(attrs->newshape[0].as<IntImm>()->value) == 0 ||
-    //       attrs->newshape[0].as<IntImm>()->value) == max_);
+    // CHECK(attrs->newshape[0].as<IntImmNode>()->value) == 0 ||
+    //       attrs->newshape[0].as<IntImmNode>()->value) == max_);
     std::vector<int> new_shape;
     for (size_t i = 1; i < attrs->newshape.size(); ++i) {
-      const int value = attrs->newshape[i].as<IntImm>()->value;
+      const int value = attrs->newshape[i].as<IntImmNode>()->value;
       CHECK_GE(value, -1);
       new_shape.push_back(value);
     }
@@ -786,28 +798,28 @@ class PadOpConverter : public TrtOpConverter {
     auto input = params->inputs.at(0).tensor;
     const auto* attrs = params->call->attrs.as<PadAttrs>();
     CHECK_EQ(input->getDimensions().nbDims, attrs->pad_width.size() - 1);
-    CHECK(attrs->pad_width[0][0].as<IntImm>()->value == 0 &&
-          attrs->pad_width[0][1].as<IntImm>()->value == 0)
+    CHECK(attrs->pad_width[0][0].as<IntImmNode>()->value == 0 &&
+          attrs->pad_width[0][1].as<IntImmNode>()->value == 0)
         << "Cannot pad on batch dimension.";
 
     nvinfer1::DimsHW prepadding, postpadding;
     // Check if we need to transpose from NHWC -> NCHW.
     const bool need_transpose =
-        attrs->pad_width[1][0].as<IntImm>()->value != 0 ||
-        attrs->pad_width[1][1].as<IntImm>()->value != 0;
+        attrs->pad_width[1][0].as<IntImmNode>()->value != 0 ||
+        attrs->pad_width[1][1].as<IntImmNode>()->value != 0;
     if (need_transpose) {
       input = Transpose(params, input, {0, 3, 1, 2});
-      prepadding = nvinfer1::DimsHW(attrs->pad_width[1][0].as<IntImm>()->value,
-                                    attrs->pad_width[2][0].as<IntImm>()->value);
+      prepadding = nvinfer1::DimsHW(attrs->pad_width[1][0].as<IntImmNode>()->value,
+                                    attrs->pad_width[2][0].as<IntImmNode>()->value);
       postpadding =
-          nvinfer1::DimsHW(attrs->pad_width[1][1].as<IntImm>()->value,
-                           attrs->pad_width[2][1].as<IntImm>()->value);
+          nvinfer1::DimsHW(attrs->pad_width[1][1].as<IntImmNode>()->value,
+                           attrs->pad_width[2][1].as<IntImmNode>()->value);
     } else {
-      prepadding = nvinfer1::DimsHW(attrs->pad_width[2][0].as<IntImm>()->value,
-                                    attrs->pad_width[3][0].as<IntImm>()->value);
+      prepadding = nvinfer1::DimsHW(attrs->pad_width[2][0].as<IntImmNode>()->value,
+                                    attrs->pad_width[3][0].as<IntImmNode>()->value);
       postpadding =
-          nvinfer1::DimsHW(attrs->pad_width[2][1].as<IntImm>()->value,
-                           attrs->pad_width[3][1].as<IntImm>()->value);
+          nvinfer1::DimsHW(attrs->pad_width[2][1].as<IntImmNode>()->value,
+                           attrs->pad_width[3][1].as<IntImmNode>()->value);
     }
     auto pad_layer =
         params->network->addPadding(*input, prepadding, postpadding);
@@ -842,7 +854,7 @@ class ReduceOpConverter : public TrtOpConverter {
     CHECK(attrs->axis.defined() && attrs->axis.size() > 0);
     uint32_t reduce_axes = 0;
     for (size_t i = 0; i < attrs->axis.size(); ++i) {
-      const int axis = ConvertAxis(attrs->axis[i].as<IntImm>()->value,
+      const int axis = ConvertAxis(attrs->axis[i].as<IntImmNode>()->value,
                                    input->getDimensions().nbDims);
       reduce_axes |= 1 << axis;
     }
@@ -867,17 +879,17 @@ class StridedSliceOpConverter : public TrtOpConverter {
         !attrs->strides.defined() || attrs->strides.size() == 0;
     // CHECK(default_strides ||
     //       input->getDimensions().nbDims == attrs->strides.size() - 1);
-    // CHECK(attrs->end[0].as<IntImm>()->value == batch_size ||
-    //       attrs->end[0].as<IntImm>()->value == -1);
-    CHECK(default_strides || attrs->strides[0].as<IntImm>()->value == 1);
+    // CHECK(attrs->end[0].as<IntImmNode>()->value == batch_size ||
+    //       attrs->end[0].as<IntImmNode>()->value == -1);
+    CHECK(default_strides || attrs->strides[0].as<IntImmNode>()->value == 1);
 
     std::vector<int> start, size, strides;
     for (size_t i = 1; i < attrs->begin.size(); ++i) {
-      const int begin_value = attrs->begin[i].as<IntImm>()->value;
-      const int end_value = attrs->end[i].as<IntImm>()->value;
+      const int begin_value = attrs->begin[i].as<IntImmNode>()->value;
+      const int end_value = attrs->end[i].as<IntImmNode>()->value;
       const int stride_value = (default_strides || i >= attrs->strides.size())
                                    ? 1
-                                   : attrs->strides[i].as<IntImm>()->value;
+                                   : attrs->strides[i].as<IntImmNode>()->value;
       CHECK_GT(stride_value, 0);
       const int size_value =
           (end_value - begin_value + stride_value - 1) / stride_value;
@@ -915,8 +927,8 @@ class AdaptivePoolingOpConverter : public TrtOpConverter {
     // This is an approximation of adaptive pooling. Results will not be
     // mathematically exact except when output_size is (1, 1).
     const auto output_size =
-        nvinfer1::DimsHW(attrs->output_size[0].as<IntImm>()->value,
-                         attrs->output_size[1].as<IntImm>()->value);
+        nvinfer1::DimsHW(attrs->output_size[0].as<IntImmNode>()->value,
+                         attrs->output_size[1].as<IntImmNode>()->value);
     const auto stride = nvinfer1::DimsHW(input_dims[1] / output_size.h(),
                                          input_dims[2] / output_size.w());
     const auto window_size =
@@ -949,18 +961,18 @@ class ResizeOpConverter : public TrtOpConverter {
     CHECK_EQ(output_dims.size(), 3);
     CHECK(attrs->layout == "NCHW" || attrs->layout == "NHWC");
     if (attrs->layout == "NCHW") {
-      output_dims[1] = attrs->size[0].as<IntImm>()->value;
-      output_dims[2] = attrs->size[1].as<IntImm>()->value;
+      output_dims[1] = attrs->size[0].as<IntImmNode>()->value;
+      output_dims[2] = attrs->size[1].as<IntImmNode>()->value;
     } else if (attrs->layout == "NHWC") {
-      output_dims[0] = attrs->size[0].as<IntImm>()->value;
-      output_dims[1] = attrs->size[1].as<IntImm>()->value;
+      output_dims[0] = attrs->size[0].as<IntImmNode>()->value;
+      output_dims[1] = attrs->size[1].as<IntImmNode>()->value;
     }
 
     nvinfer1::IResizeLayer* resize_layer = params->network->addResize(*input);
     CHECK(resize_layer != nullptr);
     resize_layer->setResizeMode(it->second);
     resize_layer->setOutputDimensions(VectorToTrtDims(output_dims));
-    resize_layer->setAlignCorners(attrs->align_corners);
+    resize_layer->setAlignCorners(attrs->coordinate_transformation_mode == "align_corners");
     params->outputs.push_back(resize_layer->getOutput(0));
   }
 };

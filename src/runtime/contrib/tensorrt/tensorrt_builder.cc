@@ -197,7 +197,7 @@ void TensorRTBuilder::GetInputAsTransposedWeights(const CallNode* transpose,
   std::vector<int> order(attrs->axes.size(), 0);
   std::vector<int> new_shape(attrs->axes.size(), 0);
   for (size_t i = 0; i < attrs->axes.size(); ++i) {
-    const int axis = attrs->axes[i].as<IntImm>()->value;
+    const int axis = attrs->axes[i].as<IntImmNode>()->value;
     order[i] = axis;
     new_shape[i] = shape[axis];
   }

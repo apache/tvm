@@ -136,11 +136,11 @@ class TensorRTModule : public runtime::ModuleNode {
   std::vector<DLTensor*> ConvertInputs(tvm::TVMArgs args) {
     std::vector<DLTensor*> inputs(args.size(), nullptr);
     for (size_t i = 0; i < args.size(); ++i) {
-      if (args[i].type_code() == kNDArrayContainer) {
+      if (args[i].type_code() == kTVMNDArrayHandle) {
         // Relay Debug/VM uses NDArray
         runtime::NDArray array = args[i];
         inputs[i] = const_cast<DLTensor*>(array.operator->());
-      } else if (args[i].type_code() == kArrayHandle) {
+      } else if (args[i].type_code() == kTVMDLTensorHandle) {
         // Graph runtime uses DLTensors
         inputs[i] = args[i];
       } else {

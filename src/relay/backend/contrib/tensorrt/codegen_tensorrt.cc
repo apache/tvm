@@ -47,12 +47,12 @@ namespace contrib {
  */
 class TensorRTModuleCodegen : public CSourceModuleCodegenBase {
  public:
-  runtime::Module CreateCSourceModule(const NodeRef& ref) override {
+  runtime::Module CreateCSourceModule(const ObjectRef& ref) override {
     std::string serialized_subgraph;
     if (ref->IsInstance<FunctionNode>()) {
       serialized_subgraph = SaveJSON(Downcast<Function>(ref)->body);
-    } else if (ref->IsInstance<relay::ModuleNode>()) {
-      relay::Module mod = Downcast<relay::Module>(ref);
+    } else if (ref->IsInstance<IRModuleNode>()) {
+      IRModule mod = Downcast<IRModule>(ref);
       // TODO(trevmorr): support multiple functions. It is currently not
       // possible for there to be more than one TRT func, so not a problem yet.
       for (const auto& it : mod->functions) {
@@ -74,12 +74,12 @@ class TensorRTModuleCodegen : public CSourceModuleCodegenBase {
  * \brief The external compiler/codegen tool. It takes a Relay expression/module
  * and compiles it into a runtime module.
  */
-runtime::Module TrtCompiler(const NodeRef& ref) {
+runtime::Module TrtCompiler(const ObjectRef& ref) {
   TensorRTModuleCodegen tensorrt;
   return tensorrt.CreateCSourceModule(ref);
 }
 
-TVM_REGISTER_API("relay.ext.tensorrt").set_body_typed(TrtCompiler);
+TVM_REGISTER_GLOBAL("relay.ext.tensorrt").set_body_typed(TrtCompiler);
 
 }  // namespace contrib
 }  // namespace relay
