@@ -105,8 +105,24 @@ def test_multilanes():
     test(tvm.tir.const(2 ** 32, dtype='int64'), 2, 'int64')
 
 
+def test_reduce():
+    def test(m, dtype):
+        A = te.placeholder((m,), name='A', dtype='float32')
+        k = te.reduce_axis((0, m), "k")
+        B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name='B')
+        s = te.create_schedule(B.op)
+        stmt = lower(s, [A, B])
+        assert stmt.body[1].loop_var.dtype == dtype
+
+    test(tvm.tir.const(64, dtype='int32'), 'int32')
+    test(tvm.tir.const(64, dtype='int64'), 'int32')
+    test(te.var('n', dtype='int32'), 'int32')
+    test(te.var('n', dtype='int64'), 'int64')
+
+
 if __name__ == "__main__":
     test_const()
     test_symbolic()
     test_thread_axis()
     test_multilanes()
+    test_reduce()
