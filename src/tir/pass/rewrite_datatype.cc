@@ -112,6 +112,18 @@ class DataTypeVisitor final : public StmtExprVisitor {
     StmtExprVisitor::VisitExpr_(op);
   }
 
+  void VisitExpr_(const CastNode* op) {
+    if (op->dtype.is_int()) {
+      int bits = std::min(op->dtype.bits(), bits_);
+      if (vmap.find(op) == vmap.end()) {
+        vmap[op] = op->dtype.with_bits(bits);
+      } else {
+        vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits));
+      }
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
   // the narrowed datatype of Var and IntImm
   std::unordered_map<const Object*, DataType> vmap;
 
@@ -211,8 +223,10 @@ class DataTypeRewriter : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CastNode* op) final {
-    if (is_index_) {
-      return StmtExprMutator::VisitExpr(op->value);
+    if (is_index_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
+      PrimExpr e = StmtExprMutator::VisitExpr_(op);
+      const CastNode* new_op = e.as<CastNode>();
+      return CastNode::make(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
   }
