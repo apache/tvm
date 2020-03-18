@@ -55,11 +55,6 @@ FuncType FunctionNode::func_type_annotation() const {
   return FuncType(param_types, ret_type, this->type_params, {});
 }
 
-bool FunctionNode::UseDefaultCompiler() const {
-  tir::StringImm val = this->GetAttr<tir::StringImm>(attr::kCompiler);
-  return !val.defined() || val->value == "default";
-}
-
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.Function")

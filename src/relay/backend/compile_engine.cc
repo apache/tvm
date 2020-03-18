@@ -616,7 +616,7 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (!src_func->UseDefaultCompiler()) {
+      if (src_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
         auto code_gen = src_func->GetAttr<tir::StringImm>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
@@ -690,7 +690,7 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (!key->source_func->UseDefaultCompiler()) {
+    if (key->source_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
           key->source_func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
