@@ -16,9 +16,9 @@
 # under the License.
 
 if(NOT USE_TF_TVMDSOOP STREQUAL "OFF")
-  find_package(Python COMPONENTS Interpreter)
+  find_package(Python3 COMPONENTS Interpreter)
   
-  execute_process(COMMAND ${Python_EXECUTABLE} -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_compile_flags()))"
+  execute_process(COMMAND ${Python3_EXECUTABLE} -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_compile_flags()))"
     OUTPUT_VARIABLE TF_COMPILE_FLAGS_STR
     RESULT_VARIABLE TF_STATUS)
   if (NOT ${TF_STATUS} EQUAL 0)
@@ -29,7 +29,7 @@ if(NOT USE_TF_TVMDSOOP STREQUAL "OFF")
     add_definitions(-DTF_TVMDSOOP_ENABLE_GPU)
   endif()
 
-  execute_process(COMMAND ${Python_EXECUTABLE} -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_link_flags()))"
+  execute_process(COMMAND ${Python3_EXECUTABLE} -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_link_flags()))"
     OUTPUT_VARIABLE TF_LINK_FLAGS_STR
     RESULT_VARIABLE TF_STATUS)
   if (NOT ${TF_STATUS} EQUAL 0)
