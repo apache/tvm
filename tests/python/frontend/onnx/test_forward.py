@@ -44,22 +44,7 @@ def get_input_data_shape_dict(graph_def, input_data):
     return input_names, shape_dict
 
 
-def get_input_data_dtype_dict(graph_def, input_data):
-    if isinstance(input_data, list):
-        input_names = {}
-        dtype_dict = {}
-        for i, _ in enumerate(input_data):
-            input_names[i] = graph_def.graph.input[i].name
-            dtype_dict[input_names[i]] = input_data[i].dtype
-    else:
-        input_names = graph_def.graph.input[0].name
-        dtype_dict = {input_names: input_data.dtype}
-
-    return input_names, dtype_dict
-
-
-def get_tvm_output_with_vm(graph_def, input_data, target, ctx,
-                           opset=None):
+def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None):
     """ Generic function to execute and get tvm output with vm executor"""
 
     _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
