@@ -42,10 +42,10 @@ Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
   auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
-  // tensors can be ignored as they dont go through any transformation.
-  Layout ignore_layout = Layout("I");
-  Array<Layout> input_layouts = {layouts[0][0], layouts[0][1], ignore_layout, ignore_layout,
-                                 ignore_layout, ignore_layout, ignore_layout, ignore_layout};
+  // tensors can be treated as C.
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout, channel_layout,
+                                 channel_layout, channel_layout, channel_layout, channel_layout};
   Array<Layout> output_layouts = layouts[1];
   return {input_layouts, output_layouts};
 }

@@ -96,14 +96,13 @@ Array<Array<Layout>> QnnConcatenateLayout(const Attrs& attrs, const Array<Layout
       ConcatenateLayout(attrs, relay_new_in_layouts, relay_old_in_layouts, {old_in_types[0]});
 
   // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
-  // tensors can be ignored as they dont go through any transformation. Total number of these
-  // tensors are 2 * num of data tensors (scale and zero point for each input data tensor) + 2 for
-  // the output data tensor.
-  Layout ignore_layout = Layout("I");
+  // tensors can be treated as channel layout. Total number of these tensors are 2 * num of data
+  // tensors (scale and zero point for each input data tensor) + 2 for the output data tensor.
+  Layout channel_layout = Layout("C");
   Array<Layout> input_layouts = layouts[0];
 
   for (size_t i = 0; i < 2 * num_input_tensors + 2; i++) {
-    input_layouts.push_back(ignore_layout);
+    input_layouts.push_back(channel_layout);
   }
   Array<Layout> output_layouts = layouts[1];
   return {input_layouts, output_layouts};

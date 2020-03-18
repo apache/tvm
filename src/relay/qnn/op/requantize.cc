@@ -82,9 +82,9 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     Layout new_layout = Layout(new_layout_string);
 
     // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
-    // tensors can be ignored as they dont go through any transformation.
-    Layout ignore_layout = Layout("I");
-    input_layouts = {new_layout, ignore_layout, ignore_layout, ignore_layout, ignore_layout};
+    // tensors can be treated as channel layout.
+    Layout channel_layout = Layout("C");
+    input_layouts = {new_layout, channel_layout, channel_layout, channel_layout, channel_layout};
     output_layouts = {new_layout};
     param->axis = new_axis;
   } else if (old_in_layouts.defined()) {
@@ -94,9 +94,9 @@ Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
     Layout old_layout = old_in_layouts[0];
 
     // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
-    // tensors can be ignored as they dont go through any transformation.
-    Layout ignore_layout = Layout("I");
-    input_layouts = {old_layout, ignore_layout, ignore_layout, ignore_layout, ignore_layout};
+    // tensors can be treated as channel layout.
+    Layout channel_layout = Layout("C");
+    input_layouts = {old_layout, channel_layout, channel_layout, channel_layout, channel_layout};
     output_layouts = {old_layout};
   } else {
     // Set the layouts to undef.
