@@ -854,15 +854,13 @@ bool ArgWhereRel(const Array<Type>& types,
 TVM_REGISTER_GLOBAL("relay.op._make.argwhere")
 .set_body_typed([](Expr data) {
   static const Op& op = Op::Get("argwhere");
-  auto attrs = make_object<ArgWhereAttrs>();
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return CallNode::make(op, {data}, Attrs(), {});
 });
 
 RELAY_REGISTER_OP("argwhere")
 .describe(R"doc(Find the indices of elements of a tensor that are
 non-zero)doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type<ArgWhereAttrs>()
 .add_argument("condition", "Tensor", "The input condition tensor.")
 .add_type_rel("ArgWhere", ArgWhereRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -2704,8 +2702,6 @@ RELAY_REGISTER_OP("one_hot")
 .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 
 /* relay.unravel_index */
-TVM_REGISTER_NODE_TYPE(UnRavelIndexAttrs);
-
 bool UnRavelIndexRel(const Array<Type>& types,
                      int num_inputs,
                      const Attrs& attrs,
@@ -2749,9 +2745,8 @@ Array<te::Tensor> UnRavelIndexCompute(const Attrs& attrs,
 }
 
 Expr MakeUnRavelIndex(Expr data, Expr shape) {
-  auto attrs = make_object<UnRavelIndexAttrs>();
   static const Op& op = Op::Get("unravel_index");
-  return CallNode::make(op, {data, shape}, Attrs(attrs), {});
+  return CallNode::make(op, {data, shape}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.unravel_index").set_body_typed(MakeUnRavelIndex);
@@ -2763,7 +2758,6 @@ Example::
     -   unravel_index([22, 41, 37], (7, 6)) = [[3, 6, 6], [4, 5, 1]]
 )code" TVM_ADD_FILELINE)
     .set_num_inputs(2)
-    .set_attrs_type<UnRavelIndexAttrs>()
     .set_support_level(3)
     .add_type_rel("UnRavelIndexRel", UnRavelIndexRel)
     .set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
