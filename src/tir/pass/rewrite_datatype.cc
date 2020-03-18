@@ -173,11 +173,14 @@ class DataTypeRewriter : public StmtExprMutator {
         op->attr_key == attr::virtual_thread) {
       Stmt s = StmtExprMutator::VisitStmt_(op);
       op = s.as<AttrStmtNode>();
-      IterVar iv = Downcast<IterVar>(op->node);
+      const IterVarNode* iv = op->node.as<IterVarNode>();
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var, PrimExpr>(e);
+      if (ivmap_.find(iv) == ivmap_.end()) {
+        ivmap_[iv] = IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag);
+      }
       return AttrStmtNode::make(
-        IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag),
+        ivmap_[iv],
         op->attr_key,
         cast(var.dtype(), op->value),
         op->body);
@@ -251,9 +254,12 @@ class DataTypeRewriter : public StmtExprMutator {
  private:
   // the internal visitor to deduce the narrowed dtype
   DataTypeVisitor visitor_;
-  // a map from Var before rewrite to Var after rewrite,
+  // a map from Var before rewrite to that after rewrite,
   // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
+  // a map from IterVar before rewrite to that after rewrite,
+  // ensures one old IterVar maps to exactly one new IterVar
+  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
   bool is_index_{false};
 };
 
