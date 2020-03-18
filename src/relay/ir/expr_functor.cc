@@ -33,7 +33,24 @@
 
 namespace tvm {
 namespace relay {
-
+/*!
+ * \brief A function to non-recursively traverse dataflow regions of a graph
+ *
+ * ExpandDatflow manually manages a stack and performs DFS to determine the processing
+ * order of nodes in an input graph.
+ *
+ * If it finds a dataflow node (Call, Tuple, TupleGetItem), it checks if the arguments to that node
+ * need to be processed via fcheck_visited. If so, the function pushed those arguments to the stack
+ * and continues non-recursively to process the top of the stack. When it finds a node that doesn't
+ * match the dataflow types, or a node who's inputs have all been processed, it visits the current
+ * leaf via fvisit_leaf.
+ *
+ * This function should be used internally to other classes to implement mixed-mode traversals. The
+ * expectation is that fvisit_leaf will perform recursive analysis within mixed-mode traversal if it
+ * hits a non-dataflow node.
+ *
+ * fcheck_visited and fvisit_leaf are templated to encourage compiler inlining.
+ */
 template <typename FCheckVisited, typename FVisitLeaf>
 void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_leaf) {
   std::stack<std::pair<Expr, bool>> stack;

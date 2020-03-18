@@ -236,21 +236,33 @@ class ExprMutator
  * \brief A wrapper around ExprVisitor which traverses the Dataflow Normal AST.
  *
  * DataflowVisitor treats Expr as dataflow graph, and visits in post-DFS order
- * It provides an option to run an arbitrary std::function<void(const Expr&)> on
- * every node it visits.
  *
  * DataflowVisitor provides the same recursive API as ExprVisitor, and uses
- * recursion to traverse most forms of the IR, but under the hood it uses DataflowExpander
- * to non-recursively visit nested dataflow regions of the graph to prevent stack overflows
+ * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
+ * of the graph and processes them iteratatively to prevent stack overflows
  */
 class DataflowVisitor : public ::tvm::relay::ExprVisitor {
  public:
   DataflowVisitor(int visit_limit = 1);
+
+  /*!
+   * \brief VisitExpr is finalized to preserve call expansion of dataflow regions
+   */
   void VisitExpr(const Expr& expr) final;
 
  protected:
+  /*!
+   * \brief A function to apply when reaching a leaf of the graph non-recursively
+   */
   virtual void VisitLeaf(const Expr& expr);
+  /*!
+   * \brief A function to determine if an expression has already been visited or needs to be
+   * re-visited
+   */
   virtual bool CheckVisited(const Expr& expr);
+  /*!
+   * \brief The max number of times to visit a node
+   */
   size_t visit_limit_;
 };
 
@@ -262,13 +274,23 @@ class DataflowVisitor : public ::tvm::relay::ExprVisitor {
  * local transformation on the dataflow preserves the graph structure.
  *
  * DataflowMutator provides the same recursive API as ExprMutator, and uses
- * recursion to traverse most forms of the IR, but under the hood it uses DataflowExpander
- * to non-recursively visit nested dataflow regions of the graph to prevent stack overflow
+ * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
+ * of the graph and processes them iteratatively to prevent stack overflows
  */
 class DataflowMutator : protected ::tvm::relay::ExprMutator {
  protected:
+  /*!
+   * \brief A function to apply when reaching a leaf of the graph non-recursively
+   */
   virtual void VisitLeaf(const Expr& expr);
+  /*!
+   * \brief A function to determine if an expression has already been visited or needs to be
+   * re-visited
+   */
   virtual bool CheckVisited(const Expr& expr);
+  /*!
+   * \brief Mutate is finalized to preserve call expansion of dataflow regions
+   */
   Expr Mutate(const Expr& expr) final;
 };
 /*!
