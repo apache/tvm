@@ -169,7 +169,7 @@ typedef struct TVMGraphRuntime {
   // Get node entry index.
   uint32_t (*GetEntryId)(struct TVMGraphRuntime * runtime, uint32_t nid, uint32_t index);
 
-  // /*! \brief The graph nodes. */
+  /*! \brief The graph nodes. */
   TVMGraphRuntimeNode nodes[GRAPH_RUNTIME_MAX_NODES];
   uint32_t           nodes_count;
   /*! \brief The argument nodes. */

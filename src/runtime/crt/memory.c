@@ -137,7 +137,7 @@ typedef struct MultiMap {
 IndexedEntry * MultiMap_LowerBound(struct MultiMap * map, uint32_t npage) {
   IndexedEntry * entry = 0;
   for (uint32_t idx = 0; idx < map->count; idx++) {
-    if (map->entries[idx].index == npage) {
+    if (map->entries[idx].index >= npage) {
       entry = map->entries + idx;
       break;
     }
