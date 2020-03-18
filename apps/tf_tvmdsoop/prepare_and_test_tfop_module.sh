@@ -27,10 +27,8 @@ if [ "$?" -eq 0 ]; then
     CMAKE_OPTIONS="-DUSE_CUDA=ON -DTVM_ROOT=${TVM_ROOT}"
  
     mkdir -p build
-    pushd build
-    cmake .. ${CMAKE_OPTIONS} && make
-    popd
-
+    cd build; cmake .. ${CMAKE_OPTIONS} && make
+    cd ..
     LD_LIBRARY_PATH=./build:$LD_LIBRARY_PATH python3 -m pytest -v ./tests
 fi
 
