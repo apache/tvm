@@ -226,26 +226,6 @@ void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   //
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const CallNode *op, std::ostream& os) {  // NOLINT(*)
-  /* Return type of ternary expression is not always same as its sub-expressions,
-   * add a cast */
-  if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
-    os << "(";
-    PrintType(op->args[2].dtype(), os);
-    os << ")";
-  }
-  CodeGenC::VisitExpr_(op, os);
-}
-
-void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
-  /* Return type of ternary expression is not always same as its sub-expressions,
-   * add a cast */
-  os << "(";
-  PrintType(op->true_value.dtype(), os);
-  os << ")";
-  CodeGenC::VisitExpr_(op, os);
-}
-
 void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
@@ -257,6 +237,34 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NO
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
+}
+
+template<typename T>
+inline void PrintBinaryExpr(const T* op,
+                            const char* opstr,
+                            std::ostream& os,
+                            CodeGenOpenCL* p) {
+  if (op->dtype.lanes() == 1) {
+    os << opstr << "((";
+    p->PrintType(op->a->dtype, os);
+    os << ")";
+    p->PrintExpr(op->a, os);
+    os << ", (";
+    p->PrintType(op->b->dtype, os);
+    os << ")";
+    p->PrintExpr(op->b, os);
+    os << ')';
+  } else {
+    p->PrintVecBinaryOp(opstr, op->dtype, op->a, op->b, os);
+  }
+}
+
+void CodeGenOpenCL::VisitExpr_(const MinNode *op, std::ostream& os) {
+  PrintBinaryExpr(op, "min", os, this);
+}
+
+void CodeGenOpenCL::VisitExpr_(const MaxNode *op, std::ostream& os) {
+  PrintBinaryExpr(op, "max", os, this);
 }
 
 runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
