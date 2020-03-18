@@ -21,8 +21,7 @@ from .analysis import *
 
 # Call graph
 from . import call_graph
+from .call_graph import CallGraph
 
 # Feature
 from . import feature
-
-CallGraph = call_graph.CallGraph
