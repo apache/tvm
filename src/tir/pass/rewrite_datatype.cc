@@ -164,7 +164,7 @@ class DataTypeRewriter : public StmtExprMutator {
     op = s.as<ForNode>();
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var, PrimExpr>(e);
-    return ForNode::make(var, Cast(op->min, var.dtype()), Cast(op->extent, var.dtype()),
+    return ForNode::make(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent),
                          op->for_type, op->device_api, op->body);
   }
 
@@ -179,7 +179,7 @@ class DataTypeRewriter : public StmtExprMutator {
       return AttrStmtNode::make(
         IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag),
         op->attr_key,
-        Cast(op->value, var.dtype()),
+        cast(var.dtype(), op->value),
         op->body);
     }
     return StmtExprMutator::VisitStmt_(op);
@@ -255,13 +255,6 @@ class DataTypeRewriter : public StmtExprMutator {
   // ensures one old Var maps to exactly one new Var
   std::unordered_map<const VarNode*, Var> vmap_;
   bool is_index_{false};
-  PrimExpr Cast(PrimExpr e, DataType dtype) {
-    if (e.dtype() != dtype) {
-      return CastNode::make(dtype, e);
-    } else {
-      return e;
-    }
-  }
 };
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)               \
