@@ -27,7 +27,8 @@ from tvm.ir import IRModule
 from . import _backend
 from .. import _make, analysis, transform
 from ... import nd
-from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
+from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, const
+from ..function import Function
 from ..scope_builder import ScopeBuilder
 
 

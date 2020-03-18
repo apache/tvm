@@ -22,8 +22,8 @@ from numbers import Number as _Number
 import numpy as _np
 import tvm._ffi
 from tvm._ffi import base as _base
-from tvm.runtime import NDArray, convert, ndarray as _nd
-from tvm.ir import RelayExpr, GlobalVar, BaseFunc
+from tvm.runtime import NDArray, ndarray as _nd
+from tvm.ir import RelayExpr, GlobalVar
 
 from .base import RelayNode
 from . import _ffi_api
@@ -223,68 +223,6 @@ class Var(ExprWithOp):
         """Get name hint of the current var."""
         name = self.vid.name_hint
         return name
-
-
-@tvm._ffi.register_object("relay.Function")
-class Function(BaseFunc):
-    """A function declaration expression.
-
-    Parameters
-    ----------
-    params: List[tvm.relay.Var]
-        List of input parameters to the function.
-
-    body: tvm.relay.Expr
-        The body of the function.
-
-    ret_type: Optional[tvm.relay.Type]
-        The return type annotation of the function.
-
-    type_params: Optional[List[tvm.relay.TypeParam]]
-        The additional type parameters, this is only
-        used in advanced usecase of template functions.
-    """
-    def __init__(self,
-                 params,
-                 body,
-                 ret_type=None,
-                 type_params=None,
-                 attrs=None):
-        if type_params is None:
-            type_params = convert([])
-
-        self.__init_handle_by_constructor__(
-            _ffi_api.Function, params, body, ret_type, type_params, attrs)
-
-    def __call__(self, *args):
-        """Invoke the global function.
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            Arguments.
-        """
-        return Call(self, args, None, None)
-
-    def with_attr(self, attr_key, attr_value):
-        """Create a new copy of the function and update the attribute
-
-        Parameters
-        ----------
-        attr_key : str
-            The attribute key to use.
-
-        attr_value : Object
-            The new attribute value.
-
-        Returns
-        -------
-        func : Function
-            A new copy of the function
-        """
-        return _ffi_api.FunctionWithAttr(
-            self, attr_key, convert(attr_value))
-
 
 
 @tvm._ffi.register_object("relay.Call")

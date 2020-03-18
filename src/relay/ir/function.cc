@@ -27,10 +27,10 @@ namespace tvm {
 namespace relay {
 
 Function::Function(tvm::Array<Var> params,
-                  Expr body,
-                  Type ret_type,
-                  tvm::Array<TypeVar> type_params,
-                  DictAttrs attrs) {
+                   Expr body,
+                   Type ret_type,
+                   tvm::Array<TypeVar> type_params,
+                   DictAttrs attrs) {
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   CHECK(params.defined());
   CHECK(type_params.defined());
@@ -65,7 +65,6 @@ TVM_REGISTER_GLOBAL("relay.ir.Function")
                    tvm::DictAttrs attrs) {
   return Function(params, body, ret_type, ty_params, attrs);
 });
-
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<FunctionNode>([](const ObjectRef& ref, ReprPrinter* p) {

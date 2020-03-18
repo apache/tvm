@@ -22,6 +22,7 @@ from sys import setrecursionlimit
 from . import base
 from . import ty
 from . import expr
+from . import function
 from . import type_functor
 from . import expr_functor
 from . import adt
@@ -87,7 +88,7 @@ Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var
 GlobalVar = expr.GlobalVar
-Function = expr.Function
+Function = function.Function
 Call = expr.Call
 Let = expr.Let
 If = expr.If
