@@ -634,6 +634,50 @@ def test_function_lifting_inline():
     assert relay.analysis.alpha_equal(partitioned, ref_mod)
 
 
+def test_constant_propagation():
+    ones = np.ones(shape=(8, 8), dtype="float32")
+
+    def expected():
+        mod = tvm.IRModule()
+        x = relay.const(ones)
+        y = relay.var("y", shape=(8, 8))
+        x0 = relay.const(ones)
+        y0 = relay.var("y0", shape=(8, 8))
+        add = x0 + y0
+        # Function that uses C compiler
+        func = relay.Function([y0], add)
+        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Compiler", tvm.tir.StringImm("ccompiler"))
+        func = func.with_attr("ExternalSymbol",
+                              tvm.tir.StringImm("ccompiler_0"))
+        glb_0 = relay.GlobalVar("ccompiler_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [y])
+        log = relay.log(add_call)
+        main = relay.Function([y], log)
+        mod["main"] = main
+        return mod
+
+    x = relay.var("x", shape=(8, 8))
+    y = relay.var("y", shape=(8, 8))
+    add = x + y
+    log = relay.log(add)
+    f = relay.Function([x, y], log)
+    f = relay.build_module.bind_params_by_name(f, {"x": tvm.nd.array(ones)})
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
+    mod = transform.PartitionGraph()(mod)
+
+    expected_mod = expected()
+    assert relay.alpha_equal(mod, expected_mod)
+
+    y_data = np.random.rand(8, 8).astype('float32')
+    np_add = ones + y_data
+    check_result(mod, {"y": y_data}, (8, 8), np.log(np_add))
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -643,3 +687,4 @@ if __name__ == "__main__":
     test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()
+    test_constant_propagation()
