@@ -29,6 +29,6 @@ if [ "$?" -eq 0 ]; then
     mkdir -p build
     cd build; cmake .. ${CMAKE_OPTIONS} && make
     cd ..
-    LD_LIBRARY_PATH=./build:$LD_LIBRARY_PATH python3 -m pytest -v ./tests
+    LD_LIBRARY_PATH=${TVM_ROOT}/build:./build:$LD_LIBRARY_PATH python3 -m pytest -v ./tests
 fi
 
