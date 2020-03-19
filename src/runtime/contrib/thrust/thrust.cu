@@ -21,6 +21,7 @@
  * \file Use external Thrust library call
  */
 
+#include <thrust/device_ptr.h>
 #include <thrust/sort.h>
 
 #include <tvm/runtime/registry.h>
