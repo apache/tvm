@@ -272,10 +272,10 @@ Array<Array<Layout> > PReluInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
+    const Array<tvm::relay::Type> &old_in_types) {
 
   CHECK_EQ(old_in_layouts.size(), 2U);
-  CHECK_EQ(old_in_shapes.size(), 2U);
+  CHECK_EQ(old_in_types.size(), 2U);
   Layout data_layout = old_in_layouts[0];
   if (new_in_layouts.defined()) {
     CHECK_EQ(new_in_layouts.size(), 2U);
@@ -615,8 +615,14 @@ TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 Array<Array<Layout>> BatchNormInferCorrectLayout(const Attrs& attrs,
                                                  const Array<Layout>& new_in_layouts,
                                                  const Array<Layout>& old_in_layouts,
-                                                 const Array<Array<IndexExpr>>& old_in_shapes) {
+                                                 const Array<tvm::relay::Type>& old_in_types) {
   BatchNormAttrs* param = const_cast<BatchNormAttrs*>(attrs.as<BatchNormAttrs>());
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    CHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
 
   size_t axis =
       param->axis < 0 ? param->axis + old_in_shapes[0].size() : static_cast<size_t>(param->axis);

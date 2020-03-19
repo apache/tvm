@@ -26,6 +26,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
 #include "../../transforms/pattern_util.h"
+#include "../../transforms/infer_layout_util.h"
 #include "../util.h"
 
 namespace tvm {
@@ -33,6 +34,79 @@ namespace relay {
 namespace qnn {
 
 TVM_REGISTER_NODE_TYPE(RequantizeAttrs);
+
+Array<Array<Layout>> RequantizeInferCorrectLayout(const Attrs& attrs,
+                                                  const Array<Layout>& new_in_layouts,
+                                                  const Array<Layout>& old_in_layouts,
+                                                  const Array<tvm::relay::Type>& old_in_types) {
+  RequantizeAttrs* param = const_cast<RequantizeAttrs*>(attrs.as<RequantizeAttrs>());
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    CHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
+  Array<Layout> input_layouts, output_layouts;
+  if (new_in_layouts.defined()) {
+    // Adapt to new layout. The axis has to change.
+    // Record original reduce axis. Convert to the modified layout axis.
+    CHECK_EQ(new_in_layouts.size(), 5);
+    CHECK_EQ(old_in_layouts.size(), 5);
+
+    // 1) Get the axis.
+    int axis = param->axis;
+    axis = (axis == -1) ? old_in_shapes[0].size() - 1 : axis;
+
+    // 2) Collect the original axis
+    std::string old_dim = old_in_layouts[0][axis].name();
+
+    // 3) Collect the new axes by walking new_layout.
+    tvm::Integer new_axis;
+    std::string new_layout_string = "";
+    int axis_index = 0;
+    for (auto iter_var : new_in_layouts[0]->axes) {
+      const auto& layout_axis = LayoutAxis::Get(iter_var);
+      const std::string& layout_dim = layout_axis.name();
+      if (old_dim  == layout_dim) {
+        new_axis = tvm::Integer(axis_index);
+      }
+      // Collect only the primal axis.
+      if (layout_axis.IsPrimal()) {
+        new_layout_string += layout_dim;
+        axis_index++;
+      }
+    }
+
+    // 4) Set the new axis and layout.
+    Layout new_layout = Layout(new_layout_string);
+
+    // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
+    // tensors can be treated as channel layout.
+    Layout channel_layout = Layout("C");
+    input_layouts = {new_layout, channel_layout, channel_layout, channel_layout, channel_layout};
+    output_layouts = {new_layout};
+    param->axis = new_axis;
+  } else if (old_in_layouts.defined()) {
+    // If the new layout is undefined, set the old layout as the inferred layout.
+    CHECK_EQ(old_in_layouts.size(), 5);
+
+    Layout old_layout = old_in_layouts[0];
+
+    // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
+    // tensors can be treated as channel layout.
+    Layout channel_layout = Layout("C");
+    input_layouts = {old_layout, channel_layout, channel_layout, channel_layout, channel_layout};
+    output_layouts = {old_layout};
+  } else {
+    // Set the layouts to undef.
+    Layout undef = Layout::Undef();
+    input_layouts = Array<Layout>(5, undef);
+    output_layouts = {undef};
+  }
+
+  return Array<Array<Layout>>{input_layouts, output_layouts};
+}
 
 // Lowering of qnn.requantize op
 
@@ -247,7 +321,8 @@ Q_output = zp_output +  (scale_input)/(scale_output) * (Q_input - zp_input)
 .add_argument("output_zero_point", "Tensor", "The quantization zero_point of the output tensor.")
 .set_support_level(11)
 .add_type_rel("Requantize", RequantizeRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", RequantizeQnnCanonicalize)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", RequantizeInferCorrectLayout);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.requantize")
 .set_body_typed(MakeRequantize);

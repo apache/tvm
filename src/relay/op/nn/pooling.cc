@@ -41,7 +41,7 @@ Array<Array<Layout> > PoolInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
+    const Array<tvm::relay::Type> &old_in_types) {
   // NOTE: Discard "const" qualifier here.
   T *params = const_cast<T*>(attrs.as<T>());
 
