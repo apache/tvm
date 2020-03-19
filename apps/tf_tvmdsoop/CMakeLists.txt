@@ -17,7 +17,10 @@
 cmake_minimum_required(VERSION 3.2)
 project(tf_tvmdsoop C CXX)
 
+set(TFTVM_COMPILE_FLAGS -std=c++11)
+set(BUILD_TVMDSOOP_ONLY ON)
 set(CMAKE_CURRENT_SOURCE_DIR ${TVM_ROOT})
+set(CMAKE_CURRENT_BINARY_DIR ${TVM_ROOT}/build)
 
 include_directories(${TVM_ROOT}/3rdparty/dlpack/include/)
 include_directories(${TVM_ROOT}/3rdparty/dmlc-core/include/)
@@ -28,6 +31,4 @@ link_directories(${TVM_ROOT}/build)
 include(${TVM_ROOT}/cmake/util/FindCUDA.cmake)
 include(${TVM_ROOT}/cmake/modules/CUDA.cmake)
 
-set(TFTVM_COMPILE_FLAGS -std=c++11)
-set(BUILD_TVMDSOOP_ONLY ON)
 include(${TVM_ROOT}/cmake/modules/contrib/TF_TVMDSOOP.cmake)
