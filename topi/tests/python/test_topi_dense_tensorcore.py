@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Test code for dense tensorcore operator"""
 import numpy as np
 import tvm
@@ -31,7 +31,7 @@ _dense_implement = {
 }
 
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
-    """Dense verify function"""
+    """Dense tensorcore verify function"""
     A = te.placeholder((batch, in_dim), name='A')
     B = te.placeholder((out_dim, in_dim), name='B')
     C = te.placeholder((out_dim,), name='C')
