@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, unused-import, unused-wildcard-import
-"""Image network related operators."""
-# Re-export in a specific file name so that autodoc can pick it up
-from .op.image import *
+"""FFI APIs for Relay program IR."""
+import tvm._ffi
+
+tvm._ffi._init_api("relay.ir", __name__)

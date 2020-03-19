@@ -218,7 +218,6 @@ class MulScalarNegative(nn.Module):
 class UpsamplingBilinear(nn.Module):
     def __init__(self):
         super().__init__()
-        self.relu = QuantWrapper(nn.ReLU())
         self.quant = QuantStub()
         self.dequant = DeQuantStub()
 
@@ -233,12 +232,25 @@ class UpsamplingBilinear(nn.Module):
         pass
 
 
+class AvgPool2d(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.pool = QuantWrapper(nn.AvgPool2d(kernel_size=2))
+
+    def forward(self, x):
+        return self.pool(x)
+
+    def fuse_model(self):
+        pass
+
+
 def test_quantized_modules():
     imagenet_ishape = (1, 3, 224, 224)
 
     qmodules = [
        ("relu", imagenet_ishape, ReLU(), False),
        ("upsample bilinear", (1, 3, 64, 64), UpsamplingBilinear(), False),
+       ("avgpool", imagenet_ishape, AvgPool2d(), False),
     ]
 
     for per_channel in [False, True]:
@@ -276,7 +288,6 @@ def test_quantized_modules():
             pt_result = script_module(inp.clone()).numpy()
 
         input_name = get_graph_input_names(script_module)[0]
-
         runtime = get_tvm_runtime(script_module, input_name, ishape)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()

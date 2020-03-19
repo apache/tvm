@@ -26,7 +26,10 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
@@ -156,7 +159,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
-        converter = interpreter_wrapper.TFLiteConverter.from_session(
+        converter = tf.lite.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
 
         if quantized:
@@ -1446,6 +1449,40 @@ def test_forward_prelu():
     _test_prelu(np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"), np.full((1, 1, 3), 0.2, dtype="float32"))
 
 #######################################################################
+# DepthToSpace
+# ------------
+
+def _test_depthtospace(data, block_size):
+    """ One iteration of depth_to_space operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = array_ops.depth_to_space(in_data, block_size)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_depthtospace():
+    # DEPTH_TO_SPACE comes with TFLite >= 1.15.0 fbs schema
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+        _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
+        _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
+
+#######################################################################
+# SpaceToDepth
+# ------------
+
+def _test_spacetodepth(data, block_size):
+    """ One iteration of space_to_depth operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = array_ops.space_to_depth(in_data, block_size)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_spacetodepth():
+    _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
+    _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
+
+#######################################################################
 # Fully Connected
 # ---------------
 
@@ -1738,6 +1775,8 @@ if __name__ == '__main__':
     test_all_resize()
     test_forward_squeeze()
     test_forward_slice()
+    test_forward_depthtospace()
+    test_forward_spacetodepth()
 
     # NN
     test_forward_convolution()

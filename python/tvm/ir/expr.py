@@ -51,7 +51,7 @@ class RelayExpr(BaseExpr):
         return ret
 
 
-@tvm._ffi.register_object("relay.GlobalVar")
+@tvm._ffi.register_object("GlobalVar")
 class GlobalVar(RelayExpr):
     """A global variable in the IR.
 

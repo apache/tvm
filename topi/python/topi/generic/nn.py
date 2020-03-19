@@ -648,3 +648,33 @@ def schedule_batch_matmul(outs):
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+
+def schedule_dilation2d_nchw(outs):
+    """Schedule for dilation2d
+    Parameters
+    ----------
+    outs : Array of Tensor
+        The computation graph description of dilation2d
+        in the format of an array of tensors.
+    Returns
+    -------
+    sch : Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+def schedule_dilation2d_nhwc(outs):
+    """Schedule for dilation2d
+    Parameters
+    ----------
+    outs : Array of Tensor
+        The computation graph description of dilation2d
+        in the format of an array of tensors.
+    Returns
+    -------
+    sch : Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)

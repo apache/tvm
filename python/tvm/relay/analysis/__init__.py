@@ -14,8 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable
-"""The interface of expr function exposed from C++."""
-import tvm._ffi
+# pylint: disable=wildcard-import, redefined-builtin, invalid-name
+"""The Relay IR namespace containing the analysis passes."""
+# Analysis passes
+from .analysis import *
 
-tvm._ffi._init_api("relay._expr", __name__)
+# Call graph
+from . import call_graph
+
+# Feature
+from . import feature
+
+CallGraph = call_graph.CallGraph

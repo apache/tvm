@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, unused-import, unused-wildcard-import
-"""Neural network related operators."""
-# Re-export in a specific file name so that autodoc can pick it up
-from .op.nn import *
+"""FFI APIs for Relay transformation passes."""
+import tvm._ffi
+
+tvm._ffi._init_api("relay._transform", __name__)

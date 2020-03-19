@@ -74,7 +74,7 @@ Pass ExtractFusedFunctions() {
                     "ExtractFusedFunctions");
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.ExtractFusedFunctions").set_body_typed(ExtractFusedFunctions);
+TVM_REGISTER_GLOBAL("relay.analysis.ExtractFusedFunctions").set_body_typed(ExtractFusedFunctions);
 
 }  // namespace transform
 

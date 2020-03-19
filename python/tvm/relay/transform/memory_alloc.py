@@ -19,12 +19,13 @@
 A pass for manifesting explicit memory allocations.
 """
 import numpy as np
-from .expr_functor import ExprMutator
-from .scope_builder import ScopeBuilder
+from ..expr_functor import ExprMutator
+from ..scope_builder import ScopeBuilder
 from . import transform
-from . import op, ty, expr
-from .. import DataType, register_func
-from .backend import compile_engine
+from .. import op
+from ... import DataType, register_func
+from .. import ty, expr
+from ..backend import compile_engine
 
 
 def is_primitive(call):

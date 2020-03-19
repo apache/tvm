@@ -76,15 +76,6 @@ class FunctionNode : public BaseFuncNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
-  /*!
-   * \brief Check whether the function should use the TVM default compiler to build, or
-   * use other compilers.
-   *
-   * \return Whether the function will be compiled using the default compiler
-   * (e.g. those are used in the TVM stack).
-   */
-  bool UseDefaultCompiler() const;
-
   static constexpr const char* _type_key = "relay.Function";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };

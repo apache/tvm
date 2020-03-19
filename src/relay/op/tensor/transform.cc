@@ -82,7 +82,7 @@ Expr MakeCast(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay._make.cast")
+TVM_REGISTER_GLOBAL("relay.ir.cast")
 .set_body_typed(MakeCast);
 
 RELAY_REGISTER_OP("cast")
@@ -138,7 +138,7 @@ Expr MakeCastLike(Expr data,
 }
 
 
-TVM_REGISTER_GLOBAL("relay._make.cast_like")
+TVM_REGISTER_GLOBAL("relay.ir.cast_like")
 .set_body_typed(MakeCastLike);
 
 RELAY_REGISTER_OP("cast_like")
