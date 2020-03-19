@@ -2242,7 +2242,7 @@ def test_nonzero():
 
         onnx_out = get_onnxruntime_output(model, indata, dtype)
 
-        for target, ctx in ctx_list():
+        for target, ctx in [('llvm', tvm.cpu())]:
             tvm_out = get_tvm_output_with_vm(model, indata, target, ctx, opset=9)
             tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
 
