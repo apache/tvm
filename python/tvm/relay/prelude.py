@@ -90,22 +90,6 @@ class StaticTensorArrayOps(object):
         self.prelude.mod[tensor_array_constructor_var] = \
             Function([n], body, self.prelude.l(tensor_type_var()), [])
 
-    def define_tensor_get_data(self):
-        """Defines a function to get a Tensor from static_tensor_t.
-        tensor_get_data(n) : static_tensor_t -> Tensor[self.shape, self.dtype]
-        """
-        tensor_get_data_name = self.get_name("tensor_get_data")
-        tensor_get_data_var = GlobalVar(tensor_get_data_name)
-        setattr(self.prelude, tensor_get_data_name, tensor_get_data_var)
-        tensor_constructor = self.get_var('tensor_constructor')
-        tensor_t = self.get_var('tensor_t')
-        t = Var('tensor', tensor_t())
-        tvar = Var('t')
-        case =\
-            Clause(PatternConstructor(tensor_constructor, [PatternVar(tvar)]), tvar)
-        self.prelude.mod[tensor_get_data_var] = \
-            Function([t], Match(t, [case], False), TensorType(self.shape, self.dtype), [])
-
     def define_tensor_take(self):
         """Defines a function to return a range of tensor_t on axis 0.
             tensor_take(t, lower, upper) :
@@ -466,6 +450,35 @@ class StaticTensorArrayOps(object):
         self.prelude.mod[gather_var] =\
             Function([tensor_array, indices], body, output_tensor_type_var(), [])
 
+    def define_tensor_get_data_from_read(self):
+        """Defines a function to get a Tensor from static_tensor_t.
+        tensor_get_data(n) : static_tensor_t -> Tensor[self.shape, self.dtype]
+        """
+        tensor_get_data_name = self.get_name("tensor_get_data_from_read")
+        tensor_get_data_var = GlobalVar(tensor_get_data_name)
+        setattr(self.prelude, tensor_get_data_name, tensor_get_data_var)
+        tensor_constructor = self.get_var('tensor_constructor')
+        tensor_type_var = self.get_var('tensor_t')
+        t = Var('tensor', tensor_type_var())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_constructor, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[tensor_get_data_var] = \
+            Function([t], Match(t, [case], False), TensorType(self.shape, self.dtype), [])
+
+    def define_tensor_get_data_from_gather(self):
+        tensor_get_data_name = self.get_name("tensor_get_data_from_gather")
+        tensor_get_data_var = GlobalVar(tensor_get_data_name)
+        setattr(self.prelude, tensor_get_data_name, tensor_get_data_var)
+        output_shape = [Any(),] + self.shape
+        tensor_type_var, tensor_constructor = self._get_adt_by_shape(output_shape)
+        t = Var('tensor', tensor_type_var())
+        tvar = Var('t')
+        case =\
+            Clause(PatternConstructor(tensor_constructor, [PatternVar(tvar)]), tvar)
+        self.prelude.mod[tensor_get_data_var] = \
+            Function([t], Match(t, [case], False), TensorType(output_shape, self.dtype), [])
+
     def register(self):
         """Register all tensor array ops in Prelude"""
         self.define_tensor_adt()
@@ -481,7 +494,8 @@ class StaticTensorArrayOps(object):
         self.define_tensor_array_concat()
         self.define_tensor_array_stack()
         self.define_tensor_array_gather()
-        self.define_tensor_get_data()
+        self.define_tensor_get_data_from_read()
+        self.define_tensor_get_data_from_gather()
 
     def _get_adt_by_shape(self, shape):
         """Get ADT type and constructor with given shape."""
