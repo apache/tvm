@@ -28,5 +28,6 @@ link_directories(${TVM_ROOT}/build)
 include(${TVM_ROOT}/cmake/util/FindCUDA.cmake)
 include(${TVM_ROOT}/cmake/modules/CUDA.cmake)
 
+set(TFTVM_COMPILE_FLAGS -std=c++11)
 set(BUILD_TVMDSOOP_ONLY ON)
 include(${TVM_ROOT}/cmake/modules/contrib/TF_TVMDSOOP.cmake)

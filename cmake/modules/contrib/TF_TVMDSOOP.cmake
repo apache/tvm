@@ -51,7 +51,6 @@ if(NOT USE_TF_TVMDSOOP STREQUAL "OFF")
       add_dependencies(${OP_LIBRARY_NAME} tvm) 
   endif()
 
-  # set(TFTVM_COMPILE_FLAGS  ${CMAKE_CXX_FLAGS})
   target_compile_options(${OP_LIBRARY_NAME} PUBLIC ${TFTVM_COMPILE_FLAGS} ${TF_COMPILE_FLAGS})
   target_link_libraries(${OP_LIBRARY_NAME} PUBLIC ${TFTVM_LINK_FLAGS} ${TF_LINK_FLAGS})
 
