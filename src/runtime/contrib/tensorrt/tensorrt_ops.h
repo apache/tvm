@@ -885,8 +885,11 @@ class StridedSliceOpConverter : public TrtOpConverter {
 
     std::vector<int> start, size, strides;
     for (size_t i = 1; i < attrs->begin.size(); ++i) {
-      const int begin_value = attrs->begin[i].as<IntImmNode>()->value;
-      const int end_value = attrs->end[i].as<IntImmNode>()->value;
+      const int begin_value =
+          attrs->begin[i].defined() ? attrs->begin[i].as<IntImmNode>()->value : 0;
+      const int end_value = attrs->end[i].defined()
+                                ? attrs->end[i].as<IntImmNode>()->value
+                                : input_dims[i - 1];
       const int stride_value = (default_strides || i >= attrs->strides.size())
                                    ? 1
                                    : attrs->strides[i].as<IntImmNode>()->value;

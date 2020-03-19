@@ -216,6 +216,17 @@ bool ConcatenateOpChecker(const CallNode* call, const std::string& op_name,
     LOG(INFO) << op_name << " not supported: cannot modify batch dimension.";
     return false;
   }
+  const auto tuple = call->args[0].as<TupleNode>();
+  if (!tuple) return true;
+  for (size_t i = 0; i < tuple->fields.size(); ++i) {
+    const auto constant = tuple->fields[i].as<ConstantNode>();
+    if (constant && constant->data.Shape().size() > 1 &&
+        constant->data.Shape()[0] != 1) {
+      LOG(INFO) << op_name << " not supported: cannot concatenate a batched "
+                              "constant with tensors.";
+      return false;
+    }
+  }
   return true;
 }
 
@@ -293,15 +304,20 @@ bool StridedSliceOpChecker(const CallNode* call, const std::string& op_name,
   if (!TrtVersionChecker<5, 1, 5>(call, op_name, trt_version)) return false;
   auto shape = GetShape(call->type_args[0]);
   const auto* attrs = call->attrs.as<StridedSliceAttrs>();
-  if (attrs->begin[0].as<IntImmNode>()->value != 0 ||
-      (attrs->end[0].as<IntImmNode>()->value != -1 &&
-       attrs->end[0].as<IntImmNode>()->value != shape[0])) {
+  const bool batch_begin_modified =
+      attrs->begin[0].defined() && attrs->begin[0].as<IntImmNode>()->value != 0;
+  const bool batch_end_modified =
+      attrs->end[0].defined() && attrs->end[0].as<IntImmNode>()->value != -1 &&
+      attrs->end[0].as<IntImmNode>()->value != shape[0];
+  if (batch_begin_modified || batch_end_modified) {
     LOG(INFO) << op_name << " not supported: can't modify batch dimension.";
     return false;
   }
   for (size_t i = 0; i < attrs->begin.size(); ++i) {
-    if (attrs->begin[i].as<IntImmNode>()->value < 0 ||
-        attrs->end[i].as<IntImmNode>()->value < 0) {
+    if ((attrs->begin[i].defined() &&
+         attrs->begin[i].as<IntImmNode>()->value < 0) ||
+        (attrs->end[i].defined() &&
+         attrs->end[i].as<IntImmNode>()->value < 0)) {
       LOG(INFO) << op_name
                 << " not supported: start/end values must be positive.";
       return false;
