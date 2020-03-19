@@ -201,6 +201,7 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
 
       func = tir::ThreadSync(func, "shared");
       func = tir::ThreadSync(func, "warp");
+      func = tir::InferFragment(func);
       func = tir::LowerThreadAllreduce(func, target->thread_warp_size);
       auto fsplits = tir::SplitHostDevice(func);
       fhost.push_back(fsplits[0]);
@@ -242,6 +243,12 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
     CHECK(fdevice.empty()) << "No device code should be generated when target "
                            << "and host_target are both llvm target."
                            << "\n";
+  }
+
+  for (size_t i = 0; i < fdevice.size(); ++i) {
+    auto func = fdevice[i];
+    func = tir::LowerDeviceStorageAccessInfo(func);
+    fdevice.Set(i, func);
   }
 
   for (size_t i = 0; i < fhost.size(); ++i) {
