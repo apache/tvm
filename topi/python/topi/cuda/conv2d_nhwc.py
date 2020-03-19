@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Direct conv2d in NHWC layout"""
 import tvm
 from tvm import te

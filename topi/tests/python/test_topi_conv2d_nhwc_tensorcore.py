@@ -14,18 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, too-many-locals, too-many-arguments
 """Example code to do convolution."""
 
 import numpy as np
 import tvm
-from tvm import te
 import topi
 import topi.testing
+from tvm import te
 from tvm.contrib.pickle_memoize import memoize
+from tvm.contrib import nvcc
 from topi.nn.util import get_pad_tuple
 from topi.util import get_const_tuple
-from tvm.contrib import nvcc
 
 
 _conv2d_nhwc_tensorcore_implement = {
