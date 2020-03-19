@@ -358,8 +358,9 @@ def test_quantized_imagenet():
         qmodels += [
             ("resnet18", qresnet.resnet18(pretrained=True), per_channel),
             ("mobilenet_v2", qmobilenet.mobilenet_v2(pretrained=True), per_channel),
-            # disable inception test for now, since loading it takes ~5min on torchvision-0.5
-            #("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
+            # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
+            # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
+            # ("inception_v3", qinception.inception_v3(pretrained=True), per_channel),
             ("googlenet", qgooglenet(pretrained=True), per_channel),
         ]
 
