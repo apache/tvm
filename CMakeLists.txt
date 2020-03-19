@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(tvm C CXX CUDA)
+project(tvm C CXX)
 
 # Utility functions
 include(cmake/util/Util.cmake)
