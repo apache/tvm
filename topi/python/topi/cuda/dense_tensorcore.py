@@ -35,7 +35,7 @@ def dense_tensorcore(cfg, data, weight, bias=None, out_dtype=None):
 
 @autotvm.register_topi_schedule("dense_tensorcore.cuda")
 def schedule_dense_tensorcore(cfg, outs):
-    """Schedule dense operator using TENSORCORE"""
+    """Schedule dense operator using Tensorcore"""
     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
     s = te.create_schedule([x.op for x in outs])
 
@@ -71,7 +71,7 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
 
 
 def _schedule_dense_tensorcore(cfg, s, C):
-    """Schedule dense operator using TENSORCORE"""
+    """Schedule dense operator using Tensorcore"""
     A, B = s[C].op.input_tensors
     batch, out_dim = get_const_tuple(C.shape)
     out_dtype = C.dtype
@@ -152,7 +152,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     thread_y = te.thread_axis('threadIdx.y')
     thread_z = te.thread_axis('threadIdx.z')
 
-    #Schedule for dense of global memory
+    #Schedule for dense computation
     block_factor_b = wmma_m * warp_row_tiles * block_row_warps
     block_factor_o = wmma_n * warp_col_tiles * block_col_warps
     b, o = C.op.axis
@@ -171,7 +171,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     s[C].bind(tx, thread_x)
     s[C].vectorize(vi)
 
-    #Schedule for storing the result from the scope of wmma to shared memory
+    #Schedule for wmma store
     s[CS].compute_at(s[C], block_j)
     bb, oo = CS.op.axis
     s[CS].storage_align(bb, CS_align - 1, CS_align)
@@ -181,7 +181,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     oo, ooii = s[CS].split(oo, factor=warp_col_tiles)
     s[CS].reorder(bb, oo, bbii, ooii, bbi, ooi)
 
-    #Schedule for matrix multiplication in the scope of wmma
+    #Schedule for wmma computation
     s[CF].compute_at(s[CS], oo)
     warp_i, warp_j = CF.op.axis
     warp_i, _ii = s[CF].split(warp_i, factor=wmma_m)
@@ -191,14 +191,14 @@ def _schedule_dense_tensorcore(cfg, s, C):
     ko, ki = s[CF].split(k, factor=chunk)
     s[CF].reorder(ko, ki, warp_i, warp_j, _ii, _jj, _k)
 
-    #Schedule for load wmma_matrix_a
+    #Schedule for  wmma_matrix_a load
     s[AF].compute_at(s[CF], ki)
     b, i = AF.op.axis
     b, b_ii = s[AF].split(b, factor=wmma_m)
     i, i_jj = s[AF].split(i, factor=wmma_k)
     s[AF].reorder(b, i, b_ii, i_jj)
 
-    #Schedule for load wmma_matrix_b
+    #Schedule for  wmma_matrix_b load
     s[BF].compute_at(s[CF], ki)
     o, i = BF.op.axis
     o, o_ii = s[BF].split(o, factor=wmma_n)
