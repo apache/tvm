@@ -66,7 +66,7 @@ class MergeCompositeWrapper : public ExprMutator {
     return root;
   }
 
-  Expr ExtractPattern(const TupleGetItem& pattern, const Expr& root, 
+  Expr ExtractPattern(const TupleGetItem& pattern, const Expr& root,
       Map<std::string, Array<Expr>>* var_map, Map<Expr, Expr>* call_map) {
     if (!root->IsInstance<TupleGetItemNode>()) {
       return Expr();
