@@ -163,7 +163,7 @@ def _relu():
         return _op.nn.relu(data)
     return _impl
 
-def _adaptive_avg_2d():
+def _adaptive_avg_pool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -178,7 +178,7 @@ def _adaptive_avg_2d():
 
     return _impl
 
-def _adaptive_max_2d():
+def _adaptive_max_pool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -189,7 +189,7 @@ def _adaptive_max_2d():
             output_size=output_size), None
     return _impl
 
-def _adaptive_max_3d():
+def _adaptive_max_pool_3d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -198,7 +198,7 @@ def _adaptive_max_3d():
 
     return _impl
 
-def _adaptive_avg_3d():
+def _adaptive_avg_pool_3d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -859,8 +859,8 @@ _convert_map = {
     "aten::select"                          : _select(),
     "aten::relu"                            : _relu(),
     "aten::relu_"                           : _relu(),
-    "aten::adaptive_avg_pool2d"             : _adaptive_avg_2d(),
-    "aten::adaptive_max_pool2d"             : _adaptive_max_2d(),
+    "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
+    "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
     "aten::max_pool2d"                      : _maxpool_2d(),
     "aten::max_pool2d_with_indices"         : _maxpool_2d(),
     "aten::hardtanh"                        : _hardtanh(),
@@ -910,8 +910,8 @@ _convert_map = {
     "aten::Float"                           : _Float(),
     "aten::neg"                             : _neg(),
     "aten::tanh"                            : _tanh(),
-    "aten::adaptive_avg_pool3d"             : _adaptive_avg_3d(),
-    "aten::adaptive_max_pool3d"             : _adaptive_max_3d()
+    "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
+    "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d()
 }
 
 
