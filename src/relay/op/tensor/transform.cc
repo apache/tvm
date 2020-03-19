@@ -275,54 +275,6 @@ Array<te::Tensor> ConcatenateCompute(const Attrs& attrs,
   return { topi::concatenate(inputs, param->axis) };
 }
 
-Array<Array<Layout>> ConcatenateLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
-  ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
-
-  size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
-                static_cast<size_t>(param->axis);
-
-  Layout ret;
-  bool is_new_layout_selected = false;
-  if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
-    // If all the new input layouts are same, the new in layout gets selected.  For axis, the new
-    // axis in the new layout is identified. The param->axis is then modified on the fly to conform
-    // to the new input layout.
-    const auto& concate_dim = old_in_layouts[0][axis];
-    bool all_input_layouts_same = true;
-    for (auto new_layout : new_in_layouts) {
-      if (!new_layout.Equals(new_in_layouts[0])) {
-        all_input_layouts_same = false;
-      }
-    }
-    if (all_input_layouts_same) {
-      auto new_index = new_in_layouts[0].IndexOf(concate_dim);
-      ret = new_in_layouts[0];
-      param->axis = new_index;
-      is_new_layout_selected = true;
-    }
-  }
-
-  if (!is_new_layout_selected) {
-    // this function is called on the original correct relay ir
-    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
-      if (old_in_layouts[i].defined()) {
-        ret = old_in_layouts[i];
-        break;
-      }
-    }
-
-    if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
-      return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
-    }
-  }
-
-  return Array<Array<Layout> > {Array<Layout>(old_in_layouts.size(), ret), {ret}};
-}
-
 Expr MakeConcatenate(Expr data,
                      int axis) {
   auto attrs = make_object<ConcatenateAttrs>();
@@ -1933,7 +1885,14 @@ Array<Array<Layout> > StridedSliceInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>>& old_in_shapes) {
+    const Array<tvm::relay::Type>& old_in_types) {
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    CHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
   CHECK(old_in_layouts.defined());
   CHECK_EQ(old_in_layouts.size(), 1);
   CHECK(old_in_shapes.defined());

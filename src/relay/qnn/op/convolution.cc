@@ -68,6 +68,23 @@ bool QnnConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return Conv2DRel<Conv2DAttrs>(tensor_types, 3, attrs, reporter);
 }
 
+Array<Array<Layout>> QnnConvInferCorrectLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
+  // Use Relay Conv2D Infer correct layout.
+  auto layouts =
+      ConvInferCorrectLayout<Conv2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
+
+  // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
+  // tensors can be treated as channel layout.
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout,
+                                 channel_layout, channel_layout, channel_layout};
+  Array<Layout> output_layouts = layouts[1];
+  return {input_layouts, output_layouts};
+}
+
 bool is_depthwise(const Conv2DAttrs* param) {
   return param->channels.defined() && tvm::tir::Equal(param->channels, param->groups) &&
          param->groups != 1;
@@ -684,7 +701,8 @@ operator to understand how to scale back the int32 output to (u)int8.
 .add_argument("weight_zero_point", "Tensor", "The quantization zero_point of the weight tensor.")
 .set_support_level(11)
 .add_type_rel("QnnConv2D", QnnConv2DRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnConv2DCanonicalize)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConvInferCorrectLayout);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.conv2d").set_body_typed(MakeQnnConv2D);
 

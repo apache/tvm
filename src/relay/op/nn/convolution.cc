@@ -34,23 +34,6 @@
 namespace tvm {
 namespace relay {
 
-
-template<typename T>
-Array<Array<Layout> > ConvInferCorrectLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
-  const T* params = attrs.as<T>();
-
-  // We always make other operators to fit the layouts of convolution layers
-  // So this inference ignores all inputs
-  return Array<Array<Layout> >{{params->data_layout, params->kernel_layout},
-                               {params->out_layout == "" ?
-                                   params->data_layout : params->out_layout}};
-}
-
-
 template <typename T>
 Expr MakeConv(Expr data,
               Expr weight,
@@ -1048,7 +1031,7 @@ Array<Array<Layout> > Dilation2DInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
+    const Array<tvm::relay::Type> &old_in_types) {
   const T* params = attrs.as<T>();
 
   // We always make other operators to fit the layouts of convolution layers

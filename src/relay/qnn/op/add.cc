@@ -25,12 +25,30 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
 #include "../../transforms/pattern_util.h"
+#include "../../transforms/infer_layout_util.h"
 #include "../util.h"
 #include "op_common.h"
 
 namespace tvm {
 namespace relay {
 namespace qnn {
+
+/*! \brief Infer layout for QNN binary broadcast operators */
+Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
+                                               const Array<Layout>& new_in_layouts,
+                                               const Array<Layout>& old_in_layouts,
+                                               const Array<tvm::relay::Type>& old_in_types) {
+  // Use Relay Binary Broadcast Infer correct layout.
+  auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
+
+  // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
+  // tensors can be treated as C.
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout, channel_layout,
+                                 channel_layout, channel_layout, channel_layout, channel_layout};
+  Array<Layout> output_layouts = layouts[1];
+  return {input_layouts, output_layouts};
+}
 
 /*
  * \brief Canonicalizes the QNN add op.
@@ -118,7 +136,8 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 QNN_REGISTER_BINARY_OP("add")
 .describe("Elementwise add with with broadcasting for quantized tensors.")
 .set_support_level(11)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout);
 
 }  // namespace qnn
 }  // namespace relay
