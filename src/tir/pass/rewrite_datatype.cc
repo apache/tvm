@@ -144,6 +144,14 @@ class DataTypeRewriter : public StmtExprMutator {
  public:
   Stmt operator()(Stmt s) {
     visitor_(s);
+    for (auto i = visitor_.vmap.begin(), last = visitor_.vmap.end(); i != last;) {
+      PrimExpr e = GetRef<PrimExpr>(i->first);
+      if (e.dtype() == i->second) {
+        i = visitor_.vmap.erase(i);
+      } else {
+        ++i;
+      }
+    }
     return VisitStmt(s);
   }
 
