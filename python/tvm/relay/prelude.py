@@ -368,8 +368,7 @@ class StaticTensorArrayOps(object):
         setattr(self.prelude, concat_name, concat_var)
 
         output_shape = [Any(),] + self.shape[1:]
-        tensor_type_var, tensor_constructor =\
-            self._get_adt_by_shape(output_shape)
+        tensor_type_var, _ = self._get_adt_by_shape(output_shape)
 
         # Register tensor concatenate and get tensor_nil var for output shape
         origin_shape = self.shape
