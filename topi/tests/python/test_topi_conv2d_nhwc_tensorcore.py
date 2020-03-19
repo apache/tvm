@@ -107,13 +107,19 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride,
 
 def test_conv2d_nhwc_tensorcore():
     """Test the conv2d with tensorcore for nhwc layout"""
-    verify_conv2d_nhwc(32, 16, 14, 16, 3, 1, 1)
+    verify_conv2d_nhwc(16, 16, 14, 16, 3, 1, 1)
     verify_conv2d_nhwc(16, 128, 7, 128, 7, 1, 3)
     verify_conv2d_nhwc(16, 160, 7, 160, 7, 1, 3)
 
-    verify_conv2d_nhwc(16, 64, 14, 64, 3, 1, 1, add_bias=True)
-    verify_conv2d_nhwc(16, 64, 14, 64, 3, 1, 1, add_relu=True)
-    verify_conv2d_nhwc(16, 64, 14, 64, 3, 1, 1, add_relu=True, add_bias=True)
+    verify_conv2d_nhwc(32, 64, 14, 64, 3, 1, 1, add_bias=True)
+    verify_conv2d_nhwc(32, 64, 14, 64, 3, 1, 1, add_relu=True)
+    verify_conv2d_nhwc(32, 64, 14, 64, 3, 1, 1, add_relu=True, add_bias=True)
+
+    verify_conv2d_nhwc(16, 64, 17, 64, 7, 1, (3, 3, 2, 2))
+    verify_conv2d_nhwc(16, 64, 17, 64, 7, 1, "SAME")
+    verify_conv2d_nhwc(16, 48, 35, 48, 5, 1, "VALID")
+    verify_conv2d_nhwc(16, 48, 56, 48, 3, 1, (1, 1, 1, 1))
+    verify_conv2d_nhwc(16, 64, 28, 64, 3, 1, (1, 1, 1, 1))
 
 
 if __name__ == "__main__":
