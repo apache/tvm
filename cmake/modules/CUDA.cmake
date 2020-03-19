@@ -57,6 +57,7 @@ if(USE_CUDA)
 
   if(USE_THRUST)
     message(STATUS "Build with Thrust support")
+    cmake_minimum_required(VERSION 3.8) # to compile CUDA code
     enable_language(CUDA)
     file(GLOB CONTRIB_THRUST_SRC src/runtime/contrib/thrust/*.cu)
     list(APPEND RUNTIME_SRCS ${CONTRIB_THRUST_SRC})
