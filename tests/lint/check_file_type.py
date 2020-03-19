@@ -42,6 +42,7 @@ ALLOW_EXTENSION = {
     "pxi",
     "pyd",
     "pyx",
+    "cu",
     # relay text format
     "rly",
     # configurations
