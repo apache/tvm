@@ -46,9 +46,11 @@ condition is satisfied. ``SpecializedCondition`` consists of a list
 of clauses defined in Tensor Expression in conjunctive normal form (CNF) and
 only supports conditions on tensor shapes.
 
-Last, a ``FTVMStrategy`` function is registered to each Relay operator.
-``FTVMStrategy`` is a generic function (see ``include/tvm/target/generic_func.h``),
-that can be overwritten for each target. The function signature is
+Last, a strategy function, or ``FTVMStrategy``, determines which pair(s) of
+compute and schedule functions should be used given a workload, and needs to be
+registered to each Relay operator.  ``FTVMStrategy`` is a generic function (see
+``include/tvm/target/generic_func.h``), that can be overwritten for each
+target. The function signature is
 
 .. code:: c
 
@@ -58,59 +60,21 @@ that the function returns an ``OpStrategy`` given the op attributes, input
 tensors, output types, and target to compile to.
 
 
+Write A Strategy Function
+-------------------------
 
-Register Strategy for An Operator
----------------------------------
-
-There are three methods to register a strategy function for an operator,
-defined in ``python/tvm/relay/op/op.py``.
-
-First, for operators that have injective, broadcast, or reduction pattern, we
-can call ``register_injective_schedule``, ``register_broadcast_schedule``, and
-``register_reduce_schedule`` repsectively. The schedule function for these
-patterns are already registered by each target and can be applied to these
-operators. We assume the compute function should be the same across all targets,
-and ``FTVMCompute`` needs to be registered to the op before invoking register
-schedule.
-
-.. code:: python
-
-    register_broadcast_schedule("add")
-
-Second, for operators that doesn't have these common patterns mentioned before,
-but also have the same compute function for all targets, we can use
-``register_schedule`` API. Before that, we need to first define the
-``FTVMSchedule`` function as follows:
-
-.. code:: python
-
-    # add to python/tvm/relay/op/strategy/generic.py
-    @generic_func
-    def schedule_pool(attrs, outs, target):
-        ...
-
-    # add to each target file in python/tvm/relay/op/strategy, e.g., x86.py, cuda.py, etc.
-    @schedule_pool.register("cpu")
-    def schedule_pool_cpu(attrs, outs, target):
-        ...
-
-Now that we've created the ``FTVMSchedule`` for this new operator, we can
-register the strategy using ``register_schedule``:
-
-.. code:: python
-
-    register_schedule("nn.max_pool2d", strategy.schedule_pool)
-
-Third, for most comprehensive usage of op strategy, we can allow operator to use
-different implementations for both compute and schedule for different targets.
-In python, ``OpStrategy`` provides only one API, adding an implementation to the
-strategy:
+We recommend developers to write strategy function in Python as
+most TOPI compute and schedule functions are written in Python.
+In python, we provide ``OpStrategy`` class in ``pyton/tvm/relay/op/op.py``.
+It only has one API, which is to add an implementation to the strategy:
 
 .. code:: python
 
     def add_implementation(self, compute, schedule, name="default", plevel=10)
 
-Now let's define the ``FTVMStrategy`` function as follows:
+
+We now take ``topk`` as an example to explain how to write the
+``FTVMStrategy`` function:
 
 .. code:: python
 
@@ -125,7 +89,7 @@ Now let's define the ``FTVMStrategy`` function as follows:
         return strategy
 
     # add to each target file in python/tvm/relay/op/strategy, e.g., x86.py, cuda.py, etc.
-    @dense_strategy.register(["cuda", "gpu"])
+    @topk_strategy.register(["cuda", "gpu"])
     def topk_strategy_cuda(attrs, inputs, out_type, target):
         strategy = _op.OpStrategy()
         strategy.add_implementation(
@@ -134,25 +98,21 @@ Now let's define the ``FTVMStrategy`` function as follows:
             name="topk.cuda")
         return strategy
 
-In this example, we use two wrapper functions that wrap the topi compute and
-schedule function to conform with the required function signature. Usually we
-need to write a customized compute wrap function to retrieve different fields
-from op attributes. After that, we can register this strategy to the new
-operator with
+In this example, we use ``topi.cuda.topk`` and ``topi.cuda.schedule_topk``
+as the compute and schedule function for CUDA or GPU target, while use TOPI
+generic compute and schedule for the rest of targets.
+Note that we use two wrapper functions that wrap the topi
+compute and schedule to conform with the required function signature (
+see ``FTVMCompute`` and ``FTVMSchedule`` in ``include/tvm/relay/op_attr_types.h``).
+Usually we need to write a customized compute wrapper function for each operator
+to get different fields from op attributes.
 
-.. code:: python
-
-    register_strategy("topk", strategy.topk_strategy)
-
-
-Advanced Strategy Function
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The example above only shows the very basic strategy function.
-In this part, we will show a few advanced ways to define op strategy.
-
-First, we can add multiple implementations that use different algorithms to the
-same operator:
+The example above shows a very basic strategy function that only
+adds one implementation in the strategy. But for many complicated operators,
+we may need to add multiple implementations that use different algorithms.
+For example, we can use both direct and winograd algorithm to
+compute a conv2d op. In order to achieve this, we can write the strategy function
+as follows:
 
 .. code:: python
 
@@ -222,8 +182,60 @@ provided after it is done.
         return strategy
 
 
-Register Strategy for A New Target
-----------------------------------
+Register Strategy Function to An Operator
+-----------------------------------------
+
+After we define the strategy function for an operator, we can now
+register the strategy function to this operator with
+
+.. code:: python
+
+    register_strategy("topk", strategy.topk_strategy)
+
+However, it takes much effort to write a strategy function for an operator.
+Therefore, we provide two other methods for simpler operators.
+
+First, for operators that have injective, broadcast, or reduction pattern, we
+can call ``register_injective_schedule``, ``register_broadcast_schedule``, and
+``register_reduce_schedule`` repsectively. The schedule function for these
+patterns are already registered by each target and can be applied to these
+operators. We assume the compute function should be the same across all targets,
+and ``FTVMCompute`` needs to be registered to the op before invoking register
+schedule.
+
+.. code:: python
+
+    register_broadcast_schedule("add")
+
+Second, for operators that doesn't have these common patterns mentioned before,
+but also have the same compute function for all targets, we can use
+``register_schedule`` API. It is easier to write ``FTVMSchedule`` function
+as we only need to provide which schedule function to use. The following
+code snippet shows ``FTVMSchedule`` function for pooling.
+
+.. code:: python
+
+    # add to python/tvm/relay/op/strategy/generic.py
+    @generic_func
+    def schedule_pool(attrs, outs, target):
+        with target:
+            return topi.generic.schedule_pool(outs, attrs.layout)
+
+    # add to each target file in python/tvm/relay/op/strategy, e.g., x86.py, cuda.py, etc.
+    @schedule_pool.register("cpu")
+    def schedule_pool_cpu(attrs, outs, target):
+        ...
+
+After we created the ``FTVMSchedule`` for an operator, we can
+register the strategy using ``register_schedule``:
+
+.. code:: python
+
+    register_schedule("nn.max_pool2d", strategy.schedule_pool)
+
+
+Register Strategies for A New Target
+------------------------------------
 
 There are two ways to register strategies for a new target. The more
 straightforward one is adding a new target file in the directory
@@ -237,8 +249,8 @@ so. You can find more examples in ``vta/python/vta/top/op.py``.
 
 .. code:: python
 
-    @relay.op.strategy.someop_strategy.register("mytarget")
-    def someop_strategy_mytarget(attrs, inputs, out_type, target):
+    @relay.op.strategy.conv2d_strategy.register("mytarget")
+    def conv2d_strategy_mytarget(attrs, inputs, out_type, target):
         ...
 
 
