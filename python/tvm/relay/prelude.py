@@ -28,7 +28,7 @@ from . import op
 
 
 class StaticTensorArrayOps(object):
-    """Contains tensor array related ops for static shape tensor array"""
+    """Contains tensor array related ops for fixed rank tensor array"""
 
     def __init__(self, prelude, dtype, shape):
         """Create tensor array ops registry"""
