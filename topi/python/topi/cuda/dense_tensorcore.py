@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument
+# pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Compute and Schedule definition for dense tensorcore with cuda backend"""
 from __future__ import absolute_import as _abs
 import tvm
