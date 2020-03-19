@@ -17,7 +17,6 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """A prelude containing useful global functions and ADT definitions."""
 from tvm.ir import IRModule
-from tvm.runtime.object import Object
 
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
 from .expr import Var, GlobalVar, If, const
@@ -71,7 +70,9 @@ class StaticTensorArrayOps(object):
 
         setattr(self.prelude, tensor_nil_name, tensor_nil_case)
         setattr(self.prelude, tensor_constructor_name, tensor_case)
-        self.prelude.mod[tensor_type_var] = TypeData(tensor_type_var, [], [tensor_nil_case, tensor_case])
+        self.prelude.mod[tensor_type_var] = TypeData(tensor_type_var,
+                                                     [],
+                                                     [tensor_nil_case, tensor_case])
 
     def define_tensor_array(self):
         """Defines a function to create a tensor array with size n.
@@ -112,7 +113,9 @@ class StaticTensorArrayOps(object):
         upper = Var('upper', scalar_type('int32'))
         tvar = Var('t')
         case = Clause(PatternConstructor(self.get_var('tensor_constructor'), [PatternVar(tvar)]),
-                      tensor_constructor(op.take(tvar, op.arange(lower, upper, dtype='int32'), axis=0)))
+                      tensor_constructor(op.take(tvar,
+                                                 op.arange(lower, upper, dtype='int32'),
+                                                 axis=0)))
         self.prelude.mod[take_var] =\
             Function([t, lower, upper],
                      Match(t, [case], False), tensor_type_var(), [])
@@ -141,8 +144,9 @@ class StaticTensorArrayOps(object):
         t2 = Var("t2")
 
         case = Clause(PatternConstructor(origin_tensor_constructor, [PatternVar(t1)]),
-                      Match(y, [Clause(PatternConstructor(origin_tensor_constructor, [PatternVar(t2)]),
-                                       tensor_constructor(op.concatenate([t1, t2], axis=0)))],
+                      Match(y,
+                            [Clause(PatternConstructor(origin_tensor_constructor, [PatternVar(t2)]),
+                                    tensor_constructor(op.concatenate([t1, t2], axis=0)))],
                             False))
 
         self.prelude.mod[concat_var] =\
@@ -162,12 +166,12 @@ class StaticTensorArrayOps(object):
         x = Var("x", origin_tensor_type_var())
 
         # Note: we set the added axis to be Any() instead of 1 due to
-        # in stack, we need to recursively concatenate.
+        # in stack op, we need to recursively concatenate.
         tensor_type_var, tensor_constructor =\
             self._get_adt_by_shape([Any(),] + self.shape)
         t = Var("t")
         case = Clause(PatternConstructor(origin_tensor_constructor, [PatternVar(t)]),
-                                         tensor_constructor(op.expand_dims(t, 0, 1)))
+                      tensor_constructor(op.expand_dims(t, 0, 1)))
 
         self.prelude.mod[expand_dims_var] =\
             Function([x], Match(x, [case], False), tensor_type_var(), [])
@@ -176,7 +180,8 @@ class StaticTensorArrayOps(object):
         """Defines a function to get the head of a list. Assume the list has at least one
         element.
 
-        tensor_array_read(ta, n) : list[static_tensor_t] -> Tensor[(), int32] -> Tensor[self.shape, self.dtype]
+        tensor_array_read(ta, n) : list[static_tensor_t] -> Tensor[(), int32] ->
+        Tensor[self.shape, self.dtype]
         """
         read_name = self.get_name("tensor_array_read")
         read_var = GlobalVar(read_name)
@@ -191,7 +196,8 @@ class StaticTensorArrayOps(object):
     def define_tensor_array_write(self):
         """Defines a function to update a tensor array at index n with value v.
         tensor_array_write(ta, n, v) :
-            list[static_tensor_t] -> Tensor[(), int32] -> Tensor[self.shape, self.dtype] -> list[static_tensor_t]
+            list[static_tensor_t] -> Tensor[(), int32] -> Tensor[self.shape, self.dtype] ->
+            list[static_tensor_t]
         """
         write_name = self.get_name("tensor_array_write")
         write_var = GlobalVar(write_name)
@@ -239,7 +245,7 @@ class StaticTensorArrayOps(object):
         self.prelude.mod[unstack_var] =\
             Function([tensor_var], helper_var(const(0), unstack_length, tensor_var),
                      self.prelude.l(reduced_tensor_type_var()), [])
-    
+
     def define_tensor_array_scatter(self):
         """Defines a function to scatter the values of a tensor_t in indices of a tensor array.
         tensor_array_scatter(ta, indices, value) :
@@ -283,6 +289,7 @@ class StaticTensorArrayOps(object):
         tensor_array_split(ta, value, lengths) :
             list[tensor_t] -> tensor_t -> Tensor[(Any), int32] -> list[tensor_t]
         """
+        # Skip scalar case
         ndim = len(self.shape)
         if ndim == 0:
             return
@@ -291,7 +298,8 @@ class StaticTensorArrayOps(object):
         tensor_array_split_helper_name = self.get_name("ta_split_helper")
         tensor_array_split_helper_var = GlobalVar(tensor_array_split_helper_name)
         setattr(self.prelude, tensor_array_split_helper_name, tensor_array_split_helper_var)
-        output_tensor_type_var, _ = self._get_adt_by_shape([Any(),] + self.shape[1:])
+        output_shape = [Any(),] + self.shape[1:]
+        output_tensor_type_var, _ = self._get_adt_by_shape(output_shape)
         ta1 = Var("tensor_array", self.prelude.l(output_tensor_type_var()))
         value1 = Var('value1', tensor_type_var())
         offset1 = Var('offset1', scalar_type('int32'))
@@ -299,8 +307,9 @@ class StaticTensorArrayOps(object):
         limit1 = Var('limit1', scalar_type('int32'))
         lengths1 = Var('lengths', TensorType([Any()], 'int32'))
 
+        # Register write for output shape
         origin_shape = list(self.shape)
-        self.shape = [Any(),] + self.shape[1:]
+        self.shape = output_shape
         write_name = self.get_name('tensor_array_write')
         if not hasattr(self.prelude, write_name):
             self.define_tensor_array_write()
@@ -342,12 +351,14 @@ class StaticTensorArrayOps(object):
             lengths)
 
         self.prelude.mod[split_var] =\
-            Function([tensor_array, value, lengths], body, self.prelude.l(output_tensor_type_var()), [])
+            Function([tensor_array, value, lengths], body,
+                     self.prelude.l(output_tensor_type_var()), [])
 
     def define_tensor_array_concat(self):
         """Defines a function to return the values in the tensor array as concatenated tensor_t.
         tensor_array_concat(ta) : list[tensor_t] -> tensor_t
         """
+        # Skip scalar case
         ndim = len(self.shape)
         if ndim == 0:
             return
@@ -360,6 +371,7 @@ class StaticTensorArrayOps(object):
         tensor_type_var, tensor_constructor =\
             self._get_adt_by_shape(output_shape)
 
+        # Register tensor concatenate and get tensor_nil var for output shape
         origin_shape = self.shape
         self.shape = output_shape
         concat_name = self.get_name('tensor_concatenate')
@@ -394,6 +406,7 @@ class StaticTensorArrayOps(object):
         tensor_array = Var("tensor_array", self.prelude.l(tensor_type_var()))
         expand_dims_var = self.get_var('tensor_expand_dims')
 
+        # Register tensor_concatenate for output_shape
         origin_shape = self.shape
         output_shape = [Any(),] + self.shape
         self.shape = output_shape
@@ -408,7 +421,8 @@ class StaticTensorArrayOps(object):
                                      self.prelude.hd(tensor_array_expand_dims),
                                      self.prelude.tl(tensor_array_expand_dims))
         output_tensor_type_var, _ = self._get_adt_by_shape(output_shape)
-        self.prelude.mod[stack_var] = Function([tensor_array], tensors, output_tensor_type_var(), [])
+        self.prelude.mod[stack_var] = Function([tensor_array], tensors,
+                                               output_tensor_type_var(), [])
 
     def define_tensor_array_gather(self):
         """Defines a function to return the selected values in a tensor array as tensor_t.
@@ -438,7 +452,8 @@ class StaticTensorArrayOps(object):
                    subtract(current, const(1)),
                    limit, indices_))
         self.prelude.mod[helper_var] = \
-            Function([ta, accu, current, limit, indices_], helper_body, output_tensor_type_var(), [])
+            Function([ta, accu, current, limit, indices_],
+                     helper_body, output_tensor_type_var(), [])
         gather_name = self.get_name("tensor_array_gather")
         gather_var = GlobalVar(gather_name)
         setattr(self.prelude, gather_name, gather_var)
@@ -451,8 +466,7 @@ class StaticTensorArrayOps(object):
             Function([tensor_array, indices], body, output_tensor_type_var(), [])
 
     def define_tensor_get_data_from_read(self):
-        """Defines a function to get a Tensor from static_tensor_t.
-        tensor_get_data(n) : static_tensor_t -> Tensor[self.shape, self.dtype]
+        """Defines a function to get a Tensor from tensor_array_read.
         """
         tensor_get_data_name = self.get_name("tensor_get_data_from_read")
         tensor_get_data_var = GlobalVar(tensor_get_data_name)
@@ -467,6 +481,8 @@ class StaticTensorArrayOps(object):
             Function([t], Match(t, [case], False), TensorType(self.shape, self.dtype), [])
 
     def define_tensor_get_data_from_gather(self):
+        """Defines a function to get a Tensor from tensor_array_gather.
+        """
         tensor_get_data_name = self.get_name("tensor_get_data_from_gather")
         tensor_get_data_var = GlobalVar(tensor_get_data_name)
         setattr(self.prelude, tensor_get_data_name, tensor_get_data_var)

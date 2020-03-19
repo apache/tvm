@@ -1438,4 +1438,3 @@ if __name__ == "__main__":
     test_static_tensor_array_gather()
     test_static_tensor_get_data_from_read()
     test_static_tensor_get_data_from_gather()
-
