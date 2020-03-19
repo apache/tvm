@@ -468,7 +468,7 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8)
     ]
 
-    output = te.extern([data.shape, data.shape],
+    out = te.extern([data.shape, data.shape],
                     [data],
                     lambda ins, outs: tvm.tir.call_packed(
                         "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend),
@@ -480,23 +480,18 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
     if k > 0:
         beg = [0] * ndim
         end = data.shape[:-1] + [k]
-
-        values_out, indices_out = output
-        values_out = strided_slice(values_out, beg, end)
-        indices_out = strided_slice(indices_out, beg, end)
-        output = [values_out, indices_out]
+        out = [strided_slice(o, beg, end) for o in out]
 
     if axis != ndim - 1:
         axes = swap(list(range(ndim)))
-        output[0] = transpose(output[0], axes)
-        output[1] = transpose(output[1], axes)
+        out = [transpose(o, axes) for o in out]
 
     if ret_type == "values":
-        output = output[0]
+        out = out[0]
     elif ret_type == "indices":
-        output = output[1]
+        out = out[1]
 
-    return output
+    return out
 
 
 def schedule_topk(outs):
