@@ -116,7 +116,8 @@ class CalcDep : private DataflowVisitor {
     // used 1 times (inline)
     // used 2 times (dont do anything).
     if (visit_counter_[e.get()] <= 2) {
-      ExprFunctor::VisitExpr(e);
+      using TParent = ExprFunctor<void(const Expr&)>;
+      TParent::VisitExpr(e);
     }
   }
 
