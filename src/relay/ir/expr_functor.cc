@@ -108,7 +108,7 @@ DataflowVisitor::DataflowVisitor(int visit_limit) {
 }
 
 void DataflowVisitor::VisitLeaf(const Expr& expr) {
-  if (visit_counter_[expr.get()] == 0) {
+  if (visit_counter_[expr.get()] < visit_limit_) {
     ExprFunctor::VisitExpr(expr);
   }
   visit_counter_[expr.get()]++;
@@ -126,10 +126,19 @@ bool DataflowVisitor::CheckVisited(const Expr& expr) {
 void DataflowVisitor::VisitExpr(const Expr& expr) {
   auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
   auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
-  if (visit_counter_[expr.get()] < 1) {
+  if (visit_counter_[expr.get()] < visit_limit_) {
     ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
   }
 }
+
+// Overwrite the VisitExpr so we don't recurse for dataflow nodes
+void DataflowVisitor::VisitExpr_(const CallNode* op) {}
+
+// Overwrite the VisitExpr so we don't recurse for dataflow nodes
+void DataflowVisitor::VisitExpr_(const TupleNode* op) {}
+
+// Overwrite the VisitExpr so we don't recurse for dataflow nodes
+void DataflowVisitor::VisitExpr_(const TupleGetItemNode* op) {}
 
 void DataflowMutator::VisitLeaf(const Expr& expr) {
   if (!memo_.count(expr)) {
