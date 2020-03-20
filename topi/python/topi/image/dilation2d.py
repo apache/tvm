@@ -20,8 +20,8 @@
 from __future__ import absolute_import as _abs
 from tvm import te
 from topi.util import simplify
-from .pad import pad
-from .util import get_pad_tuple
+from ..nn.pad import pad
+from ..nn.util import get_pad_tuple
 
 
 def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
