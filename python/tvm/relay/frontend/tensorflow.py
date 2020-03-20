@@ -1609,8 +1609,8 @@ def _batch_to_space_nd():
     return _impl
 
 def _atan2():
-    def _impl(inputs, attr, params):
-        divide = _elemwise("divide")(inputs, attr, params)
+    def _impl(inputs, attr, params, mod):
+        divide = _elemwise("divide")(inputs, attr, params, mod)
         return get_relay_op("atan")(divide)
     return _impl
 
