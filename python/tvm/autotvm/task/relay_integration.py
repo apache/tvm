@@ -47,11 +47,20 @@ def _lower(mod,
                 mod, _ = relay.optimize(mod, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 grc.codegen(mod["main"])
+                return
     # default case
-    compiler = relay.vm.VMCompiler()
-    if params:
-        compiler.set_params(params)
-    compiler.lower(mod, target=target)
+    # Try graph codegen first to extract autotvm tasks.
+    # If failed to compile, then fallback to use VM compiler.
+    # TODO: Currently VM compiler is likely to stack overflow for large models.
+    try:
+        opt_mod, _ = relay.optimize(mod, target, params)
+        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+        grc.codegen(opt_mod["main"])
+    except tvm.TVMError:
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        compiler.lower(mod, target=target)
 
 
 def extract_from_program(mod, params, target, target_host=None, ops=None):
