@@ -288,7 +288,7 @@ class CmpExpr(PrimExprWithOp):
 class LogicalExpr(PrimExprWithOp):
     pass
 
-@tvm._ffi.register_object("Variable")
+@tvm._ffi.register_object("tir.Var")
 class Var(PrimExprWithOp):
     """Symbolic variable.
 
@@ -297,7 +297,7 @@ class Var(PrimExprWithOp):
     name : str
         The name
 
-    dtype : str
+    dtype : Union[str, tvm.irType]
         The data type
     """
     def __init__(self, name, dtype):
@@ -305,7 +305,7 @@ class Var(PrimExprWithOp):
             _ffi_api.Var, name, dtype)
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("tir.SizeVar")
 class SizeVar(Var):
     """Symbolic variable to represent a tensor index size
        which is greater or equal to zero.

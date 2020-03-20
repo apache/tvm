@@ -32,6 +32,7 @@
 #include <string>
 #include <algorithm>
 #include <limits>
+#include <type_traits>
 
 namespace tvm {
 
@@ -307,6 +308,17 @@ class Integer : public IntImm {
    * \param other The other value.
    */
   Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
+  /*!
+   * \brief Constructor from enum
+   * \tparam Enum The enum type.
+   * \param value The enum value.
+   */
+  template<typename ENum,
+           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
+  explicit Integer(ENum value) : Integer(static_cast<int>(value)) {
+    static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
+                  "declare enum to be enum int to use visitor");
+  }
   /*!
    * \brief Assign an expression to integer.
    * \param other another expression.

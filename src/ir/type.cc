@@ -45,6 +45,27 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 
+PointerType::PointerType(Type element_type) {
+  ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
+  n->element_type = std::move(element_type);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(PointerTypeNode);
+
+TVM_REGISTER_GLOBAL("ir.PointerType")
+.set_body_typed([](Type element_type) {
+  return PointerType(element_type);
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PointerTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
+    auto* node = static_cast<const PointerTypeNode*>(ref.get());
+    p->Print(node->element_type);
+    p->stream << '*';
+});
+
+
 TypeVar::TypeVar(std::string name, TypeKind kind) {
   ObjectPtr<TypeVarNode> n = make_object<TypeVarNode>();
   n->name_hint = std::move(name);

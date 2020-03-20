@@ -34,10 +34,10 @@ namespace codegen {
 class CodeGenMetal final : public CodeGenC {
  public:
   CodeGenMetal();
-  void AddFunction(LoweredFunc f);
   // override print thread tag.
   void PrintArgUnionDecl();
-  void InitFuncState(LoweredFunc f) final;
+  void AddFunction(const PrimFunc& f); // NOLINT(*)
+  void InitFuncState(const PrimFunc& f) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
@@ -50,9 +50,10 @@ class CodeGenMetal final : public CodeGenC {
       const std::string& vec, DataType t, int i, const std::string& value) final;
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
-
   // overload visitor
   void VisitExpr_(const CallNode* op, std::ostream& os) final; // NOLINT(*)
+  // reuse parent's function.
+  using CodeGenC::PrintType;
 
  private:
   int thread_index_bits_{32};

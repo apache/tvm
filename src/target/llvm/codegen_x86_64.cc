@@ -88,7 +88,7 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
     if (from.lanes() >= 16 && has_avx512) {
       return CallVectorIntrin(
           ::llvm::Intrinsic::x86_avx512_mask_vcvtph2ps_512, 16,
-          LLVMType(DataType::Float(32, from.lanes())),
+          DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {
             MakeValue(tir::CallNode::make(
                 DataType::Int(16, from.lanes()), tir::CallNode::reinterpret, {op->value},
@@ -103,7 +103,8 @@ llvm::Value* CodeGenX86_64::VisitExpr_(const CastNode* op) {
 
     if (from.lanes() >= 8 && has_f16c) {
       return CallVectorIntrin(
-          ::llvm::Intrinsic::x86_vcvtph2ps_256, 8, LLVMType(DataType::Float(32, from.lanes())),
+          ::llvm::Intrinsic::x86_vcvtph2ps_256, 8,
+          DTypeToLLVMType(DataType::Float(32, from.lanes())),
           {MakeValue(tir::CallNode::make(
               DataType::Int(16, from.lanes()), tir::CallNode::reinterpret, {op->value},
               tir::CallNode::PureIntrinsic))});

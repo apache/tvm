@@ -35,7 +35,7 @@ void CodeGenC::Init(bool output_ssa) {
   print_ssa_form_ = output_ssa;
 }
 
-void CodeGenC::InitFuncState(LoweredFunc f) {
+void CodeGenC::InitFuncState(const PrimFunc& f) {
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   CodeGenSourceBase::ClearFuncState();
@@ -72,39 +72,46 @@ void CodeGenC::ReserveKeywordsAsUnique() {
   GetUniqueName("return");
 }
 
-void CodeGenC::AddFunction(LoweredFunc f) {
+void CodeGenC::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // reserve keywords
   ReserveKeywordsAsUnique();
-  // add to alloc buffer type.
-  for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.dtype());
-  }
 
-  this->stream << "void " << f->name << "(";
-  for (size_t i = 0; i < f->args.size(); ++i) {
-    Var v = f->args[i];
+  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
+
+  this->PrintFuncPrefix();
+  this->stream << " " << static_cast<std::string>(global_symbol) << "(";
+
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    tir::Var v = f->params[i];
     std::string vid = AllocVarID(v.get());
     if (i != 0) stream << ", ";
     if (v.dtype().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end())
+      if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
-      stream << ' ';
-
-      if (handle_data_type_.count(v.get())) {
-        PrintType(handle_data_type_.at(v.get()), stream);
-      } else {
-        stream << "void";
+        stream << ' ';
       }
-      stream << "*";
 
-      if (f->is_restricted && restrict_keyword_.length() != 0) {
+      PrintType(GetType(v), stream);
+      // Register handle data type
+      // TODO(tvm-team): consider simply keep type info in the
+      // type annotation(via a normalizing rewriting).
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
+          RegisterHandleType(v.get(), prim->dtype);
+        }
+      }
+
+      if (no_alias && restrict_keyword_.length() != 0) {
         stream << ' ' << restrict_keyword_;
       }
     } else {
-      PrintType(v.dtype(), stream);
+      PrintType(GetType(v), stream);
     }
     stream << ' ' << vid;
   }
@@ -112,9 +119,17 @@ void CodeGenC::AddFunction(LoweredFunc f) {
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
+  this->PrintFinalReturn();
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
+}
+
+void CodeGenC::PrintFuncPrefix() {
+  stream << "void";
+}
+
+void CodeGenC::PrintFinalReturn() {
 }
 
 std::string CodeGenC::Finish() {
@@ -275,7 +290,6 @@ std::string CodeGenC::GetStructRef(
   }
 }
 
-
 bool CodeGenC::HandleTypeMatch(const VarNode* buf_var, DataType t) const {
   auto it = handle_data_type_.find(buf_var);
   if (it == handle_data_type_.end()) return false;
@@ -367,6 +381,20 @@ void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
   }
   LOG(FATAL) << "Cannot convert type " << t << " to C type";
+}
+
+
+void CodeGenC::PrintType(const Type& type, std::ostream& os) { // NOLINT(*)
+  if (auto* ptr = type.as<PrimTypeNode>()) {
+    return PrintType(ptr->dtype, os);
+  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+    PrintType(ptr->element_type, os);
+    os << '*';
+  } else if (IsVoidType(type)) {
+    os << "void";
+  } else {
+    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
+  }
 }
 
 

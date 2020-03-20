@@ -25,6 +25,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
 #include <mutex>
 #include "llvm_common.h"
@@ -192,21 +193,39 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return "";
   }
 
-  void Init(const Array<LoweredFunc>& funcs, std::string target) {
+  void Init(const IRModule& mod, std::string target) {
     InitializeLLVM();
     tm_ = GetLLVMTargetMachine(target);
     bool system_lib = (target.find("-system-lib") != std::string::npos);
-    CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
-    entry_func_ = funcs[0]->name;
-    cg->Init(funcs[0]->name, tm_.get(), ctx_.get(), system_lib, system_lib);
-    for (LoweredFunc f :  funcs) {
+
+    std::vector<PrimFunc> funcs;
+    for (auto kv :  mod->functions) {
+      CHECK(kv.second->IsInstance<PrimFuncNode>())
+          << "Can only lower IR Module with PrimFuncs";
+      auto f = Downcast<PrimFunc>(kv.second);
+      if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+        auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+        CHECK(global_symbol.defined());
+        entry_func_ = global_symbol;
+      }
+      funcs.push_back(f);
+    }
+    CHECK_NE(funcs.size(), 0U);
+    // TODO(tqchen): remove the entry function behavior as it does not
+    // makes sense when we start to use multiple modules.
+    cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib);
+
+    for (const auto& f : funcs) {
       cg->AddFunction(f);
     }
-    cg->AddMainFunction(funcs[0]->name);
-    module_ = cg->Finish();
 
+    if (entry_func_.length() != 0) {
+      cg->AddMainFunction(entry_func_);
+    }
+
+    module_ = cg->Finish();
     module_->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, target));
     module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);
@@ -349,12 +368,14 @@ unsigned LookupLLVMIntrinsic(const std::string& name) {
   return llvm::Function::lookupIntrinsicID(name);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_llvm")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    auto n = make_object<LLVMModuleNode>();
-    n->Init(args[0].operator Array<LoweredFunc>(), args[1].operator std::string());
-    *rv = runtime::Module(n);
-  });
+
+TVM_REGISTER_GLOBAL("target.build.llvm")
+.set_body_typed([](IRModule mod, std::string target) {
+  auto n = make_object<LLVMModuleNode>();
+  n->Init(mod, target);
+  return runtime::Module(n);
+});
+
 
 TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
