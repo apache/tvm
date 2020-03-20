@@ -14,40 +14,35 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, no-member
-"""Generic sort operators"""
-from __future__ import absolute_import as _abs
+"""Generic image operators"""
 from .default import default_schedule as _default_schedule
 
 
-def schedule_argsort(outs):
-    """Schedule for argsort operator.
-
+def schedule_dilation2d_nchw(outs):
+    """Schedule for dilation2d
     Parameters
     ----------
-    outs: Array of Tensor
-      The indices that would sort an input array along
-      the given axis.
-
+    outs : Array of Tensor
+        The computation graph description of dilation2d
+        in the format of an array of tensors.
     Returns
     -------
-    s: Schedule
-      The computation schedule for the op.
+    sch : Schedule
+        The computation schedule for the op.
     """
     return _default_schedule(outs, False)
 
-def schedule_topk(outs):
-    """Schedule for topk operator.
 
+def schedule_dilation2d_nhwc(outs):
+    """Schedule for dilation2d
     Parameters
     ----------
-    outs: Array of Tensor
-      The indices that would sort an input array along
-      the given axis.
-
+    outs : Array of Tensor
+        The computation graph description of dilation2d
+        in the format of an array of tensors.
     Returns
     -------
-    s: Schedule
-      The computation schedule for the op.
+    sch : Schedule
+        The computation schedule for the op.
     """
     return _default_schedule(outs, False)
