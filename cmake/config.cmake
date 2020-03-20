@@ -201,3 +201,6 @@ set(USE_VTA_FPGA OFF)
 
 # Whether to build the example external runtime module
 set(USE_EXAMPLE_EXT_RUNTIME OFF)
+
+# Whether use Thrust
+set(USE_THRUST OFF)
