@@ -1535,6 +1535,11 @@ def _batch_to_space_nd():
 
     return _impl
 
+def _atan2():
+    def _impl(inputs, attr, params):
+        divide = _elemwise("divide")(inputs, attr, params)
+        return get_relay_op("atan")(divide)
+    return _impl
 
 def _prod():
     def _impl(inputs, attr, params):
@@ -1615,6 +1620,8 @@ _convert_map = {
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),
+    'Atan'                              : AttrCvt('atan'),
+    'Atan2'                             : _atan2(),
     'AvgPool'                           : _pooling('avg_pool'),
     'AvgPool3D'                         : _pool3d('avg_pool3d'),
     'BatchMatMul'                       : _batch_matmul(),
