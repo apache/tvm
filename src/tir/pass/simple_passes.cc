@@ -68,6 +68,32 @@ class IRSubstitue : public StmtExprMutator {
     }
   }
 
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    // NOTE: we do not explicit recursivly mutate op->buffer_var
+    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
+    op = ret.as<LoadNode>();
+    auto it = smap_.find(op->buffer_var.get());
+    if (it != smap_.end()) {
+      return LoadNode::make(
+          op->dtype, Downcast<Var>(it->second), op->index, op->predicate);
+    } else {
+      return ret;
+    }
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    // NOTE: we do not explicit recursivly mutate op->buffer_var
+    Stmt ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<StoreNode>();
+    auto it = smap_.find(op->buffer_var.get());
+    if (it != smap_.end()) {
+      return StoreNode::make(
+          Downcast<Var>(it->second), op->value, op->index, op->predicate);
+    } else {
+      return ret;
+    }
+  }
+
  private:
   const std::unordered_map<const VarNode*, PrimExpr>& smap_;
 };

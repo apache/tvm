@@ -21,7 +21,10 @@
  * \file codegen_stackvm.cc
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
+#include <tvm/ir/module.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/function.h>
 #include <limits>
 #include <utility>
 #include "codegen_stackvm.h"
@@ -54,9 +57,9 @@ StackVM::StructFieldKind MapFieldKind(int64_t kind) {
   return StackVM::kArrData;
 }
 
-StackVM CodeGenStackVM::Compile(LoweredFunc f) {
-  for (size_t i = 0; i < f->args.size(); ++i) {
-    Var v = f->args[i];
+StackVM CodeGenStackVM::Compile(const PrimFunc& f) {
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    Var v = f->params[i];
     int vid = AllocVarID(v.get());
     CHECK_EQ(static_cast<size_t>(vid), i);
   }
@@ -525,19 +528,32 @@ void CodeGenStackVM::VisitExpr_(const LetNode* op) {
   this->Push(op->body);
 }
 
-runtime::Module BuildStackVM(const Array<LoweredFunc>& funcs) {
-  CHECK_NE(funcs.size(), 0U);
+runtime::Module BuildStackVM(const IRModule& mod) {
   std::unordered_map<std::string, StackVM> fmap;
-  for (LoweredFunc f : funcs) {
+  std::string entry_func;
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenStackVM: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    CHECK(global_symbol.defined())
+        << "CodeGenStackVM: Expect PrimFunc to have the global_symbol attribute";
+    std::string f_name = global_symbol;
     StackVM vm = codegen::CodeGenStackVM().Compile(f);
-    CHECK(!fmap.count(f->name))
-        << "Function name " << f->name << "already exist in list";
-    fmap[f->name] = std::move(vm);
+    CHECK(!fmap.count(f_name))
+        << "Function name " << f_name << "already exist in list";
+    fmap[f_name] = std::move(vm);
+
+    if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+      entry_func = f_name;
+    }
   }
-  return runtime::StackVMModuleCreate(fmap, funcs[0]->name);
+
+  return runtime::StackVMModuleCreate(fmap, entry_func);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_stackvm")
+TVM_REGISTER_GLOBAL("target.build.stackvm")
 .set_body_typed(BuildStackVM);
 }  // namespace codegen
 }  // namespace tvm

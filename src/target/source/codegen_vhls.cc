@@ -68,14 +68,13 @@ void CodeGenVivadoHLS::PrintType(DataType t, std::ostream& os) {
   }
 }
 
-void CodeGenVivadoHLS::AddFunction(LoweredFunc f) {
-  this->stream << "extern \"C\" ";
-  CodeGenC::AddFunction(f);
+void CodeGenVivadoHLS::PrintFuncPrefix() {
+  stream << "extern \"C\" void";
 }
 
-void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
-  for (size_t i = 0; i < f->args.size(); ++i) {
-    Var v = f->args[i];
+void CodeGenVivadoHLS::PreFunctionBody(const PrimFunc& f) {
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    Var v = f->params[i];
     std::string vid = GetVarID(v.get());
     if (v.dtype().is_handle()) {
       this->stream << "#pragma HLS INTERFACE m_axi port=" << vid << "  offset=slave bundle=gmem\n";
@@ -126,21 +125,34 @@ void CodeGenVivadoHLS::VisitExpr_(const MaxNode *op, std::ostream& os) {  // NOL
 }
 
 
-runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
+runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenVivadoHLS cg;
 
   // Generate source code for get_source().
   cg.Init(output_ssa);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenVHLS: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenVLHS: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
   Array<Array<PrimExpr> > kernel_info;
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenOpenCL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
     cg.AddFunction(f);
@@ -148,7 +160,12 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
       code = (*f)(code).operator std::string();
     }
-    kernel_info.push_back(Array<PrimExpr>({f->name, code}));
+
+    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    CHECK(global_symbol.defined())
+        << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+    std::string func_name = global_symbol;
+    kernel_info.push_back(Array<PrimExpr>({func_name, code}));
   }
 
   std::string xclbin;
@@ -158,10 +175,10 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }
-  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), whole_code);
+  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(mod), whole_code);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_sdaccel")
+TVM_REGISTER_GLOBAL("target.build.sdaccel")
 .set_body_typed(BuildSDAccel);
 
 }  // namespace codegen
