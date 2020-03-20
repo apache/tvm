@@ -187,7 +187,6 @@ def test_bitwise():
     assert(x >> tvm.tir.const(1, "int32x2")).dtype == "int32x2"
     assert(te.var("z", "int8x2") << tvm.tir.const(1, "int8x2")).dtype == "int8x2"
 
-
 def test_float_bitwise():
     t = tvm.tir.const(1.5,dtype='float32')
     for test in [lambda lhs, rhs : lhs << rhs,
@@ -205,6 +204,21 @@ def test_float_bitwise():
         assert False
     except RuntimeError:
         pass
+
+def test_shift_bounds():
+    for test in [lambda lhs, rhs : lhs << rhs,
+                    lambda lhs, rhs : lhs >> rhs]:
+        #negative case
+        for testcase in [(x,-1), (x,32)]:
+            try:
+                test(*testcase)
+                assert False
+            except tvm.TVMError:
+                pass
+
+        #positive case
+        for testcase in [(x,0), (x,16), (x,31)]:
+            assert test(*testcase).args[1] == testcase[1]
 
 
 def test_divide_by_zero():

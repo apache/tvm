@@ -454,6 +454,9 @@ PrimExpr operator>>(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
+      if (pb) CHECK(pb->value >= 0 && pb->value < rtype.bits()) <<
+                "Shift amount must be non-negative and less than " << rtype.bits()
+                << " for type " << rtype;
       if (pa && pb) return IntImm(rtype, (pa->value >> pb->value));
       if (pb) {
         if (pb->value == 0) return a;
@@ -469,6 +472,9 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
+      if (pb) CHECK(pb->value >= 0 && pb->value < rtype.bits()) <<
+                "Shift amount must be non-negative and less than " << rtype.bits()
+                << " for type " << rtype;
       if (pa && pb) return IntImm(rtype, (pa->value << pb->value));
       if (pb) {
         if (pb->value == 0) return a;
