@@ -50,11 +50,11 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   }
 
   void VisitExpr_(const ConstantNode* cn) final {
-    Constant con = GetRef<Constant>(cn);
-    if (visited_.count(con)) {
+    Constant constant = GetRef<Constant>(cn);
+    if (visited_.count(constant)) {
       // Note this is for demostration purpose. ConstantNode doesn't necessarily
       // belong to calls. We need to revisit this when tuples come into play.
-      out_.push_back(visited_[con]);
+      out_.push_back(visited_[constant]);
       return;
     }
 
@@ -65,7 +65,7 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
     Output output;
     output.name = "const_" + std::to_string(const_idx_++);
     out_.push_back(output);
-    visited_[con] = output;
+    visited_[constant] = output;
 
     runtime::NDArray array = cn->data;
     const auto& shape = array.Shape();
