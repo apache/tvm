@@ -79,14 +79,14 @@ print(mod.astext(show_meta_data=False))
 # Currently this value can be 0 to 3. The optimization passes include
 # operator fusion, pre-computation, layout transformation and so on.
 #
-# :any:`relay.build` returns three components: the execution graph in
+# :py:func:`relay.build` returns three components: the execution graph in
 # json format, the TVM module library of compiled functions specifically
 # for this graph on the target hardware, and the parameter blobs of
 # the model. During the compilation, Relay does the graph-level
 # optimization while TVM does the tensor-level optimization, resulting
 # in an optimized runtime module for model serving.
 #
-# We'll first compile for Nvidia GPU. Behind the scene, `relay.build`
+# We'll first compile for Nvidia GPU. Behind the scene, :py:func:`relay.build`
 # first does a number of graph-level optimizations, e.g. pruning, fusing, etc.,
 # then registers the operators (i.e. the nodes of the optimized graphs) to
 # TVM implementations to generate a `tvm.module`.
