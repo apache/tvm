@@ -25,20 +25,28 @@
 #ifndef TVM_RUNTIME_CRT_MEMORY_H_
 #define TVM_RUNTIME_CRT_MEMORY_H_
 
-/** \brief Allocate memory from manager */
-void * vmalloc(size_t size);
-
-/** \brief Release memory from manager */
-void vfree(void * ptr);
-
 static int vleak_size = 0;
 
-// #define vmalloc(size)                                      \
-//   vmalloc_(size);                                          \
-//   printf("%s: %d: info: size=%d, vleak=%d\n", __FILE__, __LINE__, size, ++vleak_size)
+/*!
+ * \brief Allocate memory from manager
+ * \param size The size of memory
+ * \return The virtual address
+ */
+void * vmalloc(size_t size);
 
-// #define vfree(ptr)                                                      \
-//   vfree_(ptr);                                                          \
-//   printf("%s: %d: error: addr=%p, vleak=%d\n", __FILE__, __LINE__, ptr, --vleak_size)
+/*!
+ * \brief Reallocate memory from manager
+ * \param ptr The pointer to the memory area to be reallocated
+ * \param size The size of memory
+ * \return The virtual address
+ */
+void * vrealloc(void * ptr, size_t size);
+
+/*!
+ * \brief Free the memory.
+ * \param ptr The pointer to the memory to deallocate
+ * \return The virtual address
+ */
+void vfree(void * ptr);
 
 #endif  // TVM_RUNTIME_CRT_MEMORY_H_

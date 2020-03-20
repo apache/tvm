@@ -116,6 +116,7 @@ int TVMGraphRuntimeNode_Load(TVMGraphRuntimeNode * node, JSONReader *reader) {
       }
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
+        node->inputs = vrealloc(node->inputs, sizeof(TVMGraphRuntimeNodeEntry)*(count+1));
         TVMGraphRuntimeNodeEntry * inputs = node->inputs + count;
         reader->BeginArray(reader);
         if (!reader->NextArrayItem(reader)) {
@@ -171,6 +172,14 @@ TVMGraphRuntimeNode TVMGraphRuntimeNodeCreate() {
   node.LoadAttrs = TVMGraphRuntimeNode_LoadAttrs;
   node.Load = TVMGraphRuntimeNode_Load;
   return node;
+}
+
+void TVMGraphRuntimeNodeRelease(TVMGraphRuntimeNode * node) {
+  if (!node) { return; }
+  if (node->inputs) {
+    vfree(node->inputs);
+    node->inputs = 0;
+  }
 }
 
 int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *reader) {
@@ -233,6 +242,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
       }
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
+        attr->storage_id = vrealloc(attr->storage_id, sizeof(uint32_t)*(storage_id_count+1));
         reader->ReadUnsignedInteger(reader, &(attr->storage_id[storage_id_count]));
         storage_id_count++;
       }
@@ -312,6 +322,7 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
         break;
       }
       while (reader->NextArrayItem(reader)) {
+        attr->device_index = vrealloc(attr->device_index, sizeof(uint32_t)*(device_index_count+1));
         reader->ReadUnsignedInteger(reader, &(attr->device_index[device_index_count]));
         device_index_count++;
       }
@@ -368,6 +379,18 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
   return status;
 }
 
+void TVMGraphRuntimeGraphAttr_Release(TVMGraphRuntimeGraphAttr * attr) {
+  if (!attr) { return; }
+  if (attr->storage_id) {
+    vfree(attr->storage_id);
+    attr->storage_id = 0;
+  }
+  if (attr->device_index) {
+    vfree(attr->device_index);
+    attr->device_index = 0;
+  }
+}
+
 int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *reader) {
     int status = 0;
     reader->BeginObject(reader);
@@ -377,6 +400,7 @@ int TVMGraphRuntime_Load(TVMGraphRuntime * runtime, JSONReader *reader) {
       if (!strcmp(key, "nodes")) {
         reader->BeginArray(reader);
         while (reader->NextArrayItem(reader)) {
+          runtime->nodes = vrealloc(runtime->nodes, sizeof(TVMGraphRuntimeNode)*(runtime->nodes_count+1));
           TVMGraphRuntimeNode * node = runtime->nodes + runtime->nodes_count;
           status = TVMGraphRuntimeNode_Load(node, reader);
           if (status != 0) {
@@ -679,7 +703,7 @@ int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime * runtime) {
         args_count++;
       }
       if (strcmp(inode->op_type, "tvm_op")) {
-        fprintf(stderr, "Can only take tvm_op as op\n");
+        fprintf(stderr, "Can only take tvm_op as op, but \"%s\" is found.\n", inode->op_type);
         status = -1;
         break;
       }
@@ -792,6 +816,11 @@ TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
 void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
   int32_t idx;
   TVMGraphRuntime * runtime = *pptr;
+  for (idx = 0; idx < runtime->nodes_count; ++idx) {
+    TVMGraphRuntimeNodeRelease(&(runtime->nodes[idx]));
+  }
+  vfree(runtime->nodes);
+  TVMGraphRuntimeGraphAttr_Release(&(runtime->attrs));
   for (idx = 0; idx < runtime->storage_pool_count; ++idx) {
     TVMNDArray_Release(&(runtime->storage_pool[idx]));
   }
@@ -799,5 +828,5 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
     vfree(runtime->data_entry[idx].dl_tensor.shape);
   }
   vfree(*pptr);
-  CHECK_EQ(vleak_size, 0, "found memory leak.");
+  CHECK_EQ(vleak_size, 0, "found memory leak, leak size=%d", vleak_size);
 }

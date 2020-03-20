@@ -34,15 +34,15 @@
 #define GRAPH_RUNTIME_MAX_CONTEXTS 1
 
 /*! Maximum inputs in a GraphRuntimeNode */
-#define GRAPH_RUNTIME_NODE_MAX_INPUTS 3
+#define GRAPH_RUNTIME_NODE_MAX_INPUTS 100
 /*! Maximum supported nodes in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_NODES 4
+#define GRAPH_RUNTIME_MAX_NODES 100
 /*! Maximum input nodes in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_INPUT_NODES 3
+#define GRAPH_RUNTIME_MAX_INPUT_NODES 100
 /*! Maximum nodes in a GraphRuntime for quick entry indexing */
-#define GRAPH_RUNTIME_MAX_NODE_ROW_PTR 3
+#define GRAPH_RUNTIME_MAX_NODE_ROW_PTR 100
 /*! Maximum output entries in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_OUTPUTS 3
+#define GRAPH_RUNTIME_MAX_OUTPUTS 100
 
 /*!
  * \brief Log memory pool size for virtual memory allocation
@@ -62,7 +62,7 @@
  * * use 27 for 128 MiB memory space
  * * use 28 for 256 MiB memory space
  */
-#define TVM_CRT_LOG_VIRT_MEM_SIZE 16
+#define TVM_CRT_LOG_VIRT_MEM_SIZE 24
 
 /*! \brief Page size for virtual memory allocation */
 #define TVM_CRT_PAGE_BYTES 4096
