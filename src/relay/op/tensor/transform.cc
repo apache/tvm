@@ -2711,18 +2711,22 @@ bool UnRavelIndexRel(const Array<Type>& types,
   const auto* indices = types[0].as<TensorTypeNode>();
   if (indices == nullptr) {
     CHECK(types[0].as<IncompleteTypeNode>())
-        << "unravel_index: expect input type to be TensorType but get " << types[0];
+        << "unravel_index: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
-  CHECK(indices->dtype.is_int()) << "indices of unravel_index must be tensor of integer";
+  CHECK(indices->dtype.is_int())
+      << "indices of unravel_index must be tensor of integer";
 
   const auto* shape = types[1].as<TensorTypeNode>();
   if (shape == nullptr) {
     CHECK(types[1].as<IncompleteTypeNode>())
-        << "unravel_index: expect input type to be TensorType but get " << types[1];
+        << "unravel_index: expect input type to be TensorType but get "
+        << types[1];
     return false;
   }
-  CHECK(indices->dtype.is_int()) << "shape of unravel_index must be tensor of integer";
+  CHECK(indices->dtype.is_int())
+      << "shape of unravel_index must be tensor of integer";
 
   Array<IndexExpr> indices_shape;
   Array<IndexExpr> shape_shape;
@@ -2744,24 +2748,26 @@ Array<te::Tensor> UnRavelIndexCompute(const Attrs& attrs,
   return Array<te::Tensor>{topi::unravel_index(inputs[0], inputs[1])};
 }
 
-Expr MakeUnRavelIndex(Expr data, Expr shape) {
+Expr MakeUnRavelIndex(Expr data,
+                      Expr shape) {
   static const Op& op = Op::Get("unravel_index");
   return CallNode::make(op, {data, shape}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.unravel_index").set_body_typed(MakeUnRavelIndex);
+TVM_REGISTER_GLOBAL("relay.op._make.unravel_index")
+.set_body_typed(MakeUnRavelIndex);
 
 RELAY_REGISTER_OP("unravel_index")
-    .describe(
-        R"code(Converts a flat index or array of flat indices into a tuple of coordinate arrays.
+.describe(R"code(Converts a flat index or array of flat indices into a tuple of coordinate arrays.
+
 Example::
-    -   unravel_index([22, 41, 37], (7, 6)) = [[3, 6, 6], [4, 5, 1]]
+  -  unravel_index([22, 41, 37], (7, 6)) = [[3, 6, 6], [4, 5, 1]]
 )code" TVM_ADD_FILELINE)
-    .set_num_inputs(2)
-    .set_support_level(3)
-    .add_type_rel("UnRavelIndexRel", UnRavelIndexRel)
-    .set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
-    .set_attr<TOpPattern>("TOpPattern", kInjective);
+.set_num_inputs(2)
+.set_support_level(3)
+.add_type_rel("UnRavelIndexRel", UnRavelIndexRel)
+.set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm
