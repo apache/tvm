@@ -264,9 +264,9 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
         The output of this function.
     """
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf",
-                                            data_alignment=8)
+                                   data_alignment=8)
     valid_count_buf = tvm.tir.decl_buffer(valid_count.shape, valid_count.dtype,
-                                            "valid_count_buf", data_alignment=4)
+                                          "valid_count_buf", data_alignment=4)
     out_bufs = [
         tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
         tvm.tir.decl_buffer(data.shape, "int32", "indices_buf", data_alignment=8)
@@ -281,7 +281,7 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
                     name="nms_argsort_gpu",
                     tag="nms_argsort_gpu")
     return out[1]
-    
+
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
     """Performs sorting along the given axis and returns an array of indicies
     having same shape as an input array that index data in sorted order.
