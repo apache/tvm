@@ -208,6 +208,7 @@ def test_float_bitwise():
 
 
 def test_shift_bounds():
+    x = te.var('x')
     for test in [lambda lhs, rhs : lhs << rhs,
                     lambda lhs, rhs : lhs >> rhs]:
         #negative case
@@ -220,7 +221,7 @@ def test_shift_bounds():
 
         #positive case
         for testcase in [(x,0), (x,16), (x,31)]:
-            assert test(*testcase)
+            test(*testcase)
 
 
 def test_divide_by_zero():
@@ -309,6 +310,7 @@ if __name__ == "__main__":
     test_all()
     test_bitwise()
     test_float_bitwise()
+    test_shift_bounds()
     test_divide_by_zero()
     test_isnan()
     test_equality()
