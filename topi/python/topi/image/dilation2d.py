@@ -25,7 +25,7 @@ from .util import get_pad_tuple
 
 
 def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
-    """Dilation2D operator in NCHW layout.
+    """Morphological dilation operator in NCHW layout.
 
     Parameters
     ----------
@@ -96,7 +96,7 @@ def dilation2d_nchw(input, filter, stride, padding, dilations, out_dtype=None):
 
 
 def dilation2d_nhwc(input, filter, stride, padding, dilations, out_dtype=None):
-    """Dilation2D operator in NHWC layout.
+    """Morphological 2d dilation NHWC layout.
 
     Parameters
     ----------
