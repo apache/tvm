@@ -143,9 +143,14 @@ class DebugAttrs(Attrs):
     """Attributes for debug"""
 
 
-@tvm._ffi.register_object("relay.attrs.OnDeviceAttrs")
+@tvm._ffi.register_object("relay.attrs.CompilerAttrs")
+class CompilerAttrs(Attrs):
+    """Attributes for compiler"""
+
+
+@tvm._ffi.register_object("relay.attrs.DeviceCopyAttrs")
 class DeviceCopyAttrs(Attrs):
-    """Attributes for tensor.device_copy"""
+    """Attributes for annotation.device_copy"""
 
 
 @tvm._ffi.register_object("relay.attrs.CastAttrs")

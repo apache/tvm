@@ -171,6 +171,8 @@ Mark a checkpoint for checkpointing memory optimization.
                          return outputs;
                        });
 
+TVM_REGISTER_NODE_TYPE(CompilerAttrs);
+
 RELAY_REGISTER_OP("annotation.compiler_begin")
 .describe(R"code(
 Beginning of a region that is handled by a given compiler.
