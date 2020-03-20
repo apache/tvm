@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file resize.cc
- * \brief Image operators
+ * \file dilation2d.cc
+ * \brief Morphological dilation operator
  */
 #include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
@@ -29,7 +29,7 @@
 namespace tvm {
 namespace relay {
 
-// relay.nn.dilation2d
+// relay.image.dilation2d
 TVM_REGISTER_NODE_TYPE(Dilation2DAttrs);
 
 template<typename T>
@@ -40,8 +40,6 @@ Array<Array<Layout> > Dilation2DInferCorrectLayout(
     const Array<tvm::relay::Type> &old_in_types) {
   const T* params = attrs.as<T>();
 
-  // We always make other operators to fit the layouts of convolution layers
-  // So this inference ignores all inputs
   return Array<Array<Layout> >{{params->data_layout, params->kernel_layout},
                                {params->data_layout}};
 }

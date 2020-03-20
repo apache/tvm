@@ -19,7 +19,7 @@
 
 /*!
  * \file resize.cc
- * \brief Image operators
+ * \brief Image resize operators
  */
 #include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
