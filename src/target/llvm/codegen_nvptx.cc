@@ -34,7 +34,7 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  void AddFunction(const LoweredFunc& f) final {
+  void AddFunction(const PrimFunc& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     // annotate as kernel function
@@ -68,7 +68,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
             return builder_->CreateAlloca(
-                LLVMType(op->dtype), ConstInt32(constant_size));
+                DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
@@ -83,7 +83,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
-        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->dtype), constant_size);
+        llvm::Type* type = llvm::ArrayType::get(
+            DTypeToLLVMType(op->dtype), constant_size);
         // Allocate shared memory in global, address_space = 3
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
@@ -97,7 +98,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       }
     }
     buf = builder_->CreatePointerCast(
-        buf, LLVMType(op->dtype)->getPointerTo(
+        buf, DTypeToLLVMType(op->dtype)->getPointerTo(
             buf->getType()->getPointerAddressSpace()));
     CHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
@@ -190,7 +191,7 @@ inline int DetectCUDAComputeVersion() {
   }
 }
 
-runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
+runtime::Module BuildNVPTX(IRModule mod, std::string target) {
   InitializeLLVM();
   CHECK(target.length() >= 5 &&
         target.substr(0, 5) == "nvptx");
@@ -202,8 +203,13 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  cg->Init(funcs[0]->name, tm.get(), ctx.get(), false, false);
-  for (LoweredFunc f :  funcs) {
+
+  cg->Init("TVMPTXModule", tm.get(), ctx.get(), false, false);
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    auto f = Downcast<PrimFunc>(kv.second);
     cg->AddFunction(f);
   }
 
@@ -249,10 +255,10 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
 #endif
   pass.run(*module);
   std::string ptx(data_ptx.begin(), data_ptx.end());
-  return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
+  return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_nvptx")
+TVM_REGISTER_GLOBAL("target.build.nvptx")
 .set_body_typed(BuildNVPTX);
 
 }  // namespace codegen

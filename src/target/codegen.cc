@@ -23,7 +23,12 @@
  */
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
+
+#include <tvm/ir/module.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/function.h>
+
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -36,6 +41,63 @@
 
 namespace tvm {
 namespace codegen {
+
+// The new build function.
+// adapt the old function to the new one
+runtime::Module BuildForIRModule(const IRModule& module,
+                                 const Target& target) {
+  std::string build_f_name = "target.build." + target->target_name;
+  // the build function.
+  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
+  CHECK(bf != nullptr)
+      << "target.build." << target << " is not enabled";
+  return (*bf)(module, target->str());
+}
+
+
+
+// convert legacy LoweredFunc to PrimFunc.
+tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
+  // remap args to attach type annotations.
+  Array<tir::Var> args;
+  Map<tir::Var, PrimExpr> remap_vars;
+
+  for (auto var : from->args) {
+    if (from->handle_data_type.count(var)) {
+      tir::Var new_var(var->name_hint,
+                       PointerType(PrimType(var->dtype)));
+      args.push_back(new_var);
+      remap_vars.Set(var, new_var);
+    } else {
+      args.push_back(var);
+    }
+  }
+  tir::PrimFunc func(args, Substitute(from->body, remap_vars));
+
+  func = WithAttr(std::move(func), attr::kGlobalSymbol, runtime::String(from->name));
+  func = WithAttr(std::move(func), tir::attr::kDeviceThreadAxis, from->thread_axis);
+  if (from->func_type == tir::LoweredFuncType::kDeviceFunc) {
+    func = WithAttr(std::move(func),
+                    attr::kCallingConv, Integer(CallingConv::kDeviceKernelLaunch));
+  }
+  if (from->is_restricted) {
+    func = WithAttr(std::move(func), tir::attr::kNoAlias, Integer(1));
+  }
+  return func;
+}
+
+IRModule ToIRModule(const Array<tir::LoweredFunc>& funcs) {
+  Map<GlobalVar, BaseFunc> functions;
+  for (size_t i = 0; i < funcs.size(); ++i) {
+    auto f = funcs[i];
+    tir::PrimFunc pf = ToPrimFunc(f);
+    if (i == 0) {
+      pf = WithAttr(std::move(pf), tir::attr::kIsEntryFunc, Integer(1));
+    }
+    functions.Set(GlobalVar(f->name), pf);
+  }
+  return IRModule(functions);
+}
 
 runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
                       const std::string& target) {
@@ -51,15 +113,10 @@ runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
       transformed_funcs.push_back(func);
     }
   }
-  std::string build_f_name = "codegen.build_" + mode;
-  // the build function.
-  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  CHECK(bf != nullptr)
-      << "Target " << target << " is not enabled";
-  runtime::Module m = transformed_funcs.empty() ?
-                      (*bf)(funcs, target) :
-                      (*bf)(transformed_funcs, target);
-  return m;
+
+  return BuildForIRModule(
+      transformed_funcs.size() != 0 ? ToIRModule(transformed_funcs) : ToIRModule(funcs),
+      Target::Create(target));
 }
 
 /*! \brief Helper class to serialize module */

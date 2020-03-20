@@ -171,6 +171,16 @@ constexpr const char* kDeviceThreadAxis = "tir.device_thread_axis";
  * Type: Integer
  */
 constexpr const char* kNoAlias = "tir.noalias";
+
+/*!
+ * \brief Mark the function as the entry function of
+ *        the final generated runtime module.
+ *
+ * Type: Integer
+ *
+ * \note There can only be one entry function per module.
+ */
+constexpr const char* kIsEntryFunc = "tir.is_entry_func";
 }  // namespace attr
 }  // namespace tir
 }  // namespace tvm

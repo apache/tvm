@@ -70,7 +70,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(Array<LoweredFunc> funcs) {
+runtime::Module BuildSPIRV(IRModule mod) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
@@ -81,8 +81,21 @@ runtime::Module BuildSPIRV(Array<LoweredFunc> funcs) {
   const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
 
   CodeGenSPIRV cg;
-  for (LoweredFunc f : funcs) {
-    f = PointerValueTypeRewrite(f);
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenSPIRV: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    CHECK(global_symbol.defined())
+        << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
+
+    std::string f_name = global_symbol;
+    f = PointerValueTypeRewrite(std::move(f));
     VulkanShader shader;
     shader.data = cg.BuildFunction(f);
 
@@ -97,13 +110,14 @@ runtime::Module BuildSPIRV(Array<LoweredFunc> funcs) {
                 reinterpret_cast<char*>(dmlc::BeginPtr(shader.data)));
     }
     code_data << spirv_tools.BinaryToText(shader.data);
-    smap[f->name] = std::move(shader);
+    smap[f_name] = std::move(shader);
   }
+
   return runtime::VulkanModuleCreate(
-     smap, ExtractFuncInfo(funcs), code_data.str());
+     smap, ExtractFuncInfo(mod), code_data.str());
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_vulkan")
+TVM_REGISTER_GLOBAL("target.build.vulkan")
 .set_body_typed(BuildSPIRV);
 
 }  // namespace codegen

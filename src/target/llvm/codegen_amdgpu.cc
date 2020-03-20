@@ -59,7 +59,7 @@ static inline int DetectROCMmaxThreadsPerBlock() {
 // AMDGPU code generator.
 class CodeGenAMDGPU : public CodeGenLLVM {
  public:
-  void AddFunction(const LoweredFunc& f) final {
+  void AddFunction(const PrimFunc& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(f, true);
     function_->setCallingConv(llvm::CallingConv::AMDGPU_KERNEL);
@@ -91,7 +91,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
             return builder_->CreateAlloca(
-                LLVMType(op->dtype), ConstInt32(constant_size));
+                DTypeToLLVMType(op->dtype), ConstInt32(constant_size));
           });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
 #if TVM_LLVM_VERSION >= 100
@@ -106,7 +106,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
-        llvm::Type* type = llvm::ArrayType::get(LLVMType(op->dtype), constant_size);
+        llvm::Type* type = llvm::ArrayType::get(
+            DTypeToLLVMType(op->dtype), constant_size);
         // Allocate shared memory in global, address_space = 3
         llvm::GlobalVariable *global = new llvm::GlobalVariable(
             *module_, type, false, llvm::GlobalValue::PrivateLinkage, 0, ".shared",
@@ -120,7 +121,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
     }
     buf = builder_->CreatePointerCast(
-        buf, LLVMType(op->dtype)->getPointerTo(
+        buf, DTypeToLLVMType(op->dtype)->getPointerTo(
             buf->getType()->getPointerAddressSpace()));
     CHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
@@ -170,7 +171,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     // Additional optimization hook to tweak the builder.
   }
 
-  unsigned GetGlobalAddressSpace() {
+  unsigned GetGlobalAddressSpace() const final {
     return 1;
   }
 
@@ -205,7 +206,7 @@ inline int DetectROCMComputeVersion(const std::string& target) {
   return 900;
 }
 
-runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
+runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
 #if TVM_LLVM_VERSION < 90
   LOG(FATAL) << "AMDGPU backend requires at least LLVM 9";
   // Lower versions will crash when loading the bitcode, see
@@ -222,8 +223,13 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  cg->Init(funcs[0]->name, tm.get(), ctx.get(), false, false);
-  for (LoweredFunc f :  funcs) {
+
+  cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false);
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    auto f = Downcast<PrimFunc>(kv.second);
     cg->AddFunction(f);
   }
 
@@ -306,10 +312,10 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   std::string hsaco = (*f)(arr);
   std::string ll(data_ll.begin(), data_ll.end());
-  return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll, assembly);
+  return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_rocm")
+TVM_REGISTER_GLOBAL("target.build.rocm")
 .set_body_typed(BuildAMDGPU);
 
 }  // namespace codegen

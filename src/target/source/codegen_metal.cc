@@ -31,10 +31,10 @@
 namespace tvm {
 namespace codegen {
 
-void CodeGenMetal::InitFuncState(LoweredFunc f) {
+void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   // analyze the data;
-  for (Var arg : f->args) {
+  for (Var arg : f->params) {
     if (arg.dtype().is_handle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
@@ -49,48 +49,55 @@ CodeGenMetal::CodeGenMetal() {
               << "};\n\n";
 }
 
-void CodeGenMetal::AddFunction(LoweredFunc f) {
+void CodeGenMetal::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
+
   // add to alloc buffer type.
-  for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.dtype());
-  }
+  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+
   // Function header.
-  this->stream << "kernel void " << f->name << "(\n";
+  this->stream << "kernel void " << static_cast<std::string>(global_symbol) << "(";
+
   // Buffer arguments
   size_t num_buffer = 0;
-  for (size_t i = 0; i < f->args.size(); ++i, ++num_buffer) {
-    Var v = f->args[i];
+  for (size_t i = 0; i < f->params.size(); ++i, ++num_buffer) {
+    Var v = f->params[i];
     if (!v.dtype().is_handle())  break;
     stream << "  ";
     std::string vid = AllocVarID(v.get());
     auto it = alloc_storage_scope_.find(v.get());
-    CHECK(it != alloc_storage_scope_.end());
-    PrintStorageScope(it->second, stream);
+    if (it != alloc_storage_scope_.end()) {
+      PrintStorageScope(it->second, stream);
+    }
     stream << ' ';
-    if (handle_data_type_.count(v.get())) {
-      PrintType(handle_data_type_.at(v.get()), stream);
-      stream << "*";
-    } else {
-      PrintType(v.dtype(), stream);
+    PrintType(GetType(v), stream);
+    // Register handle data type
+    // TODO(tvm-team): consider simply keep type info in the
+    // type annotation(via a normalizing rewriting).
+    if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+      if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
+        RegisterHandleType(v.get(), prim->dtype);
+      }
     }
     stream << ' ' << vid
            << " [[ buffer(" << i << ") ]],\n";
   }
   // Setup normal arguments.
-  size_t nargs = f->args.size() - num_buffer;
+  size_t nargs = f->params.size() - num_buffer;
   std::string varg = GetUniqueName("arg");
   if (nargs != 0) {
-    std::string arg_buf_type = f->name + "_args_t";
+    std::string arg_buf_type = static_cast<std::string>(global_symbol) + "_args_t";
     stream << "  constant " << arg_buf_type << "& " << varg
            << " [[ buffer(" << num_buffer << ") ]],\n";
     // declare the struct
     decl_stream << "struct " << arg_buf_type << " {\n";
-    for (size_t i = num_buffer; i < f->args.size(); ++i) {
-      Var v = f->args[i];
+    for (size_t i = num_buffer; i < f->params.size(); ++i) {
+      Var v = f->params[i];
       CHECK(!v.dtype().is_handle());
       std::string vid = AllocVarID(v.get());
       std::ostringstream vref;
@@ -113,7 +120,10 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
   CHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
   CHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  for (IterVar iv : f->thread_axis) {
+  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis);
+  CHECK(thread_axis.defined());
+
+  for (IterVar iv : thread_axis) {
     runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
     work_dim = std::max(work_dim, scope.dim_index + 1);
   }
@@ -127,7 +137,7 @@ void CodeGenMetal::AddFunction(LoweredFunc f) {
     stream << " threadIdx [[thread_position_in_threadgroup]]\n";
   }
   // bind thread axis
-  for (IterVar iv : f->thread_axis) {
+  for (IterVar iv : thread_axis) {
     CHECK(!var_idmap_.count(iv->var.get()));
     std::string vname = iv->thread_tag;
     if (work_dim <= 1) {
@@ -257,14 +267,23 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   }
 }
 
-runtime::Module BuildMetal(Array<LoweredFunc> funcs) {
+runtime::Module BuildMetal(IRModule mod) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenMetal cg;
   cg.Init(output_ssa);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenMetal: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   std::string code = cg.Finish();
   std::string fmt = "metal";
   std::string source = "";
@@ -273,10 +292,10 @@ runtime::Module BuildMetal(Array<LoweredFunc> funcs) {
     code = (*f)(code).operator std::string();
     fmt = "metallib";
   }
-  return MetalModuleCreate(code, fmt, ExtractFuncInfo(funcs), source);
+  return MetalModuleCreate(code, fmt, ExtractFuncInfo(mod), source);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_metal")
+TVM_REGISTER_GLOBAL("target.build.metal")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildMetal(args[0]);
   });

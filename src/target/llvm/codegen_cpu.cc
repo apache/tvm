@@ -122,11 +122,15 @@ void CodeGenCPU::Init(const std::string& module_name,
   this->InitGlobalContext(dynamic_lookup);
 }
 
-void CodeGenCPU::AddFunction(const LoweredFunc& f) {
+void CodeGenCPU::AddFunction(const PrimFunc& f) {
   CodeGenLLVM::AddFunction(f);
   if (f_tvm_register_system_symbol_ != nullptr) {
+    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    CHECK(global_symbol.defined())
+        << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
     export_system_symbols_.emplace_back(
-        std::make_pair(f->name, builder_->CreatePointerCast(function_, t_void_p_)));
+        std::make_pair(global_symbol.operator std::string(),
+                       builder_->CreatePointerCast(function_, t_void_p_)));
   }
   AddDebugInformation(function_);
 }
@@ -328,7 +332,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
     arg_types.push_back(v->getType());
   }
   llvm::FunctionType* ftype = llvm::FunctionType::get(
-      LLVMType(op->dtype), arg_types, false);
+      GetLLVMType(GetRef<PrimExpr>(op)), arg_types, false);
   // Check if it is available in global function table as injected function.
   auto it = gv_func_map_.find(op->name);
   if (it != gv_func_map_.end()) {
@@ -693,8 +697,8 @@ CodeGenCPU::MakeCallPacked(const Array<PrimExpr> &args, llvm::Value **rvalue,
                              ret_value, *ret_tcode}));
   DataType r_api_type = tir::APIType(r_type);
   *rvalue = builder_->CreateAlignedLoad(
-      builder_->CreatePointerCast(ret_value,
-                                  LLVMType(r_api_type)->getPointerTo()),
+      builder_->CreatePointerCast(
+          ret_value, DTypeToLLVMType(r_api_type)->getPointerTo()),
       8);
   *rvalue = CreateCast(r_api_type, r_type, *rvalue);
   return end_block;
@@ -873,7 +877,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmtNode* op) {
     this->CreateStaticInit(op->value.as<StringImmNode>()->value, op->body);
   } else  if (op->attr_key == tir::attr::compute_scope) {
     this->CreateComputeScope(op);
-  } else if (attr::IsPragmaKey(op->attr_key)) {
+  } else if (tir::attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {
       CHECK(parallel_env_.penv != nullptr)
           << "Pragma parallel_stride_pattern only valid in parallel launch";

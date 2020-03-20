@@ -42,7 +42,7 @@ class CodeGenCPU : public CodeGenLLVM {
             llvm::LLVMContext* ctx,
             bool system_lib,
             bool dynamic_lookup) override;
-  void AddFunction(const LoweredFunc& f) override;
+  void AddFunction(const PrimFunc& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
   void VisitStmt_(const AssertStmtNode* op) override;

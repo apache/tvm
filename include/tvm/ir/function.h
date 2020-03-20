@@ -213,6 +213,27 @@ constexpr const char* kCallingConv = "calling_conv";
  * \sa tvm::Target
  */
 constexpr const char* kTarget = "target";
+
+/*!
+ * \brief Global linker symbol of the function in generated code.
+ *
+ *  This option forces the code generator to name the
+ *  function with the given.
+ *
+ *  For example, we could set a global_symbol of a function
+ *  early to make sure that we can always refer to it by
+ *  the symbol name in the generated DLL.
+ *
+ *  We should not set the attribute for local functions,
+ *  so that the compiler can freely rename them.
+ *
+ *  A unique global symbol will be automatically assigned
+ *  to each function in the module before the target code
+ *  generation phase.
+ *
+ * Type: String
+ */
+constexpr const char* kGlobalSymbol = "global_symbol";
 }  // namespace attr
 }  // namespace tvm
 #endif  // TVM_IR_FUNCTION_H_

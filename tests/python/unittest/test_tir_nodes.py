@@ -265,7 +265,18 @@ def test_prim_func():
     assert func.attrs is None
 
 
+def test_vars():
+    x = tvm.tir.Var("xyz", "int8")
+    assert x.dtype == "int8"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType("float"))
+    x = tvm.tir.Var("xyz", ptype)
+    assert x.dtype == "handle"
+    assert x.type_annotation == ptype
+    assert isinstance(ptype.element_type, tvm.ir.PrimType)
+
+
 if __name__ == "__main__":
+    test_vars()
     test_prim_func()
     test_cast()
     test_attr()
