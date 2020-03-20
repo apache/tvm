@@ -659,6 +659,42 @@ def _mx_make_loss(inputs, attrs):
     return inputs[0]
 
 
+def _mx_contrib_arange_like(inputs, attrs):
+    assert len(inputs) == 1
+    if attrs.get_int("repeat", 1) != 1:
+        raise tvm.error.OpAttributeUnimplemented(
+            'Attribute "repeat" is not supported in operator arange_like.')
+    ty = _infer_type(inputs[0]).checked_type
+    assert ty
+    shape, dtype = get_const_tuple(ty.shape), ty.dtype
+    axis = attrs.get_int("axis", None)
+    if axis is None:
+        n_elems = 1
+        for dim in shape:
+            if not isinstance(dim, int):
+                raise tvm.error.OpError("Don't support arange_like with symbolic input shape.")
+            n_elems *= dim
+    else:
+        axis = axis + len(shape) if axis < 0 else axis
+        assert 0 <= axis < len(shape)
+        n_elems = shape[axis]
+        if not isinstance(n_elems, int):
+            raise tvm.error.OpError("Don't support arange_like with symbolic input shape.")
+        shape = (n_elems,)
+    start = attrs.get_float("start", 0.)
+    step = attrs.get_float("step", 1.)
+    stop = start + step * n_elems
+    new_attrs = {}
+    new_attrs["start"] = _expr.const(start, dtype=dtype)
+    new_attrs["stop"] = _expr.const(stop, dtype=dtype)
+    new_attrs["step"] = _expr.const(step, dtype=dtype)
+    new_attrs["dtype"] = dtype
+    ret = _op.arange(**new_attrs)
+    if len(shape) > 1:
+        ret = _op.reshape(ret, shape)
+    return ret
+
+
 def _mx_repeat(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
@@ -1067,6 +1103,63 @@ def _mx_contrib_fifo_buffer(inputs, attrs):
     new_attrs = {}
     new_attrs['axis'] = attrs.get_int('axis')
     return _op.nn.fifo_buffer(*inputs, **new_attrs)
+
+
+def _mx_contrib_interleaved_matmul_selfatt_qk(inputs, attrs):
+    """
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1)) 
+    q_proj = mx.nd.transpose(tmp[:,:,:,0,:], axes=(1, 2, 0, 3)) 
+    q_proj = mx.nd.reshape(q_proj, shape=(-1, 0, 0), reverse=True) 
+    q_proj = mx.nd.contrib.div_sqrt_dim(q_proj) 
+    k_proj = mx.nd.transpose(tmp[:,:,:,1,:], axes=(1, 2, 0, 3)) 
+    k_proj = mx.nd.reshap(k_proj, shape=(-1, 0, 0), reverse=True) 
+    output = mx.nd.batch_dot(q_proj, k_proj, transpose_b=True)
+    """
+    assert len(inputs) == 1
+    qkv = inputs[0]
+    num_heads = attrs.get_int('heads')
+    qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
+    q_proj = _op.take(qkv, _expr.const(0, "int"), axis=3)
+    q_proj = _op.transpose(q_proj, axes=[1, 2, 0, 3])
+    q_proj = _op.reverse_reshape(q_proj, newshape=(-1, 0, 0))
+    q_proj = _mx_contrib_div_sqrt_dim([q_proj], None)
+    k_proj = _op.take(qkv, _expr.const(1, "int"), axis=3)
+    k_proj = _op.transpose(k_proj, axes=[1, 2, 0, 3])
+    k_proj = _op.reverse_reshape(k_proj, newshape=(-1, 0, 0))
+    ret = _op.nn.batch_matmul(q_proj, k_proj)
+    return ret
+
+
+def _mx_contrib_interleaved_matmul_selfatt_valatt(inputs, attrs):
+    """
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1)) 
+    v_proj = mx.nd.transpose(tmp[:,:,:,2,:], axes=(1, 2, 0, 3)) 
+    v_proj = mx.nd.reshape(v_proj, shape=(-1, 0, 0), reverse=True) 
+    output = mx.nd.batch_dot(attention, v_proj, transpose_b=True) 
+    output = mx.nd.reshape(output, shape=(-1, num_heads, 0, 0), reverse=True) 
+    output = mx.nd.transpose(output, axes=(0, 2, 1, 3)) 
+    output = mx.nd.reshape(output, shape=(0, 0, -1))
+    """
+    assert len(inputs) == 2
+    qkv, att = inputs
+    num_heads = attrs.get_int("heads")
+    qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
+    v_proj = _op.take(qkv, _expr.const(2, "int"), axis=3)
+    v_proj = _op.transpose(v_proj, axes=(1, 2, 0, 3))
+    v_proj = _op.reverse_reshape(v_proj, newshape=(-1, 0, 0))
+    print(_infer_type(att))
+    print()
+    print(_infer_type(v_proj))
+    # exit()
+    out = _op.nn.batch_matmul(att, v_proj)
+    print(_infer_type(out))
+    out = _op.reverse_reshape(out, newshape=(-1, num_heads, 0, 0))
+    out = _op.transpose(out, axes=(0, 2, 1, 3))
+    out = _op.reshape(out, newshape=(0, 0, -1))
+    # TODO: failed here due to type error
+    print(_infer_type(out))
+    exit()
+    return out
 
 
 def _mx_cond(inputs, attrs, subgraphs):
@@ -1842,6 +1935,7 @@ _convert_map = {
     "smooth_l1"     : _mx_smooth_l1,
     "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
+    "_contrib_arange_like": _mx_contrib_arange_like,
     "one_hot"           : _mx_one_hot,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
@@ -1857,6 +1951,8 @@ _convert_map = {
     # NLP
     "RNN"               : _mx_rnn_layer,
     "_rnn_param_concat" : _mx_rnn_param_concat,
+    "_contrib_interleaved_matmul_selfatt_qk" : _mx_contrib_interleaved_matmul_selfatt_qk,
+    "_contrib_interleaved_matmul_selfatt_valatt" : _mx_contrib_interleaved_matmul_selfatt_valatt,
     # control flow
     "_cond"             : _mx_cond,
     # Depricated:
@@ -1974,6 +2070,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
                 raise RuntimeError("unexpected type %s" % type(res))
             node_map[nid] = res
         else:
+            print(node)
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported in frontend MXNet.'.format(op_name))
 
