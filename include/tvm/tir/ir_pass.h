@@ -391,7 +391,7 @@ Stmt HoistIfThenElse(Stmt stmt);
  * \param stmt The stmt to do datatype rewrite
  * \return Transformed stmt.
  */
-Stmt DataTypeRewrite(Stmt stmt);
+Stmt NarrowDataType(Stmt stmt);
 
 /*!
  * \brief Make an user callable API LoweredFunc.

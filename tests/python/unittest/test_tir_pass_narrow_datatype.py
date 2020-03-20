@@ -32,7 +32,7 @@ def lower(sch, args):
     bounds = te.schedule.InferBound(sch)
     stmt = te.schedule.ScheduleOps(sch, bounds)
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, False)
-    stmt = tvm.tir.ir_pass.DataTypeRewrite(stmt)
+    stmt = tvm.tir.ir_pass.NarrowDataType(stmt)
     return stmt
 
 

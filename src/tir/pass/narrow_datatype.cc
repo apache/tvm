@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file rewrite_datatype.cc
+ * \file narrow_datatype.cc
  * \brief narrow the datatype of indexing vars
  */
 
@@ -29,6 +29,28 @@
 
 namespace tvm {
 namespace tir {
+
+// This pass narrows indexing expressions (like StoreNode::Index)
+// that trivially fit into i32 to i32. Considering that i32 indices
+// may be more efficient on some backends (while i64 may be more
+// efficient on others, like llvm), we may want this pass when i32
+// indices are more efficient.
+//
+// For Var v, we determine its dtype by examining all the PrimExpr
+// that contains v, denoted by E = {e_0 = v, e_1, e_2, ..., e_k}.
+// If all expressions in E fit into i32, then we think v can be narrowed
+// to i32.
+//
+// To make an indexing expression i32, we must make sure that every
+// component of that expression is of dtype i32. So besides Var, we
+// rewrite the following inside an indexing expression
+// - Var
+// - IntImm
+// - Cast
+//
+// Algorithm:
+// - Use DataTypeVisitor to determine whether a Var can be narrowed or not.
+// - Use DataTypeRewritter to rewrite the components of an indexing expression.
 
 using arith::Analyzer;
 using arith::IRMutatorWithAnalyzer;
@@ -166,6 +188,9 @@ class DataTypeRewriter : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     Stmt s = StmtExprMutator::VisitStmt_(op);
     op = s.as<ForNode>();
+    CHECK(op != nullptr)
+      << "Expected type to be ForNode"
+      << ", but get " << s->GetTypeKey();
     PrimExpr e = VisitExpr(op->loop_var);
     Var var = Downcast<Var, PrimExpr>(e);
     return ForNode::make(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent),
@@ -177,7 +202,13 @@ class DataTypeRewriter : public StmtExprMutator {
         op->attr_key == attr::virtual_thread) {
       Stmt s = StmtExprMutator::VisitStmt_(op);
       op = s.as<AttrStmtNode>();
+      CHECK(op != nullptr)
+        << "Expected type to be AttrStmtNode"
+        << ", but get " << s->GetTypeKey();
       const IterVarNode* iv = op->node.as<IterVarNode>();
+      CHECK(iv != nullptr)
+        << "Expected type to be IterVarNode"
+        << ", but get " << op->node->GetTypeKey();
       PrimExpr e = VisitExpr(iv->var);
       Var var = Downcast<Var, PrimExpr>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
@@ -233,6 +264,9 @@ class DataTypeRewriter : public StmtExprMutator {
     if (is_index_ && visitor_.vmap.find(op) != visitor_.vmap.end()) {
       PrimExpr e = StmtExprMutator::VisitExpr_(op);
       const CastNode* new_op = e.as<CastNode>();
+      CHECK(new_op != nullptr)
+        << "Expected type to be CastNode"
+        << ", but get " << e->GetTypeKey();
       return CastNode::make(visitor_.vmap[op], new_op->value);
     }
     return StmtExprMutator::VisitExpr_(op);
@@ -298,6 +332,9 @@ DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=)
 PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
+  CHECK(op != nullptr)
+    << "Expected type to be CallNode"
+    << ", but get " << e->GetTypeKey();
   if (op->call_type == CallNode::PureIntrinsic) {
     if (op->name == intrinsic::tvm_if_then_else) {
       return if_then_else(op->args[0], op->args[1], op->args[2]);
@@ -318,7 +355,7 @@ PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
   return e;
 }
 
-Stmt DataTypeRewrite(Stmt stmt) {
+Stmt NarrowDataType(Stmt stmt) {
   return DataTypeRewriter()(stmt);
 }
 
