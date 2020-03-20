@@ -2669,6 +2669,26 @@ def test_forward_tan():
     tf.tan(in_data, name="tan")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
 
+def test_forward_atan():
+    """test operator tan """
+    tf.disable_eager_execution()
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.atan(in_data, name="atan")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'atan:0')
+
+def test_forward_atan2():
+    """test operator tan """
+    tf.disable_eager_execution()
+    np_data_1 = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    np_data_2 = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(tf.float32, (2, 3, 5), name="in_data_1")
+    in_data_2 = tf.placeholder(tf.float32, (2, 3, 5), name="in_data_2")
+    tf.atan2(in_data_1, in_data_2, name="atan2")
+    compare_tf_with_tvm([np_data_1, np_data_2], ['in_data_1:0', 'in_data_2:0'], 'atan2:0')
+
 
 def test_forward_sin():
     """test operator sin """
@@ -3116,6 +3136,8 @@ if __name__ == '__main__':
     test_forward_left_shift()
     test_forward_truncatemod()
     test_forward_one_hot()
+    test_forward_atan()
+    test_forward_atan2()
 
     # Activations
     test_forward_sigmoid()
