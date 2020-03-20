@@ -37,6 +37,19 @@ ITERVAR_TYPE_STRING_MAP = {
     8: ('kTensorized', '#A9DFBF'),
 }
 
+PALETTE = {
+    0: '#000000',
+    1: '#922B21',
+    2: '#76448A',
+    3: '#1F618D',
+    4: '#148F77',
+    5: '#B7950B',
+    6: '#AF601A',
+    7: '#F5B7B1',
+    8: '#A9DFBF',
+}
+
+PALETTE_SIZE = 9
 
 def dom_path_to_string(dom_path, prefix=""):
     path_string = prefix
@@ -458,8 +471,8 @@ def viz_schedule_tree(sch,
             var_attr_label = ''
             if "thread" in leafiv["properties"] and \
                     leafiv["properties"]["thread"] is not None:
-                var_attr_label = var_attr_label + "<br/>(" + str(
-                    leafiv["properties"]["thread"]) + ")"
+                var_attr_label = var_attr_label + "<br/><font color=\"#2980B9\">(" + str(
+                    leafiv["properties"]["thread"]) + ")</font>"
             if "intrin" in leafiv["properties"] and \
                     leafiv["properties"]["intrin"] is not None:
                 var_attr_label = var_attr_label + "<br/>" + \
@@ -483,7 +496,11 @@ def viz_schedule_tree(sch,
             [stage["attaching_to"][0]], "Stage") + ":" + dom_path_to_string(
                 stage["attaching_to"],
                 "IterVar") if stage["attaching_to"] is not None else "ROOT"
-        g.edge(src, dst)
+        color = PALETTE[
+            stage["attaching_to"][1] +
+            1] if stage["attaching_to"] is not None and stage["attaching_to"][
+                1] < PALETTE_SIZE - 1 else PALETTE[0]
+        g.edge(src, dst, color=color)
 
     graph = create_schedule_tree_graph("Schedule Tree")
     s = extract_dom_for_viz(sch)
