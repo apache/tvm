@@ -83,8 +83,8 @@ def test_meta_data():
     text_no_meta = str(f)
     assert "channels=2" in text
     assert "channels=2" in text_no_meta
-    assert "meta[SizeVar][0]" in text
-    assert "meta[SizeVar][0]" in text_no_meta
+    assert "meta[tir.SizeVar][0]" in text
+    assert "meta[tir.SizeVar][0]" in text_no_meta
     assert "type_key" in text
     assert "type_key" not in text_no_meta
 

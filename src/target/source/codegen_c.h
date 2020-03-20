@@ -26,9 +26,11 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/lowered_func.h>
+#include <tvm/runtime/container.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -62,8 +64,9 @@ class CodeGenC :
   /*!
    * \brief Add the function to the generated module.
    * \param f The function to be compiled.
+   * \param whether to append return 0 in the end.
    */
-  void AddFunction(LoweredFunc f);
+  void AddFunction(const PrimFunc& f);
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -93,15 +96,25 @@ class CodeGenC :
   }
   // The following parts are overloadable print operations.
   /*!
+   * \brief Print the function header before the argument list
+   *
+   *  Example: stream << "void";
+   */
+  virtual void PrintFuncPrefix(); // NOLINT(*)
+  /*!
+   * \brief Print the final return at the end the function.
+   */
+  virtual void PrintFinalReturn(); // NOLINT(*)
+  /*!
    * \brief Insert statement before function body.
    * \param f The function to be compiled.
    */
-  virtual void PreFunctionBody(LoweredFunc f) {}
+  virtual void PreFunctionBody(const PrimFunc& f) {}
   /*!
    * \brief Initialize codegen state for generating f.
    * \param f The function to be compiled.
    */
-  virtual void InitFuncState(LoweredFunc f);
+  virtual void InitFuncState(const PrimFunc& f);
   // expression
   void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
@@ -148,6 +161,12 @@ class CodeGenC :
    * \param os The stream to print the ctype into
    */
   virtual void PrintType(DataType t, std::ostream& os); // NOLINT(*)
+  /*!
+   * Print Type represetnation of type type.
+   * \param type The type representation.
+   * \param os The stream to print the ctype into
+   */
+  virtual void PrintType(const Type& type, std::ostream& os); // NOLINT(*)
   /*!
    * \brief Print expr representing the thread tag
    * \param IterVar iv The thread index to be binded;
@@ -223,12 +242,6 @@ class CodeGenC :
   // override
   void PrintSSAAssign(
       const std::string& target, const std::string& src, DataType t) final;
-  /*! \brief restrict keyword */
-  std::string restrict_keyword_{""};
-  /*! \brief the storage scope of allocation */
-  std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
-  /*! \brief the data type of allocated buffers */
-  std::unordered_map<const VarNode*, DataType> handle_data_type_;
   /*! \brief reserves common C keywords */
   void ReserveKeywordsAsUnique();
 
@@ -236,6 +249,13 @@ class CodeGenC :
   bool IsVolatile(const VarNode *buf_var) const {
     return volatile_buf_.count(buf_var) != 0;
   }
+
+  /*! \brief restrict keyword */
+  std::string restrict_keyword_{""};
+  /*! \brief the storage scope of allocation */
+  std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
+  /*! \brief the data type of allocated buffers */
+  std::unordered_map<const VarNode*, DataType> handle_data_type_;
 
  private:
   /*! \brief whether to print in SSA form */

@@ -56,7 +56,7 @@ class CodeGenStackVM
    * \note Only call compile once,
    *  create a new codegen object each time.
    */
-  StackVM Compile(LoweredFunc f);
+  StackVM Compile(const PrimFunc& f);
   /*! \brief Push stmt to generate new code */
   void Push(const Stmt& n);
   /*! \brief Push expr to generate new code */

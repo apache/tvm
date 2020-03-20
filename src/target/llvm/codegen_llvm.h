@@ -25,12 +25,17 @@
 #define TVM_TARGET_LLVM_CODEGEN_LLVM_H_
 #ifdef TVM_LLVM_VERSION
 
+#include <tvm/ir/module.h>
+#include <tvm/runtime/container.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
+
+
 #include <memory>
 #include <utility>
 #include <vector>
@@ -78,7 +83,7 @@ class CodeGenLLVM :
    * \brief Compile and add function f to the current module.
    * \param f The function to be added.
    */
-  virtual void AddFunction(const LoweredFunc& f);
+  virtual void AddFunction(const PrimFunc& f);
   /*!
    * \brief Add main function as the entry name
    * \param entry_func_name The name of entry function to be added.
@@ -167,7 +172,7 @@ class CodeGenLLVM :
    * \return The result.
    */
   template<typename F>
-  inline llvm::AllocaInst* WithFunctionEntry(F falloca) {
+  llvm::AllocaInst* WithFunctionEntry(F falloca) {
     llvm::BasicBlock* current = builder_->GetInsertBlock();
     llvm::BasicBlock* entry = &(function_->getEntryBlock());
     builder_->SetInsertPoint(entry, entry->begin());
@@ -198,18 +203,35 @@ class CodeGenLLVM :
   // Get the maximim storage align bits of buffer pointer given storage scope.
   virtual int NativeVectorBits(const runtime::StorageScope& storage_scope) const;
   // Get correct address space depending on the backend
-  virtual unsigned GetGlobalAddressSpace();
-
-  void AddFunctionInternal(const LoweredFunc& f, bool ret_void);
+  virtual unsigned GetGlobalAddressSpace() const;
+  void AddFunctionInternal(const PrimFunc& f, bool ret_void);
   // Create extern call
   llvm::CallInst* CreateCallExtern(llvm::Type* ret,
                                    const std::string& name,
                                    const std::vector<llvm::Value*>& value);
   /*!
-   * \param t The original type.
-   * \return LLVM type of t
+   * \brief Get the LLVM Type for a given runtime type.
+   * \param dtype The runtime dtype.
+   *
+   * \note Only use this function for dealing with PrimTypes.
+   *       For Call and Var that could have more refined types,
+   *       use GetLLVMType instead.
+   *
+   * \return LLVM type of dtype
    */
-  llvm::Type* LLVMType(const DataType& t) const;
+  llvm::Type* DTypeToLLVMType(const DataType& dtype) const;
+  /*!
+   * \brief Get the LLVM Type for a given type.
+   * \param dtype The runtime dtype.
+   * \param type The corresponding TVM Type.
+   */
+  llvm::Type* GetLLVMType(const Type& type) const;
+  /*!
+   * \brief Get the LLVM Type for a given type.
+   * \param dtype The runtime dtype.
+   * \param type The corresponding TVM Type.
+   */
+  llvm::Type* GetLLVMType(const PrimExpr& expr) const;
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.
