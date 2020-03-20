@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
-import tvm
 from tvm import te
 from .default import default_schedule as _default_schedule
 
