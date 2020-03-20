@@ -34,14 +34,14 @@
 namespace tvm {
 namespace relay {
 /*!
- * \brief A function to non-recursively traverse dataflow regions of a graph
+ * \brief A function to iteratively traverse dataflow regions of a graph
  *
  * ExpandDatflow manually manages a stack and performs DFS to determine the processing
  * order of nodes in an input graph.
  *
  * If it finds a dataflow node (Call, Tuple, TupleGetItem), it checks if the arguments to that node
- * need to be processed via fcheck_visited. If so, the function pushed those arguments to the stack
- * and continues non-recursively to process the top of the stack. When it finds a node that doesn't
+ * need to be processed via fcheck_visited. If so, the function pushes those arguments to the stack
+ * and continues iteratively to process the top of the stack. When it finds a node that doesn't
  * match the dataflow types, or a node who's inputs have all been processed, it visits the current
  * leaf via fvisit_leaf.
  *
@@ -54,10 +54,10 @@ namespace relay {
 template <typename FCheckVisited, typename FVisitLeaf>
 void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_leaf) {
   std::stack<std::pair<Expr, bool>> stack;
-  // The second state of the stack indicate whether the child has been
-  // expanded in the pre-order.
-  // NOTE: function will be inlined.
   auto fpush_to_stack = [&fcheck_visited, &stack](const Expr& expr) {
+    // The second state of the stack indicate whether the child has been
+    // expanded in the pre-order.
+    // NOTE: function will be inlined.
     if (!fcheck_visited(expr)) {
       stack.push({expr, false});
     }
@@ -65,12 +65,12 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
   fpush_to_stack(expr);
   while (stack.size() > 0) {
     auto node = stack.top().first;
-    // if this node was visited through another path
-    // after being added to the stack ignore it.
     if (fcheck_visited(expr)) {
+      // if this node was visited through another path
+      // after being added to the stack ignore it.
       stack.pop();
     } else if (stack.top().second) {
-      // all the children has already been expanded.
+      // all the children have already been expanded.
       // we can just run post order visit on it.
       fvisit_leaf(node);
       stack.pop();
@@ -95,7 +95,6 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
       fpush_to_stack(op->tuple);
     } else {
       // No need to expand the children directly run visit.
-      // terminal leaf, directly use visited.
       fvisit_leaf(node);
       stack.pop();
     }

@@ -335,9 +335,6 @@ GetExprRefCount(const Expr& body) {
     std::unordered_map<const Object*, size_t>
     Get(const Expr& body) {
       this->VisitExpr(body);
-      for (auto kv : visit_counter_) {
-        std::cout << kv.first << '\t' << kv.second << std::endl;
-      }
       return std::move(visit_counter_);
     }
   };
