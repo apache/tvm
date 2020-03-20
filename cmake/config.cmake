@@ -209,3 +209,6 @@ set(USE_EXAMPLE_EXT_RUNTIME OFF)
 # Whether to build TVM with TensorFlow's compile flags.
 # This is most commonly used to ensure ABI compatibility between TVM and TF.
 set(USE_TF_COMPILE_FLAGS OFF)
+
+# Whether use Thrust
+set(USE_THRUST OFF)
