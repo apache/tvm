@@ -125,7 +125,7 @@ def test_schedule_tree():
         findany(r"r.outer\(kCommReduce\)", str)
         findany(r"label=ROOT", str)
         # Check the compute_at edge
-        findany(r"Stage_1", str)
+        findany(r"Stage_1.*\[color\=\"\#000000\"\]", str)
 
     if checkdepdency():
         verify()
