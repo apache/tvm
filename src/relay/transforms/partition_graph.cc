@@ -42,6 +42,8 @@
 #include <utility>
 #include <vector>
 
+#include "../backend/utils.h"
+
 namespace tvm {
 namespace relay {
 namespace partitioning {
@@ -200,14 +202,20 @@ class Partitioner : public ExprMutator {
       auto input = VisitExpr(call->args[0]);
       Array<Var> params;
       Array<Expr> args;
+      std::unordered_map<std::string, runtime::NDArray> params_bind;
 
       // The subgraph may be merged so we need to update it again.
       subgraph = GetSubgraph(GetRef<Call>(call));
       CHECK(subgraph);
 
+      // Record the constants for propagation.
       for (auto pair : subgraph->args) {
         params.push_back(pair.first);
-        args.push_back(pair.second);
+        if (const auto* cn = pair.second.as<ConstantNode>()) {
+          params_bind[pair.first->name_hint()] = cn->data;
+        } else {
+          args.push_back(pair.second);
+        }
       }
 
       auto subgraph_func =
@@ -223,6 +231,11 @@ class Partitioner : public ExprMutator {
                    tvm::tir::StringImmNode::make(compiler_attrs->compiler));
       subgraph_func =
           WithAttr(std::move(subgraph_func), attr::kInline, tvm::Integer(1));
+
+      // Constant propagation
+      if (!params_bind.empty()) {
+        subgraph_func = backend::BindParamsByName(subgraph_func, params_bind);
+      }
       CHECK(!module_->ContainGlobalVar(name))
           << "Global function " << name << " already exists";
       // Create a global function and add it to the IRModule for the subgraph.
