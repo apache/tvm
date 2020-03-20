@@ -1195,6 +1195,29 @@ def test_forward_correlation():
     verify((5, 1, 11, 11), kernel_size = 5, max_displacement = 1, stride1 = 1, stride2 = 1, pad_size = 2, is_multiply = False)
 
 
+def test_forward_arange_like():
+    def verify(data_shape, start=None, step=None, axis=None):
+        attrs = {}
+        if start is not None:
+            attrs['start'] = start
+        if step is not None:
+            attrs['step'] = step
+        if axis is not None:
+            attrs['axis'] = axis
+        print(attrs)
+        data = mx.sym.var('data')
+        data_np = np.random.uniform(size=data_shape).astype("float32")
+        #ref_res = mx.nd.contrib.arange_like(mx.nd.array(data_np), **attrs)
+        #print(ref_res)
+        
+        mx_sym = mx.sym.contrib.arange_like(data, **attrs)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"data": data_shape})
+        print(mod)
+        #verify_mxnet_frontend_impl(mx_sym, data_shape=data_shape, out_shape=data_shape)
+
+    verify(data_shape=(3, 4, 5), start=0., step=1.,  axis=-1)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1263,3 +1286,4 @@ if __name__ == '__main__':
     test_forward_correlation()
     test_forward_grid_generator()
     test_forward_bilinear_sampler()
+    test_forward_arange_like()
