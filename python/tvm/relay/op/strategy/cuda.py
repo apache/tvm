@@ -20,6 +20,7 @@ import topi
 from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
+from .... import get_global_func
 
 @schedule_injective.register(["cuda", "gpu"])
 def schedule_injective_cuda(attrs, outs, target):
@@ -328,6 +329,11 @@ def argsort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_argsort(topi.cuda.argsort),
         wrap_topi_schedule(topi.cuda.schedule_argsort),
         name="argsort.cuda")
+    if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
+        strategy.add_implementation(wrap_compute_argsort(topi.cuda.argsort_thrust),
+                                    wrap_topi_schedule(topi.cuda.schedule_argsort),
+                                    name="argsort_thrust.cuda",
+                                    plevel=15)
     return strategy
 
 @topk_strategy.register(["cuda", "gpu"])
@@ -337,6 +343,11 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
     strategy.add_implementation(wrap_compute_topk(topi.cuda.topk),
                                 wrap_topi_schedule(topi.cuda.schedule_topk),
                                 name="topk.cuda")
+    if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
+        strategy.add_implementation(wrap_compute_topk(topi.cuda.topk_thrust),
+                                    wrap_topi_schedule(topi.cuda.schedule_topk),
+                                    name="topk_thrust.cuda",
+                                    plevel=15)
     return strategy
 
 @multibox_prior_strategy.register(["cuda", "gpu"])
