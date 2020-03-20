@@ -44,11 +44,6 @@ class Conv2DWinogradNNPACKWeightTransformAttrs(Attrs):
     """Attributes for nn.contrib_conv2d_winograd_nnpack_weight_transform"""
 
 
-@tvm._ffi.register_object("relay.attrs.Dilation2DAttrs")
-class Dilation2DAttrs(Attrs):
-    """Attributes for nn.dilation2d"""
-
-
 @tvm._ffi.register_object("relay.attrs.GlobalPool2DAttrs")
 class GlobalPool2DAttrs(Attrs):
     """Attributes for nn.global_pool"""
@@ -124,9 +119,16 @@ class DeformableConv2DAttrs(Attrs):
 class ResizeAttrs(Attrs):
     """Attributes for image.resize"""
 
+
 @tvm._ffi.register_object("relay.attrs.CropAndResizeAttrs")
 class CropAndResizeAttrs(Attrs):
     """Attributes for image.crop_and_resize"""
+
+
+@tvm._ffi.register_object("relay.attrs.Dilation2DAttrs")
+class Dilation2DAttrs(Attrs):
+    """Attributes for image.dilation2d"""
+
 
 @tvm._ffi.register_object("relay.attrs.ArgsortAttrs")
 class ArgsortAttrs(Attrs):

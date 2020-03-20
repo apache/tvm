@@ -16,21 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
-import tvm
 from tvm import te
-
-def _default_schedule(outs, auto_inline):
-    """Default schedule for llvm."""
-    target = tvm.target.Target.current(allow_none=False)
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    if target.target_name not in ("llvm", "c"):
-        raise RuntimeError("schedule not registered for '%s'" % target)
-    s = te.create_schedule([x.op for x in outs])
-    if auto_inline:
-        x = outs[0]
-        te.schedule.AutoInlineInjective(s)
-        s[x].fuse(s[x].op.axis)
-    return s
+from .default import default_schedule as _default_schedule
 
 
 def schedule_conv1d_ncw(outs):
@@ -645,36 +632,6 @@ def schedule_batch_matmul(outs):
     Returns
     -------
     sch: Schedule
-        The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-def schedule_dilation2d_nchw(outs):
-    """Schedule for dilation2d
-    Parameters
-    ----------
-    outs : Array of Tensor
-        The computation graph description of dilation2d
-        in the format of an array of tensors.
-    Returns
-    -------
-    sch : Schedule
-        The computation schedule for the op.
-    """
-    return _default_schedule(outs, False)
-
-
-def schedule_dilation2d_nhwc(outs):
-    """Schedule for dilation2d
-    Parameters
-    ----------
-    outs : Array of Tensor
-        The computation graph description of dilation2d
-        in the format of an array of tensors.
-    Returns
-    -------
-    sch : Schedule
         The computation schedule for the op.
     """
     return _default_schedule(outs, False)
