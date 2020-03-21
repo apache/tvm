@@ -324,7 +324,7 @@ def test_ones():
   y = ex.evaluate(y)(x)
   assert_allclose(y.asnumpy(), x.asnumpy() + np.ones_like(x.asnumpy()))
 
-def test_zeros():
+def test_zeros_like():
   mod = tvm.IRModule()
   
   shape = (10, 10)
