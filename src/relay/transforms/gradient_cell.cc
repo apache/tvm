@@ -68,8 +68,8 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
         tvm::Array<Var> params = {VarNode::make("lhs", paramType),
                                   VarNode::make("rhs", paramType)};
         Expr callAdd = CallNode::make(Op::Get("add"), {params[0], params[1]});
-        Expr addTensorsFunc = FunctionNode::make(params, callAdd, paramType,
-                                                Array<TypeVar>(), Attrs());
+        Expr addTensorsFunc = Function(params, callAdd, paramType,
+                                                Array<TypeVar>());
 
         // pass add function and tensors into arguments
         args.push_back(addTensorsFunc);
@@ -88,8 +88,8 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
                                   VarNode::make("rhs", paramType)};
         Expr callMultiply = CallNode::make(Op::Get("multiply"),
                                           {params[0], params[1]});
-        Expr multTensorsFunc = FunctionNode::make(params, callMultiply, paramType,
-                                                  Array<TypeVar>(), Attrs());
+        Expr multTensorsFunc = Function(params, callMultiply, paramType,
+                                                  Array<TypeVar>());
 
         // pass multiply function and tensors into arguments
         args.push_back(multTensorsFunc);
@@ -98,13 +98,13 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
         }
         return CallNode::make(multFunc, args, Attrs(), {paramType});
       } else if (op->name.compare("ones") == 0) {
-        Expr func = FunctionNode::make({}, {ExprMutator::VisitExpr_(call_node)},
-                                        {call_node->checked_type()}, {}, Attrs());
+        Expr func = Function({}, {ExprMutator::VisitExpr_(call_node)},
+                                        {call_node->checked_type()}, {});
         return CallNode::make(getGradCellConstructor("One"),
                               {func}, Attrs(), {call_node->checked_type()});
       } else if (op->name.compare("zeros") == 0) {
-        Expr func = FunctionNode::make({}, {ExprMutator::VisitExpr_(call_node)},
-                                        {call_node->checked_type()}, {}, Attrs());
+        Expr func = Function({}, {ExprMutator::VisitExpr_(call_node)},
+                                        {call_node->checked_type()}, {});
         return CallNode::make(getGradCellConstructor("Zero"),
                               {func}, Attrs(), {call_node->checked_type()});
       }
@@ -120,13 +120,13 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
       const Expr tensorRes = CallNode::make(call_node->op, args);
 
       if (op->name.compare("ones_like") == 0) {
-        Expr onesFunction = FunctionNode::make({}, tensorRes,
-                              {call_node->checked_type()}, Array<TypeVar>(), Attrs());
+        Expr onesFunction = Function({}, tensorRes,
+                              {call_node->checked_type()}, Array<TypeVar>());
         return CallNode::make(getGradCellConstructor("One"),
                               {onesFunction}, Attrs(), {call_node->checked_type()});
       } else if (op->name.compare("zeros_like") == 0) {
-        Expr zerosFunction = FunctionNode::make({}, tensorRes,
-                              {call_node->checked_type()}, Array<TypeVar>(), Attrs());
+        Expr zerosFunction = Function({}, tensorRes,
+                              {call_node->checked_type()}, Array<TypeVar>());
         return CallNode::make(getGradCellConstructor("Zero"),
                               {zerosFunction}, Attrs(), {call_node->checked_type()});
       }

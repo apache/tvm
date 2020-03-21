@@ -230,7 +230,7 @@ def GradientCell():
     ret: tvm.relay.Pass
         The registered pass that delays or reduces memory allocation
     """
-    return _transform.GradientCell()
+    return _ffi_api.GradientCell()
 
 def FoldConstant():
     """Fold the constant expressions in a Relay program.
