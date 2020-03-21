@@ -34,6 +34,7 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 echo "PreCheck sphinx doc generation WARNINGS.."
 cd docs
+make clean
 TVM_TUTORIAL_EXEC_PATTERN=none make html 2>/tmp/$$.log.txt
 
 grep -v -E "__mro__|RemovedInSphinx|UserWarning|FutureWarning|Keras" < /tmp/$$.log.txt > /tmp/$$.logclean.txt || true

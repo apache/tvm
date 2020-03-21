@@ -250,6 +250,7 @@ def run_doxygen(folder):
 tvm_alias_check_map = {
     "tvm.te": ["tvm.tir"],
     "tvm.tir": ["tvm.ir", "tvm.runtime"],
+    "tvm.relay": ["tvm.ir", "tvm.tir"],
 }
 
 def update_alias_docstring(name, obj, lines):
