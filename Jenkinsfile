@@ -350,6 +350,7 @@ stage('Deploy') {
       ws(per_exec_ws("tvm/deploy-docs")) {
         if (env.BRANCH_NAME == "master") {
            unpack_lib('mydocs', 'docs.tgz')
+           sh "cp docs.tgz -C /var/docs/docs.tgz"
            sh "tar xf docs.tgz -C /var/docs"
         }
       }
