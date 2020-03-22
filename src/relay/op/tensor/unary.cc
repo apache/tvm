@@ -184,7 +184,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.clip")
     attrs->a_min = a_min;
     attrs->a_max = a_max;
     static const Op& op = Op::Get("clip");
-  return CallNode::make(op, {a}, Attrs(attrs), {});
+  return Call(op, {a}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("clip")
@@ -347,7 +347,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.shape_of")
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("shape_of");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("shape_of")
@@ -397,7 +397,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.ndarray_size")
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("ndarray_size");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("ndarray_size")

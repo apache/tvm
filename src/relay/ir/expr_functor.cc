@@ -47,7 +47,7 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
   if (op->type_annotation.defined()) {
     auto type = this->VisitType(op->type_annotation);
     if (!op->type_annotation.same_as(type)) {
-      return VarNode::make(op->vid, type);
+      return Var(op->vid, type);
     }
   }
   // default case return self.
@@ -78,7 +78,7 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   if (all_fields_unchanged) {
     return GetRef<Expr>(op);
   } else {
-    return TupleNode::make(fields);
+    return Tuple(fields);
   }
 }
 
@@ -134,7 +134,7 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
   if (unchanged) {
     return GetRef<Expr>(call_node);
   } else {
-    return CallNode::make(new_op, call_args, call_node->attrs, ty_args);
+    return Call(new_op, call_args, call_node->attrs, ty_args);
   }
 }
 
@@ -148,7 +148,7 @@ Expr ExprMutator::VisitExpr_(const LetNode* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return LetNode::make(var, value, body);
+    return Let(var, value, body);
   }
 }
 
@@ -161,7 +161,7 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
       op->false_branch.same_as(false_b)) {
     return GetRef<Expr>(op);;
   } else {
-    return IfNode::make(guard, true_b, false_b);
+    return If(guard, true_b, false_b);
   }
 }
 
@@ -170,7 +170,7 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* g) {
   if (g->tuple == t) {
     return GetRef<Expr>(g);
   } else {
-    return TupleGetItemNode::make(t, g->index);
+    return TupleGetItem(t, g->index);
   }
 }
 
@@ -179,7 +179,7 @@ Expr ExprMutator::VisitExpr_(const RefCreateNode* op) {
   if (value.same_as(op->value)) {
     return GetRef<Expr>(op);
   } else {
-    return RefCreateNode::make(value);
+    return RefCreate(value);
   }
 }
 
@@ -188,7 +188,7 @@ Expr ExprMutator::VisitExpr_(const RefReadNode* op) {
   if (ref.same_as(op->ref)) {
     return GetRef<Expr>(op);
   } else {
-    return RefReadNode::make(ref);
+    return RefRead(ref);
   }
 }
 
@@ -198,7 +198,7 @@ Expr ExprMutator::VisitExpr_(const RefWriteNode* op) {
   if (ref.same_as(op->ref) && value.same_as(op->value)) {
     return GetRef<Expr>(op);
   } else {
-    return RefWriteNode::make(ref, value);
+    return RefWrite(ref, value);
   }
 }
 
@@ -211,12 +211,12 @@ Expr ExprMutator::VisitExpr_(const MatchNode* m) {
   for (const Clause& p : m->clauses) {
     clauses.push_back(VisitClause(p));
   }
-  return MatchNode::make(VisitExpr(m->data), clauses, m->complete);
+  return Match(VisitExpr(m->data), clauses, m->complete);
 }
 
 Clause ExprMutator::VisitClause(const Clause& c) {
   Pattern p = VisitPattern(c->lhs);
-  return ClauseNode::make(p, VisitExpr(c->rhs));
+  return Clause(p, VisitExpr(c->rhs));
 }
 
 Pattern ExprMutator::VisitPattern(const Pattern& p) { return p; }
@@ -391,7 +391,7 @@ class ExprBinder : public ExprMutator, PatternMutator {
 
   Clause VisitClause(const Clause& c) final {
     Pattern pat = VisitPattern(c->lhs);
-    return ClauseNode::make(pat, VisitExpr(c->rhs));
+    return Clause(pat, VisitExpr(c->rhs));
   }
 
   Var VisitVar(const Var& v) final {

@@ -93,7 +93,7 @@ class AlterTransformMemorizer : public TransformMemorizer {
       }
     }
     if (!modified) {
-      new_e = CallNode::make(ref_call->op, new_args, ref_call->attrs);
+      new_e = Call(ref_call->op, new_args, ref_call->attrs);
     }
 
     const CallNode* new_call = new_e.as<CallNode>();

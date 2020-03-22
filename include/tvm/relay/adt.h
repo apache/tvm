@@ -91,12 +91,8 @@ class PatternVar;
 /*! \brief PatternVar container node */
 class PatternVarNode : public PatternNode {
  public:
-  PatternVarNode() {}
-
   /*! \brief Variable that stores the matched value. */
   tvm::relay::Var var;
-
-  TVM_DLL static PatternVar make(tvm::relay::Var var);
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("var", &var);
@@ -109,6 +105,12 @@ class PatternVarNode : public PatternNode {
 
 class PatternVar : public Pattern {
  public:
+  /*!
+   * \brief Constructor
+   * \param var The var to construct a pattern
+   */
+  TVM_DLL explicit PatternVar(tvm::relay::Var var);
+
   TVM_DEFINE_OBJECT_REF_METHODS(PatternVar, Pattern, PatternVarNode);
 };
 
@@ -122,10 +124,6 @@ class PatternConstructorNode : public PatternNode {
   /*! Sub-patterns to match against each input to the constructor. */
   tvm::Array<Pattern> patterns;
 
-  PatternConstructorNode() {}
-
-  TVM_DLL static PatternConstructor make(Constructor constructor, tvm::Array<Pattern> var);
-
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("constructor", &constructor);
     v->Visit("patterns", &patterns);
@@ -138,6 +136,13 @@ class PatternConstructorNode : public PatternNode {
 
 class PatternConstructor : public Pattern {
  public:
+  /*!
+   * \brief Constructor
+   * \param constructor The constructor of a pattern
+   * \param patterns The sub-patterns for matching
+   */
+  TVM_DLL PatternConstructor(Constructor constructor, tvm::Array<Pattern> patterns);
+
   TVM_DEFINE_OBJECT_REF_METHODS(PatternConstructor, Pattern, PatternConstructorNode);
 };
 
@@ -148,10 +153,6 @@ class PatternTupleNode : public PatternNode {
  public:
   /*! Sub-patterns to match against each value of the tuple. */
   tvm::Array<Pattern> patterns;
-
-  PatternTupleNode() {}
-
-  TVM_DLL static PatternTuple make(tvm::Array<Pattern> var);
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("patterns", &patterns);
@@ -164,6 +165,12 @@ class PatternTupleNode : public PatternNode {
 
 class PatternTuple : public Pattern {
  public:
+  /*!
+   * \brief Constructor
+   * \param patterns The sub-patterns to match against each value of the tuple
+   */
+  TVM_DLL explicit PatternTuple(tvm::Array<Pattern> patterns);
+
   TVM_DEFINE_OBJECT_REF_METHODS(PatternTuple, Pattern, PatternTupleNode);
 };
 
@@ -182,14 +189,19 @@ class ClauseNode : public Object {
     v->Visit("rhs", &rhs);
   }
 
-  TVM_DLL static Clause make(Pattern lhs, Expr rhs);
-
   static constexpr const char* _type_key = "relay.Clause";
   TVM_DECLARE_FINAL_OBJECT_INFO(ClauseNode, Object);
 };
 
 class Clause : public ObjectRef {
  public:
+  /*!
+   * \brief Constructor
+   * \param lhs The pattern matched by the clause.
+   * \param rhs The resulting value
+   */
+  TVM_DLL explicit Clause(Pattern lhs, Expr rhs);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Clause, ObjectRef, ClauseNode);
 };
 
@@ -217,14 +229,20 @@ class MatchNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Match make(Expr data, tvm::Array<Clause> pattern, bool complete = true);
-
   static constexpr const char* _type_key = "relay.Match";
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchNode, ExprNode);
 };
 
 class Match : public Expr {
  public:
+  /*!
+   * \brief Constructor
+   * \param data the input being deconstructed.
+   * \param clauses The clauses for matching.
+   * \param complete Indicate if this match is complete.
+   */
+  TVM_DLL Match(Expr data, tvm::Array<Clause> clauses, bool complete = true);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Match, RelayExpr, MatchNode);
 };
 

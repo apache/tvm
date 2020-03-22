@@ -309,7 +309,7 @@ class Interpreter :
 
   Array<Shape> ComputeDynamicShape(const Function& func,
                                    const Array<ObjectRef>& args) {
-    auto key = CCacheKeyNode::make(func, Target::Create("llvm"));
+    CCacheKey key(func, Target::Create("llvm"));
     auto cfunc = engine_->LowerShapeFunc(key);
     size_t arity = cfunc->inputs.size() + cfunc->outputs.size();
 
@@ -520,7 +520,7 @@ class Interpreter :
       out_shapes = ComputeDynamicShape(func, args);
     }
 
-    PackedFunc packed_func = engine_->JIT(CCacheKeyNode::make(func, target_));
+    PackedFunc packed_func = engine_->JIT(CCacheKey(func, target_));
     TVMRetValue rv;
     if (const TupleTypeNode* rtype = func->body->checked_type().as<TupleTypeNode>()) {
       CHECK(!is_dyn || out_shapes.size() == rtype->fields.size());

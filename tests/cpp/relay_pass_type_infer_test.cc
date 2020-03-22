@@ -27,11 +27,11 @@
 TEST(Relay, SelfReference) {
   using namespace tvm;
   auto tensor_type = relay::TensorType({}, DataType::Bool());
-  auto x = relay::VarNode::make("x", relay::Type());
+  auto x = relay::Var("x", relay::Type());
   auto f = relay::Function(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
   CHECK(f->IsInstance<BaseFuncNode>());
-  auto y = relay::VarNode::make("y", tensor_type);
-  auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
+  auto y = relay::Var("y", tensor_type);
+  auto call = relay::Call(f, Array<relay::Expr>{ y });
   auto fx = relay::Function(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
   auto mod = IRModule::FromExpr(fx);
   mod = relay::transform::InferType()(mod);

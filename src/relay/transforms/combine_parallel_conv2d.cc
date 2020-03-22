@@ -67,9 +67,9 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     CHECK(attrs_b);
     const auto* tweight_a = a->args[1]->type_as<TensorTypeNode>();
     const auto* tweight_b = b->args[1]->type_as<TensorTypeNode>();
-    const auto shape_a = BijectiveLayoutNode::make(
+    const auto shape_a = tir::BijectiveLayout(
       Layout(attrs_a->kernel_layout), kOIHW).ForwardShape(tweight_a->shape);
-    const auto shape_b = BijectiveLayoutNode::make(
+    const auto shape_b = tir::BijectiveLayout(
       Layout(attrs_b->kernel_layout), kOIHW).ForwardShape(tweight_b->shape);
 
     return eq(attrs_a->strides, attrs_b->strides) && eq(attrs_a->padding, attrs_b->padding) &&
@@ -108,7 +108,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     channel_pos_ = layout.find('C');
     CHECK_NE(channel_pos_, std::string::npos);
 
-    return CallNode::make(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
+    return Call(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
@@ -159,11 +159,11 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
         tuple.push_back(branch[depth]->args[i]);
       }
 
-      auto concat = MakeConcatenate(TupleNode::make(tuple), arg_channel_pos);
+      auto concat = MakeConcatenate(Tuple(tuple), arg_channel_pos);
       new_args.push_back(std::move(concat));
     }
 
-    return CallNode::make(call->op, new_args, call->attrs, {});
+    return Call(call->op, new_args, call->attrs, {});
   }
 
   void UpdateGroupOutput(const Expr& data,
@@ -203,7 +203,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
     }
     auto index = branches[0][0]->attrs.as<Conv2DAttrs>()->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
-    return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
+    return std::make_tuple(MakeConcatenate(Tuple(weights), index),
                            tir::make_const(DataType::Int(32), num_filters));
   }
 };

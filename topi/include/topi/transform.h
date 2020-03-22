@@ -1258,7 +1258,7 @@ inline Tensor layout_transform(const Tensor& src,
   CHECK(src_layout_struct.defined() && dst_layout_struct.defined())
     << "cannot convert from/to undefined layout";
 
-  auto layout_converter = BijectiveLayoutNode::make(src_layout_struct, dst_layout_struct);
+  auto layout_converter = tir::BijectiveLayout(src_layout_struct, dst_layout_struct);
   CHECK(layout_converter.defined())
     << "cannot convert from " << src_layout << " to " << dst_layout;
 

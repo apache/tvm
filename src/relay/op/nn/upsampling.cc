@@ -76,7 +76,7 @@ bool UpSamplingRel(const Array<Type>& types,
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   CHECK(layout_converter.defined())
     << "UpSampling only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
@@ -108,7 +108,7 @@ Expr MakeUpSampling(Expr data,
   attrs->scale_w = scale_w;
   attrs->align_corners = align_corners;
   static const Op& op = Op::Get("nn.upsampling");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling")
@@ -155,7 +155,7 @@ bool UpSampling3DRel(const Array<Type>& types,
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
 
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCDHW);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCDHW);
   CHECK(layout_converter.defined())
     << "UpSampling3D only support input layouts that are convertible from NCDHW."
     << " But got " << in_layout;
@@ -189,7 +189,7 @@ Expr MakeUpSampling3D(Expr data,
   attrs->scale_w = scale_w;
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   static const Op& op = Op::Get("nn.upsampling3d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.upsampling3d")

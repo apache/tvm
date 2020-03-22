@@ -84,7 +84,7 @@ class Eliminator : private ExprMutator {
   Expr VisitExpr_(const LetNode* op) final {
     Var v = op->var;
     if (HasLet(v)) {
-      return LetNode::make(v, VisitExpr(op->value), VisitExpr(op->body));
+      return Let(v, VisitExpr(op->value), VisitExpr(op->body));
     } else {
       return VisitExpr(op->body);
     }

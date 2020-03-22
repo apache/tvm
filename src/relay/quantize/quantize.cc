@@ -75,7 +75,7 @@ TVM_REGISTER_GLOBAL("relay._quantize.simulated_quantize")
     attrs->sign = sign;
     attrs->rounding = rounding;
     static const Op& op = Op::Get("relay.op.annotation.simulated_quantize");
-    return CallNode::make(op, {data, dom_scale, clip_min, clip_max}, Attrs(attrs), {});
+    return Call(op, {data, dom_scale, clip_min, clip_max}, Attrs(attrs), {});
   });
 
 

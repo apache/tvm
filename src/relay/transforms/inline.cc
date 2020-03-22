@@ -151,7 +151,7 @@ class Inliner : ExprMutator {
         return Bind(func->body, bind_map);
       }
     } else if (const auto* call_node = callee.as<CallNode>()) {
-        return CallNode::make(func, args, call_node->attrs, call_node->type_args);
+        return Call(func, args, call_node->attrs, call_node->type_args);
     } else {
       return std::move(func);
     }

@@ -404,7 +404,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    auto key = CCacheKeyNode::make(func, target_host_);
+    CCacheKey key(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
     int op_index = -1;
     if (context_->seen_funcs.count(cfunc->funcs[0]) == 0) {
@@ -485,7 +485,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
 
-    auto key = CCacheKeyNode::make(func, target);
+    CCacheKey key(func, target);
     auto cfunc = engine_->Lower(key);
 
     auto op_index = -1;
@@ -780,7 +780,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<std::string, Constant> ret;
       for (const auto& kv : params_) {
-        ret.Set(kv.first, ConstantNode::make(kv.second));
+        ret.Set(kv.first, Constant(kv.second));
       }
       *rv = ret;
     });

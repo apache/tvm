@@ -44,7 +44,7 @@ bool ResizeRel(const Array<Type>& types,
   const ResizeAttrs* param = attrs.as<ResizeAttrs>();
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   CHECK(layout_converter.defined())
     << "Resize only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
@@ -80,7 +80,7 @@ Expr MakeResize(Expr data,
   attrs->coordinate_transformation_mode = coordinate_transformation_mode;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.resize");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 
@@ -135,7 +135,7 @@ bool CropAndResizeRel(const Array<Type>& types,
   // 4-D tensor of shape [num_boxes, crop_height, crop_width, depth]
   static const Layout kNCHW("NCHW");
   const Layout in_layout(param->layout);
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   auto oshape = layout_converter.ForwardShape(data->shape);
   oshape.Set(0, box_indices->shape[0]);
   oshape.Set(2, crop_size[0]);
@@ -163,7 +163,7 @@ Expr MakeCropAndResize(Expr data,
   attrs->extrapolation_value = std::move(extrapolation_value);
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("image.crop_and_resize");
-  return CallNode::make(op, {data, boxes, box_indices}, Attrs(attrs), {});
+  return Call(op, {data, boxes, box_indices}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.image._make.crop_and_resize")

@@ -103,6 +103,12 @@ class IdNode : public Object {
 
 class Id : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor
+   * \param name_hint The name of the variable.
+   */
+  TVM_DLL explicit Id(std::string name_hint);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Id, ObjectRef, IdNode);
 };
 
