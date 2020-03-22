@@ -44,7 +44,8 @@ fn main() {
             .unwrap_or("")
     );
 
-    let mut builder = Builder::new(File::create(format!("{}/libgraph.a", out_dir)).unwrap());
+    let file = File::create(format!("{}/libtestnn.a", out_dir)).unwrap();
+    let mut builder = Builder::new(file);
     builder.append_path(format!("{}/graph.o", out_dir)).unwrap();
 
     println!("cargo:rustc-link-lib=static=graph");
