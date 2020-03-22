@@ -25,7 +25,7 @@ use ndarray::Array;
 use tvm_runtime::{DLTensor, Module as _, SystemLibModule};
 
 mod tvm_mod {
-    import_module!("../lib/test.o");
+    import_module!("lib/test.o");
 }
 
 fn main() {

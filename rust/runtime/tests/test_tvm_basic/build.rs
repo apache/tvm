@@ -33,7 +33,7 @@ fn main() {
     }
 
     let obj_file = out_dir.join("test.o");
-    let lib_file = out_dir.join("libtest.a");
+    let lib_file = out_dir.join("libtest_basic.a");
 
     let output = Command::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -53,9 +53,17 @@ fn main() {
             .unwrap_or("")
     );
 
-    let mut builder = Builder::new(File::create(lib_file).unwrap());
-    builder.append_path(obj_file).unwrap();
+    let mut builder = Builder::new(File::create(&lib_file).unwrap());
+    builder.append_path(&obj_file).unwrap();
+    drop(builder);
 
-    println!("cargo:rustc-link-lib=static=test");
+    let status = Command::new("ranlib")
+        .arg(&lib_file)
+        .status()
+        .expect("fdjlksafjdsa");
+
+    assert!(status.success());
+
+    println!("cargo:rustc-link-lib=static=test_basic");
     println!("cargo:rustc-link-search=native={}", out_dir.display());
 }
