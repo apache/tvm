@@ -17,12 +17,123 @@
  * under the License.
  */
 
-#[macro_use]
-extern crate tvm_macros_raw;
+extern crate proc_macro;
 
-#[macro_export]
-macro_rules! import_module {
-    ($module_path:literal) => {
-        $crate::import_module_raw!(file!(), $module_path);
+use std::{fs::File, io::Read};
+use syn::parse::{Parse, ParseStream, Result};
+use syn::{LitStr};
+use quote::quote;
+
+use std::path::PathBuf;
+
+struct ImportModule {
+    importing_file: LitStr,
+}
+
+impl Parse for ImportModule {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let importing_file: LitStr = input.parse()?;
+        Ok(ImportModule {
+            importing_file,
+        })
+    }
+}
+
+#[proc_macro]
+pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let import_module_args = syn::parse_macro_input!(input as ImportModule);
+
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("variable should always be set by Cargo.");
+
+    let mut path = PathBuf::new();
+    path.push(manifest);
+    path = path.join(import_module_args.importing_file.value());
+
+    let mut fd = File::open(&path)
+        .unwrap_or_else(|_| panic!("Unable to find TVM object file at `{}`", path.display()));
+    let mut buffer = Vec::new();
+    fd.read_to_end(&mut buffer).unwrap();
+
+    let fn_names = match goblin::Object::parse(&buffer).unwrap() {
+        goblin::Object::Elf(elf) => elf
+            .syms
+            .iter()
+            .filter_map(|s| {
+                if s.st_type() == 0 || goblin::elf::sym::type_to_str(s.st_type()) == "FILE" {
+                    return None;
+                }
+                match elf.strtab.get(s.st_name) {
+                    Some(Ok(name)) if name != "" => {
+                        Some(syn::Ident::new(name, proc_macro2::Span::call_site()))
+                    }
+                    _ => None,
+                }
+            })
+            .collect::<Vec<_>>(),
+        goblin::Object::Mach(goblin::mach::Mach::Binary(obj)) => {
+            obj.symbols()
+                .filter_map(|s| match s {
+                    Ok((name, ref nlist))
+                        if nlist.is_global()
+                            && nlist.n_sect != 0
+                            && !name.ends_with("tvm_module_ctx") =>
+                    {
+                        Some(syn::Ident::new(
+                            if name.starts_with('_') {
+                                // Mach objects prepend a _ to globals.
+                                &name[1..]
+                            } else {
+                                &name
+                            },
+                            proc_macro2::Span::call_site(),
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        }
+        _ => panic!("Unsupported object format."),
     };
+
+    let extern_fns = quote! {
+        mod ext {
+            extern "C" {
+                #(
+                    pub(super) fn #fn_names(
+                        args: *const tvm_runtime::ffi::TVMValue,
+                        type_codes: *const std::os::raw::c_int,
+                        num_args: std::os::raw::c_int
+                    ) -> std::os::raw::c_int;
+                )*
+            }
+        }
+    };
+
+    let fns = quote! {
+        use tvm_runtime::{ffi::TVMValue, TVMArgValue, TVMRetValue, FuncCallError};
+        #extern_fns
+
+        #(
+            pub fn #fn_names(args: &[TVMArgValue]) -> Result<TVMRetValue, FuncCallError> {
+                let (values, type_codes): (Vec<TVMValue>, Vec<i32>) = args
+                   .into_iter()
+                   .map(|arg| {
+                       let (val, code) = arg.to_tvm_value();
+                       (val, code as i32)
+                   })
+                   .unzip();
+                let exit_code = unsafe {
+                    ext::#fn_names(values.as_ptr(), type_codes.as_ptr(), values.len() as i32)
+                };
+                if exit_code == 0 {
+                    Ok(TVMRetValue::default())
+                } else {
+                    Err(FuncCallError::get_with_context(stringify!(#fn_names).to_string()))
+                }
+            }
+        )*
+    };
+
+    proc_macro::TokenStream::from(fns)
 }
