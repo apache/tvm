@@ -356,7 +356,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const IfNode* if_node) {
-    this->VisitExpr(if_node->cond);
+    this->VisitExpr(if_node->cond());
 
     size_t test_register = last_register_;
 
@@ -364,7 +364,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto after_cond = instructions_.size();
     auto target_register = last_register_;
     this->Emit(Instruction::If(test_register, target_register, 0, 0));
-    this->VisitExpr(if_node->true_branch);
+    this->VisitExpr(if_node->true_branch());
 
     // It saves the result of If-Else expression.
     auto merge_register = NewRegister();
@@ -375,7 +375,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // true branch.
     auto after_true = this->instructions_.size();
 
-    this->VisitExpr(if_node->false_branch);
+    this->VisitExpr(if_node->false_branch());
 
     size_t false_register = last_register_;
 

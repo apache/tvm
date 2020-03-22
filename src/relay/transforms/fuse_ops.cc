@@ -325,9 +325,9 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   void VisitExpr_(const IfNode* op) final {
     // do not fuse through if.
-    this->Update(op->cond, nullptr, kOpaque);
-    this->Update(op->true_branch, nullptr, kOpaque);
-    this->Update(op->false_branch, nullptr, kOpaque);
+    this->Update(op->cond(), nullptr, kOpaque);
+    this->Update(op->true_branch(), nullptr, kOpaque);
+    this->Update(op->false_branch(), nullptr, kOpaque);
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
   }

@@ -318,12 +318,12 @@ class Partitioner : public ExprMutator {
     if (!subgraph) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      AddToSubgraph(subgraph, op->cond);
-      AddToSubgraph(subgraph, op->true_branch);
-      AddToSubgraph(subgraph, op->false_branch);
-      auto guard = VisitExpr(op->cond);
-      auto true_b = VisitExpr(op->true_branch);
-      auto false_b = VisitExpr(op->false_branch);
+      AddToSubgraph(subgraph, op->cond());
+      AddToSubgraph(subgraph, op->true_branch());
+      AddToSubgraph(subgraph, op->false_branch());
+      auto guard = VisitExpr(op->cond());
+      auto true_b = VisitExpr(op->true_branch());
+      auto false_b = VisitExpr(op->false_branch());
       return IfNode::make(guard, true_b, false_b);
     }
   }

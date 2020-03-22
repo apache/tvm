@@ -153,12 +153,12 @@ Expr ExprMutator::VisitExpr_(const LetNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const IfNode* op) {
-  auto guard = this->Mutate(op->cond);
-  auto true_b = this->Mutate(op->true_branch);
-  auto false_b = this->Mutate(op->false_branch);
-  if (op->cond.same_as(guard) &&
-      op->true_branch.same_as(true_b) &&
-      op->false_branch.same_as(false_b)) {
+  auto guard = this->Mutate(op->cond());
+  auto true_b = this->Mutate(op->true_branch());
+  auto false_b = this->Mutate(op->false_branch());
+  if (op->cond().same_as(guard) &&
+      op->true_branch().same_as(true_b) &&
+      op->false_branch().same_as(false_b)) {
     return GetRef<Expr>(op);;
   } else {
     return IfNode::make(guard, true_b, false_b);
@@ -279,9 +279,9 @@ void ExprVisitor::VisitExpr_(const LetNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const IfNode* op) {
-  this->VisitExpr(op->cond);
-  this->VisitExpr(op->true_branch);
-  this->VisitExpr(op->false_branch);
+  this->VisitExpr(op->cond());
+  this->VisitExpr(op->true_branch());
+  this->VisitExpr(op->false_branch());
 }
 
 void ExprVisitor::VisitExpr_(const OpNode* op) { return; }

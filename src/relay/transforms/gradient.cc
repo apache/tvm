@@ -482,9 +482,9 @@ struct ReverseAD : ExprMutator {
   }
 
   Expr VisitExpr_(const IfNode* op) final {
-    return IfNode::make(TupleGetItemNode::make(VisitExpr(op->cond), 0),
-                        VisitExpr(op->true_branch),
-                        VisitExpr(op->false_branch));
+    return IfNode::make(TupleGetItemNode::make(VisitExpr(op->cond()), 0),
+                        VisitExpr(op->true_branch()),
+                        VisitExpr(op->false_branch()));
   }
 
   Expr VisitExpr_(const VarNode* var) final {

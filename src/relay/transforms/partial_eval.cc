@@ -703,24 +703,24 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   }
 
   PStatic VisitExpr_(const IfNode* op, LetList* ll) final {
-    PStatic c = VisitExpr(op->cond, ll);
+    PStatic c = VisitExpr(op->cond(), ll);
     if (c->pstatic.defined()) {
       NDArray cpu_array = Downcast<STensor>(c->pstatic)->data.CopyTo(CPUContext());
       CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
-        return VisitExpr(op->true_branch, ll);
+        return VisitExpr(op->true_branch(), ll);
       } else {
-        return VisitExpr(op->false_branch, ll);
+        return VisitExpr(op->false_branch(), ll);
       }
     } else {
       Expr t = store_.Extend<Expr>([&]() {
           return LetList::With([&](LetList* ll) {
-              return VisitExpr(op->true_branch, ll)->dynamic;
+              return VisitExpr(op->true_branch(), ll)->dynamic;
             });
         });
       Expr f = store_.Extend<Expr>([&]() {
           return LetList::With([&](LetList* ll) {
-              return VisitExpr(op->false_branch, ll)->dynamic;
+              return VisitExpr(op->false_branch(), ll)->dynamic;
             });
         });
       store_.Invalidate();

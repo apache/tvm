@@ -639,7 +639,7 @@ class Interpreter :
   }
 
   ObjectRef VisitExpr_(const IfNode* op) final {
-    ObjectRef v = Eval(op->cond);
+    ObjectRef v = Eval(op->cond());
     if (v->IsInstance<NDArray::ContainerType>()) {
       auto nd_array = Downcast<NDArray>(v);
       DLContext cpu_ctx;
@@ -649,9 +649,9 @@ class Interpreter :
       CHECK_EQ(DataType(cpu_array->dtype), DataType::Bool());
       // TODO(@jroesch, @MK): Refactor code into helper from DCE.
       if (reinterpret_cast<uint8_t*>(cpu_array->data)[0]) {
-        return Eval(op->true_branch);
+        return Eval(op->true_branch());
       } else {
-        return Eval(op->false_branch);
+        return Eval(op->false_branch());
       }
     } else {
       LOG(FATAL) << "type error, type system should have caught this";

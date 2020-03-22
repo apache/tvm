@@ -170,12 +170,12 @@ class RewriteAnnotation : public ExprMutator {
   }
 
   Expr VisitExpr_(const IfNode* if_node) final {
-    Expr cond = GetDeviceCopyExpr(if_node->cond, if_node);
-    Expr true_br = GetDeviceCopyExpr(if_node->true_branch, if_node);
-    Expr false_br = GetDeviceCopyExpr(if_node->false_branch, if_node);
+    Expr cond = GetDeviceCopyExpr(if_node->cond(), if_node);
+    Expr true_br = GetDeviceCopyExpr(if_node->true_branch(), if_node);
+    Expr false_br = GetDeviceCopyExpr(if_node->false_branch(), if_node);
 
-    if (if_node->cond.same_as(cond) && if_node->true_branch.same_as(true_br) &&
-        if_node->false_branch.same_as(false_br)) {
+    if (if_node->cond().same_as(cond) && if_node->true_branch().same_as(true_br) &&
+        if_node->false_branch().same_as(false_br)) {
       return ExprMutator::VisitExpr_(if_node);
     } else {
       Expr new_if = IfNode::make(cond, true_br, false_br);

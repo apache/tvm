@@ -437,9 +437,9 @@ class AlphaEqualHandler:
 
   bool VisitExpr_(const IfNode* lhs, const Expr& other) final {
     if (const IfNode* rhs = other.as<IfNode>()) {
-      return ExprEqual(lhs->cond, rhs->cond) &&
-          ExprEqual(lhs->true_branch, rhs->true_branch) &&
-          ExprEqual(lhs->false_branch, rhs->false_branch);
+      return ExprEqual(lhs->cond(), rhs->cond()) &&
+          ExprEqual(lhs->true_branch(), rhs->true_branch()) &&
+          ExprEqual(lhs->false_branch(), rhs->false_branch());
     } else {
       return false;
     }

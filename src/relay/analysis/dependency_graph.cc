@@ -123,11 +123,11 @@ class DependencyGraph::Creator : private ExprFunctor<void(const Expr& e)> {
     DependencyGraph::Node* n = graph_.expr_node[GetRef<Expr>(i)];
     DependencyGraph::Node* t = NewNode(true);
     DependencyGraph::Node* f = NewNode(true);
-    Depend(n, i->cond);
+    Depend(n, i->cond());
     Depend(n, t);
     Depend(n, f);
-    Depend(t, i->true_branch);
-    Depend(f, i->false_branch);
+    Depend(t, i->true_branch());
+    Depend(f, i->false_branch());
     graph_.post_dfs_order.push_back(f);
     graph_.post_dfs_order.push_back(t);
   }

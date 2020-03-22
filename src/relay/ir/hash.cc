@@ -296,9 +296,9 @@ class RelayHashHandler:
   size_t VisitExpr_(const IfNode* ite) final {
     size_t key = std::hash<std::string>()(IfNode::_type_key);
     size_t hash = key;
-    hash = Combine(hash, ExprHash(ite->cond));
-    hash = Combine(hash, ExprHash(ite->true_branch));
-    hash = Combine(hash, ExprHash(ite->false_branch));
+    hash = Combine(hash, ExprHash(ite->cond()));
+    hash = Combine(hash, ExprHash(ite->true_branch()));
+    hash = Combine(hash, ExprHash(ite->false_branch()));
     return hash;
   }
 

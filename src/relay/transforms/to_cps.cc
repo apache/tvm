@@ -194,9 +194,10 @@ Function ToCPS(const Function& f,
 
     Expr VisitExpr_(const IfNode* op, const MCont& k) final {
       return reify(k, [&](const MCont& kf) {
-        return VisitExpr(op->cond,
+        return VisitExpr(op->cond(),
                          [&](const Expr& v) {
-          return IfNode::make(v, VisitExpr(op->true_branch, kf), VisitExpr(op->false_branch, kf));
+          return IfNode::make(v, VisitExpr(op->true_branch(), kf),
+                         VisitExpr(op->false_branch(), kf));
         });
       });
     }

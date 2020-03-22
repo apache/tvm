@@ -300,9 +300,9 @@ class ForwardPrep : private ExprVisitor {
     // it means fuse signal cannot pass
     // through into these subexpressions.
     auto flazy = [this, op]() {
-      this->Update(op->cond, NullValue<Message>());
-      this->Update(op->true_branch, NullValue<Message>());
-      this->Update(op->false_branch, NullValue<Message>());
+      this->Update(op->cond(), NullValue<Message>());
+      this->Update(op->true_branch(), NullValue<Message>());
+      this->Update(op->false_branch(), NullValue<Message>());
     };
     flist_.push_back(flazy);
   }

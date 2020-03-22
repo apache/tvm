@@ -381,10 +381,10 @@ class RelayTextPrinter :
 
   Doc VisitExpr_(const IfNode* op) final {
     Doc doc;
-    doc << "if (" << Print(op->cond) << ") ";
-    doc << PrintBody(op->true_branch);
+    doc << "if (" << Print(op->cond()) << ") ";
+    doc << PrintBody(op->true_branch());
     doc << " else ";
-    doc << PrintBody(op->false_branch);
+    doc << PrintBody(op->false_branch());
     return doc;
   }
 

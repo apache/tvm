@@ -154,11 +154,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
-  ObjectPtr<IfNode> n = make_object<IfNode>();
-  n->cond = std::move(cond);
-  n->true_branch = std::move(true_branch);
-  n->false_branch = std::move(false_branch);
-  return If(n);
+  return If(make_object<IfNode>(cond, true_branch, false_branch));
 }
 
 TVM_REGISTER_NODE_TYPE(IfNode);
@@ -169,8 +165,8 @@ TVM_REGISTER_GLOBAL("relay.ir.If")
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<IfNode>([](const ObjectRef& ref, ReprPrinter* p) {
   auto* node = static_cast<const IfNode*>(ref.get());
-  p->stream << "IfNode(" << node->cond << ", " << node->true_branch
-            << ", " << node->false_branch << ")";
+  p->stream << "IfNode(" << node->cond() << ", " << node->true_branch()
+            << ", " << node->false_branch() << ")";
 });
 
 TupleGetItem TupleGetItemNode::make(Expr tuple, int index) {

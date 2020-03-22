@@ -199,9 +199,9 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
 
   Expr VisitExpr_(const IfNode* i, const Var& v) final {
     Expr e = GetRef<Expr>(i);
-    Expr ret = IfNode::make(VisitExpr(i->cond),
-                            GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
-                            GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
+    Expr ret = IfNode::make(VisitExpr(i->cond()),
+                            GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch())),
+                            GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch())));
     return Compound(e, ret, v);
   }
 

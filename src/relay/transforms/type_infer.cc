@@ -359,12 +359,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)>,
   Type VisitExpr_(const IfNode* ite) final {
     // Ensure the type of the guard is of Tensor[Bool, ()],
     // that is a rank-0 boolean tensor.
-    Type cond_type = this->GetType(ite->cond);
+    Type cond_type = this->GetType(ite->cond());
     this->Unify(cond_type,
                 TensorType::Scalar(tvm::DataType::Bool()),
-                ite->cond);
-    Type checked_true = this->GetType(ite->true_branch);
-    Type checked_false = this->GetType(ite->false_branch);
+                ite->cond());
+    Type checked_true = this->GetType(ite->true_branch());
+    Type checked_false = this->GetType(ite->false_branch());
     return this->Unify(checked_true, checked_false, GetRef<If>(ite));
   }
 

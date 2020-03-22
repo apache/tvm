@@ -284,18 +284,28 @@ class Let : public Expr {
 class If;
 /*! \brief container of If */
 class IfNode : public ExprNode {
- public:
   /*! \brief The condition */
-  Expr cond;
+  Expr _cond;
   /*! \brief The expression evaluated when condition is true. */
-  Expr true_branch;
+  Expr _true_branch;
   /*! \brief The expression evaluated when condition is false */
-  Expr false_branch;
+  Expr _false_branch;
+
+ public:
+  IfNode() {}
+  explicit IfNode(Expr cond, Expr true_branch, Expr false_branch) {
+    this->_cond = std::move(cond);
+    this->_true_branch = std::move(true_branch);
+    this->_false_branch = std::move(false_branch);
+  }
+  Expr cond() const {return this->_cond;}
+  Expr true_branch() const {return this->_true_branch;}
+  Expr false_branch() const {return this->_false_branch;}
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("cond", &cond);
-    v->Visit("true_branch", &true_branch);
-    v->Visit("false_branch", &false_branch);
+    v->Visit("cond", &_cond);
+    v->Visit("true_branch", &_true_branch);
+    v->Visit("false_branch", &_false_branch);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
@@ -305,6 +315,7 @@ class IfNode : public ExprNode {
   static constexpr const char* _type_key = "relay.If";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
 };
+
 
 class If : public Expr {
  public:
