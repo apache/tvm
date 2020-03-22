@@ -19,7 +19,6 @@
 members = [
 	"common",
 	"macros",
-	"macros_raw",
 	"runtime",
 	"runtime/tests/test_tvm_basic",
 	"runtime/tests/test_tvm_dso",

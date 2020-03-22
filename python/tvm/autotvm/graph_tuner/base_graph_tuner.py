@@ -69,7 +69,7 @@ class BaseGraphTuner(object):
         target_op in the input graph and layout transformation benchmark need to be
         executed before initialization.
 
-        graph : tvm.relay.Expr.Function
+        graph : tvm.relay.function.Function
             Input graph
 
         input_shapes : dict of str to tuple.
@@ -143,7 +143,7 @@ class BaseGraphTuner(object):
         if isinstance(graph, tvm.IRModule):
             graph = graph["main"]
 
-        if isinstance(graph, relay.expr.Function):
+        if isinstance(graph, relay.function.Function):
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
             expr2graph(graph, self._target_ops, node_dict, self._node_list)

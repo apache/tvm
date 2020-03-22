@@ -122,17 +122,17 @@ struct PrimitiveInliner : ExprMutator {
       auto global = pair.first;
       auto base_func = pair.second;
       if (auto* n = base_func.as<FunctionNode>()) {
-        if (!n->UseDefaultCompiler()) continue;
+        if (n->GetAttr<tir::StringImm>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
 
         DLOG(INFO) << "Before inlining primitives: " << global
                    << std::endl << AsText(func, false);
 
         func = Function(func->params,
-                                  VisitExpr(func->body),
-                                  func->ret_type,
-                                  func->type_params,
-                                  func->attrs);
+                        VisitExpr(func->body),
+                        func->ret_type,
+                        func->type_params,
+                        func->attrs);
         module_->Add(global, func, true);
 
         DLOG(INFO) << "After inlining primitives: " << global

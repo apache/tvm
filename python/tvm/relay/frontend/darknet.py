@@ -26,6 +26,7 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .common import get_relay_op, new_var
 
 __all__ = ['from_darknet']
@@ -821,7 +822,7 @@ class GraphProto(object):
 
         outputs = _as_list(sym) + self._outs
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        sym = _expr.Function(analysis.free_vars(outputs), outputs)
+        sym = _function.Function(analysis.free_vars(outputs), outputs)
         return IRModule.from_expr(sym), self._tvmparams
 
 def from_darknet(net,

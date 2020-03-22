@@ -659,7 +659,7 @@ bool TypeSolver::Solve() {
 }
 
 // Expose type solver only for debugging purposes.
-TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
+TVM_REGISTER_GLOBAL("relay.analysis._test_type_solver")
 .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;

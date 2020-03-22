@@ -127,15 +127,23 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   return ptx;
 }
 
-runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
+runtime::Module BuildCUDA(IRModule mod) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenCUDA cg;
   cg.Init(output_ssa);
 
-  for (LoweredFunc f : funcs) {
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenCUDA: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   std::string code = cg.Finish();
 
   if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
@@ -151,10 +159,10 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
   } else {
     ptx = NVRTCCompile(code, cg.need_include_path());
   }
-  return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(funcs), code);
+  return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_cuda")
+TVM_REGISTER_GLOBAL("target.build.cuda")
 .set_body_typed(BuildCUDA);
 }  // namespace codegen
 }  // namespace tvm

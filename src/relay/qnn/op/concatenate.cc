@@ -28,6 +28,7 @@
 #include <tvm/relay/qnn/attrs.h>
 #include "../../op/tensor/transform.h"
 #include "../../transforms/pattern_util.h"
+#include "../../transforms/infer_layout_util.h"
 #include "../util.h"
 
 namespace tvm {
@@ -68,6 +69,43 @@ bool QnnConcatenateRel(const Array<Type>& types, int num_inputs, const Attrs& at
   // Concatenate infer type function.
   Array<Type> tensor_types = {types[0], types[5]};
   return ConcatenateRel<ConcatenateAttrs>(tensor_types, 2, attrs, reporter);
+}
+
+Array<Array<Layout>> QnnConcatenateLayout(const Attrs& attrs, const Array<Layout>& new_in_layouts,
+                                          const Array<Layout>& old_in_layouts,
+                                          const Array<tvm::relay::Type>& old_in_types) {
+  // Collect the layouts and types to reuse Relay Concatenate Infer Correct Layout.
+  CHECK_EQ(old_in_types.size(), 5);
+  auto input_tuple_type = old_in_types[0].as<TupleTypeNode>();
+  CHECK(input_tuple_type);
+  auto num_input_tensors = input_tuple_type->fields.size();
+
+  Array<Layout> relay_new_in_layouts(nullptr);
+  if (new_in_layouts.defined()) {
+    relay_new_in_layouts =
+        Array<Layout>(new_in_layouts.begin(), new_in_layouts.begin() + num_input_tensors);
+  }
+  Array<Layout> relay_old_in_layouts(nullptr);
+  if (old_in_layouts.defined()) {
+    relay_old_in_layouts =
+        Array<Layout>(old_in_layouts.begin(), old_in_layouts.begin() + num_input_tensors);
+  }
+
+  // Use Relay Concatenate Infer Correct layout to infer the layouts for data tensors.
+  auto layouts =
+      ConcatenateLayout(attrs, relay_new_in_layouts, relay_old_in_layouts, {old_in_types[0]});
+
+  // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
+  // tensors can be treated as channel layout. Total number of these tensors are 2 * num of data
+  // tensors (scale and zero point for each input data tensor) + 2 for the output data tensor.
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = layouts[0];
+
+  for (size_t i = 0; i < 2 * num_input_tensors + 2; i++) {
+    input_layouts.push_back(channel_layout);
+  }
+  Array<Layout> output_layouts = layouts[1];
+  return {input_layouts, output_layouts};
 }
 
 Expr MakeQnnConcatenate(Expr data, Expr input_scales, Expr input_zero_points, Expr output_scale,
@@ -161,7 +199,8 @@ RELAY_REGISTER_OP("qnn.concatenate")
 .add_argument("output_zero_point", "Tensor", "The quantization zero_point of the output tensor.")
 .set_support_level(11)
 .add_type_rel("QnnConcatenate", QnnConcatenateRel)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", ConcatenateQnnCanonicalize)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnConcatenateLayout);
 
 TVM_REGISTER_GLOBAL("relay.qnn.op._make.concatenate")
 .set_body_typed(MakeQnnConcatenate);

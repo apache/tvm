@@ -24,7 +24,6 @@ from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import op as _op
 from ..op import op as _reg
-from ..base import register_relay_node
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig, quantize_context
 from .quantize import _forward_op
@@ -58,7 +57,7 @@ _reg.register_pattern("relay.op.annotation.simulated_quantize",
 _reg.register_injective_schedule("annotation.cast_hint")
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.QAnnotateExpr")
 class QAnnotateExpr(_expr.TempExpr):
     """A special kind of Expr for Annotating.
 

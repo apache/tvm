@@ -35,18 +35,17 @@ CodeGenOpenCL::CodeGenOpenCL() {
   restrict_keyword_ = "restrict";
 }
 
-void CodeGenOpenCL::InitFuncState(LoweredFunc f) {
+void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
-  for (Var arg : f->args) {
+  for (Var arg : f->params) {
     if (arg.dtype().is_handle()) {
       alloc_storage_scope_[arg.get()] = "global";
     }
   }
 }
 
-void CodeGenOpenCL::AddFunction(LoweredFunc f) {
-  this->stream << "__kernel ";
-  CodeGenC::AddFunction(f);
+void CodeGenOpenCL::PrintFuncPrefix() {
+  stream << "__kernel void";
 }
 
 std::string CodeGenOpenCL::Finish() {
@@ -226,26 +225,6 @@ void CodeGenOpenCL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   //
   os << "))";
 }
 
-void CodeGenOpenCL::VisitExpr_(const CallNode *op, std::ostream& os) {  // NOLINT(*)
-  /* Return type of ternary expression is not always same as its sub-expressions,
-   * add a cast */
-  if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
-    os << "(";
-    PrintType(op->args[2].dtype(), os);
-    os << ")";
-  }
-  CodeGenC::VisitExpr_(op, os);
-}
-
-void CodeGenOpenCL::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
-  /* Return type of ternary expression is not always same as its sub-expressions,
-   * add a cast */
-  os << "(";
-  PrintType(op->true_value.dtype(), os);
-  os << ")";
-  CodeGenC::VisitExpr_(op, os);
-}
-
 void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NOLINT(*)
   if (std::isinf(op->value)) {
     if (op->value < 0) {
@@ -259,22 +238,31 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NO
   }
 }
 
-runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
+runtime::Module BuildOpenCL(IRModule mod) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenOpenCL cg;
   cg.Init(output_ssa);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenOpenCL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   std::string code = cg.Finish();
   if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
     code = (*f)(code).operator std::string();
   }
-  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs), code);
+  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_opencl")
+TVM_REGISTER_GLOBAL("target.build.opencl")
 .set_body_typed(BuildOpenCL);
 }  // namespace codegen
 }  // namespace tvm

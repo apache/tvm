@@ -24,6 +24,7 @@ from tvm.ir import IRModule
 from topi.util import get_const_tuple
 
 from .. import expr as _expr
+from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
@@ -459,7 +460,7 @@ def infer_type(node, mod=None):
         new_mod.update(mod)
     new_mod = _transform.InferType()(new_mod)
     entry = new_mod["main"]
-    return entry if isinstance(node, _expr.Function) else entry.body
+    return entry if isinstance(node, _function.Function) else entry.body
 
 def infer_shape(inputs, mod=None):
     """A method to get the output type of an intermediate node in the graph."""
@@ -491,7 +492,7 @@ def infer_value(input_val, params):
     # Check that all free variables have associated parameters.
     assert all(var.name_hint in params.keys() for var in analysis.free_vars(
         input_val)), "All inputs to infer must be available in params."
-    func = _expr.Function(analysis.free_vars(input_val), input_val)
+    func = _function.Function(analysis.free_vars(input_val), input_val)
     with tvm.relay.build_config(opt_level=0):
         graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
     ctx = tvm.cpu(0)

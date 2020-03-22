@@ -168,7 +168,7 @@ MakeLoopNest(const Stage& stage,
     // annotate the extent of the IterVar
     if (!new_loop_var) {
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(iv, attr::loop_scope, iv->var, no_op));
+          AttrStmtNode::make(iv, tir::attr::loop_scope, iv->var, no_op));
     }
   }
   // message passing to get offset of root iter vars.

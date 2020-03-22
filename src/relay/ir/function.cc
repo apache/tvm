@@ -27,10 +27,10 @@ namespace tvm {
 namespace relay {
 
 Function::Function(tvm::Array<Var> params,
-                  Expr body,
-                  Type ret_type,
-                  tvm::Array<TypeVar> type_params,
-                  DictAttrs attrs) {
+                   Expr body,
+                   Type ret_type,
+                   tvm::Array<TypeVar> type_params,
+                   DictAttrs attrs) {
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   CHECK(params.defined());
   CHECK(type_params.defined());
@@ -55,14 +55,9 @@ FuncType FunctionNode::func_type_annotation() const {
   return FuncType(param_types, ret_type, this->type_params, {});
 }
 
-bool FunctionNode::UseDefaultCompiler() const {
-  tir::StringImm val = this->GetAttr<tir::StringImm>(attr::kCompiler);
-  return !val.defined() || val->value == "default";
-}
-
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-TVM_REGISTER_GLOBAL("relay._make.Function")
+TVM_REGISTER_GLOBAL("relay.ir.Function")
 .set_body_typed([](tvm::Array<Var> params,
                    Expr body,
                    Type ret_type,
@@ -70,7 +65,6 @@ TVM_REGISTER_GLOBAL("relay._make.Function")
                    tvm::DictAttrs attrs) {
   return Function(params, body, ret_type, ty_params, attrs);
 });
-
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<FunctionNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -80,7 +74,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
             << node->attrs << ")";
 });
 
-TVM_REGISTER_GLOBAL("relay._expr.FunctionWithAttr")
+TVM_REGISTER_GLOBAL("relay.ir.FunctionWithAttr")
 .set_body_typed(
     [](Function func, std::string name, ObjectRef ref) {
       return WithAttr(std::move(func), name, ref);

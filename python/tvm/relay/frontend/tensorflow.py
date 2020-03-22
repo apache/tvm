@@ -31,6 +31,7 @@ from tvm.relay.prelude import Prelude
 
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from ..expr_functor import ExprMutator
 from .common import AttrCvt, get_relay_op
@@ -1539,6 +1540,11 @@ def _batch_to_space_nd():
 
     return _impl
 
+def _atan2():
+    def _impl(inputs, attr, params):
+        divide = _elemwise("divide")(inputs, attr, params)
+        return get_relay_op("atan")(divide)
+    return _impl
 
 def _prod():
     def _impl(inputs, attr, params):
@@ -1619,6 +1625,8 @@ _convert_map = {
     'ArgMax'                            : _argx(_op.argmax, 'argmax'),
     'ArgMin'                            : _argx(_op.argmin, 'argmin'),
     'Assert'                            : _assert(),
+    'Atan'                              : AttrCvt('atan'),
+    'Atan2'                             : _atan2(),
     'AvgPool'                           : _pooling('avg_pool'),
     'AvgPool3D'                         : _pool3d('avg_pool3d'),
     'BatchMatMul'                       : _batch_matmul(),
@@ -2467,7 +2475,7 @@ class GraphProto(object):
                 out.append(out_rnn)
 
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
-        func = _expr.Function(analysis.free_vars(out), out)
+        func = _function.Function(analysis.free_vars(out), out)
         self._mod["main"] = func
         return self._mod, self._params
 

@@ -20,25 +20,26 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from tvm.runtime import container
+import tvm._ffi
+from tvm.runtime import container, Object
 from tvm.ir import IRModule
 
 from . import _backend
 from .. import _make, analysis, transform
 from ... import nd
-from ..base import Object, register_relay_node
-from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
+from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, const
+from ..function import Function
 from ..scope_builder import ScopeBuilder
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.ConstructorValue")
 class ConstructorValue(Object):
     def __init__(self, tag, fields, constructor):
         self.__init_handle_by_constructor__(
             _make.ConstructorValue, tag, fields, constructor)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.RefValue")
 class RefValue(Object):
     def __init__(self, value):
         self.__init_handle_by_constructor__(

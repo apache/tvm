@@ -43,9 +43,9 @@ void CodeGenCUDA::Init(bool output_ssa) {
   CHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::AddFunction(LoweredFunc f) {
-  this->stream << "extern \"C\" __global__ ";
-  CodeGenC::AddFunction(f);
+
+void CodeGenCUDA::PrintFuncPrefix() {
+  stream << "extern \"C\" __global__ void";
 }
 
 std::string CodeGenCUDA::Finish() {
@@ -424,11 +424,11 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::fragment_shape) {
+  if (op->attr_key == tir::attr::fragment_shape) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* shape_str = op->value.as<StringImmNode>();
     fragment_shapes[buffer] = shape_str->value;
-  } else if (op->attr_key == attr::fragment_layout) {
+  } else if (op->attr_key == tir::attr::fragment_layout) {
     const VarNode* buffer = op->node.as<VarNode>();
     const StringImmNode* layout_str = op->value.as<StringImmNode>();
     fragment_layouts[buffer] = layout_str->value;

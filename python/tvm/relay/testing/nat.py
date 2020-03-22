@@ -21,7 +21,8 @@ test cases for recursion and pattern matching."""
 
 from tvm.relay.adt import Constructor, TypeData, Clause, Match, PatternConstructor, PatternVar
 from tvm.relay.backend.interpreter import ConstructorValue
-from tvm.relay.expr import Var, Function, GlobalVar
+from tvm.relay.expr import Var, GlobalVar
+from tvm.relay.function import Function
 from tvm.relay.ty import GlobalTypeVar, TypeVar, FuncType
 
 def define_nat_adt(prelude):
