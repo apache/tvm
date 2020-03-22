@@ -29,6 +29,7 @@
 #include <tvm/ir/module.h>
 #include <string>
 #include <functional>
+#include <utility>
 #include "./base.h"
 #include "./type.h"
 
