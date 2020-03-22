@@ -44,6 +44,7 @@ mv jvm/core/target/site/apidocs docs/_build/html/javadoc
 find . -type f -path "*.pyc" | xargs rm -f
 
 cd docs
+make clean
 PYTHONPATH=`pwd`/../python make html
 cd _build/html
 tar czf docs.tgz *
