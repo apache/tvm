@@ -19,9 +19,11 @@
 set -e
 set -u
 
+# cleanup old states
 mkdir -p docs/_build/html
-rm -rf docs/_build/html/jsdoc
-rm -rf docs/_build/html/javadoc
+rm -rf docs/_build/html/*
+rm -rf docs/gen_modules
+rm -rf docs/doxygen
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials
@@ -32,6 +34,7 @@ find . -type f -path "*.log" | xargs rm -f
 
 # C++ doc
 make doc
+mv docs/doxygen docs/_build/html/doxygen
 
 # JS doc
 jsdoc web/tvm_runtime.js web/README.md
@@ -44,7 +47,6 @@ mv jvm/core/target/site/apidocs docs/_build/html/javadoc
 find . -type f -path "*.pyc" | xargs rm -f
 
 cd docs
-make clean
 PYTHONPATH=`pwd`/../python make html
 cd _build/html
 tar czf docs.tgz *
