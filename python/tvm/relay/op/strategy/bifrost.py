@@ -50,7 +50,7 @@ def conv2d_strategy_bifrost(attrs, inputs, out_type, target):
                         wrap_compute_conv2d(topi.bifrost.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.bifrost.schedule_conv2d_nchw_winograd),
                         name="conv2d_nchw_winograd.bifrost",
-                        plevel=15)
+                        plevel=5)
             elif re.match(r"OIHW\d*o", kernel_layout):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.bifrost.conv2d_nchw_spatial_pack),
