@@ -348,6 +348,125 @@ def test_cuda_floordiv_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+def sched(B):
+    s = te.create_schedule(B.op)
+    io, ii = s[B].split(s[B].op.axis[0], nparts=1)
+    iio, iii = s[B].split(ii, nparts=32)
+    _, iiii = s[B].split(iii, factor=4)
+    s[B].vectorize(iiii)
+    s[B].bind(io, bx)
+    s[B].bind(iio, tx)
+    return s
+
+def test_vectorized_intrin1():
+    test_funcs = [
+        (tvm.tir.floor, lambda x : np.floor(x)),
+        (tvm.tir.ceil,  lambda x : np.ceil(x)),
+        (tvm.tir.trunc, lambda x : np.trunc(x)),
+        (tvm.tir.abs,   lambda x : np.fabs(x)),
+        (tvm.tir.round, lambda x : np.round(x)),
+        (tvm.tir.exp,   lambda x : np.exp(x)),
+        (tvm.tir.exp2,  lambda x : np.exp2(x)),
+        (tvm.tir.exp10, lambda x : np.power(10,x)),
+        (tvm.tir.log,   lambda x : np.log(x)),
+        (tvm.tir.log2,  lambda x : np.log2(x)),
+        (tvm.tir.log10, lambda x : np.log10(x)),
+        (tvm.tir.tan,   lambda x : np.tan(x)),
+        (tvm.tir.cos,   lambda x : np.cos(x)),
+        (tvm.tir.cosh,  lambda x : np.cosh(x)),
+        (tvm.tir.sin,   lambda x : np.sin(x)),
+        (tvm.tir.sinh,  lambda x : np.sinh(x)),
+        (tvm.tir.atan,  lambda x : np.arctan(x)),
+        (tvm.tir.tanh,  lambda x : np.tanh(x)),
+        (tvm.tir.sqrt,  lambda x : np.sqrt(x)),
+    ]
+    def run_test(tvm_intrin, np_func, dtype):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
+            return
+        # set of intrinsics does not support fp16 yet.
+        skip_set = {tvm.tir.abs,
+                    tvm.tir.round,
+                    tvm.tir.tan,
+                    tvm.tir.atan,
+                    tvm.tir.tanh,
+                    tvm.tir.cosh,
+                    tvm.tir.sinh}
+        if dtype == "float16" and tvm_intrin in skip_set:
+            print("Skip because '{0}' does not support fp16 yet".format(tvm_intrin.__name__))
+            return
+
+        n = 128
+        A = te.placeholder((n,), dtype=dtype, name='A')
+        B = te.compute((n,), lambda *i: tvm_intrin(A(*i)), name='B')
+        s = sched(B)
+        f = tvm.build(s, [A, B], "cuda")
+        ctx = tvm.gpu(0)
+        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), ctx)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-3, rtol=1e-3)
+
+    for func in test_funcs:
+        run_test(*func, "float32")
+        run_test(*func, "float16")
+
+def test_vectorized_intrin2(dtype="float32"):
+    c2 = tvm.tir.const(2, dtype=dtype)
+    test_funcs = [
+        (tvm.tir.power, lambda x : np.power(x, 2.0)),
+        (tvm.tir.fmod,  lambda x : np.fmod(x, 2.0))
+    ]
+    def run_test(tvm_intrin, np_func):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+
+        n = 128
+        A = te.placeholder((n,), dtype=dtype, name='A')
+        B = te.compute((n,), lambda i: tvm_intrin(A[i], c2), name='B')
+        s = sched(B)
+        f = tvm.build(s, [A, B], "cuda")
+        ctx = tvm.gpu(0)
+        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(shape=(n,)).astype(A.dtype), ctx)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), np_func(a.asnumpy()), atol=1e-3, rtol=1e-3)
+
+    for func in test_funcs:
+        run_test(*func)
+
+def test_vectorized_popcount():
+    def ref_popcount(x):
+        cnt = 0
+        while x:
+            x -= x & -x
+            cnt += 1
+        return cnt
+
+    def run_test(dtype):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+
+        n = 128
+        A = te.placeholder((n,), dtype=dtype, name='A')
+        B = te.compute((n,), lambda i: tvm.tir.popcount(A[i]), name='B')
+        s = sched(B)
+        f = tvm.build(s, [A, B], "cuda")
+        ctx = tvm.gpu(0)
+        a = tvm.nd.array(np.random.randint(0, 100000, size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(shape=(n,)).astype(B.dtype), ctx)
+        f(a, b)
+        ref = np.vectorize(ref_popcount)(a.asnumpy())
+        tvm.testing.assert_allclose(b.asnumpy(), ref)
+
+    run_test("uint32")
+    run_test("uint64")
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
@@ -360,3 +479,6 @@ if __name__ == "__main__":
     test_cuda_const_float_to_half()
     test_cuda_reduction()
     test_cuda_floordiv_with_vectorization()
+    test_vectorized_intrin1()
+    test_vectorized_intrin2()
+    test_vectorized_popcount()
