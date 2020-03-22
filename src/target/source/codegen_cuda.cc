@@ -24,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <cmath>
+#include <utility>
 #include <vector>
 #include <string>
 #include "literal/cuda_half_t.h"
@@ -235,25 +236,19 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 void CodeGenCUDA::PrintVecBinaryOp(
     const std::string& op, DataType t,
     PrimExpr lhs, PrimExpr rhs, std::ostream& os) {  // NOLINT(*)
-  // unpacking operations.
-  int lanes = t.lanes();
-
+  // Delcare the result.
+  std::string sret = GetUniqueName("_");
+  this->PrintIndent();
+  this->PrintType(t, stream);
+  stream << ' ' << sret << ";\n";
   {
-    // The assignment below introduces side-effect, and the resulting value cannot
-    // be reused across multiple expression, thus a new scope is needed
-    int vec_scope = BeginScope();
+    EnterScopeRAII scope(this);
 
-    // default: unpack into individual ops.
+    // Unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
-    std::string sret = GetUniqueName("_");
-    {
-      // delcare type.
-      this->PrintIndent();
-      this->PrintType(t, stream);
-      stream << ' ' << sret << ";\n";
-    }
-    for (int i = 0; i < lanes; ++i) {
+
+    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
       std::ostringstream value_temp;
       if (isalpha(op[0])) {
         value_temp << op << "(";
@@ -270,9 +265,8 @@ void CodeGenCUDA::PrintVecBinaryOp(
       }
       PrintVecElemStore(sret, t, i, value_temp.str());
     }
-    os << sret;
-    EndScope(vec_scope);
   }
+  os << sret;
 }
 
 void CodeGenCUDA::PrintVecElemLoad(
@@ -418,6 +412,54 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
       this->PrintExpr(op->args[i * 2 + 1], os);
       os << "]" << ((i < 3) ? ", ": ")");
     }
+  } else if (op->call_type == CallNode::PureExtern && op->dtype.is_vector()) {
+    //
+    // Emit an unsupported vector call
+    //
+    // v = intrin_f((float4*)A[0], (float4*)B[0])
+    //
+    // as
+    //
+    // float4 __ret;
+    // {
+    //   float4 __arg0 = ((float4*)A)[0];
+    //   float4 __arg1 = ((float4*)B)[0];
+    //   __ret.x = intrin_f(__arg0.x, __arg1.x);
+    //   __ret.y = intrin_f(__arg0.y, __arg1.y);
+    //   __ret.z = intrin_f(__arg0.z, __arg1.z);
+    //   __ret.w = intrin_f(__arg0.w, __arg1.w);
+    // }
+    // v = __ret;
+    //
+    // Declare the result vector.
+    std::string sret = GetUniqueName("_");
+    this->PrintIndent();
+    this->PrintType(op->dtype, stream);
+    stream << ' ' << sret << ";\n";
+    {
+      EnterScopeRAII scope(this);
+
+      // Load arguments.
+      std::vector<std::string> sargs;
+      for (size_t i = 0; i < op->args.size(); ++i) {
+        std::string val = SSAGetID(PrintExpr(op->args[i]), op->args[i].dtype());
+        sargs.push_back(std::move(val));
+      }
+
+      // Emit a scalar call for each lane.
+      for (int i = 0; i < op->dtype.lanes(); ++i) {
+        std::ostringstream scall;
+        scall << op->name << "(";
+        for (size_t j = 0; j < op->args.size(); ++j) {
+          if (j > 0)
+            scall << ", ";
+          PrintVecElemLoad(sargs[j], op->args[j].dtype(), i, scall);
+        }
+        scall << ")";
+        PrintVecElemStore(sret, op->dtype, i, scall.str());
+      }
+    }
+    os << sret;
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -580,34 +622,34 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream &os) {
         op->true_value->dtype == op->dtype &&
         op->dtype.lanes() == op->condition.dtype().lanes());
 
-  int lanes = op->dtype.lanes();
-  int scope = BeginScope();
-
-  std::string c_var = SSAGetID(PrintExpr(op->condition), op->dtype);
-  std::string t_var = SSAGetID(PrintExpr(op->true_value), op->dtype);
-  std::string f_var = SSAGetID(PrintExpr(op->false_value), op->dtype);
   std::string r_var = GetUniqueName("_");
-
   this->PrintIndent();
   this->PrintType(op->dtype, stream);
   stream << ' ' << r_var << ";\n";
+  {
+    EnterScopeRAII scope(this);
 
-  // The condition is stored as an ushort vector.
-  DataType memory_ty(DataType::TypeCode::kUInt, 16, lanes);
+    std::string c_var = SSAGetID(PrintExpr(op->condition), op->dtype);
+    std::string t_var = SSAGetID(PrintExpr(op->true_value), op->dtype);
+    std::string f_var = SSAGetID(PrintExpr(op->false_value), op->dtype);
 
-  for (int i = 0; i < lanes; ++i) {
-    std::ostringstream item;
-    item << "(bool(";
-    PrintVecElemLoad(c_var, memory_ty, i, item);
-    item << ")?";
-    PrintVecElemLoad(t_var, op->dtype, i, item);
-    item << ':';
-    PrintVecElemLoad(f_var, op->dtype, i, item);
-    item << ')';
-    PrintVecElemStore(r_var, op->dtype, i, item.str());
+    // The condition is stored as an ushort vector.
+    int lanes = op->dtype.lanes();
+    DataType memory_ty(DataType::TypeCode::kUInt, 16, lanes);
+
+    for (int i = 0; i < lanes; ++i) {
+      std::ostringstream item;
+      item << "(bool(";
+      PrintVecElemLoad(c_var, memory_ty, i, item);
+      item << ")?";
+      PrintVecElemLoad(t_var, op->dtype, i, item);
+      item << ':';
+      PrintVecElemLoad(f_var, op->dtype, i, item);
+      item << ')';
+      PrintVecElemStore(r_var, op->dtype, i, item.str());
+    }
   }
   os << r_var;
-  EndScope(scope);
 }
 
 inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
