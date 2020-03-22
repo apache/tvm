@@ -263,6 +263,8 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
     out : tvm.te.Tensor
         The output of this function.
     """
+    if axis < 0:
+        axis = len(data.shape) + axis
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf",
                                    data_alignment=8)
     valid_count_buf = tvm.tir.decl_buffer(valid_count.shape, valid_count.dtype,

@@ -68,10 +68,10 @@ void thrust_sort(DLTensor* input,
 // Performs sorting along axis -1 and returns both sorted values and indices.
 template<typename DataType, typename IndicesType>
 void thrust_sort_nms(DLTensor* input,
-                 DLTensor* valid_count,
-                 DLTensor* out_values,
-                 DLTensor* out_indices,
-                 bool is_ascend) {
+                     DLTensor* valid_count,
+                     DLTensor* out_values,
+                     DLTensor* out_indices,
+                     bool is_ascend) {
   thrust::device_ptr<IndicesType> valid_count_ptr(static_cast<IndicesType *>(valid_count->data));
   thrust::device_ptr<DataType> data_ptr(static_cast<DataType *>(input->data));
   thrust::device_ptr<DataType> values_ptr(static_cast<DataType *>(out_values->data));
