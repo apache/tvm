@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=no-else-raise
 """ TVM testing utilities """
 import logging
 import numpy as np
@@ -32,7 +33,7 @@ def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
 
 
 def check_numerical_grads(function, input_values, grad_values, function_value=None,
-                          delta=1e-3, atol=1e-2, rtol=0.1):
+                          delta=1e-3, atol=1e-2, rtol=0.1, acceptable_fail_percentage=None):
     """A helper function that checks that numerical gradients of a function are
     equal to gradients computed in some different way (analytical gradients).
 
@@ -68,6 +69,10 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
 
     rtol : float, optional
         Relative tolerance.
+
+    acceptable_fail_percentage : float, optional
+        If not None, raise an error only when the fraction of wrong elements for a gradient is
+        higher than this value.
     """
     # If input_values is a list then function accepts positional arguments
     # In this case transform it to a function taking kwargs of the form {"0": ..., "1": ...}
@@ -134,7 +139,7 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
 
             ngrad.reshape(-1)[j] = nder
 
-        wrong_percentage = int(100*len(wrong_positions)/np.prod(grad.shape))
+        wrong_percentage = len(wrong_positions)/np.prod(grad.shape)
 
         dist = np.sqrt(np.sum((ngrad - grad)**2))
         grad_norm = np.sqrt(np.sum(ngrad**2))
@@ -149,14 +154,22 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         sqrt_n = np.sqrt(float(np.prod(grad.shape)))
 
         if dist > atol*sqrt_n + rtol*grad_norm:
-            raise AssertionError(
-                "Analytical and numerical grads wrt '{}' differ too much\n"
-                "analytical grad = {}\n numerical grad = {}\n"
-                "{}% of elements differ, first 10 of wrong positions: {}\n"
-                "distance > atol*sqrt(n) + rtol*grad_norm\n"
-                "distance {} > {}*{} + {}*{}"
-                .format(x_name, grad, ngrad, wrong_percentage, wrong_positions[:10],
-                        dist, atol, sqrt_n, rtol, grad_norm))
+            enough_failures = (acceptable_fail_percentage is None or
+                               wrong_percentage > acceptable_fail_percentage)
+            if enough_failures:
+                raise AssertionError(
+                    "Analytical and numerical grads wrt '{}' differ too much\n"
+                    "analytical grad = {}\n numerical grad = {}\n"
+                    "{}% of elements differ, first 10 of wrong positions: {}\n"
+                    "distance > atol*sqrt(n) + rtol*grad_norm\n"
+                    "distance {} > {}*{} + {}*{}"
+                    .format(x_name, grad, ngrad, int(100*wrong_percentage),
+                            wrong_positions[:10], dist, atol, sqrt_n, rtol, grad_norm))
+            else:
+                logging.warning("Analytical and numerical grads wrt '%s' differ, however "
+                                "there were not enough wrong elements to raise an error "
+                                "(only %d%%)",
+                                x_name, int(100*wrong_percentage))
 
         max_diff = np.max(np.abs(ngrad - grad))
         avg_diff = np.mean(np.abs(ngrad - grad))
