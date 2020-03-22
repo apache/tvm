@@ -66,7 +66,7 @@
 namespace tvm {
 namespace relay {
 
-namespace GradientCellPass { // avoid polluting namespace
+namespace GradientCellPass {  // avoid polluting namespace
 
 /*!
 * \brief Get constructor of GradCell TypeDef with name_hint
@@ -178,10 +178,10 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
     if (e.same_as(GetRef<Function>(transformed))) {
       return GetRef<Function>(transformed);
     }
-    
+
     // wrap inputs of Tensor type using InputVisitor class
     tvm::Array<Expr> args;
-    for (Var var: f->params) {
+    for (Var var : f->params) {
       Expr wrappedInput = InputVisitor(module_).VisitExpr(var, var->checked_type());
       args.push_back(wrappedInput);
     }
@@ -189,7 +189,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
 
     // unwrap outputs of GradCell type into Tensor type using OutputVisitor class
     Expr tensorOutput = OutputVisitor(module_).VisitExpr(transformedExpr, transformed->ret_type);
-    return Function(f->params, tensorOutput, f->ret_type, Array<TypeVar>()); 
+    return Function(f->params, tensorOutput, f->ret_type, Array<TypeVar>());
   }
 
   Expr VisitExpr_(const ConstantNode* op) final {
@@ -254,7 +254,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
       }
 
       // handle other ops + zeros_like + ones_like
-      // we put zeros_like and ones_like here to make use of 
+      // we put zeros_like and ones_like here to make use of
       // code converting the arguments of CallNode into Tensor
       const auto fromFunc = module_->GetGlobalVar("FromGradCell");
       tvm::Array<Expr> args;
