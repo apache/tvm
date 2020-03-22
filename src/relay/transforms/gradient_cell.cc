@@ -98,7 +98,7 @@ class InputVisitor: public ExprFunctor<Expr(const Expr&, const Type&)> {
                           {expr}, Attrs(), {type});
     } else if (auto* type_anno = type.as<TupleTypeNode>()) {
       tvm::Array<Expr> fields;
-      for (int i = 0; i < type_anno->fields.size(); i++) {
+      for (size_t i = 0; i < type_anno->fields.size(); i++) {
         const Type& t = type_anno->fields[i];
         fields.push_back(this->VisitExpr(TupleGetItemNode::make(expr, i), t));
       }
@@ -136,7 +136,7 @@ class OutputVisitor: public ExprFunctor<Expr(const Expr&, const Type&)> {
       return expr;
     } else if (auto* type_anno = type.as<TupleTypeNode>()) {
       tvm::Array<Expr> fields;
-      for (int i = 0; i < type_anno->fields.size(); i++) {
+      for (size_t i = 0; i < type_anno->fields.size(); i++) {
         const Type& t = type_anno->fields[i];
         fields.push_back(this->VisitExpr(TupleGetItemNode::make(expr, i), t));
       }
