@@ -30,19 +30,11 @@
 #define TVM_CRT_MAX_NDIM 6
 /*! Maximum supported arguments in generated functions */
 #define TVM_CRT_MAX_ARGS 10
-/*! Maximum supported contexts in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_CONTEXTS 1
+/*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
+#define TVM_CRT_STRLEN_DLTYPE 10
 
-/*! Maximum inputs in a GraphRuntimeNode */
-#define GRAPH_RUNTIME_NODE_MAX_INPUTS 100
 /*! Maximum supported nodes in a GraphRuntime */
 #define GRAPH_RUNTIME_MAX_NODES 100
-/*! Maximum input nodes in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_INPUT_NODES 100
-/*! Maximum nodes in a GraphRuntime for quick entry indexing */
-#define GRAPH_RUNTIME_MAX_NODE_ROW_PTR 100
-/*! Maximum output entries in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_OUTPUTS 100
 
 /*!
  * \brief Log memory pool size for virtual memory allocation

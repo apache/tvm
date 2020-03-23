@@ -222,7 +222,9 @@ void* MemoryManager_Alloc(MemoryManager * mgr, tvm_index_t size) {
   } else {
     PageTable * ptable = &(mgr->ptable);
     start = ptable->count;
-    CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize), "insufficient memory.");
+    CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
+             "insufficient memory, start=%d, npage=%d, total=%d",
+             start, npage, start + npage);
     /* insert page entry */
     Page p = PageCreate(start, npage);
     ptable->resize(ptable, start + npage, &p);
@@ -271,7 +273,9 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
         free_map->erase(free_map, it);
       } else {
         start = ptable->count;
-        CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize), "insufficient memory.");
+        CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
+                 "insufficient memory, start=%d, npage=%d, total=%d",
+                 start, npage, start + npage);
         Page p = PageCreate(start, npage);
         ptable->resize(ptable, start + npage, &p);
         data = (void*)p.data;
@@ -295,7 +299,9 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
     } else {
       PageTable * ptable = &(mgr->ptable);
       start = ptable->count;
-      CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize), "insufficient memory.");
+      CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
+               "insufficient memory, start=%d, npage=%d, total=%d",
+               start, npage, start + npage);
       /* insert page entry */
       Page p = PageCreate(start, npage);
       ptable->resize(ptable, start + npage, &p);
