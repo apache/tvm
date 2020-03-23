@@ -47,6 +47,7 @@ List of operators
    topi.strided_slice
    topi.expand_dims
    topi.reshape
+   topi.unravel_index
    topi.squeeze
    topi.concatenate
    topi.split
@@ -147,6 +148,7 @@ topi
 .. autofunction:: topi.strided_slice
 .. autofunction:: topi.expand_dims
 .. autofunction:: topi.reshape
+.. autofunction:: topi.unravel_index
 .. autofunction:: topi.squeeze
 .. autofunction:: topi.concatenate
 .. autofunction:: topi.split
