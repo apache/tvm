@@ -1229,6 +1229,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         """ Finds the Qnn params for the data expr. """
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
+        assert data_min <= data_max
         data_dtype = _infer_type(_data).checked_type.dtype
         assert data_dtype in {'int8', 'uint8'}
         if data_min < 0.0:
@@ -1420,8 +1421,8 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             ###############################################
             # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are
             # for the second tensor. So, the data min max indexes are last 3 and 4
-            data_min_idx = -1
-            data_max_idx = -2
+            data_min_idx = -2
+            data_max_idx = -1
             if has_sum:
                 data_min_idx = -4
                 data_max_idx = -3
