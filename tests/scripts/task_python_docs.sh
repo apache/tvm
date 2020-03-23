@@ -34,10 +34,11 @@ find . -type f -path "*.log" | xargs rm -f
 
 # C++ doc
 make doc
+rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
 mv docs/doxygen docs/_build/html/doxygen
 
 # JS doc
-jsdoc web/tvm_runtime.js web/README.md
+jsdoc -c web/.jsdoc_conf.json web/tvm_runtime.js web/README.md
 mv out docs/_build/html/jsdoc
 
 # Java doc
