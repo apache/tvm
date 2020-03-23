@@ -202,6 +202,22 @@ class AlphaEqualHandler:
     return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 
+  bool VisitType_(const PrimTypeNode* lhs, const Type& other) final {
+    if (const PrimTypeNode* rhs = other.as<PrimTypeNode>()) {
+      return lhs->dtype == rhs->dtype;
+    } else {
+      return false;
+    }
+  }
+
+  bool VisitType_(const PointerTypeNode* lhs, const Type& other) final {
+    if (const PointerTypeNode* rhs = other.as<PointerTypeNode>()) {
+      return TypeEqual(lhs->element_type, rhs->element_type);
+    } else {
+      return false;
+    }
+  }
+
   bool VisitType_(const TypeVarNode* lhs, const Type& other) final {
     if (const TypeVarNode* rhs = other.as<TypeVarNode>()) {
       if (lhs->kind != rhs->kind) return false;
