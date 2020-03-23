@@ -35,7 +35,7 @@ namespace contrib {
 using namespace runtime;
 
 // Performs sorting along axis -1 and returns both sorted values and indices.
-template<typename F, typename DataType, typename IndicesType>
+template<typename DataType, typename IndicesType, typename F>
 void thrust_sort(DLTensor* input,
                  DLTensor* out_values,
                  DLTensor* out_indices,
@@ -54,16 +54,16 @@ void thrust_sort(DLTensor* input,
   thrust::copy(data_ptr, data_ptr + n_iter * n_values, values_ptr);
 
   for (int i = 0 ; i < n_iter; ++i) {
-    int current_values = get_sort_len(i);
-    thrust::sequence(indices_ptr, indices_ptr + current_values);
+    n_values = get_sort_len(i);
+    thrust::sequence(indices_ptr, indices_ptr + n_values);
     if (is_ascend) {
-      thrust::sort_by_key(values_ptr, values_ptr + current_values, indices_ptr);
+      thrust::sort_by_key(values_ptr, values_ptr + n_values, indices_ptr);
     } else {
-      thrust::sort_by_key(values_ptr, values_ptr + current_values, indices_ptr,
+      thrust::sort_by_key(values_ptr, values_ptr + n_values, indices_ptr,
                           thrust::greater<DataType>());
     }
-    values_ptr += current_values;
-    indices_ptr += current_values;
+    values_ptr += n_values;
+    indices_ptr += n_values;
   }
 }
 
@@ -77,49 +77,49 @@ void thrust_sort_common(DLTensor* input,
                         std::string out_dtype) {
   if (data_dtype == "float32") {
     if (out_dtype == "int32") {
-      thrust_sort<F, float, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<F, float, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<F, float, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, float>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<F, float, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<float, double>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (data_dtype == "float64") {
     if (out_dtype == "int32") {
-      thrust_sort<F, double, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<F, double, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<F, double, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, float>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<F, double, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<double, double>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   } else if (data_dtype == "int32") {
     if (out_dtype == "int32") {
-      thrust_sort<F, int32_t, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<F, int32_t, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<F, int32_t, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, float>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<F, int32_t, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int32_t, double>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
   }  else if (data_dtype == "int64") {
     if (out_dtype == "int32") {
-      thrust_sort<F, int64_t, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, int32_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "int64") {
-      thrust_sort<F, int64_t, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, int64_t>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float32") {
-      thrust_sort<F, int64_t, float>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, float>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else if (out_dtype == "float64") {
-      thrust_sort<F, int64_t, double>(input, values_out, indices_out, is_ascend, get_sort_len);
+      thrust_sort<int64_t, double>(input, values_out, indices_out, is_ascend, get_sort_len);
     } else {
       LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
     }
