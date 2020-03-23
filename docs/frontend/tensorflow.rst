@@ -242,5 +242,6 @@ Supported Ops
 - Transpose
 - TruncateMod
 - Unpack
+- UnravelIndex
 - Where
 - ZerosLike

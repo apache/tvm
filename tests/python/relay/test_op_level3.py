@@ -683,6 +683,44 @@ def test_gather_nd():
     verify_gather_nd((3, 2, 2), (2, 2), [[0, 1], [1, 0]])
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
+
+def test_unravel_index():
+    def verify_unravel_index(indices, shape, dtype):
+        x_data = np.array(indices).astype(dtype)
+        y_data = np.array(shape).astype(dtype)
+        x = relay.var("x", relay.TensorType(x_data.shape, dtype))
+        y = relay.var("y", relay.TensorType(y_data.shape, dtype))
+
+        z = relay.unravel_index(x, y)
+        zz = run_infer_type(z)
+
+        if len(x_data.shape) == 1:
+            out_shape = [y_data.shape[0], x_data.shape[0]]
+        else:
+            out_shape = [y_data.shape[0]]
+        assert zz.checked_type == relay.ty.TensorType(out_shape, dtype)
+
+        func = relay.Function([x, y], z)
+        ref_res = np.unravel_index(x_data, y_data)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    for dtype in ["int64", "int32"]:
+        verify_unravel_index([0, 1, 2, 3], [2, 2], dtype)
+        verify_unravel_index([144], [5, 5, 5, 2], dtype)
+        verify_unravel_index(144, [5, 5, 5, 2], dtype)
+        verify_unravel_index([100, 13, 5], [5, 5, 5, 2], dtype)
+
+        # In below example, 5 is out of bound for array of size 4.
+        # Numpy implementation throws error for it
+        # TVM implementation does not throw error instead it produces
+        # output which is inline with Tensorflow
+        # verify_unravel_index([0, 1, 2, 5], [2, 2], dtype)
+
+
 if __name__ == "__main__":
     test_arange()
     test_cast()
@@ -713,3 +751,4 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
+    test_unravel_index()

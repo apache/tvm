@@ -3057,6 +3057,57 @@ def test_forward_add_n():
     _test_forward_add_n(in5)
 
 
+#######################################################################
+# Unravel Index
+# ----------------------
+def _test_forward_unravel_index(inputs):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        temp = []
+        for each in inputs:
+            temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
+        output = tf.unravel_index(temp[0], temp[1])
+        compare_tf_with_tvm([each for each in inputs], [
+            each.name for each in temp], output.name)
+
+
+def _test_forward_unravel_index_scalar(x, y, dtype="int32"):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        indices_1 = constant_op.constant(x, dtype=dtype)
+        dims_1 = constant_op.constant(y, dtype=dtype)
+        out_1 = array_ops.unravel_index(indices_1, dims_1)
+        compare_tf_with_tvm([], [], out_1.name)
+
+
+def test_forward_unravel_index():
+    x = np.array([0, 1, 2, 3])
+    y = np.array([2, 2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([0, 1, 2, 5])
+    y = np.array([2, 2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([0, 1, 2, 5])
+    y = np.array([2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([102, 300, 16])
+    y = np.array([10, 10, 9, 6])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([100])
+    y = np.array([10, 10, 9, 6])
+    _test_forward_unravel_index([x, y])
+
+    # Test scalar input
+    _test_forward_unravel_index_scalar(13, [1, 4, 5, 2])
+
+
+#######################################################################
+# Dilation2d
+# ----------------------
 def _test_dilation2d(tensor_in_sizes, filter_in_sizes,
                      strides, dilations, padding):
     """ One iteration of dilation2d with given shapes and attributes """
@@ -3173,6 +3224,7 @@ if __name__ == '__main__':
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
+    test_forward_unravel_index()
 
     # Reductions
     test_forward_argminmax()

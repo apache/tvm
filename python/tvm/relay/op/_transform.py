@@ -54,6 +54,7 @@ _reg.register_injective_schedule("gather_nd")
 _reg.register_injective_schedule("sequence_mask")
 _reg.register_injective_schedule("one_hot")
 _reg.register_reduce_schedule("collapse_sum_like")
+_reg.register_injective_schedule("unravel_index")
 
 # concatenate
 _reg.register_schedule("concatenate", strategy.schedule_concatenate)
