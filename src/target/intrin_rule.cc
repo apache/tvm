@@ -78,6 +78,22 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
     *rv = one / (one + exp(-call->args[0]));
   });
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isfinite")
+.set_body([](const TVMArgs& args, TVMRetValue* rv){
+    PrimExpr e = args[0];
+    const CallNode* call = e.as<CallNode>();
+    CHECK(call != nullptr);
+    *rv = isfinite(call->args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
+.set_body([](const TVMArgs& args, TVMRetValue* rv){
+    PrimExpr e = args[0];
+    const CallNode* call = e.as<CallNode>();
+    CHECK(call != nullptr);
+    *rv = isinf(call->args[0]);
+  });
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
