@@ -23,7 +23,7 @@ import tvm.autotvm as autotvm
 from .. import tag
 from ..util import traverse_inline, get_const_tuple
 from .tensor_intrin import intrin_wmma_load_matrix_A, \
-        intrin_wmma_load_matrix_W, intrin_wmma_store_matrix
+        intrin_wmma_load_matrix_W, intrin_wmma_store_matrix, intrin_wmma_gemm
 
 
 @autotvm.register_topi_compute("dense_tensorcore.cuda")
@@ -54,8 +54,13 @@ def dense_tensorcore_cuda(data, weight, bias=None, out_dtype=None):
         assert len(bias.shape) == 1
     if out_dtype is None:
         out_dtype = data.dtype
-    batch, in_dim = data.shape
-    out_dim, _ = weight.shape
+    batch, in_dim = get_const_tuple(data.shape)
+    out_dim, _ = get_const_tuple(weight.shape)
+    assert ((batch % 8 == 0 and in_dim % 16 == 0 and out_dim % 32 == 0) or \
+            (batch % 16 == 0 and in_dim % 16 == 0 and out_dim % 16 == 0) or \
+            (batch % 32 == 0 and in_dim % 16 == 0 and out_dim % 8 == 0)), \
+            "The shape of (batch, in_dim, out_dim) "\
+             "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
     k = te.reduce_axis((0, in_dim), name='k')
     data_16 = te.compute((batch, in_dim), lambda b, i: data[b, i].astype('float16'))
     weight_16 = te.compute((out_dim, in_dim), lambda o, i: weight[o, i].astype('float16'))
@@ -108,7 +113,7 @@ def _schedule_dense_tensorcore(cfg, s, C):
     cfg.define_knob("offsetCS", [0, 8])
     cfg.define_knob("vec", [1, 2, 4, 8])
 
-    #Make it available by default
+    #Ensure that the default parameters are applicable when autotvm is not in use
     if (batch % 32 == 0 and out_dim % 8 == 0):
         cfg.define_knob("wmma_m", [32, 16, 8])
     elif (batch%16 == 0 and out_dim % 16 == 0):
@@ -224,67 +229,24 @@ def _schedule_dense_tensorcore(cfg, s, C):
     shared_shedule(BS, BS_align)
 
     shape = (wmma_m, wmma_n, wmma_k)
+    in_dtype = 'float16'
+    AL_gemm = te.placeholder((wmma_m, wmma_k), name='AL_gemm', dtype=in_dtype)
+    BL_gemm = te.placeholder((wmma_n, wmma_k), name='BL_gemm', dtype=in_dtype)
+    k_gemm = te.reduce_axis((0, wmma_k), name='k_gemm')
+    CL_compute = te.compute((wmma_m, wmma_n), lambda ii, jj:
+                            te.sum(AL_gemm[ii, k_gemm].astype(out_dtype) *\
+                                   BL_gemm[jj, k_gemm].astype(out_dtype),\
+                                   axis=k_gemm), name='CL_compute')
 
     #lower the computation loops down to TensorCore hardware intrinsics
     #by mapping the dense tensorcore to tensor intrinsics
     s[AF].tensorize(b_ii, intrin_wmma_load_matrix_A( \
-            AF_stride, AS_stride, shape, "row_major", (wmma_m, wmma_k), (wmma_m, wmma_k)))
+            AF_stride, AS_stride, shape, "row_major",\
+            (wmma_m, wmma_k), (wmma_m, wmma_k), 'float16'))
     s[BF].tensorize(o_ii, intrin_wmma_load_matrix_W( \
-            BF_stride, BS_stride, shape, "col_major", (wmma_n, wmma_k), (wmma_n, wmma_k)))
+            BF_stride, BS_stride, shape, "col_major",\
+            (wmma_n, wmma_k), (wmma_n, wmma_k), 'float16'))
     s[CF].tensorize(_ii, intrin_wmma_gemm( \
-            AF_stride, BF_stride, CF_stride, shape, out_dtype))
+            AL_gemm, BL_gemm, CL_compute, AF_stride, BF_stride, CF_stride, shape))
     s[CS].tensorize(bbi, intrin_wmma_store_matrix( \
             CS_stride, CF_stride, shape, out_dtype, (wmma_m, wmma_n), (wmma_m, wmma_n)))
-
-
-def intrin_wmma_gemm(strides_A, strides_B, strides_C, shape, out_dtype):
-    """Intrin function of wmma::mma.sync"""
-    wmma_m, wmma_n, wmma_k = shape
-    n = 16
-    A = te.placeholder((wmma_m, wmma_k), name='A', dtype='float16')
-    B = te.placeholder((wmma_n, wmma_k), name='B', dtype='float16')
-    k = te.reduce_axis((0, wmma_k), name="k")
-    C = te.compute((wmma_m, wmma_n),
-                   lambda ii, jj:
-                   te.sum(A[ii, k].astype(out_dtype) * B[jj, k].astype(out_dtype), axis=k),
-                   name='C')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA',
-                             scope='wmma.matrix_a', data_alignment=32,
-                             offset_factor=n, strides=strides_A)
-    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB',
-                             scope='wmma.matrix_b', data_alignment=32,
-                             offset_factor=n, strides=strides_B)
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC',
-                             scope='wmma.accumulator', data_alignment=32,
-                             offset_factor=n, strides=strides_C)
-
-    def intrin_func(ins, outs):
-        BA, BB = ins
-        BC, = outs
-
-        def warp_index(offset, rows, cols):
-            row = rows * cols
-            return offset // row + offset % row // cols
-
-        warp_index_A = warp_index(BA.elem_offset, wmma_m, wmma_k)
-        warp_index_B = warp_index(BB.elem_offset, wmma_k, wmma_n)
-        warp_index_C = warp_index(BC.elem_offset, wmma_m, wmma_n)
-
-        def init():
-            ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_fill_fragment', \
-                    BC.data, wmma_m, wmma_n, wmma_k, warp_index_C, 0.0))
-            return ib.get()
-
-        def update():
-            ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
-                                        BC.data, warp_index_C,
-                                        BA.data, warp_index_A,
-                                        BB.data, warp_index_B,
-                                        BC.data, warp_index_C))
-            return ib.get()
-
-        return update(), init(), update()
-
-    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})

@@ -79,11 +79,11 @@ def dp4a(x_scope='local', y_scope='local', z_scope='local'):
         return te.decl_tensor_intrin(z.op, _intrin_func, binds=binds)
 
 
-def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape, C_shape):
+def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape, C_shape, in_dtype):
     """Intrin function for loading data from shared memory to wmma.matrix_a"""
     wmma_m, wmma_n, wmma_k = shape
 
-    A = te.placeholder(A_shape, name='A', dtype='float16')
+    A = te.placeholder(A_shape, name='A', dtype=in_dtype)
     BA = tvm.tir.decl_buffer(A.shape, A.dtype,
                              scope='shared', strides=strides_from,
                              data_alignment=32, offset_factor=8)
@@ -107,11 +107,11 @@ def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape,
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
 
 
-def intrin_wmma_load_matrix_W(strides_dst, strides_from, shape, layout, A_shape, C_shape):
+def intrin_wmma_load_matrix_W(strides_dst, strides_from, shape, layout, A_shape, C_shape, in_dtype):
     """Intrin function for loading data from shared memory to wmma.matrix_b"""
     wmma_m, wmma_n, wmma_k = shape
 
-    A = te.placeholder(A_shape, name='A', dtype='float16')
+    A = te.placeholder(A_shape, name='A', dtype=in_dtype)
     BA = tvm.tir.decl_buffer(A.shape, A.dtype,
                              scope='shared', strides=strides_from,
                              data_alignment=32, offset_factor=8)
@@ -161,3 +161,64 @@ def intrin_wmma_store_matrix(strides_dst, strides_from, shape, out_dtype, A_shap
         return ib.get()
 
     return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, C: BC})
+
+
+def intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, strides_A,
+                     strides_W, strides_Conv, shape):
+    """Intrin for wmma fill_fragment and mma_sync
+
+    Parameters
+    ----------
+    AL_gemm : tvm.te.placeholder
+        wmma matrix A
+    WL_gemm : tvm.te.placeholder
+        wmma matrix B
+    CL_compute : tvm.te.compute
+        The definition of wmma gemm
+    """
+    wmma_m, wmma_n, wmma_k = shape
+    A = AL_gemm
+    B = WL_gemm
+    C = CL_compute
+
+    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA',
+                             scope='wmma.matrix_a', data_alignment=32,
+                             offset_factor=8, strides=strides_A)
+    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB',
+                             scope='wmma.matrix_b', data_alignment=32,
+                             offset_factor=8, strides=strides_W)
+    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC',
+                             scope='wmma.accumulator', data_alignment=32,
+                             offset_factor=8, strides=strides_Conv)
+
+    def intrin_func(ins, outs):
+        BA, BB = ins
+        BC, = outs
+
+        def warp_idnex(offset, row, col):
+            row = row * col
+            return offset // row + offset % row // col
+
+        warp_index_A = warp_idnex(BA.elem_offset, wmma_m, wmma_k)
+        warp_index_B = warp_idnex(BB.elem_offset, wmma_k, wmma_n)
+        warp_index_C = warp_idnex(BC.elem_offset, wmma_m, wmma_n)
+
+        def init():
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(
+                tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, wmma_m, wmma_n, wmma_k,
+                                    warp_index_C, 0.0))
+            return ib.get()
+
+        def update():
+            ib = tvm.tir.ir_builder.create()
+            ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
+                                        BC.data, warp_index_C,
+                                        BA.data, warp_index_A,
+                                        BB.data, warp_index_B,
+                                        BC.data, warp_index_C))
+            return ib.get()
+
+        return update(), init(), update()
+
+    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
