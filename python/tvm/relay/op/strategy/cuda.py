@@ -22,6 +22,7 @@ from tvm.te import SpecializedCondition
 from tvm.contrib import nvcc
 from .generic import *
 from .. import op as _op
+from .... import get_global_func
 
 @schedule_injective.register(["cuda", "gpu"])
 def schedule_injective_cuda(attrs, outs, target):
@@ -146,7 +147,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.cuda.conv2d_cudnn, True),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
                     name="conv2d_cudnn.cuda",
-                    plevel=5)
+                    plevel=15)
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -308,7 +309,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_dense(topi.cuda.dense_large_batch),
                 wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
                 name="dense_large_batch.cuda",
-                plevel=15)
+                plevel=5)
         if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
             if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
                     or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
@@ -323,7 +324,7 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.cuda.dense_cublas),
             wrap_topi_schedule(topi.cuda.schedule_dense_cublas),
             name="dense_cublas.cuda",
-            plevel=20)
+            plevel=15)
     return strategy
 
 @batch_matmul_strategy.register(["cuda", "gpu"])
@@ -351,6 +352,11 @@ def argsort_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_argsort(topi.cuda.argsort),
         wrap_topi_schedule(topi.cuda.schedule_argsort),
         name="argsort.cuda")
+    if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
+        strategy.add_implementation(wrap_compute_argsort(topi.cuda.argsort_thrust),
+                                    wrap_topi_schedule(topi.cuda.schedule_argsort),
+                                    name="argsort_thrust.cuda",
+                                    plevel=15)
     return strategy
 
 @topk_strategy.register(["cuda", "gpu"])
@@ -360,6 +366,11 @@ def topk_strategy_cuda(attrs, inputs, out_type, target):
     strategy.add_implementation(wrap_compute_topk(topi.cuda.topk),
                                 wrap_topi_schedule(topi.cuda.schedule_topk),
                                 name="topk.cuda")
+    if get_global_func("tvm.contrib.thrust.sort", allow_missing=True):
+        strategy.add_implementation(wrap_compute_topk(topi.cuda.topk_thrust),
+                                    wrap_topi_schedule(topi.cuda.schedule_topk),
+                                    name="topk_thrust.cuda",
+                                    plevel=15)
     return strategy
 
 @multibox_prior_strategy.register(["cuda", "gpu"])

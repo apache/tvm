@@ -122,11 +122,16 @@ Array<Integer> GetExcludeAxes(size_t indim,
 Array<Array<Layout>> ReduceInferCorrectLayout(const Attrs& attrs,
                                               const Array<Layout>& new_in_layouts,
                                               const Array<Layout>& old_in_layouts,
-                                              const Array<Array<IndexExpr>>& old_in_shapes) {
+                                              const Array<tvm::relay::Type>& old_in_types) {
   // NOTE: Discard "const" qualifier here.
   ReduceAttrs* params = const_cast<ReduceAttrs*>(attrs.as<ReduceAttrs>());
 
   // Get the reduce axes.
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    CHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
   uint32_t indim = old_in_shapes[0].size();
   auto r_axes = GetReduceAxes(indim, params->axis, params->exclude);
 

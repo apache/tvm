@@ -67,13 +67,13 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
                         name="conv2d_nchw_winograd.arm_cpu",
-                        plevel=15)
+                        plevel=5)
                     if "nnpack" in target.libs and pt == 1 and pb == 1 and pl == 1 and pr == 1:
                         strategy.add_implementation(
                             wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd_nnpack),
                             wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack),
                             name="conv2d_nchw_winograd_nnpack.arm_cpu",
-                            plevel=13)
+                            plevel=15)
             elif re.match(r"OIHW\d*o", kernel_layout):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
@@ -177,7 +177,7 @@ def conv2d_winograd_without_weight_transfrom_strategy_arm_cpu(attrs, inputs, out
                 wrap_topi_schedule(
                     topi.arm_cpu.schedule_conv2d_nchw_winograd_nnpack_without_weight_transform),
                 name="conv2d_nchw_winograd_nnpack_withou_weight_transform.arm_cpu",
-                plevel=5)
+                plevel=15)
         else:
             raise RuntimeError("Unsupported kernel shape: {}".format(kernel.shape))
     else:

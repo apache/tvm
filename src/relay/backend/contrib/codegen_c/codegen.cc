@@ -19,6 +19,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 
@@ -40,12 +41,61 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
  public:
   explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
-  void VisitExpr_(const VarNode* node) {
+  void VisitExpr_(const VarNode* node) final {
     ext_func_args_.push_back(GetRef<Var>(node));
     out_.clear();
     Output output;
     output.name = node->name_hint();
     out_.push_back(output);
+  }
+
+  void VisitExpr_(const ConstantNode* cn) final {
+    Constant constant = GetRef<Constant>(cn);
+    if (visited_.count(constant)) {
+      // Note this is for demostration purpose. ConstantNode doesn't necessarily
+      // belong to calls. We need to revisit this when tuples come into play.
+      out_.push_back(visited_[constant]);
+      return;
+    }
+
+    std::ostringstream decl_stream;
+    std::ostringstream buf_stream;
+
+    out_.clear();
+    Output output;
+    output.name = "const_" + std::to_string(const_idx_++);
+    out_.push_back(output);
+    visited_[constant] = output;
+
+    runtime::NDArray array = cn->data;
+    const auto& shape = array.Shape();
+    const DLTensor& dl_tensor = array.ToDLPack()->dl_tensor;
+
+    // Get the number of elements.
+    int64_t num_elems = 1;
+    for (auto i : shape) num_elems *= i;
+
+    const auto* type_node = cn->checked_type().as<TensorTypeNode>();
+    CHECK(type_node);
+    const auto& dtype = GetDtypeString(type_node);
+    // Define a const buffer: float const_0[64] = {1.0, 2.0, ...};
+    //
+    // Technically, you may need: static float* const_0 = (float*)malloc(4 * 64)
+    // to avoid possible stack overflow.
+    buf_stream << dtype << " " << output.name << "[" << num_elems << "] = {";
+    if (dtype == "float") {
+      float* p_flt = static_cast<float*>(dl_tensor.data);
+      for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
+      if (num_elems) buf_stream << p_flt[num_elems - 1];
+    } else if (dtype == "int") {
+      int* p_flt = static_cast<int*>(dl_tensor.data);
+      for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
+      if (num_elems) buf_stream << p_flt[num_elems - 1];
+    } else {
+      LOG(FATAL) << "Only float and int are supported for now.";
+    }
+    buf_stream << "};";
+    ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
   }
 
   void VisitExpr_(const CallNode* call) final {
@@ -138,6 +188,8 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   int func_idx = 0;
   /*! \brief The index of allocated buffers. */
   int buf_idx_ = 0;
+  /*! \brief The index of global constants. */
+  int const_idx_ = 0;
   /*! \brief The arguments of a C compiler compatible function. */
   Array<Var> ext_func_args_;
   /*! \brief The statements of a C compiler compatible function. */
@@ -148,6 +200,8 @@ class CodegenC : public ExprVisitor, public CodegenCBase {
   std::vector<std::string> buf_decl_;
   /*! \brief The name and index pairs for output. */
   std::vector<Output> out_;
+  /*! \brief The cached expressions. */
+  std::unordered_map<Expr, Output, ObjectHash, ObjectEqual> visited_;
 };
 
 class CSourceCodegen : public CSourceModuleCodegenBase {

@@ -949,6 +949,32 @@ def test_forward_cond():
     verify(np.asarray([4.0], 'float32'), np.asarray([3.0],'float32'))
 
 
+def test_forward_unravel_index():
+    def verify(x, shape, dtype):
+        a_np = np.array(x).astype(dtype)
+        mx_sym = _mx_symbol(mx.sym, 'unravel_index', [mx.sym.var('a'), shape])
+        ref_res = _mx_symbol(mx.nd, 'unravel_index', [mx.nd.array(a_np), shape])
+        shapes = {'a': a_np.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(a_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+    for dtype in ["int32", "int64"]:
+        verify([0, 1, 2, 3], [2, 2], dtype)
+        verify([144, 13, 45], [6, 7, 10, 2], dtype)
+        verify([456], [6, 7, 10, 2], dtype)
+
+    # In below example, 5 is out of bound for array of size 4.
+    # MXNet implementation provides different result than TVM
+    # TVM implementation is inline with Tensorflow
+    # Ideally error should be thrown just like Numpy
+    # verify([0, 1, 2, 5], [2, 2], dtype)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1004,3 +1030,4 @@ if __name__ == '__main__':
     test_forward_deconvolution()
     test_forward_cond()
     test_forward_make_loss()
+    test_forward_unravel_index()

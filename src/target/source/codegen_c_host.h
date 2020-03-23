@@ -36,10 +36,10 @@ class CodeGenCHost final : public CodeGenC {
  public:
   CodeGenCHost();
   void Init(bool output_ssa, bool emit_asserts);
-  void AddFunction(LoweredFunc f);
-  std::string Finish();
 
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
+  void PrintFuncPrefix() final; // NOLINT(*)
+  void PrintFinalReturn() final; // NOLINT(*)
 
   // overload visitor functions
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)

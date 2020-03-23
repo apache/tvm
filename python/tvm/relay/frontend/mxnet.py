@@ -120,6 +120,13 @@ def _mx_compare(new_op, wrapper):
     return impl
 
 
+def _mx_unravel_index(inputs, attrs):
+    assert len(inputs) == 1
+    shape = attrs.get_int_tuple("shape")
+    shape_expr = _expr.const(list(shape))
+    return _op.unravel_index(inputs[0], shape_expr)
+
+
 def _mx_zeros(inputs, attrs):
     assert len(inputs) == 0
     shape = attrs.get_int_tuple("shape")
@@ -1826,6 +1833,7 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
     "topk"          : _mx_topk,
+    "_unravel_index": _mx_unravel_index,
     "SequenceMask"  : _mx_sequence_mask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,

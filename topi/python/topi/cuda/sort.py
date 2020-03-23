@@ -21,7 +21,7 @@ from tvm import te
 
 from .injective import schedule_injective_from_existing
 from ..math import identity
-from ..transform import strided_slice
+from ..transform import strided_slice, transpose
 from .. import tag
 
 def _schedule_sort(outs):
@@ -291,6 +291,40 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
                         tag="argsort_gpu")[1]
     return out
 
+def argsort_thrust(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
+    """Performs sorting along the given axis and returns an array of indicies
+    having same shape as an input array that index data in sorted order.
+
+    Parameters
+    ----------
+    data: tvm.te.Tensor
+        The input array.
+
+    valid_count : tvm.te.Tensor, optional
+        The number of valid elements to be sorted.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    dtype : string, optional
+        DType of the output indices.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        The output of this function.
+    """
+    if valid_count is not None:
+        # TODO: implement argsort_nms with Thrust
+        out = argsort(data, valid_count, axis, is_ascend, dtype)
+    else:
+        out = topk_thrust(data, 0, axis, "indices", is_ascend, dtype)
+    return out
+
+
 def schedule_argsort(outs):
     """Schedule for argsort operator.
 
@@ -382,6 +416,82 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         indices_out = output[1]
         output = [strided_slice(indices_out, beg, end)]
     return output
+
+
+def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
+    """Get the top k elements in an input tensor along the given axis.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The input tensor.
+
+    k : int, optional
+        Number of top elements to select. Return all elements if k < 1.
+
+    axis : int, optional
+        Axis long which to sort the input tensor.
+
+    ret_type: str, optional
+        The return type [both, values, indices].
+        "both": return both top k data and indices.
+        "values": return top k data only.
+        "indices": return top k indices only.
+
+    is_ascend : boolean, optional
+        Whether to sort in ascending or descending order.
+
+    dtype : string, optional
+        The data type of the indices output.
+
+    Returns
+    -------
+    out : tvm.te.Tensor or List[tvm.te.Tensor]
+        The computed result.
+    """
+    assert ret_type in ["both", "values", "indices"]
+    ndim = len(data.shape)
+    axis = ndim + axis if axis < 0 else axis
+
+    def swap(arr):
+        """ swap arr[axis] and arr[-1] """
+        return arr[:axis] + [arr[-1]] + arr[axis+1:-1] + [arr[axis]]
+
+    if axis != ndim - 1:
+        # Prepare for sorting along axis -1.
+        axes = swap(list(range(ndim)))
+        data = transpose(data, axes)
+
+    data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    out_bufs = [
+        tvm.tir.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8),
+        tvm.tir.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8)
+    ]
+
+    out = te.extern([data.shape, data.shape],
+                    [data],
+                    lambda ins, outs: tvm.tir.call_packed(
+                        "tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend),
+                    in_buffers=[data_buf],
+                    out_buffers=out_bufs,
+                    name="topk_gpu",
+                    tag="topk_gpu")
+
+    if k > 0:
+        beg = [0] * ndim
+        end = data.shape[:-1] + [k]
+        out = [strided_slice(o, beg, end) for o in out]
+
+    if axis != ndim - 1:
+        axes = swap(list(range(ndim)))
+        out = [transpose(o, axes) for o in out]
+
+    if ret_type == "values":
+        out = out[0]
+    elif ret_type == "indices":
+        out = out[1]
+
+    return out
 
 
 def schedule_topk(outs):

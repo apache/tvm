@@ -398,6 +398,220 @@ def test_conv_bn_convert_layout():
     assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_qnn_conv_requantize_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype='int8')
+        weight = relay.var('weight', shape=(3, 3, 64, 64), dtype='int8')
+        y = relay.qnn.op.conv2d(x, weight,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1),
+                                data_layout='NHWC',
+                                kernel_layout='HWIO')
+        y = relay.qnn.op.requantize(y,
+                                    relay.const(1, 'float32'),
+                                    relay.const(1, 'int32'),
+                                    relay.const(1, 'float32'),
+                                    relay.const(1, 'int32'),
+                                    out_dtype='int32')
+        y = relay.nn.relu(y)
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype='int8')
+        weight = relay.var('weight', shape=(3, 3, 64, 64), dtype='int8')
+        x = relay.layout_transform(x, 'NHWC', 'NCHW')
+        weight = relay.layout_transform(weight, 'HWIO', 'OIHW')
+        y = relay.qnn.op.conv2d(x, weight,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1))
+        y = relay.qnn.op.requantize(y,
+                                    relay.const(1, 'float32'),
+                                    relay.const(1, 'int32'),
+                                    relay.const(1, 'float32'),
+                                    relay.const(1, 'int32'),
+                                    axis=1,
+                                    out_dtype='int32')
+        y = relay.nn.relu(y)
+        y = relay.layout_transform(y, 'NCHW', 'NHWC')
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_qnn_conv_concat_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype='int8')
+        weight1 = relay.var('weight1', shape=(3, 3, 64, 64), dtype='int8')
+        weight2 = relay.var('weight2', shape=(3, 3, 64, 64), dtype='int8')
+        y = relay.qnn.op.conv2d(x, weight1,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1),
+                                data_layout='NHWC',
+                                kernel_layout='HWIO')
+        y1 = relay.qnn.op.conv2d(y, weight2,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1),
+                                data_layout='NHWC',
+                                kernel_layout='HWIO')
+        y = relay.cast(y, 'int8')
+        y1 = relay.cast(y, 'int8')
+        ret = relay.qnn.op.concatenate([y, y1],
+                                       [relay.const(1, 'float32'), relay.const(1, 'float32')],
+                                       [relay.const(1, 'int32'), relay.const(1, 'int32')],
+                                       relay.const(1, 'float32'),
+                                       relay.const(1, 'int32'),
+                                       axis=3)
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype='int8')
+        weight1 = relay.var('weight1', shape=(3, 3, 64, 64), dtype='int8')
+        weight2 = relay.var('weight2', shape=(3, 3, 64, 64), dtype='int8')
+        weight1 = relay.layout_transform(weight1, 'HWIO', 'OIHW')
+        weight2 = relay.layout_transform(weight2, 'HWIO', 'OIHW')
+        y = relay.layout_transform(x, "NHWC", "NCHW")
+        y = relay.qnn.op.conv2d(y, weight1,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1))
+        y1 = relay.qnn.op.conv2d(y, weight2,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1))
+        y = relay.cast(y, 'int8')
+        y1 = relay.cast(y, 'int8')
+        ret = relay.qnn.op.concatenate([y, y1],
+                                      [relay.const(1, 'float32'), relay.const(1, 'float32')],
+                                      [relay.const(1, 'int32'), relay.const(1, 'int32')],
+                                      relay.const(1, 'float32'),
+                                      relay.const(1, 'int32'),
+                                      axis=1)
+        ret = relay.layout_transform(ret, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
+def test_qnn_conv_add_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype='int8')
+        weight1 = relay.var('weight1', shape=(3, 3, 64, 64), dtype='int8')
+        weight2 = relay.var('weight2', shape=(3, 3, 64, 64), dtype='int8')
+        y = relay.qnn.op.conv2d(x, weight1,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1),
+                                data_layout='NHWC',
+                                kernel_layout='HWIO')
+        y1 = relay.qnn.op.conv2d(y, weight2,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1),
+                                data_layout='NHWC',
+                                kernel_layout='HWIO')
+        y = relay.cast(y, 'int8')
+        y1 = relay.cast(y, 'int8')
+        ret = relay.qnn.op.add(y, y1,
+                               relay.const(1, 'float32'),
+                               relay.const(1, 'int32'),
+                               relay.const(1, 'float32'),
+                               relay.const(1, 'int32'),
+                               relay.const(1, 'float32'),
+                               relay.const(1, 'int32'))
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype='int8')
+        weight1 = relay.var('weight1', shape=(3, 3, 64, 64), dtype='int8')
+        weight2 = relay.var('weight2', shape=(3, 3, 64, 64), dtype='int8')
+        weight1 = relay.layout_transform(weight1, 'HWIO', 'OIHW')
+        weight2 = relay.layout_transform(weight2, 'HWIO', 'OIHW')
+        y = relay.layout_transform(x, "NHWC", "NCHW")
+        y = relay.qnn.op.conv2d(y, weight1,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1))
+        y1 = relay.qnn.op.conv2d(y, weight2,
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'int32'),
+                                relay.const(1, 'float32'),
+                                relay.const(1, 'float32'),
+                                channels=64,
+                                kernel_size=(3, 3),
+                                padding=(1, 1))
+        y = relay.cast(y, 'int8')
+        y1 = relay.cast(y, 'int8')
+        ret = relay.qnn.op.add(y, y1,
+                               relay.const(1, 'float32'),
+                               relay.const(1, 'int32'),
+                               relay.const(1, 'float32'),
+                               relay.const(1, 'int32'),
+                               relay.const(1, 'float32'),
+                               relay.const(1, 'int32'))
+        ret = relay.layout_transform(ret, "NCHW", "NHWC")
+        y = relay.Function(analysis.free_vars(ret), ret)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_no_convert_layout()
     test_conv_convert_layout()
@@ -408,3 +622,6 @@ if __name__ == "__main__":
     test_resnet_convert_layout()
     test_scalar_convert_layout()
     test_conv_bn_convert_layout()
+    test_qnn_conv_requantize_convert_layout()
+    test_qnn_conv_concat_convert_layout()
+    test_qnn_conv_add_convert_layout()

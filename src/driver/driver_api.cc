@@ -40,7 +40,7 @@ using runtime::PackedFunc;
 using tir::LoweredFunc;
 
 bool LLVMEnabled() {
-  const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.build_llvm");
+  const runtime::PackedFunc* pf = runtime::Registry::Get("target.build.llvm");
   return pf != nullptr;
 }
 

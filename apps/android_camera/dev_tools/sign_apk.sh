@@ -1,3 +1,4 @@
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,22 +16,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[package]
-name = "tvm-macros-raw"
-version = "0.1.1"
-license = "Apache-2.0"
-description = "Proc macros used by the TVM crates."
-repository = "https://github.com/apache/incubator-tvm"
-readme = "README.md"
-keywords = ["tvm"]
-authors = ["TVM Contributors"]
-edition = "2018"
-
-[lib]
-proc-macro = true
-
-[dependencies]
-goblin = "0.0.24"
-proc-macro2 = "^1.0"
-quote = "1.0"
-syn = "1.0"
+CURR_DIR=$(cd `dirname $0`; pwd)
+APK_DIR=$CURR_DIR/../app/build/outputs/apk/release
+UNSIGNED_APK=$APK_DIR/app-release-unsigned.apk
+SIGNED_APK=$APK_DIR/tv8mdemo-release.apk
+jarsigner -verbose -keystore $CURR_DIR/tv8mdemo.keystore -signedjar $SIGNED_APK $UNSIGNED_APK 'tv8mdemo'
+echo $SIGNED_APK
