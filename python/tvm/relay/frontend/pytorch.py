@@ -250,8 +250,11 @@ def _convolution():
         channels = weight_shape[0]
         groups = int(inputs[8])
 
+        # Check if this is depth wise convolution
+        # We need to reshape weight so that Relay could recognize this is depth wise
         # weight_shape[1] is always in_channels // groups
-        # For depthwise, in_channels == groups
+        # For depthwise, in_channels == groups, so weight_shape[1] == 1
+        # If groups > 1 but weight_shape[1] != 1, this is group convolution
         if groups > 1 and weight_shape[1] == 1:
             channel_multiplier = channels // groups
             new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
