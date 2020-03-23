@@ -317,7 +317,7 @@ bool ReduceRel(const Array<Type>& types,
       attrs->keepdims = keepdims;                                  \
       attrs->exclude = exclude;                                    \
       static const Op& op = Op::Get(OpName);                       \
-      return CallNode::make(op, {data}, Attrs(attrs), {});         \
+      return Call(op, {data}, Attrs(attrs), {});         \
     });                                                            \
   RELAY_REGISTER_OP(OpName)                                        \
   .set_num_inputs(1)                                               \
@@ -624,7 +624,7 @@ Expr MakeVariance(Expr data,
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
   static const Op& op = Op::Get("variance");
-  return CallNode::make(op, {data, mean}, Attrs(attrs), {});
+  return Call(op, {data, mean}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make._variance")

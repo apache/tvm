@@ -72,7 +72,7 @@ Expr MakeQuantizedDense(Expr data, Expr weight, Expr input_zero_point, Expr kern
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("qnn.dense");
-  return CallNode::make(
+  return Call(
       op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
       Attrs(attrs), {});
 }

@@ -113,7 +113,7 @@ Expr MakeQnnConcatenate(Expr data, Expr input_scales, Expr input_zero_points, Ex
   auto attrs = make_object<ConcatenateAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("qnn.concatenate");
-  return CallNode::make(op,
+  return Call(op,
                         {data, input_scales, input_zero_points, output_scale, output_zero_point},
                         Attrs(attrs), {});
 }
@@ -184,7 +184,7 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
     }
     idx++;
   }
-  return MakeConcatenate(TupleNode::make(requantized_exprs), concatenate_attrs->axis);
+  return MakeConcatenate(Tuple(requantized_exprs), concatenate_attrs->axis);
 }
 
 RELAY_REGISTER_OP("qnn.concatenate")

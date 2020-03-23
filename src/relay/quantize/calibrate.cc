@@ -150,7 +150,7 @@ class StatsCollector : private ExprMutator {
     auto new_e = this->Mutate(expr);
     const FunctionNode* func = new_e.as<FunctionNode>();
     CHECK(func) << "Input shoule be Function";
-    Expr new_body = TupleNode::make(std::move(profile_data_));
+    Expr new_body = Tuple(std::move(profile_data_));
     return Function(FreeVars(new_body), new_body, NullValue<Type>(), func->type_params,
             func->attrs);
   }
@@ -173,7 +173,7 @@ class StatsCollector : private ExprMutator {
       new_attrs->kind = QAnnotateKind::kQIdentity;
       new_attrs->sign = attrs->sign;
       new_attrs->rounding = attrs->rounding;
-      Expr identity_quantize = CallNode::make(new_call->op, new_args, Attrs{new_attrs}, {});
+      Expr identity_quantize = Call(new_call->op, new_args, Attrs{new_attrs}, {});
 
       // add non-const expressions to profile data
       if (attrs->kind != QAnnotateKind::kQWeight) {

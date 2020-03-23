@@ -46,7 +46,7 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
       auto attrs = make_object<AllocTensorAttrs>();
       attrs->dtype = dtype;
       static const Op& op = Op::Get("memory.alloc_storage");
-      return CallNode::make(op, {size, alignment}, Attrs(attrs), {});
+      return Call(op, {size, alignment}, Attrs(attrs), {});
     });
 
 bool AllocStorageRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -98,7 +98,7 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
             attrs->const_shape = Downcast<Constant>(shape);
           }
           static const Op& op = Op::Get("memory.alloc_tensor");
-          return CallNode::make(op, {storage, shape}, Attrs(attrs), {});
+          return Call(op, {storage, shape}, Attrs(attrs), {});
         });
 
 std::vector<int64_t> FromConstShape(Constant konst) {
@@ -211,7 +211,7 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
     .set_body_typed(
         [](Expr func, Expr inputs, Expr outputs) {
-          return CallNode::make(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
+          return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
         });
 
 RELAY_REGISTER_OP("memory.invoke_tvm_op")
@@ -262,7 +262,7 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
       static const Op& op = Op::Get("memory.shape_func");
       auto attrs = make_object<ShapeFuncAttrs>();
       attrs->is_input = is_input;
-      return CallNode::make(op, {func, inputs, outputs}, Attrs(attrs), {});
+      return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
     });
 
 static void FlattenTypeAux(const Type& type, std::vector<TensorType>* out) {

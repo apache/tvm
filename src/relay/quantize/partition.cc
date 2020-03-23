@@ -45,8 +45,6 @@ class QPartitionExprNode : public TempExprNode {
     v->Visit("expr", &expr);
   }
 
-  TVM_DLL static QPartitionExpr make(Expr expr);
-
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QPartitionExpr";
@@ -55,6 +53,12 @@ class QPartitionExprNode : public TempExprNode {
 
 class QPartitionExpr : public TempExpr {
  public:
+  /*!
+   * \brief  The constructor
+   * \param expr The original relay expression.
+   */
+  TVM_DLL explicit QPartitionExpr(Expr expr);
+
   TVM_DEFINE_OBJECT_REF_METHODS(QPartitionExpr, TempExpr, QPartitionExprNode);
 };
 
@@ -66,16 +70,16 @@ Expr QPartitionExprNode::Realize() const {
   return StopFusion(ret);
 }
 
-QPartitionExpr QPartitionExprNode::make(Expr expr) {
+QPartitionExpr::QPartitionExpr(Expr expr) {
   auto rnode = make_object<QPartitionExprNode>();
-  rnode->expr = expr;
-  return QPartitionExpr(rnode);
+  rnode->expr = std::move(expr);
+  data_ = std::move(rnode);
 }
 
 TVM_REGISTER_GLOBAL("relay._quantize.make_partition_expr")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = QPartitionExprNode::make(args[0]);
-  });
+.set_body_typed([](Expr expr) {
+  return QPartitionExpr(expr);
+});
 
 Pass QuantizePartition() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =

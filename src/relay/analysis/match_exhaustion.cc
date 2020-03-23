@@ -191,9 +191,9 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
     for (auto constructor : td->constructors) {
       Array<Pattern> args;
       for (auto inp : constructor->inputs) {
-        args.push_back(PatternWildcardNode::make());
+        args.push_back(PatternWildcard());
       }
-      ret.push_back(PatternConstructorNode::make(constructor, args));
+      ret.push_back(PatternConstructor(constructor, args));
     }
     return ret;
   }
@@ -212,7 +212,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
   auto all_subfields = CartesianProduct(values_by_field);
   Array<Pattern> ret;
   for (auto subfields : all_subfields) {
-    ret.push_back(PatternConstructorNode::make(ctor_cand->constructor, subfields));
+    ret.push_back(PatternConstructor(ctor_cand->constructor, subfields));
   }
   return ret;
 }
@@ -226,9 +226,9 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
   if (cand.as<PatternWildcardNode>()) {
     Array<Pattern> args;
     for (auto inp : clause_tuple->patterns) {
-      args.push_back(PatternWildcardNode::make());
+      args.push_back(PatternWildcard());
     }
-    return {PatternTupleNode::make(args)};
+    return {PatternTuple(args)};
   }
 
   auto tuple_cand = Downcast<PatternTuple>(cand);
@@ -245,7 +245,7 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
   auto all_subfields = CartesianProduct(values_by_field);
   Array<Pattern> ret;
   for (auto subfields : all_subfields) {
-    ret.push_back(PatternTupleNode::make(subfields));
+    ret.push_back(PatternTuple(subfields));
   }
   return ret;
 }
@@ -272,7 +272,7 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
    * return failed_candidates
    */
   std::stack<Pattern> candidates;
-  candidates.push(PatternWildcardNode::make());
+  candidates.push(PatternWildcard());
   CandidateChecker checker;
 
   Array<Pattern> failures;

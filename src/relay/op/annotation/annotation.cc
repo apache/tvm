@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
   auto attrs = make_object<OnDeviceAttrs>();
   attrs->device_type = device_type;
   static const Op& op = Op::Get("on_device");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("on_device")
@@ -59,7 +59,7 @@ RELAY_REGISTER_OP("on_device")
 
 Expr StopFusion(Expr data) {
   static const Op& op = Op::Get("annotation.stop_fusion");
-  return CallNode::make(op, {data}, Attrs{}, {});
+  return Call(op, {data}, Attrs{}, {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.stop_fusion")
@@ -90,7 +90,7 @@ Expr CastHint(Expr data, DataType dtype) {
   auto attrs = make_object<CastHintAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("annotation.cast_hint");
-  return CallNode::make(op, {data}, Attrs{attrs}, {});
+  return Call(op, {data}, Attrs{attrs}, {});
 }
 
 RELAY_REGISTER_OP("annotation.cast_hint")
@@ -147,7 +147,7 @@ Mark the end of bitpacking.
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpoint")
 .set_body_typed([](Expr data) {
   static const Op& op = Op::Get("annotation.checkpoint");
-  return CallNode::make(op, {data}, Attrs{}, {});
+  return Call(op, {data}, Attrs{}, {});
 });
 
 RELAY_REGISTER_OP("annotation.checkpoint")
@@ -195,7 +195,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_begin")
   auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
   static const Op& op = Op::Get("annotation.compiler_begin");
-  return CallNode::make(op, {expr}, Attrs(attrs), {});
+  return Call(op, {expr}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("annotation.compiler_end")
@@ -220,7 +220,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_end")
   auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
   static const Op& op = Op::Get("annotation.compiler_end");
-  return CallNode::make(op, {expr}, Attrs(attrs), {});
+  return Call(op, {expr}, Attrs(attrs), {});
 });
 
 }  // namespace relay

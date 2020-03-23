@@ -65,7 +65,7 @@ Expr MakeYoloReorg(Expr data,
   auto attrs = make_object<YoloReorgAttrs>();
   attrs->stride = stride;
   static const Op& op = Op::Get("vision.yolo_reorg");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 

@@ -129,7 +129,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
   }
   if (rhs_value != nullptr && squeeze_attrs->axis.size() != 0) {
     static const Op& squeeze_op = Op::Get("squeeze");
-    *rhs_value = CallNode::make(squeeze_op, {rhs_value[0]}, Attrs(squeeze_attrs), {});
+    *rhs_value = Call(squeeze_op, {rhs_value[0]}, Attrs(squeeze_attrs), {});
   }
   return true;
 }
@@ -155,7 +155,7 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
         auto attrs = make_object<ExpandDimsAttrs>();
         attrs->axis = i;
         attrs->num_newaxis = static_cast<int>(num_pad_axis);
-        bias = CallNode::make(expand_dims, {bias}, Attrs(attrs), {});
+        bias = Call(expand_dims, {bias}, Attrs(attrs), {});
       }
     } else {
       int64_t diff = axes[i]->value - axes[i - 1]->value;
@@ -164,7 +164,7 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
         auto attrs = make_object<ExpandDimsAttrs>();
         attrs->axis = i;
         attrs->num_newaxis = static_cast<int>(diff);
-        bias = CallNode::make(expand_dims, {bias}, Attrs(attrs), {});
+        bias = Call(expand_dims, {bias}, Attrs(attrs), {});
       }
     }
   }
@@ -182,7 +182,7 @@ inline bool IsDepthwiseConv2D(const Call& call,
                               const Conv2DAttrs* param,
                               const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
-  const auto bilayout = BijectiveLayoutNode::make(kernel_layout, kOIHW);
+  const auto bilayout = tir::BijectiveLayout(kernel_layout, kOIHW);
   auto wshape = bilayout.ForwardShape(call->args[1]->type_as<TensorTypeNode>()->shape);
   return tir::is_const_int(wshape[0], param->groups) &&
       tir::is_const_int(wshape[1], 1);
@@ -257,7 +257,7 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
       *static_cast<DType*>(arr->data) = value;
     }
   })
-  return ConstantNode::make(arr);
+  return Constant(arr);
 }
 
 /*!
@@ -285,7 +285,7 @@ static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> s
       }
     }
   })
-  return ConstantNode::make(arr);
+  return Constant(arr);
 }
 
 /*!
@@ -304,31 +304,31 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
 }
 
 inline Expr GetField(Expr t, size_t i) {
-  return TupleGetItemNode::make(t, i);
+  return TupleGetItem(t, i);
 }
 
 inline Expr Pair(Expr l, Expr r) {
-  return TupleNode::make({l, r});
+  return Tuple({l, r});
 }
 
 inline Expr Exp(Expr e) {
   static const Op& op = Op::Get("exp");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 
 inline Expr FastExp(Expr e) {
   static const Op& op = Op::Get("fast_exp");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 
 inline Expr FastTanh(Expr e) {
   static const Op& op = Op::Get("fast_tanh");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 
 inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 /*!
  * \brief Get an immediate scalar from a Constant expr.
@@ -348,30 +348,30 @@ inline Expr Cast(Expr x, DataType dtype) {
   static const Op& op = Op::Get("cast");
   auto attrs = make_object<CastAttrs>();
   attrs->dtype = dtype;
-  return CallNode::make(op, {x}, Attrs(attrs), {});
+  return Call(op, {x}, Attrs(attrs), {});
 }
 
 inline Expr Negative(Expr x) {
   static const Op& op = Op::Get("negative");
-  return CallNode::make(op, {x}, Attrs(), {});
+  return Call(op, {x}, Attrs(), {});
 }
 
 
 inline Expr Sqrt(Expr x) {
   static const Op& op = Op::Get("sqrt");
-  return CallNode::make(op, {x}, Attrs(), {});
+  return Call(op, {x}, Attrs(), {});
 }
 
 
 inline Expr Relu(Expr x) {
   static const Op& op = Op::Get("nn.relu");
-  return CallNode::make(op, {x}, Attrs(), {});
+  return Call(op, {x}, Attrs(), {});
 }
 
 
 inline Expr Round(Expr x) {
   static const Op& op = Op::Get("round");
-  return CallNode::make(op, {x}, Attrs(), {});
+  return Call(op, {x}, Attrs(), {});
 }
 
 
@@ -380,41 +380,41 @@ inline Expr Clip(Expr x, double a_min, double a_max) {
   auto attrs = make_object<ClipAttrs>();
   attrs->a_min = a_min;
   attrs->a_max = a_max;
-  return CallNode::make(op, {x}, Attrs(attrs), {});
+  return Call(op, {x}, Attrs(attrs), {});
 }
 
 
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 
 inline Expr Subtract(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("subtract");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 
 inline Expr Multiply(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("multiply");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 
 inline Expr Divide(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("divide");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 inline Expr Maximum(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("maximum");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 inline Expr ZerosLike(Expr e) {
   static const Op& op = Op::Get("zeros_like");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 
 inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
@@ -422,46 +422,46 @@ inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
-  return CallNode::make(op, {}, Attrs(attrs), {});
+  return Call(op, {}, Attrs(attrs), {});
 }
 
 inline Expr OnesLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 
 inline Expr CollapseSumLike(Expr e) {
   static const Op& op = Op::Get("collapse_sum_like");
-  return CallNode::make(op, {e});
+  return Call(op, {e});
 }
 
 inline Expr Power(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("power");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 
 inline Expr RightShift(Expr x, Expr nbit) {
   static const Op& op = Op::Get("right_shift");
-  return CallNode::make(op, {x, nbit}, Attrs(), {});
+  return Call(op, {x, nbit}, Attrs(), {});
 }
 
 
 inline Expr LeftShift(Expr x, Expr nbit) {
   static const Op& op = Op::Get("left_shift");
-  return CallNode::make(op, {x, nbit}, Attrs(), {});
+  return Call(op, {x, nbit}, Attrs(), {});
 }
 
 
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 
 inline Expr Copy(Expr data) {
   static const Op& op = Op::Get("copy");
-  return CallNode::make(op, {data}, Attrs(), {});
+  return Call(op, {data}, Attrs(), {});
 }
 
 
@@ -471,7 +471,7 @@ inline Expr Mean(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
   static const Op& op = Op::Get("mean");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, bool exclude) {
@@ -480,18 +480,18 @@ inline Expr Variance(Expr data, Expr mean, Array<Integer> axis, bool keepdims, b
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
   static const Op& op = Op::Get("variance");
-  return CallNode::make(op, {data, mean}, Attrs(attrs), {});
+  return Call(op, {data, mean}, Attrs(attrs), {});
 }
 
 
 static inline Expr Where(const Expr& condition, const Expr& x, const Expr& y) {
   static const Op& op = Op::Get("where");
-  return CallNode::make(op, {condition, x, y});
+  return Call(op, {condition, x, y});
 }
 
 static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   static const Op& op = Op::Get("greater_equal");
-  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
 static inline Expr Full(Expr fill_value,
@@ -501,7 +501,7 @@ static inline Expr Full(Expr fill_value,
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
-  return CallNode::make(op, {fill_value}, Attrs(attrs), {});
+  return Call(op, {fill_value}, Attrs(attrs), {});
 }
 
 static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
@@ -520,7 +520,7 @@ static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("nn.conv2d");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+  return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 static inline Expr Dense(Expr data,
@@ -531,7 +531,7 @@ static inline Expr Dense(Expr data,
   attrs->units = units;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+  return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclude) {
@@ -540,7 +540,7 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   attrs->keepdims = keepdims;
   attrs->exclude = exclude;
   static const Op& op = Op::Get("sum");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
@@ -548,7 +548,7 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
   attrs->newshape = std::move(newshape);
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
@@ -562,7 +562,7 @@ static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexE
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   static const Op& op = Op::Get("nn.avg_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_value,
@@ -572,14 +572,14 @@ static inline Expr Pad(Expr data, Array<Array<IndexExpr>> pad_width, double pad_
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
   static const Op& op = Op::Get("nn.pad");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 static inline Expr Tile(Expr data, Array<Integer> reps) {
   auto attrs = make_object<TileAttrs>();
   attrs->reps = reps;
   static const Op& op = Op::Get("tile");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape);

@@ -70,7 +70,7 @@ Expr MakeMaxPool(Expr data,
   attrs->layout = std::move(layout);
   attrs->ceil_mode = ceil_mode;
   static const Op& op = Op::Get(op_name);
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 template <typename T>
@@ -90,7 +90,7 @@ Expr MakeAvgPool(Expr data,
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   static const Op& op = Op::Get(op_name);
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 template <typename AttrType>
@@ -175,7 +175,7 @@ Array<te::Tensor> Pool2DCompute(const Attrs& attrs,
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
 
-  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCHW).defined())
       << "max_pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
       << "max_pool2d does not support input split on height";
@@ -336,7 +336,7 @@ Array<te::Tensor> GlobalPool2DCompute(const Attrs& attrs,
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCHW).defined())
     << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
     << "global_avg_pool2d does not support input split on height";
@@ -355,7 +355,7 @@ Expr MakeGlobalAvgPool2D(Expr data,
   auto attrs = make_object<GlobalPool2DAttrs>();
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.global_avg_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 
@@ -387,7 +387,7 @@ Expr MakeGlobalMaxPool2D(Expr data,
   auto attrs = make_object<GlobalPool2DAttrs>();
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.global_max_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.global_max_pool2d")
@@ -469,7 +469,7 @@ Array<te::Tensor> AdaptivePool2DCompute(const Attrs& attrs,
   const auto* param = attrs.as<AdaptivePool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCHW).defined())
     << "Adaptive pool2d currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
     << "Adaptive pool2d does not support input split on height";
@@ -507,7 +507,7 @@ Expr MakeAdaptiveAvgPool2D(Expr data,
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.adaptive_avg_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool2d")
@@ -545,7 +545,7 @@ Expr MakeAdaptiveMaxPool2D(Expr data,
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.adaptive_max_pool2d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool2d")
@@ -637,7 +637,7 @@ Array<te::Tensor> AdaptivePool3DCompute(const Attrs& attrs,
   const auto* param = attrs.as<AdaptivePool3DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(BijectiveLayoutNode::make(layout, kNCDHW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCDHW).defined())
     << "Adaptive pool3d currently only supports layouts that are convertible from NCDHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('d')), -1)
     << "Adaptive pool3d does not support input split on depth";
@@ -683,7 +683,7 @@ Expr MakeAdaptiveMaxPool3D(Expr data,
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.adaptive_max_pool3d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_max_pool3d")
@@ -721,7 +721,7 @@ Expr MakeAdaptiveAvgPool3D(Expr data,
   attrs->output_size = std::move(output_size);
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.adaptive_avg_pool3d");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.adaptive_avg_pool3d")
@@ -776,7 +776,7 @@ Array<te::Tensor> Pool2DGradCompute(const Attrs& attrs,
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
 
-  CHECK(BijectiveLayoutNode::make(layout, kNCHW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCHW).defined())
       << "pool2d_grad currently only supports layouts that are convertible from NCHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('h')), -1)
       << "pool2d_grad does not support input split on height";
@@ -820,7 +820,7 @@ Expr MakeMaxPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
   attrs->layout = std::move(layout);
   attrs->ceil_mode = ceil_mode;
   static const Op& op = Op::Get("nn.max_pool2d_grad");
-  return CallNode::make(op, {out_grad, data}, Attrs(attrs), {});
+  return Call(op, {out_grad, data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.max_pool2d_grad").set_body_typed(MakeMaxPool2DGrad);
@@ -869,7 +869,7 @@ Expr MakeAvgPool2DGrad(Expr out_grad, Expr data, Array<IndexExpr> pool_size,
   attrs->ceil_mode = ceil_mode;
   attrs->count_include_pad = count_include_pad;
   static const Op& op = Op::Get("nn.avg_pool2d_grad");
-  return CallNode::make(op, {out_grad, data}, Attrs(attrs), {});
+  return Call(op, {out_grad, data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.avg_pool2d_grad").set_body_typed(MakeAvgPool2DGrad);
@@ -975,7 +975,7 @@ Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
 
-  CHECK(BijectiveLayoutNode::make(layout, kNCW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCW).defined())
       << "max_pool1d currently only supports layouts that are convertible from NCW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('w')), -1)
       << "max_pool1d does not support input split on width";
@@ -1166,7 +1166,7 @@ Array<te::Tensor> Pool3DCompute(const Attrs& attrs,
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
 
-  CHECK(BijectiveLayoutNode::make(layout, kNCDHW).defined())
+  CHECK(tir::BijectiveLayout(layout, kNCDHW).defined())
       << "max_pool3d currently only supports layouts that are convertible from NCDHW";
   CHECK_EQ(layout.IndexOf(LayoutAxis::Get('d')), -1)
       << "max_pool3d does not support input split on depth";

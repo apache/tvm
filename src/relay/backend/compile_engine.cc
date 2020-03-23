@@ -60,11 +60,11 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   data_ = std::move(n);
 }
 
-CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
+CCacheKey::CCacheKey(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
-  return CCacheKey(n);
+  data_ = std::move(n);
 }
 
 struct IsDynamicVisitor : public TypeVisitor {
@@ -819,7 +819,9 @@ TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-.set_body_typed(CCacheKeyNode::make);
+.set_body_typed([](Function source_func, Target target) {
+  return CCacheKey(source_func, target);
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
 .set_body_typed([]() {
