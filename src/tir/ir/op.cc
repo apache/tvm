@@ -180,6 +180,21 @@ PrimExpr min_value(const DataType& dtype) {
   return PrimExpr();
 }
 
+// infinity
+PrimExpr infinity(const DataType& dtype) {
+  using namespace tir;
+  CHECK_EQ(dtype.lanes(), 1);
+  if (dtype.is_float()) {
+    if (dtype.bits() == 64) {
+      return FloatImm(dtype, std::numeric_limits<double>::infinity());
+    } else if (dtype.bits() == 32 || dtype.bits() == 16) {
+      return FloatImm(dtype, std::numeric_limits<float>::infinity());
+    }
+  }
+  LOG(FATAL) << "Cannot decide infinity for type " << dtype;
+  return PrimExpr();
+}
+
 namespace tir {
 template<typename ValueType>
 inline bool ConstPowerHelper(ValueType val, int *shift) {
@@ -575,6 +590,21 @@ PrimExpr isnan(PrimExpr x) {
   }
 }
 
+PrimExpr isinf(PrimExpr x) {
+  DataType t = DataType::Bool(x.dtype().lanes());
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return make_const(t, false);
+  } else if (x.dtype().is_float()) {
+    PrimExpr infX = infinity(x.dtype());
+    return abs(x) == infX && !isnan(x);
+  } else {
+    LOG(FATAL) << "Data type " << x.dtype() << " not supported for finiteness ops. Skipping it...";
+    return x;
+  }
+}
+
+PrimExpr isfinite(PrimExpr x) { return !isinf(x) && !isnan(x); }
+
 PrimExpr sum(PrimExpr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::AddNode::make(x, y);
@@ -720,6 +750,12 @@ TVM_REGISTER_GLOBAL("tir.abs")
 
 TVM_REGISTER_GLOBAL("tir.isnan")
 .set_body_typed(tvm::isnan);
+
+TVM_REGISTER_GLOBAL("tir.isfinite")
+.set_body_typed(tvm::isfinite);
+
+TVM_REGISTER_GLOBAL("tir.isinf")
+.set_body_typed(tvm::isinf);
 
 TVM_REGISTER_GLOBAL("tir.floor")
 .set_body_typed(tvm::floor);

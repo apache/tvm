@@ -3152,7 +3152,37 @@ def test_forward_dilation():
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 2, 2, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
 
-# #######################################################################
+
+#######################################################################
+# infinity ops
+# ------------
+def _verify_infiniteness_ops(tf_op, name):
+    """test operator infinity ops"""
+
+    # Only float types are allowed in Tensorflow for isfinite and isinf
+    # float16 is failing on cuda
+    tf_dtypes = ["float32", "float64"]
+    for tf_dtype in tf_dtypes:
+        shape = (8, 8)
+        data = np.random.uniform(size=shape).astype(tf_dtype)
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
+
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf_dtype, shape, name="in_data")
+        tf_op(in_data, name=name)
+        compare_tf_with_tvm([data], ['in_data:0'], '{}:0'.format(name))
+
+
+def test_forward_isinf():
+    _verify_infiniteness_ops(tf.is_inf, "isinf")
+
+
+def test_forward_isfinite():
+    _verify_infiniteness_ops(tf.is_finite, "isfinite")
+
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -3224,6 +3254,8 @@ if __name__ == '__main__':
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
+    test_forward_isfinite()
+    test_forward_isinf()
     test_forward_unravel_index()
 
     # Reductions
