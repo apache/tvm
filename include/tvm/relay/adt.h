@@ -28,9 +28,10 @@
 #include <tvm/ir/adt.h>
 #include <string>
 #include <functional>
-#include "./base.h"
-#include "./type.h"
-#include "./expr.h"
+#include <utility>
+#include "base.h"
+#include "type.h"
+#include "expr.h"
 
 namespace tvm {
 namespace relay {
@@ -69,10 +70,6 @@ class PatternWildcard;
 /*! \brief PatternWildcard container node */
 class PatternWildcardNode : public PatternNode {
  public:
-  PatternWildcardNode() {}
-
-  TVM_DLL static PatternWildcard make();
-
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("span", &span);
   }
@@ -83,7 +80,29 @@ class PatternWildcardNode : public PatternNode {
 
 class PatternWildcard : public Pattern {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(PatternWildcard, Pattern, PatternWildcardNode);
+  /* \brief Overload the default constructors. */
+  TVM_DLL PatternWildcard();
+  explicit PatternWildcard(ObjectPtr<Object> n) : Pattern(n) {}
+  /* \brief Copy constructor. */
+  PatternWildcard(const PatternWildcard& pat) : PatternWildcard(pat.data_) {}
+  /* \brief Move constructor. */
+  PatternWildcard(PatternWildcard&& pat) : PatternWildcard(std::move(pat.data_)) {}
+  /* \brief Copy assignment. */
+  PatternWildcard& operator=(const PatternWildcard& other) {
+    (*this).data_ = other.data_;
+    return *this;
+  }
+  /* \brief Move assignment. */
+  PatternWildcard& operator=(PatternWildcard&& other) {
+    (*this).data_ = std::move(other.data_);
+    return *this;
+  }
+
+  const PatternWildcardNode* operator->() const {
+    return static_cast<const PatternWildcardNode*>(get());
+  }
+
+  using ContainerType = PatternWildcardNode;
 };
 
 /*! \brief A var pattern. Accept all input and bind to a var. */

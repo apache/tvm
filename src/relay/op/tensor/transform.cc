@@ -2710,7 +2710,7 @@ Array<te::Tensor> UnRavelIndexCompute(const Attrs& attrs,
 Expr MakeUnRavelIndex(Expr data,
                       Expr shape) {
   static const Op& op = Op::Get("unravel_index");
-  return CallNode::make(op, {data, shape}, Attrs(), {});
+  return Call(op, {data, shape}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.unravel_index")

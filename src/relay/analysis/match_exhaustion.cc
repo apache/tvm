@@ -191,7 +191,7 @@ Array<Pattern> ExpandWildcardsConstructor(const PatternConstructor& clause_ctor,
     for (auto constructor : td->constructors) {
       Array<Pattern> args;
       for (auto inp : constructor->inputs) {
-        args.push_back(PatternWildcardNode::make());
+        args.push_back(PatternWildcard());
       }
       ret.push_back(PatternConstructor(constructor, args));
     }
@@ -226,7 +226,7 @@ Array<Pattern> ExpandWildcardsTuple(const PatternTuple& clause_tuple,
   if (cand.as<PatternWildcardNode>()) {
     Array<Pattern> args;
     for (auto inp : clause_tuple->patterns) {
-      args.push_back(PatternWildcardNode::make());
+      args.push_back(PatternWildcard());
     }
     return {PatternTuple(args)};
   }
@@ -272,7 +272,7 @@ Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod) {
    * return failed_candidates
    */
   std::stack<Pattern> candidates;
-  candidates.push(PatternWildcardNode::make());
+  candidates.push(PatternWildcard());
   CandidateChecker checker;
 
   Array<Pattern> failures;

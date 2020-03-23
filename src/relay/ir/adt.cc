@@ -27,15 +27,17 @@
 namespace tvm {
 namespace relay {
 
-PatternWildcard PatternWildcardNode::make() {
+PatternWildcard::PatternWildcard() {
   ObjectPtr<PatternWildcardNode> n = make_object<PatternWildcardNode>();
-  return PatternWildcard(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PatternWildcardNode);
 
 TVM_REGISTER_GLOBAL("relay.ir.PatternWildcard")
-.set_body_typed(PatternWildcardNode::make);
+.set_body_typed([]() {
+  return PatternWildcard();
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<PatternWildcardNode>([](const ObjectRef& ref, ReprPrinter* p) {
