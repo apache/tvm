@@ -79,7 +79,7 @@ int TVMModGetFunction(TVMModuleHandle mod,
   if (!strcmp(func_name, "load_params")) {
     *out = &TVMGraphRuntime_LoadParams;
   } else {
-    status -1;
+    status = -1;
   }
   return status;
 }
