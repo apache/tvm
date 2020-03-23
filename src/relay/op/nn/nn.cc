@@ -75,7 +75,7 @@ Expr MakeBiasAdd(Expr data,
   auto attrs = make_object<BiasAddAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.bias_add");
-  return CallNode::make(op, {data, bias}, Attrs(attrs), {});
+  return Call(op, {data, bias}, Attrs(attrs), {});
 }
 
 
@@ -108,7 +108,7 @@ Expr MakeFIFOBuffer(Expr input, Expr buffer, int axis) {
   auto attrs = make_object<FIFOBufferAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.fifo_buffer");
-  return CallNode::make(op, {input, buffer}, Attrs(attrs), {});
+  return Call(op, {input, buffer}, Attrs(attrs), {});
 }
 
 bool FIFOBufferRel(const Array<Type>& types,
@@ -180,7 +180,7 @@ Expr MakeDense(Expr data,
   attrs->units = units;
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("nn.dense");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+  return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 
@@ -212,7 +212,7 @@ Expr MakeLeakyRelu(Expr data,
   auto attrs = make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op& op = Op::Get("nn.leaky_relu");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 
@@ -291,7 +291,7 @@ Expr MakePRelu(Expr data,
   auto attrs = make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.prelu");
-  return CallNode::make(op, {data, alpha}, Attrs(attrs), {});
+  return Call(op, {data, alpha}, Attrs(attrs), {});
 }
 
 
@@ -329,7 +329,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.softmax")
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.softmax");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 
@@ -363,7 +363,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.log_softmax")
   auto attrs = make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op& op = Op::Get("nn.log_softmax");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("nn.log_softmax")
@@ -422,7 +422,7 @@ bool BatchFlattenRel(const Array<Type>& types,
 
 Expr MakeBatchFlatten(Expr data) {
   static const Op& op = Op::Get("nn.batch_flatten");
-  return CallNode::make(op, {data}, Attrs(), {});
+  return Call(op, {data}, Attrs(), {});
 }
 
 
@@ -468,7 +468,7 @@ Example::
 TVM_REGISTER_GLOBAL("relay.op.nn._make.relu")
 .set_body_typed([](Expr data) {
     static const Op& op = Op::Get("nn.relu");
-    return CallNode::make(op, {data}, Attrs(), {});
+    return Call(op, {data}, Attrs(), {});
   });
 
 RELAY_REGISTER_OP("nn.relu")
@@ -506,7 +506,7 @@ Expr MakeLRN(Expr data,
   attrs->beta = beta;
   attrs->bias = bias;
   static const Op& op = Op::Get("nn.lrn");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.lrn")
@@ -544,7 +544,7 @@ Expr MakeL2Normalize(Expr data,
   attrs->eps = eps;
   attrs->axis = std::move(axis);
   static const Op& op = Op::Get("nn.l2_normalize");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.l2_normalize")
@@ -589,7 +589,7 @@ Expr MakeDropout(Expr data, double rate) {
   auto attrs = make_object<DropoutAttrs>();
   attrs->rate = rate;
   static const Op& op = Op::Get("nn.dropout");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.dropout")
@@ -687,7 +687,7 @@ Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr movi
   attrs->center = center;
   attrs->scale = scale;
   static const Op& op = Op::Get("nn.batch_norm");
-  return CallNode::make(op, {data, gamma, beta, moving_mean, moving_var}, Attrs(attrs), {});
+  return Call(op, {data, gamma, beta, moving_mean, moving_var}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.batch_norm")
@@ -770,7 +770,7 @@ Expr MakeInstanceNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon
   attrs->center = center;
   attrs->scale = scale;
   static const Op& op = Op::Get("nn.instance_norm");
-  return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
+  return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.instance_norm")
@@ -840,7 +840,7 @@ Expr MakeLayerNorm(Expr data, Expr gamma, Expr beta, int axis, double epsilon,
   attrs->center = center;
   attrs->scale = scale;
   static const Op& op = Op::Get("nn.layer_norm");
-  return CallNode::make(op, {data, gamma, beta}, Attrs(attrs), {});
+  return Call(op, {data, gamma, beta}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.layer_norm")
@@ -891,7 +891,7 @@ bool BatchMatmulRel(const Array<Type>& types,
 Expr MakeBatchMatmul(Expr x,
                      Expr y) {
   static const Op& op = Op::Get("nn.batch_matmul");
-  return CallNode::make(op, {x, y}, Attrs(), {});
+  return Call(op, {x, y}, Attrs(), {});
 }
 
 
@@ -948,7 +948,7 @@ bool CrossEntropyRel(const Array<Type>& types,
 // Positional relay function to create cross_entropy operator used by frontend FFI.
 Expr MakeCrossEntropy(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy");
-  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+  return Call(op, {predictions, targets}, Attrs(), {});
 }
 
 
@@ -971,7 +971,7 @@ Do log on the data - do not accept logits.
 // Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
 Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy_with_logits");
-  return CallNode::make(op, {predictions, targets}, Attrs(), {});
+  return Call(op, {predictions, targets}, Attrs(), {});
 }
 
 
@@ -1005,7 +1005,7 @@ bool DepthToSpaceRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   CHECK(param != nullptr);
   const int block_size = param->block_size;
   const Layout in_layout(param->layout);
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   CHECK(layout_converter.defined())
       << "DepthToSpace only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
@@ -1030,7 +1030,7 @@ Expr MakeDepthToSpace(Expr data, int block_size, std::string layout, std::string
   attrs->layout = std::move(layout);
   attrs->mode = std::move(mode);
   static const Op& op = Op::Get("nn.depth_to_space");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.depth_to_space").set_body_typed(MakeDepthToSpace);
@@ -1063,7 +1063,7 @@ bool SpaceToDepthRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   CHECK(param != nullptr);
   const int block_size = param->block_size;
   const Layout in_layout(param->layout);
-  auto layout_converter = BijectiveLayoutNode::make(in_layout, kNCHW);
+  auto layout_converter = tir::BijectiveLayout(in_layout, kNCHW);
   CHECK(layout_converter.defined())
       << "SpaceToDepth only support input layouts that are convertible from NCHW."
       << " But got " << in_layout;
@@ -1087,7 +1087,7 @@ Expr MakeSpaceToDepth(Expr data, int block_size, std::string layout) {
   attrs->block_size = block_size;
   attrs->layout = std::move(layout);
   static const Op& op = Op::Get("nn.space_to_depth");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.space_to_depth").set_body_typed(MakeSpaceToDepth);

@@ -134,7 +134,7 @@ class RewriteAnnotation : public ExprMutator {
     if (value.same_as(op->value) && body.same_as(op->body)) {
       return ExprMutator::VisitExpr_(op);
     } else {
-      Expr new_let = LetNode::make(op->var, value, body);
+      Expr new_let = Let(op->var, value, body);
       UpdateAnnotationMap(op, new_let.operator->());
       return this->VisitExpr(new_let);
     }
@@ -149,7 +149,7 @@ class RewriteAnnotation : public ExprMutator {
     }
 
     if (annotated) {
-      Expr new_tuple = TupleNode::make(fields);
+      Expr new_tuple = Tuple(fields);
       UpdateAnnotationMap(op, new_tuple.operator->());
       return this->VisitExpr(new_tuple);
     } else {
@@ -161,7 +161,7 @@ class RewriteAnnotation : public ExprMutator {
     Expr tuple = op->tuple;
     if (NeedDeviceCopy(tuple.operator->(), op)) {
       Expr new_expr =
-          TupleGetItemNode::make(GetDeviceCopyExpr(tuple, op), op->index);
+          TupleGetItem(GetDeviceCopyExpr(tuple, op), op->index);
       UpdateAnnotationMap(op, new_expr.operator->());
       return this->VisitExpr(new_expr);
     } else {
@@ -178,7 +178,7 @@ class RewriteAnnotation : public ExprMutator {
         if_node->false_branch.same_as(false_br)) {
       return ExprMutator::VisitExpr_(if_node);
     } else {
-      Expr new_if = IfNode::make(cond, true_br, false_br);
+      Expr new_if = If(cond, true_br, false_br);
       UpdateAnnotationMap(if_node, new_if.operator->());
       return this->VisitExpr(new_if);
     }
@@ -201,7 +201,7 @@ class RewriteAnnotation : public ExprMutator {
     }
 
     if (annotated) {
-      Call new_call = CallNode::make(call_node->op, new_args, call_node->attrs,
+      Call new_call = Call(call_node->op, new_args, call_node->attrs,
                                      call_node->type_args);
 
       UpdateAnnotationMap(call_node, new_call.operator->());
@@ -284,7 +284,7 @@ class RewriteAnnotation : public ExprMutator {
     attrs->src_dev_type = src_dev_type;
     attrs->dst_dev_type = dst_dev_type;
     static const Op& op = Op::Get("device_copy");
-    Call device_copy = CallNode::make(op, {src}, Attrs(attrs), {});
+    Call device_copy = Call(op, {src}, Attrs(attrs), {});
     annotation_map_.insert({device_copy.operator->(), dst_dev_type});
     return device_copy;
   }
@@ -526,7 +526,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
       } else if (tuple->fields.size() == new_body.size()) {
           return new_expr;
       } else {
-        Tuple tuple_body = TupleNode::make(new_body);
+        Tuple tuple_body = Tuple(new_body);
         return Function(params, tuple_body, Type(nullptr),
                                   fn->type_params, fn->attrs);
       }
@@ -545,7 +545,7 @@ Expr RewriteAnnotatedOps(const Expr& expr, int fallback_device) {
       return new_fields.size() == 1 ? new_fields[0] : new_expr;
     } else {
       return new_fields.size() == 1 ? new_fields[0]
-                                    : TupleNode::make(new_fields);
+                                    : Tuple(new_fields);
     }
   } else {
     return new_expr;

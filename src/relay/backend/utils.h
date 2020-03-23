@@ -113,7 +113,7 @@ BindParamsByName(relay::Function func,
     if (repeat_var.count(arg)) {
       LOG(FATAL) << "Multiple args in the function have name " << kv.first;
     }
-    bind_dict[arg] = ConstantNode::make(kv.second);
+    bind_dict[arg] = Constant(kv.second);
   }
   Expr bound_expr = relay::Bind(func, bind_dict);
   Function ret = Downcast<Function>(bound_expr);

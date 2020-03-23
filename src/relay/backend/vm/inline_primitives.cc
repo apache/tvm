@@ -92,7 +92,7 @@ struct PrimitiveInliner : ExprMutator {
           auto new_arg = VisitExpr(arg);
           call_args.push_back(new_arg);
         }
-        return CallNode::make(GetRef<Function>(func), call_args, call->attrs, call->type_args);
+        return Call(GetRef<Function>(func), call_args, call->attrs, call->type_args);
       }
     }
 
@@ -102,7 +102,7 @@ struct PrimitiveInliner : ExprMutator {
         auto new_arg = VisitExpr(arg);
         call_args.push_back(new_arg);
       }
-      return CallNode::make(GetRef<GlobalVar>(global), call_args, call->attrs, call->type_args);
+      return Call(GetRef<GlobalVar>(global), call_args, call->attrs, call->type_args);
     }
 
     return ExprMutator::VisitExpr_(call);

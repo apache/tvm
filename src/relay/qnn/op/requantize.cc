@@ -299,7 +299,7 @@ Expr MakeRequantize(Expr data, Expr input_scale, Expr input_zero_point, Expr out
   attrs->rounding = std::move(rounding);
   attrs->out_dtype = std::move(out_dtype);
   static const Op& op = Op::Get("qnn.requantize");
-  return CallNode::make(op, {data, input_scale, input_zero_point, output_scale, output_zero_point},
+  return Call(op, {data, input_scale, input_zero_point, output_scale, output_zero_point},
                         Attrs(attrs), {});
 }
 

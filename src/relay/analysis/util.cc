@@ -433,7 +433,7 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
 
     Clause VisitClause(const Clause& c) final {
       Pattern pat = VisitPattern(c->lhs);
-      return ClauseNode::make(pat, VisitExpr(c->rhs));
+      return Clause(pat, VisitExpr(c->rhs));
     }
 
    private:

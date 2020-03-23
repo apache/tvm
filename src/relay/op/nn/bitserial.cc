@@ -94,7 +94,7 @@ Expr MakeBitPack(Expr data, int bits, int pack_axis, int bit_axis, DataType pack
   attrs->pack_type = pack_type;
   attrs->name = name;
   static const Op& op = Op::Get("nn.bitpack");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.bitpack").set_body_typed(MakeBitPack);
@@ -130,7 +130,7 @@ bool BinaryConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attr
   static const Layout kNCHW("NCHW");
 
   const Layout in_layout(param->data_layout);
-  const auto trans_in_layout = BijectiveLayoutNode::make(in_layout, kNCHW);
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
   Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
   CHECK(param->channels.defined());
   CHECK(param->kernel_size.defined());
@@ -167,7 +167,7 @@ Expr MakeBinaryConv2D(Expr data, Expr weight, Array<IndexExpr> strides, Array<In
   attrs->out_dtype = std::move(out_dtype);
   attrs->unipolar = unipolar;
   static const Op& op = Op::Get("nn.bitserial_conv2d");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+  return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_conv2d").set_body_typed(MakeBinaryConv2D);
@@ -235,7 +235,7 @@ Expr MakeBinaryDense(Expr data, Expr weight, IndexExpr units, int data_bits, int
   attrs->out_dtype = out_dtype;
   attrs->unipolar = unipolar;
   static const Op& op = Op::Get("nn.bitserial_dense");
-  return CallNode::make(op, {data, weight}, Attrs(attrs), {});
+  return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.bitserial_dense").set_body_typed(MakeBinaryDense);

@@ -137,7 +137,7 @@ Function ToCPS(const Function& f,
 
     Expr VisitExpr_(const LetNode* op, const MCont& k) final {
       return VisitExpr(op->value, [&](const Expr& v) {
-        return LetNode::make(remap(op->var), v, VisitExpr(op->body, k));
+        return Let(remap(op->var), v, VisitExpr(op->body, k));
       });
     }
 
@@ -155,7 +155,7 @@ Function ToCPS(const Function& f,
     }
 
     Pattern VisitPattern_(const PatternVarNode* op) final {
-      return PatternVarNode::make(remap(op->var));
+      return PatternVar(remap(op->var));
     }
 
     Expr VisitExpr_(const GlobalVarNode* op, const MCont& k) final {
@@ -177,18 +177,18 @@ Function ToCPS(const Function& f,
     }
 
     Expr VisitExpr_(const RefCreateNode* op, const MCont& k) final {
-      return VisitExpr(op->value, [&](const Expr& v) { return k(RefCreateNode::make(v)); });
+      return VisitExpr(op->value, [&](const Expr& v) { return k(RefCreate(v)); });
     }
 
     Expr reify(const MCont& k) {
-      Var arg = VarNode::make("arg", Type());
+      Var arg = Var("arg", Type());
       return Function({arg}, k(arg), Type(), {}, {});
     }
 
     Expr reify(const MCont& k, const std::function<Expr(MCont)>& cont) {
-      return LetList::Let(reify(k),
+      return LetList::LetBind(reify(k),
                           [&](const Var& f) {
-        return cont([&](const Expr& e) { return CallNode::make(f, {e}); });
+        return cont([&](const Expr& e) { return Call(f, {e}); });
       });
     }
 
@@ -196,7 +196,7 @@ Function ToCPS(const Function& f,
       return reify(k, [&](const MCont& kf) {
         return VisitExpr(op->cond,
                          [&](const Expr& v) {
-          return IfNode::make(v, VisitExpr(op->true_branch, kf), VisitExpr(op->false_branch, kf));
+          return If(v, VisitExpr(op->true_branch, kf), VisitExpr(op->false_branch, kf));
         });
       });
     }
@@ -206,9 +206,9 @@ Function ToCPS(const Function& f,
         return VisitExpr(op->data, [&](const Expr& v) {
           tvm::Array<Clause> clauses;
           for (const auto& c : op->clauses) {
-            clauses.push_back(ClauseNode::make(VisitPattern(c->lhs), VisitExpr(c->rhs, kf)));
+            clauses.push_back(Clause(VisitPattern(c->lhs), VisitExpr(c->rhs, kf)));
           }
-          return MatchNode::make(v, clauses, op->complete);
+          return Match(v, clauses, op->complete);
         });
       });
     }
@@ -216,7 +216,7 @@ Function ToCPS(const Function& f,
     Expr VisitExpr_(const RefReadNode* op, const MCont& k) final {
       return VisitExpr(op->ref,
                        [&](const Expr& r) {
-        return LetList::Let(RefReadNode::make(r), k);
+        return LetList::LetBind(RefRead(r), k);
       });
     }
 
@@ -225,7 +225,7 @@ Function ToCPS(const Function& f,
                        [&](const Expr& r) {
         return VisitExpr(op->value,
                          [&](const Expr& v) {
-          return LetList::Let(RefWriteNode::make(r, v), k);
+          return LetList::LetBind(RefWrite(r, v), k);
         });
       });
     }
@@ -235,7 +235,7 @@ Function ToCPS(const Function& f,
       std::function<Expr()> next;
       next = [&]() {
         return (fields.size() == op->fields.size()) ?
-          k(TupleNode::make(fields)) :
+          k(Tuple(fields)) :
           VisitExpr(op->fields[fields.size()], [&](const Expr& v) {
             fields.push_back(v);
             return next();
@@ -246,7 +246,7 @@ Function ToCPS(const Function& f,
 
     Expr VisitExpr_(const TupleGetItemNode* op, const MCont& k) final {
       return VisitExpr(op->tuple, [&](const Expr& v) {
-        return k(TupleGetItemNode::make(v, op->index));
+        return k(TupleGetItem(v, op->index));
       });
     }
 
@@ -256,7 +256,7 @@ Function ToCPS(const Function& f,
         std::function<Expr()> next;
         next = [&]() {
           if (args.size() == op->args.size()) {
-            return LetList::Let(CallNode::make(op->op, args, op->attrs, op->type_args), k);
+            return LetList::LetBind(Call(op->op, args, op->attrs, op->type_args), k);
           } else {
             return VisitExpr(op->args[args.size()], [&](const Expr& v) {
                 args.push_back(v);
@@ -272,7 +272,7 @@ Function ToCPS(const Function& f,
         next = [&]() {
           if (args.size() == op->args.size()) {
             args.push_back(reify(k));
-            return Expr(CallNode::make(f, args, op->attrs, op->type_args));
+            return Expr(Call(f, args, op->attrs, op->type_args));
           } else {
             return VisitExpr(op->args[args.size()], [&](const Expr& v) {
               args.push_back(v);
@@ -287,7 +287,7 @@ Function ToCPS(const Function& f,
       }
     }
   } mut(remap, answer, m, vm, cm);
-  Var k = VarNode::make("k", Arrow(CPSType(function_type->ret_type, answer), answer));
+  Var k = Var("k", Arrow(CPSType(function_type->ret_type, answer), answer));
   tvm::Array<Var> new_params;
   for (const Var& v : f->params) {
     new_params.push_back(remap(v));
@@ -295,7 +295,7 @@ Function ToCPS(const Function& f,
   new_params.push_back(k);
   return Function(new_params,
                             mut.VisitExpr(f->body,
-                                          [&](const Expr& e) { return CallNode::make(k, {e}); }),
+                                          [&](const Expr& e) { return Call(k, {e}); }),
                             answer,
                             f->type_params,
                             f->attrs);
@@ -311,7 +311,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm) {
     void VisitExpr_(const VarNode* vn) final {
       Var v = GetRef<Var>(vn);
       if (vm->count(v) == 0) {
-        auto ret = VarNode::make(v->name_hint(), CPSType(v->checked_type(), answer));
+        auto ret = Var(v->name_hint(), CPSType(v->checked_type(), answer));
         vm->insert({v, ret});
       }
     }
@@ -340,7 +340,7 @@ Function UnCPS(const Function& f) {
   CHECK_GT(f->params.size(), 0);
   std::vector<Var> new_params;
   for (const auto& p : f->params) {
-    new_params.push_back(VarNode::make(p->name_hint(), p->checked_type()));
+    new_params.push_back(Var(p->name_hint(), p->checked_type()));
   }
   auto cont_type = Downcast<FuncType>(new_params.back()->type_annotation);
   new_params.pop_back();
@@ -354,7 +354,7 @@ Function UnCPS(const Function& f) {
   new_type_params.pop_back();
   // TODO(@M.K.): make alphaequal work on free term
   // CHECK(AlphaEqual(cont_type, Arrow(new_ret_type, answer_type)));
-  auto x = VarNode::make("x", new_ret_type);
+  auto x = Var("x", new_ret_type);
   auto cont = Function({x}, x, new_ret_type, {}, {});
   tvm::Array<Expr> args;
   for (const auto& p : new_params) {
@@ -367,7 +367,7 @@ Function UnCPS(const Function& f) {
   }
   type_args.push_back(new_ret_type);
   return Function(new_params,
-                            CallNode::make(f, args, {}, type_args),
+                            Call(f, args, {}, type_args),
                             new_ret_type,
                             new_type_params,
                             f->attrs);
