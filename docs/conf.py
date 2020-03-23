@@ -51,7 +51,7 @@ sys.path.insert(0, os.path.join(curr_path, '../vta/python'))
 # General information about the project.
 project = u'tvm'
 author = u'Apache Software Foundation'
-copyright = u'2019, %s' % author
+copyright = u'2020, %s' % author
 github_doc_root = 'https://github.com/apache/incubator-tvm/tree/master/docs/'
 
 # add markdown parser
