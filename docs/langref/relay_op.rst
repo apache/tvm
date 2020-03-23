@@ -16,8 +16,7 @@
     under the License.
 
 Relay Core Tensor Operators
-
-=========================
+===========================
 
 This page contains the list of core tensor operator primitives pre-defined in tvm.relay.
 The core tensor operator primitives cover typical workloads in deep learning.
@@ -85,8 +84,6 @@ This level enables typical convnet models.
    tvm.relay.nn.l2_normalize
    tvm.relay.nn.contrib_conv2d_winograd_without_weight_transform
    tvm.relay.nn.contrib_conv2d_winograd_weight_transform
-   tvm.relay.isfinite
-   tvm.relay.isinf
 
 
 **Level 3: Additional Math And Transform Operators**

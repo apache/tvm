@@ -707,7 +707,7 @@ def test_isfinite():
     _verify_infiniteness_ops(relay.isfinite, np.isfinite)
 
 
-def test_inf():
+def test_isinf():
     _verify_infiniteness_ops(relay.isinf, np.isinf)
 
     

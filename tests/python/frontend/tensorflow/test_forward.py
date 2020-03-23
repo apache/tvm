@@ -3258,7 +3258,6 @@ if __name__ == '__main__':
     test_forward_isinf()
     test_forward_unravel_index()
 
-
     # Reductions
     test_forward_argminmax()
     test_forward_reduce()
