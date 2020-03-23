@@ -623,7 +623,7 @@ def _decode_image():
     return _impl
 
 def _unravel_index():
-    def _impl(inputs, attr, params):
+    def _impl(inputs, attr, params, mod):
         return _op.unravel_index(inputs[0], inputs[1])
     return _impl
 
