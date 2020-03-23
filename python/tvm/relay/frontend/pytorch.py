@@ -250,7 +250,9 @@ def _convolution():
         channels = weight_shape[0]
         groups = int(inputs[8])
 
-        if groups > 1:
+        # weight_shape[1] is always in_channels // groups
+        # For depthwise, in_channels == groups
+        if groups > 1 and weight_shape[1] == 1:
             channel_multiplier = channels // groups
             new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
             weight = _op.transform.reshape(weight, new_weight_shape)
