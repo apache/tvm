@@ -37,7 +37,7 @@
  * Note: this pass can only be used with functions where the input/output types are
  * a combination of TupleTypes and TensorTypes
  * 
- * Specify optimize 6 ops:
+ * This pass optimizes 6 ops:
  * - add
  * - multiply
  * - ones
@@ -65,8 +65,6 @@
 
 namespace tvm {
 namespace relay {
-
-namespace GradientCellPass {  // avoid polluting namespace
 
 /*!
 * \brief Get constructor of GradCell TypeDef with name_hint
@@ -300,10 +298,8 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   IRModule module_;
 };
 
-}  // namespace GradientCellPass
-
 Expr GradientCell(const Expr& e, IRModule mod) {
-  return GradientCellPass::GradientCellTransform(mod).transform(e);
+  return GradientCellTransform(mod).transform(e);
 }
 
 namespace transform {
