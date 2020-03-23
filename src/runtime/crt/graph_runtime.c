@@ -268,22 +268,24 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
       }
       reader->BeginArray(reader);
       while (reader->NextArrayItem(reader)) {
-        attr->shape = vrealloc(attr->shape, sizeof(attr->shape[0])*(shape_count+1)*TVM_CRT_MAX_NDIM);
+        attr->shape =
+          vrealloc(attr->shape, sizeof(attr->shape[0])*(shape_count+1)*TVM_CRT_MAX_NDIM);
         attr->ndim = vrealloc(attr->ndim, sizeof(attr->ndim[0])*(shape_count+1));
         reader->BeginArray(reader);
-        reader->ReadInteger(reader, &(attr->shape[shape_count*TVM_CRT_MAX_NDIM+0]));
+        int64_t * attr_shape_ptr = attr->shape + shape_count*TVM_CRT_MAX_NDIM;
+        reader->ReadInteger(reader, attr_shape_ptr + 0);
         uint32_t ndim = 1;
         if (reader->NextArrayItem(reader)) {
           if (reader->NextArrayItem(reader)) {
-            reader->ReadInteger(reader, &(attr->shape[shape_count*TVM_CRT_MAX_NDIM+1])); ndim++;
+            reader->ReadInteger(reader, attr_shape_ptr + 1); ndim++;
             if (reader->NextArrayItem(reader)) {
-              reader->ReadInteger(reader, &(attr->shape[shape_count*TVM_CRT_MAX_NDIM+2])); ndim++;
+              reader->ReadInteger(reader, attr_shape_ptr + 2); ndim++;
               if (reader->NextArrayItem(reader)) {
-                reader->ReadInteger(reader, &(attr->shape[shape_count*TVM_CRT_MAX_NDIM+3])); ndim++;
+                reader->ReadInteger(reader, attr_shape_ptr + 3); ndim++;
                 if (reader->NextArrayItem(reader)) {
-                  reader->ReadInteger(reader, &(attr->shape[shape_count*TVM_CRT_MAX_NDIM+4])); ndim++;
+                  reader->ReadInteger(reader, attr_shape_ptr + 4); ndim++;
                   if (reader->NextArrayItem(reader)) {
-                    reader->ReadInteger(reader, &(attr->shape[shape_count*TVM_CRT_MAX_NDIM+5])); ndim++;
+                    reader->ReadInteger(reader, attr_shape_ptr + 5); ndim++;
                     reader->NextArrayItem(reader);
                   }
                 }
@@ -580,10 +582,8 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
 
   for (idx = 0; idx < size; idx++) {
     int32_t in_idx = runtime->GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
-    if (!(in_idx >= 0)) {
-      fprintf(stderr, "Found param for non-existent input: %s\n", names + TVM_CRT_STRLEN_NAME * idx);
-      status = -1;
-    }
+    CHECK_GT(in_idx, 0,
+             "Found param for non-existent input: %s\n", names + TVM_CRT_STRLEN_NAME * idx);
     uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
       fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n",
@@ -649,7 +649,7 @@ int TVMGraphRuntime_GetOutput(TVMGraphRuntime * runtime, const int32_t idx, DLTe
 }
 
 void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
-  uint32_t idx, dim;
+  uint32_t idx;
 
   // Grab saved optimization plan from graph.
   TVMGraphRuntimeGraphAttr * attrs = &(runtime->attrs);
@@ -708,7 +708,7 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
       TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
                          attrs->shape+idx*TVM_CRT_MAX_NDIM, attrs->ndim[idx], vtype[idx]);
     CHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
-             "fail to create for node with idx=%d, storage_id=%d\n", idx, storage_id);
+             "fail to create for node with idx=%d, storage_id=%lu\n", idx, storage_id);
   }
 
   // Release memory
@@ -874,6 +874,6 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
     vfree(g_fexecs);
     g_fexecs = 0;
   }
-  
+
   CHECK_EQ(vleak_size, 0, "found memory leak, leak size=%d", vleak_size);
 }

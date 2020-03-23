@@ -102,7 +102,7 @@ void TLB_Set(TLB * tlb, char * data, Page * page) {
   if (entry == 0) {
     tlb->entries[tlb->count].addr = data;
     tlb->entries[tlb->count].page = *page;
-    tlb->count ++;
+    tlb->count++;
   } else {
     entry->addr = data;
     entry->page = *page;
@@ -130,7 +130,7 @@ typedef struct MultiMap {
   uint32_t count;
   IndexedEntry * (*lower_bound)(struct MultiMap * map, uint32_t npage);
   IndexedEntry * (*end)(struct MultiMap * map);
-  IndexedEntry * (*erase)(struct MultiMap * map, IndexedEntry * entry);
+  void (*erase)(struct MultiMap * map, IndexedEntry * entry);
   void (*insert)(struct MultiMap * map, uint32_t npage, Page * p);
 } MultiMap;
 
@@ -150,10 +150,11 @@ IndexedEntry * MultiMap_End(struct MultiMap * map) {
   return entry;
 }
 
-IndexedEntry * MultiMap_Erase(struct MultiMap * map, IndexedEntry * entry) {
+void MultiMap_Erase(struct MultiMap * map, IndexedEntry * entry) {
   for (uint32_t idx = 0; idx < map->count; idx++) {
     if ((map->entries + idx) == entry) {
-      memcpy(map->entries + idx, map->entries + (idx + 1), sizeof(IndexedEntry) * (map->count - idx));
+      memcpy(map->entries + idx, map->entries + (idx + 1),
+             sizeof(IndexedEntry) * (map->count - idx));
       map->count--;
       break;
     }
@@ -193,7 +194,7 @@ typedef struct MemoryManager {
    * \return The virtual address
    */
   void (*Free)(struct MemoryManager * mgr, void* data);
-  
+
   // Physical address -> page
   PageTable ptable;
   // Virtual address -> page
@@ -216,19 +217,19 @@ void* MemoryManager_Alloc(MemoryManager * mgr, tvm_index_t size) {
   if (it != free_map->end(free_map)) {
     Page p = it->page;
     free_map->erase(free_map, it);
-    data = (void*)p.data;
+    data = p.data;
     start = p.ptable_begin;
     npage = p.num_pages;
   } else {
     PageTable * ptable = &(mgr->ptable);
     start = ptable->count;
     CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
-             "insufficient memory, start=%d, npage=%d, total=%d",
+             "insufficient memory, start=%ld, npage=%ld, total=%ld",
              start, npage, start + npage);
     /* insert page entry */
     Page p = PageCreate(start, npage);
     ptable->resize(ptable, start + npage, &p);
-    data = (void*)p.data;
+    data = p.data;
     TLB * pmap = &(mgr->pmap);
     pmap->set(pmap, data, &p);
   }
@@ -267,18 +268,18 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
       // insert new page entry
       IndexedEntry * it = free_map->lower_bound(free_map, npage);
       if (it != free_map->end(free_map)) {
-        data = (void*)it->page.data;
+        data = it->page.data;
         start = it->page.ptable_begin;
         npage = it->page.num_pages;
         free_map->erase(free_map, it);
       } else {
         start = ptable->count;
         CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
-                 "insufficient memory, start=%d, npage=%d, total=%d",
+                 "insufficient memory, start=%ld, npage=%ld, total=%ld",
                  start, npage, start + npage);
         Page p = PageCreate(start, npage);
         ptable->resize(ptable, start + npage, &p);
-        data = (void*)p.data;
+        data = p.data;
         pmap->set(pmap, data, &p);
       }
       // copy previous data to the new entry
@@ -293,19 +294,19 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
     if (it != free_map->end(free_map)) {
       Page p = it->page;
       free_map->erase(free_map, it);
-      data = (void*)p.data;
+      data = p.data;
       start = p.ptable_begin;
       npage = p.num_pages;
     } else {
       PageTable * ptable = &(mgr->ptable);
       start = ptable->count;
       CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
-               "insufficient memory, start=%d, npage=%d, total=%d",
+               "insufficient memory, start=%ld, npage=%ld, total=%ld",
                start, npage, start + npage);
       /* insert page entry */
       Page p = PageCreate(start, npage);
       ptable->resize(ptable, start + npage, &p);
-      data = (void*)p.data;
+      data = p.data;
       TLB * pmap = &(mgr->pmap);
       pmap->set(pmap, data, &p);
     }

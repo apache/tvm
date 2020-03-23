@@ -20,11 +20,11 @@
 # Setup build environment
 TVM_ROOT=$(shell cd ../..; pwd)
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
-PKG_CXXFLAGS = -std=c++14 -O2 -fPIC \
+PKG_CXXFLAGS = -Wall -std=c++14 -O2 -fPIC \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include
-PKG_CFLAGS = -std=c99 -O2 -fPIC \
+PKG_CFLAGS = -Wall -std=c99 -O2 -fPIC \
 	-I${TVM_ROOT}/include \
 	-I${DMLC_CORE}/include \
 	-I${TVM_ROOT}/3rdparty/dlpack/include

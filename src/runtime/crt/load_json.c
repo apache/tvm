@@ -158,11 +158,11 @@ int JSONReader_ReadString(JSONReader * reader, char * out_str) {
     if (ch == '\\') {
       char sch = reader->NextChar(reader);
       switch (sch) {
-      case 'r': snprintf(output, sizeof(output), "%s\r", output); break;
-      case 'n': snprintf(output, sizeof(output), "%s\n", output); break;
-      case '\\': snprintf(output, sizeof(output), "%s\\", output); break;
-      case 't': snprintf(output, sizeof(output), "%s\t", output); break;
-      case '\"': snprintf(output, sizeof(output), "%s\"", output); break;
+      case 'r': snprintf(output + strlen(output), sizeof(output), "\r"); break;
+      case 'n': snprintf(output + strlen(output), sizeof(output), "\n"); break;
+      case '\\': snprintf(output + strlen(output), sizeof(output), "\\"); break;
+      case 't': snprintf(output + strlen(output), sizeof(output), "\t"); break;
+      case '\"': snprintf(output + strlen(output), sizeof(output), "\""); break;
       default: fprintf(stderr, "unknown string escape %c\n", sch);
       }
     } else {
