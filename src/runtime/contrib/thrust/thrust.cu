@@ -28,6 +28,7 @@
 #include <dlpack/dlpack.h>
 #include <algorithm>
 #include <vector>
+#include <functional>
 
 namespace tvm {
 namespace contrib {
@@ -35,12 +36,12 @@ namespace contrib {
 using namespace runtime;
 
 // Performs sorting along axis -1 and returns both sorted values and indices.
-template<typename DataType, typename IndicesType, typename F>
+template<typename DataType, typename IndicesType>
 void thrust_sort(DLTensor* input,
                  DLTensor* out_values,
                  DLTensor* out_indices,
                  bool is_ascend,
-                 const F &get_sort_len) {
+                 const std::function<int(int)> &get_sort_len) {
   thrust::device_ptr<DataType> data_ptr(static_cast<DataType *>(input->data));
   thrust::device_ptr<DataType> values_ptr(static_cast<DataType *>(out_values->data));
   thrust::device_ptr<IndicesType> indices_ptr(static_cast<IndicesType *>(out_indices->data));
@@ -67,12 +68,11 @@ void thrust_sort(DLTensor* input,
   }
 }
 
-template<typename F>
 void thrust_sort_common(DLTensor* input,
                         DLTensor* values_out,
                         DLTensor* indices_out,
                         bool is_ascend,
-                        const F &get_sort_len,
+                        const std::function<int(int)> &get_sort_len,
                         std::string data_dtype,
                         std::string out_dtype) {
   if (data_dtype == "float32") {
