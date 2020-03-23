@@ -26,12 +26,12 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/adt.h>
+#include <tvm/relay/base.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/type.h>
 #include <string>
 #include <functional>
 #include <utility>
-#include "base.h"
-#include "type.h"
-#include "expr.h"
 
 namespace tvm {
 namespace relay {

@@ -356,6 +356,8 @@ BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
   n->src_layout = std::move(src_layout);
   n->dst_layout = std::move(dst_layout);
 
+  // To be consistent with previous behavior, a nullptr layout is created
+  // when argument is invalid.
   if (GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
     CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
     data_ = std::move(n);
