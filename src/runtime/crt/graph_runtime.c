@@ -550,8 +550,8 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
   bptr += sizeof(reserved);
 
   // read names
-  char names[GRAPH_RUNTIME_MAX_NODES][80];
-  memset(names, 0, sizeof(names));
+  char * names = vmalloc(TVM_CRT_STRLEN_NAME * runtime->nodes_count);
+  memset(names, 0, TVM_CRT_STRLEN_NAME * runtime->nodes_count);
   uint64_t names_count;
   int idx;
   names_count = ((uint64_t*)bptr)[0];  // NOLINT(*)
@@ -564,7 +564,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
       fprintf(stderr, "Error: function name longer than expected.\n");
       status = -1;
     }
-    memcpy(names[idx], bptr, name_length);
+    memcpy(names + TVM_CRT_STRLEN_NAME * idx, bptr, name_length);
     bptr += name_length;
   }
 
@@ -579,9 +579,9 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
   }
 
   for (idx = 0; idx < size; idx++) {
-    int32_t in_idx = runtime->GetInputIndex(runtime, names[idx]);
+    int32_t in_idx = runtime->GetInputIndex(runtime, names + TVM_CRT_STRLEN_NAME * idx);
     if (!(in_idx >= 0)) {
-      fprintf(stderr, "Found param for non-existent input: %s\n", names[idx]);
+      fprintf(stderr, "Found param for non-existent input: %s\n", names + TVM_CRT_STRLEN_NAME * idx);
       status = -1;
     }
     uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
@@ -603,10 +603,13 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
 #if TVM_CRT_DEBUG
     TVMNDArray * entry = &(runtime->data_entry[eid]);
     printf("loading: param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
-           names[idx], in_idx, eid, entry->dl_tensor.ndim,
+           names + TVM_CRT_STRLEN_NAME * idx, in_idx, eid, entry->dl_tensor.ndim,
            ((float*)entry->dl_tensor.data)[0]);  // NOLINT(*)
 #endif  // TVM_CRT_DEBUG
   }
+
+  // Release memory
+  vfree(names);
 
   return status;
 }
@@ -656,8 +659,9 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
   }
 
   // Size and device type of each storage pool entry.
-  TVMGraphRuntimePoolEntry pool_entry[GRAPH_RUNTIME_MAX_NODES];
-  memset(pool_entry, 0, sizeof(pool_entry));
+  TVMGraphRuntimePoolEntry * pool_entry =
+    vmalloc(sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count);
+  memset(pool_entry, 0, sizeof(TVMGraphRuntimePoolEntry) * runtime->nodes_count);
   uint32_t  pool_entry_count = 0;
   // Find the maximum space size.
   for (idx = 0; idx < attrs->shape_count; idx++) {
@@ -709,6 +713,7 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
 
   // Release memory
   vfree(vtype);
+  vfree(pool_entry);
 }
 
 int TVMGraphRuntime_SetupOpExecs(TVMGraphRuntime * runtime) {
@@ -797,7 +802,7 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam 
     status = -1;
   }
 
-  runtime->module.GetFunction(param->func_name, pf);
+  runtime->module.GetFunction(&(runtime->module), param->func_name, pf);
   TVMArgs targs = TVMArgs_Create(arg_ptr.arg_values, arg_ptr.arg_tcodes, arg_ptr.arg_values_count);
   pf->SetArgs(pf, &targs);
 
@@ -864,5 +869,11 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
   vfree((*pptr)->data_entry);
   vfree((*pptr)->op_execs);
   vfree(*pptr);
+
+  if (g_fexecs) {
+    vfree(g_fexecs);
+    g_fexecs = 0;
+  }
+  
   CHECK_EQ(vleak_size, 0, "found memory leak, leak size=%d", vleak_size);
 }

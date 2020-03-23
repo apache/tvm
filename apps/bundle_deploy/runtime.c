@@ -32,9 +32,8 @@
 #define TVM_CRT_MAX_ARGS 10
 /*! Maximum supported string length in dltype, e.g. "int8", "int16", "float32" */
 #define TVM_CRT_STRLEN_DLTYPE 10
-
-/*! Maximum supported nodes in a GraphRuntime */
-#define GRAPH_RUNTIME_MAX_NODES 100
+/*! Maximum supported string length in function names */
+#define TVM_CRT_STRLEN_NAME 80
 
 /*!
  * \brief Log memory pool size for virtual memory allocation

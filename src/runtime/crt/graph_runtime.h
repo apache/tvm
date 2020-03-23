@@ -63,7 +63,6 @@ typedef struct TVMGraphRuntimeNode {
   // parameters
   TVMOpParam param;
   // inputs
-  // TVMGraphRuntimeNodeEntry inputs[GRAPH_RUNTIME_NODE_MAX_INPUTS]; // TODO: remove
   TVMGraphRuntimeNodeEntry * inputs;
   // number of inputs
   size_t inputs_count;
@@ -78,14 +77,10 @@ typedef struct TVMGraphRuntimeNode {
 // Graph attribute
 typedef struct TVMGraphRuntimeGraphAttr {
   uint32_t storage_num_not_alloctaed;
-  // uint32_t storage_id[GRAPH_RUNTIME_MAX_NODES]; // TODO: remove
   uint32_t * storage_id;
-  // uint32_t device_index[GRAPH_RUNTIME_MAX_NODES]; // TODO: remove
   uint32_t * device_index;
   char * dltype;  // "int8", "int16", "float32"
   uint32_t dltype_count;
-  // int64_t  shape[GRAPH_RUNTIME_MAX_NODES][TVM_CRT_MAX_NDIM];
-  // uint32_t ndim[GRAPH_RUNTIME_MAX_NODES];
   int64_t * shape;
   uint32_t * ndim;
   uint32_t shape_count;
@@ -176,20 +171,16 @@ typedef struct TVMGraphRuntime {
   uint32_t (*GetEntryId)(struct TVMGraphRuntime * runtime, uint32_t nid, uint32_t index);
 
   /*! \brief The graph nodes. */
-  // TVMGraphRuntimeNode nodes[GRAPH_RUNTIME_MAX_NODES];
   TVMGraphRuntimeNode * nodes;
   /*! \brief The graph nodes counter. */
   uint32_t nodes_count;
   /*! \brief The argument nodes. */
-  // uint32_t input_nodes[GRAPH_RUNTIME_MAX_INPUT_NODES];
   uint32_t * input_nodes;
   uint32_t input_nodes_count;
   /*! \brief Used for quick entry indexing. */
-  // uint32_t node_row_ptr[GRAPH_RUNTIME_MAX_NODE_ROW_PTR];
   uint32_t * node_row_ptr;
   uint32_t node_row_ptr_count;
   /*! \brief Output entries. */
-  // TVMGraphRuntimeNodeEntry outputs[GRAPH_RUNTIME_MAX_OUTPUTS];
   TVMGraphRuntimeNodeEntry * outputs;
   /*! \brief Output entries counter. */
   uint32_t outputs_count;
@@ -201,7 +192,6 @@ typedef struct TVMGraphRuntime {
   TVMContext ctxs[1];
   uint32_t   ctxs_count;
   /*! \brief Common storage pool for all devices. */
-  // TVMNDArray storage_pool[GRAPH_RUNTIME_MAX_NODES];
   TVMNDArray * storage_pool;
   uint32_t storage_pool_count;
   /*! \brief Data entry of each node. */
