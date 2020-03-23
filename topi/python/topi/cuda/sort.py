@@ -24,6 +24,10 @@ from ..math import identity
 from ..transform import strided_slice, transpose
 from .. import tag
 
+def swap(arr, axis):
+    """ swap arr[axis] and arr[-1] """
+    return arr[:axis] + [arr[-1]] + arr[axis+1:-1] + [arr[axis]]
+
 def _schedule_sort(outs):
     """Schedule for argsort operator.
 
@@ -263,8 +267,14 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
     out : tvm.te.Tensor
         The output of this function.
     """
+    ndim = len(data.shape)
     if axis < 0:
-        axis = len(data.shape) + axis
+        axis = ndim + axis
+    if axis != ndim - 1:
+        # Prepare for sorting along axis -1.
+        axes = swap(list(range(ndim)), axis)
+        data = transpose(data, axes)
+
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf",
                                    data_alignment=8)
     valid_count_buf = tvm.tir.decl_buffer(valid_count.shape, valid_count.dtype,
@@ -282,6 +292,11 @@ def argsort_nms_thrust(data, valid_count, axis=-1, is_ascend=1, dtype="float32")
                     dtype=[data.dtype, "int32"],
                     name="nms_argsort_gpu",
                     tag="nms_argsort_gpu")
+
+    if axis != ndim - 1:
+        axes = swap(list(range(ndim)), axis)
+        out = [transpose(o, axes) for o in out]
+
     return out[1]
 
 def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
@@ -499,13 +514,9 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
     ndim = len(data.shape)
     axis = ndim + axis if axis < 0 else axis
 
-    def swap(arr):
-        """ swap arr[axis] and arr[-1] """
-        return arr[:axis] + [arr[-1]] + arr[axis+1:-1] + [arr[axis]]
-
     if axis != ndim - 1:
         # Prepare for sorting along axis -1.
-        axes = swap(list(range(ndim)))
+        axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
@@ -529,7 +540,7 @@ def topk_thrust(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int
         out = [strided_slice(o, beg, end) for o in out]
 
     if axis != ndim - 1:
-        axes = swap(list(range(ndim)))
+        axes = swap(list(range(ndim)), axis)
         out = [transpose(o, axes) for o in out]
 
     if ret_type == "values":
