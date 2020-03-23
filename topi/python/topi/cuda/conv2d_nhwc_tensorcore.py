@@ -14,8 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-locals, too-many-arguments
-# pylint: disable=too-many-statements, unused-argument
+# pylint: disable=invalid-name, too-many-locals, too-many-function-args
+# pylint: disable=too-many-statements, unused-argument, too-many-arguments
 """Tensorcore template for cuda backend"""
 import numpy as np
 import tvm
@@ -27,60 +27,7 @@ from ..nn.util import get_pad_tuple
 from .tensor_intrin import intrin_wmma_load_matrix_A
 from .tensor_intrin import intrin_wmma_load_matrix_W
 from .tensor_intrin import intrin_wmma_store_matrix
-
-
-def intrin_wmma_gemm(strides_A, strides_W, strides_Conv, shape, out_dtype):
-    """Intrin for wmma fill_fragment and mma_sync"""
-    wmma_m, wmma_n, wmma_k = shape
-    A = te.placeholder((wmma_m, 1, 1, wmma_k), name='A', dtype='float16')
-    B = te.placeholder((wmma_k, wmma_n), name='B', dtype='float16')
-    k = te.reduce_axis((0, wmma_k), name="k")
-    C = te.compute((wmma_m, 1, 1, wmma_n),
-                   lambda ii, t0, t1, jj:
-                   te.sum(A[ii, t0, t1, k].astype(out_dtype) * \
-                          B[k, jj].astype(out_dtype), axis=k),
-                   name='C')
-    BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA',
-                             scope='wmma.matrix_a', data_alignment=32,
-                             offset_factor=8, strides=strides_A)
-    BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB',
-                             scope='wmma.matrix_b', data_alignment=32,
-                             offset_factor=8, strides=strides_W)
-    BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC',
-                             scope='wmma.accumulator', data_alignment=32,
-                             offset_factor=8, strides=strides_Conv)
-
-    def intrin_func(ins, outs):
-        BA, BB = ins
-        BC, = outs
-
-        def warp_idnex(offset, row, col):
-            row = row * col
-            return offset // row + offset % row // col
-
-        warp_index_A = warp_idnex(BA.elem_offset, wmma_m, wmma_k)
-        warp_index_B = warp_idnex(BB.elem_offset, wmma_k, wmma_n)
-        warp_index_C = warp_idnex(BC.elem_offset, wmma_m, wmma_n)
-
-        def init():
-            ib = tvm.tir.ir_builder.create()
-            ib.emit(
-                tvm.tir.call_intrin('handle', 'tvm_fill_fragment', BC.data, wmma_m, wmma_n, wmma_k,
-                                    warp_index_C, 0.0))
-            return ib.get()
-
-        def update():
-            ib = tvm.tir.ir_builder.create()
-            ib.emit(tvm.tir.call_intrin('handle', 'tvm_mma_sync',
-                                        BC.data, warp_index_C,
-                                        BA.data, warp_index_A,
-                                        BB.data, warp_index_B,
-                                        BC.data, warp_index_C))
-            return ib.get()
-
-        return update(), init(), update()
-
-    return te.decl_tensor_intrin(C.op, intrin_func, binds={A: BA, B: BB, C: BC})
+from .tensor_intrin import intrin_wmma_gemm
 
 
 def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtype):
@@ -98,8 +45,14 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
     else:
         dilation_h, dilation_w = dilation
 
-    batch, in_height, in_width, in_channel = Input.shape
-    kernel_h, kernel_w, _, num_filter = Filter.shape
+    batch, in_height, in_width, in_channel = get_const_tuple(Input.shape)
+    kernel_h, kernel_w, _, num_filter = get_const_tuple(Filter.shape)
+    assert (batch % 16 == 0 and in_channel % 16 == 0 and num_filter % 16 == 0) or \
+               (batch % 8 == 0 and in_channel % 16 == 0 and num_filter % 32 == 0) or \
+               (batch % 32 == 0 and in_channel % 16 == 0 and num_filter % 8 == 0), \
+               "The shape of (batch, in_channel, num_filter) "\
+               "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for now"
+
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
     dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
@@ -135,6 +88,7 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     kh, kw, ic = s[Conv].op.reduce_axis
     out_dtype = Conv.dtype
     trans_paddata, kernel = s[Conv].op.input_tensors
+    in_dtype = trans_paddata.dtype
     batch, _, _, _ = get_const_tuple(Conv.shape)
     _, _, _, out_channels = get_const_tuple(kernel.shape)
     paddata = s[trans_paddata].op.input_tensors
@@ -145,26 +99,20 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     s[paddata[0]].compute_inline()
 
     # Designate the memory hierarchy
+    AS = s.cache_read(trans_paddata, 'shared', [Conv])
+    WS = s.cache_read(kernel, 'shared', [Conv])
+    AF = s.cache_read(AS, 'wmma.matrix_a', [Conv])
+    WF = s.cache_read(WS, 'wmma.matrix_b', [Conv])
+    ConvF = s.cache_write(Conv, 'wmma.accumulator')
+
     if Conv.op in s.outputs:
         output = Conv
-        kh, kw, ic = s[Conv].op.reduce_axis
-        AS = s.cache_read(trans_paddata, 'shared', [Conv])
-        WS = s.cache_read(kernel, 'shared', [Conv])
-        AF = s.cache_read(AS, 'wmma.matrix_a', [Conv])
-        WF = s.cache_read(WS, 'wmma.matrix_b', [Conv])
-        ConvF = s.cache_write(Conv, 'wmma.accumulator')
         ConvS = s.cache_read(ConvF, 'shared', [Conv])
         OL = ConvS
     else:
         output = s.outputs[0].output(0)
         s[Conv].set_scope('shared')
         OL = Conv
-        kh, kw, ic = s[OL].op.reduce_axis
-        AS = s.cache_read(trans_paddata, 'shared', [OL])
-        WS = s.cache_read(kernel, 'shared', [OL])
-        AF = s.cache_read(AS, 'wmma.matrix_a', [OL])
-        WF = s.cache_read(WS, 'wmma.matrix_b', [OL])
-        ConvF = s.cache_write(OL, 'wmma.accumulator')
 
     # Schedule for autotvm
     cfg.define_knob("block_row_warps", [1, 2, 4])
@@ -328,14 +276,23 @@ def schedule_nhwc_tensorcore_cuda(cfg, s, Conv):
     WL_shape = (wmma_k, wmma_n)
     CL_shape = (wmma_m, 1, 1, wmma_n)
     CS_shape = (wmma_m, 1, 1, wmma_n)
-    s[AF].tensorize(nn, intrin_wmma_load_matrix_A(AL_strides, AS_strides,
-                                                  shape, "row_major", AS_shape, AL_shape))
-    s[WF].tensorize(ii, intrin_wmma_load_matrix_W(WL_strides, WS_strides,
-                                                  shape, "row_major", WS_shape, WL_shape))
+
+    AL_gemm = te.placeholder(AL_shape, name='A', dtype=in_dtype)
+    WL_gemm = te.placeholder(WL_shape, name='B', dtype=in_dtype)
+    k_gemm = te.reduce_axis((0, wmma_k), name="k")
+    CL_compute = te.compute(CL_shape, lambda ii, t0, t1, jj:
+                            te.sum(AL_gemm[ii, t0, t1, k_gemm].astype(out_dtype) * \
+                                   WL_gemm[k_gemm, jj].astype(out_dtype), axis=k_gemm),
+                            name='C')
+
+    s[AF].tensorize(nn, intrin_wmma_load_matrix_A(AL_strides, AS_strides, shape,
+                                                  "row_major", AS_shape, AL_shape, in_dtype))
+    s[WF].tensorize(ii, intrin_wmma_load_matrix_W(WL_strides, WS_strides, shape,
+                                                  "row_major", WS_shape, WL_shape, in_dtype))
     s[OL].tensorize(nnc, intrin_wmma_store_matrix(CS_strides, CL_strides,
                                                   shape, out_dtype, CL_shape, CS_shape))
-    s[ConvF].tensorize(nnf, intrin_wmma_gemm(AL_strides, WL_strides,
-                                             CL_strides, shape, out_dtype))
+    s[ConvF].tensorize(nnf, intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, AL_strides,
+                                             WL_strides, CL_strides, shape))
 
     N, OH, OW, CO = get_const_tuple(output.shape)
     KH, KW, CI, _ = get_const_tuple(kernel.shape)
