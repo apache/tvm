@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file memory.h
+ * \file tvm/runtime/crt/memory.h
  * \brief The virtual memory manager for micro-controllers
  */
 
