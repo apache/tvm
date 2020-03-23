@@ -67,23 +67,6 @@ namespace tvm {
 namespace relay {
 
 /*!
-* \brief Get constructor of GradCell TypeDef with name_hint
-*
-* module must have TypeDefinition of GradCell (defined in gradient.rly)
-*/
-Constructor getGradCellConstructor(IRModule module, std::string name_hint) {
-  TypeData gradCell = module->LookupTypeDef("GradCell");
-  for (Constructor c : gradCell->constructors) {
-    if (name_hint.compare(c->name_hint) == 0) {
-      return c;
-    }
-  }
-
-  LOG(FATAL) << "Constructor " << name_hint << "not found in GradCell typedata.";
-  throw std::runtime_error("Constructor not found in GradCell typedata");
-}
-
-/*!
 * \brief Visitor to wrap inputs
 */
 class InputVisitor: public ExprFunctor<Expr(const Expr&, const Type&)> {
@@ -92,7 +75,7 @@ class InputVisitor: public ExprFunctor<Expr(const Expr&, const Type&)> {
 
   Expr wrapExpr(const Expr expr, const Type& type) {
     if (type.as<TensorTypeNode>()) {
-      return CallNode::make(getGradCellConstructor(module_, "Raw"),
+      return CallNode::make(module_->GetConstructor("GradCell", "Raw"),
                           {expr}, Attrs(), {type});
     } else if (auto* type_anno = type.as<TupleTypeNode>()) {
       tvm::Array<Expr> fields;
@@ -191,14 +174,15 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
   }
 
   Expr VisitExpr_(const ConstantNode* op) final {
-    return CallNode::make(getGradCellConstructor(module_, "Raw"),
+    return CallNode::make(module_->GetConstructor("GradCell", "Raw"),
                           {GetRef<Constant>(op)}, Attrs(), {op->checked_type()});
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
     // optimize operators
     if (auto* op = (call_node->op).as<OpNode>()) {
-      if (op->name.compare("add") == 0 && call_node->args.size() == 2 &&
+      Expr op_expr = GetRef<Op>(op);
+      if (op_expr == Op::Get("add") && call_node->args.size() == 2 &&
           AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
         // case: "add" between two tensors of the same size
         const auto addFunc = module_->GetGlobalVar("AddGradCell");
@@ -217,7 +201,7 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
           args.push_back(VisitExpr(expr));
         }
         return CallNode::make(addFunc, args, Attrs(), {paramType});
-      } else if (op->name.compare("multiply") == 0 && call_node->args.size() == 2 &&
+      } else if (op_expr == Op::Get("multiply") && call_node->args.size() == 2 &&
           AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
         // case: "multiply" between two tensors of the same size
         const auto multFunc = module_->GetGlobalVar("MultiplyGradCell");
@@ -237,17 +221,17 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
           args.push_back(VisitExpr(expr));
         }
         return CallNode::make(multFunc, args, Attrs(), {paramType});
-      } else if (op->name.compare("ones") == 0) {
+      } else if (op_expr == Op::Get("ones")) {
         // ones operator, use One constructor of GradCell
         Expr func = Function({}, {ExprMutator::VisitExpr_(call_node)},
                                         {call_node->checked_type()}, {});
-        return CallNode::make(getGradCellConstructor(module_, "One"),
+        return CallNode::make(module_->GetConstructor("GradCell", "One"),
                               {func}, Attrs(), {call_node->checked_type()});
-      } else if (op->name.compare("zeros") == 0) {
+      } else if (op_expr == Op::Get("zeros")) {
         // zeros operator, use Zero constructor of GradCell
         Expr func = Function({}, {ExprMutator::VisitExpr_(call_node)},
                                         {call_node->checked_type()}, {});
-        return CallNode::make(getGradCellConstructor(module_, "Zero"),
+        return CallNode::make(module_->GetConstructor("GradCell", "Zero"),
                               {func}, Attrs(), {call_node->checked_type()});
       }
 
@@ -264,18 +248,18 @@ class GradientCellTransform: public ExprMutator, public TypeMutator {
 
       const Expr tensorRes = CallNode::make(call_node->op, args);
 
-      if (op->name.compare("ones_like") == 0) {
+      if (op_expr == Op::Get("ones_like")) {
         Expr onesFunction = Function({}, tensorRes,
                               {call_node->checked_type()}, Array<TypeVar>());
-        return CallNode::make(getGradCellConstructor(module_, "One"),
+        return CallNode::make(module_->GetConstructor("GradCell", "One"),
                               {onesFunction}, Attrs(), {call_node->checked_type()});
-      } else if (op->name.compare("zeros_like") == 0) {
+      } else if (op_expr == Op::Get("zeros_like")) {
         Expr zerosFunction = Function({}, tensorRes,
                               {call_node->checked_type()}, Array<TypeVar>());
-        return CallNode::make(getGradCellConstructor(module_, "Zero"),
+        return CallNode::make(module_->GetConstructor("GradCell", "Zero"),
                               {zerosFunction}, Attrs(), {call_node->checked_type()});
       }
-      return CallNode::make(getGradCellConstructor(module_, "Raw"), {tensorRes},
+      return CallNode::make(module_->GetConstructor("GradCell", "Raw"), {tensorRes},
                             Attrs(), {call_node->checked_type()});
     }
     // call-> op is not a relay op
