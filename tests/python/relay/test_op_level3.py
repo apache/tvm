@@ -684,6 +684,33 @@ def test_gather_nd():
     verify_gather_nd((3, 2), (2, 2, 3), [[[0, 1, 2], [2, 0, 1]], [[0, 0, 0], [1, 1, 1]]])
 
 
+def _verify_infiniteness_ops(relay_op, ref_op):
+    for dtype in ['float32', 'float16', 'float16', 'int32', 'int16']:
+        shape = (2, 8, 8)
+        x = relay.var("x", relay.TensorType(shape, dtype))
+        y = relay_op(x)
+        yy = run_infer_type(y)
+        assert yy.checked_type == relay.TensorType(shape, "bool")
+
+        data = np.random.uniform(size=shape).astype(dtype)
+        if dtype.startswith('float'):
+            data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
+            data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
+
+        intrp = create_executor()
+        op_res = intrp.evaluate(y, {x: data})
+        ref_res = ref_op(data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+
+def test_isfinite():
+    _verify_infiniteness_ops(relay.isfinite, np.isfinite)
+
+
+def test_isinf():
+    _verify_infiniteness_ops(relay.isinf, np.isinf)
+
+    
 def test_unravel_index():
     def verify_unravel_index(indices, shape, dtype):
         x_data = np.array(indices).astype(dtype)
@@ -751,4 +778,6 @@ if __name__ == "__main__":
     test_tile()
     test_repeat()
     test_gather_nd()
+    test_isfinite()
+    test_isinf()
     test_unravel_index()
