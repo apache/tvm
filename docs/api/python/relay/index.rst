@@ -27,16 +27,22 @@ compiler stack.
 .. toctree::
    :maxdepth: 2
 
+   analysis
    backend
-   base
-   build_module
-   expr
    frontend
    image
-   analysis
    transform
    nn
    op
-   scope_builder
    vision
    testing
+
+.. automodule:: tvm.relay
+    :members:
+    :imported-members:
+    :exclude-members: RelayExpr, Pass, PassInfo, function_pass, PassContext,
+      ModulePass, FunctionPass, Sequential, module_pass, Type, TypeKind,
+      TypeVar, GlobalTypeVar, TypeConstraint, FuncType, TupleType, IncompleteType,
+      TypeCall, TypeRelation, TensorType, RelayRefType, GlobalVar, SourceName,
+      Span, Var, Op, Constructor
+    :autosummary:

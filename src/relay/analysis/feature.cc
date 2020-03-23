@@ -104,7 +104,7 @@ Array<Integer> PyDetectFeature(const Expr& expr, const IRModule& mod) {
   return static_cast<Array<Integer>>(fs);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.detect_feature")
+TVM_REGISTER_GLOBAL("relay.analysis.detect_feature")
 .set_body_typed(PyDetectFeature);
 
 }  // namespace relay

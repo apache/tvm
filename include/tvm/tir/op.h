@@ -52,9 +52,22 @@ namespace tvm {
  * This function could return a more refined type than
  * the runtime type provided by expr->dtype
  *
+ * \param expr The input parameter.
+ * \return The result type.
+ *
  * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
  */
 TVM_DLL Type GetType(const PrimExpr& expr);
+
+/*!
+ * \brief Get the implied DataType for storing values with type during runtime.
+ *
+ * \param type The input type.
+ * \return The result runtime::DataType.
+ *
+ * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ */
+TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 
 /*!
  * Query the maximum possible value of dtype.

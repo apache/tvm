@@ -139,7 +139,7 @@ bool RuntimeEnabled(const std::string& target) {
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
   } else if (target == "stackvm") {
-    f_name = "codegen.build_stackvm";
+    f_name = "target.build.stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
   } else if (target == "micro_dev") {

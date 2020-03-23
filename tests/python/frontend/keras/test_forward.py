@@ -398,6 +398,28 @@ class TestKeras:
             input_shape=(224, 224, 3), classes=1000)
         verify_keras_frontend(keras_model, layout=layout)
 
+    def test_forward_conv3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        conv_funcs = [keras.layers.Conv3D(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          strides=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3D(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          dilation_rate=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3D(filters=1,
+                                          kernel_size=(3, 3, 3),
+                                          padding='valid',
+                                          use_bias=False),
+                      keras.layers.Conv3D(filters=10,
+                                          kernel_size=(2, 2, 2),
+                                          padding='valid'),
+                    ]
+        for conv_func in conv_funcs:
+            x = conv_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
 
 if __name__ == '__main__':
     for k in [keras, tf_keras]:
@@ -426,3 +448,4 @@ if __name__ == '__main__':
         sut.test_forward_resnet50(keras=k, layout='NHWC')
         sut.test_forward_mobilenet(keras=k)
         sut.test_forward_mobilenet(keras=k, layout='NHWC')
+        sut.test_forward_conv3d(keras=k)

@@ -24,10 +24,11 @@ from tvm.ir import IRModule
 from tvm import relay
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
-from ..util import get_scalar_from_constant
 from ... import nd as _nd
+from .util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -2365,6 +2366,6 @@ def from_tflite(model, shape_dict, dtype_dict):
     params = {k:_nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(analysis.free_vars(outputs), outputs)
+    func = _function.Function(analysis.free_vars(outputs), outputs)
     mod = IRModule.from_expr(func)
     return mod, params

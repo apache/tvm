@@ -359,10 +359,9 @@ def add_quant_params(params, quant_params):
             params[qparam.bias_var.name_hint] = tvm.nd.array(qparam.bias)
 
 
-def quantized_adaptive_avg_2d(data, func_fp32):
-    # this follows tflite impl
+def apply_with_upcast(data, func):
     inp = _op.cast(data, dtype="int32")
-    out = func_fp32(inp)
+    out = func(inp)
     return _op.cast(out, "uint8")
 
 

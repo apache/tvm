@@ -23,7 +23,8 @@ import tvm
 from tvm import relay
 from tvm.relay.adt import Pattern
 from tvm.relay.backend import compile_engine
-from tvm.relay.expr import Expr, Function, GlobalVar, Var
+from tvm.relay.expr import Expr, GlobalVar, Var
+from tvm.relay.function import Function
 from tvm.relay.expr_functor import ExprFunctor
 
 OUTPUT_VAR_NAME = '_py_out'

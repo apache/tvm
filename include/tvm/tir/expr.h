@@ -55,22 +55,27 @@ namespace tir {
  */
 class VarNode : public PrimExprNode {
  public:
-  /*! \brief constructor */
-  VarNode() {}
-  VarNode(DataType dtype, std::string name_hint);
-
   /*!
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
   std::string name_hint;
+  /*!
+   * \brief type annotaion of the variable.
+   *
+   * It is an optional field that provides a refined type of the variable than dtype.
+   *
+   * \sa tvm/ir/type.h for discussion of relations between runtime::DataType and Type.
+   */
+  Type type_annotation;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("name", &name_hint);
+    v->Visit("type_annotation", &type_annotation);
   }
 
-  static constexpr const char* _type_key = "Variable";
+  static constexpr const char* _type_key = "tir.Var";
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
 
@@ -78,20 +83,25 @@ class VarNode : public PrimExprNode {
 class Var : public PrimExpr {
  public:
   explicit Var(ObjectPtr<Object> n) : PrimExpr(n) {}
-  /*! \brief constructor
+  /*!
+   * \brief Constructor
    * \param name_hint variable name
-   * \param t data type
+   * \param dtype data type
    */
   TVM_DLL explicit Var(std::string name_hint = "v",
-                       DataType t = DataType::Int(32));
+                       DataType dtype = DataType::Int(32));
+  /*!
+   * \brief Constructor which provides a more detailed type annotation.
+   * \param name_hint variable name.
+   * \param type_annotation The type annotation.
+   */
+  TVM_DLL explicit Var(std::string name_hint, Type type_annotation);
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  Var copy_with_suffix(const std::string& suffix) const {
-    return Var((*this)->name_hint + suffix, (*this)->dtype);
-  }
+  TVM_DLL Var copy_with_suffix(const std::string& suffix) const;
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -116,15 +126,7 @@ class Var : public PrimExpr {
  */
 class SizeVarNode : public VarNode {
  public:
-  /*! \brief constructor */
-  SizeVarNode() {}
-  /*! \brief constructor
-   * \param dtype data type
-   * \param name_hint variable name
-   */
-  SizeVarNode(DataType dtype, std::string name_hint);
-
-  static constexpr const char* _type_key = "SizeVar";
+  static constexpr const char* _type_key = "tir.SizeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
 };
 
@@ -132,12 +134,13 @@ class SizeVarNode : public VarNode {
 class SizeVar : public Var {
  public:
   explicit SizeVar(ObjectPtr<Object> n) : Var(n) {}
-  /*! \brief constructor
+  /*!
+   * \brief constructor
    * \param name_hint variable name
    * \param t data type
    */
   TVM_DLL explicit SizeVar(std::string name_hint = "s",
-                            DataType t = DataType::Int(32));
+                           DataType t = DataType::Int(32));
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.

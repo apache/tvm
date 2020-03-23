@@ -274,10 +274,10 @@ tvm::Array<Var> AllVars(const Expr& expr) {
   return VarVisitor().All(expr);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.free_vars")
+TVM_REGISTER_GLOBAL("relay.analysis.free_vars")
 .set_body_typed(FreeVars);
 
-TVM_REGISTER_GLOBAL("relay._analysis.bound_vars")
+TVM_REGISTER_GLOBAL("relay.analysis.bound_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       ObjectRef x = args[0];
       if (x.as<ExprNode>()) {
@@ -287,10 +287,10 @@ TVM_REGISTER_GLOBAL("relay._analysis.bound_vars")
       }
     });
 
-TVM_REGISTER_GLOBAL("relay._analysis.all_vars")
+TVM_REGISTER_GLOBAL("relay.analysis.all_vars")
 .set_body_typed(AllVars);
 
-TVM_REGISTER_GLOBAL("relay._analysis.free_type_vars")
+TVM_REGISTER_GLOBAL("relay.analysis.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     ObjectRef x = args[0];
     IRModule mod = args[1];
@@ -301,7 +301,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.free_type_vars")
     }
   });
 
-TVM_REGISTER_GLOBAL("relay._analysis.bound_type_vars")
+TVM_REGISTER_GLOBAL("relay.analysis.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       ObjectRef x = args[0];
       IRModule mod = args[1];
@@ -312,7 +312,7 @@ TVM_REGISTER_GLOBAL("relay._analysis.bound_type_vars")
       }
     });
 
-TVM_REGISTER_GLOBAL("relay._analysis.all_type_vars")
+TVM_REGISTER_GLOBAL("relay.analysis.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       ObjectRef x = args[0];
       IRModule mod = args[1];

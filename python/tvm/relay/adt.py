@@ -17,9 +17,11 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name, unused-import
 """Algebraic data types in Relay."""
 from tvm.ir import Constructor, TypeData
+from tvm.runtime import Object
+import tvm._ffi
 
-from .base import RelayNode, register_relay_node, Object
-from . import _make
+from .base import RelayNode
+from . import _ffi_api
 from .ty import Type
 from .expr import ExprWithOp, RelayExpr, Call
 
@@ -28,7 +30,7 @@ class Pattern(RelayNode):
     """Base type for pattern matching constructs."""
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternWildcard")
 class PatternWildcard(Pattern):
     """Wildcard pattern in Relay: Matches any ADT and binds nothing."""
 
@@ -44,10 +46,10 @@ class PatternWildcard(Pattern):
         wildcard: PatternWildcard
             a wildcard pattern.
         """
-        self.__init_handle_by_constructor__(_make.PatternWildcard)
+        self.__init_handle_by_constructor__(_ffi_api.PatternWildcard)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternVar")
 class PatternVar(Pattern):
     """Variable pattern in Relay: Matches anything and binds it to the variable."""
 
@@ -63,10 +65,10 @@ class PatternVar(Pattern):
         pv: PatternVar
             A variable pattern.
         """
-        self.__init_handle_by_constructor__(_make.PatternVar, var)
+        self.__init_handle_by_constructor__(_ffi_api.PatternVar, var)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternConstructor")
 class PatternConstructor(Pattern):
     """Constructor pattern in Relay: Matches an ADT of the given constructor, binds recursively."""
 
@@ -88,10 +90,10 @@ class PatternConstructor(Pattern):
         """
         if patterns is None:
             patterns = []
-        self.__init_handle_by_constructor__(_make.PatternConstructor, constructor, patterns)
+        self.__init_handle_by_constructor__(_ffi_api.PatternConstructor, constructor, patterns)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.PatternTuple")
 class PatternTuple(Pattern):
     """Constructor pattern in Relay: Matches a tuple, binds recursively."""
 
@@ -111,10 +113,10 @@ class PatternTuple(Pattern):
         """
         if patterns is None:
             patterns = []
-        self.__init_handle_by_constructor__(_make.PatternTuple, patterns)
+        self.__init_handle_by_constructor__(_ffi_api.PatternTuple, patterns)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Clause")
 class Clause(Object):
     """Clause for pattern matching in Relay."""
 
@@ -133,10 +135,10 @@ class Clause(Object):
         clause: Clause
             The Clause.
         """
-        self.__init_handle_by_constructor__(_make.Clause, lhs, rhs)
+        self.__init_handle_by_constructor__(_ffi_api.Clause, lhs, rhs)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.Match")
 class Match(ExprWithOp):
     """Pattern matching expression in Relay."""
 
@@ -160,4 +162,4 @@ class Match(ExprWithOp):
         match: tvm.relay.Expr
             The match expression.
         """
-        self.__init_handle_by_constructor__(_make.Match, data, clauses, complete)
+        self.__init_handle_by_constructor__(_ffi_api.Match, data, clauses, complete)

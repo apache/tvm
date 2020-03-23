@@ -82,7 +82,7 @@ Expr MakeCast(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay._make.cast")
+TVM_REGISTER_GLOBAL("relay.ir.cast")
 .set_body_typed(MakeCast);
 
 RELAY_REGISTER_OP("cast")
@@ -138,7 +138,7 @@ Expr MakeCastLike(Expr data,
 }
 
 
-TVM_REGISTER_GLOBAL("relay._make.cast_like")
+TVM_REGISTER_GLOBAL("relay.ir.cast_like")
 .set_body_typed(MakeCastLike);
 
 RELAY_REGISTER_OP("cast_like")
@@ -273,54 +273,6 @@ Array<te::Tensor> ConcatenateCompute(const Attrs& attrs,
   const ConcatenateAttrs *param = attrs.as<ConcatenateAttrs>();
   CHECK(param != nullptr);
   return { topi::concatenate(inputs, param->axis) };
-}
-
-Array<Array<Layout>> ConcatenateLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
-  ConcatenateAttrs* param = const_cast<ConcatenateAttrs*>(attrs.as<ConcatenateAttrs>());
-
-  size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
-                static_cast<size_t>(param->axis);
-
-  Layout ret;
-  bool is_new_layout_selected = false;
-  if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
-    // If all the new input layouts are same, the new in layout gets selected.  For axis, the new
-    // axis in the new layout is identified. The param->axis is then modified on the fly to conform
-    // to the new input layout.
-    const auto& concate_dim = old_in_layouts[0][axis];
-    bool all_input_layouts_same = true;
-    for (auto new_layout : new_in_layouts) {
-      if (!new_layout.Equals(new_in_layouts[0])) {
-        all_input_layouts_same = false;
-      }
-    }
-    if (all_input_layouts_same) {
-      auto new_index = new_in_layouts[0].IndexOf(concate_dim);
-      ret = new_in_layouts[0];
-      param->axis = new_index;
-      is_new_layout_selected = true;
-    }
-  }
-
-  if (!is_new_layout_selected) {
-    // this function is called on the original correct relay ir
-    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
-      if (old_in_layouts[i].defined()) {
-        ret = old_in_layouts[i];
-        break;
-      }
-    }
-
-    if (ret.ndim() <= axis || !ret[axis].IsPrimal()) {
-      return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
-    }
-  }
-
-  return Array<Array<Layout> > {Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
 Expr MakeConcatenate(Expr data,
@@ -854,15 +806,13 @@ bool ArgWhereRel(const Array<Type>& types,
 TVM_REGISTER_GLOBAL("relay.op._make.argwhere")
 .set_body_typed([](Expr data) {
   static const Op& op = Op::Get("argwhere");
-  auto attrs = make_object<ArgWhereAttrs>();
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return CallNode::make(op, {data}, Attrs(), {});
 });
 
 RELAY_REGISTER_OP("argwhere")
 .describe(R"doc(Find the indices of elements of a tensor that are
 non-zero)doc" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_attrs_type<ArgWhereAttrs>()
 .add_argument("condition", "Tensor", "The input condition tensor.")
 .add_type_rel("ArgWhere", ArgWhereRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
@@ -1933,7 +1883,14 @@ Array<Array<Layout> > StridedSliceInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>>& old_in_shapes) {
+    const Array<tvm::relay::Type>& old_in_types) {
+
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    CHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
+
   CHECK(old_in_layouts.defined());
   CHECK_EQ(old_in_layouts.size(), 1);
   CHECK(old_in_shapes.defined());
@@ -2702,6 +2659,74 @@ RELAY_REGISTER_OP("one_hot")
 .add_type_rel("OneHot", OneHotRel)
 .set_attr<FTVMCompute>("FTVMCompute", OneHotCompute)
 .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
+
+/* relay.unravel_index */
+bool UnRavelIndexRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+
+  const auto* indices = types[0].as<TensorTypeNode>();
+  if (indices == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "unravel_index: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  CHECK(indices->dtype.is_int())
+      << "indices of unravel_index must be tensor of integer";
+
+  const auto* shape = types[1].as<TensorTypeNode>();
+  if (shape == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "unravel_index: expect input type to be TensorType but get "
+        << types[1];
+    return false;
+  }
+  CHECK(indices->dtype.is_int())
+      << "shape of unravel_index must be tensor of integer";
+
+  Array<IndexExpr> indices_shape;
+  Array<IndexExpr> shape_shape;
+  indices_shape = indices->shape;
+  shape_shape = shape->shape;
+
+  Array<IndexExpr> oshape;
+  oshape.push_back(shape_shape[0]);
+  if (indices_shape.size() != 0) {
+    oshape.push_back(indices_shape[0]);
+  }
+  reporter->Assign(types[2], TensorType(oshape, indices->dtype));
+  return true;
+}
+
+Array<te::Tensor> UnRavelIndexCompute(const Attrs& attrs,
+                                      const Array<te::Tensor>& inputs,
+                                      const Type& out_type) {
+  return Array<te::Tensor>{topi::unravel_index(inputs[0], inputs[1])};
+}
+
+Expr MakeUnRavelIndex(Expr data,
+                      Expr shape) {
+  static const Op& op = Op::Get("unravel_index");
+  return CallNode::make(op, {data, shape}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.unravel_index")
+.set_body_typed(MakeUnRavelIndex);
+
+RELAY_REGISTER_OP("unravel_index")
+.describe(R"code(Converts a flat index or array of flat indices into a tuple of coordinate arrays.
+
+Example::
+  -  unravel_index([22, 41, 37], (7, 6)) = [[3, 6, 6], [4, 5, 1]]
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.set_support_level(3)
+.add_type_rel("UnRavelIndexRel", UnRavelIndexRel)
+.set_attr<FTVMCompute>("FTVMCompute", UnRavelIndexCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm
