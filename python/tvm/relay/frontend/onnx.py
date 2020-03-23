@@ -137,8 +137,10 @@ def onnx_default_layout(dims):
         return 'NCW'
     if dims == 2:
         return 'NCHW'
+    if dims == 3:
+        return 'NCDHW'
 
-    msg = "Only 1d and 2d layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported"
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
@@ -151,8 +153,10 @@ def onnx_storage_order2layout(storage_order, dims=2):
         return 'NCW' if storage_order == 0 else 'NWC'
     if dims == 2:
         return 'NCHW' if storage_order == 0 else 'NHWC'
+    if dims == 3:
+        return 'NCDHW' if storage_order == 0 else 'NDHWC'
 
-    msg = "Only 1d and 2d layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported"
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
@@ -780,19 +784,36 @@ class Upsample(OnnxOpConverter):
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
             scales = params[inputs[1].name_hint].asnumpy()
             inputs = inputs[:1]
-        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0
+        assert scales[0] == 1.0 and scales[1] == 1.0
+        input_shape = infer_shape(inputs[0])
+        dims = len(input_shape)
+        isUpSample3D = bool(dims == 5)
         mode = attr.get('mode')
         if mode == b'nearest':
             method = "nearest_neighbor"
         elif mode == b'linear':
-            method = "bilinear"
+            method = "trilinear" if isUpSample3D else "bilinear"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale_h': scales[-2], 'scale_w': scales[-1], 'method': method,
-                'layout': 'NCHW', 'align_corners': True}
-        return AttrCvt('upsampling')(inputs, attr)
-
+        if isUpSample3D:
+            assert len(scales) == 5
+            attr = {'scale_d': scales[-3],
+                    'scale_h': scales[-2],
+                    'scale_w': scales[-1],
+                    'method': method,
+                    'layout': 'NCDHW',
+                    'coordinate_transformation_mode':'half_pixel'}
+            op_name = 'upsampling3d'
+        else:
+            assert len(scales) == 4
+            attr = {'scale_h': scales[-2],
+                    'scale_w': scales[-1],
+                    'method': method,
+                    'layout': 'NCHW',
+                    'align_corners': True}
+            op_name = 'upsampling'
+        return AttrCvt(op_name)(inputs, attr)
 
 class Shape(OnnxOpConverter):
     """ Operator converter for Shape.
