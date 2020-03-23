@@ -78,9 +78,6 @@ extensions = [
     'autodocsumm'
 ]
 
-breathe_projects = {'tvm' : 'doxygen/xml/'}
-breathe_default_project = 'tvm'
-
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -208,10 +205,6 @@ subsection_order = ExplicitOrder(
      '../vta/tutorials/optimize',
      '../vta/tutorials/autotvm'])
 
-def generate_doxygen_xml(app):
-    """Run the doxygen make commands if we're on the ReadTheDocs server"""
-    run_doxygen('..')
-
 sphinx_gallery_conf = {
     'backreferences_dir': 'gen_modules/backreferences',
     'doc_module': ('tvm', 'numpy'),
@@ -231,19 +224,6 @@ sphinx_gallery_conf = {
 autodoc_default_options = {
     'member-order': 'bysource',
 }
-
-# hook for doxygen
-def run_doxygen(folder):
-    """Run the doxygen make command in the designated folder."""
-    try:
-        #retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
-        retcode = subprocess.call("rm -rf _build/html/doxygen", shell=True)
-        retcode = subprocess.call("mkdir -p _build/html", shell=True)
-        retcode = subprocess.call("cp -rf doxygen/html _build/html/doxygen", shell=True)
-        if retcode < 0:
-            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
-    except OSError as e:
-        sys.stderr.write("doxygen execution failed: %s" % e)
 
 # Maps the original namespace to list of potential modules
 # that we can import alias from.
@@ -300,9 +280,6 @@ def process_docstring(app, what, name, obj, options, lines):
 
 
 def setup(app):
-    # Add hook for building doxygen xml when needed
-    # no c++ API for now
-    app.connect("builder-inited", generate_doxygen_xml)
     app.connect('autodoc-process-docstring', process_docstring)
     app.add_stylesheet('css/tvm_theme.css')
     app.add_config_value('recommonmark_config', {
