@@ -354,44 +354,30 @@ def test_forward_adaptiveavgpool():
 def test_forward_maxpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class MaxPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[1, 1])(args[0])
-
-    class MaxPool2D2(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[10, 10])(args[0])
-
-    class MaxPool2D3(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2)(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D1().float().eval(), input_data=input_data)
-    verify_model(MaxPool2D2().float().eval(), input_data=input_data)
-    verify_model(MaxPool2D3().float().eval(), input_data=input_data)
+
+    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
 
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10]
-
-    class MaxPool1D1(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool1d(kernel_size=1)(args[0])
-
-    class MaxPool1D2(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool1d(kernel_size=10)(args[0])
-
-    class MaxPool1D3(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool1d(kernel_size=4, padding=2, stride=2)(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool1D1().float().eval(), input_data=input_data)
-    verify_model(MaxPool1D2().float().eval(), input_data=input_data)
-    verify_model(MaxPool1D3().float().eval(), input_data=input_data)
+
+    verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(),
+                input_data)
+    verify_model( torch.nn.MaxPool1d(kernel_size=4,
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
