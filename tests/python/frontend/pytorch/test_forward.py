@@ -363,9 +363,14 @@ def test_forward_maxpool2d():
         def forward(self, *args):
             return torch.nn.MaxPool2d(kernel_size=[10, 10])(args[0])
 
+    class MaxPool2D3(Module):
+        def forward(self, *args):
+            return torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2)(args[0])
+
     input_data = torch.rand(input_shape).float()
     verify_model(MaxPool2D1().float().eval(), input_data=input_data)
     verify_model(MaxPool2D2().float().eval(), input_data=input_data)
+    verify_model(MaxPool2D3().float().eval(), input_data=input_data)
 
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
@@ -379,9 +384,14 @@ def test_forward_maxpool1d():
         def forward(self, *args):
             return torch.nn.MaxPool1d(kernel_size=10)(args[0])
 
+    class MaxPool1D3(Module):
+        def forward(self, *args):
+            return torch.nn.MaxPool1d(kernel_size=4, padding=2, stride=2)(args[0])
+
     input_data = torch.rand(input_shape).float()
     verify_model(MaxPool1D1().float().eval(), input_data=input_data)
     verify_model(MaxPool1D2().float().eval(), input_data=input_data)
+    verify_model(MaxPool1D3().float().eval(), input_data=input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
