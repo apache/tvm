@@ -19,7 +19,7 @@
 # Analysis passes
 from .analysis import *
 
-# Subgraphs
+# Annotations
 from . import annotated_regions
 
 # Call graph
