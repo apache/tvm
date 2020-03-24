@@ -26,7 +26,7 @@ from . import _ffi_api
 
 @tvm._ffi.register_object("tir.PrimFuncPass")
 class PrimFuncPass(Pass):
-    """A pass that works on each tvm.relay.Function in a module. A function
+    """A pass that works on each :py:func:`tvm.tir.PrimFunc` in a module. A function
     pass class should be created through py:func:`tvm.tir.transform.function_pass`.
     """
 
@@ -67,7 +67,7 @@ def prim_func_pass(pass_func=None, opt_level=None, name=None, required=None):
 
     Parameters
     ----------
-    pass_func : Optional[Callable[(Function, Module, PassContext) -> Function]]
+    pass_func : Optional[Callable[(PrimFunc, IRModule, PassContext) -> PrimFunc]]
         The transformation function or class.
 
     opt_level : int
@@ -78,7 +78,7 @@ def prim_func_pass(pass_func=None, opt_level=None, name=None, required=None):
         name of the optimization function will be used as the pass name.
 
     required : Optional[List[str]]
-        The list of passes that the module pass is dependent on.
+        The list of passes that the function pass is dependent on.
 
     Returns
     -------
