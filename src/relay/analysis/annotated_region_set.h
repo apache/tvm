@@ -249,7 +249,7 @@ class AnnotatedRegionSet : public ObjectRef {
     return n->end();
   }
 
-    /*! \return mutable pointers to the node. */
+  /*! \return mutable pointers to the node. */
   AnnotatedRegionSetNode* operator->() const {
     auto* ptr = get_mutable();
     CHECK(ptr != nullptr);
