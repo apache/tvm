@@ -21,6 +21,7 @@ from .. import expr as _expr
 from .. import analysis as _analysis
 from . import _quantize
 from .quantize import _forward_op
+from tvm.contrib.util import eprint
 
 def register_partition_function(op_name, frewrite=None, level=10):
     return tvm.ir.register_op_attr(op_name, "FQPartitionRewrite", frewrite, level)
@@ -81,7 +82,7 @@ def add_partition_generic(ref_call, new_args, ctx):
         #     ...
         lhs = new_args[0].realize()
         rhs = new_args[1].realize()
-        return _forward_op(ref_call, [lhs, rhs])
+        return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
     if not lhs_cond and rhs_cond:
         # - introduced by residual connection in ResNet
         #     ...
@@ -141,6 +142,7 @@ def multiply_partition_function(ref_call, new_args, ctx):
     rhs_cond, rhs = partition_expr_check(new_args[1])
     if lhs_cond:
         # introduced by bn: multiply(out, scale)
+        lhs = new_args[0].realize()
         return QPartitionExpr(_forward_op(ref_call, [lhs, rhs]))
     assert (not lhs_cond) and (not rhs_cond)
     return None

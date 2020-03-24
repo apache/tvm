@@ -37,6 +37,7 @@ namespace relay {
 struct DeviceCopyAttrs : public tvm::AttrsNode<DeviceCopyAttrs> {
   int dst_dev_type;
   int src_dev_type;
+  bool used_for_propagate = true;
 
   TVM_DECLARE_ATTRS(DeviceCopyAttrs, "relay.attrs.DeviceCopyAttrs") {
     TVM_ATTR_FIELD(src_dev_type)

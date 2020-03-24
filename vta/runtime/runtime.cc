@@ -644,6 +644,8 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
           }
       } else if (opcode == VTA_ALU_OPCODE_SHR) {
           return (std::string("shr ") + std::to_string(imm));
+      } else if (opcode == VTA_ALU_OPCODE_MUL) {
+        return "mul";
       }
 
     return "unknown op";

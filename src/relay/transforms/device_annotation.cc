@@ -82,7 +82,7 @@ class ValidateAnnotation : private ExprVisitor {
 
       CHECK_EQ(call_node->args.size(), 1U);
       const auto* node = call_node->args[0].operator->();
-      // LOG(WARNING) << "annotated node, device_type = " << device_type << " : " << GetRef<Expr>(node);
+      // LOG(WARNING) << "annotated node, device_type = " << device_type << " : " << GetRef<Expr>(node).as<CallNode>()->op;
       if (annotation_map_.count(node)) {
         CHECK_EQ(annotation_map_.at(node), device_type)
             << "An expression node can only be annotated to one device.";
@@ -245,7 +245,7 @@ class RewriteAnnotation : public ExprMutator {
       CHECK(dit != annotation_map_.end())
           << "Device copy op is not required when both src and dst ops are not "
              "annotated.";
-      // LOG(WARNING) << "Create device copy " << fallback_device_ << " to " << dit->second << ": " << src;
+      // LOG(WARNING) << "Create device copy " << fallback_device_ << " to " << dit->second << ": " << src.as<CallNode>()->op;
       return CreateDeviceCopy(src, fallback_device_, dit->second);
     } else {
       const auto dit = annotation_map_.find(dst);
@@ -552,11 +552,13 @@ class AddDeviceCopy : public ExprMutator {
       int src_dev_type = device_map_.count(arg) ? device_map_[arg]->value : 1;
       int dst_dev_type = device_map_.count(call_expr) ? device_map_[call_expr]->value : 1;
       if (!src_is_copy_node && !dst_is_copy_node && src_dev_type != dst_dev_type) {
-        // LOG(WARNING) << "Not consistent device type, src = " << src_dev_type << ":" << arg;
-        // LOG(WARNING) << "Not consistent device type, dst = " << dst_dev_type << ":" << call_expr;
+        // auto arg_call = arg.as<CallNode>();
+        // LOG(WARNING) << "Not consistent device type, src = " << src_dev_type << ":" << (arg_call ? arg_call->op : arg);
+        // LOG(WARNING) << "Not consistent device type, dst = " << dst_dev_type << ":" << call_node->op;
         auto attrs = make_object<DeviceCopyAttrs>();
         attrs->src_dev_type = src_dev_type;
         attrs->dst_dev_type = dst_dev_type;
+        attrs->used_for_propagate = false;
         static const Op& op = Op::Get("device_copy");
         Call device_copy = CallNode::make(op, {this->Mutate(arg)}, Attrs(attrs), {});
         device_copy->checked_type_ = arg->checked_type_;

@@ -82,7 +82,10 @@ register_broadcast_schedule("isfinite")
 register_broadcast_schedule("isinf")
 register_injective_schedule("maximum")
 register_injective_schedule("minimum")
-register_injective_schedule("right_shift")
+# NOTE(zhanghao): use customized add schedule
+# TODO(zhanghao): change the schedule name
+register_add_schedule("right_shift")
+# register_injective_schedule("right_shift")
 register_injective_schedule("left_shift")
 register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
