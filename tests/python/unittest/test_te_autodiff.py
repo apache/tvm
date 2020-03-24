@@ -17,14 +17,14 @@
 
 import tvm
 from tvm import te
-from tvm.testing import check_numerical_grads
+from tvm.testing import check_numerical_grads, assert_allclose
 import topi
 from topi.util import get_const_tuple
 
 import numpy as np
 
 
-def check_grad(out, inputs, data_range=(-10, 10), acceptable_fail_percentage=None):
+def check_grad(out, inputs, data_range=(-10, 10), desired_grads=None):
     inputs = inputs if isinstance(inputs, list) else [inputs]
 
     def check_device(device, host="llvm"):
@@ -50,6 +50,7 @@ def check_grad(out, inputs, data_range=(-10, 10), acceptable_fail_percentage=Non
         grads = te.gradient(out, inputs, head=ones)
         grad_sched = te.create_schedule([grad.op for grad in grads])
         mgrad = tvm.build(grad_sched, list(grads) + inputs)
+        # print(tvm.lower(grad_sched, list(grads) + inputs, simple_mode=True))
 
         grad_data = [tvm.nd.empty(get_const_tuple(i.shape), g.dtype)
                      for i, g in zip(inputs, grads)]
@@ -57,12 +58,16 @@ def check_grad(out, inputs, data_range=(-10, 10), acceptable_fail_percentage=Non
         mgrad(*grad_data, *input_data)
         g_res = [g.asnumpy() for g in grad_data]
 
-        def forward(*in_data):
-            out_data = tvm.nd.empty(out_shape, out.dtype)
-            mout(out_data, *[tvm.nd.array(d) for d in list(in_data)])
-            return out_data.asnumpy().sum()
-        check_numerical_grads(forward, [d.asnumpy() for d in input_data], g_res,
-                              acceptable_fail_percentage=acceptable_fail_percentage)
+        if desired_grads:
+            assert isinstance(desired_grads, list)
+            for actual, desired in zip(g_res, desired_grads):
+                assert_allclose(actual, desired, rtol=0.1, atol=1e-2)
+        else:
+            def forward(*in_data):
+                out_data = tvm.nd.empty(out_shape, out.dtype)
+                mout(out_data, *[tvm.nd.array(d) for d in list(in_data)])
+                return out_data.asnumpy().sum()
+            check_numerical_grads(forward, [d.asnumpy() for d in input_data], g_res)
 
     check_device("cpu")
 
@@ -74,6 +79,7 @@ def test_basic_operation():
     l = te.reduce_axis((0, 10), name="l")
     A0 = te.placeholder(shape, name='A0')
     A1 = te.placeholder(shape, name='A1')
+    zeros = np.zeros(shape)
 
     B = te.compute(shape, lambda i, j: A0[i, j], name='B')
     check_grad(B, [A0])
@@ -85,16 +91,16 @@ def test_basic_operation():
     check_grad(B, A0)
 
     B = te.compute(shape, lambda i, j: te.floor(A0[i, j]), name='B')
-    check_grad(B, A0, acceptable_fail_percentage=0.05)
+    check_grad(B, A0, desired_grads=[zeros])
 
     B = te.compute(shape, lambda i, j: te.ceil(A0[i, j]), name='B')
-    check_grad(B, A0, acceptable_fail_percentage=0.05)
+    check_grad(B, A0, desired_grads=[zeros])
 
     B = te.compute(shape, lambda i, j: te.trunc(A0[i, j]), name='B')
-    check_grad(B, A0, acceptable_fail_percentage=0.05)
+    check_grad(B, A0, desired_grads=[zeros])
 
     B = te.compute(shape, lambda i, j: te.round(A0[i, j]), name='B')
-    check_grad(B, A0, acceptable_fail_percentage=0.05)
+    check_grad(B, A0, desired_grads=[zeros])
 
     B = te.compute(shape, lambda i, j: A0[i, j] + te.exp(A0[j, i]), name='B')
     check_grad(B, A0)

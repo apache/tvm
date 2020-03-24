@@ -20,9 +20,6 @@
 /*!
  * \file ad_util.h
  * \brief Helper utilities to implement auto-differentiation.
- *        The algorithm was initially implemented by Sergei Grechanik (sgrechanik-h)
- *        in [Automatic differentiation for tensor expressions](#2498)
- *        and [Zero elimination](#2634)
  */
 #ifndef TVM_TE_AUTODIFF_AD_UTIL_H_
 #define TVM_TE_AUTODIFF_AD_UTIL_H_

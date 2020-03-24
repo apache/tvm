@@ -20,9 +20,6 @@
 /*!
  * \file tvm/te/autodiff.h
  * \brief Automatic differentiation of tensor expressions.
- *        The algorithm was initially implemented by Sergei Grechanik (sgrechanik-h)
- *        in [Automatic differentiation for tensor expressions](#2498)
- *        and [Zero elimination](#2634)
  */
 
 #ifndef TVM_TE_AUTODIFF_H_
@@ -71,7 +68,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input);
  * \return The tensor of shape `prefix + input.shape`
  *         representing the partial adjoint of \p input wrt one of its consumers (output)
  */
-Tensor PartialAdjoint(const Tensor& output, const Tensor& input, const Tensor& head);
+Tensor VectorJacobianProduct(const Tensor &output, const Tensor &input, const Tensor &head);
 
 /*!
  * \brief Perform reverse mode automatic differentiation.

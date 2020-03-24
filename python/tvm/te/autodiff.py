@@ -15,12 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""
-Automatic differentiation of tensor expressions.
-The algorithm was initially implemented by Sergei Grechanik (sgrechanik-h)
-in [Automatic differentiation for tensor expressions](#2498)
-and [Zero elimination](#2634)
-"""
+"""Automatic differentiation of tensor expressions."""
 from . import _ffi_api
 
 

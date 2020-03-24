@@ -22,9 +22,6 @@
  * \brief Calculate Jacobian of two tensors dY/dX.
  *        X must be direct input tensor of Y.
  *        The result Jacobian shape will be (Y.shape, X.shape)
- *        The algorithm was initially implemented by Sergei Grechanik (sgrechanik-h)
- *        in [Automatic differentiation for tensor expressions](#2498)
- *        and [Zero elimination](#2634)
  */
 #include <tvm/te/autodiff.h>
 #include <tvm/runtime/registry.h>
@@ -325,14 +322,8 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
   // We have to clone the iteration axes because otherwise the original expression
   // cannot be used together with the derivative (it will lead to errors during lowering)
   Array<IterVar> new_axis;
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  for (IterVar iv : op->axis) {
-    IterVar new_v =
-      IterVarNode::make(iv->dom, iv->var.copy_with_suffix(""),
-            iv->iter_type, iv->thread_tag);
-    new_axis.push_back(new_v);
-    vmap[iv->var.get()] = new_v;
-  }
+  Map<Var, PrimExpr> vmap;
+  std::tie(new_axis, vmap) = te::CloneIterVars(op->axis);
 
   Array<PrimExpr> input_indices;
   size_t i = 0;

@@ -29,9 +29,6 @@
  *        (2) multiply the Jacobian (PartialAdjoint),
  *        (3) and sum them together to get the adjoint of the input itself.
  *        The three steps are computed recursively.
- *        The algorithm was initially implemented by Sergei Grechanik (sgrechanik-h)
- *        in [Automatic differentiation for tensor expressions](#2498)
- *        and [Zero elimination](#2634)
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/te/autodiff.h>
@@ -62,7 +59,7 @@ Tensor Identity(const Tensor& output) {
   return te::compute(shape, func, "identity");
 }
 
-Tensor PartialAdjoint(const Tensor& output, const Tensor& input, const Tensor& head) {
+Tensor VectorJacobianProduct(const Tensor &output, const Tensor &input, const Tensor &head) {
   Tensor jac = Jacobian(output, input);
   Tensor result = topi::tensordot(head, jac, /*axes=*/output->shape.size(),
                                   output->op->name + "." + input->op->name + ".grad");
@@ -118,10 +115,11 @@ Array<Tensor> Gradient(const Tensor& output,
         } else {
           // The new adjoint is computed as a sum of the reverse dependencies' adjoints multiplied
           // by the corresponding "local" jacobians (dDep/dTensor). The computation of the jacobian
-          // and the multiplication is done in the function PartialAdjoint
+          // and the multiplication is done in the function VectorJacobianProduct
           for (const Tensor& direct_consumer : direct_consumers) {
             // part = (adjoint of direct_consumer) * Jacobian(direct_consumer, tensor)
-            Tensor part = PartialAdjoint(direct_consumer, tensor, compute_adjoint(direct_consumer));
+            Tensor part = VectorJacobianProduct(
+                direct_consumer, tensor, compute_adjoint(direct_consumer));
             res_adjoint = res_adjoint.get() ? topi::add(res_adjoint, part) : part;
           }
         }

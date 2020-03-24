@@ -20,9 +20,6 @@
 /*!
  * \file ad_util.cc
  * \brief Utility for tensor-level auto-differentiation.
- *        The algorithm was initially implemented by Sergei Grechanik (sgrechanik-h)
- *        in [Automatic differentiation for tensor expressions](#2498)
- *        and [Zero elimination](#2634)
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
