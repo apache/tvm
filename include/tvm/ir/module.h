@@ -163,6 +163,14 @@ class IRModuleNode : public Object {
   TVM_DLL Array<GlobalTypeVar> GetGlobalTypeVars() const;
 
   /*!
+   * \brief Find constructor of ADT using name
+   * \param adt name of the ADT the constructor belongs to
+   * \param cons name of the constructor
+   * \returns Constructor of ADT, error if not found
+   */
+  TVM_DLL Constructor GetConstructor(const std::string& adt, const std::string& cons) const;
+
+  /*!
    * \brief Look up a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.

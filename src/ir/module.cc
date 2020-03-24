@@ -96,6 +96,18 @@ GlobalTypeVar IRModuleNode::GetGlobalTypeVar(const std::string& name) const {
   return (*it).second;
 }
 
+Constructor IRModuleNode::GetConstructor(const std::string& adt, const std::string& cons) const {
+  TypeData typeDef = this->LookupTypeDef(adt);
+  for (Constructor c : typeDef->constructors) {
+    if (cons.compare(c->name_hint) == 0) {
+      return c;
+    }
+  }
+
+  LOG(FATAL) << adt << " does not contain constructor " << cons;
+  throw std::runtime_error("Constructor Not Found.");
+}
+
 tvm::Array<GlobalTypeVar> IRModuleNode::GetGlobalTypeVars() const {
   std::vector<GlobalTypeVar> global_type_vars;
   for (const auto& pair : global_type_var_map_) {
