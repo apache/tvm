@@ -23,10 +23,12 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 
 namespace tvm {
 namespace tir {
 
+// Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params,
                    Stmt body,
                    Type ret_type,
@@ -43,6 +45,7 @@ PrimFunc::PrimFunc(Array<tir::Var> params,
   n->ret_type = std::move(ret_type);
   n->buffer_map = std::move(buffer_map);
   n->attrs = std::move(attrs);
+  n->checked_type_ = n->func_type_annotation();
   data_ = std::move(n);
 }
 

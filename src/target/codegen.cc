@@ -310,6 +310,9 @@ TVM_REGISTER_GLOBAL("target.Build")
     }
   });
 
+TVM_REGISTER_GLOBAL("testing.LoweredFuncsToIRModule")
+.set_body_typed(ToIRModule);
+
 // Export two auxiliary function to the runtime namespace.
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC")
 .set_body_typed(PackImportsToC);

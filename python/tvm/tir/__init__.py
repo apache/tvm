@@ -45,3 +45,4 @@ from .op import comm_reducer, min, max, sum
 
 from . import ir_builder
 from . import ir_pass
+from . import transform
