@@ -217,7 +217,8 @@ def _maxpool_2d():
         ceil_mode = int(inputs[5])
 
         if dilation != (1, 1):
-            raise NotImplementedError("MaxPool2d with dilation %s is not implemented" % (str(dilation), ))
+            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
 
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
     return _impl
@@ -233,7 +234,8 @@ def _maxpool_1d():
         ceil_mode = int(inputs[5])
 
         if dilation != (1,):
-            raise NotImplementedError("MaxPool1d with dilation %s is not implemented" % (str(dilation), ))
+            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
 
         return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
     return _impl
