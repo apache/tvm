@@ -87,15 +87,15 @@ AnnotatedRegion AnnotatedRegionSetNode::MakeRegion() {
 
 class AnnotatedRegionSet::Creator : public ExprVisitor {
  public:
-  Creator(const Op &region_begin_op, const Op &region_end_op) :
+  Creator(const Op& region_begin_op, const Op& region_end_op) :
     begin_op_(region_begin_op), end_op_(region_end_op) {}
 
-  AnnotatedRegionSet Create(const Expr &expr) {
+  AnnotatedRegionSet Create(const Expr& expr) {
     VisitExpr(expr);
     return std::move(region_set_);
   }
 
-  void VisitExpr_(const CallNode *call) {
+  void VisitExpr_(const CallNode* call) {
     auto op_node = call->op.as<OpNode>();
 
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
@@ -134,7 +134,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(call);
   }
 
-  void VisitExpr_(const TupleNode *op) {
+  void VisitExpr_(const TupleNode* op) {
     auto region = region_set_->GetRegion(GetRef<Tuple>(op));
     if (region.defined()) {
       for (auto field : op->fields) {
@@ -144,7 +144,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const TupleGetItemNode *g) {
+  void VisitExpr_(const TupleGetItemNode* g) {
     auto region = region_set_->GetRegion(GetRef<TupleGetItem>(g));
     if (region.defined()) {
       region_set_->AddToRegion(region, g->tuple);
@@ -152,7 +152,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(g);
   }
 
-  void VisitExpr_(const FunctionNode *op) {
+  void VisitExpr_(const FunctionNode* op) {
     auto region = region_set_->GetRegion(GetRef<Function>(op));
     if (region.defined()) {
       for (auto param : op->params) {
@@ -162,7 +162,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const LetNode *op) {
+  void VisitExpr_(const LetNode* op) {
     auto region = region_set_->GetRegion(GetRef<Let>(op));
     if (region.defined()) {
       region_set_->AddToRegion(region, op->var);
@@ -172,7 +172,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const IfNode *op) {
+  void VisitExpr_(const IfNode* op) {
     auto region = region_set_->GetRegion(GetRef<If>(op));
     if (region.defined()) {
       region_set_->AddToRegion(region, op->cond);
@@ -182,7 +182,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const RefCreateNode *op) {
+  void VisitExpr_(const RefCreateNode* op) {
     auto region = region_set_->GetRegion(GetRef<RefCreate>(op));
     if (region.defined()) {
       region_set_->AddToRegion(region, op->value);
@@ -190,7 +190,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const RefReadNode *op) {
+  void VisitExpr_(const RefReadNode* op) {
     auto region = region_set_->GetRegion(GetRef<RefRead>(op));
     if (region.defined()) {
       region_set_->AddToRegion(region, op->ref);
@@ -198,7 +198,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  void VisitExpr_(const RefWriteNode *op) {
+  void VisitExpr_(const RefWriteNode* op) {
     auto region = region_set_->GetRegion(GetRef<RefWrite>(op));
     if (region.defined()) {
       region_set_->AddToRegion(region, op->ref);
