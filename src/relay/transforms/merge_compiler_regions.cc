@@ -143,13 +143,13 @@ class AnnotateRestDefault : public ExprMutator {
           Expr begin = (*begin_op)(arg, target_);
           compiler_begins.push_back(begin);
         }
-        Expr update_call = CallNode::make(call->op, compiler_begins, call->attrs);
+        Expr update_call = Call(call->op, compiler_begins, call->attrs);
         return update_call;
       } else {
-        return CallNode::make(call->op, args, call->attrs);
+        return Call(call->op, args, call->attrs);
       }
     } else {
-      return CallNode::make(call->op, args, call->attrs);
+      return Call(call->op, args, call->attrs);
     }
   };
 
@@ -160,13 +160,13 @@ class AnnotateRestDefault : public ExprMutator {
     for (auto field : tup->fields) {
       new_fields.push_back(AddCompilerEnd(field));
     }
-    return TupleNode::make(new_fields);
+    return Tuple(new_fields);
   }
 
   Expr VisitExpr_(const TupleGetItemNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto get = Downcast<TupleGetItem>(new_e);
-    return TupleGetItemNode::make(
+    return TupleGetItem(
       AddCompilerEnd(get->tuple),
       get->index);
   }
@@ -174,7 +174,7 @@ class AnnotateRestDefault : public ExprMutator {
   Expr VisitExpr_(const LetNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto let = Downcast<Let>(new_e);
-    return LetNode::make(
+    return Let(
       let->var,
       AddCompilerEnd(let->value),
       AddCompilerEnd(let->body));
@@ -183,7 +183,7 @@ class AnnotateRestDefault : public ExprMutator {
   Expr VisitExpr_(const IfNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto iff = Downcast<If>(new_e);
-    return IfNode::make(
+    return If(
       AddCompilerEnd(iff->cond),
       AddCompilerEnd(iff->true_branch),
       AddCompilerEnd(iff->false_branch));
@@ -192,13 +192,13 @@ class AnnotateRestDefault : public ExprMutator {
   Expr VisitExpr_(const RefCreateNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto create = Downcast<RefCreate>(new_e);
-    return RefCreateNode::make(AddCompilerEnd(create->value));
+    return RefCreate(AddCompilerEnd(create->value));
   }
 
   Expr VisitExpr_(const RefReadNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto read = Downcast<RefRead>(new_e);
-    return RefReadNode::make(AddCompilerEnd(read->ref));
+    return RefRead(AddCompilerEnd(read->ref));
   }
 
   Expr VisitExpr_(const RefWriteNode *op) {
