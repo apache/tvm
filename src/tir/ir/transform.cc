@@ -51,7 +51,7 @@ class PrimFuncPassNode : public PassNode {
    * \brief Run a function pass on given pass context.
    *
    * \param mod The module that an optimization pass is applied on.
-   * \param mod The context that an optimization pass executes on.
+   * \param pass_ctx The context that an optimization pass executes on.
    *
    * \return Return the updated module.
    */

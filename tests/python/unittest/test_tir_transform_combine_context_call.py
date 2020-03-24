@@ -38,7 +38,7 @@ def test_for():
     body = ib.get()
     f = tvm.tir.ir_pass.MakeAPI(body, "func", [dev_type, n], 2, True)
 
-    # temp adapter t convert loweredFunc to IRModule
+    # temp adapter to convert loweredFunc to IRModule
     # to test passes in the new style.
     mod = tvm.testing.LoweredFuncsToIRModule([f])
 
