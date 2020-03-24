@@ -325,6 +325,8 @@ class StringObj : public Object {
   friend class String;
 };
 
+TVM_REGISTER_OBJECT_TYPE(StringObj);
+
 /*!
  * \brief Reference to string objects.
  *

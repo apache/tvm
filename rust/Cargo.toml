@@ -17,6 +17,7 @@
 
 [workspace]
 members = [
+	"tvm-runtime-sys",
 	"common",
 	"macros",
 	"runtime",

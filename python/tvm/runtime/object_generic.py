@@ -38,7 +38,7 @@ ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PyNativeObject)
 
 
 def convert_to_object(value):
-    """Convert a python value to corresponding object type.
+    """Convert a Python value to corresponding object type.
 
     Parameters
     ----------

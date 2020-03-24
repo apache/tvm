@@ -479,7 +479,8 @@ class RelayTextPrinter :
   }
 
   Doc VisitExpr_(const GlobalVarNode* op) final {
-    return Doc::Text('@' + op->name_hint);
+    std::string name_hint = op->name_hint;
+    return Doc::Text('@' + name_hint);
   }
 
   Doc VisitExpr_(const OpNode* op) final {

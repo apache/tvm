@@ -76,7 +76,7 @@ class AttrVisitor {
 /*!
  * \brief Virtual function table to support IR/AST node reflection.
  *
- * Functions are stored  in columar manner.
+ * Functions are stored in a columnar manner.
  * Each column is a vector indexed by Object's type_index.
  */
 class ReflectionVTable {

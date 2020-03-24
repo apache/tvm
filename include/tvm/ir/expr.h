@@ -27,6 +27,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/node/node.h>
 #include <tvm/node/container.h>
+#include <tvm/runtime/container.h>
 #include <tvm/ir/span.h>
 #include <tvm/ir/type.h>
 #include <string>
@@ -35,6 +36,8 @@
 #include <type_traits>
 
 namespace tvm {
+
+using tvm::runtime::String;
 
 /*!
  * \brief Base type of all the expressions.
@@ -189,7 +192,7 @@ class GlobalVar;
 class GlobalVarNode : public RelayExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);

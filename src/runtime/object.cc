@@ -244,11 +244,18 @@ int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex) {
   API_END();
 }
 
+int TVMObjectRetain(TVMObjectHandle obj) {
+  API_BEGIN();
+  tvm::runtime::ObjectInternal::ObjectRetain(obj);
+  API_END();
+}
+
 int TVMObjectFree(TVMObjectHandle obj) {
   API_BEGIN();
   tvm::runtime::ObjectInternal::ObjectFree(obj);
   API_END();
 }
+
 
 int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   API_BEGIN();

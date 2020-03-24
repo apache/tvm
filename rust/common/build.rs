@@ -37,7 +37,10 @@ fn main() {
     });
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
-        println!("cargo:rustc-link-lib=dylib=tvm_runtime");
+        // println!("cargo:rustc-link-lib=dylib=tvm_runtime");
+        // TODO: move to core
+        // println!("cargo:rustc-link-lib=dylib=tvm_runtime");
+        println!("cargo:rustc-link-lib=dylib=tvm");
         println!("cargo:rustc-link-search={}/build", tvm_home);
     }
 

@@ -93,6 +93,8 @@ pub mod errors;
 pub mod module;
 pub mod ndarray;
 pub mod value;
+pub mod runtime;
+pub mod ir;
 
 /// Outputs the current TVM version.
 pub fn version() -> &'static str {

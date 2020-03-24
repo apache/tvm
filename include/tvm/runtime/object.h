@@ -82,7 +82,7 @@ struct TypeIndex {
  *      the type index will be assigned during runtime.
  *      Runtime type index can be accessed by ObjectType::TypeIndex();
  * - _type_key:
- *       The unique string identifier of tyep type.
+ *       The unique string identifier of the type.
  * - _type_final:
  *       Whether the type is terminal type(there is no subclass of the type in the object system).
  *       This field is automatically set by marco TVM_DECLARE_FINAL_OBJECT_INFO

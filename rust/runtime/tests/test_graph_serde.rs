@@ -75,9 +75,9 @@ fn test_load_graph() {
             .unwrap()
             .get("func_name")
             .unwrap(),
-        "fused_nn_dense_nn_bias_add"
+        "fused_split"
     );
-    assert_eq!(graph.nodes[3].inputs[0].index, 0);
-    assert_eq!(graph.nodes[4].inputs[0].index, 0);
+    assert_eq!(graph.nodes[5].inputs[0].index, 0);
+    assert_eq!(graph.nodes[6].inputs[0].index, 0);
     assert_eq!(graph.heads.len(), 3);
 }

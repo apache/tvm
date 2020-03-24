@@ -28,6 +28,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/module.h>
+#include <tvm/runtime/container.h>
 #include <string>
 #include <functional>
 #include "./base.h"
@@ -36,6 +37,7 @@
 namespace tvm {
 namespace relay {
 
+using tvm::runtime::String;
 using Expr = tvm::RelayExpr;
 using ExprNode = tvm::RelayExprNode;
 using BaseFunc = tvm::BaseFunc;

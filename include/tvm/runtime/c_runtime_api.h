@@ -541,6 +541,15 @@ TVM_DLL int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
 TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
 
 /*!
+ * \brief Increase the reference count of an object.
+ *
+ * \param obj The object handle.
+ * \note Internally we increase the reference counter of the object.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMObjectRetain(TVMObjectHandle obj);
+
+/*!
  * \brief Free the object.
  *
  * \param obj The object handle.

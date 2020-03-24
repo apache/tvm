@@ -162,7 +162,7 @@ GlobalVar::GlobalVar(std::string name_hint) {
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
 TVM_REGISTER_GLOBAL("ir.GlobalVar")
-.set_body_typed([](std::string name){
+.set_body_typed([](String name){
   return GlobalVar(name);
 });
 
@@ -214,4 +214,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     }
     p->stream << '}';
   });
+
+TVM_REGISTER_GLOBAL("ir.DebugPrinter")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+  ObjectRef ref = args[0];
+  std::stringstream ss;
+  ss << ref;
+  *ret = ss.str();
+});
+
 }  // namespace tvm
