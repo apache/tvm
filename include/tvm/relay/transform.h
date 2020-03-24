@@ -89,7 +89,7 @@ TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
 *
 * \return the pass
 */
-TVM_DLL Pass GradientCell();
+TVM_DLL Pass LazyGradientInit();
 
 /*!
  * \brief Fold constant expressions.

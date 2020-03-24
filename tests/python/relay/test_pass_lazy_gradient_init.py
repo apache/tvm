@@ -24,7 +24,7 @@ from tvm.testing import assert_allclose
 import pytest
 
 def test_tc():
-  # test typechecks
+  """Simple testcase, check that transformation typechecks."""
   mod = tvm.IRModule()
 
   shape = (20, 20)
@@ -37,13 +37,13 @@ def test_tc():
   y = relay.Function([x1, x2], (x1 - x2) * x2)
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
 
   # function input/output types should remain the same
   assert mod["main"].checked_type == relay.FuncType([t, t], t)
 
 def test_add():
-  # test simple add
+  """Simple add testcase. Check types and semantic equivalence."""
   mod = tvm.IRModule()
 
   shape = (10, 10)
@@ -55,7 +55,7 @@ def test_add():
   y = relay.Function([x], x+x)
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], t)
@@ -66,7 +66,7 @@ def test_add():
   assert_allclose(y.asnumpy(), x.asnumpy() + x.asnumpy())
 
 def test_add_tuple():
-  # test input tuple and add items
+  """Add elements of tuple. Check types and semantic equivalence."""
   mod = tvm.IRModule()
 
   shape = (10, 10)
@@ -79,7 +79,7 @@ def test_add_tuple():
   y = relay.Function([x], relay.TupleGetItem(x, 0) + relay.TupleGetItem(x, 1))
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   mod = transform.PrintIR(show_meta_data=True)(mod)
   y = mod["main"]
 
@@ -91,7 +91,7 @@ def test_add_tuple():
   assert_allclose(y.asnumpy(), x[0].asnumpy() + x[1].asnumpy())
 
 def test_mult():
-  # test simple add
+  """Simple multiplication testcase. Check types and semantic equivalence."""
   mod = tvm.IRModule()
 
   shape = (15, 15)
@@ -103,7 +103,7 @@ def test_mult():
   y = relay.Function([x], x * x)
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], t)
@@ -114,7 +114,7 @@ def test_mult():
   assert_allclose(y.asnumpy(), x.asnumpy() * x.asnumpy())
 
 def test_ret_tuple():
-  # test return tuple
+  """Test tuple return type. Check types and semantic equivalence."""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -127,7 +127,7 @@ def test_ret_tuple():
   func = run_infer_type(func)
 
   mod["main"] = func
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   func = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], relay.TupleType([t, t]))
@@ -138,8 +138,8 @@ def test_ret_tuple():
   assert_allclose(y[0].asnumpy(), x.asnumpy())
   assert_allclose(y[1].asnumpy(), x.asnumpy() * 2.0)
 
-def test_broadcast():
-  # test broadcast add
+def test_add_broadcast():
+  """Test adding matrices of different size. Check types and semantic equivalence."""
   mod = tvm.IRModule()
   
   shape1 = (3, 4, 1)
@@ -152,30 +152,25 @@ def test_broadcast():
   x2 = relay.var("x2", t2)
   func = relay.Function([x1,x2], x1 + x2)
   func = run_infer_type(func)
-  back_func = transform.gradient(func)
-  back_func = run_infer_type(back_func)
 
-  mod["main"] = back_func
-  mod = transform.GradientCell()(mod)
-  back_func = mod["main"]
+  mod["main"] = func
+  mod = transform.LazyGradientInit()(mod)
+  func = mod["main"]
 
   x1_np = rand(dtype, *shape1).asnumpy()
   x2_np = rand(dtype, *shape2).asnumpy()
   expected_forward = x1_np + x2_np
 
   expected_forward_type = relay.TensorType(expected_forward.shape, dtype)
-  assert mod["main"].checked_type == relay.FuncType([t1, t2],
-                                                    relay.TupleType([expected_forward_type, relay.TupleType([t1, t2])]))
+  assert mod["main"].checked_type == relay.FuncType([t1, t2], expected_forward_type)
 
   ex = create_executor(mod=mod)
-  (forward), (grad_x1, grad_x2, ) = ex.evaluate(back_func)(x1_np, x2_np)
+  forward = ex.evaluate(func)(x1_np, x2_np)
 
   assert_allclose(forward.asnumpy(), expected_forward)
-  assert_allclose(grad_x1.asnumpy(), np.ones_like(expected_forward).sum(axis=2, keepdims=True))
-  assert_allclose(grad_x2.asnumpy(), np.ones_like(expected_forward).sum(axis=(0,1), keepdims=True).squeeze(axis=0))
 
 def test_reverse_ad_identity():
-  # test correctness after reverse mode ad
+  """Simple test with reverse mode ad."""
   # of f(x) = x
   mod = tvm.IRModule()
   
@@ -191,7 +186,7 @@ def test_reverse_ad_identity():
   back_func = run_infer_type(back_func)
 
   mod["main"] = back_func
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   back_func = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t],
@@ -204,8 +199,7 @@ def test_reverse_ad_identity():
   assert_allclose(grad.asnumpy(), np.ones_like(x.asnumpy()))
 
 def test_multivar_reverse_ad():
-  # test correctness after reverse mode ad
-  # of multivariate function
+  """Simple test with multivariate reverse mode ad."""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -221,7 +215,7 @@ def test_multivar_reverse_ad():
   back_func = run_infer_type(back_func)
 
   mod["main"] = back_func
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   back_func = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t, t],
@@ -236,7 +230,7 @@ def test_multivar_reverse_ad():
   assert_allclose(grad_y.asnumpy(), x.asnumpy())
 
 def test_after_partial_eval():
-  # test GradientCell transformation after PartialEval
+  """Test transformation following reverse mode ad and PartialEval"""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -256,7 +250,7 @@ def test_after_partial_eval():
 
   seq = transform.Sequential([
     transform.PartialEvaluate(),
-    transform.GradientCell(),
+    transform.LazyGradientInit(),
     transform.DeadCodeElimination()
   ])
 
@@ -274,7 +268,7 @@ def test_after_partial_eval():
   assert_allclose(grad_y.asnumpy(), x.asnumpy())
 
 def test_before_partial_eval():
-  # test GradientCell transformation before PartialEval
+  """Test transformation before PartialEval"""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -291,7 +285,7 @@ def test_before_partial_eval():
 
   mod["main"] = back_func
   seq = transform.Sequential([
-    transform.GradientCell(),
+    transform.LazyGradientInit(),
     transform.PartialEvaluate(),
     transform.DeadCodeElimination()
   ])
@@ -310,7 +304,7 @@ def test_before_partial_eval():
   assert_allclose(grad_y.asnumpy(), x.asnumpy())
 
 def test_zeros():
-  # test with zeros operator
+  """Simple test using "zeros" op"""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -321,7 +315,7 @@ def test_zeros():
   y = relay.Function([x], x + relay.zeros(shape, dtype))
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], t)
@@ -332,7 +326,7 @@ def test_zeros():
   assert_allclose(y.asnumpy(), x.asnumpy())
 
 def test_ones():
-  # test with ones operator
+  """Simple test using "ones" op"""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -343,7 +337,7 @@ def test_ones():
   y = relay.Function([x], x + relay.ones(shape, dtype))
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], t)
@@ -354,7 +348,7 @@ def test_ones():
   assert_allclose(y.asnumpy(), x.asnumpy() + np.ones_like(x.asnumpy()))
 
 def test_zeros_like():
-  # test with zeros_like operator
+  """Simple test using "zeros_like" op"""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -365,7 +359,7 @@ def test_zeros_like():
   y = relay.Function([x], x + relay.zeros_like(x))
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], t)
@@ -376,7 +370,7 @@ def test_zeros_like():
   assert_allclose(y.asnumpy(), x.asnumpy())
 
 def test_ones_like():
-  # test with ones_like operator
+  """Simple test using "ones_like" op"""
   mod = tvm.IRModule()
   
   shape = (10, 10)
@@ -387,7 +381,7 @@ def test_ones_like():
   y = relay.Function([x], x + relay.ones_like(x))
 
   mod["main"] = y
-  mod = transform.GradientCell()(mod)
+  mod = transform.LazyGradientInit()(mod)
   y = mod["main"]
 
   assert mod["main"].checked_type == relay.FuncType([t], t)

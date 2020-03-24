@@ -219,8 +219,8 @@ def DeadCodeElimination(inline_once=False):
     """
     return _ffi_api.DeadCodeElimination(inline_once)
 
-def GradientCell():
-    """Reduces memory usage of tensors with all 0s or 1s
+def LazyGradientInit():
+    """Reduces memory usage of gradient tensors
 
     Parameters
     ----------
@@ -228,9 +228,10 @@ def GradientCell():
     Returns
     -------
     ret: tvm.relay.Pass
-        The registered pass that delays or reduces memory allocation
+        A pass which delays and/or reduces memory allocation,
+        by lazily allocating 0 or one filled tensors.
     """
-    return _ffi_api.GradientCell()
+    return _ffi_api.LazyGradientInit()
 
 def FoldConstant():
     """Fold the constant expressions in a Relay program.
