@@ -867,7 +867,9 @@ def test_extern_adt_defn():
         """,
         mod
     )
-
+def test_import_grad():
+    mod = tvm.IRModule()
+    mod.import_from_std("gradient.rly")
 
 if __name__ == "__main__":
     test_comments()
@@ -903,3 +905,4 @@ if __name__ == "__main__":
     test_duplicate_adt_cons_defn()
     test_duplicate_global_var()
     test_extern_adt_defn()
+    test_import_grad()
