@@ -150,7 +150,7 @@ class RelayExprNode : public BaseExprNode {
   /*!
    * \return The checked_type
    */
-  const Type& checked_type() const;
+  inline const Type& checked_type() const;
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.

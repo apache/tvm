@@ -170,13 +170,13 @@ void IRModuleNode::Add(const GlobalVar& var,
                                 GetRef<relay::Function>(ptr));
   }
 
-  auto type = checked_func->checked_type();
+  Type type = checked_func->checked_type();
   CHECK(type.as<relay::IncompleteTypeNode>() == nullptr);
 
   if (functions.find(var) != functions.end()) {
     CHECK(update)
         << "Already have definition for " << var->name_hint;
-    auto old_type = functions[var].as<relay::FunctionNode>()->checked_type();
+    auto old_type = functions[var]->checked_type();
     CHECK(relay::AlphaEqual(type, old_type))
         << "Module#update changes type, not possible in this mode.";
   }
