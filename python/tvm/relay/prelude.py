@@ -39,7 +39,8 @@ class StaticTensorArrayOps(object):
 
     def get_name(self, canonical):
         """Get name corresponding to the canonical name"""
-        shape_str = str(self.shape).replace('[', '').replace(']', '').replace(', ', '_')
+        shape_str = str(self.shape).replace('[', '').replace(']', '')\
+            .replace('(', '').replace(')', '').replace(', ', '_')
         if len(shape_str) == 0:
             shape_str = "scalar"
         if canonical == 'tensor_t':
