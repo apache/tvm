@@ -184,6 +184,12 @@ class JacobianMutator : public ExprMutator {
     // may use an arbitrary combiner.
     // The resulting reduction expression will return a tuple containing
     // both derivatives and the original results (in exactly this order).
+    // The order matters when original init value is different from its derivative init value,
+    // and they depend on each other during gradient calculation,
+    // we must calculate derivatives first (using origin's init value),
+    // switching the order (original results first, then derivatives)
+    // makes the origin value be replaced before using,
+    // produces incorrect results.
 
     // Example of a ReduceNode,
     // reduce(combiner=comm_reducer(result=[(x + y)], lhs=[x], rhs=[y], identity_element=[0f]),
