@@ -18,7 +18,7 @@
  */
 
 /*
- * \file src/relay/pass/merge_compiler_regions.cc
+ * \file src/relay/transforms/merge_compiler_regions.cc
  *
  * \brief After operators have been annotated with the targets that support
  * them, this pass creates regions of the operators for each target. It
@@ -86,12 +86,12 @@ class AnnotateRestDefault : public ExprMutator {
     }
   }
 
-    /*! \brief This function adds compiler ends to nodes nodes that
-     * does have a region AND they should not be arguments of the
-     * original function
-     * @param expr
-     * @return expr
-     */
+  /*! \brief This function adds compiler ends to nodes that
+   * have a region AND they should not be arguments of the
+   * original function
+   * \param expr
+   * \return expr
+   */
   Expr AddCompilerEnd(const Expr& expr) {
     auto region = regions_->GetRegion(expr);
     auto visited_expr = VisitExpr(expr);
