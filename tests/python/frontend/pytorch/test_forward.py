@@ -428,7 +428,13 @@ def test_forward_conv():
     input_data = torch.rand(input_shape).float()
     verify_model(Conv2D1().float().eval(), input_data=input_data)
     verify_model(Conv2D2().float().eval(), input_data=input_data)
+    # depth wise conv with channel mult 2
     verify_model(Conv2D3().float().eval(), input_data=input_data)
+    # group conv
+    verify_model(torch.nn.Conv2d(8, 8, kernel_size=(3, 3),
+                                 stride=(1, 1), groups=2).eval(),
+                 input_data=torch.randn((1, 8, 16, 16)))
+
 
 def test_forward_threshold():
     torch.set_grad_enabled(False)
