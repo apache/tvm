@@ -191,6 +191,8 @@ class AnnotatedRegionSetNode : public Object {
   AnnotatedRegion MakeRegion();
 
   std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> regions_;
+  /*! \brief The next region ID to assign. */
+  int region_id_{0};
 
   friend class AnnotatedRegionSet;
 };

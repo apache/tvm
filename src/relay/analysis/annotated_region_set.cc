@@ -81,6 +81,7 @@ void AnnotatedRegionSetNode::AddToRegion(AnnotatedRegion region, const Expr& exp
 
 AnnotatedRegion AnnotatedRegionSetNode::MakeRegion() {
   auto ret = regions_.emplace(AnnotatedRegion());
+  (*ret.first)->id = region_id_++;
   return *ret.first;
 }
 
@@ -126,7 +127,6 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
       if (!region.defined()) {
         region = region_set_->MakeRegion();
         region->nodes.insert(call->args[0]);
-        region->id = region_id_++;
       }
       region->nodes.insert(GetRef<Call>(call));
       region->outs.push_back(GetRef<Call>(call));
@@ -209,8 +209,6 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
  private:
   /*! \brief The region set being constructed.*/
   AnnotatedRegionSet region_set_;
-  /*! \brief The next region ID to assign. */
-  int region_id_{0};
   /*! \brief Region 'begin' annotation operator. */
   const Op begin_op_;
   /*! \brief Region 'end' annotation operator. */
