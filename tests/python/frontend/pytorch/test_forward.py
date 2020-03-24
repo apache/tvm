@@ -351,21 +351,33 @@ def test_forward_adaptiveavgpool():
     verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
     verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
 
-def test_forward_maxpool():
+def test_forward_maxpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class MaxPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[1, 1])(args[0])
-
-    class MaxPool2D2(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[10, 10])(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D1().float().eval(), input_data=input_data)
-    verify_model(MaxPool2D2().float().eval(), input_data=input_data)
+
+    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
+
+def test_forward_maxpool1d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+    input_data = torch.rand(input_shape).float()
+
+    verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(),
+                input_data)
+    verify_model( torch.nn.MaxPool1d(kernel_size=4,
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
@@ -1034,7 +1046,8 @@ if __name__ == "__main__":
     test_forward_concatenate()
     test_forward_relu()
     test_forward_adaptiveavgpool()
-    test_forward_maxpool()
+    test_forward_maxpool2d()
+    test_forward_maxpool1d()
     test_forward_hardtanh()
     test_forward_conv()
     test_forward_threshold()

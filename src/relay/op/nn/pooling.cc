@@ -987,6 +987,10 @@ Array<te::Tensor> Pool1DCompute(const Attrs& attrs,
       << " or 4-D input (e.g. NCWc on for vector instructions)"
       << " or 5-D input (e.g. NCWnc for tensor accelerators)";
 
+  if (param->padding.size() == 1) {
+    padding.push_back(padding[0]);
+  }
+
   if (mode == topi::nn::kAvgPool) {
     bool count_include_pad = reinterpret_cast<const AvgPool1DAttrs*>(param)->count_include_pad;
     return Array<te::Tensor>{
