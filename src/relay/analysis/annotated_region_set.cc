@@ -47,10 +47,10 @@ void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src,
 
   // Merge src to dest and erase src.
   dest->nodes.insert(src->nodes.begin(), src->nodes.end());
-  for (auto input : src->ins) {
+  for (const auto& input : src->ins) {
     dest->ins.push_back(input);
   }
-  for (auto output : src->outs) {
+  for (const auto& output : src->outs) {
     dest->outs.push_back(output);
   }
   // if any of the outputs of src are inputs of dest, they become internal nodes
