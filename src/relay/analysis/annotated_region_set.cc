@@ -55,17 +55,13 @@ void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src,
   }
   // if any of the outputs of src are inputs of dest, they become internal nodes
   // so remove them from outs
-  std::vector<Expr> ins_to_remove;
   for (const auto& input : dest->ins) {
     auto call = Downcast<Call>(input);
     auto it = std::find(src->outs.begin(), src->outs.end(), call->args[0]);
     if (it != src->outs.end()) {
-      ins_to_remove.push_back(input);
       dest->outs.remove(*it);
+      dest->ins.remove(input);
     }
-  }
-  for (const auto& input : ins_to_remove) {
-    dest->ins.remove(input);
   }
   regions_.erase(src);
 }
