@@ -54,5 +54,6 @@ def test_fastmath():
     test_apply(relay.exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
     test_apply(relay.tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
 
-    if __name__ == "__main__":
-        test_fastmath()
+
+if __name__ == "__main__":
+    test_fastmath()
