@@ -73,6 +73,7 @@ def check_grad(out, inputs, data_range=(-10, 10), desired_grads=None):
 
 
 def test_basic_operation():
+    np.random.seed(0)
     shape = (10, 10)
     x = te.var("x", dtype='float32')
     k = te.reduce_axis((0, 10), name="k")
@@ -158,6 +159,7 @@ def test_basic_operation():
 
 
 def test_conv2d():
+    np.random.seed(0)
     X = te.placeholder((1, 2, 4, 4), name='X')
     W = te.placeholder((5, 2, 3, 3), name='W')
 
