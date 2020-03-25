@@ -1,8 +1,28 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""The Relay Pattern Language and tooling."""
 from ...ir.base import Node
 from ...ir import make_node
 from ... import _ffi as tvm_ffi
 from ..op import get
 from . import _ffi as ffi
+
+def match(pattern, expr):
+    return ffi.match(pattern, expr)
 
 def register_df_node(type_key=None):
     """Register a Relay node type.
@@ -32,6 +52,9 @@ class DFPattern(Node):
     def has_attr(self, attr_name, attr_value):
         attrs = make_node("DictAttrs", **{attr_name:attr_value})
         return AttrPattern(self, attrs)
+
+    def match(self, expr):
+        return match(self, expr)
 
 @register_df_node
 class ExprPattern(DFPattern):
@@ -191,7 +214,7 @@ class AttrPattern(DFPattern):
         self.__init_handle_by_constructor__(
             ffi.AttrPattern, pattern, attrs)
 
-def is_input(name=None) -> DFPattern:
+def is_input(name="") -> DFPattern:
     return VarPattern(name)
 
 def is_op(op_name: str) -> DFPattern:
@@ -201,10 +224,10 @@ def is_op(op_name: str) -> DFPattern:
 def wildcard() -> DFPattern:
     return WildcardPattern()
 
-def has_type(ty, pattern=None):
+def has_type(ttype, pattern=None):
     if pattern is None:
         pattern = wildcard()
-    return TypePattern(pattern, ty)
+    return TypePattern(pattern, ttype)
 
 def has_attr(attr_name, attr_value, pattern=None):
     if pattern is None:

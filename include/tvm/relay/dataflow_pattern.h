@@ -26,6 +26,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
+#include <string>
 
 namespace tvm {
 namespace relay {
