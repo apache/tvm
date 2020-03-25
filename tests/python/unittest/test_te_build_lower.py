@@ -40,6 +40,19 @@ def test_dependent_output_shape():
     s = te.create_schedule(B.op)
     mod = tvm.build(s, [A, B, x])
 
+def test_split_uneven_unique_likely():
+    a = te.placeholder((16, 16),)
+    b = te.placeholder((16, 16),)
+    c = te.compute((16, 16), lambda x, y: a[x, y] + b[x, y])
+
+    x, y = c.op.axis
+    sch = te.create_schedule(c.op)
+    xo, xi = sch[c].split(x, 5)
+    stmt = tvm.lower(sch, [a, b, c], simple_mode=True)
+    assert isinstance(stmt.body.body.body.body, tvm.tir.stmt.IfThenElse)
+    assert str(stmt.body.body.body.body).count("likely") == 1
+
 if __name__ == "__main__":
     test_lower_rfactor()
     test_dependent_output_shape()
+    test_split_uneven_unique_likely()
