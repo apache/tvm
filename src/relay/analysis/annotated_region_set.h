@@ -159,12 +159,12 @@ class AnnotatedRegionSetNode : public Object {
   AnnotatedRegion GetRegion(const Expr& expr) const;
 
   /*!
- * \brief Merge region 1 into region 2.
+ * \brief Merge src region into dest region.
  *
- * \param region1 A region to merge.
- * \param region2 A region to merge.
+ * \param src The region to merge - will be erased.
+ * \param dest The region into which src will be merged.
  */
-  void MergeRegions(AnnotatedRegion region1, AnnotatedRegion region2);
+  void MergeRegions(AnnotatedRegion src, AnnotatedRegion dest);
 
   void VisitAttrs(AttrVisitor* v) {
     Array<AnnotatedRegion> regions_array(regions_.begin(), regions_.end());

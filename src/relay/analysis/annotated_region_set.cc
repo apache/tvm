@@ -39,35 +39,35 @@ AnnotatedRegion AnnotatedRegionSetNode::GetRegion(const Expr& expr) const {
   return AnnotatedRegion(nullptr);
 }
 
-void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion region1,
-                                          AnnotatedRegion region2) {
-  if (region1 == region2) {
+void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src,
+                                          AnnotatedRegion dest) {
+  if (dest == src) {
     return;
   }
 
-  // Merge region 2 to region 1 and erase region 2.
-  region1->nodes.insert(region2->nodes.begin(), region2->nodes.end());
-  for (auto arg : region2->ins) {
-    region1->ins.push_back(arg);
+  // Merge src to dest and erase src.
+  dest->nodes.insert(src->nodes.begin(), src->nodes.end());
+  for (auto input : src->ins) {
+    dest->ins.push_back(input);
   }
-  for (auto out : region2->outs) {
-    region1->outs.push_back(out);
+  for (auto output : src->outs) {
+    dest->outs.push_back(output);
   }
-  // if any of the outputs of 2 are inputs of 1, they become internal nodes
-  // so remove them from outs/args
-  std::vector<Expr> args_to_remove;
-  for (const auto& arg : region1->ins) {
-    auto call = Downcast<Call>(arg);
-    auto it = std::find(region2->outs.begin(), region2->outs.end(), call->args[0]);
-    if (it != region2->outs.end()) {
-      args_to_remove.push_back(arg);
-      region1->outs.remove(*it);
+  // if any of the outputs of src are inputs of dest, they become internal nodes
+  // so remove them from outs
+  std::vector<Expr> ins_to_remove;
+  for (const auto& input : dest->ins) {
+    auto call = Downcast<Call>(input);
+    auto it = std::find(src->outs.begin(), src->outs.end(), call->args[0]);
+    if (it != src->outs.end()) {
+      ins_to_remove.push_back(input);
+      dest->outs.remove(*it);
     }
   }
-  for (const auto& arg : args_to_remove) {
-    region1->ins.remove(arg);
+  for (const auto& input : ins_to_remove) {
+    dest->ins.remove(input);
   }
-  regions_.erase(region2);
+  regions_.erase(src);
 }
 
 void AnnotatedRegionSetNode::AddToRegion(AnnotatedRegion region, const Expr& expr) {
