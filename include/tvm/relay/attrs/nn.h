@@ -156,12 +156,12 @@ struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
 };
 
 /*! \brief Attributes used in winograd weight transformation operators */
-struct Conv2DWinogradWeightTransformAttrs :
-    public tvm::AttrsNode<Conv2DWinogradWeightTransformAttrs> {
+struct ConvWinogradWeightTransformAttrs :
+    public tvm::AttrsNode<ConvWinogradWeightTransformAttrs> {
   int tile_size;
 
-  TVM_DECLARE_ATTRS(Conv2DWinogradWeightTransformAttrs,
-      "relay.attrs.Conv2DWinogradWeightTransformAttrs") {
+  TVM_DECLARE_ATTRS(ConvWinogradWeightTransformAttrs,
+      "relay.attrs.ConvWinogradWeightTransformAttrs") {
     TVM_ATTR_FIELD(tile_size)
       .describe("Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)");
   }

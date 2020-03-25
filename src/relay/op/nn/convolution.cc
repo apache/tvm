@@ -662,7 +662,7 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
         ConvInferCorrectLayout<Conv2DWinogradAttrs>);
 
 // relay.nn.contrib_conv2d_winograd_weight_transform
-TVM_REGISTER_NODE_TYPE(Conv2DWinogradWeightTransformAttrs);
+TVM_REGISTER_NODE_TYPE(ConvWinogradWeightTransformAttrs);
 
 bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
                                       int num_inputs,
@@ -672,7 +672,7 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
-  const Conv2DWinogradWeightTransformAttrs* param = attrs.as<Conv2DWinogradWeightTransformAttrs>();
+  const ConvWinogradWeightTransformAttrs* param = attrs.as<ConvWinogradWeightTransformAttrs>();
   CHECK(param != nullptr);
 
   CHECK_EQ(data->shape.size(), 4) << "Only support NCHW normal kernel layout";
@@ -692,7 +692,7 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
 
 Expr MakeConv2DWinogradWeightTransform(Expr weight,
                                        int tile_size) {
-  auto attrs = make_object<Conv2DWinogradWeightTransformAttrs>();
+  auto attrs = make_object<ConvWinogradWeightTransformAttrs>();
   attrs->tile_size = tile_size;
   static const Op& op = Op::Get("nn.contrib_conv2d_winograd_weight_transform");
   return Call(op, {weight}, Attrs(attrs), {});
@@ -711,7 +711,7 @@ weight transformation in advance.
 
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
 )code" TVM_ADD_FILELINE)
-.set_attrs_type<Conv2DWinogradWeightTransformAttrs>()
+.set_attrs_type<ConvWinogradWeightTransformAttrs>()
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
