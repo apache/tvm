@@ -1191,16 +1191,11 @@ def test_static_tensor_array_split():
         v2 = relay.var('v2')
         v3 = relay.var('v2')
 
-        adt_shape = [relay.Any(),] + shape[1:]
-        origin_shape = static_tensor_array_ops.shape
-        static_tensor_array_ops.shape = adt_shape
-        static_tensor_array_ops.define_tensor_array()
-        tensor_array = p.get_var_static('tensor_array', dtype, adt_shape)
-        static_tensor_array_ops.shape = origin_shape
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
         tensor_array1 = tensor_array(relay.const(3))
-        write_func = p.get_var_static('tensor_array_write', dtype, adt_shape)
+        write_func = p.get_var_static('tensor_array_write', dtype, shape)
         split_func = p.get_var_static('tensor_array_split', dtype, shape)
-        tensor = p.get_var_static('tensor_constructor', dtype, adt_shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
         tensor_array1 = write_func(tensor_array1, relay.const(0), tensor(v1))
         tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
         tensor_array1 = write_func(tensor_array1, relay.const(2), tensor(v3))
@@ -1221,16 +1216,17 @@ def test_static_tensor_array_split():
         v1_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
         v2_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
         v3_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
-        value_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        value_data = np.random.uniform(low=0.0, high=8.0, size=[4, 3]).astype(dtype)
         length_data = np.array([2, 2], dtype="int32")
         expected = np.concatenate([value_data, v3_data])
         expected = np.split(expected, indices_or_sections=[2, 4])
+
         check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
                                             value_data, length_data),
                            dtype=dtype)
 
-    run('float32', [4, 3])
-    run('int32', [4, 3])
+    run('float32', [relay.Any(), 3])
+    run('int32', [relay.Any(), 3])
 
 def test_static_tensor_array_concat():
     def run(dtype, shape):
