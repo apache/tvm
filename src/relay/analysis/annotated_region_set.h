@@ -256,6 +256,13 @@ class AnnotatedRegionSet : public ObjectRef {
     return static_cast<AnnotatedRegionSetNode*>(ptr);
   }
 
+  /*! \return The region an expression belongs to. */
+  AnnotatedRegion operator[](const Expr& expr) {
+    const auto *n = operator->();
+    CHECK(n);
+    return n->GetRegion(expr);
+  }
+
   /*! \brief Create a RegionSet from a relay expression.
    *
    * \param expr The relay expr from which to construct the set.
