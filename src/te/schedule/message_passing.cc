@@ -556,6 +556,14 @@ void PassUpBoundCheck(const Stage& s,
   }
 }
 
+bool IsRangeSame(const Range input_1, const Range input_2) {
+  arith::Analyzer analyzer;
+  if (input_1.same_as(input_2)) return true;
+
+  return (analyzer.CanProve(input_1->min == input_2->min)
+        && analyzer.CanProve(input_1->extent == input_2->extent));
+}
+
 std::vector<PrimExpr> MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
@@ -593,7 +601,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
     Range dom = dom_map.at(iv);
     CHECK(iv->dom.defined());
-    if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
+    if (!skip_ivar_domain && !IsRangeSame(iv->dom, dom)) {
       PrimExpr value = value_map.at(iv) - iv->dom->min;
       IntSet s = EvalSet(value, iset_dmap);
       PrimExpr vmin = s.min();
