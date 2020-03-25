@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
-import logging
-
 import tvm
 import tvm.relay as relay
 import topi
