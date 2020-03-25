@@ -29,13 +29,14 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/node/structural_equal.h>
 
 #include <vector>
 #include <string>
+#include <type_traits>
 
 namespace tvm {
 
-// forward declaration
 using runtime::Object;
 using runtime::ObjectPtr;
 using runtime::ObjectRef;
@@ -87,6 +88,13 @@ class ReflectionVTable {
    */
   typedef void (*FVisitAttrs)(Object* self, AttrVisitor* visitor);
   /*!
+   * \brief Equality comparison function.
+   * \note We use function pointer, instead of std::function
+   *       to reduce the dispatch overhead as field visit
+   *       does not need as much customization.
+   */
+  typedef bool (*FSEqualReduce)(const Object* self, const Object* other, SEqualReducer equal);
+  /*!
    * \brief creator function.
    * \param global_key Key that identifies a global single object.
    *        If this is not empty then FGlobalKey must be defined for the object.
@@ -111,6 +119,14 @@ class ReflectionVTable {
    * \return the global key if object has one, otherwise return empty string.
    */
   inline std::string GetGlobalKey(Object* self) const;
+  /*!
+   * \brief Dispatch the SEqualReduce function.
+   * \param self The pointer to the object.
+   * \param other The pointer to another object to be compared.
+   * \param equal The equality comparator.
+   * \return the result.
+   */
+  bool SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const;
   /*!
    * \brief Create an initial object using default constructor
    *        by type_key and global key.
@@ -139,12 +155,14 @@ class ReflectionVTable {
   TVM_DLL static ReflectionVTable* Global();
 
   class Registry;
-  template<typename T>
+  template<typename T, typename TraitName>
   inline Registry Register();
 
  private:
   /*! \brief Attribute visitor. */
   std::vector<FVisitAttrs> fvisit_attrs_;
+  /*! \brief Structural equal function. */
+  std::vector<FSEqualReduce> fsequal_;
   /*! \brief Creation function. */
   std::vector<FCreate> fcreate_;
   /*! \brief Global key function. */
@@ -182,6 +200,44 @@ class ReflectionVTable::Registry {
   uint32_t type_index_;
 };
 
+
+#define TVM_REFLECTION_REG_VAR_DEF                                     \
+  static TVM_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry        \
+  __make_reflectiion
+
+/*!
+ * \brief Directly register reflection VTable.
+ * \param TypeName The name of the type.
+ * \param TraitName A trait class that implements functions like VisitAttrs and SEqualReduce.
+ *
+ * \code
+ *
+ *  // Example SEQualReduce traits for runtime StringObj.
+ *
+ *  struct StringObjTrait {
+ *     static constexpr const std::nullptr_t VisitAttrs = nullptr;
+ *
+ *    static bool SEqualReduce(const runtime::StringObj* lhs,
+ *                             const runtime::StringObj* rhs,
+ *                             SEqualReducer equal) {
+ *      if (lhs == rhs) return true;
+ *      if (lhs->size != rhs->size) return false;
+ *      if (lhs->data != rhs->data) return true;
+ *      return std::memcmp(lhs->data, rhs->data, lhs->size) != 0;
+ *    }
+ *  };
+ *
+ *  TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait);
+ *
+ * \endcode
+ *
+ * \note This macro can be called in different place as TVM_REGISTER_OBJECT_TYPE.
+ *       And can be used to register the related reflection functions for runtime objects.
+ */
+#define TVM_REGISTER_REFLECTION_VTABLE(TypeName, TraitName)             \
+  TVM_STR_CONCAT(TVM_REFLECTION_REG_VAR_DEF, __COUNTER__) =             \
+      ::tvm::ReflectionVTable::Global()->Register<TypeName, TraitName>() \
+
 /*!
  * \brief Register a node type to object registry and reflection registry.
  * \param TypeName The name of the type.
@@ -189,15 +245,79 @@ class ReflectionVTable::Registry {
  */
 #define TVM_REGISTER_NODE_TYPE(TypeName)                                \
   TVM_REGISTER_OBJECT_TYPE(TypeName);                                   \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::ReflectionVTable::Registry &      \
-  __make_Node ## _ ## TypeName ## __ =                                  \
-      ::tvm::ReflectionVTable::Global()->Register<TypeName>()           \
-      .set_creator([](const std::string&) -> ObjectPtr<Object> {        \
-          return ::tvm::runtime::make_object<TypeName>();               \
-        })
+  TVM_REGISTER_REFLECTION_VTABLE(TypeName, ::tvm::detail::ReflectionTrait<TypeName>) \
+  .set_creator([](const std::string&) -> ObjectPtr<Object> {            \
+      return ::tvm::runtime::make_object<TypeName>();                   \
+    })
+
 
 // Implementation details
+namespace detail {
+
+template<typename T,
+         bool = T::_type_has_method_visit_attrs>
+struct ImplVisitAttrs {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+};
+
 template<typename T>
+struct ImplVisitAttrs<T, true> {
+  static void VisitAttrs(T* self, AttrVisitor* v) {
+    self->VisitAttrs(v);
+  }
+};
+
+template<typename T,
+         bool = T::_type_has_method_sequal_reduce>
+struct ImplSEqualReduce {
+  static constexpr const std::nullptr_t SEqualReduce = nullptr;
+};
+
+template<typename T>
+struct ImplSEqualReduce<T, true> {
+  static bool SEqualReduce(const T* self, const T* other, SEqualReducer equal) {
+    return self->SEqualReduce(other, equal);
+  }
+};
+
+template<typename T>
+struct ReflectionTrait :
+      public ImplVisitAttrs<T>,
+      public ImplSEqualReduce<T> {
+};
+
+template<typename T, typename TraitName,
+         bool = std::is_null_pointer<decltype(TraitName::VisitAttrs)>::value>
+struct SelectVisitAttrs {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+};
+
+template<typename T, typename TraitName>
+struct SelectVisitAttrs<T, TraitName, false> {
+  static void VisitAttrs(Object* self, AttrVisitor* v) {
+    TraitName::VisitAttrs(static_cast<T*>(self), v);
+  }
+};
+
+template<typename T, typename TraitName,
+         bool = std::is_null_pointer<decltype(TraitName::SEqualReduce)>::value>
+struct SelectSEqualReduce {
+  static constexpr const std::nullptr_t SEqualReduce = nullptr;
+};
+
+template<typename T, typename TraitName>
+struct SelectSEqualReduce<T, TraitName, false> {
+  static bool SEqualReduce(const Object* self,
+                           const Object* other,
+                           SEqualReducer equal) {
+    return TraitName::SEqualReduce(static_cast<const T*>(self),
+                                   static_cast<const T*>(other),
+                                   equal);
+  }
+};
+}  // namespace detail
+
+template<typename T, typename TraitName>
 inline ReflectionVTable::Registry
 ReflectionVTable::Register() {
   uint32_t tindex = T::RuntimeTypeIndex();
@@ -205,15 +325,15 @@ ReflectionVTable::Register() {
     fvisit_attrs_.resize(tindex + 1, nullptr);
     fcreate_.resize(tindex + 1, nullptr);
     fglobal_key_.resize(tindex + 1, nullptr);
+    fsequal_.resize(tindex + 1, nullptr);
   }
   // functor that implemnts the redirection.
-  struct Functor {
-    static void VisitAttrs(Object* self, AttrVisitor* v) {
-      static_cast<T*>(self)->VisitAttrs(v);
-     }
-  };
+  fvisit_attrs_[tindex] =
+      ::tvm::detail::SelectVisitAttrs<T, TraitName>::VisitAttrs;
 
-  fvisit_attrs_[tindex] = Functor::VisitAttrs;
+  fsequal_[tindex] =
+      ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;
+
   return Registry(this, tindex);
 }
 

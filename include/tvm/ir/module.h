@@ -62,6 +62,8 @@ class IRModuleNode : public Object {
     v->Visit("global_type_var_map_", &global_type_var_map_);
   }
 
+  TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
+
   /*!
    * \brief Add a function to the global environment.
    * \param var The var of the global function.
@@ -235,6 +237,7 @@ class IRModuleNode : public Object {
   TVM_DLL std::unordered_set<std::string> Imports() const;
 
   static constexpr const char* _type_key = "IRModule";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
 
  private:

@@ -149,3 +149,70 @@ def save_json(node):
         Saved json string.
     """
     return tvm.runtime._ffi_node_api.SaveJSON(node)
+
+
+def structural_equal(lhs, rhs, map_free_vars=False):
+    """Check structural equality of lhs and rhs.
+
+    The structural equality is recursively defined in the DAG of IR objects via SEqual.
+    Each object in the subtree of lhs can be mapped as equal to only one other
+    object in the rhs if SEqual check passes.
+
+    A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
+    with the same type if one of the following condition holds:
+
+    - They appear in a same definition point(e.g. function argument).
+    - They points to the same VarNode via the same_as relation.
+    - They appear in a same usage point, and map_free_vars is set to be True.
+
+    The rules for var are used to remap variables occurs in function
+    arguments and let-bindings.
+
+    Notably: the structural equality treats the objects as a DAG instead of a tree.
+
+    Parameters
+    ----------
+    lhs : Object
+        The left operand.
+
+    rhs : Object
+        The left operand.
+
+    map_free_vars : bool
+        Whether or not shall we map free vars that does
+        not bound to any definitions as equal to each other.
+
+    Return
+    ------
+    result : bool
+        The comparison result.
+    """
+    return tvm.runtime._ffi_node_api.StructuralEqual(
+        lhs, rhs, False, map_free_vars)
+
+
+def assert_structural_equal(lhs, rhs, map_free_vars=False):
+    """Assert lhs and rhs are structurally equal to each other.
+
+    Parameters
+    ----------
+    lhs : Object
+        The left operand.
+
+    rhs : Object
+        The left operand.
+
+    map_free_vars : bool
+        Whether or not shall we map free vars that does
+        not bound to any definitions as equal to each other.
+
+    Raises
+    ------
+    ValueError : if assertion does not hold.
+
+    See Also
+    --------
+    structural_equal
+    """
+    tvm.runtime._ffi_node_api.StructuralEqual(
+        lhs, rhs, True, map_free_vars)

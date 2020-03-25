@@ -26,14 +26,15 @@ def alpha_equal(x, y):
     Wrapper around alpha equality which ensures that
     the hash function respects equality.
     """
-    return analysis.alpha_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
+    return (tvm.ir.structural_equal(x, y) and
+            analysis.structural_hash(x) == analysis.structural_hash(y))
 
 def alpha_equal_commutative(x, y):
     """
     Check for commutative property of equality
     """
-    xy = analysis.alpha_equal(x, y)
-    yx = analysis.alpha_equal(y, x)
+    xy = tvm.ir.structural_equal(x, y)
+    yx = tvm.ir.structural_equal(y, x)
     assert xy == yx
     return xy
 
@@ -604,6 +605,7 @@ def test_match_alpha_equal():
                      p.cons(x, p.nil()))
     ])
 
+    tvm.ir.assert_structural_equal(match, match)
     assert alpha_equal(match, match)
     assert alpha_equal(match, equivalent)
     assert not alpha_equal(match, no_cons)

@@ -102,6 +102,16 @@ class PrimFuncNode : public BaseFuncNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
+    // visit params and buffer_map first as they contains defs.
+    return
+        equal.DefEqual(params, other->params) &&
+        equal(buffer_map, other->buffer_map) &&
+        equal(ret_type, other->ret_type) &&
+        equal(body, other->body) &&
+        equal(attrs, other->attrs);
+  }
+
   /*!
    * \brief Return the derived function annotation of this function.
    *
@@ -112,6 +122,7 @@ class PrimFuncNode : public BaseFuncNode {
   TVM_DLL FuncType func_type_annotation() const;
 
   static constexpr const char* _type_key = "tir.PrimFunc";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncNode, BaseFuncNode);
 };
 
