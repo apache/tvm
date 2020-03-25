@@ -34,12 +34,11 @@ def test_fastmath():
         func = relay.Function([x], y)
         mod = tvm.IRModule.from_expr(func)
 
-        logging.basicConfig(level=logging.DEBUG)  # to dump TVM IR after fusion
         with relay.build_config(opt_level=3, required_pass=['FastMath']):
             graph, lib, params = relay.build(mod, target="llvm", params=None)
 
-        # check fast_op is converted to lib function
-        func_name = "fused_"+name
+        # check fast_math op is converted to lib function
+        func_name = "fused_" + name
         assert lib.get_function(func_name)
 
         ctx = tvm.cpu(0)
