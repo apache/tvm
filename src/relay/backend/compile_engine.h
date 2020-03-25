@@ -124,14 +124,6 @@ class CCacheKeyNode : public Object {
    * \return The result of equality check.
    */
   inline bool Equal(const CCacheKeyNode* other) const;
-  /*!
-   * \brief create a cache key.
-   * \param source_func The source function.
-   * \param target The target device.
-   * \return the created key.
-   */
-  TVM_DLL static CCacheKey make(Function source_func,
-                                Target target);
 
   static constexpr const char* _type_key = "relay.CCacheKey";
   TVM_DECLARE_FINAL_OBJECT_INFO(CCacheKeyNode, tvm::Object);
@@ -148,6 +140,14 @@ class CCacheKey : public ObjectRef {
  public:
   CCacheKey() {}
   explicit CCacheKey(ObjectPtr<Object> n) : ObjectRef(n) {}
+
+  /*!
+   * \brief The constructor
+   * \param source_func The source function.
+   * \param target The target device.
+   */
+  TVM_DLL CCacheKey(Function source_func, Target target);
+
   const CCacheKeyNode* operator->() const {
     return static_cast<const CCacheKeyNode*>(get());
   }

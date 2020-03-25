@@ -34,11 +34,11 @@ namespace codegen {
 class CodeGenOpenCL final : public CodeGenC {
  public:
   CodeGenOpenCL();
-  void AddFunction(LoweredFunc f);
   std::string Finish();
 
   // override print thread tag.
-  void InitFuncState(LoweredFunc f) final;
+  void InitFuncState(const PrimFunc& f) final;
+  void PrintFuncPrefix() final; // NOLINT(*)
   void BindThreadIndex(const IterVar& iv) final;  // NOLINT(*)
   void PrintStorageScope(const std::string& scope, std::ostream& os) final; // NOLINT(*)
   void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
@@ -55,8 +55,6 @@ class CodeGenOpenCL final : public CodeGenC {
 
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final; // NOLINT(*)
-  void VisitExpr_(const SelectNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImmNode *op, std::ostream& os) final; // NOLINT(*)
 
  private:

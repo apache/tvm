@@ -19,43 +19,7 @@ tvm.relay.analysis
 ----------------------
 
 .. automodule:: tvm.relay.analysis
-
-.. autofunction:: tvm.relay.analysis.post_order_visit
-
-.. autofunction:: tvm.relay.analysis.well_formed
-
-.. autofunction:: tvm.relay.analysis.check_kind
-
-.. autofunction:: tvm.relay.analysis.check_constant
-
-.. autofunction:: tvm.relay.analysis.free_vars
-
-.. autofunction:: tvm.relay.analysis.bound_vars
-
-.. autofunction:: tvm.relay.analysis.all_vars
-
-.. autofunction:: tvm.relay.analysis.free_type_vars
-
-.. autofunction:: tvm.relay.analysis.bound_type_vars
-
-.. autofunction:: tvm.relay.analysis.all_type_vars
-
-.. autofunction:: tvm.relay.analysis.alpha_equal
-
-.. autofunction:: tvm.relay.analysis.assert_alpha_equal
-
-.. autofunction:: tvm.relay.analysis.graph_equal
-
-.. autofunction:: tvm.relay.analysis.assert_graph_equal
-
-.. autofunction:: tvm.relay.analysis.collect_device_info
-
-.. autofunction:: tvm.relay.analysis.collect_device_annotation_ops
-
-.. autofunction:: tvm.relay.analysis.get_total_mac_number
-
-.. autofunction:: tvm.relay.analysis.unmatched_cases
-
-.. autofunction:: tvm.relay.analysis.detect_feature
-
-.. autofunction:: tvm.relay.analysis.structural_hash
+    :members:
+    :imported-members:
+    :exclude-members: Object, RelayExpr, IRModule, Type
+    :autosummary:

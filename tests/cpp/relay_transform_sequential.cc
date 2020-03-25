@@ -41,17 +41,17 @@ TEST(Relay, Sequential) {
       tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   // Create a function for optimization.
-  auto c = relay::ConstantNode::make(c_data);
-  auto a = relay::VarNode::make("a", tensor_type);
-  auto x = relay::VarNode::make("x", tensor_type);
+  auto c = relay::Constant(c_data);
+  auto a = relay::Var("a", tensor_type);
+  auto x = relay::Var("x", tensor_type);
   auto add_op = relay::Op::Get("add");
-  auto y = relay::CallNode::make(add_op, {c, c});
-  y = relay::CallNode::make(add_op, {x, y});
-  auto z = relay::CallNode::make(add_op, {y, c});
-  auto z1 = relay::CallNode::make(add_op, {y, c});
-  auto z2 = relay::CallNode::make(add_op, {z, z1});
+  auto y = relay::Call(add_op, {c, c});
+  y = relay::Call(add_op, {x, y});
+  auto z = relay::Call(add_op, {y, c});
+  auto z1 = relay::Call(add_op, {y, c});
+  auto z2 = relay::Call(add_op, {z, z1});
   // Let expression and varaible a should be dead-code eliminated.
-  auto z3 = relay::LetNode::make(a, c, z2);
+  auto z3 = relay::Let(a, c, z2);
   relay::Function func =
       relay::Function(relay::FreeVars(z3), z3, relay::Type(), {});
 
@@ -89,12 +89,12 @@ TEST(Relay, Sequential) {
   CHECK(f.defined());
 
   // Expected function
-  auto c1 = relay::ConstantNode::make(c_data);
-  auto x1 = relay::VarNode::make("x", tensor_type);
-  auto y1 = relay::CallNode::make(add_op, {c1, c1});
-  y1 = relay::CallNode::make(add_op, {x1, y1});
-  auto zz = relay::CallNode::make(add_op, {y1, c1});
-  zz = relay::CallNode::make(add_op, {zz, zz});
+  auto c1 = relay::Constant(c_data);
+  auto x1 = relay::Var("x", tensor_type);
+  auto y1 = relay::Call(add_op, {c1, c1});
+  y1 = relay::Call(add_op, {x1, y1});
+  auto zz = relay::Call(add_op, {y1, c1});
+  zz = relay::Call(add_op, {zz, zz});
   relay::Function expected_func =
       relay::Function(relay::FreeVars(zz), zz, relay::Type(), {});
 

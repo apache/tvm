@@ -40,7 +40,7 @@ from tvm.contrib.download import download_testdata
 
 ######################################################################
 # Setup Environment
-# --------------------
+# -----------------
 # Since there are many required packages for Android, it is recommended to use the official Docker Image.
 #
 # First, to build and run Docker Image, we can run the following command.
@@ -79,7 +79,7 @@ from tvm.contrib.download import download_testdata
 #
 # .. code-block:: bash
 #
-#   echo 'export PYTHONPATH=/workspace/python:/workspacem/topi/python:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
+#   echo 'export PYTHONPATH=/workspace/python:/workspace/topi/python:/workspace/vta/python:${PYTHONPATH}' >> ~/.bashrc
 #   source ~/.bashrc
 
 #################################################################
@@ -103,7 +103,7 @@ from tvm.contrib.download import download_testdata
 
 #################################################################
 # Register Android device to RPC Tracker
-# ---------------------------------------
+# --------------------------------------
 # Now we can register our Android device to the tracker.
 #
 # Follow this `readme page <https://github.com/apache/incubator-tvm/tree/master/apps/android_rpc>`_ to
@@ -186,7 +186,7 @@ from tvm.contrib.download import download_testdata
 
 ######################################################################
 # Load pretrained keras model
-# ----------------------------
+# ---------------------------
 # We load a pretrained MobileNetV2(alpha=0.5) classification model provided by keras.
 keras.backend.clear_session()  # Destroys the current TF graph and creates a new one.
 weights_url = ''.join(['https://github.com/JonathanCMitchell/',
@@ -231,7 +231,7 @@ with open(synset_path) as f:
 
 ######################################################################
 # Compile the model with relay
-# ---------------------------------------------
+# ----------------------------
 # If we run the example on our x86 server for demonstration, we can simply
 # set it as :code:`llvm`. If running it on the Android device, we need to
 # specify its instruction set. Set :code:`local_demo` to False if you want
@@ -279,7 +279,7 @@ lib.export_library(lib_fname, fcompile)
 
 ######################################################################
 # Deploy the Model Remotely by RPC
-# ---------------------------------------------
+# --------------------------------
 # With RPC, you can deploy the model remotely from your host machine
 # to the remote android device.
 
@@ -313,7 +313,7 @@ module = runtime.create(graph, rlib, ctx)
 
 ######################################################################
 # Execute on TVM
-# ---------------------------------------------
+# --------------
 
 # set parameter (upload params to the remote device. This may take a while)
 module.set_input(**params)
@@ -336,7 +336,7 @@ print('Mean inference time (std dev): %.2f ms (%.2f ms)' % (np.mean(prof_res),
 
 ######################################################################
 # Sample Output
-# ---------------------------------------------
+# -------------
 # The following is the result of 'cpu', 'opencl' and 'vulkan' using Adreno 530 on Snapdragon 820
 #
 # Although we can run on a GPU, it is slower than CPU.

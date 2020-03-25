@@ -52,9 +52,22 @@ namespace tvm {
  * This function could return a more refined type than
  * the runtime type provided by expr->dtype
  *
+ * \param expr The input parameter.
+ * \return The result type.
+ *
  * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
  */
 TVM_DLL Type GetType(const PrimExpr& expr);
+
+/*!
+ * \brief Get the implied DataType for storing values with type during runtime.
+ *
+ * \param type The input type.
+ * \return The result runtime::DataType.
+ *
+ * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ */
+TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 
 /*!
  * Query the maximum possible value of dtype.
@@ -69,6 +82,13 @@ TVM_DLL PrimExpr max_value(const DataType& dtype);
  * \return the minimum possible value in this format.
  */
 TVM_DLL PrimExpr min_value(const DataType& dtype);
+
+/*!
+ * Get the value of infinity.
+ * \param dtype The data type.
+ * \return the infinity value in this format.
+ */
+TVM_DLL PrimExpr infinity(const DataType& dtype);
 
 /*!
  * \brief cast value to type.
@@ -425,6 +445,20 @@ TVM_DLL PrimExpr abs(PrimExpr x);
  * \return The result expression.
  */
 TVM_DLL PrimExpr isnan(PrimExpr x);
+
+/*!
+ * \brief Check if x is finite.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isfinite(PrimExpr x);
+
+/*!
+ * \brief Check if x is infinite.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isinf(PrimExpr x);
 
 /*!
  * \brief sum of of source expression over axis

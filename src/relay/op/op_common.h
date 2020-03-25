@@ -51,7 +51,7 @@ namespace relay {
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)             \
   .set_body_typed([](Expr data) {                           \
     static const Op& op = Op::Get(OpName);                  \
-    return CallNode::make(op, {data}, Attrs(), {});         \
+    return Call(op, {data}, Attrs(), {});                   \
   });                                                       \
   RELAY_REGISTER_OP(OpName)                                 \
   .set_num_inputs(1)                                        \
@@ -77,7 +77,7 @@ namespace relay {
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)                      \
   .set_body_typed([](Expr lhs, Expr rhs) {                           \
     static const Op& op = Op::Get(OpName);                           \
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});              \
+    return Call(op, {lhs, rhs}, Attrs(), {});                        \
   });                                                                \
   RELAY_REGISTER_OP(OpName)                                          \
   .set_num_inputs(2)                                                 \
@@ -94,7 +94,7 @@ namespace relay {
   TVM_REGISTER_GLOBAL("relay.op._make." OpName)                      \
   .set_body_typed([](Expr lhs, Expr rhs) {                           \
     static const Op& op = Op::Get(OpName);                           \
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});              \
+    return Call(op, {lhs, rhs}, Attrs(), {});                        \
   });                                                                \
   RELAY_REGISTER_OP(OpName)                                          \
   .set_num_inputs(2)                                                 \

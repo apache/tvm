@@ -154,7 +154,7 @@ struct FirstOrderReverseAD : ExprFunctor<ADValue(const Expr &)> {
       for (const ADValue& adval : args) {
         call_args.push_back(adval->get<ADTensor>().forward);
       }
-      auto orig = CallNode::make(op_ref, call_args, attrs, type_args);
+      auto orig = Call(op_ref, call_args, attrs, type_args);
       orig->checked_type_ = orig_type;
       auto ret = std::make_shared<ADTensor>(ll, orig);
       backprop_actions.push_back([this, args, orig, ret, op_ref](LetList* ll) {
@@ -250,7 +250,7 @@ Expr FirstOrderGradient(const Expr& re, const IRModule& mod) {
       for (const auto& a : args) {
         grad_res.push_back(a->get<ADTensor>().reverse);
       }
-      return TupleNode::make(grad_res);
+      return Tuple(grad_res);
     });
     return Pair(res.forward, grad);
   });
@@ -297,7 +297,7 @@ Expr LiftTensor(const std::function<Expr(const Expr& t)>& f,
       fields.push_back(field);
       types.push_back(field->checked_type_);
     }
-    auto ret = TupleNode::make(fields);
+    auto ret = Tuple(fields);
     ret->checked_type_ = TupleType(types);
     return std::move(ret);
   } else {
@@ -316,14 +316,14 @@ void TransferGrads(const Type& forward_type,
   CHECK(IsAtomic(from)) << from;
   CHECK(IsAtomic(to)) << to;
   if (forward_type.as<TensorTypeNode>()) {
-    auto from_ref = TupleGetItemNode::make(from, 1);
-    auto to_ref = TupleGetItemNode::make(to, 1);
-    ll->Push(RefWriteNode::make(to_ref, RefReadNode::make(from_ref)));
+    auto from_ref = TupleGetItem(from, 1);
+    auto to_ref = TupleGetItem(to, 1);
+    ll->Push(RefWrite(to_ref, RefRead(from_ref)));
   } else if (auto* tt = forward_type.as<TupleTypeNode>()) {
     for (size_t i = 0; i < tt->fields.size(); ++i) {
       TransferGrads(tt->fields[i],
-                    ll->Push(TupleGetItemNode::make(from, i)),
-                    ll->Push(TupleGetItemNode::make(to, i)),
+                    ll->Push(TupleGetItem(from, i)),
+                    ll->Push(TupleGetItem(to, i)),
                     ll);
     }
   } else {
@@ -335,7 +335,7 @@ void TransferGrads(const Type& forward_type,
 /*! \brief t -> ReverseType(t). Transform to Reverse Mode Value. */
 Expr GetRev(const Type& forward_type, const Expr& e, LetList* ll) {
   auto rev = [&](const Expr& e) {
-    return Pair(e, ll->Push(RefCreateNode::make(ZerosLike(e))));
+    return Pair(e, ll->Push(RefCreate(ZerosLike(e))));
   };
   auto rev_type = [&](const Type& forward_type) {
     return ReverseType(forward_type);
@@ -357,7 +357,7 @@ Expr GetValue(const Type& forward_type, const Expr& e, LetList* ll) {
 /*! \brief ReverseType(t) -> t. Get the gradient. */
 Expr GetGrad(const Type& forward_type, const Expr& e, LetList* ll) {
   auto grad = [&](const Expr& e) {
-    return ll->Push(RefReadNode::make(GetField(e, 1)));
+    return ll->Push(RefRead(GetField(e, 1)));
   };
   auto grad_type = [&](const Type& forward_type) {
     return forward_type;
@@ -367,8 +367,8 @@ Expr GetGrad(const Type& forward_type, const Expr& e, LetList* ll) {
 
 void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
   if (t.as<TensorTypeNode>()) {
-    ll->Push(RefWriteNode::make(GetField(arg, 1),
-                                Add(ll->Push(RefReadNode::make(GetField(arg, 1))),
+    ll->Push(RefWrite(GetField(arg, 1),
+                                Add(ll->Push(RefRead(GetField(arg, 1))),
                                     grad)));
   } else if (auto* tt = t.as<TupleTypeNode>()) {
     for (size_t i = 0; i < tt->fields.size(); ++i) {
@@ -384,8 +384,8 @@ void UpdateGrad(const Type& t, const Expr& arg, const Expr& grad, LetList* ll) {
 }
 
 Expr BPEmpty() {
-  Expr unitF = Function({}, TupleNode::make({}), TupleType::Empty(), {});
-  return RefCreateNode::make(unitF);
+  Expr unitF = Function({}, Tuple(tvm::Array<Expr>({})), TupleType::Empty(), {});
+  return RefCreate(unitF);
 }
 
 struct ReverseAD : ExprMutator {
@@ -412,7 +412,7 @@ struct ReverseAD : ExprMutator {
     return LetList::With([&](LetList* ll) {
       auto x_var = ll->Push(x);
       auto ret = ll->Push(GetRev(call->checked_type(), x_var, ll));
-      auto bpv = ll->Push(RefReadNode::make(bp));
+      auto bpv = ll->Push(RefRead(bp));
       Expr nbp = Function(
         {},
         LetList::With([&](LetList* ll) {
@@ -422,12 +422,12 @@ struct ReverseAD : ExprMutator {
           auto dup_ad = ll->Push(dup_diff.VisitExpr(DeDup(x)));
 
           TransferGrads(call->checked_type(), ret, dup_ad, ll);
-          ll->Push(CallNode::make(RefReadNode::make(dup_bp), {}));
-          return CallNode::make(bpv, {});
+          ll->Push(Call(RefRead(dup_bp), {}));
+          return Call(bpv, {});
         }),
         TupleType::Empty(),
         {});
-      ll->Push(RefWriteNode::make(bp, nbp));
+      ll->Push(RefWrite(bp, nbp));
       return ret;
     });
   }
@@ -451,12 +451,12 @@ struct ReverseAD : ExprMutator {
         for (size_t i = 0; i < args.size(); i++) {
           orig_args.push_back(GetValue(call->args[i]->checked_type(), args[i], ll));
         }
-        Expr orig = CallNode::make(call->op, orig_args, call->attrs, call->type_args);
+        Expr orig = Call(call->op, orig_args, call->attrs, call->type_args);
         orig->checked_type_ = call->checked_type();
         Var orig_var = ll->Push(orig);
         orig_var->checked_type_ = call->checked_type();
         auto ret = ll->Push(GetRev(call->checked_type(), orig_var, ll));
-        auto bpv = ll->Push(RefReadNode::make(bp));
+        auto bpv = ll->Push(RefRead(bp));
         Expr nbp = Function(
           {},
           LetList::With([&](LetList* ll) {
@@ -465,11 +465,11 @@ struct ReverseAD : ExprMutator {
             for (size_t i = 0; i < args.size(); ++i) {
               UpdateGrad(call->args[i]->checked_type(), args[i], rev[i], ll);
             }
-            return CallNode::make(bpv, {});
+            return Call(bpv, {});
           }),
           TupleType::Empty(),
           {});
-        ll->Push(RefWriteNode::make(bp, nbp));
+        ll->Push(RefWrite(bp, nbp));
         return ret;
       });
     }
@@ -478,11 +478,11 @@ struct ReverseAD : ExprMutator {
 
   Expr VisitExpr_(const ConstantNode* op) final {
     Expr e = GetRef<Expr>(op);
-    return Pair(e, RefCreateNode::make(ZerosLike(e)));
+    return Pair(e, RefCreate(ZerosLike(e)));
   }
 
   Expr VisitExpr_(const IfNode* op) final {
-    return IfNode::make(TupleGetItemNode::make(VisitExpr(op->cond), 0),
+    return If(TupleGetItem(VisitExpr(op->cond), 0),
                         VisitExpr(op->true_branch),
                         VisitExpr(op->false_branch));
   }
@@ -545,13 +545,13 @@ Expr Gradient(const Expr& re, const IRModule& mod) {
     Expr rev = ReverseAD(bp, std::make_shared<ReverseAD::ADVarMap>())(e);
     std::vector<Expr> args;
     for (const auto& p : f->params) {
-      args.push_back(ll->Push(Pair(p, RefCreateNode::make(ZerosLike(p)))));
+      args.push_back(ll->Push(Pair(p, RefCreate(ZerosLike(p)))));
     }
-    auto c = ll->Push(CallNode::make(rev, args));
+    auto c = ll->Push(Call(rev, args));
     std::function<void(const Expr&, const Type&)> init_grad;
     init_grad = [&](const Expr& e, const Type& t) {
       if (t.as<TensorTypeNode>()) {
-        ll->Push(RefWriteNode::make(GetField(e, 1), OnesLike(GetField(e, 0))));
+        ll->Push(RefWrite(GetField(e, 1), OnesLike(GetField(e, 0))));
       } else if (auto tt = t.as<TupleTypeNode>()) {
         CHECK_GT(tt->fields.size(), 0);
         init_grad(ll->Push(GetField(e, 0)), tt->fields[0]);
@@ -561,10 +561,10 @@ Expr Gradient(const Expr& re, const IRModule& mod) {
       }
     };
     init_grad(c, f->body->checked_type());
-    ll->Push(CallNode::make(RefReadNode::make(bp), {}));
+    ll->Push(Call(RefRead(bp), {}));
     std::vector<Expr> ret;
     for (const auto& a : args) {
-      ret.push_back(RefReadNode::make(GetField(a, 1)));
+      ret.push_back(RefRead(GetField(a, 1)));
     }
     std::function<Expr(const Expr&, const Type&)> get_final_result;
     get_final_result = [&](const Expr& e, const Type& t) -> Expr {
@@ -575,13 +575,13 @@ Expr Gradient(const Expr& re, const IRModule& mod) {
         for (size_t i = 0; i < tt->fields.size(); ++i) {
           fields.push_back(get_final_result(ll->Push(GetField(e, i)), tt->fields[i]));
         }
-        return TupleNode::make(fields);
+        return Tuple(fields);
       } else {
         LOG(FATAL) << "unhandled type " << t;
         throw;
       }
     };
-    return Pair(get_final_result(c, f->body->checked_type()), TupleNode::make(ret));
+    return Pair(get_final_result(c, f->body->checked_type()), Tuple(ret));
   });
   return Function(f->params, body, GradRetType(GetRef<Function>(f)), {});
 }

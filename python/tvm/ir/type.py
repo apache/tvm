@@ -46,6 +46,7 @@ class TypeKind(IntEnum):
     TypeData = 6
 
 
+@tvm._ffi.register_object("PrimType")
 class PrimType(Type):
     """Primitive data type in the low level IR
 
@@ -57,6 +58,20 @@ class PrimType(Type):
     def __init__(self, dtype):
         self.__init_handle_by_constructor__(
             _ffi_api.PrimType, dtype)
+
+
+@tvm._ffi.register_object("PointerType")
+class PointerType(Type):
+    """PointerType used in the low-level TIR.
+
+    Parameters
+    ----------
+    element_type : tvm.ir.Type
+        The type of pointer's element.
+    """
+    def __init__(self, element_type):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PointerType, element_type)
 
 
 @tvm._ffi.register_object("TypeVar")

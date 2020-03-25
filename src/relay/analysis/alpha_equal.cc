@@ -202,6 +202,22 @@ class AlphaEqualHandler:
     return LeafObjectEqual(GetRef<ObjectRef>(lhs), other);
   }
 
+  bool VisitType_(const PrimTypeNode* lhs, const Type& other) final {
+    if (const PrimTypeNode* rhs = other.as<PrimTypeNode>()) {
+      return lhs->dtype == rhs->dtype;
+    } else {
+      return false;
+    }
+  }
+
+  bool VisitType_(const PointerTypeNode* lhs, const Type& other) final {
+    if (const PointerTypeNode* rhs = other.as<PointerTypeNode>()) {
+      return TypeEqual(lhs->element_type, rhs->element_type);
+    } else {
+      return false;
+    }
+  }
+
   bool VisitType_(const TypeVarNode* lhs, const Type& other) final {
     if (const TypeVarNode* rhs = other.as<TypeVarNode>()) {
       if (lhs->kind != rhs->kind) return false;
@@ -581,7 +597,7 @@ bool AlphaEqual(const Expr& lhs, const Expr& rhs) {
   return AlphaEqualHandler(false, false).ExprEqual(lhs, rhs);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis._alpha_equal")
+TVM_REGISTER_GLOBAL("relay.analysis._alpha_equal")
 .set_body_typed([](ObjectRef a, ObjectRef b) {
   return AlphaEqualHandler(false, false).Equal(a, b);
 });
@@ -591,18 +607,18 @@ TVM_REGISTER_GLOBAL("ir.type_alpha_equal")
   return AlphaEqual(a, b);
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis._assert_alpha_equal")
+TVM_REGISTER_GLOBAL("relay.analysis._assert_alpha_equal")
 .set_body_typed([](ObjectRef a, ObjectRef b) {
   bool alpha_equal = AlphaEqualHandler(false, true).Equal(a, b);
   CHECK(alpha_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not alpha equal";
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis._graph_equal")
+TVM_REGISTER_GLOBAL("relay.analysis._graph_equal")
 .set_body_typed([](ObjectRef a, ObjectRef b) {
   return AlphaEqualHandler(true, false).Equal(a, b);
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis._assert_graph_equal")
+TVM_REGISTER_GLOBAL("relay.analysis._assert_graph_equal")
 .set_body_typed([](ObjectRef a, ObjectRef b) {
   bool graph_equal = AlphaEqualHandler(true, true).Equal(a, b);
   CHECK(graph_equal) << AsText(a, true) << " and " << AsText(b, true) << " are not graph equal";

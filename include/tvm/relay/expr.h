@@ -72,14 +72,18 @@ class ConstantNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Constant make(runtime::NDArray data);
-
   static constexpr const char* _type_key = "relay.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
 };
 
 class Constant : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param data The data of the constant tensor.
+   */
+  TVM_DLL explicit Constant(runtime::NDArray data);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
 };
 
@@ -97,14 +101,18 @@ class TupleNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Tuple make(tvm::Array<relay::Expr> fields);
-
   static constexpr const char* _type_key = "relay.Tuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
 };
 
 class Tuple : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param fields The fields of a tuple.
+   */
+  TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
 };
 
@@ -161,6 +169,21 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param name_hint The name hint of a variable.
+   * \param type_annotation The type annotation of a variable.
+   */
+  TVM_DLL Var(std::string name_hint, Type type_annotation) :
+    Var(Id(name_hint), type_annotation) {}
+
+  /*!
+   * \brief The constructor
+   * \param vid The unique id of a variable.
+   * \param type_annotation The type annotation of a variable.
+   */
+  TVM_DLL Var(Id vid, Type type_annotation);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
 };
 
@@ -215,17 +238,24 @@ class CallNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Call make(Expr op,
-                           Array<Expr> args,
-                           Attrs attrs = Attrs(),
-                           Array<Type> type_args = Array<Type>());
-
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
 };
 
 class Call : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param op The operator will be invoked.
+   * \param args The arguments of the call.
+   * \param attrs The attributes of the call node.
+   * \param type_args The type arguments passed to a polymorphic function.
+   */
+  TVM_DLL Call(Expr op,
+               Array<Expr> args,
+               Attrs attrs = Attrs(),
+               Array<Type> type_args = Array<Type>());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
 };
 
@@ -259,14 +289,20 @@ class LetNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Let make(Var var, Expr value, Expr body);
-
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
 };
 
 class Let : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param var The variable that is bound to.
+   * \param value The value used to bind to the variable.
+   * \param body The body of the let binding.
+   */
+  TVM_DLL Let(Var var, Expr value, Expr body);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
 };
 
@@ -300,14 +336,20 @@ class IfNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static If make(Expr cond, Expr true_branch, Expr false_branch);
-
   static constexpr const char* _type_key = "relay.If";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
 };
 
 class If : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param cond The condition of a if node.
+   * \param true_branch The fall through branch
+   * \param false_branch The branch for execution when condition is false.
+   */
+  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch);
+
   TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
 };
 
@@ -327,14 +369,19 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static TupleGetItem make(Expr tuple, int index);
-
   static constexpr const char* _type_key = "relay.TupleGetItem";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
 };
 
 class TupleGetItem : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param tuple The tuple to get an element from.
+   * \param index The index for extracting a value in the tuple.
+   */
+  TVM_DLL TupleGetItem(Expr tuple, int index);
+
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
 };
 
@@ -351,14 +398,18 @@ class RefCreateNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static RefCreate make(Expr value);
-
   static constexpr const char* _type_key = "relay.RefCreate";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefCreateNode, ExprNode);
 };
 
 class RefCreate : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param value The initial value of the reference.
+   */
+  TVM_DLL explicit RefCreate(Expr value);
+
   TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
 };
 
@@ -375,14 +426,18 @@ class RefReadNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static RefRead make(Expr ref);
-
   static constexpr const char* _type_key = "relay.RefRead";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefReadNode, ExprNode);
 };
 
 class RefRead : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param ref The reference where to read data.
+   */
+  TVM_DLL explicit RefRead(Expr ref);
+
   TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
 };
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
@@ -409,6 +464,13 @@ class RefWriteNode : public ExprNode {
 
 class RefWrite : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param ref The reference where data is write to.
+   * \param value The value to write.
+   */
+  TVM_DLL RefWrite(Expr ref, Expr value);
+
   TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
 };
 

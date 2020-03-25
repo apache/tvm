@@ -17,12 +17,12 @@
 #pylint: disable=unused-argument, not-context-manager
 """Automatic quantization toolkit."""
 import tvm.ir
+from tvm.runtime import Object
 
 from . import _quantize
 from ._calibrate import calibrate
 from .. import expr as _expr
 from .. import transform as _transform
-from ..base import Object, register_relay_node
 
 
 class QAnnotateKind(object):
@@ -52,7 +52,7 @@ def _forward_op(ref_call, args):
         ref_call.op, args, ref_call.attrs, ref_call.type_args)
 
 
-@register_relay_node("relay.quantize.QConfig")
+@tvm._ffi.register_object("relay.quantize.QConfig")
 class QConfig(Object):
     """Configure the quantization behavior by setting config variables.
 

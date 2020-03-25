@@ -67,7 +67,7 @@ bool SparseDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 Expr MakeSparseDense(Expr data, Expr weight_data, Expr weight_indices, Expr weight_indptr) {
   auto attrs = make_object<SparseDenseAttrs>();
   static const Op& op = Op::Get("nn.sparse_dense");
-  return CallNode::make(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
+  return Call(op, {data, weight_data, weight_indices, weight_indptr}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_dense")
@@ -116,7 +116,7 @@ bool SparseTransposeRel(const Array<Type>& types, int num_inputs, const Attrs& a
 Expr MakeSparseTranspose(Expr sparse_data, Expr sparse_indices, Expr sparse_indptr) {
   auto attrs = make_object<SparseTransposeAttrs>();
   static const Op& op = Op::Get("nn.sparse_transpose");
-  return CallNode::make(op, {sparse_data, sparse_indices, sparse_indptr}, Attrs(attrs), {});
+  return Call(op, {sparse_data, sparse_indices, sparse_indptr}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.sparse_transpose")

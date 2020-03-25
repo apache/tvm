@@ -89,7 +89,7 @@ class EtaExpander : public ExprMutator {
     for (const auto& arg : call->args) {
       new_args.push_back(VisitExpr(arg));
     }
-    return CallNode::make(new_op, new_args, call->attrs, call->type_args);
+    return Call(new_op, new_args, call->attrs, call->type_args);
   }
 
   Expr VisitExpr_(const ConstructorNode* cons_node) final {
@@ -101,14 +101,14 @@ class EtaExpander : public ExprMutator {
     tvm::Array<Expr> params;
     for (const auto& type : cons->inputs) {
       Type param_type = type_var_replacer_.VisitType(type);
-      params.push_back(VarNode::make("eta_expand_param", param_type));
+      params.push_back(Var("eta_expand_param", param_type));
     }
     tvm::Array<Type> type_params;
     TypeData adt_def = mod_->LookupTypeDef(cons->belong_to);
     for (const auto& type_var : adt_def->type_vars) {
       type_params.push_back(type_var_replacer_.VisitType(type_var));
     }
-    Expr body = CallNode::make(cons, params, Attrs());
+    Expr body = Call(cons, params, Attrs());
     Type ret_type = TypeCall(cons->belong_to, type_params);
 
     return Function(
@@ -130,14 +130,14 @@ class EtaExpander : public ExprMutator {
       tvm::Array<Expr> params;
       tvm::Array<Var> args;
       for (size_t i = 0; i < func->params.size(); ++i) {
-        auto var = VarNode::make("eta_expand_param", func->params[i]->type_annotation);
+        auto var = Var("eta_expand_param", func->params[i]->type_annotation);
         params.push_back(var);
         args.push_back(var);
       }
 
     return Function(
         args,
-        CallNode::make(gvar, params),
+        Call(gvar, params),
         func->ret_type,
         func->type_params);
     } else {

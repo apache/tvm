@@ -562,6 +562,40 @@ def verify_one_hot(indices_shape, depth, on_value, off_value, axis, dtype):
     for device in get_all_backend():
         check_device(device)
 
+
+def verify_unravel_index(indices, shape, dtype):
+    x_data = np.array(indices).astype(dtype)
+    y_data = np.array(shape).astype(dtype)
+    if len(x_data.shape) == 1:
+        dst_shape = [y_data.shape[0], x_data.shape[0]]
+    else:
+        dst_shape = [y_data.shape[0]]
+
+    X = te.placeholder(shape=x_data.shape, dtype=dtype, name="X")
+    Y = te.placeholder(shape=y_data.shape, dtype=dtype, name="Y")
+    Z = topi.unravel_index(X, Y)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.testing.get_injective_schedule(device)(Z)
+        foo = tvm.build(s, [X, Y, Z], device, name="unravel_index")
+
+        out_npy = np.unravel_index(x_data, y_data)
+        datax_nd = tvm.nd.array(x_data, ctx)
+        datay_nd = tvm.nd.array(y_data, ctx)
+        out_nd = tvm.nd.empty(dst_shape, ctx=ctx, dtype=Z.dtype)
+        foo(datax_nd, datay_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+
+    for device in get_all_backend():
+        check_device(device)
+
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -882,6 +916,15 @@ def test_one_hot():
     verify_one_hot((3, 2, 4, 5), 6, 1, 0, 1, "int32")
     verify_one_hot((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
+
+def test_unravel_index():
+    for dtype in ["int32", "int64"]:
+        verify_unravel_index([0, 1, 2, 3], [2, 2], dtype)
+        verify_unravel_index([144], [5, 5, 5, 2], dtype)
+        verify_unravel_index(144, [5, 5, 5, 2], dtype)
+        verify_unravel_index([100, 13, 5], [5, 5, 5, 2], dtype)
+
+
 if __name__ == "__main__":
     test_strided_slice()
     test_concatenate()
@@ -905,3 +948,4 @@ if __name__ == "__main__":
     test_ndarray_size()
     test_where_fusion()
     test_one_hot()
+    test_unravel_index()

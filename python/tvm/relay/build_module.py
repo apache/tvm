@@ -29,6 +29,7 @@ from ..contrib import graph_runtime as _graph_rt
 from . import _build_module
 from . import ty as _ty
 from . import expr as _expr
+from . import function as _function
 from .backend import interpreter as _interpreter
 from .backend.vm import VMExecutor
 
@@ -218,16 +219,16 @@ def build(mod, target=None, target_host=None, params=None):
     params : dict
         The parameters of the final graph.
     """
-    if not isinstance(mod, (IRModule, _expr.Function)):
+    if not isinstance(mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
-    if isinstance(mod, _expr.Function):
+    if isinstance(mod, _function.Function):
         if params:
             mod = bind_params_by_name(mod, params)
         mod = IRModule.from_expr(mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
-            "instead of deprecated parameter mod (tvm.relay.expr.Function)",
+            "instead of deprecated parameter mod (tvm.relay.function.Function)",
             DeprecationWarning)
 
     target = _update_target(target)
@@ -276,16 +277,16 @@ def optimize(mod, target=None, params=None):
     params : dict
         The parameters of the final graph.
     """
-    if not isinstance(mod, (IRModule, _expr.Function)):
+    if not isinstance(mod, (IRModule, _function.Function)):
         raise ValueError("Type of input parameter mod must be tvm.IRModule")
 
-    if isinstance(mod, _expr.Function):
+    if isinstance(mod, _function.Function):
         if params:
             mod = bind_params_by_name(mod, params)
         mod = IRModule.from_expr(mod)
         warnings.warn(
             "Please use input parameter mod (tvm.IRModule) "
-            "instead of deprecated parameter func (tvm.relay.expr.Function)",
+            "instead of deprecated parameter func (tvm.relay.function.Function)",
             DeprecationWarning)
 
     target = _update_target(target)

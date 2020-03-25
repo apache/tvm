@@ -60,11 +60,11 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   data_ = std::move(n);
 }
 
-CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
+CCacheKey::CCacheKey(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
-  return CCacheKey(n);
+  data_ = std::move(n);
 }
 
 struct IsDynamicVisitor : public TypeVisitor {
@@ -86,7 +86,7 @@ bool IsDynamic(const Type& ty) {
 }
 
 // TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay._make.IsDynamic")
+TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
 .set_body_typed(IsDynamic);
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
@@ -616,7 +616,7 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (!src_func->UseDefaultCompiler()) {
+      if (src_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
         auto code_gen = src_func->GetAttr<tir::StringImm>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
@@ -690,7 +690,7 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (!key->source_func->UseDefaultCompiler()) {
+    if (key->source_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
           key->source_func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
@@ -819,7 +819,9 @@ TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-.set_body_typed(CCacheKeyNode::make);
+.set_body_typed([](Function source_func, Target target) {
+  return CCacheKey(source_func, target);
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
 .set_body_typed([]() {

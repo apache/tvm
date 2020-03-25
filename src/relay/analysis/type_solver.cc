@@ -659,14 +659,14 @@ bool TypeSolver::Solve() {
 }
 
 // Expose type solver only for debugging purposes.
-TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
+TVM_REGISTER_GLOBAL("relay.analysis._test_type_solver")
 .set_body([](runtime::TVMArgs args, runtime::TVMRetValue* ret) {
     using runtime::PackedFunc;
     using runtime::TypedPackedFunc;
     ErrorReporter *err_reporter = new ErrorReporter();
     auto module = IRModule({}, {});
     auto dummy_fn_name = GlobalVar("test");
-    module->Add(dummy_fn_name, Function({}, TupleNode::make({}), Type(), {}, {}));
+    module->Add(dummy_fn_name, Function({}, Tuple(tvm::Array<relay::Expr>({})), Type(), {}, {}));
     auto solver = std::make_shared<TypeSolver>(dummy_fn_name, module, err_reporter);
 
     auto mod = [module, solver, err_reporter](std::string name) -> PackedFunc {
@@ -689,7 +689,7 @@ TVM_REGISTER_GLOBAL("relay._analysis._test_type_solver")
           });
       } else if (name == "AddConstraint") {
         return TypedPackedFunc<void(TypeConstraint)>([solver](TypeConstraint c) {
-            Expr e = VarNode::make("dummy_var",
+            Expr e = Var("dummy_var",
               IncompleteType(Kind::kType));
             return solver->AddConstraint(c, e);
           });

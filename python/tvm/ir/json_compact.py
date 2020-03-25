@@ -72,7 +72,15 @@ def create_updater_06_to_07():
             return item
         return _convert
 
+    def _update_tir_var(new_name):
+        def _convert(item, _):
+            item["type_key"] = new_name
+            item["attrs"]["type_annotation"] = "0"
+            return item
+        return _convert
+
     node_map = {
+        # Base IR
         "relay.TypeVar": _ftype_var,
         "relay.GlobalTypeVar": _ftype_var,
         "relay.Type": _rename("Type"),
@@ -91,6 +99,9 @@ def create_updater_06_to_07():
         "relay.PassContext": _rename("transform.PassContext"),
         "relay.ModulePass": _rename("transform.ModulePass"),
         "relay.Sequantial": _rename("transform.Sequantial"),
+        # TIR
+        "Variable": _update_tir_var("tir.Var"),
+        "SizeVar": _update_tir_var("tir.SizeVar"),
     }
     return create_updater(node_map, "0.6", "0.7")
 

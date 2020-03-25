@@ -77,13 +77,12 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported conv2d layout {} for CUDA".format(layout))
         # add miopen implementation
-        if "miopen" in target.libs:
-            if layout == "NCHW":
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, True),
-                    wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),
-                    name="conv2d_nchw_miopen.rocm",
-                    plevel=15)
+        if "miopen" in target.libs and layout == "NCHW":
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.rocm.conv2d_nchw_miopen, True),
+                wrap_topi_schedule(topi.rocm.schedule_conv2d_nchw_miopen),
+                name="conv2d_nchw_miopen.rocm",
+                plevel=15)
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout == "NCHW":
             assert kernel_layout == "OIHW"
@@ -120,9 +119,8 @@ def conv2d_strategy_rocm(attrs, inputs, out_type, target):
 @dense_strategy.register("rocm")
 def dense_strategy_rocm(attrs, inputs, out_type, target):
     """Dense strategy for ROCM"""
-    strategy = _op.OpStrategy()
     assert len(inputs[0].shape) == 2 and len(inputs[1].shape) == 2, "Only support 2-dim dense"
-
+    strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_dense(topi.rocm.dense),
         wrap_topi_schedule(topi.rocm.schedule_dense),
@@ -133,5 +131,5 @@ def dense_strategy_rocm(attrs, inputs, out_type, target):
             wrap_compute_dense(topi.rocm.dense_rocblas),
             wrap_topi_schedule(topi.rocm.dense_rocblas),
             name="dense_rocblas.rocm",
-            plevel=5)
+            plevel=15)
     return strategy

@@ -85,7 +85,7 @@ class InjectAttach : public StmtMutator {
     auto stmt = StmtMutator::VisitStmt(input_stmt);
     const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr &&
-        op->attr_key == attr::loop_scope) {
+        op->attr_key == tir::attr::loop_scope) {
       if (attach_spec_->attach_type == kScope &&
           op->node == attach_spec_->attach_ivar) {
         CHECK(!found_attach)
@@ -131,8 +131,8 @@ class InjectScanStep : public StmtMutator {
     // update
     const AttrStmtNode* op = stmt.as<AttrStmtNode>();
     if (op != nullptr &&
-        ((op->attr_key == attr::scan_update_scope && !is_init_) ||
-         (op->attr_key == attr::scan_init_scope && is_init_))) {
+        ((op->attr_key == tir::attr::scan_update_scope && !is_init_) ||
+         (op->attr_key == tir::attr::scan_init_scope && is_init_))) {
       if (op->node.same_as(scan_op_)) {
         found_attach = true;
         stmt = AttrStmtNode::make(
@@ -187,15 +187,15 @@ class SchedulePostProc : public StmtExprMutator {
   }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::loop_scope ||
-        op->attr_key == attr::scan_init_scope) {
+    if (op->attr_key == tir::attr::loop_scope ||
+        op->attr_key == tir::attr::scan_init_scope) {
       return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::scan_update_scope) {
+    } else if (op->attr_key == tir::attr::scan_update_scope) {
       const ScanOpNode* scan = op->node.as<ScanOpNode>();
       CHECK(scan);
       var_value_[scan->scan_axis->var.get()] = op->value;
       return this->VisitStmt(op->body);
-    } else if (op->attr_key == attr::thread_extent) {
+    } else if (op->attr_key == tir::attr::thread_extent) {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {

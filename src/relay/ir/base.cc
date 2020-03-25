@@ -33,6 +33,12 @@ using namespace tvm::runtime;
 
 TVM_REGISTER_NODE_TYPE(IdNode);
 
+Id::Id(std::string name_hint) {
+  ObjectPtr<IdNode> n = make_object<IdNode>();
+  n->name_hint = std::move(name_hint);
+  data_ = std::move(n);
+}
+
 TVM_REGISTER_GLOBAL("ir.NodeSetSpan")
 .set_body_typed([](ObjectRef node_ref, Span sp) {
   if (auto* rn = node_ref.as<RelayNode>()) {

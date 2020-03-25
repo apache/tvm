@@ -31,16 +31,26 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
+runtime::Module BuildAOCL(IRModule mod,
+                          std::string target_str,
                           bool emulation) {
   // Get code.
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenOpenCL cg;
   cg.Init(output_ssa);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodegenOpenCL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodegenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   std::string code = cg.Finish();
   if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
     code = (*f)(code).operator std::string();
@@ -68,15 +78,15 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
   std::string aocxbin;
   runtime::LoadBinaryFromFile("aocl.aocx", &aocxbin);
 
-  return AOCLModuleCreate(aocxbin, "aocx", ExtractFuncInfo(funcs), code);
+  return AOCLModuleCreate(aocxbin, "aocx", ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_aocl")
+TVM_REGISTER_GLOBAL("target.build.aocl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildAOCL(args[0], args[1], false);
   });
 
-TVM_REGISTER_GLOBAL("codegen.build_aocl_sw_emu")
+TVM_REGISTER_GLOBAL("target.build.build.aocl_sw_emu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildAOCL(args[0], args[1], true);
   });

@@ -23,6 +23,7 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/runtime/container.h>
 #include <string>
 #include "codegen_spirv.h"
 #include "../../arith/compute_expr.h"
@@ -30,18 +31,20 @@
 namespace tvm {
 namespace codegen {
 
-std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
+std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f) {
   this->InitFuncState();
-  CHECK(f->is_restricted)
+  CHECK(f->HasNonzeroAttr(tir::attr::kNoAlias))
       << "SPIRV only takes restricted memory model";
   std::vector<Var> pod_args;
   uint32_t num_buffer = 0;
-  for (Var arg : f->args) {
+
+  for (Var arg : f->params) {
     DataType t = arg.dtype();
     if (t.is_handle()) {
-      auto it = f->handle_data_type.find(arg);
-      if (it != f->handle_data_type.end()) {
-        DataType value_type = (*it).second.dtype();
+      if (auto* ptr = arg->type_annotation.as<PointerTypeNode>()) {
+        auto* prim = ptr->element_type.as<PrimTypeNode>();
+        CHECK(prim);
+        DataType value_type = prim->dtype;
         spirv::Value arg_value = builder_->BufferArgument(
             builder_->GetSType(value_type), 0, num_buffer);
         storage_info_[arg.get()].UpdateContentType(value_type);
@@ -75,7 +78,11 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
   builder_->MakeInst(spv::OpReturn);
   builder_->MakeInst(spv::OpFunctionEnd);
 
-  builder_->CommitKernelFunction(func_ptr, f->name);
+  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
+
+  builder_->CommitKernelFunction(func_ptr, static_cast<std::string>(global_symbol));
 
   return builder_->Finalize();
 }
@@ -607,7 +614,7 @@ void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
 }
 
 void CodeGenSPIRV::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::thread_extent) {
+  if (op->attr_key == tir::attr::thread_extent) {
     IterVar iv = Downcast<IterVar>(op->node);
     if (iv->thread_tag.length() != 0) {
       if (!var_map_.count(iv->var.get())) {
