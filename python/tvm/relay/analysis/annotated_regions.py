@@ -55,7 +55,7 @@ class AnnotatedRegionSet(Object):
 
         Returns
         -------
-        region : Region
+        region
             The region containing the expression.
             None if not found.
         """
