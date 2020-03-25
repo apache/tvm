@@ -35,18 +35,18 @@ def test_fastmath():
         with relay.build_config(opt_level=3, required_pass=['FastMath']):
             graph, lib, params = relay.build(mod, target="llvm", params=None)
 
-        # check fast_math op is converted to lib function
+        # Check that the op related to fast math have been convered to function in lib
         func_name = "fused_" + name
         assert lib.get_function(func_name)
 
         ctx = tvm.cpu(0)
         m = graph_runtime.create(graph, lib, ctx)
-        # set inputs
+        # Set inputs
         m.set_input('x', tvm.nd.array(a_np, ctx))
         m.set_input(**params)
-        # execute
+        # Execute
         m.run()
-        # get outputs
+        # Get outputs
         tvm_output = m.get_output(0)
         tvm.testing.assert_allclose(tvm_output.asnumpy(), b_np,
                                     rtol=1e-5, atol=1e-5)
