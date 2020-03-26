@@ -267,7 +267,7 @@ class Partitioner : public ExprMutator {
 
         if (region->GetOutputs().size() == 1) {
           // If there is only a single output; no need to add a tuplegetitem node
-          return ret;
+          return std::move(ret);
         } else {
           // Add a tuplegetitem node to select this output out of many
           auto tuple_get_item_ = TupleGetItem(ret, index);
