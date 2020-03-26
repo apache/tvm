@@ -1151,20 +1151,16 @@ def _mx_contrib_interleaved_matmul_selfatt_valatt(inputs, attrs):
     output = mx.nd.reshape(output, shape=(0, 0, -1))
     """
     assert len(inputs) == 2
-    # qkv.shape = (seq_length, batch_size, num_heads * head_dim * 3)
     qkv, att = inputs
     num_heads = attrs.get_int("heads")
-    # (seq_length, batch_size, num_heads, 3, head_dim)
     qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
     v_proj = _op.take(qkv, _expr.const(2, "int"), axis=3)
     v_proj = _op.transpose(v_proj, axes=(1, 2, 0, 3))
-    # (num_heads, seq_length, head_dim)
     v_proj = _op.reverse_reshape(v_proj, newshape=(-1, 0, 0))
     v_proj = _op.transpose(v_proj, axes=[0, 2, 1])
     out = _op.nn.batch_matmul(att, v_proj)
     out = _op.reverse_reshape(out, newshape=(-1, num_heads, 0, 0))
     out = _op.transpose(out, axes=(2, 0, 1, 3))
-    # out.shape = (seq_length, batch_size, num_heads * head_dim)
     out = _op.reshape(out, newshape=(0, 0, -1))
     return out
 
@@ -2077,7 +2073,6 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info, params=None, mod=None):
                 raise RuntimeError("unexpected type %s" % type(res))
             node_map[nid] = res
         else:
-            print(node)
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported in frontend MXNet.'.format(op_name))
 
