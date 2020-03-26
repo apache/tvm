@@ -161,9 +161,7 @@ class AnnotateRestDefault : public ExprMutator {
   Expr VisitExpr_(const TupleGetItemNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto get = Downcast<TupleGetItem>(new_e);
-    return TupleGetItem(
-      AddCompilerEnd(get->tuple),
-      get->index);
+    return TupleGetItem(AddCompilerEnd(get->tuple), get->index);
   }
 
   Expr VisitExpr_(const LetNode *op) {
