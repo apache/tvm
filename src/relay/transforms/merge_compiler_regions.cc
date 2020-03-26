@@ -81,9 +81,8 @@ class AnnotateRestDefault : public ExprMutator {
       func_ = Function(func_->params, body,
                        body->checked_type_, {}, DictAttrs());
       return Downcast<Expr>(func_);
-    } else {
-      return mutated_expr;
     }
+    return mutated_expr;
   }
 
   /*! \brief This function adds compiler ends to nodes that
@@ -103,9 +102,8 @@ class AnnotateRestDefault : public ExprMutator {
                  func_->params.end(), visited_expr)
                    == func_->params.end()) {
       return AddCompilerEnd_(visited_expr);
-    } else {
-      return visited_expr;
     }
+    return visited_expr;
   }
 
   Expr AddCompilerEnd_(const Expr& expr) {
@@ -145,12 +143,9 @@ class AnnotateRestDefault : public ExprMutator {
         }
         Expr update_call = Call(call->op, compiler_begins, call->attrs);
         return update_call;
-      } else {
-        return Call(call->op, args, call->attrs);
       }
-    } else {
-      return Call(call->op, args, call->attrs);
     }
+    return Call(call->op, args, call->attrs);
   };
 
   Expr VisitExpr_(const TupleNode *op) {
