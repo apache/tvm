@@ -1033,18 +1033,31 @@ def _report_missing_conversion(op_names):
         raise NotImplementedError(msg)
 
 
-def _check_input_names(script_module, input_shapes):
-    """ Check the graph inputs match the inputs """
-    ir_inputs = get_graph_input_names(script_module)
+def _check_inputs(graph, input_shapes):
+    """
+    Check the graph inputs match the expected number of inputs
+    and are in the correct format
+    """
+    ir_inputs = _get_graph_input_names(graph)
 
-    for ir_input in ir_inputs:
-        if ir_input not in input_shapes:
-            msg = "Missing graph input {} in input_shapes".format(ir_input)
-            raise RuntimeError(msg)
+    if type(input_shapes) is not list:
+        msg = "Graph inputs input_shapes should be list"
+        raise RuntimeError(msg)
+    missing_inputs = len(ir_inputs) - len(input_shapes)
+    if missing_inputs > 0:
+        msg = "Missing {} graph input(s) in input_shapes".format(missing_inputs)
+        raise RuntimeError(msg)
 
-    for input_name in input_shapes:
-        if input_name not in ir_inputs:
-            msg = "Unused graph input {} in input_shapes".format(input_name)
+    for num, input in enumerate(input_shapes):
+        if num < len(ir_inputs):
+            if type(input) is not tuple:
+                msg = "Graph input {} is not a tuple".format(num)
+                raise RuntimeError(msg)
+            if (len(input) != 2 or type(input[0]) is not str):
+                msg = "Graph input {} is not valid, expected ('name', shape)".format(input)
+                raise RuntimeError(msg)
+        else:
+            msg = "Unused graph input {} in input_shapes".format(input)
             logging.warning(msg)
 
 
@@ -1136,10 +1149,20 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_relay_input_vars(input_shapes):
-    """ Return Relay vars from input shapes """
-    return {iname: _expr.var(iname, shape=ishape)
-            for iname, ishape in input_shapes.items()}
+def _get_relay_input_vars(graph, input_shapes):
+    """
+    Return Relay vars from input shapes and create entries based on
+    expected graph inputs - to allow translation
+    """
+    input_vars = {}
+    ir_inputs = _get_graph_input_names(graph)
+    for idx, ir_input in enumerate(ir_inputs):
+        name, shape = input_shapes[idx]
+        input = _expr.var(name, shape=shape)
+        # Translate from graph input to user input name
+        input_vars[ir_input] = input
+
+    return input_vars
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -1374,11 +1397,11 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def get_graph_input_names(script_module):
-    """ Use this function to set the keys for input_shapes"""
-    # It seems variable names could change the first time a copy is made
-    # Use the copy of the graph here to prevent troubles later
-    ir_inputs = _get_input_names(script_module.graph.copy())
+def _get_graph_input_names(graph):
+    """ Get the graph input names (use after graph copy and run jit passes) """
+    # Variable names could change the first time a copy is made and after
+    # _run_jit_passes is called, expected that those functions already invoked
+    ir_inputs = _get_input_names(graph)
     return ir_inputs[1:]  # remove self at the 0th arg
 
 
@@ -1415,10 +1438,10 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     op_names = get_all_op_names(graph)
     _report_missing_conversion(op_names)
-    _check_input_names(script_module, input_shapes)
+    _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
-    input_vars = _get_relay_input_vars(input_shapes)
+    input_vars = _get_relay_input_vars(graph, input_shapes)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
