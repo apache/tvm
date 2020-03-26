@@ -197,7 +197,7 @@ class AnnotateRestDefault : public ExprMutator {
   Expr VisitExpr_(const RefWriteNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto write = Downcast<RefWrite>(new_e);
-    return RefWriteNode::make(
+    return RefWrite(
       AddCompilerEnd(write->ref),
       AddCompilerEnd(write->value));
   }
