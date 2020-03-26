@@ -46,12 +46,12 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpDtypeAndShape inputShapeAndDtype(arg_types);
 
 
-  // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantizeIfNeeded in
-  // the start, we can insert requantizeIfNeeded at the end if both input tensors have same qnn params. In
-  // that case, we can first add the tensors, subtract the zero point, and requantizeIfNeeded at the end.
+  // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
+  // the start, we can insert requantize at the end if both input tensors have same qnn params. In
+  // that case, we can first add the tensors, subtract the zero point, and requantize at the end.
   // This can be done in future.
 
-  // Since the input qnn params can be different than output qnn params, we first requantizeIfNeeded the
+  // Since the input qnn params can be different than output qnn params, we first requantize the
   // input tensors to the output qnn params. Then we call relay.add on the requantized inputs. This
   // addition results in extra addition of the output zero point. We futher subtract the zero
   // point. The whole process can be represented using following equations
