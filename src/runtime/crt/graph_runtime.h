@@ -99,6 +99,7 @@ typedef struct TVMGraphRuntime {
 
   /*!
    * \brief Initialize the graph executor with graph and context.
+   * \param runtime The graph runtime.
    * \param graph_json The execution graph.
    * \param module The module containing the compiled functions for the host
    *  processor.
@@ -112,27 +113,34 @@ typedef struct TVMGraphRuntime {
 
   /*!
    * \brief Get the input index given the name of input.
+   * \param runtime The graph runtime.
    * \param name The name of the input.
    * \return The index of input.
    */
   int (*GetInputIndex)(struct TVMGraphRuntime * runtime, const char * name);
 
   /*!
-   * \brief set index-th input to the graph.
-   * \param index The input index.
+   * \brief set input to the graph based on name.
+   * \param runtime The graph runtime.
+   * \param name The name of the input.
    * \param data_in The input data.
    */
   void (*SetInput)(struct TVMGraphRuntime * runtime, const char * name, DLTensor* data_in);
+
   /*!
    * \brief Return NDArray for given output index.
+   * \param runtime The graph runtime.
    * \param index The output index.
-   *
-   * \return NDArray corresponding to given output node index.
+   * \param out The DLTensor corresponding to given output node index.
+   * \return The result of this function execution.
    */
   int (*GetOutput)(struct TVMGraphRuntime * runtime, const int32_t index, DLTensor * out);
   /*!
    * \brief Load parameters from parameter blob.
+   * \param runtime The graph runtime.
    * \param param_blob A binary blob of parameter.
+   * \param param_size The parameter size.
+   * \return The result of this function execution.
    */
   int (*LoadParams)(struct TVMGraphRuntime * runtime, const char * param_blob,
                     const uint32_t param_size);
@@ -146,10 +154,13 @@ typedef struct TVMGraphRuntime {
 
   /*!
    * \brief Create an execution function given input.
+   * \param runtime The graph runtime.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
+   * \param args_count The total number of arguments.
    * \param num_inputs Number of inputs.
-   * \return The created executor.
+   * \param pf The created executor.
+   * \return The result of this function execution.
    */
   int32_t (*CreateTVMOp)(struct TVMGraphRuntime * runtime, const TVMOpParam * attrs,
                          DLTensorPtr * args, const uint32_t args_count,
@@ -159,7 +170,6 @@ typedef struct TVMGraphRuntime {
   uint32_t (*GetEntryId)(struct TVMGraphRuntime * runtime, uint32_t nid, uint32_t index);
 
   // /*! \brief The graph nodes. */
-  /* GraphRuntimeNode nodes_[GRAPH_RUNTIME_MAX_NODES]; */
   TVMGraphRuntimeNode nodes[GRAPH_RUNTIME_MAX_NODES];
   uint32_t           nodes_count;
   /*! \brief The argument nodes. */
