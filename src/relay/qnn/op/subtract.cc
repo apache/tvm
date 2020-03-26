@@ -82,7 +82,7 @@ Expr QnnSubtractCanonicalize(const Attrs &attrs,
   // Computes Q_a' - Q_b'
   auto output = Subtract(requantized_lhs, requantized_rhs);
 
-  // Subtract zero point. Computes (Q_a' - Q_b') + zp_c
+  // Add zero point. Computes (Q_a' - Q_b') + zp_c
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(args.output_zero_point, zero_scalar)) {
     output = Add(output, args.output_zero_point);
