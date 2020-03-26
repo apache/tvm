@@ -264,7 +264,6 @@ class RegionMerger : public ExprVisitor {
         }
         mergeable_regions.push_back(parent_region);
       }
-      // region_restrictions_[region->id] = std::unordered_set<int>();
       auto& region_restrictions = region_restrictions_[region->GetID()];
       for (const auto& parent_region : mergeable_regions) {
         auto parent_restrictions = region_restrictions_[parent_region->GetID()];
