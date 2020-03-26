@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, no-else-return, too-many-lines
 """MXNet symbol frontend."""
 import json
+import math
 import numpy as np
 import tvm
 from tvm.ir import IRModule
@@ -530,6 +531,15 @@ def _mx_leaky_relu(inputs, attrs):
         upper_bound = attrs.get_float("upper_bound")
         alpha = (lower_bound + upper_bound) / 2.0
         return _op.nn.leaky_relu(inputs[0], alpha=alpha)
+    if act_type == "gelu":
+        # 0.5 * x * (1 + erf(x / sqrt(2)))
+        sqrt2 = _expr.const(math.sqrt(2), dtype="float32")
+        erf = _op.erf(_op.divide(inputs[0], sqrt2))
+        one = _expr.const(1, dtype="float32")
+        erf_plus_one = _op.add(one, erf)
+        half = _expr.const(0.5, dtype="float32")
+        half_x = _op.multiply(inputs[0], half)
+        return _op.multiply(half_x, erf_plus_one)
     raise tvm.error.OpNotImplemented(
         'Operator {} is not supported for frontend MXNet.'.format(act_type))
 
@@ -1107,12 +1117,12 @@ def _mx_contrib_fifo_buffer(inputs, attrs):
 
 def _mx_contrib_interleaved_matmul_selfatt_qk(inputs, attrs):
     """
-    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1)) 
-    q_proj = mx.nd.transpose(tmp[:,:,:,0,:], axes=(1, 2, 0, 3)) 
-    q_proj = mx.nd.reshape(q_proj, shape=(-1, 0, 0), reverse=True) 
-    q_proj = mx.nd.contrib.div_sqrt_dim(q_proj) 
-    k_proj = mx.nd.transpose(tmp[:,:,:,1,:], axes=(1, 2, 0, 3)) 
-    k_proj = mx.nd.reshap(k_proj, shape=(-1, 0, 0), reverse=True) 
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1))
+    q_proj = mx.nd.transpose(tmp[:,:,:,0,:], axes=(1, 2, 0, 3))
+    q_proj = mx.nd.reshape(q_proj, shape=(-1, 0, 0), reverse=True)
+    q_proj = mx.nd.contrib.div_sqrt_dim(q_proj)
+    k_proj = mx.nd.transpose(tmp[:,:,:,1,:], axes=(1, 2, 0, 3))
+    k_proj = mx.nd.reshape(k_proj, shape=(-1, 0, 0), reverse=True)
     output = mx.nd.batch_dot(q_proj, k_proj, transpose_b=True)
     """
     assert len(inputs) == 1
@@ -1132,33 +1142,30 @@ def _mx_contrib_interleaved_matmul_selfatt_qk(inputs, attrs):
 
 def _mx_contrib_interleaved_matmul_selfatt_valatt(inputs, attrs):
     """
-    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1)) 
-    v_proj = mx.nd.transpose(tmp[:,:,:,2,:], axes=(1, 2, 0, 3)) 
-    v_proj = mx.nd.reshape(v_proj, shape=(-1, 0, 0), reverse=True) 
-    output = mx.nd.batch_dot(attention, v_proj, transpose_b=True) 
-    output = mx.nd.reshape(output, shape=(-1, num_heads, 0, 0), reverse=True) 
-    output = mx.nd.transpose(output, axes=(0, 2, 1, 3)) 
+    tmp = mx.nd.reshape(queries_keys_values, shape=(0, 0, num_heads, 3, -1))
+    v_proj = mx.nd.transpose(tmp[:,:,:,2,:], axes=(1, 2, 0, 3))
+    v_proj = mx.nd.reshape(v_proj, shape=(-1, 0, 0), reverse=True)
+    output = mx.nd.batch_dot(attention, v_proj)
+    output = mx.nd.reshape(output, shape=(-1, num_heads, 0, 0), reverse=True)
+    output = mx.nd.transpose(output, axes=(2, 0, 1, 3))
     output = mx.nd.reshape(output, shape=(0, 0, -1))
     """
     assert len(inputs) == 2
+    # qkv.shape = (seq_length, batch_size, num_heads * head_dim * 3)
     qkv, att = inputs
     num_heads = attrs.get_int("heads")
+    # (seq_length, batch_size, num_heads, 3, head_dim)
     qkv = _op.reshape(qkv, newshape=(0, 0, num_heads, 3, -1))
     v_proj = _op.take(qkv, _expr.const(2, "int"), axis=3)
     v_proj = _op.transpose(v_proj, axes=(1, 2, 0, 3))
+    # (num_heads, seq_length, head_dim)
     v_proj = _op.reverse_reshape(v_proj, newshape=(-1, 0, 0))
-    print(_infer_type(att))
-    print()
-    print(_infer_type(v_proj))
-    # exit()
+    v_proj = _op.transpose(v_proj, axes=[0, 2, 1])
     out = _op.nn.batch_matmul(att, v_proj)
-    print(_infer_type(out))
     out = _op.reverse_reshape(out, newshape=(-1, num_heads, 0, 0))
-    out = _op.transpose(out, axes=(0, 2, 1, 3))
+    out = _op.transpose(out, axes=(2, 0, 1, 3))
+    # out.shape = (seq_length, batch_size, num_heads * head_dim)
     out = _op.reshape(out, newshape=(0, 0, -1))
-    # TODO: failed here due to type error
-    print(_infer_type(out))
-    exit()
     return out
 
 
