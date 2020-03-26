@@ -19,6 +19,9 @@
 # Analysis passes
 from .analysis import *
 
+# Annotations
+from .annotated_regions import AnnotatedRegionSet
+
 # Call graph
 from . import call_graph
 from .call_graph import CallGraph
