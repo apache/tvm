@@ -88,8 +88,8 @@ class AnnotateRestDefault : public ExprMutator {
   /*! \brief This function adds compiler ends to nodes that
    * have a region AND they should not be arguments of the
    * original function
-   * \param expr
-   * \return expr
+   * \param expr The expression to add a compiler end to.
+   * \return expr The expression with or without a compiler end added.
    */
   Expr AddCompilerEnd(const Expr& expr) {
     auto region = regions_->GetRegion(expr);
