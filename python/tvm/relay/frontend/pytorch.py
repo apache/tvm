@@ -1007,16 +1007,13 @@ def _get_input_names(node_or_graph):
     return [inp.debugName() for inp in node_or_graph.inputs()]
 
 
-def _get_op_inputs(op_node, outputs, output_index_map):
-    input_names = [output_index_map[name]
-                   for name in _get_input_names(op_node)]
-    return [outputs[name] for name in input_names]
+def _get_op_inputs(op_node, input_vars):
+    return [input_vars[name] for name in _get_input_names(op_node)]
 
 
-def _update_outputs_from_pairs(name_output_pairs, outputs, output_index_map):
-    for output_name, output in name_output_pairs:
-        output_index_map[output_name] = len(outputs)
-        outputs.append(output)
+def _update_inputs_from_pairs(name_input_pairs, input_vars):
+    for input_name, input in name_input_pairs:
+        input_vars[input_name] = input
 
 
 def _report_missing_conversion(op_names):
@@ -1220,24 +1217,24 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_block(block, outputs, output_index_map):
+def convert_block(block, input_vars):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, output_index_map, ret_names)
+    return convert_operators(ops, input_vars, ret_names)
 
 
-def convert_if(if_node, outputs, output_index_map):
+def convert_if(if_node, input_vars):
     """ Translate Torch prim::If to Relay If """
-    cond = outputs[output_index_map[if_node.inputsAt(0).debugName()]]
+    cond = input_vars[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs, output_index_map)
-    false_branch = convert_block(blocks[1], outputs, output_index_map)
+    true_branch = convert_block(blocks[0], input_vars)
+    false_branch = convert_block(blocks[1], input_vars)
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
 
-def convert_loop(loop_node, outputs, output_index_map):
+def convert_loop(loop_node, input_vars):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
         ivalue = loop_node.inputsAt(index)
@@ -1245,8 +1242,8 @@ def convert_loop(loop_node, outputs, output_index_map):
         if inode.kind() == "prim::Constant":
             return _expr.const(_get_constant(inode))
         var_name = ivalue.debugName()
-        assert var_name in output_index_map
-        return _wrap_const(outputs[output_index_map[var_name]])
+        assert var_name in input_vars
+        return _wrap_const(input_vars[var_name])
 
     # Refer to the spec for prim::Loop below
     # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
@@ -1278,9 +1275,9 @@ def convert_loop(loop_node, outputs, output_index_map):
         # Update loop variables using the prev iteration outputs
         assert len(current_vals) == len(block_input_names)
         for (i, iname) in enumerate(block_input_names):
-            outputs[output_index_map[iname]] = current_vals[i]
+            input_vars[iname] = current_vals[i]
 
-        block_outputs = convert_block(body_block, outputs, output_index_map)
+        block_outputs = convert_block(body_block, input_vars)
 
         if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
@@ -1310,7 +1307,7 @@ def convert_loop(loop_node, outputs, output_index_map):
 
     name_val_pairs = list(zip(block_input_names,
                               [init_loop_iter_val] + init_vals))
-    _update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
+    _update_inputs_from_pairs(name_val_pairs, input_vars)
 
     loop_iter_var = _expr.var(block_input_names[0], shape=(),
                               dtype=loop_iter_dtype)
@@ -1322,36 +1319,32 @@ def convert_loop(loop_node, outputs, output_index_map):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, outputs, output_index_map, ret_names):
+def convert_operators(operators, input_vars, ret_names):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
-        inputs = _get_op_inputs(op_node, outputs, output_index_map)
+        inputs = _get_op_inputs(op_node, input_vars)
 
         if operator == "prim::Constant":
-            output_index_map[node_name] = len(outputs)
-            outputs.append(_get_constant(op_node))
+            input_vars[node_name] = _get_constant(op_node)
         elif operator == 'prim::ListConstruct' and _is_int_seq(inputs):
-            output_index_map[node_name] = len(outputs)
-            outputs.append(_expr.var(node_name, shape=inputs))
+            input_vars[node_name] = _expr.var(node_name, shape=inputs)
         elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
-            output_index_map[node_name] = len(outputs)
-            outputs.append(inputs)
+            input_vars[node_name] = inputs
         elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
             assert len(inputs) == 1
             unpacked_names = _get_output_names(op_node)
-            _update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
-                                       outputs, output_index_map)
+            _update_inputs_from_pairs(zip(unpacked_names, inputs[0]),
+                                       input_vars)
         elif operator == "prim::If":
-            if_out = convert_if(op_node, outputs, output_index_map)
-            output_index_map[node_name] = len(outputs)
-            outputs.append(if_out)
+            if_out = convert_if(op_node, input_vars)
+            input_vars[node_name] = if_out
         elif operator == "prim::Loop":
-            loop_out = convert_loop(op_node, outputs, output_index_map)
+            loop_out = convert_loop(op_node, input_vars)
             unpacked_names = _get_output_names(op_node)
             assert len(loop_out) == len(unpacked_names)
-            _update_outputs_from_pairs(zip(unpacked_names, loop_out),
-                                       outputs, output_index_map)
+            _update_inputs_from_pairs(zip(unpacked_names, loop_out),
+                                       input_vars)
         else:
             relay_op = _convert_map[operator]
             relay_out = relay_op(inputs, _get_input_types(op_node))
@@ -1360,13 +1353,12 @@ def convert_operators(operators, outputs, output_index_map, ret_names):
                 # This is for torch operators that return multiple outputs
                 # See _adaptive_max_2d above for example
                 out_names = _get_output_names(op_node)
-                _update_outputs_from_pairs(zip(out_names, relay_out),
-                                           outputs, output_index_map)
+                _update_inputs_from_pairs(zip(out_names, relay_out),
+                                           input_vars)
             else:
-                output_index_map[node_name] = len(outputs)
-                outputs.append(relay_out)
+                input_vars[node_name] = relay_out
 
-    return [_wrap_const(outputs[output_index_map[ret_name]])
+    return [_wrap_const(input_vars[ret_name])
             for ret_name in ret_names]
 
 
@@ -1431,22 +1423,20 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
     input_vars.update(param_vars)
-    outputs = list(input_vars.values())
-    output_index_map = dict(zip(input_vars.keys(), range(len(outputs))))
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, output_index_map,
+        qnn_torch.add_quant_params_to_inputs(input_vars,
                                               packed_param_map,
                                               weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
-    ret = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
-                            output_index_map, ret_name)
+    ret = convert_operators(_get_operator_nodes(graph.nodes()),
+                            input_vars, ret_name)
 
     if isinstance(ret[0], list):
         ret[0] = _expr.Tuple(ret[0])
