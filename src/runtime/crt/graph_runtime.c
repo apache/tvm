@@ -276,21 +276,15 @@ int TVMGraphRuntimeGraphAttr_Load(TVMGraphRuntimeGraphAttr * attr, JSONReader *r
         reader->ReadInteger(reader, attr_shape_ptr + 0);
         uint32_t ndim = 1;
         if (reader->NextArrayItem(reader)) {
-          if (reader->NextArrayItem(reader)) {
-            reader->ReadInteger(reader, attr_shape_ptr + 1); ndim++;
+          for (ndim = 1; ndim < TVM_CRT_MAX_NDIM; ndim++) {
             if (reader->NextArrayItem(reader)) {
-              reader->ReadInteger(reader, attr_shape_ptr + 2); ndim++;
-              if (reader->NextArrayItem(reader)) {
-                reader->ReadInteger(reader, attr_shape_ptr + 3); ndim++;
-                if (reader->NextArrayItem(reader)) {
-                  reader->ReadInteger(reader, attr_shape_ptr + 4); ndim++;
-                  if (reader->NextArrayItem(reader)) {
-                    reader->ReadInteger(reader, attr_shape_ptr + 5); ndim++;
-                    reader->NextArrayItem(reader);
-                  }
-                }
-              }
+              reader->ReadInteger(reader, attr_shape_ptr + ndim);
+            } else {
+              break;
             }
+          }
+          if (ndim == TVM_CRT_MAX_NDIM) {
+            reader->NextArrayItem(reader);
           }
         }
         attr->ndim[shape_count] = ndim;
@@ -862,12 +856,12 @@ void TVMGraphRuntimeRelease(TVMGraphRuntime ** pptr) {
   for (idx = 0; idx < runtime->data_entry_count; ++idx) {
     vfree(runtime->data_entry[idx].dl_tensor.shape);
   }
-  vfree((*pptr)->input_nodes);
-  vfree((*pptr)->node_row_ptr);
-  vfree((*pptr)->outputs);
-  vfree((*pptr)->storage_pool);
-  vfree((*pptr)->data_entry);
-  vfree((*pptr)->op_execs);
+  vfree(runtime->input_nodes);
+  vfree(runtime->node_row_ptr);
+  vfree(runtime->outputs);
+  vfree(runtime->storage_pool);
+  vfree(runtime->data_entry);
+  vfree(runtime->op_execs);
   vfree(*pptr);
 
   if (g_fexecs) {
