@@ -38,28 +38,28 @@ uint32_t Shape_Accumulate(int64_t * shape, uint32_t ndim) {
 }
 
 int NodeEntry_Load(TVMGraphRuntimeNodeEntry * entry, JSONReader * reader) {
-  int status = -1;
+  int status = 0;
   reader->BeginArray(reader);
   if (!(reader->NextArrayItem(reader))) {
     fprintf(stderr, "invalid json format: failed to parse `node_id`\n");
-    return status;
+    status = -1;
   }
   reader->ReadUnsignedInteger(reader, &(entry->node_id));
   if (!(reader->NextArrayItem(reader))) {
     fprintf(stderr, "invalid json format: failed to parse `index`\n");
-    return status;
+    status = -1;
   }
   reader->ReadUnsignedInteger(reader, &(entry->index));
   if (reader->NextArrayItem(reader)) {
     reader->ReadUnsignedInteger(reader, &(entry->version));
     if (reader->NextArrayItem(reader)) {
       fprintf(stderr, "invalid json format: failed to parse `version`\n");
-      return status;
+      status = -1;
     }
   } else {
     entry->version = 0;
   }
-  return 0;
+  return status;
 }
 
 void TVMGraphRuntimeNode_LoadAttrs(TVMGraphRuntimeNode * node, JSONReader *reader,
@@ -488,14 +488,14 @@ void TVMGraphRuntime_SetInput(TVMGraphRuntime * runtime, const char * name, DLTe
  */
 int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blob,
                                const uint32_t param_size) {
-  int status = -1;
+  int status = 0;
   const char * bptr = param_blob;
   uint64_t header, reserved;
   header = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(header);
   if (header != kTVMNDArrayListMagic) {
     fprintf(stderr, "Invalid parameters file format");
-    return status;
+    status = -1;
   }
   reserved = ((uint64_t*)bptr)[0];  // NOLINT(*)
   bptr += sizeof(reserved);
@@ -513,7 +513,7 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
     bptr += sizeof(name_length);
     if (name_length >= 80) {
       fprintf(stderr, "Error: function name longer than expected.\n");
-      return status;
+      status = -1;
     }
     memcpy(names[idx], bptr, name_length);
     bptr += name_length;
@@ -526,23 +526,23 @@ int TVMGraphRuntime_LoadParams(TVMGraphRuntime * runtime, const char * param_blo
   uint32_t size = sz;
   if (size != names_count) {
     fprintf(stderr, "Invalid parameters file format\n");
-    return status;
+    status = -1;
   }
 
   for (idx = 0; idx < size; idx++) {
     int32_t in_idx = runtime->GetInputIndex(runtime, names[idx]);
     if (!(in_idx >= 0)) {
       fprintf(stderr, "Found param for non-existent input: %s\n", names[idx]);
-      return status;
+      status = -1;
     }
     uint32_t eid = runtime->GetEntryId(runtime, runtime->input_nodes[in_idx], 0);
     if (!(eid < runtime->data_entry_count)) {
       fprintf(stderr, "`entry_id`=%d is greater than expected(%d).\n",
               eid, runtime->data_entry_count);
-      return status;
+      status = -1;
     }
 
-    status = TVMNDArray_Load(&(runtime->data_entry[eid]), &bptr);
+    status |= TVMNDArray_Load(&(runtime->data_entry[eid]), &bptr);
 #if TVM_CRT_DEBUG
     TVMNDArray * entry = &(runtime->data_entry[eid]);
     printf("param %s loaded, in_idx=%d, eid=%d, ndim=%d, data[0]=%f\n",
@@ -706,7 +706,7 @@ typedef struct TVMOpArgs {
 int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam * param,
                                     DLTensorPtr * args, const uint32_t args_count,
                                     uint32_t num_inputs, TVMPackedFunc * pf) {
-  int status = -1;
+  int status = 0;
   uint32_t idx;
   TVMOpArgs arg_ptr;
   memset(&arg_ptr, 0, sizeof(TVMOpArgs));
@@ -732,14 +732,14 @@ int32_t TVMGraphRuntime_CreateTVMOp(TVMGraphRuntime * runtime, const TVMOpParam 
   }
   if (!strcmp(param->func_name, "__nop") || !strcmp(param->func_name, "__copy")) {
     fprintf(stderr, "%s function is not yet supported.", param->func_name);
-    return status;
+    status = -1;
   }
 
   runtime->module.GetFunction(param->func_name, pf);
   TVMArgs targs = TVMArgs_Create(arg_ptr.arg_values, arg_ptr.arg_tcodes, arg_ptr.arg_values_count);
   pf->SetArgs(pf, &targs);
 
-  return 0;
+  return status;
 }
 
 /*!
