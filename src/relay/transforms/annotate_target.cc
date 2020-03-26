@@ -103,14 +103,14 @@ class AnnotateTargetWrapper : public ExprMutator {
     for (auto field : tup->fields) {
       new_fields.push_back(InsertEnd(field));
     }
-    return TupleNode::make(new_fields);
+    return Tuple(new_fields);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto get = Downcast<TupleGetItem>(new_e);
-    return TupleGetItemNode::make(
+    return TupleGetItem(
       InsertEnd(get->tuple),
       get->index);
   }
@@ -131,7 +131,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto let = Downcast<Let>(new_e);
-    return LetNode::make(
+    return Let(
       let->var,
       InsertEnd(let->value),
       InsertEnd(let->body));
@@ -141,7 +141,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto iff = Downcast<If>(new_e);
-    return IfNode::make(
+    return If(
       InsertEnd(iff->cond),
       InsertEnd(iff->true_branch),
       InsertEnd(iff->false_branch));
@@ -151,21 +151,21 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto create = Downcast<RefCreate>(new_e);
-    return RefCreateNode::make(InsertEnd(create->value));
+    return RefCreate(InsertEnd(create->value));
   }
 
   Expr VisitExpr_(const RefReadNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto read = Downcast<RefRead>(new_e);
-    return RefReadNode::make(InsertEnd(read->ref));
+    return RefRead(InsertEnd(read->ref));
   }
 
   Expr VisitExpr_(const RefWriteNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto write = Downcast<RefWrite>(new_e);
-    return RefWriteNode::make(
+    return RefWrite(
       InsertEnd(write->ref),
       InsertEnd(write->value));
   }
