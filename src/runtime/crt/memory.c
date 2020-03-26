@@ -28,6 +28,8 @@
 #include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 
+#include <inttypes.h>
+
 /*! Number of bits in a page */
 #define TVM_CRT_PAGE_BITS (TVM_CRT_PAGE_BYTES << 3)
 
@@ -223,8 +225,8 @@ void* MemoryManager_Alloc(MemoryManager * mgr, tvm_index_t size) {
   } else {
     PageTable * ptable = &(mgr->ptable);
     start = ptable->count;
-    CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
-             "insufficient memory, start=%ld, npage=%ld, total=%ld",
+    CHECK_LE((unsigned)(start + npage), (sizeof(g_memory_pool) / kPageSize),
+             "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
              start, npage, start + npage);
     /* insert page entry */
     Page p = PageCreate(start, npage);
@@ -274,8 +276,8 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
         free_map->erase(free_map, it);
       } else {
         start = ptable->count;
-        CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
-                 "insufficient memory, start=%ld, npage=%ld, total=%ld",
+        CHECK_LE((unsigned)(start + npage), (sizeof(g_memory_pool) / kPageSize),
+                 "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
                  start, npage, start + npage);
         Page p = PageCreate(start, npage);
         ptable->resize(ptable, start + npage, &p);
@@ -300,8 +302,8 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
     } else {
       PageTable * ptable = &(mgr->ptable);
       start = ptable->count;
-      CHECK_LE((start + npage), (sizeof(g_memory_pool) / kPageSize),
-               "insufficient memory, start=%ld, npage=%ld, total=%ld",
+      CHECK_LE((unsigned)(start + npage), (sizeof(g_memory_pool) / kPageSize),
+               "insufficient memory, start=%" PRId64 ", npage=%" PRId64 ", total=%" PRId64 "",
                start, npage, start + npage);
       /* insert page entry */
       Page p = PageCreate(start, npage);
