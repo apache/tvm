@@ -32,11 +32,22 @@ _conv3d_ncdhw_implement = {
     "gpu": (topi.cuda.conv3d_ncdhw_winograd, topi.cuda.schedule_conv3d_ncdhw_winograd),
 }
 
-def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False):
-    pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = get_pad_tuple3d(padding, (kernel, kernel, kernel))
+
+def verify_conv3d_ncdhw(batch,
+                        in_channel,
+                        in_size,
+                        num_filter,
+                        kernel,
+                        stride,
+                        padding,
+                        dilation=1,
+                        add_bias=False,
+                        add_relu=False):
+    pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = get_pad_tuple3d(
+        padding, (kernel, kernel, kernel))
     padding_sum = pad_front + pad_back + pad_top + pad_left + pad_bottom + pad_right
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride,
-          padding_sum, dilation))
+    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" %
+          (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
 
     in_depth = in_height = in_width = in_size
 
@@ -72,8 +83,8 @@ def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, 
         print("Running on target: %s" % device)
         fcompute, fschedule = topi.testing.dispatch(device, _conv3d_ncdhw_implement)
         with tvm.target.create(device):
-            C = fcompute(A, W, (stride, stride, stride), padding,
-                         (dilation, dilation, dilation), dtype)
+            C = fcompute(A, W, (stride, stride, stride), padding, (dilation, dilation, dilation),
+                         dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
@@ -85,16 +96,25 @@ def verify_conv3d_ncdhw(batch, in_channel, in_size, num_filter, kernel, stride, 
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func = tvm.build(
+                s, [A, W, bias, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d" %
+                (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
             func(a, w, b, c)
         else:
-            func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
+            func = tvm.build(
+                s, [A, W, C],
+                device,
+                name="relu_%d_%d_%d_%d_%d_%d_%d_%d" %
+                (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))
             func(a, w, c)
         tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-4)
 
     for device in ["cuda"]:
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
+
 
 def test_conv3d_ncdhw():
     #3DCNN  workloads
