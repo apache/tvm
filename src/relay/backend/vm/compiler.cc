@@ -1014,6 +1014,8 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   // external codegen.
   pass_seqs.push_back(transform::Inline());
 
+  pass_seqs.push_back(transform::PrintIR(false));
+
   // Manifest the allocations.
   pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
   // Compute away possibly introduced constant computation.

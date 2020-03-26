@@ -359,14 +359,12 @@ class AnnotatationVisitor : private ExprVisitor {
 class DeviceInfo {
  public:
   static Map<Expr, Integer> GetDeviceMap(const Expr& expr) {
-    support::Arena arena;
-    DependencyGraph dg = DependencyGraph::Create(&arena, expr);
-    BottomUpVisitor bottomup_visitor(dg);
+    BottomUpVisitor bottomup_visitor;
     auto device_map = bottomup_visitor.Visit(expr);
-    if (bottomup_visitor.device_copy) {
+    if (bottomup_visitor.root_device_copy) {
       TopDownVisitor topdown_visitor;
       return topdown_visitor.Visit(
-          expr, bottomup_visitor.device_copy, device_map);
+          expr, bottomup_visitor.root_device_copy, device_map);
     } else {
       return Map<Expr, Integer>();
     }
@@ -374,46 +372,13 @@ class DeviceInfo {
 
  private:
   struct BottomUpVisitor : private ExprVisitor {
-    explicit BottomUpVisitor(const DependencyGraph& dg) : dg(dg) {}
 
     Map<Expr, Integer> Visit(const Expr& expr) {
-      CHECK(expr.defined());
-      const CallNode* last_call = nullptr;
-      for (auto it = dg.post_dfs_order.rbegin(); it != dg.post_dfs_order.rend(); ++it) {
-        DependencyGraph::Node* n = *it;
-        if (!n->expr.defined()) continue;
-
-        if (const auto* copy = GetDeviceCopyNode(n->expr.operator->())) {
-          int dev_type = DestionationDeviceType(copy);
-          PropagateDeviceCopyScope(copy, dev_type);
-          last_call = copy;
-        }
-
-        if (const auto* call = n->expr.as<CallNode>()) {
-          // The device type of alloc_tensor and alloc_storage should be
-          // the same as the associated call.
-          if (call->op == Op::Get("memory.alloc_tensor") ||
-              call->op == Op::Get("memory.alloc_storage")) {
-            CHECK(last_call);
-            auto last = GetRef<Call>(last_call);
-            if (device_map.count(last)) {
-              device_map.Set(GetRef<Call>(call), device_map[last]);
-            }
-          }
-          last_call = call;
-        }
+      if (const auto* fn = expr.as<FunctionNode>()) {
+        this->VisitExpr(fn->body);
+      } else {
+        this->VisitExpr(expr);
       }
-
-      for (auto it = dg.post_dfs_order.begin(); it != dg.post_dfs_order.end(); ++it) {
-        DependencyGraph::Node* n = *it;
-        if (!n->expr.defined()) continue;
-
-        if (const auto* copy = GetDeviceCopyNode(n->expr.operator->())) {
-          device_copy = copy;
-          PropagateDeviceInfo(copy);
-        }
-      }
-
       return device_map;
     }
 
@@ -433,124 +398,47 @@ class DeviceInfo {
 
     void PropagateToChildren(const Expr& expr, int dev_type) {
       struct Propagator : public ExprVisitor {
-        Propagator(int dev_ty, std::unordered_set<DependencyGraph::Node*>* v, Map<Expr, Integer>* m,
-                   const DependencyGraph& dg)
-            : dev_type(dev_ty), visited(v), device_map(m), dg(dg) {}
+        Propagator(int dev_ty, Map<Expr, Integer>* m)
+            : dev_type(dev_ty), device_map(m) {}
 
         void Visit(const Expr& expr) {
           this->VisitExpr(expr);
         }
 
         void VisitExpr(const Expr& expr) final {
-          DependencyGraph::Node* cur_node = dg.expr_node.at(expr);
-          if (visited->count(cur_node) == 0) {
-            if (device_map->count(expr) == 0) {
-              device_map->Set(expr, dev_type);
-            }
-            visited->insert(cur_node);
-          }
-          ExprVisitor::VisitExpr(expr);
-        }
-        int dev_type;
-        std::unordered_set<DependencyGraph::Node*>* visited;
-        Map<Expr, Integer>* device_map;
-        DependencyGraph dg;
-      };
-
-      Propagator p(dev_type, &visited, &device_map, dg);
-      p.Visit(expr);
-    }
-
-    void PropagateDeviceCopyScope(const CallNode* call, int dev_type) {
-      // Use a utility function to propagte the device information to all the
-      // nodes that are reachable to the current call.
-      struct Propagater : public ExprVisitor {
-        Propagater(Map<Expr, Integer>* m, int dev_type)
-            : device_map(m), dev_type(dev_type) {}
-
-        void Run(const Expr& expr) {
-          VisitExpr(expr);
-        }
-
-        void VisitExpr(const Expr& expr) {
-          // Skip the the nodes that are reacheable to other device copy nodes.
-          // This check is only needed for the graph form. ANF doesn't have this
-          // problem since each device copy node is scoped.
           if (device_map->count(expr) == 0) {
-            (*device_map).Set(expr, dev_type);
+            device_map->Set(expr, dev_type);
             ExprVisitor::VisitExpr(expr);
           }
         }
-
-        Map<Expr, Integer> *device_map;
         int dev_type;
+        Map<Expr, Integer>* device_map;
       };
 
-      // All the nodes that are reachable to the current call node should have
-      // the same device type to the current device copy node.
-      Propagater p(&device_map, dev_type);
-      p.Run(GetRef<Call>(call));
-      device_map.Set(GetRef<Call>(call), dev_type);
+      Propagator p(dev_type, &device_map);
+      p.Visit(expr);
     }
 
-    void PropagateDeviceInfo(const CallNode* call_node) {
-      CHECK(call_node->attrs->IsInstance<DeviceCopyAttrs>());
-
-      // BFS from the current device copy node to propagate the device info.
-      auto call = GetRef<Call>(call_node);
-      CHECK_GT(dg.expr_node.count(call), 0U)
-          << "Cannot find the device copy node in the dependency graph:\n"
-          << AsText(call, false);
-
-      DependencyGraph::Node* dev_node = dg.expr_node.at(call);
-      if (visited.count(dev_node)) return;
-
-      std::vector<DependencyGraph::Node*> cur_nodes;
-      std::vector<DependencyGraph::Node*> next_nodes;
-      std::unordered_set<Expr, ObjectHash, ObjectEqual> parent_exprs;
-
-      // Start the traversal.
-      cur_nodes.push_back(dev_node);
-      visited.insert(dev_node);
-
-      int dev_type = SourceDeviceType(call_node);
-      while (!cur_nodes.empty()) {
-        for (const auto* node : cur_nodes) {
-          if (node->expr.defined() && device_map.count(node->expr) == 0) {
-            device_map.Set(node->expr, dev_type);
-          }
-
-          // Save all unvisited children
-          for (auto* h = node->parents.head; h; h = h->next) {
-            if (h->value && visited.find(h->value) == visited.end()) {
-              DLOG(INFO) << "parent:: \n " << AsText(h->value->expr, false) << "  " << h->value->expr.get();
-              next_nodes.push_back(h->value);
-              visited.insert(h->value);
-              parent_exprs.insert(h->value->expr);
-            }
-          }
-        }
-
-        // Update the nodes.
-        cur_nodes = next_nodes;
-        next_nodes.clear();
-      }
-
-      for (const auto& it : parent_exprs) {
-        if (const auto* ln = it.as<LetNode>()) {
-          PropagateToChildren(ln->value, dev_type);
-        }
-      }
-
-      // // The device type of the device copy node is the same to the destination
-      // // type.
-      // dev_type = DestionationDeviceType(call_node);
-      // device_map.Set(call, dev_type);
+    void VisitExpr_(const FunctionNode* fn) final {
+      // TODO(zhiics) Skip annotation of function node for now.
     }
 
-    DependencyGraph dg;
-    const CallNode* device_copy = nullptr;
-    std::unordered_set<DependencyGraph::Node*> visited;
+    void VisitExpr_(const CallNode* call) final {
+      CHECK(!IsOnDeviceNode(call)) << "On device annotation nodes should have been removed"
+                                   << "\n";
+
+      ExprVisitor::VisitExpr_(call);
+
+      if (const auto* copy = GetDeviceCopyNode(call)) {
+        PropagateToChildren(GetRef<Call>(call), SourceDeviceType(copy));
+        device_map.Set(GetRef<Call>(call), DestionationDeviceType(copy));
+        if (root_device_copy == nullptr) {
+          root_device_copy = copy;
+        }
+      }
+    }
+
+    const CallNode* root_device_copy = nullptr;
     Map<Expr, Integer> device_map;
   };
 

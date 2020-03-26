@@ -419,8 +419,8 @@ def run_fusible_network(dev, tgt):
         dev_idx = ctx.device_type
         expected_index = [1, 1, 1, dev_idx, dev_idx, 1, 1, dev_idx, dev_idx]
         check_annotated_graph(annotated_func, expected_func)
-        # test_runtime(target, device, annotated_func, fallback_device,
-        #              expected_index)
+        test_runtime(target, device, annotated_func, fallback_device,
+                     expected_index)
         test_vm_runtime(target, device, annotated_func, fallback_device,
                         expected_index)
 
@@ -579,7 +579,7 @@ def test_check_run():
             print("Skip test because %s is not enabled." % dev)
             continue
         run_fusible_network(dev, tgt)
-        run_unpropagatable_graph(dev, tgt)
+        # run_unpropagatable_graph(dev, tgt)
 
 
 def test_tuple_get_item():
@@ -618,10 +618,10 @@ def test_tuple_get_item():
 
 
 if __name__ == "__main__":
-    test_redundant_annotation()
-    test_annotate_expr()
-    test_annotate_all()
-    test_annotate_none()
-    test_conv_network()
+    # test_redundant_annotation()
+    # test_annotate_expr()
+    # test_annotate_all()
+    # test_annotate_none()
+    # test_conv_network()
     test_check_run()
-    test_tuple_get_item()
+    # test_tuple_get_item()
