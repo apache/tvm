@@ -209,7 +209,7 @@ typedef struct MemoryManager {
  * \return The virtual address
  */
 void* MemoryManager_Alloc(MemoryManager * mgr, tvm_index_t size) {
-  void * data = 0;
+  char * data = 0;
   tvm_index_t npage = (size + kPageSize - 1) / kPageSize;
   MultiMap * free_map = &(mgr->free_map);
   IndexedEntry * it = free_map->lower_bound(free_map, npage);
@@ -248,7 +248,7 @@ void* MemoryManager_Alloc(MemoryManager * mgr, tvm_index_t size) {
  * \return The virtual address
  */
 void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
-  void * data = ptr;
+  char * data = (char*)ptr;  // NOLINT(*)
   PageTable * ptable = &(mgr->ptable);
   TLB * pmap = &(mgr->pmap);
   MultiMap * free_map = &(mgr->free_map);
@@ -257,7 +257,7 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
   if (ptr) {
     // get page size for given pointer
     CHECK_NE(pmap->count, 0, "invalid translation look-aside buffer.");
-    PageEntry * entry = pmap->find(pmap, ptr);
+    PageEntry * entry = pmap->find(pmap, (char*)ptr);  // NOLINT(*)
     CHECK_NE(entry, 0, "no valid page entry found.");
     Page * pptr = &(entry->page);
     // if the page size is smaller than target page size,
@@ -327,7 +327,7 @@ void* MemoryManager_Realloc(MemoryManager * mgr, void * ptr, tvm_index_t size) {
 void MemoryManager_Free(MemoryManager * mgr, void* ptr) {
   TLB * pmap = &(mgr->pmap);
   CHECK_NE(pmap->count, 0, "invalid translation look-aside buffer.");
-  PageEntry * entry = pmap->find(pmap, ptr);
+  PageEntry * entry = pmap->find(pmap, (char*)ptr);  // NOLINT(*)
   CHECK_NE(entry, 0, "no valid page entry found.");
   Page * p = &(entry->page);
   MultiMap * free_map = &(mgr->free_map);
