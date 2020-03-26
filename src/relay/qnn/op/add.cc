@@ -42,7 +42,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  QnnBinaryOpTypes types(arg_types);
+  QnnBinaryOpType input_type(arg_types);
 
 
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
@@ -71,12 +71,12 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto requantized_lhs = RequantizeOrUpcast(args.lhs, args.lhs_scale,
                                             args.lhs_zero_point,
                                             args.output_scale, args.output_zero_point,
-                                            types.input_shape);
+                                            input_type.shape);
   // Requantize RHS if necessary. Computes Q_b'
   auto requantized_rhs = RequantizeOrUpcast(args.rhs, args.rhs_scale,
                                             args.rhs_zero_point,
                                             args.output_scale, args.output_zero_point,
-                                            types.input_shape);
+                                            input_type.shape);
   // Computes Q_a' + Q_b'
   auto output = Add(requantized_lhs, requantized_rhs);
 
@@ -87,7 +87,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   }
 
   // Go back to lower precision.
-  return ConvertDtype(output, types.input_dtype);
+  return ConvertDtype(output, input_type.dtype);
 }
 
 // QNN Addition operator.

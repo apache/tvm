@@ -42,12 +42,12 @@ namespace qnn {
  * Refer the QNN_REGISTER_BINARY_OP macro to see
  * what the operators are.
  */
-static constexpr int numQnnBinaryOpInputs = 8;
+static constexpr int kNumQnnBinaryOpInputs = 8;
 
 /*
  * Number of expected arg types.
  */
-static constexpr int numQnnBinaryOpArgTypes = 9;
+static constexpr int kNumQnnBinaryOpArgTypes = 9;
 
 /*
  * \brief Simple struct to organize the inputs to the Qnn
@@ -66,7 +66,7 @@ struct QnnBinaryOpArguments {
   Expr output_zero_point;
 
   explicit QnnBinaryOpArguments(const Array<Expr>& new_args) {
-    CHECK_EQ(new_args.size(), numQnnBinaryOpInputs);
+    CHECK_EQ(new_args.size(), kNumQnnBinaryOpInputs);
     int idx = 0;
     lhs = new_args[idx++];
     rhs = new_args[idx++];
@@ -76,7 +76,7 @@ struct QnnBinaryOpArguments {
     rhs_zero_point = new_args[idx++];
     output_scale = new_args[idx++];
     output_zero_point = new_args[idx++];
-    CHECK_EQ(idx, numQnnBinaryOpInputs);
+    CHECK_EQ(idx, kNumQnnBinaryOpInputs);
   }
 };
 
@@ -85,16 +85,16 @@ struct QnnBinaryOpArguments {
  * and shape. This structure allows a common point to do
  * all the validation checks.
  */
-struct QnnBinaryOpTypes {
-  DataType input_dtype;
-  Array <PrimExpr> input_shape;
+struct QnnBinaryOpType {
+  DataType dtype;
+  Array <PrimExpr> shape;
 
-  explicit QnnBinaryOpTypes(const Array<tvm::relay::Type>& arg_types) {
-    CHECK_EQ(arg_types.size(), numQnnBinaryOpArgTypes);
+  explicit QnnBinaryOpType(const Array<tvm::relay::Type>& arg_types) {
+    CHECK_EQ(arg_types.size(), kNumQnnBinaryOpArgTypes);
     auto tensor_type = arg_types[0].as<TensorTypeNode>();
     CHECK(tensor_type != nullptr);
-    input_dtype = tensor_type->dtype;
-    input_shape = tensor_type->shape;
+    dtype = tensor_type->dtype;
+    shape = tensor_type->shape;
   }
 };
 
@@ -174,7 +174,7 @@ static inline bool QnnBroadcastRel(const Array<Type>& types,
                                    int num_inputs,
                                    const Attrs& attrs,
                                    const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), numQnnBinaryOpArgTypes);
+  CHECK_EQ(types.size(), kNumQnnBinaryOpArgTypes);
 
   // Check the scale and zero point types
   CHECK(IsScalarType(types[2], DataType::Float(32)));  // lhs_scale
@@ -211,7 +211,7 @@ static inline bool QnnBroadcastRel(const Array<Type>& types,
                      output_scale, output_zero_point}, Attrs(), {});    \
   });                                                                   \
   RELAY_REGISTER_OP("qnn." OpName)                                      \
-  .set_num_inputs(numQnnBinaryOpInputs)                                                    \
+  .set_num_inputs(kNumQnnBinaryOpInputs)                                                    \
   .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")                 \
   .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")                \
   .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                   \

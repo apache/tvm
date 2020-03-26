@@ -45,7 +45,7 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  QnnBinaryOpTypes types(arg_types);
+  QnnBinaryOpType input_type(arg_types);
   // data types
   const auto Int32 = DataType::Int(32);
   const auto Float32 = DataType::Float(32);
@@ -85,12 +85,12 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   auto new_input_zero_point = zero_scalar;
 
   // Requantize to get Q_c
-  output = Requantize(output, types.input_shape,
+  output = Requantize(output, input_type.shape,
                       new_input_scale,
                       new_input_zero_point,
                       args.output_scale,
                       args.output_zero_point,
-                      types.input_dtype);
+                      input_type.dtype);
 
   return output;
 }
