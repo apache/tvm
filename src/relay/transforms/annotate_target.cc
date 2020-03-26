@@ -95,7 +95,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     return std::move(call);
   }
 
-  Expr VisitExpr_(const TupleNode *op) {
+  Expr VisitExpr_(const TupleNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto tup = Downcast<Tuple>(new_e);
@@ -106,7 +106,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     return TupleNode::make(new_fields);
   }
 
-  Expr VisitExpr_(const TupleGetItemNode *op) {
+  Expr VisitExpr_(const TupleGetItemNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto get = Downcast<TupleGetItem>(new_e);
@@ -115,7 +115,7 @@ class AnnotateTargetWrapper : public ExprMutator {
       get->index);
   }
 
-  Expr VisitExpr_(const FunctionNode *op) {
+  Expr VisitExpr_(const FunctionNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto func = Downcast<Function>(new_e);
@@ -127,7 +127,7 @@ class AnnotateTargetWrapper : public ExprMutator {
       func->attrs);
   }
 
-  Expr VisitExpr_(const LetNode *op) {
+  Expr VisitExpr_(const LetNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto let = Downcast<Let>(new_e);
@@ -137,7 +137,7 @@ class AnnotateTargetWrapper : public ExprMutator {
       InsertEnd(let->body));
   }
 
-  Expr VisitExpr_(const IfNode *op) {
+  Expr VisitExpr_(const IfNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto iff = Downcast<If>(new_e);
@@ -147,21 +147,21 @@ class AnnotateTargetWrapper : public ExprMutator {
       InsertEnd(iff->false_branch));
   }
 
-  Expr VisitExpr_(const RefCreateNode *op) {
+  Expr VisitExpr_(const RefCreateNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto create = Downcast<RefCreate>(new_e);
     return RefCreateNode::make(InsertEnd(create->value));
   }
 
-  Expr VisitExpr_(const RefReadNode *op) {
+  Expr VisitExpr_(const RefReadNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto read = Downcast<RefRead>(new_e);
     return RefReadNode::make(InsertEnd(read->ref));
   }
 
-  Expr VisitExpr_(const RefWriteNode *op) {
+  Expr VisitExpr_(const RefWriteNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto write = Downcast<RefWrite>(new_e);
