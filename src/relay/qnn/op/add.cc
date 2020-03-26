@@ -23,7 +23,6 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
-#include "../util.h"
 #include "op_common.h"
 
 namespace tvm {
@@ -43,7 +42,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  QnnBinaryOpDtypeAndShape inputShapeAndDtype(arg_types);
+  QnnBinaryOpTypes types(arg_types);
 
 
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
@@ -69,15 +68,15 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
 
   // Requantize LHS if necessary. Computes Q_a'
-  auto requantized_lhs = requantizeIfNeeded(args.lhs, args.lhs_scale,
+  auto requantized_lhs = RequantizeOrUpcast(args.lhs, args.lhs_scale,
                                             args.lhs_zero_point,
                                             args.output_scale, args.output_zero_point,
-                                            inputShapeAndDtype.input_shape);
+                                            types.input_shape);
   // Requantize RHS if necessary. Computes Q_b'
-  auto requantized_rhs = requantizeIfNeeded(args.rhs, args.rhs_scale,
+  auto requantized_rhs = RequantizeOrUpcast(args.rhs, args.rhs_scale,
                                             args.rhs_zero_point,
                                             args.output_scale, args.output_zero_point,
-                                            inputShapeAndDtype.input_shape);
+                                            types.input_shape);
   // Computes Q_a' + Q_b'
   auto output = Add(requantized_lhs, requantized_rhs);
 
@@ -88,7 +87,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   }
 
   // Go back to lower precision.
-  return lowerPrecision(output, inputShapeAndDtype.input_dtype);
+  return ConvertDtype(output, types.input_dtype);
 }
 
 // QNN Addition operator.

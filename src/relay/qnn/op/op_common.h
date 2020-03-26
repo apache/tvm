@@ -31,6 +31,7 @@
 #include <vector>
 #include "../../op/type_relations.h"
 #include "../../transforms/infer_layout_util.h"
+#include "../util.h"
 
 namespace tvm {
 namespace relay {
@@ -84,11 +85,11 @@ struct QnnBinaryOpArguments {
  * and shape. This structure allows a common point to do
  * all the validation checks.
  */
-struct QnnBinaryOpDtypeAndShape {
+struct QnnBinaryOpTypes {
   DataType input_dtype;
   Array <PrimExpr> input_shape;
 
-  explicit QnnBinaryOpDtypeAndShape(const Array<tvm::relay::Type>& arg_types) {
+  explicit QnnBinaryOpTypes(const Array<tvm::relay::Type>& arg_types) {
     CHECK_EQ(arg_types.size(), numQnnBinaryOpArgTypes);
     auto tensor_type = arg_types[0].as<TensorTypeNode>();
     CHECK(tensor_type != nullptr);
@@ -107,19 +108,13 @@ struct QnnBinaryOpDtypeAndShape {
  * \return New expression with target dtype and possibly lower
  * precision.
  */
-inline Expr lowerPrecision(const Expr& expr,
-                           const DataType& target_dtype) {
+inline Expr ConvertDtype(const Expr& expr,
+                         const DataType& target_dtype) {
   auto q_min = GetQmin(target_dtype);
   auto q_max = GetQmax(target_dtype);
   auto output = Clip(expr, q_min, q_max);
   return Cast(output, target_dtype);
 }
-
-/*
- * Full precision Int32 data type for explicitly casting
- * Int8/UInt8 to Int32 and create Int32 constants.
- */
-const auto fullPrecisionInt32 = DataType::Int(32);
 
 /*
  * \brief Requantizes the given expression if expression's
@@ -138,19 +133,20 @@ const auto fullPrecisionInt32 = DataType::Int(32);
  * it simply casts the given expression to Int32 as no requantization is
  * needed in this case.
  */
-inline Expr requantizeIfNeeded(const Expr& expr,
+inline Expr RequantizeOrUpcast(const Expr& expr,
                                const Expr& expr_scale,
                                const Expr& expr_zero_point,
                                const Expr& target_scale,
                                const Expr& target_zero_point,
-                               const Array <PrimExpr>& expr_shape) {
+                               const Array <PrimExpr>& expr_shape,
+                               const DataType& target_dtype=DataType::Int(32)) {
   auto result = expr;
   if (!IsEqualScalar(expr_scale, target_scale) ||
      !IsEqualScalar(expr_zero_point, target_zero_point)) {
     result = Requantize(expr, expr_shape, expr_scale, expr_zero_point,
-                        target_scale, target_zero_point, fullPrecisionInt32);
+                        target_scale, target_zero_point, target_dtype);
   } else {
-    result = Cast(result, fullPrecisionInt32);
+    result = Cast(result, target_dtype);
   }
   return result;
 }

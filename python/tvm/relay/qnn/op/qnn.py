@@ -310,9 +310,6 @@ def add(lhs,
     rhs : relay.Expr
         The right hand side quantized input data.
 
-    lhs_scale: float
-        The scale of the lhs quantized expr.
-
     lhs_scale: relay.Expr
         The scale of the lhs quantized expr.
 
@@ -455,9 +452,6 @@ def subtract(lhs,
 
     rhs : relay.Expr
         The right hand side quantized input data.
-
-    lhs_scale: float
-        The scale of the lhs quantized expr.
 
     lhs_scale: relay.Expr
         The scale of the lhs quantized expr.

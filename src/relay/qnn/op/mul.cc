@@ -45,7 +45,10 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  QnnBinaryOpDtypeAndShape inputShapeAndDtype(arg_types);
+  QnnBinaryOpTypes types(arg_types);
+  // data types
+  const auto Int32 = DataType::Int(32);
+  const auto Float32 = DataType::Float(32);
 
   /*
   A tensor multiplication c = a * b can be written in terms of respective
@@ -59,10 +62,10 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   which is essentially a requantization of tensor Q' into tensor Q_c.
   */
 
-  auto lhs_shifted = Cast(args.lhs, fullPrecisionInt32);
-  auto rhs_shifted = Cast(args.rhs, fullPrecisionInt32);
+  auto lhs_shifted = Cast(args.lhs, Int32);
+  auto rhs_shifted = Cast(args.rhs, Int32);
 
-  auto zero_scalar = MakeConstantScalar(fullPrecisionInt32, 0);
+  auto zero_scalar = MakeConstantScalar(Int32, 0);
   if (!IsEqualScalar(args.lhs_zero_point, zero_scalar)) {
     lhs_shifted = Subtract(lhs_shifted, args.lhs_zero_point);
   }
@@ -78,16 +81,16 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   float lhs_scale_float = GetScalarFromConstant<float>(args.lhs_scale);
   float rhs_scale_float = GetScalarFromConstant<float>(args.rhs_scale);
   float new_scale_float = lhs_scale_float * rhs_scale_float;
-  auto new_input_scale = MakeConstantScalar(DataType::Float(32), new_scale_float);
+  auto new_input_scale = MakeConstantScalar(Float32, new_scale_float);
   auto new_input_zero_point = zero_scalar;
 
   // Requantize to get Q_c
-  output = Requantize(output, inputShapeAndDtype.input_shape,
+  output = Requantize(output, types.input_shape,
                       new_input_scale,
                       new_input_zero_point,
                       args.output_scale,
                       args.output_zero_point,
-                      inputShapeAndDtype.input_dtype);
+                      types.input_dtype);
 
   return output;
 }
