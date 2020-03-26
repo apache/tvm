@@ -161,10 +161,6 @@ If either voting fails, the community needs to modified the release accordingly,
 Post the Release
 ----------------
 
-Be Careful!
-
-THIS STEP IS IRREVERSIBLE so make sure you selected the correct staging repository. Once you move the artifacts into the release folder, they cannot be removed.
-
 After the vote passes, to upload the binaries to Apache mirrors, you move the binaries from dev directory (this should be where they are voted) to release directory. This "moving" is the only way you can add stuff to the actual release directory. (Note: only PMC can move to release directory)
 
 .. code-block:: bash
