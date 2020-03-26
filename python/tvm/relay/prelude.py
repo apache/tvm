@@ -482,7 +482,7 @@ class StaticTensorArrayOps(object):
             Clause(PatternConstructor(tensor_constructor, [PatternVar(tvar)]), tvar)
         self.prelude.mod[tensor_get_data_var] = \
             Function([t], Match(t, [case], False),
-                     TensorType(data_shape or self.shape, self.dtype), [])
+                     TensorType(data_shape, self.dtype), [])
 
     def register(self):
         """Register all tensor array ops in Prelude"""
