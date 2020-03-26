@@ -105,11 +105,16 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw),
                     name="depthwise_conv2d_nchw.arm_cpu")
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_spatial_pack),
-                wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_spatial_pack),
-                name="depthwise_conv2d_nchw_spatial_pack.arm_cpu",
-                plevel=15)
+            # TODO:
+            # This schedule has incorrect result on some hardware platforms (like NV Jetson TX2)
+            # Let us comment it out but not remove.
+            # see discussion:
+            # https://discuss.tvm.ai/t/autotuner-incorrect-result-after-tuning-mobilenetv2-on-arm-cpu/6088
+            # strategy.add_implementation(
+            #     wrap_compute_conv2d(topi.arm_cpu.depthwise_conv2d_nchw_spatial_pack),
+            #     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nchw_spatial_pack),
+            #     name="depthwise_conv2d_nchw_spatial_pack.arm_cpu",
+            #     plevel=15)
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             logger.warning("depthwise_conv2d with layout NHWC is not optimized for arm cpu.")
