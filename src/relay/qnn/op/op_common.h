@@ -76,8 +76,7 @@ struct QnnBinaryOpArguments {
     output_scale = new_args[idx++];
     output_zero_point = new_args[idx++];
     CHECK_EQ(idx, numQnnBinaryOpInputs);
-  }  
-  
+  }
 };
 
 /*
@@ -146,7 +145,7 @@ inline Expr requantizeIfNeeded(const Expr& expr,
                                const Expr& target_zero_point,
                                const Array <PrimExpr>& expr_shape) {
   auto result = expr;
-  if(!IsEqualScalar(expr_scale, target_scale) ||
+  if (!IsEqualScalar(expr_scale, target_scale) ||
      !IsEqualScalar(expr_zero_point, target_zero_point)) {
     result = Requantize(expr, expr_shape, expr_scale, expr_zero_point,
                         target_scale, target_zero_point, fullPrecisionInt32);
@@ -154,13 +153,14 @@ inline Expr requantizeIfNeeded(const Expr& expr,
     result = Cast(result, fullPrecisionInt32);
   }
   return result;
-};
+}
 
 /*! \brief Infer layout for QNN binary broadcast operators */
-inline Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs &attrs,
-                                                           const Array<Layout> &new_in_layouts,
-                                                           const Array<Layout> &old_in_layouts,
-                                                           const Array<tvm::relay::Type> &old_in_types) {
+inline Array<Array<Layout> > QnnBinaryBroadcastLayout(
+                    const Attrs &attrs,
+                    const Array<Layout> &new_in_layouts,
+                    const Array<Layout> &old_in_layouts,
+                    const Array<tvm::relay::Type> &old_in_types) {
   // Use Relay Binary Broadcast Infer correct layout.
   auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
 

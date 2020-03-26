@@ -46,15 +46,15 @@ Expr QnnSubtractCanonicalize(const Attrs &attrs,
   // Get the input dtype and shape.
   QnnBinaryOpDtypeAndShape inputShapeAndDtype(arg_types);
 
-  // TODO (shoubhik) - The lowering can be further optimized. Instead of inserting requantize in
+  // TODO(shoubhik) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if both input tensors have same qnn params. In
   // that case, we can first subtract the tensors, add the zero point, and requantize at the end.
   // This can be done in future.
 
   // Since the input qnn params can be different than output qnn params, we first requantize the
-  // input tensors to the output qnn params. Then we call relay.subtract on the requantized inputs. This
-  // subtraction results in extra subtraction of the output zero point. We further add the zero
-  // point. The whole process can be represented using following equations
+  // input tensors to the output qnn params. Then we call relay.subtract on the requantized inputs.
+  // This subtraction results in extra subtraction of the output zero point. We further add
+  // the zero point. The whole process can be represented using following equations
   //
   //          scale_c * (Q_c - zp_c) = scale_a * (Q_a - zp_a) - scale_b * (Q_b - zp_b)
   //
@@ -99,6 +99,6 @@ QNN_REGISTER_BINARY_OP("subtract")
 .set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnSubtractCanonicalize)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout);
 
-} // namespace qnn
-} // namespace relay
-} // namespace tvm
+}  // namespace qnn
+}  // namespace relay
+}  // namespace tvm
