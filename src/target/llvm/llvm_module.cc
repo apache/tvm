@@ -71,6 +71,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       });
     }
     if (ee_ == nullptr) LazyInitJIT();
+
+    // This LLVMModule is empty and no function can be retrieved.
+    if (entry_func_.empty()) return nullptr;
+
     std::lock_guard<std::mutex> lock(mutex_);
     const std::string& fname = (name == runtime::symbol::tvm_module_main ?
                                 entry_func_ : name);
@@ -318,6 +322,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << "Failed to initialize jit engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
     // setup context address.
+    // we will skip context setup if this LLVMModule is empty.
+    if (GetGlobalAddr(runtime::symbol::tvm_module_main) == 0)
+      return;
+
     entry_func_ =
         reinterpret_cast<const char*>(GetGlobalAddr(runtime::symbol::tvm_module_main));
     if (void** ctx_addr = reinterpret_cast<void**>(
@@ -329,7 +337,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       });
   }
   // Get global address from execution engine.
-  uint64_t GetGlobalAddr(const std::string& name) {
+  uint64_t GetGlobalAddr(const std::string& name) const {
     // first verifies if GV exists.
     if (mptr_->getGlobalVariable(name) != nullptr) {
       return ee_->getGlobalValueAddress(name);
@@ -337,7 +345,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return 0;
     }
   }
-  uint64_t GetFunctionAddr(const std::string& name) {
+  uint64_t GetFunctionAddr(const std::string& name) const {
     // first verifies if GV exists.
     if (mptr_->getFunction(name) != nullptr) {
       return ee_->getFunctionAddress(name);
