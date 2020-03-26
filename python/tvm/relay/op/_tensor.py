@@ -74,6 +74,8 @@ register_injective_schedule("right_shift")
 register_injective_schedule("left_shift")
 register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
+register_broadcast_schedule("fast_exp")
+register_broadcast_schedule("fast_tanh")
 
 
 # zeros
@@ -218,3 +220,5 @@ register_shape_func("sqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
 register_shape_func("tan", False, elemwise_shape_func)
+register_shape_func("fast_exp", False, elemwise_shape_func)
+register_shape_func("fast_tanh", False, elemwise_shape_func)
