@@ -158,7 +158,9 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     data_l = s.cache_write(data_pack, 'local')
     omg, eps, nu, c, p = s[data_l].op.axis
     r_a, r_b, r_c = s[data_l].op.reduce_axis
-    for axis in [omg, eps, nu, r_a, r_b, r_c]:
+    # TODO unrolling by omg, eps, nu may improve performance but
+    # in some cases causes extremely long build times due to imperfect tiling.
+    for axis in [r_a, r_b, r_c]:
         s[data_l].unroll(axis)
 
     omg, eps, nu, c, p = s[data_pack].op.axis

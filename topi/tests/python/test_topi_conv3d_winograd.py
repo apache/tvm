@@ -122,14 +122,14 @@ def test_conv3d_ncdhw():
     verify_conv3d_ncdhw(1, 128, 12, 256, 3, 1, 1)
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 1, 1)
 
-    ### bias, relu
+    # bias, relu
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 1, 1, add_relu=True)
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 1, 1, add_relu=True, add_bias=True)
 
-    ## dilation = 2
-    #verify_conv3d_ncdhw(1, 64, 12, 128, 3, 1, 1, dilation=2)
+    # dilation = 2
+    verify_conv3d_ncdhw(1, 16, 12, 16, 3, 1, "VALID", dilation=2)
 
-    ## batch size
+    # batch size
     verify_conv3d_ncdhw(4, 32, 12, 64, 3, 1, 1)
 
     # weird workloads
