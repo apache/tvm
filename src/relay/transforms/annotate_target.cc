@@ -82,9 +82,9 @@ class AnnotateTargetWrapper : public ExprMutator {
     // add begin annotations if the call node is supported
     if (IsSupported(call)) {
       tvm::Array<tvm::relay::Expr> compiler_begins;
+      const auto* begin_op =
+        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
       for (const auto& it : call->args) {
-        const auto* begin_op =
-          runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
         CHECK(begin_op);
         Expr begin = (*begin_op)(it, target_);
         compiler_begins.push_back(begin);
