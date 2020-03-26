@@ -787,31 +787,27 @@ class Upsample(OnnxOpConverter):
         assert scales[0] == 1.0 and scales[1] == 1.0
         input_shape = infer_shape(inputs[0])
         dims = len(input_shape)
-        isUpSample3D = bool(dims == 5)
         mode = attr.get('mode')
         if mode == b'nearest':
             method = "nearest_neighbor"
         elif mode == b'linear':
-            method = "trilinear" if isUpSample3D else "bilinear"
+            method = "trilinear" if dims == 5 else "bilinear"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        if isUpSample3D:
+        attr = {'scale_h': scales[-2],
+                'scale_w': scales[-1],
+                'method': method}
+        if dims == 5:
             assert len(scales) == 5
-            attr = {'scale_d': scales[-3],
-                    'scale_h': scales[-2],
-                    'scale_w': scales[-1],
-                    'method': method,
-                    'layout': 'NCDHW',
-                    'coordinate_transformation_mode':'half_pixel'}
+            attr['scale_d'] = scales[-3]
+            attr['layout'] = 'NCDHW'
+            attr['coordinate_transformation_mode'] = 'half_pixel'
             op_name = 'upsampling3d'
         else:
             assert len(scales) == 4
-            attr = {'scale_h': scales[-2],
-                    'scale_w': scales[-1],
-                    'method': method,
-                    'layout': 'NCHW',
-                    'align_corners': True}
+            attr['layout'] = 'NCHW'
+            attr['align_corners'] = True
             op_name = 'upsampling'
         return AttrCvt(op_name)(inputs, attr)
 

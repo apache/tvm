@@ -741,7 +741,7 @@ def _test_upsample_nearest():
         tvm.testing.assert_allclose(out_array, tvm_out)
 
 
-def _test_upsample_nearest3d():
+def _test_upsample3d_nearest():
     scale = 2
     in_shape = (1, 1, 3, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale, 3*scale)
@@ -824,7 +824,7 @@ def _test_upsample_bilinear_opset9():
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
-def _test_upsample_trilinear():
+def _test_upsample3d_trilinear():
     scale = 2
     in_shape = (1, 1, 3, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale, 3*scale)
@@ -861,8 +861,8 @@ def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
     _test_upsample_bilinear_opset9()
-    _test_upsample_nearest3d()
-    _test_upsample_trilinear()
+    _test_upsample3d_nearest()
+    _test_upsample3d_trilinear()
 
 def _test_softmax(inshape, axis):
     opname = 'Softmax'
