@@ -44,7 +44,7 @@ def atomic_add(x, y):
     return tvm.tir.call_pure_intrin(y.dtype, "atomic_add", x, y)
 
 
-def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, score_index):
+def get_valid_counts_ir(data, valid_count, out, score_threshold, id_index, score_index):
     """Low level IR to get valid count of bounding boxes
     given a score threshold. Also prepares to move valid boxes to the
     top of input data.
@@ -83,10 +83,11 @@ def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, scor
     data = ib.buffer_ptr(data)
 
     valid_count = ib.buffer_ptr(valid_count)
-    flag = ib.buffer_ptr(flag)
+    out = ib.buffer_ptr(out)
     atomic_add_return = ib.allocate(
         valid_count.dtype, (1,), name='atomic_add_return', scope='local')
     one_count = tvm.tir.const(1, dtype=valid_count.dtype)
+    one = tvm.tir.const(1, dtype=out.dtype)
     score_threshold = tvm.ir.make_node(
         "FloatImm", dtype="float32", value=score_threshold)
     id_index = tvm.ir.make_node("IntImm", dtype="int32", value=id_index)
@@ -106,17 +107,18 @@ def get_valid_counts_ir(data, valid_count, flag, score_threshold, id_index, scor
     # initialize valid_count
     with ib.if_scope(tid < batch_size):
         valid_count[tid] = 0
-    # initialize flag
-    with ib.if_scope(tid < batch_size * num_anchors):
-        flag[tid] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         i = idxd(tid, num_anchors)
         with ib.if_scope(
                 tvm.tir.all(data[tid * elem_length + score_index] > score_threshold,
                             tvm.tir.any(id_index < 0, data[tid * elem_length + id_index] >= 0))):
-            flag[tid] = 1
             atomic_add_return[0] = atomic_add(tvm.tir.call_pure_intrin("handle", "tvm_address_of",
                                                                        valid_count[i]), one_count)
+            with ib.for_range(0, elem_length) as k:
+                out[tid * elem_length + k] = data[tid * elem_length + k]
+        with ib.else_scope():
+            with ib.for_range(0, elem_length) as k:
+                out[tid * elem_length + k] = -one
 
     return ib.get()
 
@@ -277,16 +279,16 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     out_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "out_buf", data_alignment=8)
 
-    valid_count, temp_flag = \
-        te.extern([(batch_size,), (batch_size, num_anchors)], [data],
+    valid_count, out = \
+        te.extern([(batch_size,), data.shape], [data],
                   lambda ins, outs: get_valid_counts_ir(
             ins[0], outs[0], outs[1], score_threshold, id_index, score_index),
-            dtype=["int32", "int32"],
+            dtype=["int32", data.dtype],
             in_buffers=[data_buf],
-            out_buffers=[valid_count_buf, temp_flag_buf],
+            out_buffers=[valid_count_buf, out_buf],
             name="get_valid_counts",
             tag="get_valid_counts_gpu")
-
+    '''
     temp_partial = \
         te.extern([(batch_size, num_anchors)], [temp_flag],
                   lambda ins, outs: flag_scan(
@@ -305,6 +307,7 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
                         temp_partial_buf, valid_count_buf],
             out_buffers=[out_buf],
             name="out_rewrite")
+    '''
 
     return [valid_count, out]
 
@@ -670,7 +673,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
         score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
     if tvm.get_global_func("tvm.contrib.thrust.sort_nms", allow_missing=True):
         sort_tensor = argsort_thrust(
-            score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
+            score_tensor, valid_count=None, axis=1, is_ascend=False, dtype=valid_count_dtype)
     else:
         sort_tensor = argsort(
             score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
