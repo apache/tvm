@@ -240,18 +240,18 @@ def test_conv2d(device):
     def _run(env, remote):
         if device == "vta":
             target = env.target
-            if env.TARGET not in ["sim", "tsim"]:
+            if env.TARGET not in ["sim", "tsim", "intelfocl"]:
                 assert tvm.runtime.enabled("rpc")
                 program_fpga(remote, bitstream=None)
                 reconfig_runtime(remote)
         elif device == "arm_cpu":
             target = env.target_vta_cpu
-        with autotvm.tophub.context(target): # load pre-tuned schedule parameters
+        with autotvm.tophub.context(target, extra_files = ['vta.resnet18_v1.log-manual-formatv0_2']): # load pre-tuned schedule parameters
             for _, wl in resnet_wkls:
                 print(wl)
                 run_conv2d(env, remote, wl, target)
     vta.testing.run(_run)
 
 if __name__ == "__main__":
-    test_conv2d(device="arm_cpu")
+    # test_conv2d(device="arm_cpu")
     test_conv2d(device="vta")

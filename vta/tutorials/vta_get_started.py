@@ -91,7 +91,7 @@ if env.TARGET == "pynq" or env.TARGET == "de10nano":
     vta.program_fpga(remote, bitstream=None)
 
 # In simulation mode, host the RPC server locally.
-elif env.TARGET == "sim":
+elif env.TARGET in ("sim", "tsim", "intelfocl"):
     remote = rpc.LocalSession()
 
 ######################################################################

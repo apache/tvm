@@ -235,6 +235,19 @@ def _schedule_add(outs):
 
     op = output.op
     _traverse(op)
+    x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
+
+    x_co_max = topi.util.get_const_int(x_bo.dom.extent)
+    x_i_max = topi.util.get_const_int(x_i.dom.extent)
+    x_j_max = topi.util.get_const_int(x_j.dom.extent)
+
+    # TODO(zhanghao): auto-tune
+    x_co0, x_co1 = s[output].split(x_co, factor=1)
+    x_i0, x_i1 = s[output].split(x_i, factor=min(28, x_i_max))
+    x_j0, x_j1 = s[output].split(x_j, factor=min(14, x_j_max))
+    s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
+    store_pt = x_j0
+
     # only put the int-related ops to vta
     if "int" in output.dtype:
         env = get_env()
@@ -242,7 +255,7 @@ def _schedule_add(outs):
             eprint("add ewise_ops ", eo)
             s[eo].set_scope(env.acc_scope)
             s[eo].pragma(s[eo].op.axis[0], env.alu)
-            s[eo].compute_at(s[output], s[output].op.axis[-2])
+            s[eo].compute_at(s[output], store_pt)
 
         # cache read input
         cache_read_ewise = []
@@ -253,11 +266,11 @@ def _schedule_add(outs):
 
         for tensor in cache_read_ewise:
             s[tensor].pragma(s[tensor].op.axis[0], env.dma_copy)
-            s[tensor].compute_at(s[output], s[output].op.axis[-2])
+            s[tensor].compute_at(s[output], store_pt)
 
         for op in const_ops:
             s[op].compute_inline()
 
-        s[output].pragma(s[output].op.axis[-1], env.dma_copy)
+        s[output].pragma(x_co1, env.dma_copy)
 
     return s
