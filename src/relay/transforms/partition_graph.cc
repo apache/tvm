@@ -389,9 +389,9 @@ class Partitioner : public ExprMutator {
 
  private:
   /*!
-  * \brief Get the region an expression belongs to
-  * if its in a region.
-  */
+   * \brief Get the region an expression belongs to
+   * if its in a region.
+   */
   AnnotatedRegion GetRegion(const Expr& e) {
     for (auto sg_set_it : regions_sets_) {
       auto sg_set = sg_set_it.first;
@@ -404,9 +404,9 @@ class Partitioner : public ExprMutator {
   }
 
   /*!
-  * \brief Get the function an expression belongs to
-  * if its in a region.
-  */
+   * \brief Get the function an expression belongs to
+   * if its in a region.
+   */
   BaseFunc GetFunc(const Expr& e) {
     for (auto sg_set_it : regions_sets_) {
       auto sg_set = sg_set_it.first;
@@ -421,9 +421,9 @@ class Partitioner : public ExprMutator {
   }
 
   /*!
-  * \brief Get the index of the argument;
-  * this is to be used as tuplegetitem idx
-  */
+   * \brief Get the index of the argument;
+   * this is to be used as tuplegetitem idx
+   */
   int GetArgIdx(AnnotatedRegion sg, const Expr& arg) {
     int idx = 0;
     for (auto arg_ : sg->GetInputs()) {
@@ -436,9 +436,9 @@ class Partitioner : public ExprMutator {
   }
 
   /*!
-  * \brief Get the index of the return(output);
-  * this is to be used as tuplegetitem idx
-  */
+   * \brief Get the index of the return(output);
+   * this is to be used as tuplegetitem idx
+   */
   int GetRetIdx(AnnotatedRegion sg, const Expr& arg) {
     int idx = 0;
     for (auto arg_ : sg->GetOutputs()) {
@@ -451,22 +451,22 @@ class Partitioner : public ExprMutator {
   }
 
   /*!
-  * \brief This map maintains the already created function calls.
-  * This is required in the multi-output scenario, to link rest of the outputs to call
-  */
+   * \brief This map maintains the already created function calls.
+   * This is required in the multi-output scenario, to link rest of the outputs to call
+   */
   std::unordered_map<AnnotatedRegion, Call, ObjectHash, ObjectEqual> region_function_calls;
 
   /*!
-  * \brief This map maintains arguments (of region) visits through visitor patterns.
-  * Those arguement var and expression will be used to when creating the function.
-  */
+   * \brief This map maintains arguments (of region) visits through visitor patterns.
+   * Those arguement var and expression will be used to when creating the function.
+   */
   std::unordered_map<AnnotatedRegion, std::vector<std::pair<Var, Expr>>,
                                          ObjectHash, ObjectEqual> region_args;
 
   /*!
-  * \brief Each region set is associated with a function in the module.
-  * This map maintains the mapping between regionsets and the function it belongs to
-  */
+   * \brief Each region set is associated with a function in the module.
+   * This map maintains the mapping between regionsets and the function it belongs to
+   */
   std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectHash, ObjectEqual> regions_sets_;
   IRModule module_;
 };
