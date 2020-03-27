@@ -42,7 +42,7 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  QnnBinaryOpType input_type(arg_types);
+  QnnBinaryOpTensorType input_type(arg_types, 0);
 
 
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in

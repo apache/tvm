@@ -83,15 +83,16 @@ struct QnnBinaryOpArguments {
 /*
  * \brief Simple structure to hold the input tensor's dtype
  * and shape. This structure allows a common point to do
- * all the validation checks.
+ * all the validation checks for Qnn binary operators.
  */
-struct QnnBinaryOpType {
+struct QnnBinaryOpTensorType {
   DataType dtype;
   Array <PrimExpr> shape;
 
-  explicit QnnBinaryOpType(const Array<tvm::relay::Type>& arg_types) {
+  explicit QnnBinaryOpTensorType(const Array<tvm::relay::Type>& arg_types,
+                                 const int32_t arg_idx) {
     CHECK_EQ(arg_types.size(), kNumQnnBinaryOpArgTypes);
-    auto tensor_type = arg_types[0].as<TensorTypeNode>();
+    auto tensor_type = arg_types[arg_idx].as<TensorTypeNode>();
     CHECK(tensor_type != nullptr);
     dtype = tensor_type->dtype;
     shape = tensor_type->shape;

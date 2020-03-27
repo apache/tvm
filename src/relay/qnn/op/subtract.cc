@@ -43,7 +43,7 @@ Expr QnnSubtractCanonicalize(const Attrs &attrs,
   QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  QnnBinaryOpType input_type(arg_types);
+  QnnBinaryOpTensorType input_type(arg_types, 0);
 
   // TODO(shoubhik) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if both input tensors have same qnn params. In
