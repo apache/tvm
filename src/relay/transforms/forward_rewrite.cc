@@ -33,7 +33,7 @@ namespace relay {
 // Realizer class that realizes the expression
 // Note that we can take benefit of its internal memo
 // so that calling realize repeatively won't hurt perf.
-class TempRealizer : private DataflowMutator {
+class TempRealizer : private ScopeMutator {
  public:
   Expr Realize(Expr expr) {
     return Mutate(expr);
@@ -41,23 +41,17 @@ class TempRealizer : private DataflowMutator {
 
  private:
   Expr VisitExpr(const Expr& expr) final {
-    auto it = memo_.find(expr);
-    if (it != memo_.end()) {
-      return it->second;
+    Expr res;
+    if (const auto* temp = expr.as<TempExprNode>()) {
+      res = temp->Realize();
     } else {
-      Expr res;
-      if (const auto* temp = expr.as<TempExprNode>()) {
-        res = temp->Realize();
-      } else {
-        res = DataflowMutator::VisitExpr(expr);
-      }
-      memo_[expr] = res;
-      return res;
+      res = ScopeMutator::VisitExpr(expr);
     }
+    return res;
   }
 };
 
-class ForwardRewriter : private DataflowMutator {
+class ForwardRewriter : private ScopeMutator {
  public:
   ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
                   std::function<ObjectRef(const Call&)> fcontext,
@@ -96,9 +90,9 @@ class ForwardRewriter : private DataflowMutator {
   TempRealizer realizer_;
 
   // Visit and allow non-realized version.
-  Expr GetTempExpr(const Expr& expr)  {
+  Expr GetTempExpr(const Expr& expr, const Expr& post)  {
     if (fmulti_ref_trigger_ != nullptr) {
-      Expr ret = Mutate(expr);
+      Expr ret = post;
       auto it = ref_counter_.find(expr.get());
       CHECK(it != ref_counter_.end());
       if (it->second > 1) {
@@ -106,13 +100,13 @@ class ForwardRewriter : private DataflowMutator {
       }
       return ret;
     } else {
-      return Mutate(expr);
+      return post;
     }
   }
 
   // Automatic fold TupleGetItem.
-  Expr VisitExpr_(const TupleGetItemNode* op) final {
-    Expr tuple = this->GetTempExpr(op->tuple);
+  Expr Rewrite_(const TupleGetItemNode* op, const Expr& post) final {
+    Expr tuple = this->GetTempExpr(op->tuple, post.as<TupleGetItemNode>()->tuple);
     if (const auto* ptuple = tuple.as<TupleNode>()) {
       return ptuple->fields[op->index];
     } else {
@@ -124,13 +118,14 @@ class ForwardRewriter : private DataflowMutator {
     }
   }
 
-  Expr VisitExpr_(const TupleNode* op) final {
+  Expr Rewrite_(const TupleNode* op, const Expr& post) final {
     tvm::Array<Expr> fields;
     bool all_fields_unchanged = true;
-    for (auto field : op->fields) {
-      auto new_field = this->GetTempExpr(field);
+    const auto* post_node = post.as<TupleNode>();
+    for (size_t i = 0; i < op->fields.size(); ++i) {
+      auto new_field = this->GetTempExpr(op->fields[i], post_node->fields[i]);
       fields.push_back(new_field);
-      all_fields_unchanged &= new_field.same_as(field);
+      all_fields_unchanged &= new_field.same_as(op->fields[i]);
     }
 
     if (all_fields_unchanged) {
@@ -140,7 +135,7 @@ class ForwardRewriter : private DataflowMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* call_node) final {
+  Expr Rewrite_(const CallNode* call_node, const Expr& post) final {
     const Call& ref_call = GetRef<Call>(call_node);
     PackedFunc frewrite;
     if (rewrite_func_) {
@@ -149,17 +144,17 @@ class ForwardRewriter : private DataflowMutator {
       CHECK(rewrite_map_);
       frewrite = rewrite_map_->get(call_node->op, nullptr);
     }
-
-    auto new_op = this->Mutate(call_node->op);
+    const auto* post_node = post.as<CallNode>();
+    auto new_op = post_node->op;
     bool unchanged = call_node->op.same_as(new_op);
 
     Array<Expr> call_args;
-    for (auto arg : call_node->args) {
-      Expr new_arg = this->GetTempExpr(arg);
+    for (size_t i = 0; i < call_node->args.size(); ++i) {
+      Expr new_arg = this->GetTempExpr(call_node->args[i], post_node->args[i]);
       if (frewrite == nullptr) {
         new_arg = realizer_.Realize(new_arg);
       }
-      unchanged &= new_arg.same_as(arg);
+      unchanged &= new_arg.same_as(call_node->args[i]);
       call_args.push_back(new_arg);
     }
     // try to rewrite.
