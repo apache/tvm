@@ -260,8 +260,8 @@ class RegionMerger : public ExprVisitor {
       }
       auto& region_restrictions = region_restrictions_[region->GetID()];
       for (const auto& parent_region : mergeable_regions) {
-        auto parent_restrictions = region_restrictions_[parent_region->GetID()];
         // add all the parent restrictions to the current region
+        auto parent_restrictions = region_restrictions_[parent_region->GetID()];
         region_restrictions.insert(parent_restrictions.begin(),
                                      parent_restrictions.end());
       }
