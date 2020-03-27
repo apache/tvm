@@ -134,13 +134,13 @@ inline Expr ConvertDtype(const Expr& expr,
  * it simply casts the given expression to Int32 as no requantization is
  * needed in this case.
  */
-inline Expr RequantizeOrUpcast(const Expr &expr,
-                               const Expr &expr_scale,
-                               const Expr &expr_zero_point,
-                               const Expr &target_scale,
-                               const Expr &target_zero_point,
-                               const Array<PrimExpr> &expr_shape,
-                               const DataType &target_dtype = DataType::Int(32)) {
+inline Expr RequantizeOrUpcast(const Expr& expr,
+                               const Expr& expr_scale,
+                               const Expr& expr_zero_point,
+                               const Expr& target_scale,
+                               const Expr& target_zero_point,
+                               const Array<PrimExpr>& expr_shape,
+                               const DataType& target_dtype = DataType::Int(32)) {
   auto result = expr;
   if (!IsEqualScalar(expr_scale, target_scale) ||
       !IsEqualScalar(expr_zero_point, target_zero_point)) {
@@ -154,10 +154,10 @@ inline Expr RequantizeOrUpcast(const Expr &expr,
 
 /*! \brief Infer layout for QNN binary broadcast operators */
 inline Array<Array<Layout> > QnnBinaryBroadcastLayout(
-                    const Attrs &attrs,
-                    const Array<Layout> &new_in_layouts,
-                    const Array<Layout> &old_in_layouts,
-                    const Array<tvm::relay::Type> &old_in_types) {
+                    const Attrs& attrs,
+                    const Array<Layout>& new_in_layouts,
+                    const Array<Layout>& old_in_layouts,
+                    const Array<tvm::relay::Type>& old_in_types) {
   // Use Relay Binary Broadcast Infer correct layout.
   auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
 

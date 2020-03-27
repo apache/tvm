@@ -36,9 +36,9 @@ namespace qnn {
  * \param arg_types The types of input and output.
  * \return The sequence of Relay ops for add op.
  */
-Expr QnnSubtractCanonicalize(const Attrs &attrs,
-                             const Array<Expr> &new_args,
-                             const Array<tvm::relay::Type> &arg_types) {
+Expr QnnSubtractCanonicalize(const Attrs& attrs,
+                             const Array<Expr>& new_args,
+                             const Array<tvm::relay::Type>& arg_types) {
   // Get the args.
   QnnBinaryOpArguments args(new_args);
 
