@@ -101,7 +101,6 @@ int main(int argc, char **argv) {
     if (fabs(output_storage[i] - result_storage[i]) >= 1e-5f) {
       printf("got %f, expected %f\n", output_storage[i], result_storage[i]);
     }
-    // printf("out: %f, exp: %f\n", output_storage[i], result_storage[i]);
   }
 
   tvm_runtime_destroy(handle);

@@ -22,20 +22,6 @@
 #include <stdlib.h>
 #include "runtime.c"
 
-
-// /*! \brief macro to do C API call */
-// #define TVM_CCALL(func)                                                 \
-//   do {                                                                  \
-//     int ret = (func);                                                   \
-//     if (ret != 0) {                                                     \
-//       fprintf(stderr, "%s: %d: error: %s\n", __FILE__, __LINE__, TVMGetLastError()); \
-//       exit(ret);                                                        \
-//     }                                                                   \
-//     else {                                                              \
-//       fprintf(stdout, "Function load success!\n");                      \
-//     }                                                                   \
-//   } while (0)
-
 TVM_DLL void * tvm_runtime_create(const char * json_data,
                                   const char * params_data,
                                   const uint64_t params_size) {
