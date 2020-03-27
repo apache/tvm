@@ -251,7 +251,7 @@ def _hardtanh():
 def _convolution():
     def _impl(inputs, input_types):
         # Use transpose or normal
-        use_transpose = True if inputs[6] == "1" else False
+        use_transpose = True if inputs[6] == 1 else False
 
         data = inputs[0]
         weight = inputs[1]
@@ -260,6 +260,7 @@ def _convolution():
         padding = inputs[4]
         dilation = inputs[5]
 
+
         if isinstance(weight, _expr.Expr):
             inferred_shape = _infer_shape(weight)
             weight_shape = []
@@ -267,6 +268,10 @@ def _convolution():
                 weight_shape.append(infer)
         else:
             assert "data type {} could not be parsed in conv op" % (type(weight))
+
+        # Transposed convolutions have IOHW layout.
+        if use_transpose:
+            weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
 
         channels = weight_shape[0]
         groups = int(inputs[8])
