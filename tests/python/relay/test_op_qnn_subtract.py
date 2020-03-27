@@ -20,8 +20,8 @@ import numpy as np
 from tvm import relay
 
 
-def test_qnn_subtract(x_datas, y_datas, golden_outputs,
-                      scale_and_zp, data_dtype='uint8'):
+def qnn_subtract_driver(x_datas, y_datas, golden_outputs,
+                        scale_and_zp, data_dtype='uint8'):
     # all x, y and golden outputs should be of the same length
     assert len(x_datas) == len(y_datas)
     assert len(y_datas) == len(golden_outputs)
@@ -70,7 +70,7 @@ def test_tflite_same_io_qnn_params():
     golden_outputs = [np.array((63, 102, 127, 165)).reshape((1, 4)),
                       np.array((0, 102, 114, 255)).reshape((1, 4)),
                       np.array((0, 102, 255, 101)).reshape((1, 4))]
-    test_qnn_subtract(x_datas, y_datas, golden_outputs, scale_and_zp)
+    qnn_subtract_driver(x_datas, y_datas, golden_outputs, scale_and_zp)
 
 
 def test_tflite_different_io_qnn_params():
@@ -89,7 +89,7 @@ def test_tflite_different_io_qnn_params():
     golden_outputs = [np.array((68, 120, 123, 192)).reshape((1, 4)),
                       np.array((106, 120, 128, 140)).reshape((1, 4)),
                       np.array((68, 120, 192, 119)).reshape((1, 4))]
-    test_qnn_subtract(x_datas, y_datas, golden_outputs, scale_and_zp)
+    qnn_subtract_driver(x_datas, y_datas, golden_outputs, scale_and_zp)
 
 
 def test_saturation():
@@ -103,7 +103,7 @@ def test_saturation():
     x_data = [np.array((255, 1, 1, 0)).reshape((1, 4))]
     y_data = [np.array((255, 255, 128, 0)).reshape((1, 4))]
     golden_output = [np.array((0, 0, 0, 0)).reshape((1, 4))]
-    test_qnn_subtract(x_data, y_data, golden_output, scale_and_zp)
+    qnn_subtract_driver(x_data, y_data, golden_output, scale_and_zp)
 
     # Same params, different scale
     scale_and_zp = {'lhs_scale': 0.125,
@@ -115,7 +115,7 @@ def test_saturation():
     x_data = [np.array((255, 1, 200, 0)).reshape((1, 4))]
     y_data = [np.array((255, 255, 127, 0)).reshape((1, 4))]
     golden_output = [np.array((0, 0, 36, 0)).reshape((1, 4))]
-    test_qnn_subtract(x_data, y_data, golden_output, scale_and_zp)
+    qnn_subtract_driver(x_data, y_data, golden_output, scale_and_zp)
 
     # All params different
     scale_and_zp = {'lhs_scale': 0.5,
@@ -127,7 +127,7 @@ def test_saturation():
     x_data = [np.array((255, 0, 1, 0)).reshape((1, 4))]
     y_data = [np.array((0, 128, 64, 0)).reshape((1, 4))]
     golden_output = [np.array((255, 0, 0, 0)).reshape((1, 4))]
-    test_qnn_subtract(x_data, y_data, golden_output, scale_and_zp)
+    qnn_subtract_driver(x_data, y_data, golden_output, scale_and_zp)
 
 
 if __name__ == '__main__':
