@@ -41,6 +41,9 @@ test: $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.s
 	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 
+test_c: $(build_dir)/test_c $(build_dir)/test_data.bin $(build_dir)/test_output.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_c $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+
 $(build_dir)/demo: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  demo.cc -ldl
@@ -48,6 +51,10 @@ $(build_dir)/demo: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 $(build_dir)/test: test.cc ${build_dir}/test_graph.json ${build_dir}/test_params.bin
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
+
+$(build_dir)/test_c: test_c.c ${build_dir}/bundle_c.o ${build_dir}/test_model.o
+	@mkdir -p $(@D)
+	gcc $(PKG_CXXFLAGS) -o $@ $^
 
 # Serialize our graph.json file.
 $(build_dir)/graph.json.c: $(build_dir)/graph.json
@@ -88,6 +95,10 @@ $(build_dir)/test_bundle.so: bundle.cc runtime.cc $(build_dir)/test_model.o
 $(build_dir)/test_bundle_c.so: bundle.c runtime.c $(build_dir)/test_model.o
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
+
+$(build_dir)/bundle_c.o: bundle_c.c
+	@mkdir -p $(@D)
+	gcc -c $(PKG_CFLAGS) -o $@  $^
 
 clean:
 	rm -rf $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so
