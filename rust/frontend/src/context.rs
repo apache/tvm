@@ -223,7 +223,8 @@ impl<'a> From<&'a str> for TVMContext {
 impl TVMContext {
     /// Checks whether the context exists or not.
     pub fn exist(&self) -> bool {
-        let func = function::Function::get("runtime.GetDeviceAttr").expect("TVM FFI functions must always be registered.");
+        let func = function::Function::get("runtime.GetDeviceAttr")
+            .expect("TVM FFI functions must always be registered.");
         let dt = self.device_type.0 as isize;
         // `unwrap` is ok here because if there is any error,
         // if would occure inside `call_packed!`
