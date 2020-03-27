@@ -19,7 +19,7 @@
 
 /*!
  * \file src/relay/qnn/op/subtract.cc
- * \brief QNN add operator.
+ * \brief QNN subtract operator.
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
