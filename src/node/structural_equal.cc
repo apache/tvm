@@ -210,11 +210,11 @@ class RemapVarSEqualHandler :
   };
   // list of pending tasks to be pushed to the stack.
   std::vector<Task> pending_tasks_;
-  // Internal task stack to executed the task
+  // Internal task stack to executed the task.
   std::vector<Task> task_stack_;
-  // record current stack top
+  // Whether we allow push to stack.
   bool allow_push_to_stack_{true};
-  // if in assert mode, must return true, and will throw error otherwise.
+  //  If in assert mode, must return true, and will throw error otherwise.
   bool assert_mode_{false};
   // reflection vtable
   ReflectionVTable* vtable_ = ReflectionVTable::Global();

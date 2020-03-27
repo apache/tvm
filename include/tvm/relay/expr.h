@@ -107,7 +107,7 @@ class TupleNode : public ExprNode {
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
-    // specially handle empty tuple as constant and not a graph node.
+    // specially handle empty tuple as a constant is not a graph node.
     if (fields.size() == other->fields.size() && fields.size() == 0) {
       return true;
     } else {
