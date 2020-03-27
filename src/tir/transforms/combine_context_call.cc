@@ -25,7 +25,11 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+#include <tvm/runtime/registry.h>
+
 #include <tvm/tir/ir_pass.h>
+
 #include <map>
 
 namespace tvm {
@@ -114,5 +118,20 @@ LoweredFunc CombineContextCall(LoweredFunc f) {
   return LoweredFunc(n);
 }
 
+namespace transform {
+
+Pass CombineContextCall() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = ContextCallCombiner().Combine(n->body);
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "CombineContextCall", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.CombineContextCall")
+.set_body_typed(CombineContextCall);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

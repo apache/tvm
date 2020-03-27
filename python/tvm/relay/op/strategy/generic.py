@@ -479,13 +479,13 @@ def dilation2d_strategy(attrs, inputs, out_type, target):
     if layout == "NCHW":
         assert kernel_layout == "IHW"
         strategy.add_implementation(
-            wrap_compute_dilation2d(topi.nn.dilation2d_nchw),
+            wrap_compute_dilation2d(topi.image.dilation2d_nchw),
             wrap_topi_schedule(topi.generic.schedule_dilation2d_nchw),
             name="dilation2d_nchw.generic")
     elif layout == "NHWC":
         assert kernel_layout == "HWI"
         strategy.add_implementation(
-            wrap_compute_dilation2d(topi.nn.dilation2d_nhwc),
+            wrap_compute_dilation2d(topi.image.dilation2d_nhwc),
             wrap_topi_schedule(topi.generic.schedule_dilation2d_nhwc),
             name="dilation2d_nhwc.generic")
     else:

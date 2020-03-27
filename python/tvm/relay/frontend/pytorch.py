@@ -163,7 +163,7 @@ def _relu():
         return _op.nn.relu(data)
     return _impl
 
-def _adaptive_avg_2d():
+def _adaptive_avg_pool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
@@ -178,14 +178,32 @@ def _adaptive_avg_2d():
 
     return _impl
 
-def _adaptive_max_2d():
+def _adaptive_max_pool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
         output_size = _infer_shape(inputs[1])
 
+        # returns dummy indices too
         return _op.nn.adaptive_max_pool2d(
             data,
-            output_size=output_size)
+            output_size=output_size), None
+    return _impl
+
+def _adaptive_max_pool_3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        output_size = _infer_shape(inputs[1])
+        # returns dummy indices too
+        return _op.nn.adaptive_max_pool3d(data, output_size=output_size), None
+
+    return _impl
+
+def _adaptive_avg_pool_3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        output_size = _infer_shape(inputs[1])
+        return _op.nn.adaptive_avg_pool3d(data, output_size=output_size)
+
     return _impl
 
 def _maxpool_2d():
@@ -195,10 +213,31 @@ def _maxpool_2d():
         pool_size = _infer_shape(inputs[1])
         strides = _infer_shape(inputs[2])
         padding = _infer_shape(inputs[3])
-
+        dilation = _infer_shape(inputs[4])
         ceil_mode = int(inputs[5])
 
+        if dilation != (1, 1):
+            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
+
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+    return _impl
+
+def _maxpool_1d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        pool_size = _infer_shape(inputs[1])
+        strides = _infer_shape(inputs[2])
+        padding = _infer_shape(inputs[3])
+        dilation = _infer_shape(inputs[4])
+        ceil_mode = int(inputs[5])
+
+        if dilation != (1,):
+            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
+
+        return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
     return _impl
 
 def _hardtanh():
@@ -232,7 +271,12 @@ def _convolution():
         channels = weight_shape[0]
         groups = int(inputs[8])
 
-        if groups > 1:
+        # Check if this is depth wise convolution
+        # We need to reshape weight so that Relay could recognize this is depth wise
+        # weight_shape[1] is always in_channels // groups
+        # For depthwise, in_channels == groups, so weight_shape[1] == 1
+        # If groups > 1 but weight_shape[1] != 1, this is group convolution
+        if groups > 1 and weight_shape[1] == 1:
             channel_multiplier = channels // groups
             new_weight_shape = (groups, channel_multiplier, weight_shape[2], weight_shape[3])
             weight = _op.transform.reshape(weight, new_weight_shape)
@@ -249,33 +293,30 @@ def _convolution():
         if isinstance(dilation, _expr.Expr):
             dilation = _infer_shape(dilation)
 
-        if use_transpose:
-            conv_out = _op.nn.conv2d_transpose(data,
-                                               weight,
-                                               strides=strides,
-                                               padding=padding,
-                                               dilation=dilation,
-                                               groups=groups,
-                                               channels=channels,
-                                               kernel_size=kernel_size,
-                                               data_layout="NCHW",
-                                               kernel_layout="OIHW",
-                                               out_layout="",
-                                               out_dtype="")
-        else:
-            conv_out = _op.nn.conv2d(data,
-                                     weight,
-                                     strides=strides,
-                                     padding=padding,
-                                     dilation=dilation,
-                                     groups=groups,
-                                     channels=channels,
-                                     kernel_size=kernel_size,
-                                     data_layout="NCHW",
-                                     kernel_layout="OIHW",
-                                     out_layout="",
-                                     out_dtype="")
+        data_layout = "NCHW"
+        kernel_layout = "OIHW"
+        conv_op = _op.nn.conv2d
 
+        if use_transpose:
+            assert len(kernel_size) == 2, "ConvTranspose 3D not supported"
+            conv_op = _op.nn.conv2d_transpose
+        if len(kernel_size) == 3:
+            conv_op = _op.nn.conv3d
+            data_layout = "NCDHW"
+            kernel_layout = "OIDHW"
+
+        conv_out = conv_op(data,
+                           weight,
+                           strides=strides,
+                           padding=padding,
+                           dilation=dilation,
+                           groups=groups,
+                           channels=channels,
+                           kernel_size=kernel_size,
+                           data_layout=data_layout,
+                           kernel_layout=kernel_layout,
+                           out_layout="",
+                           out_dtype="")
         if use_bias:
             return _op.nn.bias_add(conv_out, bias)
         else:
@@ -844,10 +885,11 @@ _convert_map = {
     "aten::select"                          : _select(),
     "aten::relu"                            : _relu(),
     "aten::relu_"                           : _relu(),
-    "aten::adaptive_avg_pool2d"             : _adaptive_avg_2d(),
-    "aten::adaptive_max_pool2d"             : _adaptive_max_2d(),
+    "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
+    "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
     "aten::max_pool2d"                      : _maxpool_2d(),
     "aten::max_pool2d_with_indices"         : _maxpool_2d(),
+    "aten::max_pool1d"                      : _maxpool_1d(),
     "aten::hardtanh"                        : _hardtanh(),
     "aten::hardtanh_"                       : _hardtanh(),
     "aten::_convolution"                    : _convolution(),
@@ -895,6 +937,8 @@ _convert_map = {
     "aten::Float"                           : _Float(),
     "aten::neg"                             : _neg(),
     "aten::tanh"                            : _tanh(),
+    "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
+    "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d()
 }
 
 
@@ -954,6 +998,7 @@ def _report_missing_conversion(op_names):
     if missing:
         msg = "The following operators are not implemented: {}".format(missing)
         raise NotImplementedError(msg)
+
 
 def _check_input_names(script_module, input_shapes):
     """ Check the graph inputs match the inputs """
@@ -1272,9 +1317,18 @@ def convert_operators(operators, outputs, output_index_map, ret_names):
             _update_outputs_from_pairs(zip(unpacked_names, loop_out),
                                        outputs, output_index_map)
         else:
-            output_index_map[node_name] = len(outputs)
             relay_op = _convert_map[operator]
-            outputs.append(relay_op(inputs, _get_input_types(op_node)))
+            relay_out = relay_op(inputs, _get_input_types(op_node))
+
+            if isinstance(relay_out, tuple):
+                # This is for torch operators that return multiple outputs
+                # See _adaptive_max_2d above for example
+                out_names = _get_output_names(op_node)
+                _update_outputs_from_pairs(zip(out_names, relay_out),
+                                           outputs, output_index_map)
+            else:
+                output_index_map[node_name] = len(outputs)
+                outputs.append(relay_out)
 
     return [_wrap_const(outputs[output_index_map[ret_name]])
             for ret_name in ret_names]

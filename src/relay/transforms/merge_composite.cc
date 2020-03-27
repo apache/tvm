@@ -45,7 +45,7 @@ class MergeCompositeWrapper : public ExprMutator {
     if (var_map->find(pattern->name_hint()) == var_map->end()) {
       // if we haven't encountered this var yet, make a new free var and associate
       // it with the value at 'root'
-      auto free_var = VarNode::make(pattern->name_hint(), Type());
+      auto free_var = Var(pattern->name_hint(), Type());
       var_map->Set(pattern->name_hint(), Array<Expr>({free_var, root}));
       return std::move(free_var);
     } else {
@@ -64,6 +64,31 @@ class MergeCompositeWrapper : public ExprMutator {
   Expr ExtractPattern(const Constant& pattern, const Expr& root,
           Map<std::string, Array<Expr>>* var_map) {
     return root;
+  }
+
+  Expr ExtractPattern(const TupleGetItem& pattern, const Expr& root,
+      Map<std::string, Array<Expr>>* var_map, Map<Expr, Expr>* call_map) {
+    if (!root->IsInstance<TupleGetItemNode>()) {
+      return Expr();
+    }
+    auto root_node = Downcast<TupleGetItem>(root);
+    if (pattern->index != root_node->index) {
+      return Expr();
+    }
+    if (pattern->tuple->IsInstance<CallNode>() &&
+        root_node->tuple->IsInstance<CallNode>()) {
+      Expr new_arg;
+      if (call_map->find(pattern->tuple) != call_map->end()) {
+        new_arg = (*call_map)[pattern->tuple];
+      } else {
+        new_arg = ExtractPattern(Downcast<Call>(pattern->tuple),
+                                 Downcast<Call>(root_node->tuple),
+                                 var_map, call_map);
+        call_map->Set(pattern->tuple, new_arg);
+      }
+      return TupleGetItem(new_arg, root_node->index);
+    }
+    return Expr();
   }
 
   /*!
@@ -125,6 +150,10 @@ class MergeCompositeWrapper : public ExprMutator {
         new_arg = ExtractPattern(Downcast<Constant>(arg),
                                  root->args[i],
                                  var_map);
+      } else if (arg->IsInstance<TupleGetItemNode>()) {
+        new_arg = ExtractPattern(Downcast<TupleGetItem>(arg),
+                                 root->args[i],
+                                 var_map, call_map);
       }
       if (!new_arg.defined()) {
         return Expr();
@@ -132,7 +161,7 @@ class MergeCompositeWrapper : public ExprMutator {
       new_args.push_back(new_arg);
       i++;
     }
-    return CallNode::make(root->op, new_args, root->attrs);
+    return Call(root->op, new_args, root->attrs);
   }
 
   Expr VisitExpr_(const CallNode* cn) {
@@ -149,7 +178,7 @@ class MergeCompositeWrapper : public ExprMutator {
           auto new_e = this->Mutate(arg);
           new_args.push_back(new_e);
         }
-        return CallNode::make(call->op, new_args, call->attrs);
+        return Call(call->op, new_args, call->attrs);
       }
     }
 
@@ -175,7 +204,7 @@ class MergeCompositeWrapper : public ExprMutator {
       for (const auto& free_var : free_vars) {
         args.push_back(args_map[free_var->name_hint()][1]);
       }
-      auto new_call = CallNode::make(f, args);
+      auto new_call = Call(f, args);
       return std::move(new_call);
     }
     return std::move(call);

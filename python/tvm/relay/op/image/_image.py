@@ -20,6 +20,9 @@ from __future__ import absolute_import
 
 import topi
 from .. import op as reg
+from .. import strategy
+from ..op import OpPattern
+
 
 # resize
 @reg.register_compute("image.resize")
@@ -47,3 +50,8 @@ def compute_crop_and_resize(attrs, inputs, out_type):
                                        extrapolation_value, out_dtype)]
 
 reg.register_injective_schedule("image.crop_and_resize")
+
+
+# dilation2d
+reg.register_strategy("image.dilation2d", strategy.dilation2d_strategy)
+reg.register_pattern("image.dilation2d", OpPattern.OUT_ELEMWISE_FUSABLE)

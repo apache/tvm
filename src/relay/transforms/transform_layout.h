@@ -138,7 +138,7 @@ class TransformMemorizer : public ObjectRef {
     // 2) Insert layout transform on the transformed src.
     CHECK(new_src_layout.defined() && dst_layout.defined())
         << "Cannot insert layout transform because there are undefined layouts";
-    CHECK(BijectiveLayoutNode::make(new_src_layout, dst_layout).defined())
+    CHECK(tir::BijectiveLayout(new_src_layout, dst_layout).defined())
         << "Cannot insert layout transform because there are inconvertible layouts: "
         << new_src_layout << " v.s. " << dst_layout;
     return MakeLayoutTransform(input_expr, new_src_layout.name(), dst_layout.name());
@@ -225,7 +225,6 @@ template <class TransformMemorizerT>
 Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const ObjectRef& ctx) {
   std::vector<LayoutAlternatedExpr<TransformMemorizerT>> inputs;
   std::vector<Expr> normal_new_args;
-  Array<Array<IndexExpr>> input_shapes;
 
   // NOTE: discard the "const" qualifier
   // TransformMemorizer memorizer = Downcast<TransformMemorizer>(ctx);
@@ -259,7 +258,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
         Expr tmp = push_back_one_arg(x);
         fields.push_back(tmp);
       }
-      normal_new_args.push_back(TupleNode::make(fields));
+      normal_new_args.push_back(Tuple(fields));
     } else {
       Expr tmp = push_back_one_arg(new_arg);
       normal_new_args.push_back(tmp);
@@ -273,21 +272,16 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
     new_in.push_back(inp->new_layout);
   }
 
+  // Collect input types to pass on to Infer Correct Layout.
+  tvm::Array<tvm::relay::Type> types;
   for (auto arg : ref_call->args) {
-    if (arg->IsInstance<TupleNode>()) {  // flatten tuple
-      Tuple tuple_arg = Downcast<Tuple>(arg);
-      for (auto x : tuple_arg->fields) {
-        input_shapes.push_back(x->type_as<TensorTypeNode>()->shape);
-      }
-    } else {
-      input_shapes.push_back(arg->type_as<TensorTypeNode>()->shape);
-    }
+    types.push_back(arg->checked_type());
   }
 
   // old_in, old_out = op.infer(old_in)
   bool success = false;
   std::tie(old_in, old_out, success) =
-      InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, input_shapes);
+      InferCorrectLayouts(ref_call, Array<Layout>(nullptr), old_in, types);
   if (!success) {
     return Expr(nullptr);
   }
@@ -307,7 +301,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   if (new_call->op->IsInstance<OpNode>()) {
     success = false;
     std::tie(new_in2, new_out, success) =
-        InferCorrectLayouts(new_call, new_in, old_in, input_shapes);
+        InferCorrectLayouts(new_call, new_in, old_in, types);
     if (!success) {
       return Expr(nullptr);
     }
@@ -331,7 +325,7 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
         transformed_tuple_arg.push_back(memorizer.Transform(arg_item, new_in[pt], new_in2[pt]));
         pt++;
       }
-      transformed_args.push_back(TupleNode::make(transformed_tuple_arg));
+      transformed_args.push_back(Tuple(transformed_tuple_arg));
     } else {
       transformed_args.push_back(memorizer.Transform(arg, new_in[pt], new_in2[pt]));
       pt++;
@@ -342,21 +336,21 @@ Expr LayoutRewriter(const Call& ref_call, const Array<Expr>& new_args, const Obj
   // state[node] = (old_out, new_out)
   // (handle tuple output)
   if (ref_call->checked_type()->IsInstance<TupleTypeNode>()) {
-    Expr tuple_output = CallNode::make(new_call->op, transformed_args, new_call->attrs);
+    Expr tuple_output = Call(new_call->op, transformed_args, new_call->attrs);
     Array<Expr> fields;
     for (size_t i = 0; i < new_out.size(); ++i) {
       auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
-      rnode->value = TupleGetItemNode::make(tuple_output, i);
+      rnode->value = TupleGetItem(tuple_output, i);
       rnode->old_layout = old_out[i];
       rnode->new_layout = new_out[i];
       rnode->memorizer = memorizer;
       fields.push_back(Expr(rnode));
     }
-    return TupleNode::make(fields);
+    return Tuple(fields);
   } else {
     auto rnode = make_object<LayoutAlternatedExprNode<TransformMemorizerT>>();
     CHECK_EQ(new_out.size(), 1);
-    rnode->value = CallNode::make(new_call->op, transformed_args, new_call->attrs);
+    rnode->value = Call(new_call->op, transformed_args, new_call->attrs);
     rnode->old_layout = old_out[0];
     rnode->new_layout = new_out[0];
     rnode->memorizer = memorizer;

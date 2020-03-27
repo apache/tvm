@@ -14,23 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Wrapping existing transformations."""
+# pylint: disable=invalid-name
 
-[package]
-name = "tvm-macros-raw"
-version = "0.1.1"
-license = "Apache-2.0"
-description = "Proc macros used by the TVM crates."
-repository = "https://github.com/apache/incubator-tvm"
-readme = "README.md"
-keywords = ["tvm"]
-authors = ["TVM Contributors"]
-edition = "2018"
+from . import _ffi_api
 
-[lib]
-proc-macro = true
 
-[dependencies]
-goblin = "0.0.24"
-proc-macro2 = "^1.0"
-quote = "1.0"
-syn = "1.0"
+def CombineContextCall():
+    """Combine context calls in the host function.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CombineContextCall()

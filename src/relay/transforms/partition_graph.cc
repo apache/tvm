@@ -42,6 +42,8 @@
 #include <utility>
 #include <vector>
 
+#include "../backend/utils.h"
+
 namespace tvm {
 namespace relay {
 namespace partitioning {
@@ -167,7 +169,7 @@ class Partitioner : public ExprMutator {
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
       // The type of the created variable is the same as the compiler_begin
       // node.
-      auto var = VarNode::make(compiler_attrs->compiler + "_input" + std::to_string(var_id_++),
+      auto var = Var(compiler_attrs->compiler + "_input" + std::to_string(var_id_++),
                                call->checked_type_);
 
       // Find the corresponding subgraph and add the argument.
@@ -200,14 +202,20 @@ class Partitioner : public ExprMutator {
       auto input = VisitExpr(call->args[0]);
       Array<Var> params;
       Array<Expr> args;
+      std::unordered_map<std::string, runtime::NDArray> params_bind;
 
       // The subgraph may be merged so we need to update it again.
       subgraph = GetSubgraph(GetRef<Call>(call));
       CHECK(subgraph);
 
+      // Record the constants for propagation.
       for (auto pair : subgraph->args) {
         params.push_back(pair.first);
-        args.push_back(pair.second);
+        if (const auto* cn = pair.second.as<ConstantNode>()) {
+          params_bind[pair.first->name_hint()] = cn->data;
+        } else {
+          args.push_back(pair.second);
+        }
       }
 
       auto subgraph_func =
@@ -223,6 +231,11 @@ class Partitioner : public ExprMutator {
                    tvm::tir::StringImmNode::make(compiler_attrs->compiler));
       subgraph_func =
           WithAttr(std::move(subgraph_func), attr::kInline, tvm::Integer(1));
+
+      // Constant propagation
+      if (!params_bind.empty()) {
+        subgraph_func = backend::BindParamsByName(subgraph_func, params_bind);
+      }
       CHECK(!module_->ContainGlobalVar(name))
           << "Global function " << name << " already exists";
       // Create a global function and add it to the IRModule for the subgraph.
@@ -233,7 +246,7 @@ class Partitioner : public ExprMutator {
       module_->Add(glob_func, subgraph_func);
       // The return type of callnode is the same as the type of the
       // compiler_end node.
-      auto ret = CallNode::make(glob_func, args);
+      auto ret = Call(glob_func, args);
       ret->checked_type_ = call->checked_type_;
       return std::move(ret);
     }
@@ -251,7 +264,7 @@ class Partitioner : public ExprMutator {
       for (auto field : op->fields) {
         fields.push_back(VisitExpr(field));
       }
-      return TupleNode::make(fields);
+      return Tuple(fields);
     }
   }
 
@@ -262,7 +275,7 @@ class Partitioner : public ExprMutator {
     } else {
       AddToSubgraph(subgraph, g->tuple);
       auto t = VisitExpr(g->tuple);
-      return TupleGetItemNode::make(t, g->index);
+      return TupleGetItem(t, g->index);
     }
   }
 
@@ -296,7 +309,7 @@ class Partitioner : public ExprMutator {
       auto value = VisitExpr(op->value);
       auto body = VisitExpr(op->body);
 
-      return LetNode::make(var, value, body);
+      return Let(var, value, body);
     }
   }
 
@@ -311,7 +324,7 @@ class Partitioner : public ExprMutator {
       auto guard = VisitExpr(op->cond);
       auto true_b = VisitExpr(op->true_branch);
       auto false_b = VisitExpr(op->false_branch);
-      return IfNode::make(guard, true_b, false_b);
+      return If(guard, true_b, false_b);
     }
   }
 
@@ -322,7 +335,7 @@ class Partitioner : public ExprMutator {
     } else {
       AddToSubgraph(subgraph, op->value);
       Expr value = VisitExpr(op->value);
-      return RefCreateNode::make(value);
+      return RefCreate(value);
     }
   }
 
@@ -333,7 +346,7 @@ class Partitioner : public ExprMutator {
     } else {
       AddToSubgraph(subgraph, op->ref);
       Expr ref = VisitExpr(op->ref);
-      return RefReadNode::make(ref);
+      return RefRead(ref);
     }
   }
 
@@ -345,7 +358,7 @@ class Partitioner : public ExprMutator {
       AddToSubgraph(subgraph, op->ref);
       Expr ref = VisitExpr(op->ref);
       Expr value = VisitExpr(op->value);
-      return RefWriteNode::make(ref, value);
+      return RefWrite(ref, value);
     }
   }
 

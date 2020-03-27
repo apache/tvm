@@ -43,7 +43,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_e = ExprMutator::VisitExpr_(cn);
 
     Call call = Downcast<Call>(new_e);
-    static auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
+    auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
     Op op = Downcast<Op>(call->op);
     CHECK(op.defined());
 
@@ -58,7 +58,7 @@ class AnnotateTargetWrapper : public ExprMutator {
           Expr begin = (*begin_op)(it, target_);
           compiler_begins.push_back(begin);
         }
-        Expr update_call = CallNode::make(call->op, compiler_begins, call->attrs);
+        Expr update_call = Call(call->op, compiler_begins, call->attrs);
         const auto* end_op =
           runtime::Registry::Get("relay.op.annotation._make.compiler_end");
         CHECK(end_op);

@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, no-member
-"""Generic vision operators"""
+"""Generic sort operators"""
 from __future__ import absolute_import as _abs
-from .vision import _default_schedule
+from .default import default_schedule as _default_schedule
+
 
 def schedule_argsort(outs):
     """Schedule for argsort operator.

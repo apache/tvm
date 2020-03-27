@@ -51,7 +51,7 @@ sys.path.insert(0, os.path.join(curr_path, '../vta/python'))
 # General information about the project.
 project = u'tvm'
 author = u'Apache Software Foundation'
-copyright = u'2019, %s' % author
+copyright = u'2020, %s' % author
 github_doc_root = 'https://github.com/apache/incubator-tvm/tree/master/docs/'
 
 # add markdown parser
@@ -77,9 +77,6 @@ extensions = [
     'sphinx_gallery.gen_gallery',
     'autodocsumm'
 ]
-
-breathe_projects = {'tvm' : 'doxygen/xml/'}
-breathe_default_project = 'tvm'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -208,10 +205,6 @@ subsection_order = ExplicitOrder(
      '../vta/tutorials/optimize',
      '../vta/tutorials/autotvm'])
 
-def generate_doxygen_xml(app):
-    """Run the doxygen make commands if we're on the ReadTheDocs server"""
-    run_doxygen('..')
-
 sphinx_gallery_conf = {
     'backreferences_dir': 'gen_modules/backreferences',
     'doc_module': ('tvm', 'numpy'),
@@ -232,24 +225,12 @@ autodoc_default_options = {
     'member-order': 'bysource',
 }
 
-# hook for doxygen
-def run_doxygen(folder):
-    """Run the doxygen make command in the designated folder."""
-    try:
-        #retcode = subprocess.call("cd %s; make doc" % folder, shell=True)
-        retcode = subprocess.call("rm -rf _build/html/doxygen", shell=True)
-        retcode = subprocess.call("mkdir -p _build/html", shell=True)
-        retcode = subprocess.call("cp -rf doxygen/html _build/html/doxygen", shell=True)
-        if retcode < 0:
-            sys.stderr.write("doxygen terminated by signal %s" % (-retcode))
-    except OSError as e:
-        sys.stderr.write("doxygen execution failed: %s" % e)
-
 # Maps the original namespace to list of potential modules
 # that we can import alias from.
 tvm_alias_check_map = {
     "tvm.te": ["tvm.tir"],
     "tvm.tir": ["tvm.ir", "tvm.runtime"],
+    "tvm.relay": ["tvm.ir", "tvm.tir"],
 }
 
 def update_alias_docstring(name, obj, lines):
@@ -299,9 +280,6 @@ def process_docstring(app, what, name, obj, options, lines):
 
 
 def setup(app):
-    # Add hook for building doxygen xml when needed
-    # no c++ API for now
-    app.connect("builder-inited", generate_doxygen_xml)
     app.connect('autodoc-process-docstring', process_docstring)
     app.add_stylesheet('css/tvm_theme.css')
     app.add_config_value('recommonmark_config', {

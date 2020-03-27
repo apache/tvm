@@ -155,7 +155,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
   Expr Compound(const Expr& orig, const Expr& now, const Var& v) {
     Var var = v.defined() ?
       v :
-      VarNode::make(std::string("x"), Type());
+      Var(std::string("x"), Type());
     return GetScope(orig)->ll->Push(var, now);
   }
 
@@ -165,7 +165,7 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     for (const auto& a : c->args) {
       args.push_back(VisitExpr(a));
     }
-    return Compound(e, CallNode::make(VisitExpr(c->op), args, c->attrs, c->type_args), v);
+    return Compound(e, Call(VisitExpr(c->op), args, c->attrs, c->type_args), v);
   }
 
   Expr VisitExpr_(const TupleNode* t, const Var& v) final {
@@ -174,32 +174,32 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     for (const auto& a : t->fields) {
       fields.push_back(VisitExpr(a));
     }
-    return Compound(e, TupleNode::make(fields), v);
+    return Compound(e, Tuple(fields), v);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* t, const Var& v) final {
     Expr e = GetRef<Expr>(t);
-    return Compound(e, TupleGetItemNode::make(VisitExpr(t->tuple), t->index), v);
+    return Compound(e, TupleGetItem(VisitExpr(t->tuple), t->index), v);
   }
 
   Expr VisitExpr_(const RefCreateNode* r, const Var& v) final {
     Expr e = GetRef<Expr>(r);
-    return Compound(e, RefCreateNode::make(VisitExpr(r->value)), v);
+    return Compound(e, RefCreate(VisitExpr(r->value)), v);
   }
 
   Expr VisitExpr_(const RefReadNode* r, const Var& v) final {
     Expr e = GetRef<Expr>(r);
-    return Compound(e, RefReadNode::make(VisitExpr(r->ref)), v);
+    return Compound(e, RefRead(VisitExpr(r->ref)), v);
   }
 
   Expr VisitExpr_(const RefWriteNode* r, const Var& v) final {
     Expr e = GetRef<Expr>(r);
-    return Compound(e, RefWriteNode::make(VisitExpr(r->ref), VisitExpr(r->value)), v);
+    return Compound(e, RefWrite(VisitExpr(r->ref), VisitExpr(r->value)), v);
   }
 
   Expr VisitExpr_(const IfNode* i, const Var& v) final {
     Expr e = GetRef<Expr>(i);
-    Expr ret = IfNode::make(VisitExpr(i->cond),
+    Expr ret = If(VisitExpr(i->cond),
                             GetSubScope(e, 1)->ll->Get(VisitExpr(i->true_branch)),
                             GetSubScope(e, 2)->ll->Get(VisitExpr(i->false_branch)));
     return Compound(e, ret, v);
@@ -257,11 +257,11 @@ class Fill : ExprFunctor<Expr(const Expr&, const Var&)> {
     Expr data = VisitExpr(m->data);
     std::vector<Clause> clauses;
     for (const Clause& c : m->clauses) {
-      clauses.push_back(ClauseNode::make(
+      clauses.push_back(Clause(
         c->lhs,
         GetSubScope(e, 1 + clauses.size())->ll->Get(VisitExpr(c->rhs))));
     }
-    return Compound(e, MatchNode::make(data, clauses, m->complete), v);
+    return Compound(e, Match(data, clauses, m->complete), v);
   }
 };
 

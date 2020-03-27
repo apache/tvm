@@ -37,10 +37,10 @@ namespace codegen {
 class CodeGenOpenGL final : public CodeGenC {
  public:
   CodeGenOpenGL();
-  void AddFunction(LoweredFunc f);
   std::unordered_map<std::string, runtime::OpenGLShader> Finish();
 
-  void InitFuncState(LoweredFunc f) final;
+  void AddFunction(const PrimFunc& f);
+  void InitFuncState(const PrimFunc& f) final;
   void BindThreadIndex(const IterVar& iv) final;
   void VisitStmt_(const StoreNode* op) final;
   std::string TexelFetch(const VarNode* buffer, PrimExpr index);

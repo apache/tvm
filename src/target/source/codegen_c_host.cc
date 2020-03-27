@@ -41,59 +41,16 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
   CodeGenC::Init(output_ssa);
 }
 
-void CodeGenCHost::AddFunction(LoweredFunc f) {
-  // clear previous generated state.
-  this->InitFuncState(f);
-  // reserve keywords
-  ReserveKeywordsAsUnique();
-  // add to alloc buffer type.
-  for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.dtype());
-  }
-
-  this->stream << "#ifdef __cplusplus\n";
-  this->stream << "extern \"C\"\n";
-  this->stream << "#endif\n";
-  this->stream << "TVM_DLL int32_t " << f->name << "(";
-  for (size_t i = 0; i < f->args.size(); ++i) {
-    Var v = f->args[i];
-    std::string vid = AllocVarID(v.get());
-    if (i != 0) stream << ", ";
-    if (v.dtype().is_handle()) {
-      auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end()) {
-        PrintStorageScope(it->second, stream);
-      }
-      stream << ' ';
-
-      if (handle_data_type_.count(v.get())) {
-        PrintType(handle_data_type_.at(v.get()), stream);
-      } else {
-        stream << "void";
-      }
-      stream << "*";
-
-      if (f->is_restricted && restrict_keyword_.length() != 0) {
-        stream << ' ' << restrict_keyword_;
-      }
-    } else {
-      PrintType(v.dtype(), stream);
-    }
-    stream << ' ' << vid;
-  }
-  stream << ") {\n";
-  this->PreFunctionBody(f);
-  int func_scope = this->BeginScope();
-  this->PrintStmt(f->body);
-  this->PrintIndent();
-  this->stream << "return 0;\n";
-  this->EndScope(func_scope);
-  this->PrintIndent();
-  this->stream << "}\n\n";
+void CodeGenCHost::PrintFuncPrefix() {  // NOLINT(*)
+  stream << "#ifdef __cplusplus\n"
+         << "extern \"C\"\n"
+         << "#endif\n"
+         << "TVM_DLL int32_t";
 }
 
-std::string CodeGenCHost::Finish() {
-  return CodeGenC::Finish();
+void CodeGenCHost::PrintFinalReturn() {  // NOLINT(*)
+  this->PrintIndent();
+  stream << "return 0;\n";
 }
 
 void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
@@ -277,20 +234,25 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op,
      << "? (" << a_id << ") : (" << b_id << "))";
 }
 
-runtime::Module BuildCHost(Array<LoweredFunc> funcs) {
+runtime::Module BuildCHost(IRModule mod) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   bool emit_asserts = false;
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodegenCHost: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
     cg.AddFunction(f);
   }
+
   std::string code = cg.Finish();
   return CSourceModuleCreate(code, "c");
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_c")
+TVM_REGISTER_GLOBAL("target.build.c")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildCHost(args[0]);
   });

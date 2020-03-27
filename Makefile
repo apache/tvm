@@ -90,7 +90,7 @@ doc:
 
 javadoc:
 	# build artifact is in jvm/core/target/site/apidocs
-	cd jvm && mvn javadoc:javadoc
+	cd jvm && mvn javadoc:javadoc -Dnotimestamp=true
 
 # Cython build
 cython:

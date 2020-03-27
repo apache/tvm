@@ -125,7 +125,7 @@ class ForwardRewriter : private ExprMutator {
       if (tuple.same_as(op->tuple)) {
         return GetRef<Expr>(op);
       } else {
-        return TupleGetItemNode::make(tuple, op->index);
+        return TupleGetItem(tuple, op->index);
       }
     }
   }
@@ -142,7 +142,7 @@ class ForwardRewriter : private ExprMutator {
     if (all_fields_unchanged) {
       return GetRef<Expr>(op);
     } else {
-      return TupleNode::make(fields);
+      return Tuple(fields);
     }
   }
 
@@ -185,7 +185,7 @@ class ForwardRewriter : private ExprMutator {
       }
     }
     if (unchanged) return ref_call;
-    return CallNode::make(
+    return Call(
         new_op, call_args, call_node->attrs, call_node->type_args);
   }
 };

@@ -44,9 +44,19 @@ fn main() {
             .unwrap_or("")
     );
 
-    let mut builder = Builder::new(File::create(format!("{}/libgraph.a", out_dir)).unwrap());
+    let lib_file = format!("{}/libtestnn.a", out_dir);
+    let file = File::create(&lib_file).unwrap();
+    let mut builder = Builder::new(file);
     builder.append_path(format!("{}/graph.o", out_dir)).unwrap();
 
-    println!("cargo:rustc-link-lib=static=graph");
+    let status = Command::new("ranlib")
+        .arg(&lib_file)
+        .status()
+        .expect("fdjlksafjdsa");
+
+    assert!(status.success());
+
+
+    println!("cargo:rustc-link-lib=static=testnn");
     println!("cargo:rustc-link-search=native={}", out_dir);
 }

@@ -105,10 +105,10 @@ Call ParallelOpBatchCombiner::MakeCombinedOp(const Group& branches) {
       arg_from_all_branches.push_back(branch[0]->args[i]);
     }
 
-    new_args.push_back(MakeStack(TupleNode::make(arg_from_all_branches), 0));
+    new_args.push_back(MakeStack(Tuple(arg_from_all_branches), 0));
   }
 
-  return CallNode::make(batch_op, new_args, Attrs(), {});
+  return Call(batch_op, new_args, Attrs(), {});
 }
 
 bool ParallelOpBatchCombiner::IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
@@ -153,11 +153,11 @@ Call ParallelOpBatchCombiner::MakeCombinedCallFromFollowingOps(const Expr& data,
       }
     }
 
-    auto stack = MakeStack(TupleNode::make(tuple), 0);
+    auto stack = MakeStack(Tuple(tuple), 0);
     new_args.push_back(std::move(stack));
   }
 
-  return CallNode::make(call->op, new_args, call->attrs, {});
+  return Call(call->op, new_args, call->attrs, {});
 }
 
 void ParallelOpBatchCombiner::UpdateGroupOutput(const Expr& data,
@@ -167,7 +167,7 @@ void ParallelOpBatchCombiner::UpdateGroupOutput(const Expr& data,
   int index = 0;
   auto split = MakeSplit(data, Integer(branches.size()), 0);
   for (const auto& branch : branches) {
-    auto split_data = TupleGetItemNode::make(split, index++);
+    auto split_data = TupleGetItem(split, index++);
     auto squeezed_data = MakeSqueeze(split_data, {0});
     subst_map->insert({GetRef<Expr>(branch[depth]), squeezed_data});
   }

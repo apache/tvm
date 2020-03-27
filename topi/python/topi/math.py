@@ -278,6 +278,40 @@ def isnan(x):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
+def isfinite(x):
+    """Check if value of x is finite, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.isfinite(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def isinf(x):
+    """Check if value of x is infinite, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.isinf(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def round(x):
     """Round elements of x to nearest integer.
 

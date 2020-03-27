@@ -1207,6 +1207,8 @@ def test_forward_stridedslice():
     '''test StridedSlice'''
 
     _test_stridedslice((2), [1], [1], [1], 'float32', shrink_axis_mask=1)
+    _test_stridedslice((2, 1), [0], [1], [1], 'float32', shrink_axis_mask=1)
+    _test_stridedslice((2, 3, 4), [0], [1], [1], 'float32', shrink_axis_mask=8)
     _test_stridedslice((3, 4, 3), [1, -1, 0],
                        [4, -5, 3], [2, -1, 1], 'float32')
     _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [
@@ -2669,6 +2671,26 @@ def test_forward_tan():
     tf.tan(in_data, name="tan")
     compare_tf_with_tvm([np_data], ['in_data:0'], 'tan:0')
 
+def test_forward_atan():
+    """test operator tan """
+    tf.disable_eager_execution()
+    np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data = tf.placeholder(tf.float32, (2, 3, 5), name="in_data")
+    tf.atan(in_data, name="atan")
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'atan:0')
+
+def test_forward_atan2():
+    """test operator tan """
+    tf.disable_eager_execution()
+    np_data_1 = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    np_data_2 = np.random.uniform(1, 100, size=(2, 3, 5)).astype(np.float32)
+    tf.reset_default_graph()
+    in_data_1 = tf.placeholder(tf.float32, (2, 3, 5), name="in_data_1")
+    in_data_2 = tf.placeholder(tf.float32, (2, 3, 5), name="in_data_2")
+    tf.atan2(in_data_1, in_data_2, name="atan2")
+    compare_tf_with_tvm([np_data_1, np_data_2], ['in_data_1:0', 'in_data_2:0'], 'atan2:0')
+
 
 def test_forward_sin():
     """test operator sin """
@@ -3037,6 +3059,57 @@ def test_forward_add_n():
     _test_forward_add_n(in5)
 
 
+#######################################################################
+# Unravel Index
+# ----------------------
+def _test_forward_unravel_index(inputs):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        temp = []
+        for each in inputs:
+            temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
+        output = tf.unravel_index(temp[0], temp[1])
+        compare_tf_with_tvm([each for each in inputs], [
+            each.name for each in temp], output.name)
+
+
+def _test_forward_unravel_index_scalar(x, y, dtype="int32"):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        indices_1 = constant_op.constant(x, dtype=dtype)
+        dims_1 = constant_op.constant(y, dtype=dtype)
+        out_1 = array_ops.unravel_index(indices_1, dims_1)
+        compare_tf_with_tvm([], [], out_1.name)
+
+
+def test_forward_unravel_index():
+    x = np.array([0, 1, 2, 3])
+    y = np.array([2, 2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([0, 1, 2, 5])
+    y = np.array([2, 2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([0, 1, 2, 5])
+    y = np.array([2])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([102, 300, 16])
+    y = np.array([10, 10, 9, 6])
+    _test_forward_unravel_index([x, y])
+
+    x = np.array([100])
+    y = np.array([10, 10, 9, 6])
+    _test_forward_unravel_index([x, y])
+
+    # Test scalar input
+    _test_forward_unravel_index_scalar(13, [1, 4, 5, 2])
+
+
+#######################################################################
+# Dilation2d
+# ----------------------
 def _test_dilation2d(tensor_in_sizes, filter_in_sizes,
                      strides, dilations, padding):
     """ One iteration of dilation2d with given shapes and attributes """
@@ -3081,7 +3154,37 @@ def test_forward_dilation():
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 2, 2, 1], "SAME")
     _test_dilation2d([1, 3, 3, 1], [2, 2, 1], [1, 1, 1, 1], [1, 1, 2, 1], "VALID")
 
-# #######################################################################
+
+#######################################################################
+# infinity ops
+# ------------
+def _verify_infiniteness_ops(tf_op, name):
+    """test operator infinity ops"""
+
+    # Only float types are allowed in Tensorflow for isfinite and isinf
+    # float16 is failing on cuda
+    tf_dtypes = ["float32", "float64"]
+    for tf_dtype in tf_dtypes:
+        shape = (8, 8)
+        data = np.random.uniform(size=shape).astype(tf_dtype)
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.infty
+        data.ravel()[np.random.choice(data.size, int(data.size * 0.5), replace=False)] = np.nan
+
+        tf.reset_default_graph()
+        in_data = tf.placeholder(tf_dtype, shape, name="in_data")
+        tf_op(in_data, name=name)
+        compare_tf_with_tvm([data], ['in_data:0'], '{}:0'.format(name))
+
+
+def test_forward_isinf():
+    _verify_infiniteness_ops(tf.is_inf, "isinf")
+
+
+def test_forward_isfinite():
+    _verify_infiniteness_ops(tf.is_finite, "isfinite")
+
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -3116,6 +3219,8 @@ if __name__ == '__main__':
     test_forward_left_shift()
     test_forward_truncatemod()
     test_forward_one_hot()
+    test_forward_atan()
+    test_forward_atan2()
 
     # Activations
     test_forward_sigmoid()
@@ -3151,6 +3256,9 @@ if __name__ == '__main__':
     test_forward_squared_difference()
     test_forward_add_n()
     test_forward_floormod()
+    test_forward_isfinite()
+    test_forward_isinf()
+    test_forward_unravel_index()
 
     # Reductions
     test_forward_argminmax()

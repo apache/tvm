@@ -96,6 +96,18 @@ GlobalTypeVar IRModuleNode::GetGlobalTypeVar(const std::string& name) const {
   return (*it).second;
 }
 
+Constructor IRModuleNode::GetConstructor(const std::string& adt, const std::string& cons) const {
+  TypeData typeDef = this->LookupTypeDef(adt);
+  for (Constructor c : typeDef->constructors) {
+    if (cons.compare(c->name_hint) == 0) {
+      return c;
+    }
+  }
+
+  LOG(FATAL) << adt << " does not contain constructor " << cons;
+  throw std::runtime_error("Constructor Not Found.");
+}
+
 tvm::Array<GlobalTypeVar> IRModuleNode::GetGlobalTypeVars() const {
   std::vector<GlobalTypeVar> global_type_vars;
   for (const auto& pair : global_type_var_map_) {
@@ -158,13 +170,13 @@ void IRModuleNode::Add(const GlobalVar& var,
                                 GetRef<relay::Function>(ptr));
   }
 
-  auto type = checked_func->checked_type();
+  Type type = checked_func->checked_type();
   CHECK(type.as<relay::IncompleteTypeNode>() == nullptr);
 
   if (functions.find(var) != functions.end()) {
     CHECK(update)
         << "Already have definition for " << var->name_hint;
-    auto old_type = functions[var].as<relay::FunctionNode>()->checked_type();
+    auto old_type = functions[var]->checked_type();
     CHECK(relay::AlphaEqual(type, old_type))
         << "Module#update changes type, not possible in this mode.";
   }

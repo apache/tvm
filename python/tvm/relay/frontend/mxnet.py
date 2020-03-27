@@ -120,6 +120,13 @@ def _mx_compare(new_op, wrapper):
     return impl
 
 
+def _mx_unravel_index(inputs, attrs):
+    assert len(inputs) == 1
+    shape = attrs.get_int_tuple("shape")
+    shape_expr = _expr.const(list(shape))
+    return _op.unravel_index(inputs[0], shape_expr)
+
+
 def _mx_zeros(inputs, attrs):
     assert len(inputs) == 0
     shape = attrs.get_int_tuple("shape")
@@ -1222,6 +1229,7 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
         """ Finds the Qnn params for the data expr. """
         data_min = _inputs[_data_min_idx]
         data_max = _inputs[_data_max_idx]
+        assert data_min <= data_max
         data_dtype = _infer_type(_data).checked_type.dtype
         assert data_dtype in {'int8', 'uint8'}
         if data_min < 0.0:
@@ -1413,8 +1421,8 @@ def _qnn_conv(inputs, attrs, subgraphs, params):
             ###############################################
             # Last 2 indexes are data min and max. If the conv has a sum, then last 2 indexes are
             # for the second tensor. So, the data min max indexes are last 3 and 4
-            data_min_idx = -1
-            data_max_idx = -2
+            data_min_idx = -2
+            data_max_idx = -1
             if has_sum:
                 data_min_idx = -4
                 data_max_idx = -3
@@ -1826,6 +1834,7 @@ _convert_map = {
     "Embedding"     : _mx_embedding,
     "argsort"       : _mx_argsort,
     "topk"          : _mx_topk,
+    "_unravel_index": _mx_unravel_index,
     "SequenceMask"  : _mx_sequence_mask,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,

@@ -77,7 +77,7 @@ Expr MakeQuantize(Expr data, Expr output_scale, Expr output_zero_point, int axis
   // A more detailed explanation can be found here -
   // https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   static const Op& op = Op::Get("qnn.quantize");
-  return CallNode::make(op, {data, output_scale, output_zero_point}, Attrs(attrs), {});
+  return Call(op, {data, output_scale, output_zero_point}, Attrs(attrs), {});
 }
 
 Expr QuantizeLower(const Expr& input_tensor, const Expr& output_scale,

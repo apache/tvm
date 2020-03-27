@@ -210,7 +210,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   Map<std::string, Constant> GetParams() {
     Map<std::string, Constant> ret;
     for (const auto& kv : ret_.params) {
-      ret.Set(kv.first, ConstantNode::make(kv.second));
+      ret.Set(kv.first, Constant(kv.second));
     }
     return ret;
   }

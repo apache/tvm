@@ -103,7 +103,7 @@ class ConstantFolder : public ExprMutator {
           body.same_as(op->body)) {
         return GetRef<Expr>(op);
       } else {
-        return LetNode::make(var, value, body);
+        return Let(var, value, body);
       }
     }
   }
@@ -187,14 +187,14 @@ class ConstantFolder : public ExprMutator {
         CHECK_GT(dim, 0)
           << "invalid dimension after constant eval";
       }
-      return ConstantNode::make(nd_array);
+      return Constant(nd_array);
     } else if (const auto* val = value.as<runtime::ADTObj>()) {
       runtime::ADT adt = GetRef<runtime::ADT>(val);
       Array<Expr> fields;
       for (size_t i = 0; i < adt.size(); ++i) {
         fields.push_back(ObjectToExpr(adt[i]));
       }
-      return TupleNode::make(fields);
+      return Tuple(fields);
     } else {
       LOG(FATAL) << "Cannot handle " << value->GetTypeKey();
       return Expr();
@@ -267,13 +267,13 @@ class ConstantFolder : public ExprMutator {
 
     if (shape->data.Shape().size() == 0 && GetScalarFromConstant<int32_t>(shape) == 0) {
       auto ndarray = runtime::NDArray::Empty({}, cdtype, ctx);
-      shape = ConstantNode::make(ndarray);
+      shape = Constant(ndarray);
     }
 
     // Cast the constant into correct dtype
     auto cast_attrs = make_object<CastAttrs>();
     cast_attrs->dtype = param->dtype;
-    Expr ret = CallNode::make(cast_op_, { shape }, Attrs(cast_attrs), {});
+    Expr ret = Call(cast_op_, { shape }, Attrs(cast_attrs), {});
     return ConstEvaluate(ret);
   }
 };

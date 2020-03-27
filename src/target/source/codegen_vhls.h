@@ -15,7 +15,7 @@
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- */
+5B5B */
 
 /*!
  * \file codegen_vhls.h
@@ -37,10 +37,11 @@ class CodeGenVivadoHLS final : public CodeGenC {
  public:
   void Init(bool output_ssa);
   void PrintType(DataType t, std::ostream& os);
-  void AddFunction(LoweredFunc f);
-  void PreFunctionBody(LoweredFunc f);
-  void VisitExpr_(const MinNode *op, std::ostream& os);
-  void VisitExpr_(const MaxNode *op, std::ostream& os);
+
+  void PrintFuncPrefix() final;
+  void PreFunctionBody(const PrimFunc& f) final;
+  void VisitExpr_(const MinNode *op, std::ostream& os) final;
+  void VisitExpr_(const MaxNode *op, std::ostream& os) final;
 };
 
 }  // namespace codegen

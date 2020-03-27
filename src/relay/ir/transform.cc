@@ -75,10 +75,6 @@ class FunctionPassNode : public PassNode {
    */
   PassInfo Info() const override { return pass_info; }
 
-  TVM_DLL static FunctionPass make(
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
-
   static constexpr const char* _type_key = "relay.FunctionPass";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
 
@@ -95,16 +91,25 @@ class FunctionPassNode : public PassNode {
 
 class FunctionPass : public Pass {
  public:
+  /*!
+   * \brief The constructor
+   * \param pass_func The packed function which implements a pass.
+   * \param pass_info The pass info.
+   */
+  TVM_DLL FunctionPass(
+      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
+      PassInfo pass_info);
+
   TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
 };
 
-FunctionPass FunctionPassNode::make(
+FunctionPass::FunctionPass(
     runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
     PassInfo pass_info) {
   auto n = make_object<FunctionPassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
-  return FunctionPass(n);
+  data_ = std::move(n);
 }
 
 // Perform Module -> Module optimizations at the Function level.
@@ -149,13 +154,16 @@ Pass CreateFunctionPass(
     const std::string& name,
     const tvm::Array<tvm::PrimExpr>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
-  return FunctionPassNode::make(pass_func, pass_info);
+  return FunctionPass(pass_func, pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
 TVM_REGISTER_GLOBAL("relay._transform.MakeFunctionPass")
-.set_body_typed(FunctionPassNode::make);
+.set_body_typed([](runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
+    PassInfo pass_info) {
+  return FunctionPass(pass_func, pass_info);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<FunctionPassNode>([](const ObjectRef& ref, ReprPrinter* p) {

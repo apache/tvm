@@ -63,7 +63,7 @@ class GNF : public ExprMutator {
   }
 
   static Expr WrapRec(const Var& var, const Expr& val) {
-    return UseVar(var, val) ? LetNode::make(var, val, var) : val;
+    return UseVar(var, val) ? Let(var, val, var) : val;
   }
 
   Expr VisitExpr_(const LetNode* ln) override {
