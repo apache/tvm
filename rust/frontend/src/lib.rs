@@ -58,6 +58,8 @@ pub use crate::{
     },
 };
 
+pub type DataType = DLDataType;
+
 // Macro to check the return call to TVM runtime shared library.
 macro_rules! check_call {
     ($e:expr) => {{
