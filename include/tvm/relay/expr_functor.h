@@ -297,6 +297,114 @@ class DataflowMutator : protected ::tvm::relay::ExprMutator {
    */
   Expr Mutate(const Expr& expr) final;
 };
+
+/*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
+ *
+ *  Scope Mutator provides the same mixed-mode traversal as DataflowMutator, but provides the
+ * Rewrite_ API of ExprRewriter for a cleaner split between recrusive and non-recursive behavior.
+ */
+class ScopeMutator : public ::tvm::relay::ExprMutator {
+ public:
+  Expr Mutate(const Expr& expr) final;
+  Expr VisitExpr_(const TupleNode* op) final { return Rewrite(op); };
+  Expr VisitExpr_(const CallNode* call_node) final { return Rewrite(call_node); };
+  Expr VisitExpr_(const TupleGetItemNode* op) final { return Rewrite(op); };
+  /*!
+   *  Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
+   * able to rewrite the op only with data about the original node `pre` and the same node with
+   * modified inputs `post` and should not recurse.
+   */
+  virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) { return post;};
+  virtual Expr Rewrite_(const CallNode* pre, const Expr& post) { return post; };
+  virtual Expr Rewrite_(const TupleGetItemNode* pre, const Expr& post) { return post; };
+
+ protected:
+  /*! \brief Implement Rewrite API by calling ExprMutator's VisitExpr_(op) to get a `post` node with
+   * changed inputs.
+   */
+  template <typename T>
+  Expr Rewrite(const T* op) {
+    Expr post = ExprMutator::VisitExpr_(op);
+    return Rewrite_(op, post);
+  }
+
+  virtual void VisitLeaf(const Expr& expr);
+  virtual bool CheckVisited(const Expr& expr);
+};
+
+#define EXPR_REWRITER_VISIT_DEFAULT \
+  { return Rewrite_(pre, post); }
+
+#define EXPR_REWRITER_REWRITE_DEFAULT \
+  { return post; }
+
+/*! \brief A non-iterating Expression Rewriter
+ *
+ *  ExprRewriter provides a Rewrite interface for modifying graphs in Post-DFS order.
+ *  The expectation is that ExprRewriter objects will be passed to PostOrderRewrite, which will
+ * non-recursively unroll the graph and call Rewriting on inputs. It will then pass the original
+ * node, called `pre`, and a node recreated with any alterned inputs, called `post`, to the
+ * ExprRewriter. The ExprRewriter can then use the information in those two nodes to do more complex
+ * graph rewriting.
+ */
+class ExprRewriter : private ExprFunctor<Expr(const Expr&, const Expr&)> {
+ public:
+  /*! \brief Rewrite a node given the orginal form and the form with modified inputs
+   *
+   *  Uses ExprFunctor for vtable access.
+   *
+   *  Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
+   * able to rewrite the op only with data about the original node `pre` and the same node with
+   * modified inputs `post` and should not recurse.
+   */
+  virtual Expr Rewrite(const Expr& pre, const Expr& post) { return this->VisitExpr(pre, post); }
+  virtual Expr Rewrite_(const VarNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const GlobalVarNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const ConstantNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const FunctionNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const CallNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const LetNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const IfNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const OpNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const TupleGetItemNode* pre,
+                        const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const RefCreateNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const RefReadNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const RefWriteNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const ConstructorNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+  virtual Expr Rewrite_(const MatchNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
+
+ private:
+  Expr VisitExpr(const Expr& pre, const Expr& post) final {
+    return ExprFunctor::VisitExpr(pre, post);
+  };
+  Expr VisitExpr_(const VarNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const GlobalVarNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const ConstantNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const TupleNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const FunctionNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const CallNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const LetNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const IfNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const OpNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const TupleGetItemNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const RefCreateNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const RefReadNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const RefWriteNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const ConstructorNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  Expr VisitExpr_(const MatchNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+};
+
+/*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
+ *
+ *  PostOrderRewrite does a non-recursive traversal of the graph in Post-DFS order and calls the
+ * ExprRewriter's Rewrite functions on nodes once their inputs are rewritten. At each rewrite call,
+ * PostOrderRewrite provides the original node and the node with altered inputs for use by the
+ * ExprRewriter.
+ */
+Expr PostOrderRewrite(const Expr& expr, const ExprRewriter& rewriter);
+
 /*!
  * \brief recursively visit the ir in post DFS order node, apply fvisit
  * Each node is guaranteed to be visited only once.
