@@ -17,7 +17,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.analysis import alpha_equal, detect_feature
+from tvm.relay.analysis import detect_feature
 from tvm.relay.transform import to_cps, un_cps
 from tvm.relay.analysis import Feature
 from tvm.relay.prelude import Prelude
