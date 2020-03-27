@@ -271,7 +271,7 @@ class RegionMerger : public ExprVisitor {
           // check the parent region isn't in the restrictions
           if (region_restrictions.find(parent_region->GetID()) == region_restrictions.end()) {
             // merge the parent region into the current region
-            regions_->MergeRegions(region, parent_region);
+            regions_->MergeRegions(parent_region, region);
             // update the restrictions of all other regions to reflect the change in id
             for (const auto& r : regions_) {
               auto& restrictions = region_restrictions_[r->GetID()];
