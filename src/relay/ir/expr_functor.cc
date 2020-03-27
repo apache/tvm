@@ -167,6 +167,48 @@ Expr DataflowMutator::Mutate(const Expr& expr) {
   }
 }
 
+void ScopeMutator::VisitLeaf(const Expr& expr) {
+  if (!memo_.count(expr)) {
+    this->VisitExpr(expr);
+  }
+}
+
+bool ScopeMutator::CheckVisited(const Expr& expr) {
+  if (memo_.count(expr)) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+Expr ScopeMutator::Mutate(const Expr& expr) {
+  auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
+  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
+  if (memo_.count(expr)) {
+    return memo_[expr];
+  } else {
+    ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
+    Expr ret = this->VisitExpr(expr);
+    memo_[expr] = ret;
+    return ret;
+  }
+}
+
+class PostOrderRewriter : protected ScopeMutator {
+ public:
+  PostOrderRewriter(const ExprRewriter& rewriter) : rewriter_(rewriter) {}
+  Expr VisitExpr(const Expr& expr) final {
+    auto post = ExprMutator::VisitExpr(expr);
+    return rewriter_.Rewrite(expr, post);
+  }
+ protected:
+  ExprRewriter rewriter_;
+};
+
+Expr PostOrderRewrite(const Expr& expr, const ExprRewriter& rewriter) {
+  return PostOrderRewriter(rewriter).VisitExpr(expr);
+}
+
 Expr ExprMutator::VisitExpr(const Expr& expr) {
   auto it = this->memo_.find(expr);
   if (it != this->memo_.end()) {
