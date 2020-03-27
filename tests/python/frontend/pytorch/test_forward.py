@@ -452,18 +452,18 @@ def test_forward_conv_transpose():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
 
-    class Conv2D1(Module):
+    class ConvTranspose2D1(Module):
         def __init__(self):
-            super(Conv2D1, self).__init__()
+            super(ConvTranspose2D1, self).__init__()
             self.conv = torch.nn.ConvTranspose2d(3, 6, 7, bias=True)
             self.softmax = torch.nn.Softmax()
 
         def forward(self, *args):
             return self.softmax(self.conv(args[0]))
 
-    class Conv2D2(Module):
+    class ConvTranspose2D2(Module):
         def __init__(self):
-            super(Conv2D2, self).__init__()
+            super(ConvTranspose2D2, self).__init__()
             self.conv = torch.nn.ConvTranspose2d(3, 12, 3, bias=False)
             self.softmax = torch.nn.Softmax()
 
@@ -471,8 +471,8 @@ def test_forward_conv_transpose():
             return self.softmax(self.conv(args[0]))
 
     input_data = torch.rand(input_shape).float()
-    verify_model(Conv2D1().float().eval(), input_data=input_data)
-    verify_model(Conv2D2().float().eval(), input_data=input_data)
+    verify_model(ConvTranspose2D1().float().eval(), input_data=input_data)
+    verify_model(ConvTranspose2D2().float().eval(), input_data=input_data)
 
 
 def test_forward_threshold():
