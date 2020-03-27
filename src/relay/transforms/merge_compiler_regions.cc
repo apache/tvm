@@ -247,6 +247,7 @@ class RegionMerger : public ExprVisitor {
       for (const auto& arg : region->GetInputs()) {
         // all args should be begin annotations
         auto begin = Downcast<Call>(arg);
+        CHECK_EQ(begin->op, compiler_begin_op);
         // the arguments of the begin annotations will be in the parent regions
         auto parent_region = regions_->GetRegion(begin->args[0]);
         // if there is no parent region, move on
