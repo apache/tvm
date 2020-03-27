@@ -56,7 +56,6 @@ fn main() {
 
     assert!(status.success());
 
-
     println!("cargo:rustc-link-lib=static=testnn");
     println!("cargo:rustc-link-search=native={}", out_dir);
 }

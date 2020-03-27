@@ -53,7 +53,7 @@ pub use crate::{
     ndarray::NDArray,
     tvm_common::{
         errors as common_errors,
-        ffi::{self, TVMByteArray, DLDataType},
+        ffi::{self, DLDataType, TVMByteArray},
         packed_func::{TVMArgValue, TVMRetValue},
     },
 };

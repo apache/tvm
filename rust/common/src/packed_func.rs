@@ -26,10 +26,15 @@ use std::{
 pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
 
-pub trait PackedFunc : Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync {}
+pub trait PackedFunc:
+    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync
+{
+}
 
-impl<T> PackedFunc for T
-    where T : Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync {}
+impl<T> PackedFunc for T where
+    T: Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync
+{
+}
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
