@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 from tvm import te
 
 
@@ -25,12 +26,10 @@ def test_exprs():
     vx = te.var("x")
     vy = te.var("y")
     vz = te.var("z")
+
     # test assert trigger.
-    try:
+    with pytest.raises(ValueError):
         tvm.ir.assert_structural_equal(x, y)
-        assert False
-    except ValueError:
-        pass
 
     assert not tvm.ir.structural_equal(vx, vy)
     assert tvm.ir.structural_equal(vx, vy, map_free_vars=True)
