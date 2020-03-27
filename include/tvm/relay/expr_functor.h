@@ -270,38 +270,17 @@ class DataflowVisitor : public ::tvm::relay::ExprVisitor {
   size_t visit_limit_;
 };
 
-/*!
- * \brief A wrapper around ExprMutator which functionally updates the AST.
+/*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
  *
- * DataflowMutator treats Expr as dataflow graph, and only Rewrites each Expr once.
+ * ScopeMutator treats Expr as dataflow graph, and only Rewrites each Expr once.
  * The mutated results are memoized in a map and reused so that
  * local transformation on the dataflow preserves the graph structure.
  *
- * DataflowMutator provides the same recursive API as ExprMutator, and uses
+ * ScopeMutator provides the same recursive API as ExprMutator, and uses
  * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
  * of the graph and processes them iteratatively to prevent stack overflows
- */
-class DataflowMutator : protected ::tvm::relay::ExprMutator {
- protected:
-  /*!
-   * \brief A function to apply when reaching a leaf of the graph non-recursively
-   */
-  virtual void VisitLeaf(const Expr& expr);
-  /*!
-   * \brief A function to determine if an expression has already been visited or needs to be
-   * re-visited
-   */
-  virtual bool CheckVisited(const Expr& expr);
-  /*!
-   * \brief Mutate is finalized to preserve call expansion of dataflow regions
-   */
-  Expr Mutate(const Expr& expr) final;
-};
-
-/*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
  *
- *  Scope Mutator provides the same mixed-mode traversal as DataflowMutator, but provides the
- * Rewrite_ API of ExprRewriter for a cleaner split between recrusive and non-recursive behavior.
+ * Uses Rewrite_ API of ExprRewriter for a cleaner split between recrusive and non-recursive behavior.
  */
 class ScopeMutator : public ::tvm::relay::ExprMutator {
  public:

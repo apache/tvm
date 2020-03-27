@@ -140,33 +140,6 @@ void DataflowVisitor::VisitExpr_(const TupleNode* op) {}
 // Overwrite the VisitExpr so we don't recurse for dataflow nodes
 void DataflowVisitor::VisitExpr_(const TupleGetItemNode* op) {}
 
-void DataflowMutator::VisitLeaf(const Expr& expr) {
-  if (!memo_.count(expr)) {
-    this->VisitExpr(expr);
-  }
-}
-
-bool DataflowMutator::CheckVisited(const Expr& expr) {
-  if (memo_.count(expr)) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
-Expr DataflowMutator::Mutate(const Expr& expr) {
-  auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
-  auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
-  if (memo_.count(expr)) {
-    return memo_[expr];
-  } else {
-    ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
-    Expr ret = this->VisitExpr(expr);
-    memo_[expr] = ret;
-    return ret;
-  }
-}
-
 void ScopeMutator::VisitLeaf(const Expr& expr) {
   if (!memo_.count(expr)) {
     this->VisitExpr(expr);
