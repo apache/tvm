@@ -66,6 +66,31 @@ class MergeCompositeWrapper : public ExprMutator {
     return root;
   }
 
+  Expr ExtractPattern(const TupleGetItem& pattern, const Expr& root,
+      Map<std::string, Array<Expr>>* var_map, Map<Expr, Expr>* call_map) {
+    if (!root->IsInstance<TupleGetItemNode>()) {
+      return Expr();
+    }
+    auto root_node = Downcast<TupleGetItem>(root);
+    if (pattern->index != root_node->index) {
+      return Expr();
+    }
+    if (pattern->tuple->IsInstance<CallNode>() &&
+        root_node->tuple->IsInstance<CallNode>()) {
+      Expr new_arg;
+      if (call_map->find(pattern->tuple) != call_map->end()) {
+        new_arg = (*call_map)[pattern->tuple];
+      } else {
+        new_arg = ExtractPattern(Downcast<Call>(pattern->tuple),
+                                 Downcast<Call>(root_node->tuple),
+                                 var_map, call_map);
+        call_map->Set(pattern->tuple, new_arg);
+      }
+      return TupleGetItem(new_arg, root_node->index);
+    }
+    return Expr();
+  }
+
   /*!
    * \brief Try and extract a given pattern from a graph as a subgraph.
    * \param pattern The pattern to extract.
@@ -125,6 +150,10 @@ class MergeCompositeWrapper : public ExprMutator {
         new_arg = ExtractPattern(Downcast<Constant>(arg),
                                  root->args[i],
                                  var_map);
+      } else if (arg->IsInstance<TupleGetItemNode>()) {
+        new_arg = ExtractPattern(Downcast<TupleGetItem>(arg),
+                                 root->args[i],
+                                 var_map, call_map);
       }
       if (!new_arg.defined()) {
         return Expr();
