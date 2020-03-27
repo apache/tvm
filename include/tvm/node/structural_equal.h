@@ -18,7 +18,7 @@
  */
 /*!
  * \file tvm/node/structural_equal.h
- * \brief Printer class to print repr string of each AST/IR nodes.
+ * \brief Structural equality comparison.
  */
 #ifndef TVM_NODE_STRUCTURAL_EQUAL_H_
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
