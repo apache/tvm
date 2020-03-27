@@ -79,6 +79,11 @@ class TensorTypeNode : public BaseTensorTypeNode {
         equal(dtype, other->dtype);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(shape);
+    hash_reduce(dtype);
+  }
+
   /*! \brief Return product of elements in the shape.
    *  \return (d1 * d_2 ... * d_n) if shape is (d_1, d_2, ..., d_n) and 1 if shape size is zero.
    */

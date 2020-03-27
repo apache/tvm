@@ -64,6 +64,8 @@ class IRModuleNode : public Object {
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
 
+  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const;
+
   /*!
    * \brief Add a function to the global environment.
    * \param var The var of the global function.
@@ -238,6 +240,7 @@ class IRModuleNode : public Object {
 
   static constexpr const char* _type_key = "IRModule";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
 
  private:

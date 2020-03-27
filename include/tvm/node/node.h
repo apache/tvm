@@ -41,6 +41,7 @@
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/container.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 
 #include <string>
 #include <vector>

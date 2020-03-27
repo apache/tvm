@@ -33,11 +33,11 @@ namespace tvm {
 bool ReflectionVTable::
 SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const {
   uint32_t tindex = self->type_index();
-  if (tindex >= fsequal_.size() || fsequal_[tindex] == nullptr) {
+  if (tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: SEqualReduce of " << self->GetTypeKey()
         << " is not registered via TVM_REGISTER_NODE_TYPE";
   }
-  return fsequal_[tindex](self, other, equal);
+  return fsequal_reduce_[tindex](self, other, equal);
 }
 
 /*!

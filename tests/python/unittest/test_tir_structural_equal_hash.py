@@ -19,6 +19,27 @@ import pytest
 from tvm import te
 
 
+def consistent_equal(x, y, map_free_vars=False):
+    struct_equal0 = tvm.ir.structural_equal(x, y, map_free_vars)
+    struct_equal1 = tvm.ir.structural_equal(y, x, map_free_vars)
+
+    xhash = tvm.ir.structural_hash(x, map_free_vars)
+    yhash = tvm.ir.structural_hash(y, map_free_vars)
+
+    if struct_equal0 != struct_equal1:
+        raise ValueError(
+            "Non-communicative {} vs {}, sequal0={}, sequal1={}".format(
+                x, y, struct_equal0, struct_equal1))
+
+    # NOTE: hash colision can happen but should be rare.
+    # we can confirm that hash colison doesn't happen for our testcases
+    if struct_equal0 != (xhash == yhash):
+        raise ValueError(
+            "Inconsistent {} vs {}, sequal={}, xhash={}, yhash={}".format(
+                x, y, struct_equal0, xhash, yhash))
+    return struct_equal0
+
+
 def test_exprs():
     # save load json
     x = tvm.tir.const(1, "int32")
@@ -26,34 +47,35 @@ def test_exprs():
     vx = te.var("x")
     vy = te.var("y")
     vz = te.var("z")
+    zx = vx + vx
+    zy = vy + vy
+
+    assert consistent_equal(zx * zx, (vx + vx) * (vx + vx),
+                            map_free_vars=False)
 
     # test assert trigger.
     with pytest.raises(ValueError):
         tvm.ir.assert_structural_equal(x, y)
 
-    assert not tvm.ir.structural_equal(vx, vy)
-    assert tvm.ir.structural_equal(vx, vy, map_free_vars=True)
+    assert not consistent_equal(vx, vy)
+    assert consistent_equal(vx, vy, map_free_vars=True)
     # corner case lhs:vx == rhs:vy, but cannot map it iteslf
-    assert not tvm.ir.structural_equal(vx + vx, vy + vx, map_free_vars=True)
+    assert not consistent_equal(vx + vx, vy + vx, map_free_vars=True)
     # corner case lhs:vx == rhs:vy, lhs:vy == rhs:vx
-    assert tvm.ir.structural_equal(vx + vy, vy + vx, map_free_vars=True)
+    assert consistent_equal(vx + vy, vy + vx, map_free_vars=True)
     # corner case2: rolling remap.
-    assert tvm.ir.structural_equal(vx + vy + vz, vy + vz + vx, map_free_vars=True)
-    assert not tvm.ir.structural_equal(vx + 1, vy + 1, map_free_vars=False)
+    assert consistent_equal(vx + vy + vz, vy + vz + vx, map_free_vars=True)
+    assert not consistent_equal(vx + 1, vy + 1, map_free_vars=False)
     # Defintition remap
-    assert tvm.ir.structural_equal(tvm.tir.Let(vx, 1, vx - 1),
-                                   tvm.tir.Let(vy, 1, vy - 1))
+    assert consistent_equal(tvm.tir.Let(vx, 1, vx - 1),
+                            tvm.tir.Let(vy, 1, vy - 1))
     # Default same address free var remap
-    assert tvm.ir.structural_equal(tvm.tir.Let(vx, 1, vx // vz),
-                                   tvm.tir.Let(vy, 1, vy // vz))
+    assert consistent_equal(tvm.tir.Let(vx, 1, vx // vz),
+                            tvm.tir.Let(vy, 1, vy // vz))
 
-    zx = vx + vx
-    zy = vy + vy
-    assert tvm.ir.structural_equal(zx * zx, zx * zx)
-    assert tvm.ir.structural_equal(zx * zx, zy * zy, map_free_vars=True)
-    assert not tvm.ir.structural_equal(zx * zx, zy * zy, map_free_vars=False)
-    assert tvm.ir.structural_equal(zx * zx, (vx + vx) * (vx + vx),
-                                   map_free_vars=False)
+    assert consistent_equal(zx * zx, zx * zx)
+    assert consistent_equal(zx * zx, zy * zy, map_free_vars=True)
+    assert not consistent_equal(zx * zx, zy * zy, map_free_vars=False)
 
 
 def test_prim_func():
@@ -64,7 +86,7 @@ def test_prim_func():
         [x, y], tvm.tir.Evaluate(x + y))
     func1 = tvm.tir.PrimFunc(
         [x, y], tvm.tir.Evaluate(y + x))
-    assert not tvm.ir.structural_equal(func0, func1)
+    assert not consistent_equal(func0, func1)
 
     # new cases
     b = tvm.tir.decl_buffer((x,), "float32")
@@ -92,8 +114,13 @@ def test_attrs():
     y = tvm.ir.make_node("attrs.TestAttrs", axis=1, name="xx")
     z = tvm.ir.make_node("attrs.TestAttrs", axis=2, name="xx")
     tvm.ir.assert_structural_equal(y, x)
-    assert not tvm.ir.structural_equal(y, z)
+    assert not consistent_equal(y, z)
 
+    x = tvm.runtime.convert({"x": [1, 2, 3], "y": 2})
+    y = tvm.runtime.convert({"y": 2, "x": [1, 2, 3]})
+    z = tvm.runtime.convert({"y": 2, "x": [1, 2, 3, 4]})
+    assert consistent_equal(y, x)
+    assert not consistent_equal(y, z)
 
 
 if __name__ == "__main__":
