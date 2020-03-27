@@ -41,6 +41,7 @@ def main():
     dshape = (32, 16)
     net = _get_model(dshape)
     mod, params = testing.create_workload(net)
+    import pdb; pdb.set_trace()
     graph, lib, params = relay.build(
         mod, 'llvm', params=params)
 
