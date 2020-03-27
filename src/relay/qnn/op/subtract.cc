@@ -91,7 +91,7 @@ Expr QnnSubtractCanonicalize(const Attrs &attrs,
   return ConvertDtype(output, input_type.dtype);
 }
 
-// QNN Addition operator.
+// QNN Subtraction operator.
 QNN_REGISTER_BINARY_OP("subtract")
 .describe("Elementwise subtract with with broadcasting for quantized tensors.")
 .set_support_level(11)
