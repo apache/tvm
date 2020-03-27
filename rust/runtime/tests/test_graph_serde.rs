@@ -79,5 +79,5 @@ fn test_load_graph() {
     );
     assert_eq!(graph.nodes[5].inputs[0].index, 0);
     assert_eq!(graph.nodes[6].inputs[0].index, 0);
-    assert_eq!(graph.heads.len(), 2);
+    assert_eq!(graph.heads.len(), 3);
 }
