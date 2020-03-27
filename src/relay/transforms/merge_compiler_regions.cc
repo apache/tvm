@@ -302,7 +302,7 @@ class RegionMerger : public ExprVisitor {
 
 
 Expr MergeCompilerRegions(const Expr& expr) {
-  // Annotate the nodes that are not annotated, if any.
+  // Annotate all the nodes that aren't annotated as 'default'.
   AnnotateRestDefault anno_default(expr);
   auto expr_all_annotated = anno_default.Annotate(expr);
 
@@ -311,14 +311,13 @@ Expr MergeCompilerRegions(const Expr& expr) {
                                                           compiler_begin_op, compiler_end_op);
 
   // By now, all the nodes have some sort of annotation.
-  // Region merger is ExprVisitor that will update the
-  // AnnotatedRegionSet.
+  // Region merger is an ExprVisitor that will update the
+  // AnnotatedRegionSet, merging all the regions that can be merged.
   RegionMerger merger(regions);
   merger.VisitExpr(expr_all_annotated);
 
-  // This will use updated (merged)
-  // AnnotatedRegionSet : regions_withdefault to remove annotations
-  // within each region
+  // This updates the expression to remove annotations that are now
+  // 'internal' to a merged region.
   MergeAnnotations merge_anno(regions);
   return merge_anno.Mutate(expr_all_annotated);
 }
