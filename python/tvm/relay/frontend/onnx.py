@@ -802,7 +802,6 @@ class Upsample(OnnxOpConverter):
             assert len(scales) == 5
             attr['scale_d'] = scales[-3]
             attr['layout'] = 'NCDHW'
-            attr['coordinate_transformation_mode'] = 'half_pixel'
             op_name = 'upsampling3d'
         else:
             assert len(scales) == 4
