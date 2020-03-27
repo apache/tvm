@@ -75,9 +75,9 @@ fn test_load_graph() {
             .unwrap()
             .get("func_name")
             .unwrap(),
-        "fuse_dense"
+        "fused_split"
     );
     assert_eq!(graph.nodes[5].inputs[0].index, 0);
-    assert_eq!(graph.nodes[6].inputs[0].index, 1);
+    assert_eq!(graph.nodes[6].inputs[0].index, 0);
     assert_eq!(graph.heads.len(), 2);
 }
