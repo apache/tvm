@@ -86,7 +86,7 @@ class MergeCompositeWrapper : public ExprMutator {
                                  var_map, call_map);
         call_map->Set(pattern->tuple, new_arg);
       }
-      return TupleGetItemNode::make(new_arg, root_node->index);
+      return TupleGetItem(new_arg, root_node->index);
     }
     return Expr();
   }
