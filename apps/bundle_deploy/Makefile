@@ -41,8 +41,8 @@ test: $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.s
 	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 
-test_c: $(build_dir)/test_c $(build_dir)/test_data.bin $(build_dir)/test_output.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test_c $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+test_static: $(build_dir)/test_static $(build_dir)/test_bundle_static.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 
 $(build_dir)/demo: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 	@mkdir -p $(@D)
@@ -52,7 +52,7 @@ $(build_dir)/test: test.cc ${build_dir}/test_graph.json ${build_dir}/test_params
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
 
-$(build_dir)/test_c: test_c.c ${build_dir}/bundle_c.o ${build_dir}/test_model.o
+$(build_dir)/test_static: test_static.c ${build_dir}/test_bundle_static.so
 	@mkdir -p $(@D)
 	gcc $(PKG_CXXFLAGS) -o $@ $^
 
@@ -96,9 +96,9 @@ $(build_dir)/test_bundle_c.so: bundle.c runtime.c $(build_dir)/test_model.o
 	@mkdir -p $(@D)
 	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
-$(build_dir)/bundle_c.o: bundle_c.c
+$(build_dir)/test_bundle_static.so: bundle_static.c ${build_dir}/test_model.o
 	@mkdir -p $(@D)
-	gcc -c $(PKG_CFLAGS) -o $@  $^
+	gcc -shared $(PKG_CFLAGS) -fvisibility=hidden -o $@  $^ $(PKG_LDFLAGS)
 
 clean:
 	rm -rf $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so
