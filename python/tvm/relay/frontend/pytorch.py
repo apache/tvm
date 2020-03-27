@@ -260,7 +260,6 @@ def _convolution():
         padding = inputs[4]
         dilation = inputs[5]
 
-
         if isinstance(weight, _expr.Expr):
             inferred_shape = _infer_shape(weight)
             weight_shape = []
