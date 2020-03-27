@@ -24,6 +24,7 @@ from .. import nn, generic
 from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 from .conv2d_direct import schedule_direct_cuda
+from .conv2d_nhwc import schedule_conv2d_nhwc_direct
 
 
 @autotvm.register_topi_compute("conv2d_nchw.cuda")
@@ -46,24 +47,22 @@ def schedule_conv2d_nchw(cfg, outs):
     return s
 
 
-# TODO(@alexgl-github): It's invalid to call schedule_direct_cuda for NHWC layout
-#  as it assumes the input layout to be NCHW. Please fix this.
-# @autotvm.register_topi_compute("conv2d_nhwc.cuda")
-# def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
-#     return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
-#
-#
-# @autotvm.register_topi_schedule("conv2d_nhwc.cuda")
-# def schedule_conv2d_nhwc(cfg, outs):
-#     outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-#     s = te.create_schedule([x.op for x in outs])
-#
-#     def _callback(op):
-#         if op.tag == 'conv2d_nhwc':
-#             schedule_direct_cuda(cfg, s, op.output(0))
-#
-#     traverse_inline(s, outs[0].op, _callback)
-#     return s
+@autotvm.register_topi_compute("conv2d_nhwc.cuda")
+def conv2d_nhwc(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+    """Compute conv2d with NHWC layout"""
+    return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
+
+
+@autotvm.register_topi_schedule("conv2d_nhwc.cuda")
+def schedule_conv2d_nhwc(cfg, outs):
+    """Create the schedule for conv2d_nhwc"""
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
+    def _callback(op):
+        if op.tag == 'conv2d_nhwc':
+            schedule_conv2d_nhwc_direct(cfg, s, op.output(0))
+    traverse_inline(s, outs[0].op, _callback)
+    return s
 
 
 @autotvm.register_topi_compute("conv2d_cudnn.cuda")
