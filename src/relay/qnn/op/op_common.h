@@ -212,7 +212,7 @@ static inline bool QnnBroadcastRel(const Array<Type>& types,
                      output_scale, output_zero_point}, Attrs(), {});    \
   });                                                                   \
   RELAY_REGISTER_OP("qnn." OpName)                                      \
-  .set_num_inputs(kNumQnnBinaryOpInputs)                                                    \
+  .set_num_inputs(kNumQnnBinaryOpInputs)                                                 \
   .add_argument("lhs", "Tensor", "The left hand side quantized tensor.")                 \
   .add_argument("rhs", "Tensor", "The right hand side quantized tensor.")                \
   .add_argument("lhs_scale", "Tensor", "The scale of the lhs tensor.")                   \
