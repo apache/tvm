@@ -33,24 +33,31 @@ PKG_LDFLAGS = -pthread
 
 build_dir := build
 
-demo: $(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/cat.bin
-	TVM_NUM_THREADS=1 $(build_dir)/demo $(build_dir)/bundle.so $(build_dir)/cat.bin
-	TVM_NUM_THREADS=1 $(build_dir)/demo $(build_dir)/bundle_c.so $(build_dir)/cat.bin
+demo_dynamic: $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/bundle_c.so $(build_dir)/cat.bin
+	TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle.so $(build_dir)/cat.bin
+	TVM_NUM_THREADS=1 $(build_dir)/demo_dynamic $(build_dir)/bundle_c.so $(build_dir)/cat.bin
 
-test: $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
-	TVM_NUM_THREADS=1 $(build_dir)/test $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+test_dynamic: $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+	TVM_NUM_THREADS=1 $(build_dir)/test_dynamic $(build_dir)/test_bundle_c.so $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
+
+demo_static: $(build_dir)/demo_static $(build_dir)/cat.bin
+	TVM_NUM_THREADS=1 $(build_dir)/demo_static $(build_dir)/cat.bin
 
 test_static: $(build_dir)/test_static $(build_dir)/test_data.bin $(build_dir)/test_output.bin
 	TVM_NUM_THREADS=1 $(build_dir)/test_static $(build_dir)/test_data.bin $(build_dir)/test_output.bin $(build_dir)/test_graph.json $(build_dir)/test_params.bin
 
-$(build_dir)/demo: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
+$(build_dir)/demo_dynamic: demo.cc ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  demo.cc -ldl
 
-$(build_dir)/test: test.cc ${build_dir}/test_graph.json ${build_dir}/test_params.bin
+$(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph.json ${build_dir}/test_params.bin
 	@mkdir -p $(@D)
 	g++ $(PKG_CXXFLAGS) -o $@  test.cc -ldl
+
+$(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o ${build_dir}/graph.json.c ${build_dir}/params.bin.c
+	@mkdir -p $(@D)
+	gcc $(PKG_CXXFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o -lm
 
 $(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model.o
 	@mkdir -p $(@D)
