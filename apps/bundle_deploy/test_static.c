@@ -26,7 +26,7 @@
 
 
 int main(int argc, char **argv) {
-  assert(argc == 5 && "Usage: test <data.bin> <output.bin> <graph.json> <params.bin>");
+  assert(argc == 5 && "Usage: test_static <data.bin> <output.bin> <graph.json> <params.bin>");
 
   struct stat st;
   char * json_data;
