@@ -360,6 +360,194 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
+bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
+                                      int num_inputs,
+                                      const Attrs& attrs,
+                                      const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const ConvWinogradWeightTransformAttrs* param = attrs.as<ConvWinogradWeightTransformAttrs>();
+  CHECK(param != nullptr);
+
+  CHECK_EQ(data->shape.size(), 4) << "Only support NCHW normal kernel layout";
+
+  // each pad width element should be a pair of positive integers
+  std::vector<IndexExpr> oshape {
+      param->tile_size + data->shape[2] - 1,
+      param->tile_size + data->shape[3] - 1,
+      data->shape[0],
+      data->shape[1],
+  };
+
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
+                                                  data->dtype));
+  return true;
+}
+
+template<class Param>
+bool Conv2DWinogradRel(const Array<Type>& types,
+                       int num_inputs,
+                       const Attrs& attrs,
+                       const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  static const Layout kNCHW("NCHW");
+  static const Layout kOIHW("OIHW");
+
+  const Param* param = attrs.as<Param>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
+  CHECK(trans_in_layout.defined())
+    << "Conv only support input layouts that are convertible from NCHW."
+    << " But got " << in_layout;
+
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
+  CHECK(trans_kernel_layout.defined())
+    << "Conv only support kernel layouts that are convertible from OIHW."
+    << " But got "<< kernel_layout;
+
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
+  const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
+  CHECK(trans_out_layout.defined())
+      << "Conv only support output layouts that are convertible from NCHW."
+      << " But got " << out_layout;
+
+  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
+
+  IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
+
+  CHECK(param->kernel_size.defined() && param->channels.defined())
+      << "The kernel size and channels of a Conv must be set or infered by previous pass";
+
+  CHECK_EQ(param->kernel_size.size(), 2);
+  CHECK_EQ(param->dilation.size(), 2);
+
+  channels = param->channels;
+  dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+  dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
+
+  // NOTE: Do not check weight shape here!
+  // Different backend requires different layout to compute
+  // the batch gemm stage in winograd efficiently, but we want to
+  // make this op work for all backends.
+  // So we accept all weight shapes, and assume the TOPI developers
+  // can handle this correctly in alter_op_layout.
+
+  // dilation
+  Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
+  if (!dshape_nchw[2].as<tir::AnyNode>()) {
+    oshape.Set(2, (dshape_nchw[2] + pad_h
+                   - dilated_ksize_y) / param->strides[0] + 1);
+  } else {
+    oshape.Set(2, dshape_nchw[2]);
+  }
+  if (!dshape_nchw[3].as<tir::AnyNode>()) {
+    oshape.Set(3, (dshape_nchw[3] + pad_w
+                   - dilated_ksize_x) / param->strides[1] + 1);
+  } else {
+    oshape.Set(3, dshape_nchw[3]);
+  }
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  oshape = trans_out_layout.BackwardShape(oshape);
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
+template<class Param>
+bool Conv2DWinogradRel(const Array<Type>& types,
+                       int num_inputs,
+                       const Attrs& attrs,
+                       const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  static const Layout kNCHW("NCHW");
+  static const Layout kOIHW("OIHW");
+
+  const Param* param = attrs.as<Param>();
+  CHECK(param != nullptr);
+  const Layout in_layout(param->data_layout);
+  const Layout kernel_layout(param->kernel_layout);
+
+  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
+  CHECK(trans_in_layout.defined())
+    << "Conv only support input layouts that are convertible from NCHW."
+    << " But got " << in_layout;
+
+  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
+  CHECK(trans_kernel_layout.defined())
+    << "Conv only support kernel layouts that are convertible from OIHW."
+    << " But got "<< kernel_layout;
+
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
+  const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
+  CHECK(trans_out_layout.defined())
+      << "Conv only support output layouts that are convertible from NCHW."
+      << " But got " << out_layout;
+
+  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
+
+  IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
+
+  CHECK(param->kernel_size.defined() && param->channels.defined())
+      << "The kernel size and channels of a Conv must be set or infered by previous pass";
+
+  CHECK_EQ(param->kernel_size.size(), 2);
+  CHECK_EQ(param->dilation.size(), 2);
+
+  channels = param->channels;
+  dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
+  dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
+
+  // NOTE: Do not check weight shape here!
+  // Different backend requires different layout to compute
+  // the batch gemm stage in winograd efficiently, but we want to
+  // make this op work for all backends.
+  // So we accept all weight shapes, and assume the TOPI developers
+  // can handle this correctly in alter_op_layout.
+
+  // dilation
+  Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
+
+  IndexExpr pad_h, pad_w;
+  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
+  if (!dshape_nchw[2].as<tir::AnyNode>()) {
+    oshape.Set(2, (dshape_nchw[2] + pad_h
+                   - dilated_ksize_y) / param->strides[0] + 1);
+  } else {
+    oshape.Set(2, dshape_nchw[2]);
+  }
+  if (!dshape_nchw[3].as<tir::AnyNode>()) {
+    oshape.Set(3, (dshape_nchw[3] + pad_w
+                   - dilated_ksize_x) / param->strides[1] + 1);
+  } else {
+    oshape.Set(3, dshape_nchw[3]);
+  }
+
+  DataType out_dtype = param->out_dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+  oshape = trans_out_layout.BackwardShape(oshape);
+  // assign output type
+  reporter->Assign(types[2], TensorType(oshape, out_dtype));
+  return true;
+}
+
 template<typename T>
 Array<Array<Layout> > ConvInferCorrectLayout(
     const Attrs& attrs,

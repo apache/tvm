@@ -63,6 +63,46 @@ Expr MakeConv(Expr data,
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
+template <typename T>
+Expr MakeConvWinograd(Expr data,
+                      Expr weight,
+                      int tile_size,
+                      Array<IndexExpr> strides,
+                      Array<IndexExpr> padding,
+                      Array<IndexExpr> dilation,
+                      int groups,
+                      IndexExpr channels,
+                      Array<IndexExpr> kernel_size,
+                      std::string data_layout,
+                      std::string kernel_layout,
+                      std::string out_layout,
+                      DataType out_dtype,
+                      std::string op_name) {
+  auto attrs = make_object<T>();
+  attrs->tile_size = tile_size;
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get(op_name);
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+Expr MakeConvWinogradWeightTransform(Expr weight,
+                                     int tile_size,
+                                     std::string op_name) {
+  auto attrs = make_object<ConvWinogradWeightTransformAttrs>();
+  attrs->tile_size = tile_size;
+  static const Op& op = Op::Get(op_name);
+  return Call(op, {weight}, Attrs(attrs), {});
+}
+
 
 // relay.nn.conv1d
 TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
@@ -522,122 +562,25 @@ said convolution.
 // relay.nn.contrib_conv2d_winograd_without_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradAttrs);
 
-template<class Param>
-bool Conv2DWinogradRel(const Array<Type>& types,
-                       int num_inputs,
-                       const Attrs& attrs,
-                       const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 3);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-  static const Layout kNCHW("NCHW");
-  static const Layout kOIHW("OIHW");
-
-  const Param* param = attrs.as<Param>();
-  CHECK(param != nullptr);
-  const Layout in_layout(param->data_layout);
-  const Layout kernel_layout(param->kernel_layout);
-
-  const auto trans_in_layout = tir::BijectiveLayout(in_layout, kNCHW);
-  CHECK(trans_in_layout.defined())
-    << "Conv only support input layouts that are convertible from NCHW."
-    << " But got " << in_layout;
-
-  const auto trans_kernel_layout = tir::BijectiveLayout(kernel_layout, kOIHW);
-  CHECK(trans_kernel_layout.defined())
-    << "Conv only support kernel layouts that are convertible from OIHW."
-    << " But got "<< kernel_layout;
-
-  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
-  const auto trans_out_layout = tir::BijectiveLayout(out_layout, kNCHW);
-  CHECK(trans_out_layout.defined())
-      << "Conv only support output layouts that are convertible from NCHW."
-      << " But got " << out_layout;
-
-  Array<IndexExpr> dshape_nchw = trans_in_layout.ForwardShape(data->shape);
-
-  IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
-
-  CHECK(param->kernel_size.defined() && param->channels.defined())
-      << "The kernel size and channels of a Conv must be set or infered by previous pass";
-
-  CHECK_EQ(param->kernel_size.size(), 2);
-  CHECK_EQ(param->dilation.size(), 2);
-
-  channels = param->channels;
-  dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
-  dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
-
-  // NOTE: Do not check weight shape here!
-  // Different backend requires different layout to compute
-  // the batch gemm stage in winograd efficiently, but we want to
-  // make this op work for all backends.
-  // So we accept all weight shapes, and assume the TOPI developers
-  // can handle this correctly in alter_op_layout.
-
-  // dilation
-  Array<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
-
-  IndexExpr pad_h, pad_w;
-  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  if (!dshape_nchw[2].as<tir::AnyNode>()) {
-    oshape.Set(2, (dshape_nchw[2] + pad_h
-                   - dilated_ksize_y) / param->strides[0] + 1);
-  } else {
-    oshape.Set(2, dshape_nchw[2]);
-  }
-  if (!dshape_nchw[3].as<tir::AnyNode>()) {
-    oshape.Set(3, (dshape_nchw[3] + pad_w
-                   - dilated_ksize_x) / param->strides[1] + 1);
-  } else {
-    oshape.Set(3, dshape_nchw[3]);
-  }
-
-  DataType out_dtype = param->out_dtype;
-  if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
-  }
-  oshape = trans_out_layout.BackwardShape(oshape);
-  // assign output type
-  reporter->Assign(types[2], TensorType(oshape, out_dtype));
-  return true;
-}
-
-
-// Positional relay function to create conv2d winograd operator
-// used by frontend FFI.
-Expr MakeConv2DWinograd(Expr data,
-                        Expr weight,
-                        int tile_size,
-                        Array<IndexExpr> strides,
-                        Array<IndexExpr> padding,
-                        Array<IndexExpr> dilation,
-                        int groups,
-                        IndexExpr channels,
-                        Array<IndexExpr> kernel_size,
-                        std::string data_layout,
-                        std::string kernel_layout,
-                        std::string out_layout,
-                        DataType out_dtype) {
-  auto attrs = make_object<Conv2DWinogradAttrs>();
-  attrs->tile_size = tile_size;
-  attrs->strides = std::move(strides);
-  attrs->padding = std::move(padding);
-  attrs->dilation = std::move(dilation);
-  attrs->groups = groups;
-  attrs->channels = channels;
-  attrs->kernel_size = std::move(kernel_size);
-  attrs->data_layout = std::move(data_layout);
-  attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout);
-  attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("nn.contrib_conv2d_winograd_without_weight_transform");
-  return Call(op, {data, weight}, Attrs(attrs), {});
-}
-
-
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_without_weight_transform")
-.set_body_typed(MakeConv2DWinograd);
+.set_body_typed([](Expr data,
+                   Expr weight,
+                   int tile_size,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   Array<IndexExpr> dilation,
+                   int groups,
+                   IndexExpr channels,
+                   Array<IndexExpr> kernel_size,
+                   std::string data_layout,
+                   std::string kernel_layout,
+                   std::string out_layout,
+                   DataType out_dtype) {
+  return MakeConvWinograd<Conv2DWinogradAttrs>(
+    data, weight, tile_size, strides, padding, dilation,
+    groups, channels, kernel_size, data_layout,
+    kernel_layout, out_layout, out_dtype, "nn.contrib.conv2d_winograd_without_weight_tranform");
+});
 
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
@@ -664,44 +607,12 @@ RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_without_weight_transform")
 // relay.nn.contrib_conv2d_winograd_weight_transform
 TVM_REGISTER_NODE_TYPE(ConvWinogradWeightTransformAttrs);
 
-bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
-                                      int num_inputs,
-                                      const Attrs& attrs,
-                                      const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
-  const auto* data = types[0].as<TensorTypeNode>();
-  if (data == nullptr) return false;
-
-  const ConvWinogradWeightTransformAttrs* param = attrs.as<ConvWinogradWeightTransformAttrs>();
-  CHECK(param != nullptr);
-
-  CHECK_EQ(data->shape.size(), 4) << "Only support NCHW normal kernel layout";
-
-  // each pad width element should be a pair of positive integers
-  std::vector<IndexExpr> oshape {
-      param->tile_size + data->shape[2] - 1,
-      param->tile_size + data->shape[3] - 1,
-      data->shape[0],
-      data->shape[1],
-  };
-
-  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
-                                                  data->dtype));
-  return true;
-}
-
-Expr MakeConv2DWinogradWeightTransform(Expr weight,
-                                       int tile_size) {
-  auto attrs = make_object<ConvWinogradWeightTransformAttrs>();
-  attrs->tile_size = tile_size;
-  static const Op& op = Op::Get("nn.contrib_conv2d_winograd_weight_transform");
-  return Call(op, {weight}, Attrs(attrs), {});
-}
-
-
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_weight_transform")
-.set_body_typed(MakeConv2DWinogradWeightTransform);
-
+.set_body_typed([](Expr weight,
+                   int tile_size) {
+  return MakeConvWinogradWeightTransform(
+    weight, tile_size, "nn.contrib.conv2d_winograd_weight_tranform");
+});
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
 .describe(R"code(Weight transformation of winograd fast convolution algorithm.
@@ -716,6 +627,75 @@ weight transformation in advance.
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
 .add_type_rel("Conv2DWinogradWeightTransform", Conv2DWinogradWeightTransformRel);
+
+
+// relay.nn.contrib_conv3d_winograd_without_weight_transform
+TVM_REGISTER_NODE_TYPE(Conv3DWinogradAttrs);
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_without_weight_transform")
+.set_body_typed([](Expr data,
+                   Expr weight,
+                   int tile_size,
+                   Array<IndexExpr> strides,
+                   Array<IndexExpr> padding,
+                   Array<IndexExpr> dilation,
+                   int groups,
+                   IndexExpr channels,
+                   Array<IndexExpr> kernel_size,
+                   std::string data_layout,
+                   std::string kernel_layout,
+                   std::string out_layout,
+                   DataType out_dtype) {
+  return MakeConvWinograd<Conv3DWinogradAttrs>(
+    data, weight, tile_size, strides, padding, dilation,
+    groups, channels, kernel_size, data_layout,
+    kernel_layout, out_layout, out_dtype, "nn.contrib.conv3d_winograd_without_weight_tranform");
+});
+
+
+RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_without_weight_transform")
+.describe(R"code(Compute conv3d with winograd algorithm. Only supports NCDHW layout.
+                 This operator assumes the weight tensor is already pre-transformed by
+                 nn.contrib_conv3d_winograd_weight_transform.
+
+- **data**: Input is 5D array of shape  (batch_size, in_channels, depth, height, width)
+- **weight**: Any shape
+            We do not check the shape for this input tensor. Since different backend
+            has different layout strategy.
+
+- **out**:  Output is 5D array of shape (batch_size, channels, depth, out_height, out_width)
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<Conv3DWinogradAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv3DWinograd", Conv3DWinogradRel<Conv3DWinogradAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+        ConvInferCorrectLayout<Conv3DWinogradAttrs>);
+
+
+// relay.nn.contrib_conv3d_winograd_weight_transform
+TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_weight_transform")
+.set_body_typed([](Expr weight,
+                   int tile_size) {
+  return MakeConvWinogradWeightTransform(
+    weight, tile_size, "nn.contrib.conv3d_winograd_weight_tranform");
+});
+
+RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_weight_transform")
+.describe(R"code(Weight transformation of winograd fast 3d convolution algorithm.
+
+Separate this into another operator in order to enable Precompute Pass to compute the
+weight transformation in advance.
+
+- **weight**: (channels, in_channels, kernel_size[0], kernel_size[1], kernel_size[2])
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<ConvWinogradWeightTransformAttrs>()
+.set_num_inputs(1)
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv3DWinogradWeightTransform", Conv3DWinogradWeightTransformRel);
 
 
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
