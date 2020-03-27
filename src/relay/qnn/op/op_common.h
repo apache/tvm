@@ -221,7 +221,8 @@ static inline bool QnnBroadcastRel(const Array<Type>& types,
   .add_argument("rhs_zero_point", "Tensor", "The zero_point of the rhs tensor.")         \
   .add_argument("output_scale", "Tensor", "The scale of the output tensor.")             \
   .add_argument("output_zero_point", "Tensor", "The zero_point of the output tensor.")   \
-  .add_type_rel("QnnBroadcast", QnnBroadcastRel)
+  .add_type_rel("QnnBroadcast", QnnBroadcastRel)                                         \
+  .set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout)
 
 }  // namespace qnn
 }  // namespace relay
