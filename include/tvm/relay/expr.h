@@ -107,7 +107,13 @@ class TupleNode : public ExprNode {
   }
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
-    return equal(fields, other->fields);
+    // specially handle empty tuple as constant and not a graph node.
+    if (fields.size() == other->fields.size() && fields.size() == 0) {
+      return true;
+    } else {
+      equal->MarkGraphNode();
+      return equal(fields, other->fields);
+    }
   }
 
   static constexpr const char* _type_key = "relay.Tuple";
@@ -255,7 +261,7 @@ class CallNode : public ExprNode {
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip type_args check for primitive ops.
-
+    equal->MarkGraphNode();
     return
         equal(op, other->op) &&
         equal(args, other->args) &&

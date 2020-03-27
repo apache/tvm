@@ -154,9 +154,17 @@ def save_json(node):
 def structural_equal(lhs, rhs, map_free_vars=False):
     """Check structural equality of lhs and rhs.
 
-    The structural equality is recursively defined in the DAG of IR objects via SEqual.
-    Each object in the subtree of lhs can be mapped as equal to only one other
-    object in the rhs if SEqual check passes.
+    The structural equality is recursively defined in the DAG of IRNodes.
+    There are two kinds of nodes:
+
+    - Graph node: a graph node in lhs can only be mapped as equal to
+      one and only one graph node in rhs.
+    - Normal node: equality is recursively defined without the restriction
+      of graph nodes.
+
+    Vars(tir::Var, TypeVar) and non-constant relay expression nodes are graph nodes.
+    For example, it means that `%1 = %x + %y; %1 + %1` is not structurally equal
+    to `%1 = %x + %y; %2 = %x + %y; %1 + %2` in relay.
 
     A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
     with the same type if one of the following condition holds:
@@ -167,8 +175,6 @@ def structural_equal(lhs, rhs, map_free_vars=False):
 
     The rules for var are used to remap variables occurs in function
     arguments and let-bindings.
-
-    Notably: the structural equality treats the objects as a DAG instead of a tree.
 
     Parameters
     ----------

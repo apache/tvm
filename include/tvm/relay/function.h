@@ -70,6 +70,7 @@ class FunctionNode : public BaseFuncNode {
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     // Important to make def equal first.
+    equal->MarkGraphNode();
     return
         equal.DefEqual(params, other->params) &&
         equal.DefEqual(type_params, other->type_params) &&

@@ -71,15 +71,24 @@ class BaseValueEqual {
 /*!
  * \brief Content-aware structural equality comparator for objects.
  *
- * The structural equality is recursively defined in the DAG of IR objects via SEqual.
- * Each object in the subtree of lhs can be mapped as equal to only one other
- * object in the rhs if SEqual check passes.
+ *  The structural equality is recursively defined in the DAG of IR nodes via SEqual.
+ *  There are two kinds of nodes:
  *
- * A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
- * with the same type if one of the following condition holds:
+ *  - Graph node: a graph node in lhs can only be mapped as equal to
+ *    one and only one graph node in rhs.
+ *  - Normal node: equality is recursively defined without the restriction
+ *    of graph nodes.
+ *
+ *  Vars(tir::Var, TypeVar) and non-constant relay expression nodes are graph nodes.
+ *  For example, it means that `%1 = %x + %y; %1 + %1` is not structurally equal
+ *  to `%1 = %x + %y; %2 = %x + %y; %1 + %2` in relay.
+ *
+ *  A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
+ *  with the same type if one of the following condition holds:
  *
  *  - They appear in a same definition point(e.g. function argument).
- *x  - They points to the same VarNode via the same_as relation.
+ *  - They points to the same VarNode via the same_as relation.
+ *  - They appear in a same usage point, and map_free_vars is set to be True.
  */
 class StructuralEqual : public BaseValueEqual {
  public:
@@ -122,7 +131,7 @@ class SEqualReducer : public BaseValueEqual {
                               const ObjectRef& rhs,
                               bool map_free_vars) = 0;
     /*!
-     * \brief Lookup the equal map for vars that are already mapped.
+     * \brief Lookup the graph node equal map for vars that are already mapped.
      *
      *  This is an auxiliary method to check the Map<Var, Value> equality.
      * \param lhs an lhs value.
@@ -130,6 +139,10 @@ class SEqualReducer : public BaseValueEqual {
      * \return The corresponding rhs value if any, nullptr if not available.
      */
     virtual ObjectRef MapLhsToRhs(const ObjectRef& lhs) = 0;
+    /*!
+     * \brief Mark current comparison as graph node equal comparison.
+     */
+    virtual void MarkGraphNode() = 0;
   };
 
   using BaseValueEqual::operator();
@@ -189,6 +202,8 @@ class SEqualReducer : public BaseValueEqual {
    * \return the result.
    */
   bool FreeVarEqualImpl(const runtime::Object* lhs, const runtime::Object* rhs) const {
+    // var need to be remapped, so it belongs to graph node.
+    handler_->MarkGraphNode();
     // We only map free vars if they corresponds to the same address
     // or map free_var option is set to be true.
     return lhs == rhs || map_free_vars_;

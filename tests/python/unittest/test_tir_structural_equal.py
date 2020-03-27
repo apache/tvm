@@ -55,8 +55,8 @@ def test_exprs():
     assert tvm.ir.structural_equal(zx * zx, zx * zx)
     assert tvm.ir.structural_equal(zx * zx, zy * zy, map_free_vars=True)
     assert not tvm.ir.structural_equal(zx * zx, zy * zy, map_free_vars=False)
-    assert not tvm.ir.structural_equal(zx * zx, (vx + vx) * (vx + vx),
-                                       map_free_vars=False)
+    assert tvm.ir.structural_equal(zx * zx, (vx + vx) * (vx + vx),
+                                   map_free_vars=False)
 
 
 def test_prim_func():

@@ -89,6 +89,12 @@ class RemapVarSEqualHandler :
     return CheckResult(run(), lhs, rhs);
   }
 
+  void MarkGraphNode() final {
+    // need to push to pending tasks in this case
+    CHECK(!allow_push_to_stack_ && !task_stack_.empty());
+    task_stack_.back().graph_equal = true;
+  }
+
   ObjectRef MapLhsToRhs(const ObjectRef& lhs) final {
     auto it = equal_map_lhs_.find(lhs);
     if (it != equal_map_lhs_.end()) return it->second;
@@ -103,6 +109,7 @@ class RemapVarSEqualHandler :
     equal_map_rhs_.clear();
     if (!SEqualReduce(lhs, rhs, map_free_vars)) return false;
     CHECK_EQ(pending_tasks_.size(), 1U);
+    CHECK(allow_push_to_stack_);
     task_stack_.emplace_back(std::move(pending_tasks_.back()));
     pending_tasks_.clear();
     return RunTasks();
@@ -137,8 +144,11 @@ class RemapVarSEqualHandler :
         if (it != equal_map_lhs_.end()) {
           CHECK(it->second.same_as(entry.rhs));
         }
-        equal_map_lhs_[entry.lhs] = entry.rhs;
-        equal_map_rhs_[entry.rhs] = entry.lhs;
+        // create the map if the quality is graph equal.
+        if (entry.graph_equal) {
+          equal_map_lhs_[entry.lhs] = entry.rhs;
+          equal_map_rhs_[entry.rhs] = entry.lhs;
+        }
         task_stack_.pop_back();
       } else {
         // mark before expand
@@ -148,11 +158,13 @@ class RemapVarSEqualHandler :
         // The SEqual of the object can call into this->SEqualReduce
         // which populates the pending tasks.
         CHECK_EQ(pending_tasks_.size(), 0U);
+        allow_push_to_stack_ = false;
         if (!DispatchSEqualReduce(entry.lhs, entry.rhs, entry.map_free_vars)) return false;
+        allow_push_to_stack_ = true;
         // Push pending tasks in reverse order, so earlier tasks get to
         // expand first in the stack
         while (pending_tasks_.size() != 0) {
-          task_stack_.push_back(std::move(pending_tasks_.back()));
+          task_stack_.emplace_back(std::move(pending_tasks_.back()));
           pending_tasks_.pop_back();
         }
       }
@@ -189,16 +201,19 @@ class RemapVarSEqualHandler :
     bool map_free_vars;
     /*! \brief Whether the children has been expanded via SEqualReduce */
     bool children_expanded{false};
+    /*! \brief whether the task is about graph equality(need remap). */
+    bool graph_equal{false};
 
     Task() = default;
     Task(ObjectRef lhs, ObjectRef rhs, bool map_free_vars)
         : lhs(lhs), rhs(rhs), map_free_vars(map_free_vars) {}
   };
-
   // list of pending tasks to be pushed to the stack.
   std::vector<Task> pending_tasks_;
   // Internal task stack to executed the task
   std::vector<Task> task_stack_;
+  // record current stack top
+  bool allow_push_to_stack_{true};
   // if in assert mode, must return true, and will throw error otherwise.
   bool assert_mode_{false};
   // reflection vtable
