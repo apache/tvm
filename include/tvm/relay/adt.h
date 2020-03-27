@@ -273,6 +273,7 @@ class MatchNode : public ExprNode {
   }
 
   bool SEqualReduce(const MatchNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return
         equal(data, other->data) &&
         equal(clauses, other->clauses) &&

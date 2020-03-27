@@ -321,6 +321,7 @@ class LetNode : public ExprNode {
   }
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return
         equal.DefEqual(var, other->var) &&
         equal(value, other->value) &&
@@ -375,6 +376,7 @@ class IfNode : public ExprNode {
   }
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return
         equal(cond, other->cond) &&
         equal(true_branch, other->true_branch) &&
@@ -450,6 +452,7 @@ class RefCreateNode : public ExprNode {
   }
 
   bool SEqualReduce(const RefCreateNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(value, other->value);
   }
 
@@ -482,6 +485,7 @@ class RefReadNode : public ExprNode {
   }
 
   bool SEqualReduce(const RefReadNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return equal(ref, other->ref);
   }
 
@@ -516,6 +520,7 @@ class RefWriteNode : public ExprNode {
   }
 
   bool SEqualReduce(const RefWriteNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
     return
         equal(ref, other->ref) &&
         equal(value, other->value);

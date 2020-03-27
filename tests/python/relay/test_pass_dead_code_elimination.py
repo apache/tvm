@@ -64,7 +64,7 @@ def test_used_let():
     orig = relay.Let(e.c, e.one, e.c + e.c)
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
     expected = relay.Let(e.c, e.one, e.c + e.c)
-    assert tvm.ir.structural_equal(Function([e.c], orig), Function([e.c], expected))
+    assert tvm.ir.structural_equal(Function([], orig), Function([], expected))
 
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
