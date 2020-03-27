@@ -48,8 +48,6 @@ def test_exprs():
     assert tvm.ir.structural_equal(tvm.tir.Let(vx, 1, vx // vz),
                                    tvm.tir.Let(vy, 1, vy // vz))
 
-    # Tree vs DAG: the folded version is not structural equal to
-    # the other version via structural equality.
     zx = vx + vx
     zy = vy + vy
     assert tvm.ir.structural_equal(zx * zx, zx * zx)
