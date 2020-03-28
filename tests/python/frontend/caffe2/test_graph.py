@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test graph equality of caffe2 models."""
+import tvm
 from tvm import relay
 from tvm.relay import transform
 from model_zoo import c2_squeezenet, relay_squeezenet
