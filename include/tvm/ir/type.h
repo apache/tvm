@@ -80,6 +80,7 @@ class TypeNode : public Object {
 
   static constexpr const char* _type_key = "Type";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
 
@@ -113,6 +114,10 @@ class PrimTypeNode : public TypeNode {
 
   bool SEqualReduce(const PrimTypeNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
   }
 
   static constexpr const char* _type_key = "PrimType";
@@ -159,6 +164,10 @@ class PointerTypeNode : public TypeNode {
 
   bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
     return equal(element_type, other->element_type);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(element_type);
   }
 
   static constexpr const char* _type_key = "PointerType";
@@ -233,6 +242,11 @@ class TypeVarNode : public TypeNode {
         equal.FreeVarEqualImpl(this, other);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(kind);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+
   static constexpr const char* _type_key = "TypeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeVarNode, TypeNode);
 };
@@ -280,6 +294,11 @@ class GlobalTypeVarNode : public TypeNode {
         equal.FreeVarEqualImpl(this, other);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+
   static constexpr const char* _type_key = "GlobalTypeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalTypeVarNode, TypeNode);
 };
@@ -318,6 +337,10 @@ class TupleTypeNode : public TypeNode {
 
   bool SEqualReduce(const TupleTypeNode* other, SEqualReducer equal) const {
     return equal(fields, other->fields);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(fields);
   }
 
   static constexpr const char* _type_key = "TupleType";
@@ -421,6 +444,13 @@ class FuncTypeNode : public TypeNode {
         equal(type_constraints, other->type_constraints);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(type_params);
+    hash_reduce(arg_types);
+    hash_reduce(ret_type);
+    hash_reduce(type_constraints);
+  }
+
   static constexpr const char* _type_key = "FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
@@ -471,6 +501,10 @@ class IncompleteTypeNode : public TypeNode {
     return equal(kind, other->kind);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(kind);
+  }
+
   static constexpr const char* _type_key = "IncompleteType";
   TVM_DECLARE_FINAL_OBJECT_INFO(IncompleteTypeNode, TypeNode);
 };
@@ -510,6 +544,10 @@ class RelayRefTypeNode : public TypeNode {
 
   bool SEqualReduce(const RelayRefTypeNode* other, SEqualReducer equal) const {
     return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(value);
   }
 
   // Keep the relay prefix in the type as this type is specific

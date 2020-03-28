@@ -47,6 +47,7 @@ class PatternNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Pattern";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(PatternNode, Object);
 };
 
@@ -77,6 +78,9 @@ class PatternWildcardNode : public PatternNode {
 
   bool SEqualReduce(const PatternNode* other, SEqualReducer equal) const {
     return true;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
   }
 
   static constexpr const char* _type_key = "relay.PatternWildcard";
@@ -127,6 +131,10 @@ class PatternVarNode : public PatternNode {
     return equal.DefEqual(var, other->var);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(var);
+  }
+
   static constexpr const char* _type_key = "relay.PatternVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternVarNode, PatternNode);
 };
@@ -164,6 +172,11 @@ class PatternConstructorNode : public PatternNode {
         equal(patterns, other->patterns);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(constructor);
+    hash_reduce(patterns);
+  }
+
   static constexpr const char* _type_key = "relay.PatternConstructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternConstructorNode, PatternNode);
 };
@@ -195,6 +208,10 @@ class PatternTupleNode : public PatternNode {
 
   bool SEqualReduce(const PatternTupleNode* other, SEqualReducer equal) const {
     return equal(patterns, other->patterns);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(patterns);
   }
 
   static constexpr const char* _type_key = "relay.PatternTuple";
@@ -231,8 +248,14 @@ class ClauseNode : public Object {
     return equal(lhs, other->lhs) && equal(rhs, other->rhs);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(lhs);
+    hash_reduce(rhs);
+  }
+
   static constexpr const char* _type_key = "relay.Clause";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ClauseNode, Object);
 };
 
@@ -278,6 +301,13 @@ class MatchNode : public ExprNode {
         equal(data, other->data) &&
         equal(clauses, other->clauses) &&
         equal(complete, other->complete);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(data);
+    hash_reduce(clauses);
+    hash_reduce(complete);
   }
 
   static constexpr const char* _type_key = "relay.Match";

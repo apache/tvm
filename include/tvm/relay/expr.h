@@ -77,6 +77,10 @@ class ConstantNode : public ExprNode {
     return equal(data, other->data);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(data);
+  }
+
   static constexpr const char* _type_key = "relay.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
 };
@@ -113,6 +117,13 @@ class TupleNode : public ExprNode {
     } else {
       equal->MarkGraphNode();
       return equal(fields, other->fields);
+    }
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    if (fields.size() != 0) {
+      hash_reduce->MarkGraphNode();
+      hash_reduce(fields);
     }
   }
 
@@ -176,6 +187,11 @@ class VarNode : public ExprNode {
     return
         equal(type_annotation, other->type_annotation) &&
         equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(type_annotation);
+    hash_reduce.FreeVarHashImpl(this);
   }
 
   TVM_DLL static Var make(std::string name_hint,
@@ -269,6 +285,16 @@ class CallNode : public ExprNode {
         (IsPrimitiveOp(op) || equal(type_args, other->type_args));
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(op);
+    hash_reduce(args);
+    hash_reduce(attrs);
+    if (!IsPrimitiveOp(op)) {
+      hash_reduce(type_args);
+    }
+  }
+
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
 };
@@ -328,6 +354,13 @@ class LetNode : public ExprNode {
         equal(body, other->body);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce.DefHash(var);
+    hash_reduce(value);
+    hash_reduce(body);
+  }
+
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
 };
@@ -383,6 +416,13 @@ class IfNode : public ExprNode {
         equal(false_branch, other->false_branch);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(cond);
+    hash_reduce(true_branch);
+    hash_reduce(false_branch);
+  }
+
   static constexpr const char* _type_key = "relay.If";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
 };
@@ -422,6 +462,11 @@ class TupleGetItemNode : public ExprNode {
         equal(index, other->index);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(tuple);
+    hash_reduce(index);
+  }
+
   static constexpr const char* _type_key = "relay.TupleGetItem";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
 };
@@ -456,6 +501,11 @@ class RefCreateNode : public ExprNode {
     return equal(value, other->value);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(value);
+  }
+
   static constexpr const char* _type_key = "relay.RefCreate";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefCreateNode, ExprNode);
 };
@@ -487,6 +537,11 @@ class RefReadNode : public ExprNode {
   bool SEqualReduce(const RefReadNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
     return equal(ref, other->ref);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(ref);
   }
 
   static constexpr const char* _type_key = "relay.RefRead";
@@ -524,6 +579,12 @@ class RefWriteNode : public ExprNode {
     return
         equal(ref, other->ref) &&
         equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(ref);
+    hash_reduce(value);
   }
 
   TVM_DLL static RefWrite make(Expr ref, Expr value);
@@ -568,6 +629,7 @@ class TempExprNode : public ExprNode {
 
   static constexpr const char* _type_key = "relay.TempExpr";
   static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(TempExprNode, ExprNode);
 };
 

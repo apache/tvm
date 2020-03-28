@@ -30,6 +30,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 
 #include <vector>
 #include <string>
@@ -89,11 +90,12 @@ class ReflectionVTable {
   typedef void (*FVisitAttrs)(Object* self, AttrVisitor* visitor);
   /*!
    * \brief Equality comparison function.
-   * \note We use function pointer, instead of std::function
-   *       to reduce the dispatch overhead as field visit
-   *       does not need as much customization.
    */
   typedef bool (*FSEqualReduce)(const Object* self, const Object* other, SEqualReducer equal);
+  /*!
+   * \brief Structural hash reduction function.
+   */
+  typedef void (*FSHashReduce)(const Object* self, SHashReducer hash_reduce);
   /*!
    * \brief creator function.
    * \param global_key Key that identifies a global single object.
@@ -127,6 +129,13 @@ class ReflectionVTable {
    * \return the result.
    */
   bool SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const;
+  /*!
+   * \brief Dispatch the SHashReduce function.
+   * \param self The pointer to the object.
+   * \param hash_reduce The hash reducer.
+   * \return the result.
+   */
+  void SHashReduce(const Object* self, SHashReducer hash_reduce) const;
   /*!
    * \brief Create an initial object using default constructor
    *        by type_key and global key.
@@ -162,7 +171,9 @@ class ReflectionVTable {
   /*! \brief Attribute visitor. */
   std::vector<FVisitAttrs> fvisit_attrs_;
   /*! \brief Structural equal function. */
-  std::vector<FSEqualReduce> fsequal_;
+  std::vector<FSEqualReduce> fsequal_reduce_;
+    /*! \brief Structural hash function. */
+  std::vector<FSHashReduce> fshash_reduce_;
   /*! \brief Creation function. */
   std::vector<FCreate> fcreate_;
   /*! \brief Global key function. */
@@ -280,10 +291,24 @@ struct ImplSEqualReduce<T, true> {
   }
 };
 
+template<typename T,
+         bool = T::_type_has_method_shash_reduce>
+struct ImplSHashReduce {
+  static constexpr const std::nullptr_t SHashReduce = nullptr;
+};
+
+template<typename T>
+struct ImplSHashReduce<T, true> {
+  static void SHashReduce(const T* self, SHashReducer hash_reduce) {
+    self->SHashReduce(hash_reduce);
+  }
+};
+
 template<typename T>
 struct ReflectionTrait :
       public ImplVisitAttrs<T>,
-      public ImplSEqualReduce<T> {
+      public ImplSEqualReduce<T>,
+      public ImplSHashReduce<T> {
 };
 
 template<typename T, typename TraitName,
@@ -315,6 +340,22 @@ struct SelectSEqualReduce<T, TraitName, false> {
                                    equal);
   }
 };
+
+template<typename T, typename TraitName,
+         bool = std::is_null_pointer<decltype(TraitName::SHashReduce)>::value>
+struct SelectSHashReduce {
+  static constexpr const std::nullptr_t SHashReduce = nullptr;
+};
+
+template<typename T, typename TraitName>
+struct SelectSHashReduce<T, TraitName, false> {
+  static void SHashReduce(const Object* self,
+                          SHashReducer hash_reduce) {
+    return TraitName::SHashReduce(static_cast<const T*>(self),
+                                  hash_reduce);
+  }
+};
+
 }  // namespace detail
 
 template<typename T, typename TraitName>
@@ -325,14 +366,18 @@ ReflectionVTable::Register() {
     fvisit_attrs_.resize(tindex + 1, nullptr);
     fcreate_.resize(tindex + 1, nullptr);
     fglobal_key_.resize(tindex + 1, nullptr);
-    fsequal_.resize(tindex + 1, nullptr);
+    fsequal_reduce_.resize(tindex + 1, nullptr);
+    fshash_reduce_.resize(tindex + 1, nullptr);
   }
   // functor that implemnts the redirection.
   fvisit_attrs_[tindex] =
       ::tvm::detail::SelectVisitAttrs<T, TraitName>::VisitAttrs;
 
-  fsequal_[tindex] =
+  fsequal_reduce_[tindex] =
       ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;
+
+  fshash_reduce_[tindex] =
+      ::tvm::detail::SelectSHashReduce<T, TraitName>::SHashReduce;
 
   return Registry(this, tindex);
 }

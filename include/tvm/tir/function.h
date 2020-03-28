@@ -112,6 +112,13 @@ class PrimFuncNode : public BaseFuncNode {
         equal(attrs, other->attrs);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(params);
+    hash_reduce(buffer_map);
+    hash_reduce(ret_type);
+    hash_reduce(body);
+    hash_reduce(attrs);
+  }
   /*!
    * \brief Return the derived function annotation of this function.
    *
@@ -122,7 +129,6 @@ class PrimFuncNode : public BaseFuncNode {
   TVM_DLL FuncType func_type_annotation() const;
 
   static constexpr const char* _type_key = "tir.PrimFunc";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncNode, BaseFuncNode);
 };
 

@@ -71,6 +71,11 @@ class ConstructorNode : public RelayExprNode {
         equal(inputs, other->inputs);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce(inputs);
+  }
+
   static constexpr const char* _type_key = "relay.Constructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorNode, RelayExprNode);
 };
@@ -121,6 +126,12 @@ class TypeDataNode : public TypeNode {
         equal.DefEqual(header, other->header) &&
         equal.DefEqual(type_vars, other->type_vars) &&
         equal(constructors, other->constructors);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(header);
+    hash_reduce.DefHash(type_vars);
+    hash_reduce(constructors);
   }
 
   static constexpr const char* _type_key = "relay.TypeData";

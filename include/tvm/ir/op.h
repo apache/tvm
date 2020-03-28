@@ -106,6 +106,11 @@ class OpNode : public RelayExprNode {
     return this == other;
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    // Name uniquely identifies an Op.
+    hash_reduce(name);
+  }
+
   /*!
    * \brief Check that if current op is a "primtive operator".
    * That is the arguments are all type variables, and there is a single

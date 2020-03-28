@@ -32,6 +32,12 @@ namespace tvm {
 struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
+  static void SHashReduce(const runtime::StringObj* key,
+                          SHashReducer hash_reduce) {
+    hash_reduce->SHashReduceHashedValue(
+        runtime::String::HashBytes(key->data, key->size));
+  }
+
   static bool SEqualReduce(const runtime::StringObj* lhs,
                            const runtime::StringObj* rhs,
                            SEqualReducer equal) {
@@ -46,6 +52,15 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait);
 
 struct ADTObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const runtime::ADTObj* key,
+                          SHashReducer hash_reduce) {
+    hash_reduce(key->tag);
+    hash_reduce(static_cast<uint64_t>(key->size));
+    for (uint32_t i = 0; i < key->size; ++i) {
+      hash_reduce((*key)[i]);
+    }
+  }
 
   static bool SEqualReduce(const runtime::ADTObj* lhs,
                            const runtime::ADTObj* rhs,
@@ -67,6 +82,22 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ADTObj, ADTObjTrait);
 struct NDArrayContainerTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
+  static void SHashReduce(const runtime::NDArray::Container* key,
+                          SHashReducer hash_reduce) {
+    CHECK_EQ(key->dl_tensor.ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    CHECK(runtime::IsContiguous(key->dl_tensor))
+        << "Can only hash contiguous tensor";
+    hash_reduce(runtime::DataType(key->dl_tensor.dtype));
+    hash_reduce(key->dl_tensor.ndim);
+    for (int i = 0; i < key->dl_tensor.ndim; ++i) {
+      hash_reduce(key->dl_tensor.shape[i]);
+    }
+    hash_reduce->SHashReduceHashedValue(
+        runtime::String::HashBytes(
+            static_cast<const char*>(key->dl_tensor.data),
+            runtime::GetDataSize(key->dl_tensor)));
+  }
+
   static bool SEqualReduce(const runtime::NDArray::Container* lhs,
                            const runtime::NDArray::Container* rhs,
                            SEqualReducer equal) {
@@ -80,6 +111,11 @@ struct NDArrayContainerTrait {
         << "Can only compare contiguous tensor";
     CHECK(runtime::IsContiguous(rhs->dl_tensor))
         << "Can only compare contiguous tensor";
+
+    if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
+    for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
+      if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
+    }
     if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
       size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
       return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;
@@ -94,6 +130,14 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrai
 
 struct ArrayNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ArrayNode* key,
+                          SHashReducer hash_reduce) {
+    hash_reduce(static_cast<uint64_t>(key->data.size()));
+    for (size_t i = 0; i < key->data.size(); ++i) {
+      hash_reduce(key->data[i]);
+    }
+  }
 
   static bool SEqualReduce(const ArrayNode* lhs,
                            const ArrayNode* rhs,
@@ -153,6 +197,40 @@ TVM_REGISTER_GLOBAL("node.ArraySize")
 struct MapNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
+  static void SHashReduce(const MapNode* key,
+                          SHashReducer hash_reduce) {
+    // SHash's var handling depends on the determinism of traversal.
+    // NOTE: only book-keep the mapped hash keys.
+    // This resolves common use cases where we want to store
+    // Map<Var, Value> where Var is defined in the function
+    // parameters.
+    using KV = std::pair<size_t, ObjectRef>;
+    std::vector<KV> temp;
+    for (const auto& kv : key->data) {
+      size_t hashed_value;
+      if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
+        temp.emplace_back(hashed_value, kv.second);
+      }
+    }
+    // sort by the hash key of the keys.
+    std::sort(temp.begin(), temp.end(), [](const KV& lhs, const KV& rhs) {
+      return lhs.first < rhs.first;
+    });
+    // add size to the hash
+    hash_reduce(static_cast<uint64_t>(key->data.size()));
+    // hash the content
+    for (size_t i = 0; i < temp.size();) {
+      size_t k = i + 1;
+      for (; k < temp.size() && temp[k].first == temp[i].first; ++k) {}
+      // ties are rare, but we need to skip them to make the hash determinsitic
+      if (k == i + 1) {
+        hash_reduce->SHashReduceHashedValue(temp[i].first);
+        hash_reduce(temp[i].second);
+      }
+      i = k;
+    }
+  }
+
   static bool SEqualReduce(const MapNode* lhs,
                            const MapNode* rhs,
                            SEqualReducer equal) {
@@ -181,6 +259,28 @@ TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
 
 struct StrMapNodeTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const StrMapNode* key,
+                          SHashReducer hash_reduce) {
+    // NOTE: only book-keep the mapped hash keys.
+    // This resolves common use cases where we want to store
+    // Map<Var, Value> where Var is defined in the function
+    // parameters.
+    using KV = std::pair<std::string, ObjectRef>;
+    std::vector<KV> temp(key->data.begin(), key->data.end());
+    // sort by the hash key of the keys.
+    std::sort(temp.begin(), temp.end(), [](const KV& lhs, const KV& rhs) {
+      return lhs.first < rhs.first;
+    });
+    // NOTE: we won't have ties
+    // add size to the hash after sorting.
+    hash_reduce(static_cast<uint64_t>(key->data.size()));
+    // hash the content
+    for (size_t i = 0; i < temp.size(); ++i) {
+      hash_reduce(temp[i].first);
+      hash_reduce(temp[i].second);
+    }
+  }
 
   static bool SEqualReduce(const StrMapNode* lhs,
                            const StrMapNode* rhs,
