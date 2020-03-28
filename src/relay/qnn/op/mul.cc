@@ -42,22 +42,13 @@ namespace qnn {
 Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                         const Array<tvm::relay::Type>& arg_types) {
   // Get the attrs.
-  CHECK_EQ(new_args.size(), 8);
-  auto& lhs = new_args[0];
-  auto& rhs = new_args[1];
-  auto& lhs_scale = new_args[2];
-  auto& lhs_zero_point = new_args[3];
-  auto& rhs_scale = new_args[4];
-  auto& rhs_zero_point = new_args[5];
-  auto& output_scale = new_args[6];
-  auto& output_zero_point = new_args[7];
+  QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  CHECK_EQ(arg_types.size(), 9);
-  auto tensor_type = arg_types[0].as<TensorTypeNode>();
-  CHECK(tensor_type != nullptr);
-  auto input_dtype = tensor_type->dtype;
-  auto input_shape = tensor_type->shape;
+  QnnBinaryOpTensorType input_type(arg_types, 0);
+  // data types
+  const auto int32_dtype = DataType::Int(32);
+  const auto float32_dtype = DataType::Float(32);
 
   /*
   A tensor multiplication c = a * b can be written in terms of respective
@@ -71,31 +62,35 @@ Expr QnnMulCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   which is essentially a requantization of tensor Q' into tensor Q_c.
   */
 
-  auto lhs_shifted = Cast(lhs, DataType::Int(32));
-  auto rhs_shifted = Cast(rhs, DataType::Int(32));
+  auto lhs_shifted = Cast(args.lhs, int32_dtype);
+  auto rhs_shifted = Cast(args.rhs, int32_dtype);
 
-  auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
-  if (!IsEqualScalar(lhs_zero_point, zero_scalar)) {
-    lhs_shifted = Subtract(lhs_shifted, lhs_zero_point);
+  auto zero_scalar = MakeConstantScalar(int32_dtype, 0);
+  if (!IsEqualScalar(args.lhs_zero_point, zero_scalar)) {
+    lhs_shifted = Subtract(lhs_shifted, args.lhs_zero_point);
   }
 
-  if (!IsEqualScalar(rhs_zero_point, zero_scalar)) {
-    rhs_shifted = Subtract(rhs_shifted, rhs_zero_point);
+  if (!IsEqualScalar(args.rhs_zero_point, zero_scalar)) {
+    rhs_shifted = Subtract(rhs_shifted, args.rhs_zero_point);
   }
 
   // Create a new tensor Q'
   auto output = Multiply(lhs_shifted, rhs_shifted);
 
   // Get the adjusted new scale and zero points.
-  float lhs_scale_float = GetScalarFromConstant<float>(lhs_scale);
-  float rhs_scale_float = GetScalarFromConstant<float>(rhs_scale);
+  float lhs_scale_float = GetScalarFromConstant<float>(args.lhs_scale);
+  float rhs_scale_float = GetScalarFromConstant<float>(args.rhs_scale);
   float new_scale_float = lhs_scale_float * rhs_scale_float;
-  auto new_input_scale = MakeConstantScalar(DataType::Float(32), new_scale_float);
+  auto new_input_scale = MakeConstantScalar(float32_dtype, new_scale_float);
   auto new_input_zero_point = zero_scalar;
 
   // Requantize to get Q_c
-  output = Requantize(output, input_shape, new_input_scale, new_input_zero_point, output_scale,
-                      output_zero_point, input_dtype);
+  output = Requantize(output, input_type.shape,
+                      new_input_scale,
+                      new_input_zero_point,
+                      args.output_scale,
+                      args.output_zero_point,
+                      input_type.dtype);
 
   return output;
 }

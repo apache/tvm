@@ -84,7 +84,7 @@ static inline Expr Requantize(const Expr& data, const Array<IndexExpr>& input_sh
   attrs->rounding = std::move(rounding);
   attrs->out_dtype = std::move(out_dtype);
   return RequantizeLower(data, input_scale, input_zero_point, output_scale, output_zero_point,
-                         attrs.operator->(), input_shape, out_dtype);
+                         attrs.operator->(), input_shape, attrs->out_dtype);
 }
 
 static inline int64_t get_const_int(const tvm::PrimExpr& x) {
