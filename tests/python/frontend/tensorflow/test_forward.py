@@ -1114,7 +1114,7 @@ def test_read_variable_op():
                                        num_output=len(out_name))
             for i in range(len(tf_output)):
                 tvm.testing.assert_allclose(
-                    tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
+                    tf_output[i], tvm_output[i], atol=1e-4, rtol=1e-5)
 
         sess.close()
 

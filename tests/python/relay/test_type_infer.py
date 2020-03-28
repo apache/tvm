@@ -21,7 +21,6 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import op, transform, analysis
-from tvm.relay.analysis import assert_alpha_equal
 
 
 def run_infer_type(expr, mod=None):
@@ -360,7 +359,7 @@ def test_let_polymorphism():
     body = relay.Let(id, relay.Function([x], x, xt, [xt]), body)
     body = run_infer_type(body)
     int32 = relay.TensorType((), "int32")
-    assert_alpha_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
+    tvm.ir.assert_structural_equal(body.checked_type, relay.TupleType([int32, relay.TupleType([])]))
 
 
 if __name__ == "__main__":

@@ -50,6 +50,12 @@ class TypeCallNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const TypeCallNode* other, SEqualReducer equal) const {
+    return
+        equal(func, other->func) &&
+        equal(args, other->args);
+  }
+
   static constexpr const char* _type_key = "TypeCall";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeCallNode, TypeNode);
 };
@@ -193,6 +199,14 @@ class TypeRelationNode : public TypeConstraintNode {
     v->Visit("num_inputs", &num_inputs);
     v->Visit("attrs", &attrs);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const TypeRelationNode* other, SEqualReducer equal) const {
+    return
+        equal(func, other->func) &&
+        equal(args, other->args) &&
+        equal(num_inputs, other->num_inputs) &&
+        equal(attrs, other->attrs);
   }
 
   static constexpr const char* _type_key = "TypeRelation";

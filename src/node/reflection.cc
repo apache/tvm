@@ -180,7 +180,7 @@ ObjectPtr<Object>
 ReflectionVTable::CreateInitObject(const std::string& type_key,
                                    const std::string& global_key) const {
   uint32_t tindex = Object::TypeKey2Index(type_key);
-  if (tindex >= fvisit_attrs_.size() || fvisit_attrs_[tindex] == nullptr) {
+  if (tindex >= fcreate_.size() || fcreate_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: " << type_key
                << " is not registered via TVM_REGISTER_NODE_TYPE";
   }

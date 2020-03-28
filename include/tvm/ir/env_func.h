@@ -51,7 +51,12 @@ class EnvFuncNode : public Object {
     v->Visit("name", &name);
   }
 
+  bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
+    return this == other;
+  }
+
   static constexpr const char* _type_key = "EnvFunc";
+  static constexpr bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
 };
 

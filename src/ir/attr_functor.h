@@ -45,8 +45,8 @@ class AttrFunctor;
 
 #define ATTR_FUNCTOR_DISPATCH(OP)                                       \
   vtable.template set_dispatch<OP>(                                     \
-      [](const ObjectRef& n, TSelf* self, Args... args) {                 \
-        return self->VisitAttr_(static_cast<const OP*>(n.get()),  \
+      [](const ObjectRef& n, TSelf* self, Args... args) {               \
+        return self->VisitAttr_(static_cast<const OP*>(n.get()),        \
                                 std::forward<Args>(args)...);           \
       });                                                               \
 

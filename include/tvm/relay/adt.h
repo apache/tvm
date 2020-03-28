@@ -46,6 +46,7 @@ using TypeDataNode = tvm::TypeDataNode;
 class PatternNode : public RelayNode {
  public:
   static constexpr const char* _type_key = "relay.Pattern";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(PatternNode, Object);
 };
 
@@ -72,6 +73,10 @@ class PatternWildcardNode : public PatternNode {
  public:
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const PatternNode* other, SEqualReducer equal) const {
+    return true;
   }
 
   static constexpr const char* _type_key = "relay.PatternWildcard";
@@ -118,6 +123,10 @@ class PatternVarNode : public PatternNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const PatternVarNode* other, SEqualReducer equal) const {
+    return equal.DefEqual(var, other->var);
+  }
+
   static constexpr const char* _type_key = "relay.PatternVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternVarNode, PatternNode);
 };
@@ -149,6 +158,12 @@ class PatternConstructorNode : public PatternNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const PatternConstructorNode* other, SEqualReducer equal) const {
+    return
+        equal(constructor, other->constructor) &&
+        equal(patterns, other->patterns);
+  }
+
   static constexpr const char* _type_key = "relay.PatternConstructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternConstructorNode, PatternNode);
 };
@@ -176,6 +191,10 @@ class PatternTupleNode : public PatternNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("patterns", &patterns);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const PatternTupleNode* other, SEqualReducer equal) const {
+    return equal(patterns, other->patterns);
   }
 
   static constexpr const char* _type_key = "relay.PatternTuple";
@@ -208,7 +227,12 @@ class ClauseNode : public Object {
     v->Visit("rhs", &rhs);
   }
 
+  bool SEqualReduce(const ClauseNode* other, SEqualReducer equal) const {
+    return equal(lhs, other->lhs) && equal(rhs, other->rhs);
+  }
+
   static constexpr const char* _type_key = "relay.Clause";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ClauseNode, Object);
 };
 
@@ -246,6 +270,14 @@ class MatchNode : public ExprNode {
     v->Visit("complete", &complete);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
+  }
+
+  bool SEqualReduce(const MatchNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return
+        equal(data, other->data) &&
+        equal(clauses, other->clauses) &&
+        equal(complete, other->complete);
   }
 
   static constexpr const char* _type_key = "relay.Match";

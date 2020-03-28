@@ -73,6 +73,12 @@ class TensorTypeNode : public BaseTensorTypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const TensorTypeNode* other, SEqualReducer equal) const {
+    return
+        equal(shape, other->shape) &&
+        equal(dtype, other->dtype);
+  }
+
   /*! \brief Return product of elements in the shape.
    *  \return (d1 * d_2 ... * d_n) if shape is (d_1, d_2, ..., d_n) and 1 if shape size is zero.
    */
