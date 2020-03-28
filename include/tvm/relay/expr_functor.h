@@ -293,9 +293,9 @@ class ScopeMutator : public ::tvm::relay::ExprMutator {
    * able to rewrite the op only with data about the original node `pre` and the same node with
    * modified inputs `post` and should not recurse.
    */
-  virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) { return post;};
-  virtual Expr Rewrite_(const CallNode* pre, const Expr& post) { return post; };
-  virtual Expr Rewrite_(const TupleGetItemNode* pre, const Expr& post) { return post; };
+  virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) { return post;}
+  virtual Expr Rewrite_(const CallNode* pre, const Expr& post) { return post; }
+  virtual Expr Rewrite_(const TupleGetItemNode* pre, const Expr& post) { return post; }
 
  protected:
   /*! \brief Implement Rewrite API by calling ExprMutator's VisitExpr_(op) to get a `post` node with
@@ -320,9 +320,9 @@ class ScopeMutator : public ::tvm::relay::ExprMutator {
  * ExprRewriter. The ExprRewriter can then use the information in those two nodes to do more complex
  * graph rewriting.
  */
-#define RELAY_EXPR_REWRITER_DISPATCH(OP)                                                    \
-  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, const Expr& post) {          \
-    return self->Rewrite_(static_cast<const OP*>(n.get()), post); \
+#define RELAY_EXPR_REWRITER_DISPATCH(OP)                                                   \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, const Expr& post) { \
+    return self->Rewrite_(static_cast<const OP*>(n.get()), post);                          \
   });
 
 #define EXPR_REWRITER_REWRITE_DEFAULT \
@@ -338,8 +338,8 @@ class ExprRewriter {
   virtual ~ExprRewriter() {}
   /*!
    * \brief Same as call.
-   * \param n The expression node.
-   * \param args Additional arguments.
+   * \param pre The expression node before rewriting.
+   * \param post The expression node with rewritten inputs.
    * \return The result of the call
    */
   Expr operator()(const Expr& pre, const Expr& post) {
@@ -347,8 +347,8 @@ class ExprRewriter {
   }
   /*!
    * \brief The functor call.
-   * \param n The expression node.
-   * \param args Additional arguments.
+   * \param pre The expression node before rewriting.
+   * \param post The expression node with rewritten inputs.
    * \return The result of the call
    */
   virtual Expr Rewrite(const Expr& pre, const Expr& post) {

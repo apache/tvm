@@ -169,9 +169,9 @@ Expr ScopeMutator::Mutate(const Expr& expr) {
 
 class PostOrderRewriter : protected ScopeMutator {
  public:
-  PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
+  explicit PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
   Expr VisitExpr(const Expr& expr) final {
-    auto post = ExprMutator::VisitExpr(expr);
+    auto post = ExprFunctor::VisitExpr(expr);
     return rewriter_->Rewrite(expr, post);
   }
  protected:
