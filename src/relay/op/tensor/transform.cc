@@ -2142,7 +2142,9 @@ Expr MakeSplit(Expr data,
 TVM_REGISTER_GLOBAL("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     if (args.type_codes[1] == kDLInt) {
-      *rv = MakeSplit(args[0], tir::make_const(DataType::Int(64), int64_t(args[1])), args[2]);
+      *rv = MakeSplit(args[0],
+                      tir::make_const(DataType::Int(32), static_cast<int>(args[1])),
+                      args[2]);
     } else {
       *rv = MakeSplit(args[0], args[1], args[2]);
     }

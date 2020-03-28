@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm.ir import IRModule
+from tvm.ir import IRModule, structural_equal
 from tvm import relay as rly
 from tvm.relay.transform import SimplifyInference
 
@@ -56,7 +56,7 @@ def test_simplify_batchnorm(dtype='float32'):
         mod = simplify(mod)
         y1 = mod["main"].body
 
-        assert rly.analysis.graph_equal(y1, y2)
+        assert structural_equal(y1, y2, map_free_vars=True)
 
     check(2, 1, 1)
     check(4, 1, 1)

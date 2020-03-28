@@ -21,6 +21,7 @@
  * \file type_solver.cc
  * \brief Type solver implementations.
  */
+#include <tvm/node/structural_equal.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/tir/op.h>
 #include <string>
@@ -151,11 +152,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     return rc.Check(t);
   }
 
-  // default: unify only if alpha-equal
+  // default: unify only if structural-equal
   Type VisitTypeDefault_(const Object* op, const Type& tn) final {
     ObjectRef nr = GetRef<ObjectRef>(op);
     Type t1 = GetRef<Type>(nr.as<tvm::relay::TypeNode>());
-    if (!AlphaEqual(t1, tn)) {
+    if (!tvm::StructuralEqual()(t1, tn)) {
       return Type(nullptr);
     }
     return t1;
@@ -216,7 +217,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     auto tt1 = GetRef<TensorType>(op);
     auto tt2 = GetRef<TensorType>(tt_node);
 
-    if (AlphaEqual(tt1, tt2)) {
+    if (tvm::StructuralEqual()(tt1, tt2)) {
       return std::move(tt1);
     }
 

@@ -33,7 +33,6 @@ from . import parser
 
 from . import transform
 from . import analysis
-from .analysis import alpha_equal
 from .build_module import build, create_executor, optimize
 from .transform import build_config
 from . import debug

@@ -52,7 +52,7 @@ def test_no_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_conv_convert_layout():
@@ -87,7 +87,7 @@ def test_conv_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_conv_bias_pool_convert_layout():
@@ -132,7 +132,7 @@ def test_conv_bias_pool_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_conv_concat_convert_layout():
@@ -180,7 +180,7 @@ def test_conv_concat_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_dual_path_convert_layout():
@@ -235,7 +235,7 @@ def test_dual_path_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_bn_convert_layout():
@@ -315,7 +315,7 @@ def test_resnet_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_scalar_convert_layout():
@@ -347,7 +347,7 @@ def test_scalar_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_conv_bn_convert_layout():
@@ -395,7 +395,7 @@ def test_conv_bn_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_qnn_conv_requantize_convert_layout():
@@ -451,7 +451,7 @@ def test_qnn_conv_requantize_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_qnn_conv_concat_convert_layout():
@@ -529,7 +529,7 @@ def test_qnn_conv_concat_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_qnn_conv_add_convert_layout():
@@ -609,7 +609,7 @@ def test_qnn_conv_add_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 if __name__ == "__main__":

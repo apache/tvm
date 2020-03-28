@@ -21,13 +21,12 @@ from tvm import te
 from tvm import relay
 from tvm.tir.expr import *
 from tvm.relay import op
-from tvm.relay.analysis import graph_equal
 import numpy as np
 
 def check_json_roundtrip(node):
     json_str = tvm.ir.save_json(node)
     back = tvm.ir.load_json(json_str)
-    assert graph_equal(back, node)
+    assert tvm.ir.structural_equal(back, node, map_free_vars=True)
 
 
 # Span
