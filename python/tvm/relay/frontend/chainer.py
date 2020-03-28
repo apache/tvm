@@ -34,8 +34,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from ... import nd as _nd
-from .common import AttrCvt, Renamer
-from .common import get_relay_op, new_var, infer_channels
+from .common import new_var
 
 __all__ = ["from_chainer"]
 
@@ -69,6 +68,8 @@ CHAINER_OP_TVM_OP_MAP = {
 }
 
 def get_array(parameter):
+    """ A helper function to get underlying array.
+    """
     if isinstance(parameter, chainer.Parameter):
         array = parameter.array
     elif isinstance(parameter, chainer.Variable):
@@ -83,9 +84,18 @@ def get_array(parameter):
     return array
 
 def canonicalize_param_names(name):
+    """ A helper function to canonicalize param names.
+    """
     return 'param' + name.replace('/', '_')
 
 class VariableStore(object):
+    """A helper class for handling Params and variables of Chainer Model.
+
+        Parameters
+    ----------
+    model : chainer.Chain object
+        The chainer graph
+    """
     def __init__(self, model):
         self.name_list = dict()
         self.tvmparams = {}
@@ -99,6 +109,7 @@ class VariableStore(object):
                                                  shape=param.shape, dtype=str(param.dtype))
 
     def get_name(self, var):
+        """Get name."""
         str_id = id(var)
         if str_id in self.name_list:
             return self.name_list[str_id][0]
@@ -108,6 +119,7 @@ class VariableStore(object):
             return new_name
 
     def set_name(self, var, name, pinned=False):
+        """Set name."""
         str_id = id(var)
         assert str_id not in self.name_list or not self.name_list[str_id][1]
         self.name_list[str_id] = (name, pinned)
@@ -117,9 +129,12 @@ class VariableStore(object):
             self.nodes[name] = new_var(name, shape=var.shape, dtype=str(var.dtype))
 
     def update_node(self, name, node):
+        """Update node."""
         self.nodes[name] = node
 
 def trace_graph_funcs(outputs):
+    """ A helper function to trace all functions -> inputs -> outputs of Chainer Model.
+    """
     cands = []
     function_nodes = collections.OrderedDict()
     push_count = [0]
@@ -172,8 +187,10 @@ class ChainerTVMBridge(object):
         self._shape = shape
         self._dtype = dtype
         self._datastore = VariableStore(model)
+        self._function_nodes = {}
 
     def convert_chainer_ops(self, func):
+        """Convert all chainer ops to corresponding TVM Ops."""
         if isinstance(func, chainer.function.FunctionAdapter):
             func = func.function
 
@@ -186,7 +203,7 @@ class ChainerTVMBridge(object):
             if var is None:
                 # Use VariableNode as is
                 input_name = self._datastore.get_name(input_var)
-            else:  # It is a parameter inside a Link or network input
+            else:  # It is a paramdeter inside a Link or network input
                 input_name = self._datastore.get_name(var)
 
             input_nodes.append(self._datastore.nodes[input_name])
