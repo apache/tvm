@@ -57,14 +57,14 @@ def run_opt_pass(expr, opt_pass):
 def test_let():
     orig = relay.Let(e.x, e.y, e.z)
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(orig), orig), Function([e.z], e.z))
+    assert tvm.ir.structural_equal(Function(free_vars(orig), orig), Function([e.z], e.z))
 
 
 def test_used_let():
     orig = relay.Let(e.c, e.one, e.c + e.c)
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
     expected = relay.Let(e.c, e.one, e.c + e.c)
-    assert alpha_equal(Function([e.c], orig), Function([e.c], expected))
+    assert tvm.ir.structural_equal(Function([], orig), Function([], expected))
 
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
@@ -75,7 +75,7 @@ def test_inline():
 def test_chain_unused_let():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.e))
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
+    assert tvm.ir.structural_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
 
 
 def use_f(func):
@@ -111,13 +111,13 @@ def test_recursion_dead():
     x = relay.Let(e.a, e.one, e.three)
     dced_f = lambda f: x
     dced = run_opt_pass(use_f(dced_f), transform.DeadCodeElimination())
-    assert alpha_equal(dced, e.three)
+    assert tvm.ir.structural_equal(dced, e.three)
 
 
 def test_op_let():
     dced = run_opt_pass(add(relay.Let(e.a, e.one, e.three), e.two),
                         transform.DeadCodeElimination())
-    assert alpha_equal(dced, add(e.three, e.two))
+    assert tvm.ir.structural_equal(dced, add(e.three, e.two))
 
 
 def test_tuple_get_item():
@@ -126,10 +126,10 @@ def test_tuple_get_item():
     a = relay.Var('a')
     g = relay.TupleGetItem(t, 0)
     dced = run_opt_pass(g, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
+    assert tvm.ir.structural_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
     orig = relay.TupleGetItem(relay.Let(a, e.one, t), 0)
     dced = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
+    assert tvm.ir.structural_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
 
 
 @pytest.mark.timeout(timeout=10, method="thread")

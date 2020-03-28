@@ -81,7 +81,8 @@ TVM_REGISTER_GLOBAL("tir.Var")
 TVM_REGISTER_GLOBAL("tir.SizeVar")
 .set_body_typed([](std::string s, DataType t) {
     return SizeVar(s, t);
-  });
+});
+
 
 IterVar IterVarNode::make(Range dom,
                           Var var,
@@ -132,6 +133,7 @@ PrimExpr StringImmNode::make(std::string value) {
 TVM_REGISTER_GLOBAL("tir.StringImm")
 .set_body_typed(StringImmNode::make);
 
+
 PrimExpr CastNode::make(DataType t, PrimExpr value) {
   CHECK(value.defined());
   CHECK_EQ(t.lanes(), value.dtype().lanes());
@@ -140,6 +142,7 @@ PrimExpr CastNode::make(DataType t, PrimExpr value) {
   node->value = std::move(value);
   return PrimExpr(node);
 }
+
 
 PrimExpr AndNode::make(PrimExpr a, PrimExpr b) {
   CHECK(a.defined()) << "ValueError: a is undefined";
@@ -169,6 +172,7 @@ PrimExpr OrNode::make(PrimExpr a, PrimExpr b) {
   return PrimExpr(node);
 }
 
+
 PrimExpr NotNode::make(PrimExpr a) {
   CHECK(a.defined()) << "ValueError: a is undefined";
   CHECK(a.dtype().is_bool());
@@ -178,6 +182,8 @@ PrimExpr NotNode::make(PrimExpr a) {
   node->a = std::move(a);
   return PrimExpr(node);
 }
+
+
 
 PrimExpr SelectNode::make(PrimExpr condition, PrimExpr true_value, PrimExpr false_value) {
   CHECK(condition.defined()) << "ValueError: condition is undefined";
@@ -270,11 +276,11 @@ bool CallNode::is_vectorizable() const {
 }
 
 PrimExpr CallNode::make(DataType dtype,
-                std::string name,
-                Array<PrimExpr> args,
-                CallType call_type,
-                FunctionRef func,
-                int value_index) {
+                        std::string name,
+                        Array<PrimExpr> args,
+                        CallType call_type,
+                        FunctionRef func,
+                        int value_index) {
   for (size_t i = 0; i < args.size(); ++i) {
     CHECK(args[i].defined());
   }

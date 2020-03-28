@@ -213,10 +213,31 @@ def _maxpool_2d():
         pool_size = _infer_shape(inputs[1])
         strides = _infer_shape(inputs[2])
         padding = _infer_shape(inputs[3])
-
+        dilation = _infer_shape(inputs[4])
         ceil_mode = int(inputs[5])
 
+        if dilation != (1, 1):
+            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
+
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
+    return _impl
+
+def _maxpool_1d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        pool_size = _infer_shape(inputs[1])
+        strides = _infer_shape(inputs[2])
+        padding = _infer_shape(inputs[3])
+        dilation = _infer_shape(inputs[4])
+        ceil_mode = int(inputs[5])
+
+        if dilation != (1,):
+            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
+
+        return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
     return _impl
 
 def _hardtanh():
@@ -230,7 +251,7 @@ def _hardtanh():
 def _convolution():
     def _impl(inputs, input_types):
         # Use transpose or normal
-        use_transpose = True if inputs[6] == "1" else False
+        use_transpose = True if inputs[6] == 1 else False
 
         data = inputs[0]
         weight = inputs[1]
@@ -246,6 +267,10 @@ def _convolution():
                 weight_shape.append(infer)
         else:
             assert "data type {} could not be parsed in conv op" % (type(weight))
+
+        # Transposed convolutions have IOHW layout.
+        if use_transpose:
+            weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
 
         channels = weight_shape[0]
         groups = int(inputs[8])
@@ -868,6 +893,7 @@ _convert_map = {
     "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
     "aten::max_pool2d"                      : _maxpool_2d(),
     "aten::max_pool2d_with_indices"         : _maxpool_2d(),
+    "aten::max_pool1d"                      : _maxpool_1d(),
     "aten::hardtanh"                        : _hardtanh(),
     "aten::hardtanh_"                       : _hardtanh(),
     "aten::_convolution"                    : _convolution(),

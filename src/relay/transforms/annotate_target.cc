@@ -43,7 +43,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_e = ExprMutator::VisitExpr_(cn);
 
     Call call = Downcast<Call>(new_e);
-    static auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
+    auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
     Op op = Downcast<Op>(call->op);
     CHECK(op.defined());
 

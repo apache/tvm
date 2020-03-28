@@ -63,6 +63,14 @@ class ConstructorNode : public RelayExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const ConstructorNode* other, SEqualReducer equal) const {
+    // Use namehint for now to be consistent with the legacy relay impl
+    // TODO(tvm-team) revisit, need to check the type var.
+    return
+        equal(name_hint, other->name_hint) &&
+        equal(inputs, other->inputs);
+  }
+
   static constexpr const char* _type_key = "relay.Constructor";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorNode, RelayExprNode);
 };
@@ -106,6 +114,13 @@ class TypeDataNode : public TypeNode {
     v->Visit("type_vars", &type_vars);
     v->Visit("constructors", &constructors);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const TypeDataNode* other, SEqualReducer equal) const {
+    return
+        equal.DefEqual(header, other->header) &&
+        equal.DefEqual(type_vars, other->type_vars) &&
+        equal(constructors, other->constructors);
   }
 
   static constexpr const char* _type_key = "relay.TypeData";
