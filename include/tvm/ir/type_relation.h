@@ -208,6 +208,7 @@ class TypeRelationNode : public TypeConstraintNode {
 
   bool SEqualReduce(const TypeRelationNode* other, SEqualReducer equal) const {
     return
+        equal(func, other->func) &&
         equal(args, other->args) &&
         equal(num_inputs, other->num_inputs) &&
         equal(attrs, other->attrs);
