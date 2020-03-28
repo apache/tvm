@@ -118,12 +118,12 @@ def test_array():
     assert not consistent_equal(nx, nz)
 
 def test_env_func():
-    @tvm.register_func("test.env_func")
+    @tvm.register_func("test.sequal.env_func")
     def test(x):
         return x + 1
 
-    x = tvm.ir.EnvFunc.get("test.env_func")
-    y = tvm.ir.EnvFunc.get("test.env_func")
+    x = tvm.ir.EnvFunc.get("test.sequal.env_func")
+    y = tvm.ir.EnvFunc.get("test.sequal.env_func")
     assert consistent_equal(y, x)
 
 
