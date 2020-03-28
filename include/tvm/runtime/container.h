@@ -492,6 +492,26 @@ class String : public ObjectRef {
    */
   operator std::string() const { return std::string{get()->data, size()}; }
 
+  /*!
+   * \brief Hash the binary bytes
+   * \param data The data pointer
+   * \param size The size of the bytes.
+   * \return the hash value.
+   */
+  static size_t HashBytes(const char* data, size_t size) {
+    // This function falls back to string copy with c++11 compiler and is
+    // recommended to be compiled with c++14
+#if TVM_USE_CXX17_STRING_VIEW_HASH
+    return std::hash<std::string_view>()(
+        std::string_view(data, size));
+#elif TVM_USE_CXX14_STRING_VIEW_HASH
+    return std::hash<std::experimental::string_view>()(
+        std::experimental::string_view(data, size));
+#else
+    return std::hash<std::string>()(std::string(data, size));
+#endif
+  }
+
   TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
 
  private:
@@ -570,17 +590,7 @@ namespace std {
 template <>
 struct hash<::tvm::runtime::String> {
   std::size_t operator()(const ::tvm::runtime::String& str) const {
-    // This function falls back to string copy with c++11 compiler and is
-    // recommended to be compiled with c++14
-#if TVM_USE_CXX17_STRING_VIEW_HASH
-    return std::hash<std::string_view>{}(
-        std::string_view{str.data(), str.size()});
-#elif TVM_USE_CXX14_STRING_VIEW_HASH
-    return std::hash<std::experimental::string_view>{}(
-        std::experimental::string_view{str.data(), str.size()});
-#else
-    return std::hash<std::string>()(str.operator std::string());
-#endif
+    return ::tvm::runtime::String::HashBytes(str.data(), str.size());
   }
 };
 }  // namespace std

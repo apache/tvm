@@ -79,6 +79,15 @@ class FunctionNode : public BaseFuncNode {
         equal(body, other->body);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce.DefHash(params);
+    hash_reduce.DefHash(type_params);
+    hash_reduce(ret_type);
+    hash_reduce(attrs);
+    hash_reduce(body);
+  }
+
   /*!
    * \brief Return the derived function annotation of this expression.
    *
