@@ -42,6 +42,7 @@ tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(USE_MICRO "Build with Micro" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
+tvm_option(USE_TF_COMPILE_FLAGS "Build with TensorFlow's compile flags." OFF)
 
 # 3rdparty libraries
 tvm_option(DLPACK_PATH "Path to DLPACK" "3rdparty/dlpack/include")
@@ -99,6 +100,19 @@ if(MSVC)
     endforeach(flag_var)
   endif()
 else(MSVC)
+
+  if(USE_TF_COMPILE_FLAGS)
+    execute_process(COMMAND python3 -c "import tensorflow as tf; print(' '.join(tf.sysconfig.get_compile_flags()))"
+        OUTPUT_VARIABLE TF_COMPILE_FLAGS
+        RESULT_VARIABLE TF_COMPILE_FLAGS_STATUS)
+    if (NOT ${TF_COMPILE_FLAGS_STATUS} EQUAL 0)
+        message(FATAL_ERROR "Fail to get TensorFlow compile flags")
+    endif()
+    string(REGEX REPLACE "\n" "" TF_COMPILE_FLAGS "${TF_COMPILE_FLAGS}")
+    message("Use TensorFlow Compile flags=\"${TF_COMPILE_FLAGS}\"")
+    set(CMAKE_CXX_FLAGS "${TF_COMPILE_FLAGS} ${CMAKE_CXX_FLAGS}")
+  endif(USE_TF_COMPILE_FLAGS)
+
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     message("Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
