@@ -121,6 +121,7 @@ class AttrFieldInfoNode : public Object {
 
   static constexpr const char* _type_key = "AttrFieldInfo";
   static constexpr bool _type_has_method_sequal_reduce = false;
+  static constexpr bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
 };
 
@@ -281,6 +282,7 @@ class BaseAttrsNode : public Object {
   TVM_DLL virtual size_t ContentHash(AttrsHash hasher) const = 0;
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const char* _type_key = "Attrs";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
@@ -307,6 +309,10 @@ class DictAttrsNode : public BaseAttrsNode {
 
   bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
     return equal(dict, other->dict);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dict);
   }
 
   // implementations
@@ -450,6 +456,21 @@ class AttrsHashVisitor {
 
  private:
   const AttrsHash& hasher_;
+};
+
+class AttrsSHashVisitor {
+ public:
+  explicit AttrsSHashVisitor(const SHashReducer& hash_reducer)
+      : hash_reducer_(hash_reducer) {}
+
+  template<typename T>
+  AttrNopEntry operator()(const char* key, T* value) {
+    hash_reducer_(*value);
+    return AttrNopEntry();
+  }
+
+ private:
+  const SHashReducer& hash_reducer_;
 };
 
 // helper entry that does initialization, set default.
@@ -856,6 +877,11 @@ class AttrsNode : public BaseAttrsNode {
     ::tvm::detail::AttrsSEqualVisitor visitor(pself, other, equal);
     self()->__VisitAttrs__(visitor);
     return visitor.result_;
+  }
+
+  void SHashReduce(SHashReducer hash_reducer) const {
+    ::tvm::detail::AttrsSHashVisitor visitor(hash_reducer);
+    self()->__VisitAttrs__(visitor);
   }
 
   Array<AttrFieldInfo> ListFieldInfo() const final {

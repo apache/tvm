@@ -192,9 +192,14 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     ------
     result : bool
         The comparison result.
+
+    See Also
+    --------
+    structural_hash
+    assert_strucural_equal
     """
-    return tvm.runtime._ffi_node_api.StructuralEqual(
-        lhs, rhs, False, map_free_vars)
+    return bool(tvm.runtime._ffi_node_api.StructuralEqual(
+        lhs, rhs, False, map_free_vars))
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):
@@ -222,3 +227,45 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     """
     tvm.runtime._ffi_node_api.StructuralEqual(
         lhs, rhs, True, map_free_vars)
+
+
+def structural_hash(node, map_free_vars=False):
+    """Compute structural hash of node
+
+    The structural hash value is recursively defined in the DAG of IRNodes.
+    There are two kinds of nodes:
+
+    - Normal node: the hash value is defined by its content and type only.
+    - Graph node: each graph node will be assigned a unique index ordered by the
+      first occurence during the visit. The hash value of a graph node is
+      combined from the hash values of its contents and the index.
+
+    structural_hash is made to be concistent with structural_equal.
+    If two nodes are structurally equal to each other,
+    then their structural hash (with the same map_free_vars option)
+    should be equal to each other as well.
+
+    If the structural hash of two nodes equals to each other,
+    then it is highly likely(except for rare hash value collison cases)
+    that the two nodes are structurally equal to each other.
+
+    Parameters
+    ----------
+    node : Object
+        The input to be hashed.
+
+    map_free_vars : bool
+        If map_free_vars is set to true, we will hash free variables
+        by the order of their occurences. Otherwise, we will hash by
+        their in-memory pointer address.
+
+    Return
+    ------
+    result : int
+        The hash result
+
+    See Also
+    --------
+    structrual_equal
+    """
+    return tvm.runtime._ffi_node_api.StructuralHash(node, map_free_vars)
