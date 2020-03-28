@@ -20,18 +20,6 @@ import sys
 import json
 import argparse
 
-def get_vta_hw_path():
-    """Get the VTA HW path."""
-    VTA_HW_PATH = os.getenv('VTA_HW_PATH', None)
-    assert VTA_HW_PATH, "Please set VTA_HW_PATH to point to TVM dir \
-                         VTA subdirectory (<tvm-root>/vta/vta-hw)."
-    return VTA_HW_PATH
-
-def get_tvm_path():
-    """Get the TVM path."""
-    TVM_PATH = os.getenv('TVM_PATH', None)
-    assert TVM_PATH, "Please set TVM_PATH to point to TVM root."
-    return TVM_PATH
 
 def pkg_config(cfg):
     """Returns PkgConfig pkg config object."""
@@ -120,7 +108,7 @@ def main():
         return
 
     # Path to vta config
-    config_path = os.path.join(get_vta_hw_path(), "config/vta_config.json")
+    config_path = "vta_config.json"
     if not os.path.exists(config_path):
         raise RuntimeError("Cannot find config in %s" % str(config_path))
     cfg = json.load(open(config_path))

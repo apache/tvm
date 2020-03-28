@@ -27,9 +27,9 @@ from . import intrin
 
 def get_vta_hw_path():
     """Get the VTA HW path."""
-    VTA_HW_PATH = os.getenv('VTA_HW_PATH', None)
-    assert VTA_HW_PATH, "Please set VTA_HW_PATH to point to TVM dir \
-                         VTA subdirectory (<tvm-root>/vta/vta-hw)."
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../vta-hw"))
+    VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
     return VTA_HW_PATH
 
 def pkg_config(cfg):
