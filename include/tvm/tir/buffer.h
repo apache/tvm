@@ -164,6 +164,17 @@ class BufferNode : public Object {
         equal(buffer_type, other->buffer_type);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(data);
+    hash_reduce(dtype);
+    hash_reduce.DefHash(shape);
+    hash_reduce.DefHash(strides);
+    hash_reduce.DefHash(elem_offset);
+    hash_reduce(scope);
+    hash_reduce(data_alignment);
+    hash_reduce(buffer_type);
+  }
+
   /*! \return preferred index type for this buffer node */
   DataType DefaultIndexType() const {
     return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
@@ -184,6 +195,7 @@ class BufferNode : public Object {
 
   static constexpr const char* _type_key = "Buffer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
 };
 

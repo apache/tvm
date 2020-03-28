@@ -81,6 +81,12 @@ class VarNode : public PrimExprNode {
     return equal.FreeVarEqualImpl(this, other);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(type_annotation);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+
   static constexpr const char* _type_key = "tir.Var";
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
 };
@@ -302,12 +308,20 @@ class IterVarNode : public Object {
         equal(thread_tag, other->thread_tag);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dom);
+    hash_reduce.DefHash(var);
+    hash_reduce(iter_type);
+    hash_reduce(thread_tag);
+  }
+
   TVM_DLL static IterVar make(Range dom, Var var,
                               IterVarType iter_type,
                               std::string thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
 };
 
@@ -353,6 +367,10 @@ class StringImmNode : public PrimExprNode {
     return equal(value, other->value);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(value);
+  }
+
   TVM_DLL PrimExpr static make(std::string value);
 
   static constexpr const char* _type_key = "StringImm";
@@ -380,6 +398,11 @@ class CastNode : public PrimExprNode {
 
   bool SEqualReduce(const CastNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
   }
 
   TVM_DLL static PrimExpr make(DataType t, PrimExpr v);
@@ -411,6 +434,12 @@ class BinaryOpNode : public PrimExprNode {
         equal(dtype, other->dtype) &&
         equal(a, other->a) &&
         equal(b, other->b);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(a);
+    hash_reduce(b);
   }
 
   static PrimExpr make(PrimExpr a, PrimExpr b) {
@@ -512,6 +541,12 @@ class CmpOpNode : public PrimExprNode {
         equal(b, other->b);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(a);
+    hash_reduce(b);
+  }
+
   static PrimExpr make(PrimExpr a, PrimExpr b) {
     CHECK(a.defined()) << "ValueError: a is undefined\n";
     CHECK(b.defined()) << "ValueError: b is undefined\n";
@@ -583,6 +618,12 @@ class AndNode : public PrimExprNode {
         equal(b, other->b);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(a);
+    hash_reduce(b);
+  }
+
   TVM_DLL static PrimExpr make(PrimExpr a, PrimExpr b);
 
   static constexpr const char* _type_key = "And";
@@ -610,6 +651,12 @@ class OrNode : public PrimExprNode {
         equal(b, other->b);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(a);
+    hash_reduce(b);
+  }
+
   TVM_DLL static PrimExpr make(PrimExpr a, PrimExpr b);
 
   static constexpr const char* _type_key = "Or";
@@ -629,6 +676,11 @@ class NotNode : public PrimExprNode {
 
   bool SEqualReduce(const NotNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype) && equal(a, other->a);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(a);
   }
 
   TVM_DLL static PrimExpr make(PrimExpr a);
@@ -666,6 +718,13 @@ class SelectNode : public PrimExprNode {
         equal(condition, other->condition) &&
         equal(true_value, other->true_value) &&
         equal(false_value, other->false_value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(condition);
+    hash_reduce(true_value);
+    hash_reduce(false_value);
   }
 
   TVM_DLL static PrimExpr make(PrimExpr condition, PrimExpr true_value, PrimExpr false_value);
@@ -713,6 +772,13 @@ class LoadNode : public PrimExprNode {
         equal(predicate, other->predicate);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(buffer_var);
+    hash_reduce(index);
+    hash_reduce(predicate);
+  }
+
   TVM_DLL static PrimExpr make(DataType dtype, Var buffer_var, PrimExpr index, PrimExpr predicate);
 
   static constexpr const char* _type_key = "Load";
@@ -752,6 +818,13 @@ class RampNode : public PrimExprNode {
         equal(lanes, other->lanes);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(base);
+    hash_reduce(stride);
+    hash_reduce(lanes);
+  }
+
   TVM_DLL static PrimExpr make(PrimExpr base, PrimExpr stride, int lanes);
 
   static constexpr const char* _type_key = "Ramp";
@@ -777,6 +850,12 @@ class BroadcastNode : public PrimExprNode {
         equal(dtype, other->dtype) &&
         equal(value, other->value) &&
         equal(lanes, other->lanes);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
+    hash_reduce(lanes);
   }
 
   TVM_DLL static PrimExpr make(PrimExpr value, int lanes);
@@ -810,6 +889,13 @@ class LetNode : public PrimExprNode {
         equal.DefEqual(var, other->var) &&
         equal(value, other->value) &&
         equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce.DefHash(var);
+    hash_reduce(value);
+    hash_reduce(body);
   }
 
   TVM_DLL static PrimExpr make(Var var, PrimExpr value, PrimExpr body);
@@ -892,6 +978,15 @@ class CallNode : public PrimExprNode {
         equal(value_index, other->value_index);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(name);
+    hash_reduce(args);
+    hash_reduce(call_type);
+    hash_reduce(func);
+    hash_reduce(value_index);
+  }
+
   TVM_DLL static PrimExpr make(DataType dtype,
                                std::string name,
                                Array<PrimExpr> args,
@@ -967,6 +1062,12 @@ class ShuffleNode : public PrimExprNode {
         equal(indices, other->indices);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(vectors);
+    hash_reduce(indices);
+  }
+
   TVM_DLL static PrimExpr make(Array<PrimExpr> vectors, Array<PrimExpr> indices);
   TVM_DLL static PrimExpr make_concat(Array<PrimExpr> vectors);
   TVM_DLL static PrimExpr make_extract_element(PrimExpr vector, int index);
@@ -1037,8 +1138,16 @@ class CommReducerNode : public Object {
         equal(identity_element, other->identity_element);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(lhs);
+    hash_reduce.DefHash(rhs);
+    hash_reduce(result);
+    hash_reduce(identity_element);
+  }
+
   static constexpr const char* _type_key = "CommReducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);
 };
 
@@ -1092,6 +1201,16 @@ class ReduceNode : public PrimExprNode {
         equal(condition, other->condition) &&
         equal(value_index, other->value_index);
   }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(axis);
+    hash_reduce(combiner);
+    hash_reduce(source);
+    hash_reduce(condition);
+    hash_reduce(value_index);
+  }
+
   static constexpr const char* _type_key = "Reduce";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReduceNode, PrimExprNode);
 };
@@ -1103,6 +1222,9 @@ class AnyNode : public PrimExprNode {
 
   bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
     return true;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
   }
 
   /*! \brief Convert to var. */

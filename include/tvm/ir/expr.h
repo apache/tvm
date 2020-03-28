@@ -44,6 +44,7 @@ class BaseExprNode : public Object {
  public:
   static constexpr const char* _type_key = "Expr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
 
@@ -205,6 +206,11 @@ class GlobalVarNode : public RelayExprNode {
         equal.FreeVarEqualImpl(this, other);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+
   static constexpr const char* _type_key = "GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelayExprNode);
 };
@@ -238,6 +244,11 @@ class IntImmNode : public PrimExprNode {
 
   bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "IntImm";
@@ -277,6 +288,11 @@ class FloatImmNode : public PrimExprNode {
 
   bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "FloatImm";
@@ -373,8 +389,14 @@ class RangeNode : public Object {
     return equal(min, other->min) && equal(extent, other->extent);
   }
 
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(min);
+    hash_reduce(extent);
+  }
+
   static constexpr const char* _type_key = "Range";
   static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 

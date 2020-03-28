@@ -65,7 +65,6 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   data_ = std::move(n);
 }
 
-
 bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
   if (functions.size() != other->functions.size()) return false;
   for (const auto& kv : this->functions) {
@@ -78,6 +77,37 @@ bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) 
     if (!equal(kv.second, other->LookupTypeDef(kv.first->name_hint))) return false;
   }
   return true;
+}
+
+void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
+  using KV = std::pair<std::string, ObjectRef>;
+  // hash the functions.
+  std::vector<KV> temp;
+
+  auto reduce_temp = [&]() {
+    // sort by the hash key of the keys.
+    std::sort(temp.begin(), temp.end(), [](const KV& lhs, const KV& rhs) {
+      return lhs.first < rhs.first;
+    });
+
+    hash_reduce(static_cast<uint64_t>(temp.size()));
+    // hash the content
+    for (size_t i = 0; i < temp.size(); ++i) {
+      hash_reduce(temp[i].first);
+      hash_reduce(temp[i].second);
+    }
+  };
+
+  for (const auto& kv : this->functions) {
+    temp.emplace_back(kv.first->name_hint, kv.second);
+  }
+  reduce_temp();
+
+  temp.clear();
+  for (const auto& kv : this->type_definitions) {
+    temp.emplace_back(kv.first->name_hint, kv.second);
+  }
+  reduce_temp();
 }
 
 bool IRModuleNode::ContainGlobalVar(const std::string& name) const {

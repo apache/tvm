@@ -17,7 +17,7 @@
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
 from .base import SourceName, Span, Node, EnvFunc, load_json, save_json
-from .base import structural_equal, assert_structural_equal
+from .base import structural_equal, assert_structural_equal, structural_hash
 from .type import Type, TypeKind, PrimType, PointerType, TypeVar, GlobalTypeVar, TupleType
 from .type import TypeConstraint, FuncType, IncompleteType, RelayRefType
 from .tensor_type import TensorType
