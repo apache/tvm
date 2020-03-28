@@ -21,8 +21,10 @@ import sys
 from scipy.stats import t as tdistr
 import numpy as np
 import chainer
+import chainer.functions as F
 import chainer.links as L
 
+import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
@@ -33,46 +35,32 @@ def verify_model(model, input_data=[], ctx_list=ctx_list()):
     baseline."""
 
     # Run Chainer Model for the input
+    baseline_outputs = model(chainer.Variable(input_data[0])).data
     
     # Convert Chainer model to TVM and get the output
-    mod, params = relay.frontend.from_chainer(model, input_shapes)
-    compiled_input = dict(zip(input_names,
-                              [inp.cpu().numpy() for inp in baseline_input]))
+    mod, params = relay.frontend.from_chainer(model, input_data[0].shape, "float32")
 
     with relay.build_config(opt_level=3):
         for target, ctx in ctx_list:
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
-            for name, inp in compiled_input.items():
-                relay_model.set_input(name, inp)
+            relay_model.set_input("var2", input_data[0])
             relay_model.run()
 
-            for i, baseline_output in enumerate(baseline_outputs):
-                compiled_output = relay_model.get_output(i).asnumpy()
+            compiled_output = relay_model.get_output(0).asnumpy()
 
-                assert_shapes_match(baseline_output, compiled_output)
-                tvm.testing.assert_allclose(baseline_output, compiled_output,
-                                            rtol=1e-3, atol=1e-3)
+            tvm.testing.assert_allclose(baseline_outputs, compiled_output,
+                                        rtol=1e-3, atol=1e-3)
 
 # Single operator tests
-def test_forward_add():
-
-def test_forward_subtract():
-
-def test_forward_multiply():
-
-def test_forward_concatenate():
-
 def test_forward_relu():
-
-def test_forward_conv():
+    class Link(chainer.Chain):
+        def __call__(self, x):
+            return F.relu(x)
+    input_data = np.random.uniform(-1, 1, (1, 3, 7, 7)).astype(np.float32)
+    verify_model(Link(), [input_data])
 
 if __name__ == "__main__":
     # Single operator tests
-    test_forward_add()
-    test_forward_subtract()
-    test_forward_multiply()
-    test_forward_concatenate()
     test_forward_relu()
-    test_forward_conv()

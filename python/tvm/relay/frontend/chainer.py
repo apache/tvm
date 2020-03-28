@@ -20,38 +20,37 @@
 """Chainer frontend."""
 import collections
 import heapq
-import os
-
-import numpy
-import six
+import numpy as np
 
 import chainer
 from chainer import function
 from chainer import function_node
-from chainer import variable
 
 
-import itertools
-import logging
-import sys
+from tvm.ir import IRModule
 
-import numpy as np
-
-import tvm
-from tvm.ir import module as _module
-
-from .. import analysis as _analysis
+from .. import analysis
 from .. import expr as _expr
-from .. import op as _op
 from .. import function as _function
-from ..loops import while_loop
-from .common import get_relay_op
-from .common import infer_shape as _infer_shape
-from .common import infer_value as _infer_value
+from .. import op as _op
+from ... import nd as _nd
+from .common import AttrCvt, Renamer
+from .common import get_relay_op, new_var, infer_channels
 
 __all__ = ["from_chainer"]
 
 _function_types = (function.Function, function_node.FunctionNode)
+
+def _none():
+    def _impl(inputs, func):
+        return None
+    return _impl
+
+def _relu():
+    def _impl(inputs, func):
+        data = inputs[0]
+        return _op.nn.relu(data)
+    return _impl
 
 # Chainer Op --> TVM Op Map
 CHAINER_OP_TVM_OP_MAP = {
@@ -61,7 +60,7 @@ CHAINER_OP_TVM_OP_MAP = {
     "AveragePooling2D"                     : _none(),
     "MaxPoolingND"                         : _none(),
     "LocalResponseNormalization"           : _none(),
-    "ReLU"                                 : _none(),
+    "ReLU"                                 : _relu(),
     "LeakyReLU"                            : _none(),
     "Concat"                               : _none(),
     "Softmax"                              : _none(),
@@ -69,63 +68,99 @@ CHAINER_OP_TVM_OP_MAP = {
     "Reshape"                              : _none(),
 }
 
+def get_array(parameter):
+    if isinstance(parameter, chainer.Parameter):
+        array = parameter.array
+    elif isinstance(parameter, chainer.Variable):
+        array = parameter.array
+    elif isinstance(parameter, chainer.get_array_types()):
+        array = parameter
+    else:
+        raise ValueError(
+            'The type of parameter is unknown. It should be either Parameter '
+            'or Variable or ndarray, but the type was {}.'.format(
+                type(parameter)))
+    return array
+
+def canonicalize_param_names(name):
+    return 'param' + name.replace('/', '_')
+
+class VariableStore(object):
+    def __init__(self, model):
+        self.name_list = dict()
+        self.tvmparams = {}
+        self.params = {}
+        self.nodes = {}
+        for name, param in model.namedparams():
+            processed_name = canonicalize_param_names(name)
+            self.set_name(param, processed_name)
+            self.params[processed_name] = _nd.array(get_array(param))
+            self.nodes[processed_name] = new_var(processed_name,
+                                                 shape=param.shape, dtype=str(param.dtype))
+
+    def get_name(self, var):
+        str_id = id(var)
+        if str_id in self.name_list:
+            return self.name_list[str_id][0]
+        else:
+            new_name = 'var{}'.format(len(self.name_list))
+            self.set_name(var, new_name)
+            return new_name
+
+    def set_name(self, var, name, pinned=False):
+        str_id = id(var)
+        assert str_id not in self.name_list or not self.name_list[str_id][1]
+        self.name_list[str_id] = (name, pinned)
+        if isinstance(var, (chainer.Variable, chainer.Parameter)):
+            array_id = id(var.array)
+            self.name_list[array_id] = (name, pinned)
+            self.nodes[name] = new_var(name, shape=var.shape, dtype=str(var.dtype))
+
+    def update_node(self, name, node):
+        self.nodes[name] = node
+
 def trace_graph_funcs(outputs):
-    fan_out = collections.defaultdict(int)
-    cand_funcs = []
+    cands = []
+    function_nodes = collections.OrderedDict()
+    push_count = [0]
 
-    def add_cand_to_check(cands):
-        for cand in cands:
-            x = cand.creator
-            if x is None:
-                continue
-            if x not in fan_out:
-                heapq.heappush(cand_funcs, (-x.rank, len(fan_out), x))
-            fan_out[x] += 1
+    def add_cand(cand):
+        heapq.heappush(cands, (-cand.rank, push_count[0], cand))
+        push_count[0] += 1
 
-    add_cand_to_check(outputs)
-    while cand_funcs:
-        _, _, func = heapq.heappop(cand_funcs)
-        assert isinstance(func, _function_types)
-        add_cand_to_check(func.inputs)
+    for o in outputs:
+        if isinstance(o, chainer.Variable):
+            o = o.node
+        add_cand(o)
 
-    ret = []
-    cand_funcs = []
-    seen_set = set()
+    while cands:
+        _, _, cand = heapq.heappop(cands)
+        if not isinstance(cand, chainer.variable.VariableNode):
+            raise NotImplementedError(
+                'TVM-Chainer does not support node type {}'.format(
+                    type(cand)))
+        creator = cand.creator_node
+        if creator is None:
+            continue
+        assert isinstance(creator, chainer.FunctionNode)
+        creator_id = id(creator)
+        if creator_id in function_nodes:
+            continue
+        function_nodes[creator_id] = creator
 
-    def add_cand(cands):
-        cands = [cand.creator for cand in cands if cand.creator is not None]
-        for x in cands:
-            if x in seen_set:
-                continue
-            order = 1
-            if fan_out[x] == 1 and len(cands) == 1:
-                order = -len(seen_set)
-            heapq.heappush(cand_funcs, (order, -x.rank, -len(seen_set), x))
-            seen_set.add(x)
+        for input_ in creator.inputs:
+            add_cand(input_)
 
-    add_cand(outputs)
-    while cand_funcs:
-        _, _, _, func = heapq.heappop(cand_funcs)
-        ret.append(func)
-        add_cand(func.inputs)
-
-    return ret[::-1]
-
+    return reversed(function_nodes.values())
 
 def get_relay_input_vars(input_shapes):
     """ Return Relay vars from input shapes """
     return {iname: _expr.var(iname, shape=ishape)
             for iname, ishape in input_shapes.items()}
 
-def convert_operators(func_list):
-    """ Convert each Torch IR operators to Relay equivalent """
-    for func in func_list:
-        assert isinstance(func, _function_types)
-
-        relay_op = CHAINER_OP_TVM_OP_MAP[func.label]
-        relay_out = relay_op(func)
-
-    return [relay_out]
+def get_converter(op):
+    """ Convert each Chainer operators to Relay converter """
+    return CHAINER_OP_TVM_OP_MAP[op]
 
 # Chainer-TVM Bridge
 class ChainerTVMBridge(object):
@@ -133,15 +168,52 @@ class ChainerTVMBridge(object):
     """
 
     def __init__(self, model, shape, dtype='float32'):
-        self._module = model
+        self._model = model
         self._shape = shape
         self._dtype = dtype
-        self._sym_array = {}
-        self._tvmparams = {}
-        self._outs = []
+        self._datastore = VariableStore(model)
+
+    def convert_chainer_ops(self, func):
+        if isinstance(func, chainer.function.FunctionAdapter):
+            func = func.function
+
+        #TODO: Link input given names and shape with nodes
+        input_nodes = []
+        for input_var in func.inputs:
+            # 'input_var' is a VariableNode,
+            # so check if it has a Variable/Parameter
+            var = input_var.get_variable_or_none()
+            if var is None:
+                # Use VariableNode as is
+                input_name = self._datastore.get_name(input_var)
+            else:  # It is a parameter inside a Link or network input
+                input_name = self._datastore.get_name(var)
+
+            input_nodes.append(self._datastore.nodes[input_name])
+
+        tvm_output = get_converter(func.label)(input_nodes, func)
+
+        # This is to get corresponding VariableNode id from the output
+        # Variable of the network
+        output_names = []
+        for i, output_ref in enumerate(func.outputs):
+            if output_ref() is None:
+                var = output_ref
+            else:
+                var = output_ref().get_variable_or_none()
+                if var is None:
+                    var = output_ref()
+            output_names.append(self._datastore.get_name(var))
+
+        if not isinstance(tvm_output, _expr.TupleWrapper):
+            self._datastore.nodes[output_names[0]] = tvm_output
+        else:
+            assert len(tvm_output) == len(func.outputs)
+            for k, i in zip(output_names, range(len(tvm_output))):
+                self._datastore.nodes[k] = tvm_output[i]
 
     def from_chainer(self):
-        """To convert the chainer symbol to relay functions."""
+        """To convert the Chainer symbol to relay functions."""
 
         # Form dummy input based on input shape and datatype provided
         #TODO: Make it multi-input later
@@ -149,27 +221,44 @@ class ChainerTVMBridge(object):
 
         # Creates a context of Chainer with Computation Graph enabled
         with function.force_backprop_mode(), chainer.using_config('train', False):
-            output = self._module(x)
+            output = self._model(x)
 
         # Instance validation of output
-        if isinstance(output, variable.Variable):
-            output = [output]
-        assert isinstance(output, (tuple, list))
-        for i in output:
-            assert isinstance(i, variable.Variable)
+        if isinstance(output, (list, tuple)):
+            flat_outputs = output
+        elif isinstance(output, dict):
+            flat_outputs = list(output.values())
+        elif isinstance(output, chainer.Variable):
+            flat_outputs = [output]
+        else:
+            raise RuntimeError(
+                'Unexpected output type from the model: {}'.format(
+                    type(output)))
+
+        if not all([isinstance(o, chainer.Variable) for o in flat_outputs]):
+            raise ValueError('The all \'outputs\' must be Chainer Variable')
+        network_outputs = collections.OrderedDict(
+            [(self._datastore.get_name(var), var) for var in flat_outputs])
 
         # Dump the Chainer Graph
-        func_list = trace_graph_funcs(outputs)
-        
-        # Prepare relay graphs
-        input_vars = get_relay_input_vars(self._shape)
-        tensors = {}
-        self._tvmparams = {k: tvm.nd.array(v) for k, v in tensors.items()}
+        self._function_nodes = trace_graph_funcs(network_outputs.values())
 
-        outputs = convert_operators(func_list)
-        outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
+        # Prepare relay graphs
+        for node in self._function_nodes:
+            self.convert_chainer_ops(node)
+
+        # Outputs
+        out = []
+        for var in flat_outputs:
+            out.append(self._datastore.nodes[self._datastore.get_name(var)])
+
+        if len(out) > 1:
+            outputs = _expr.Tuple(out)
+        else:
+            outputs = out[0]
+
         sym = _function.Function(analysis.free_vars(outputs), outputs)
-        return IRModule.from_expr(sym), self._tvmparams
+        return IRModule.from_expr(sym), self._datastore.tvmparams
 
 
 def from_chainer(model, input_shapes, dtype="float32"):
