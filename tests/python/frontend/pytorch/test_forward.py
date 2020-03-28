@@ -448,6 +448,14 @@ def test_forward_conv():
                  input_data=torch.randn((1, 8, 16, 16)))
 
 
+def test_forward_conv_transpose():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.ConvTranspose2d(3, 6, 7, bias=True), input_data=input_data)
+    verify_model(torch.nn.ConvTranspose2d(3, 12, 3, bias=False), input_data=input_data)
+
+
 def test_forward_threshold():
     torch.set_grad_enabled(False)
     input_shape = [1, 3]
@@ -1050,6 +1058,7 @@ if __name__ == "__main__":
     test_forward_maxpool1d()
     test_forward_hardtanh()
     test_forward_conv()
+    test_forward_conv_transpose()
     test_forward_threshold()
     test_forward_contiguous()
     test_forward_batchnorm()
