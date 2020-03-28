@@ -20,7 +20,7 @@ find_program(PYTHON NAMES python python3 python3.6)
 
 # Throw error if VTA_HW_PATH is not set
 if(NOT DEFINED ENV{VTA_HW_PATH})
-    message(FATAL_ERROR "Make sure to set VTA_HW_PATH in your environment")
+    set(ENV{VTA_HW_PATH} vta/vta-hw)
 endif()
 
 if(MSVC)

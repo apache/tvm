@@ -194,7 +194,6 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-cpu")) {
         init_git()
         sh """
-           export VTA_HW_PATH=vta/vta-hw
            mkdir -p build
            cd build
            cp ../cmake/config.cmake .
@@ -232,7 +231,6 @@ stage('Build') {
       ws(per_exec_ws("tvm/build-i386")) {
         init_git()
         sh """
-           export VTA_HW_PATH=vta/vta-hw
            mkdir -p build
            cd build
            cp ../cmake/config.cmake .
