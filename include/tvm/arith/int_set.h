@@ -59,6 +59,7 @@ enum SignType {
 class IntSetNode : public Object {
  public:
   static constexpr const char* _type_key = "IntSet";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
 };
 
