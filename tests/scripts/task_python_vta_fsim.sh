@@ -20,6 +20,7 @@ set -e
 set -u
 
 export PYTHONPATH=python:vta/python:topi/python
+export VTA_HW_PATH=vta/vta-hw
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
@@ -30,7 +31,7 @@ rm -rf ~/.tvm
 make cython3
 
 # Reset default fsim simulation
-cp vta/vta-hw/config/fsim_sample.json vta/vta-hw/config/vta_config.json
+cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
 
 # Run unit tests in functional/fast simulator
 echo "Running unittest in fsim..."

@@ -28,6 +28,10 @@ ifndef DLPACK_PATH
   DLPACK_PATH = $(ROOTDIR)/3rdparty/dlpack
 endif
 
+ifndef VTA_HW_PATH
+  VTA_HW_PATH = $(ROOTDIR)/vta/vta-hw
+endif
+
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
 PKG_CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
@@ -81,7 +85,7 @@ jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
 scalalint:
-	make -C vta/vta-hw/hardware/chisel lint
+	make -C $(VTA_HW_PATH)/hardware/chisel lint
 
 lint: cpplint pylint jnilint scalalint
 

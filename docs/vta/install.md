@@ -29,8 +29,22 @@ We present three installation guides, each extending on the previous one:
 You need [TVM installed](https://docs.tvm.ai/install/index.html) on your machine.
 For a quick and easy start, use the pre-built [TVM Docker image](https://docs.tvm.ai/install/docker.html).
 
-The VTA simulator library is built by default with TVM.
-Add the VTA library to your python path to run the VTA examples.
+You'll need to set the following paths to use VTA:
+```bash
+export TVM_PATH=<path to TVM root>
+export VTA_HW_PATH=$TVM_PATH/vta/vta-hw
+```
+
+The VTA functional simulation library needs to be enabled when building TVM.
+```bash
+cd <tvm-root>
+mkdir build
+cp cmake/config.cmake build/.
+echo 'set(USE_VTA_FSIM ON)' >> build/config.cmake
+cd build && cmake .. && make -j4
+```
+
+Add the VTA python library to your python path to run the VTA examples.
 
 ```bash
 export PYTHONPATH=/path/to/vta/python:${PYTHONPATH}
@@ -118,8 +132,6 @@ ssh xilinx@192.168.2.99
 cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
-echo 'set(USE_VTA_FSIM OFF)' >> build/config.cmake
-echo 'set(USE_VTA_TSIM OFF)' >> build/config.cmake
 echo 'set(USE_VTA_FPGA ON)' >> build/config.cmake
 # Copy pynq specific configuration
 cp vta/vta-hw/config/pynq_sample.json vta/vta-hw/config/vta_config.json
