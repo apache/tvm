@@ -19,7 +19,8 @@
 set -e
 set -u
 
-export PYTHONPATH=python:vta/python:topi/python
+export TVM_PATH=.
+export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python:${TVM_PATH}/topi/python
 export VTA_HW_PATH=vta/vta-hw
 
 # cleanup pycache
@@ -35,8 +36,8 @@ cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
 
 # Run unit tests in functional/fast simulator
 echo "Running unittest in fsim..."
-python3 -m pytest -v vta/tests/python/unittest
+python3 -m pytest -v ${TVM_PATH}/vta/tests/python/unittest
 
 # Run unit tests in functional/fast simulator
 echo "Running integration test in fsim..."
-python3 -m pytest -v vta/tests/python/integration
+python3 -m pytest -v ${TVM_PATH}/vta/tests/python/integration
