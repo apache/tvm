@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import numpy as np
 import pytest
 from tvm import te
 
@@ -108,6 +109,24 @@ def test_prim_func():
     mod1 = tvm.IRModule.from_expr(func1)
     tvm.ir.assert_structural_equal(mod0, mod1)
 
+def test_array():
+    x = np.arange(10)
+    nx = tvm.nd.array(x)
+    ny = tvm.nd.array(x)
+    nz = tvm.nd.array(x.reshape(2, 5))
+    assert consistent_equal(nx, ny)
+    assert not consistent_equal(nx, nz)
+
+def test_env_func():
+    @tvm.register_func("test.env_func")
+    def test(x):
+        return x + 1
+
+    x = tvm.ir.EnvFunc.get("test.env_func")
+    y = tvm.ir.EnvFunc.get("test.env_func")
+    assert consistent_equal(y, x)
+
+
 
 def test_attrs():
     x = tvm.ir.make_node("attrs.TestAttrs", axis=1, name="xx")
@@ -127,3 +146,5 @@ if __name__ == "__main__":
     test_exprs()
     test_prim_func()
     test_attrs()
+    test_array()
+    test_env_func()

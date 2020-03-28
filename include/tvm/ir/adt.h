@@ -129,8 +129,8 @@ class TypeDataNode : public TypeNode {
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(header);
-    hash_reduce(type_vars);
+    hash_reduce.DefHash(header);
+    hash_reduce.DefHash(type_vars);
     hash_reduce(constructors);
   }
 

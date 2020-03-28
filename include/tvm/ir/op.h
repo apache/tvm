@@ -107,6 +107,7 @@ class OpNode : public RelayExprNode {
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    // Name uniquely identifies an Op.
     hash_reduce(name);
   }
 

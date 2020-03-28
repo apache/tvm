@@ -88,6 +88,10 @@ struct NDArrayContainerTrait {
     CHECK(runtime::IsContiguous(key->dl_tensor))
         << "Can only hash contiguous tensor";
     hash_reduce(runtime::DataType(key->dl_tensor.dtype));
+    hash_reduce(key->dl_tensor.ndim);
+    for (int i = 0; i < key->dl_tensor.ndim; ++i) {
+      hash_reduce(key->dl_tensor.shape[i]);
+    }
     hash_reduce->SHashReduceHashedValue(
         runtime::String::HashBytes(
             static_cast<const char*>(key->dl_tensor.data),
@@ -107,6 +111,11 @@ struct NDArrayContainerTrait {
         << "Can only compare contiguous tensor";
     CHECK(runtime::IsContiguous(rhs->dl_tensor))
         << "Can only compare contiguous tensor";
+
+    if (lhs->dl_tensor.ndim != rhs->dl_tensor.ndim) return false;
+    for (int i = 0; i < lhs->dl_tensor.ndim; ++i) {
+      if (!equal(lhs->dl_tensor.shape[i], rhs->dl_tensor.shape[i])) return false;
+    }
     if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
       size_t data_size = runtime::GetDataSize(lhs->dl_tensor);
       return std::memcmp(lhs->dl_tensor.data, rhs->dl_tensor.data, data_size) == 0;

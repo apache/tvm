@@ -52,10 +52,12 @@ class EnvFuncNode : public Object {
   }
 
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
-    return this == other;
+    // name uniquely identifies the env function.
+    return name == other->name;
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
+    // Name uniquely identifies the env function.
     hash_reduce(name);
   }
 
