@@ -311,12 +311,6 @@ class ScopeMutator : public ::tvm::relay::ExprMutator {
   virtual bool CheckVisited(const Expr& expr);
 };
 
-#define EXPR_REWRITER_VISIT_DEFAULT \
-  { return Rewrite_(pre, post); }
-
-#define EXPR_REWRITER_REWRITE_DEFAULT \
-  { return post; }
-
 /*! \brief A non-iterating Expression Rewriter
  *
  *  ExprRewriter provides a Rewrite interface for modifying graphs in Post-DFS order.
@@ -326,17 +320,43 @@ class ScopeMutator : public ::tvm::relay::ExprMutator {
  * ExprRewriter. The ExprRewriter can then use the information in those two nodes to do more complex
  * graph rewriting.
  */
-class ExprRewriter : private ExprFunctor<Expr(const Expr&, const Expr&)> {
+#define RELAY_EXPR_REWRITER_DISPATCH(OP)                                                    \
+  vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, const Expr& post) {          \
+    return self->Rewrite_(static_cast<const OP*>(n.get()), post); \
+  });
+
+#define EXPR_REWRITER_REWRITE_DEFAULT \
+  { return post; }
+
+class ExprRewriter {
+ private:
+  using TSelf = ExprRewriter;
+  using FType = tvm::NodeFunctor<Expr(const ObjectRef& n, TSelf* self, const Expr& post)>;
+
  public:
-  /*! \brief Rewrite a node given the orginal form and the form with modified inputs
-   *
-   *  Uses ExprFunctor for vtable access.
-   *
-   *  Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
-   * able to rewrite the op only with data about the original node `pre` and the same node with
-   * modified inputs `post` and should not recurse.
+  /*! \brief virtual destructor */
+  virtual ~ExprRewriter() {}
+  /*!
+   * \brief Same as call.
+   * \param n The expression node.
+   * \param args Additional arguments.
+   * \return The result of the call
    */
-  virtual Expr Rewrite(const Expr& pre, const Expr& post) { return this->VisitExpr(pre, post); }
+  Expr operator()(const Expr& pre, const Expr& post) {
+    return Rewrite(pre, post);
+  }
+  /*!
+   * \brief The functor call.
+   * \param n The expression node.
+   * \param args Additional arguments.
+   * \return The result of the call
+   */
+  virtual Expr Rewrite(const Expr& pre, const Expr& post) {
+    CHECK(pre.defined());
+    static FType vtable = InitVTable();
+    return vtable(pre, this, post);
+  }
+  // Functions that can be overriden by subclass, should not recurse
   virtual Expr Rewrite_(const VarNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
   virtual Expr Rewrite_(const GlobalVarNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
   virtual Expr Rewrite_(const ConstantNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
@@ -355,24 +375,27 @@ class ExprRewriter : private ExprFunctor<Expr(const Expr&, const Expr&)> {
   virtual Expr Rewrite_(const MatchNode* pre, const Expr& post) EXPR_REWRITER_REWRITE_DEFAULT;
 
  private:
-  Expr VisitExpr(const Expr& pre, const Expr& post) final {
-    return ExprFunctor::VisitExpr(pre, post);
-  };
-  Expr VisitExpr_(const VarNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const GlobalVarNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const ConstantNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const TupleNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const FunctionNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const CallNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const LetNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const IfNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const OpNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const TupleGetItemNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const RefCreateNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const RefReadNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const RefWriteNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const ConstructorNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
-  Expr VisitExpr_(const MatchNode* pre, const Expr& post) final EXPR_REWRITER_VISIT_DEFAULT;
+  // initialize the vtable.
+  static FType InitVTable() {
+    FType vtable;
+    // Set dispatch
+    RELAY_EXPR_REWRITER_DISPATCH(ConstantNode);
+    RELAY_EXPR_REWRITER_DISPATCH(TupleNode);
+    RELAY_EXPR_REWRITER_DISPATCH(VarNode);
+    RELAY_EXPR_REWRITER_DISPATCH(GlobalVarNode);
+    RELAY_EXPR_REWRITER_DISPATCH(FunctionNode);
+    RELAY_EXPR_REWRITER_DISPATCH(CallNode);
+    RELAY_EXPR_REWRITER_DISPATCH(LetNode);
+    RELAY_EXPR_REWRITER_DISPATCH(IfNode);
+    RELAY_EXPR_REWRITER_DISPATCH(OpNode);
+    RELAY_EXPR_REWRITER_DISPATCH(TupleGetItemNode);
+    RELAY_EXPR_REWRITER_DISPATCH(RefCreateNode);
+    RELAY_EXPR_REWRITER_DISPATCH(RefReadNode);
+    RELAY_EXPR_REWRITER_DISPATCH(RefWriteNode);
+    RELAY_EXPR_REWRITER_DISPATCH(ConstructorNode);
+    RELAY_EXPR_REWRITER_DISPATCH(MatchNode);
+    return vtable;
+  }
 };
 
 /*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
@@ -382,7 +405,7 @@ class ExprRewriter : private ExprFunctor<Expr(const Expr&, const Expr&)> {
  * PostOrderRewrite provides the original node and the node with altered inputs for use by the
  * ExprRewriter.
  */
-Expr PostOrderRewrite(const Expr& expr, const ExprRewriter& rewriter);
+Expr PostOrderRewrite(const Expr& expr, ExprRewriter* rewriter);
 
 /*!
  * \brief recursively visit the ir in post DFS order node, apply fvisit
