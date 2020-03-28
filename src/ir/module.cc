@@ -65,6 +65,21 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
   data_ = std::move(n);
 }
 
+
+bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
+  if (functions.size() != other->functions.size()) return false;
+  for (const auto& kv : this->functions) {
+    if (!other->ContainGlobalVar(kv.first->name_hint)) return false;
+    if (!equal(kv.second, other->Lookup(kv.first->name_hint))) return false;
+  }
+  if (type_definitions.size() != other->type_definitions.size()) return false;
+  for (const auto& kv : this->type_definitions) {
+    if (!other->ContainGlobalTypeVar(kv.first->name_hint)) return false;
+    if (!equal(kv.second, other->LookupTypeDef(kv.first->name_hint))) return false;
+  }
+  return true;
+}
+
 bool IRModuleNode::ContainGlobalVar(const std::string& name) const {
   return global_var_map_.find(name) != global_var_map_.end();
 }
@@ -305,8 +320,8 @@ IRModule IRModule::FromExpr(
   const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
   auto mod = IRModule(global_funcs, type_definitions);
   BaseFunc func;
-  if (auto* func_node = expr.as<relay::FunctionNode>()) {
-    func = GetRef<relay::Function>(func_node);
+  if (auto* func_node = expr.as<BaseFuncNode>()) {
+    func = GetRef<BaseFunc>(func_node);
   } else {
     func = relay::Function(
         relay::FreeVars(expr), expr, Type(),

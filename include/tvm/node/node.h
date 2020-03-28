@@ -39,6 +39,8 @@
 #include <tvm/runtime/memory.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/node/container.h>
+#include <tvm/node/structural_equal.h>
 
 #include <string>
 #include <vector>
