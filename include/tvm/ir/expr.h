@@ -43,6 +43,7 @@ namespace tvm {
 class BaseExprNode : public Object {
  public:
   static constexpr const char* _type_key = "Expr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
 
@@ -197,6 +198,13 @@ class GlobalVarNode : public RelayExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
+    // name matters for global var.
+    return
+        equal(name_hint, other->name_hint) &&
+        equal.FreeVarEqualImpl(this, other);
+  }
+
   static constexpr const char* _type_key = "GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelayExprNode);
 };
@@ -226,6 +234,10 @@ class IntImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value);
   }
 
   static constexpr const char* _type_key = "IntImm";
@@ -261,6 +273,10 @@ class FloatImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value);
   }
 
   static constexpr const char* _type_key = "FloatImm";
@@ -353,7 +369,12 @@ class RangeNode : public Object {
     v->Visit("extent", &extent);
   }
 
+  bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
+    return equal(min, other->min) && equal(extent, other->extent);
+  }
+
   static constexpr const char* _type_key = "Range";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 

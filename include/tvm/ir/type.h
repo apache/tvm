@@ -79,6 +79,7 @@ class TypeNode : public Object {
   mutable Span span;
 
   static constexpr const char* _type_key = "Type";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
 
@@ -108,6 +109,10 @@ class PrimTypeNode : public TypeNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
+  }
+
+  bool SEqualReduce(const PrimTypeNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype);
   }
 
   static constexpr const char* _type_key = "PrimType";
@@ -150,6 +155,10 @@ class PointerTypeNode : public TypeNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("element_type", &element_type);
+  }
+
+  bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
+    return equal(element_type, other->element_type);
   }
 
   static constexpr const char* _type_key = "PointerType";
@@ -218,6 +227,12 @@ class TypeVarNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const TypeVarNode* other, SEqualReducer equal) const {
+    return
+        equal(kind, other->kind) &&
+        equal.FreeVarEqualImpl(this, other);
+  }
+
   static constexpr const char* _type_key = "TypeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypeVarNode, TypeNode);
 };
@@ -258,6 +273,13 @@ class GlobalTypeVarNode : public TypeNode {
     v->Visit("kind", &kind);
   }
 
+  bool SEqualReduce(const GlobalTypeVarNode* other, SEqualReducer equal) const {
+    // name matters for now in global type var.
+    return
+        equal(name_hint, other->name_hint) &&
+        equal.FreeVarEqualImpl(this, other);
+  }
+
   static constexpr const char* _type_key = "GlobalTypeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalTypeVarNode, TypeNode);
 };
@@ -292,6 +314,10 @@ class TupleTypeNode : public TypeNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const TupleTypeNode* other, SEqualReducer equal) const {
+    return equal(fields, other->fields);
   }
 
   static constexpr const char* _type_key = "TupleType";
@@ -386,6 +412,15 @@ class FuncTypeNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const FuncTypeNode* other, SEqualReducer equal) const {
+    // type params first as they defines type vars.
+    return
+        equal.DefEqual(type_params, other->type_params) &&
+        equal(arg_types, other->arg_types) &&
+        equal(ret_type, other->ret_type) &&
+        equal(type_constraints, other->type_constraints);
+  }
+
   static constexpr const char* _type_key = "FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
@@ -432,6 +467,10 @@ class IncompleteTypeNode : public TypeNode {
     v->Visit("span", &span);
   }
 
+  bool SEqualReduce(const IncompleteTypeNode* other, SEqualReducer equal) const {
+    return equal(kind, other->kind);
+  }
+
   static constexpr const char* _type_key = "IncompleteType";
   TVM_DECLARE_FINAL_OBJECT_INFO(IncompleteTypeNode, TypeNode);
 };
@@ -467,6 +506,10 @@ class RelayRefTypeNode : public TypeNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const RelayRefTypeNode* other, SEqualReducer equal) const {
+    return equal(value, other->value);
   }
 
   // Keep the relay prefix in the type as this type is specific

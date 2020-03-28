@@ -118,7 +118,9 @@ class AttrFieldInfoNode : public Object {
     v->Visit("type_info", &type_info);
     v->Visit("description", &description);
   }
+
   static constexpr const char* _type_key = "AttrFieldInfo";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
 };
 
@@ -278,6 +280,7 @@ class BaseAttrsNode : public Object {
    */
   TVM_DLL virtual size_t ContentHash(AttrsHash hasher) const = 0;
 
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "Attrs";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
@@ -301,6 +304,10 @@ class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
   Map<std::string, ObjectRef> dict;
+
+  bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
+    return equal(dict, other->dict);
+  }
 
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
@@ -399,6 +406,33 @@ class AttrsEqualVisitor {
   const Object* lhs_;
   const Object* rhs_;
   const AttrsEqual& equal_;
+};
+
+class AttrsSEqualVisitor {
+ public:
+  bool result_{true};
+  // constructor
+  AttrsSEqualVisitor(const Object* lhs, const Object* rhs, const SEqualReducer& equal)
+      : lhs_(lhs), rhs_(rhs), equal_(equal) {
+  }
+  template<typename T>
+  AttrNopEntry operator()(const char* key, T* lhs_value) {
+    if (!result_) return AttrNopEntry();
+    const T* rhs_value =
+        reinterpret_cast<const T*>(
+            reinterpret_cast<const char*>(rhs_) +
+            (reinterpret_cast<const char*>(lhs_value) -
+             reinterpret_cast<const char*>(lhs_)));
+    if (!equal_(*lhs_value, *rhs_value)) {
+      result_ = false;
+    }
+    return AttrNopEntry();
+  }
+
+ private:
+  const Object* lhs_;
+  const Object* rhs_;
+  const SEqualReducer& equal_;
 };
 
 class AttrsHashVisitor {
@@ -815,6 +849,13 @@ class AttrsNode : public BaseAttrsNode {
         }
       }
     }
+  }
+
+  bool SEqualReduce(const DerivedType* other, SEqualReducer equal) const {
+    DerivedType* pself = self();
+    ::tvm::detail::AttrsSEqualVisitor visitor(pself, other, equal);
+    self()->__VisitAttrs__(visitor);
+    return visitor.result_;
   }
 
   Array<AttrFieldInfo> ListFieldInfo() const final {

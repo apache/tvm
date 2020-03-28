@@ -65,6 +65,8 @@ class NDArray : public ObjectRef {
   inline int use_count() const;
   /*! \return Pointer to content of DLTensor */
   inline const DLTensor* operator->() const;
+  /*! \return Whether the tensor is contiguous */
+  inline bool IsContiguous() const;
   /*!
    * \brief Copy data content from another array.
    * \param other The source array to be copied from.
@@ -311,6 +313,26 @@ inline size_t GetDataSize(const DLTensor& arr) {
   }
   size *= (arr.dtype.bits * arr.dtype.lanes + 7) / 8;
   return size;
+}
+
+/*!
+ * \brief check if a DLTensor is contiguous.
+ * \param arr The input DLTensor.
+ * \return The check result.
+ */
+inline bool IsContiguous(const DLTensor& arr) {
+  if (arr.strides == nullptr) return true;
+  int64_t expected_stride = 1;
+  for (int32_t i = arr.ndim; i != 0; --i) {
+    int32_t k = i - 1;
+    if (arr.strides[k] != expected_stride) return false;
+    expected_stride *= arr.shape[k];
+  }
+  return true;
+}
+
+inline bool NDArray::IsContiguous() const {
+  return ::tvm::runtime::IsContiguous(get_mutable()->dl_tensor);
 }
 
 inline void NDArray::CopyFrom(const DLTensor* other) {
