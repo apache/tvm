@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configurable VTA Hareware Environment scope."""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, exec-used
 from __future__ import absolute_import as _abs
 
 import os
@@ -315,9 +315,6 @@ def coproc_dep_pop(op):
 
 def _init_env():
     """Initialize the default global env"""
-    curr_path = os.path.dirname(
-        os.path.abspath(os.path.expanduser(__file__)))
-
     config_path = os.path.join(get_vta_hw_path(), "config/vta_config.json")
     if not os.path.exists(config_path):
         raise RuntimeError("Cannot find config in %s" % str(config_path))
