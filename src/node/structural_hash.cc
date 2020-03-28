@@ -204,7 +204,7 @@ class VarCountingSHashHandler :
         // send value to parent.
         this->PopTaskStack();
       } else if (!entry.object.defined()) {
-        // Direct send value to parent
+        // Directly send value to parent
         this->PopTaskStack();
       } else {
         // check if there are already hash for object.
