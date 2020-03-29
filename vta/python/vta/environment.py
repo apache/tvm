@@ -30,7 +30,7 @@ def get_vta_hw_path():
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../vta-hw"))
     VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
-    return VTA_HW_PATH
+    return os.path.abspath(VTA_HW_PATH)
 
 def pkg_config(cfg):
     """Returns PkgConfig pkg config object."""
