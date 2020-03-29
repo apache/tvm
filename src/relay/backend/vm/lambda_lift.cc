@@ -23,6 +23,7 @@
  */
 
 #include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/support/logging.h>
@@ -39,7 +40,7 @@ namespace relay {
 namespace vm {
 
 inline std::string GenerateName(const Function& func) {
-  size_t hash = StructuralHash()(func);
+  size_t hash = tvm::StructuralHash()(func);
   return std::string("lifted_name") + std::to_string(hash);
 }
 

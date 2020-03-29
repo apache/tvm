@@ -21,6 +21,7 @@
  * \file extract_fused_functions.cc
  * \brief Apply fusion and extract fused primitive functions from an IRModule
  */
+#include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
@@ -55,7 +56,7 @@ class FusedFunctionExtractorWrapper : private ExprVisitor {
     if (n->HasNonzeroAttr(attr::kPrimitive)) {
       // Add function to functions, keyed by function hash string
       Function func = Function(n->params, n->body, n->ret_type, n->type_params, n->attrs);
-      size_t hash_ = StructuralHash()(func);
+      size_t hash_ = tvm::StructuralHash()(func);
       this->functions.Set(std::to_string(hash_), func);
     }
 

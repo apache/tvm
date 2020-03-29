@@ -31,7 +31,8 @@ def alpha_equal(x, y):
     """
     x = x['main']
     y = y['main']
-    return tvm.ir.structural_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
+    return tvm.ir.structural_equal(x, y) and \
+            tvm.ir.structural_hash(x) == tvm.ir.structural_hash(y)
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]

@@ -27,7 +27,7 @@ import tvm
 
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude
-from tvm.relay.analysis import structural_hash as s_hash
+from tvm.ir import structural_hash as s_hash
 
 from .. import analysis
 from .. import expr as _expr
