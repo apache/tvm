@@ -2142,7 +2142,12 @@ Expr MakeSplit(Expr data,
 TVM_REGISTER_GLOBAL("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     if (args.type_codes[1] == kDLInt) {
-      *rv = MakeSplit(args[0], tir::make_const(DataType::Int(64), int64_t(args[1])), args[2]);
+      // Note: we change it from Int(64) to Int(32) for now as
+      // combine_parallel_dense will transform the graph with Int(32).
+      // More invetigation is needs to check which one we should use.
+      *rv = MakeSplit(args[0],
+                      tir::make_const(DataType::Int(32), static_cast<int>(args[1])),
+                      args[2]);
     } else {
       *rv = MakeSplit(args[0], args[1], args[2]);
     }

@@ -339,7 +339,7 @@ def test_extern_ccompiler_default_ops():
 
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
-    assert relay.alpha_equal(fused_mod, expected_mod)
+    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
 
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
@@ -427,7 +427,7 @@ def test_extern_dnnl():
     mod["main"] = WholeGraphAnnotator("dnnl").visit(get_func())
     mod = transform.PartitionGraph()(mod)
 
-    assert relay.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
     ref_mod = tvm.IRModule()
     ref_mod["main"] = get_func()
@@ -561,7 +561,7 @@ def test_function_lifting():
 
     partitioned = partition()
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_function_lifting_inline():
@@ -631,7 +631,7 @@ def test_function_lifting_inline():
 
     partitioned = partition()
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_constant_propagation():
@@ -671,7 +671,7 @@ def test_constant_propagation():
     mod = transform.PartitionGraph()(mod)
 
     expected_mod = expected()
-    assert relay.alpha_equal(mod, expected_mod)
+    assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
 
     y_data = np.random.rand(8, 8).astype('float32')
     np_add = ones + y_data

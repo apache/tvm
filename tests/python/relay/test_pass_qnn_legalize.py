@@ -31,7 +31,7 @@ def alpha_equal(x, y):
     """
     x = x['main']
     y = y['main']
-    return analysis.alpha_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
+    return tvm.ir.structural_equal(x, y) and analysis.structural_hash(x) == analysis.structural_hash(y)
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
@@ -85,12 +85,12 @@ def test_qnn_legalize():
         # Check that Relay Legalize does not change the graph.
         a = run_opt_pass(a, relay.transform.Legalize())
         b = run_opt_pass(before(), transform.InferType())
-        assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
         # Check that QNN Legalize modifies the graph.
         a = run_opt_pass(a, relay.qnn.transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
-        assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_qnn_legalize_qnn_conv2d():

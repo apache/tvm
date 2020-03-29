@@ -136,7 +136,7 @@ def test_extern_dnnl():
         mod = annotated(dtype, ishape, w1shape)
         mod = transform.AnnotateTarget("dnnl")(mod)
         ref_mod = expected(dtype, ishape, w1shape)
-        assert relay.analysis.alpha_equal(mod, ref_mod)
+        assert tvm.ir.structural_equal(mod, ref_mod)
 
     def test_run():
         if not tvm.get_global_func("relay.ext.dnnl", True):

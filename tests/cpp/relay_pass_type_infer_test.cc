@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/te/operation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
@@ -38,7 +39,7 @@ TEST(Relay, SelfReference) {
   auto type_fx = mod->Lookup("main");
 
   auto expected = relay::FuncType(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
-  CHECK(relay::AlphaEqual(type_fx->checked_type(), expected));
+  CHECK(tvm::StructuralEqual()(type_fx->checked_type(), expected));
 }
 
 int main(int argc, char ** argv) {

@@ -19,7 +19,6 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
@@ -124,7 +123,7 @@ def test_ad():
     body = relay.Let(x1, o, body)
     expected = Function([d], relay.Let(x, m, body))
     expected = run_opt_pass(expected, transform.InferType())
-    assert_alpha_equal(g, expected)
+    tvm.ir.assert_structural_equal(g, expected)
 
 
 def test_if_ref():
@@ -312,7 +311,7 @@ def test_concat():
     x = Var("x", t)
     y = Var("x", t)
     orig = run_infer_type(Function([x, y], op.concatenate([x, y], axis=0)))
-    assert_alpha_equal(dcpe(orig), orig)
+    tvm.ir.assert_structural_equal(dcpe(orig), orig)
 
 
 def test_triangle_number():
@@ -321,7 +320,7 @@ def test_triangle_number():
     f_var = Var("f")
     f = Function([x], If(op.equal(x, const(0)), const(0), x + f_var(x - const(1))))
     orig = run_infer_type(Let(f_var, f, f_var(const(10))))
-    assert_alpha_equal(dcpe(orig), const(55))
+    tvm.ir.assert_structural_equal(dcpe(orig), const(55))
 
 
 def test_nat_update():
@@ -337,7 +336,7 @@ def test_tuple_match():
     b = relay.Var("b")
     clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
     x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
-    assert_alpha_equal(dcpe(x), const(2))
+    tvm.ir.assert_structural_equal(dcpe(x), const(2))
 
 
 if __name__ == '__main__':
