@@ -435,6 +435,48 @@ def mul(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
                      output_scale, output_zero_point)
 
 
+def div(lhs, rhs, lhs_scale, lhs_zero_point, rhs_scale, rhs_zero_point,
+        output_scale, output_zero_point):
+    """Quantized division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side quantized input data.
+
+    rhs : relay.Expr
+        The right hand side quantized input data.
+
+    lhs_scale: relay.Expr
+        The scale of the lhs quantized expr.
+
+    lhs_zero_point: relay.Expr
+       The zero point of lhs quantized expr.
+
+    rhs_scale: relay.Expr
+        The scale of the rhs quantized expr.
+
+    rhs_zero_point: relay.Expr
+       The zero point of rhs quantized expr.
+
+    output_scale: relay.Expr
+        The scale of the output quantized expr.
+
+    output_zero_point: relay.Expr
+       The zero point of output quantized expr.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+
+    """
+    return _make.div(lhs, rhs,
+                     lhs_scale, lhs_zero_point,
+                     rhs_scale, rhs_zero_point,
+                     output_scale, output_zero_point)
+
+
 def subtract(lhs,
              rhs,
              lhs_scale,
