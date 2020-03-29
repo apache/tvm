@@ -22,6 +22,22 @@ from __future__ import absolute_import as _abs
 
 import json
 import glob
+import os
+
+
+def get_vta_hw_path():
+    """Get the VTA HW path."""
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    vta_hw_default = os.path.abspath(os.path.join(curr_path, ".."))
+    VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
+    return VTA_HW_PATH
+
+def get_tvm_path():
+    """Get the TVM path."""
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    tvm_default = os.path.abspath(os.path.join(curr_path, "../../.."))
+    TVM_PATH = os.getenv('TVM_PATH', tvm_default)
+    return TVM_PATH
 
 class PkgConfig(object):
     """Simple package config tool for VTA.
@@ -32,9 +48,6 @@ class PkgConfig(object):
     ----------
     cfg : dict
         The config dictionary
-
-    proj_root : str
-        Path to the project root
     """
     cfg_keys = [
         "TARGET",
@@ -49,7 +62,7 @@ class PkgConfig(object):
         "LOG_ACC_BUFF_SIZE",
     ]
 
-    def __init__(self, cfg, proj_root):
+    def __init__(self, cfg):
 
         # Derived parameters
         cfg["LOG_BLOCK_IN"] = cfg["LOG_BLOCK"]
@@ -63,25 +76,29 @@ class PkgConfig(object):
         # Update cfg now that we've extended it
         self.__dict__.update(cfg)
 
+        # VTA_HW path and TVM_PATH
+        vta_hw_path = get_vta_hw_path()
+        tvm_path = get_tvm_path()
+
         # Include path
         self.include_path = [
-            "-I%s/include" % proj_root,
-            "-I%s/vta/vta-hw/include" % proj_root,
-            "-I%s/3rdparty/dlpack/include" % proj_root,
-            "-I%s/3rdparty/dmlc-core/include" % proj_root
+            "-I%s/include" % tvm_path,
+            "-I%s/include" % vta_hw_path,
+            "-I%s/3rdparty/dlpack/include" % tvm_path,
+            "-I%s/3rdparty/dmlc-core/include" % tvm_path
         ]
 
         # List of source files that can be used to build standalone library.
         self.lib_source = []
-        self.lib_source += glob.glob("%s/vta/vta-hw/src/*.cc" % proj_root)
+        self.lib_source += glob.glob("%s/src/*.cc" % vta_hw_path)
         if self.TARGET in ["pynq", "ultra96"]:
             # add pynq drivers for any board that uses pynq driver stack (see pynq.io)
-            self.lib_source += glob.glob("%s/vta/vta-hw/src/pynq/*.cc" % (proj_root))
+            self.lib_source += glob.glob("%s/src/pynq/*.cc" % vta_hw_path)
         elif self.TARGET in ["de10nano"]:
-            self.lib_source += glob.glob("%s/vta/vta-hw/src/de10nano/*.cc" % (proj_root))
+            self.lib_source += glob.glob("%s/src/de10nano/*.cc" % vta_hw_path)
             self.include_path += [
-                "-I%s/vta/vta-hw/src/de10nano" % proj_root,
-                "-I%s/3rdparty" % proj_root
+                "-I%s/src/de10nano" % vta_hw_path,
+                "-I%s/3rdparty" % tvm_path
             ]
 
         # Linker flags

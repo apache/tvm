@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configurable VTA Hareware Environment scope."""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, exec-used
 from __future__ import absolute_import as _abs
 
 import os
@@ -24,8 +24,21 @@ import copy
 import tvm
 from tvm import te
 from . import intrin
-from .pkg_config import PkgConfig
 
+def get_vta_hw_path():
+    """Get the VTA HW path."""
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../vta-hw"))
+    VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
+    return VTA_HW_PATH
+
+def pkg_config(cfg):
+    """Returns PkgConfig pkg config object."""
+    pkg_config_py = os.path.join(get_vta_hw_path(), "config/pkg_config.py")
+    libpkg = {"__file__": pkg_config_py}
+    exec(compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg)
+    PkgConfig = libpkg["PkgConfig"]
+    return PkgConfig(cfg)
 
 class DevContext(object):
     """Internal development context
@@ -115,7 +128,7 @@ class Environment(object):
     # initialization function
     def __init__(self, cfg):
         # Produce the derived parameters and update dict
-        self.pkg = self.pkg_config(cfg)
+        self.pkg = pkg_config(cfg)
         self.__dict__.update(self.pkg.cfg_dict)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
@@ -171,12 +184,6 @@ class Environment(object):
 
     def __exit__(self, ptype, value, trace):
         Environment.current = self._last_env
-
-    def pkg_config(self, cfg):
-        """PkgConfig instance"""
-        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
-        return PkgConfig(cfg, proj_root)
 
     @property
     def cfg_dict(self):
@@ -308,17 +315,10 @@ def coproc_dep_pop(op):
 
 def _init_env():
     """Initialize the default global env"""
-    curr_path = os.path.dirname(
-        os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
-    path_list = [
-        os.path.join(proj_root, "vta/vta-hw/config/vta_config.json")
-    ]
-    path_list = [p for p in path_list if os.path.exists(p)]
-    if not path_list:
-        raise RuntimeError(
-            "Error: vta_config.json not found.")
-    cfg = json.load(open(path_list[0]))
+    config_path = os.path.join(get_vta_hw_path(), "config/vta_config.json")
+    if not os.path.exists(config_path):
+        raise RuntimeError("Cannot find config in %s" % str(config_path))
+    cfg = json.load(open(config_path))
     return Environment(cfg)
 
 Environment.current = _init_env()

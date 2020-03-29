@@ -17,7 +17,7 @@
 
 VTA TSIM Application
 ======================
-Prior to this application, please take a look at `<tvm-root>/vta/vta-hw/apps/tsim_example` for installation
+Prior to this application, please take a look at `<vta-hw-root>/apps/tsim_example` for installation
 This is an application that performs Bit Serial Multiplication for GEMM utilizing TSIM.
 
 **Bit Serial Multiplication for GEMM:**
@@ -28,7 +28,7 @@ We approach this operation with slicing and shifting, like how basic multiplicat
 We can sufficiently reduce the cycles required to perform a gemm given that the data bit width is small. This GEMM application uses TSIM for future accerlerator prototypes.
 
 * Test Chisel3 backend with bit serial GEMM
-    * Go to `<tvm-root>/vta/vta-hw/apps/gemm`
+    * Go to `<vta-hw-root>/apps/gemm`
     * Run `make`
 
 * If you have already compiled chisel backend (i.e. ran `make`)
@@ -36,15 +36,15 @@ We can sufficiently reduce the cycles required to perform a gemm given that the 
     * Bit parallel test with another input set, run `make parallel`
 
 * Some steps for creating your own custom TSIM application
-    * Go to `<tvm-root>/vta/vta-hw/apps/gemm`
+    * Go to `<vta-hw-root>/apps/gemm`
     * Create custom circuit within `./hardware/chisel/src/scala.main/accel/Compute.scala`
     * Map the according Registers in `./hardware/chisel/src/scala.main/accel/RegFile.scala`
     * Create your test script
     * Map the registers in `./src/driver.cc` and link it with both `RegFile.scala` and the test script
-    * Understanding of `<tvm-root>/vta/vta-hw/apps/tsim_example`, which performs add by one to a vector, is highly encouraged to create a more complex application
+    * Understanding of `<vta-hw-root>/apps/tsim_example`, which performs add by one to a vector, is highly encouraged to create a more complex application
 
 * Some pointers
-    * Chisel3 tests in `<tvm-root>/vta/vta-hw/apps/gemm/tests/python`
-    * Chisel3 accelerator backend `<tvm-root>/vta/vta-hw/apps/gemm/hardware/chisel`
-    * Software C++ driver (backend) that handles the accelerator `<tvm-root>/vta/vta-hw/apps/gemm/src/driver.cc`
-    * Software Python driver (frontend) that handles the accelerator `<tvm-root>vtay/vta-hw/apps/gemm/python/accel`
+    * Chisel3 tests in `<vta-hw-root>/apps/gemm/tests/python`
+    * Chisel3 accelerator backend `<vta-hw-root>/apps/gemm/hardware/chisel`
+    * Software C++ driver (backend) that handles the accelerator `<vta-hw-root>/apps/gemm/src/driver.cc`
+    * Software Python driver (frontend) that handles the accelerator `<vta-hw-root>/apps/gemm/python/accel`

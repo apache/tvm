@@ -72,16 +72,16 @@ The default target language for these two implementations is Verilog. The follow
 how to run both of them:
 
 * Test Verilog backend
-    * Go to `<tvm-root>/vta/vta-hw/apps/tsim_example`
+    * Go to `<vta-hw-root>/apps/tsim_example`
     * Run `make`
 
 * Test Chisel3 backend
-    * Go to `<tvm-root>/vta/vta-hw/apps/tsim_example`
+    * Go to `<vta-hw-root>/apps/tsim_example`
     * Run `make run_chisel`
 
 * Some pointers
-    * Verilog and Chisel3 tests in `<tvm-root>/vta/vta-hw/apps/tsim_example/tests/python`
-    * Verilog accelerator backend `<tvm-root>/vta/vta-hw/apps/tsim_example/hardware/verilog`
-    * Chisel3 accelerator backend `<tvm-root>/vta/vta-hw/apps/tsim_example/hardware/chisel`
-    * Software C++ driver (backend) that handles the accelerator `<tvm-root>/vta/vta-hw/apps/tsim_example/src/driver.cc`
-    * Software Python driver (frontend) that handles the accelerator `<tvm-root>vtay/vta-hw/apps/tsim_example/python/accel`
+    * Verilog and Chisel3 tests in `<vta-hw-root>/apps/tsim_example/tests/python`
+    * Verilog accelerator backend `<vta-hw-root>/apps/tsim_example/hardware/verilog`
+    * Chisel3 accelerator backend `<vta-hw-root>/apps/tsim_example/hardware/chisel`
+    * Software C++ driver (backend) that handles the accelerator `<vta-hw-root>/apps/tsim_example/src/driver.cc`
+    * Software Python driver (frontend) that handles the accelerator `<vta-hw-root>/apps/tsim_example/python/accel`

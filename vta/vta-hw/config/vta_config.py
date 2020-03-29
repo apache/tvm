@@ -20,15 +20,17 @@ import sys
 import json
 import argparse
 
-def get_pkg_config(cfg):
-    """Get the pkg config object."""
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
-    pkg_config_py = os.path.join(proj_root, "vta/python/vta/pkg_config.py")
+
+def pkg_config(cfg):
+    """Returns PkgConfig pkg config object."""
+    pkg_config_py = os.path.join(
+            os.path.dirname(os.path.abspath(os.path.expanduser(__file__))),
+            "pkg_config.py"
+    )
     libpkg = {"__file__": pkg_config_py}
     exec(compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg)
     PkgConfig = libpkg["PkgConfig"]
-    return PkgConfig(cfg, proj_root)
+    return PkgConfig(cfg)
 
 def main():
     """Main funciton"""
@@ -105,20 +107,13 @@ def main():
         parser.print_help()
         return
 
-    curr_path = os.path.dirname(
-        os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
-    path_list = [
-        os.path.join(proj_root, "vta/vta-hw/config/vta_config.json")
-    ]
-    if args.use_cfg:
-        path_list = [args.use_cfg]
-    ok_path_list = [p for p in path_list if os.path.exists(p)]
-    if not ok_path_list:
-        raise RuntimeError("Cannot find config in %s" % str(path_list))
-    cfg = json.load(open(ok_path_list[0]))
+    # Path to vta config
+    config_path = "vta_config.json"
+    if not os.path.exists(config_path):
+        raise RuntimeError("Cannot find config in %s" % str(config_path))
+    cfg = json.load(open(config_path))
 
-    pkg = get_pkg_config(cfg)
+    pkg = pkg_config(cfg)
 
     if args.target:
         print(pkg.TARGET)
