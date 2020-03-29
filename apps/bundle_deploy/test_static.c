@@ -18,10 +18,12 @@
  */
 
 #include <tvm/runtime/c_runtime_api.h>
+
 #include <assert.h>
 #include <stdio.h>
 #include <sys/time.h>
 #include <sys/stat.h>
+
 #include "bundle.h"
 
 
