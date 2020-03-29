@@ -54,7 +54,7 @@ class ParallelDenseCombiner : public ParallelOpBatchCombiner {
 
  protected:
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
-    AttrsEqual eq;
+    StructuralEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();
     const auto* attrs_b = b->attrs.as<DenseAttrs>();
     CHECK(attrs_a);

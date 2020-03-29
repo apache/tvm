@@ -103,6 +103,7 @@ class RemapVarSEqualHandler :
 
   // Function that implements actual equality check.
   bool Equal(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
+    if (!lhs.defined() && !rhs.defined()) return true;
     task_stack_.clear();
     pending_tasks_.clear();
     equal_map_lhs_.clear();

@@ -162,7 +162,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   // The output.
   IndexedForwardGraph graph_;
   // attribute equal comparator
-  AttrsEqual attr_equal_;
+  StructuralEqual attr_equal_;
   // Update the message stored at the node.
   void Update(const Expr& node,
               IndexedForwardGraph::Node* parent,
