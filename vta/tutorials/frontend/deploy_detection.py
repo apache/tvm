@@ -270,7 +270,7 @@ m.set_input('data', data)
 m.set_input(**params)
 
 # Perform inference and gather execution statistics
-# More on: https://docs.tvm.ai/api/python/module.html#tvm.runtime.Module.time_evaluator
+# More on: :py:method:`tvm.runtime.Module.time_evaluator`
 num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)
