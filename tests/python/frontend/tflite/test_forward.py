@@ -1020,6 +1020,7 @@ def test_all_elemwise():
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_add, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_sub)
+    _test_forward_elemwise_quantized(_test_sub)
     _test_forward_elemwise(partial(_test_sub, fused_activation_function="RELU"))
     _test_forward_elemwise(partial(_test_sub, fused_activation_function="RELU6"))
     _test_forward_elemwise(_test_mul)
