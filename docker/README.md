@@ -40,7 +40,7 @@ The helper bash script can be useful to build demo sessions.
 
 ## Prebuilt Docker Images
 
-We provide several pre-built images for doing quick exploration with TVM installed.
+You can use third party pre-built images for doing quick exploration with TVM installed.
 For example, you can run the following command to launch ```tvmai/demo-cpu``` image.
 
 ```bash
