@@ -25,6 +25,7 @@
 #ifndef TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
+#include <tvm/node/structural_equal.h>
 #include <tvm/tir/lowered_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
@@ -268,7 +269,7 @@ inline bool CCacheKeyNode::Equal(
     const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
-      AlphaEqual(this->source_func, other->source_func);
+      tvm::StructuralEqual()(this->source_func, other->source_func);
 }
 
 }  // namespace relay

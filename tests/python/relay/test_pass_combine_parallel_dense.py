@@ -75,7 +75,7 @@ def test_combine_parallel_dense():
                          transform.CombineParallelDense(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3, w4)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4)
     check(100, 200, 300)
@@ -127,7 +127,7 @@ def test_combine_parallel_dense_biasadd():
                          transform.CombineParallelDense(min_num_branches=2))
         y_expected = expected(x, w1, w2, b1, b2, is_2d_bias)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, False)
     check(100, 200, 300, False)
@@ -184,7 +184,7 @@ def test_combine_parallel_dense_biasadd_scale_reshape():
                          transform.CombineParallelDense(min_num_branches=2))
         y_expected = expected(x, w1, w2, b1, b2, scale1, scale2, newshape)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, 0.5, 0.25, (1, 1, 15))
     check(100, 200, 300, 0.5, 0.25, (1, 1, 200))

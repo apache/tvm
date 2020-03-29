@@ -68,7 +68,7 @@ def test_legalize():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 def test_legalize_none():
     """Test doing nothing by returning 'None' """
@@ -89,7 +89,7 @@ def test_legalize_none():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(before(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
 def test_legalize_multiple_ops():
@@ -134,7 +134,7 @@ def test_legalize_multiple_ops():
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_legalize_multi_input():
@@ -170,7 +170,7 @@ def test_legalize_multi_input():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 if __name__ == "__main__":

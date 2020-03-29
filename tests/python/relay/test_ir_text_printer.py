@@ -20,7 +20,7 @@ from tvm import relay
 import tvm.relay.testing
 import numpy as np
 from tvm.relay import Expr
-from tvm.relay.analysis import alpha_equal, assert_alpha_equal, assert_graph_equal, free_vars
+from tvm.relay.analysis import free_vars
 
 do_print = [False]
 
@@ -32,9 +32,9 @@ def astext(p, unify_free_vars=False):
         return txt
     x = relay.fromtext(txt)
     if unify_free_vars:
-        assert_graph_equal(x, p)
+        tvm.ir.assert_structural_equal(x, p, map_free_vars=True)
     else:
-        assert_alpha_equal(x, p)
+        tvm.ir.assert_structural_equal(x, p)
     return txt
 
 def show(text):

@@ -59,6 +59,7 @@
  * Thus, it is necessary to wrap this outer function so that the input/output types remain the same
  */
 
+#include <tvm/node/structural_equal.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/ir/type_functor.h>
@@ -93,7 +94,7 @@ class InputVisitor: public ExprFunctor<Expr(const Expr&, const Type&)> {
   Expr WrapExpr(const Expr expr, const Type& type) {
     if (type.as<TensorTypeNode>()) {
       return Call(module_->GetConstructor("GradCell", "Raw"),
-                          {expr}, Attrs(), {type});
+                  {expr}, Attrs(), {type});
     } else if (auto* type_anno = type.as<TupleTypeNode>()) {
       tvm::Array<Expr> fields;
       for (size_t i = 0; i < type_anno->fields.size(); i++) {
@@ -185,7 +186,7 @@ class LazyGradientInitializer: public ExprMutator, public TypeMutator {
 
   Expr VisitExpr_(const ConstantNode* op) final {
     return Call(module_->GetConstructor("GradCell", "Raw"),
-                          {GetRef<Constant>(op)}, Attrs(), {op->checked_type()});
+                {GetRef<Constant>(op)}, Attrs(), {op->checked_type()});
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
@@ -207,26 +208,25 @@ class LazyGradientInitializer: public ExprMutator, public TypeMutator {
         // call appropriate GradCell constructor
         std::string constructor_name = op_expr == Op::Get("ones") ? "One" : "Zero";
         return Call(module_->GetConstructor("GradCell", constructor_name),
-                              {func}, Attrs(), {call_node->checked_type()});
+                    {func}, Attrs(), {call_node->checked_type()});
       }
 
       if (op_expr == Op::Get("ones_like") || op_expr == Op::Get("zeros_like")) {
         // ones_like and zeros_like need TensorType input
         Expr result = CallPrimitiveOp(call_node);
         // fn() -> T, function returns result of operation
-        Expr func = Function({}, result,
-                              {call_node->checked_type()}, Array<TypeVar>());
+        Expr func = Function({}, result, {call_node->checked_type()}, Array<TypeVar>());
         // call appropriate GradCell constructor
         std::string constructor_name = op_expr == Op::Get("ones_like") ? "One" : "Zero";
         return Call(module_->GetConstructor("GradCell", "One"),
-                              {func}, Attrs(), {call_node->checked_type()});
+                    {func}, Attrs(), {call_node->checked_type()});
       }
 
       // handle all other ops
       Expr result = CallPrimitiveOp(call_node);
       // wrap result with Raw constructor
       return Call(module_->GetConstructor("GradCell", "Raw"), {result},
-                            Attrs(), {call_node->checked_type()});
+                  Attrs(), {call_node->checked_type()});
     }
     // not an op
     return ExprMutator::VisitExpr_(call_node);
@@ -253,10 +253,11 @@ class LazyGradientInitializer: public ExprMutator, public TypeMutator {
   Expr CallGradCellFunction(const CallNode* call_node, GlobalVar overloaded_op) {
     // can only use overloaded functions if 2 arguments of same type
     if (call_node->args.size() != 2 ||
-          !AlphaEqual(call_node->args[0]->checked_type(), call_node->args[1]->checked_type())) {
+        !tvm::StructuralEqual()(call_node->args[0]->checked_type(),
+                                call_node->args[1]->checked_type())) {
       Expr result = CallPrimitiveOp(call_node);
       return Call(module_->GetConstructor("GradCell", "Raw"), {result},
-                            Attrs(), {call_node->checked_type()});
+                  Attrs(), {call_node->checked_type()});
     }
 
     tvm::Array<Expr> args;
@@ -266,8 +267,7 @@ class LazyGradientInitializer: public ExprMutator, public TypeMutator {
                               Var("rhs", paramType)};
     // use primitive op in this case
     Expr callOp = Call(call_node->op, {params[0], params[1]});
-    Expr func = Function(params, callOp, paramType,
-                                            Array<TypeVar>());
+    Expr func = Function(params, callOp, paramType, Array<TypeVar>());
 
     // pass "fallback" function and tensors as arguments
     args.push_back(func);

@@ -18,7 +18,7 @@ import tvm
 from tvm import te
 from tvm import relay
 from tvm.relay import Function, transform
-from tvm.relay.analysis import alpha_equal, graph_equal, free_vars, assert_alpha_equal
+from tvm.relay.analysis import free_vars
 from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.testing import inception_v3
 
@@ -69,7 +69,7 @@ def test_used_let():
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
     orig = run_opt_pass(orig, transform.DeadCodeElimination(True))
-    assert_alpha_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
+    tvm.ir.assert_structural_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
 
 
 def test_chain_unused_let():
@@ -105,7 +105,7 @@ def test_recursion():
     orig = use_f(lambda f: relay.Call(f, [relay.const(2), relay.const(10000.0)]))
     dced = run_opt_pass(orig, transform.DeadCodeElimination())
     orig = run_opt_pass(orig, transform.InferType())
-    assert_alpha_equal(dced, orig)
+    tvm.ir.assert_structural_equal(dced, orig)
 
 def test_recursion_dead():
     x = relay.Let(e.a, e.one, e.three)

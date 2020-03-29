@@ -45,7 +45,7 @@ def test_fuse_simple():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_conv2d_fuse():
@@ -127,7 +127,7 @@ def test_conv2d_fuse():
     z = before(dshape)
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_concatenate():
@@ -167,7 +167,7 @@ def test_concatenate():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_tuple_root():
@@ -204,7 +204,7 @@ def test_tuple_root():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_stop_fusion():
@@ -235,7 +235,7 @@ def test_stop_fusion():
     z = before(dshape)
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_fuse_myia_regression():
@@ -271,7 +271,7 @@ def test_fuse_myia_regression():
     f = before(dshape, dtype)
     zz = run_opt_pass(f, transform.FuseOps())
     after = run_opt_pass(expected(dshape, dtype), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_fuse_tuple_get_elemwise():
@@ -309,7 +309,7 @@ def test_fuse_tuple_get_elemwise():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dim), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_tuple_get_root():
@@ -346,7 +346,7 @@ def test_tuple_get_root():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dim), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 fuse0 = relay.transform.FuseOps(fuse_opt_level=0)
@@ -379,7 +379,7 @@ def test_tuple_intermediate():
     m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(x), transform.InferType())
-    assert relay.analysis.alpha_equal(m["main"], after)
+    assert tvm.ir.structural_equal(m["main"], after)
 
 
 def test_tuple_consecutive():
@@ -437,7 +437,7 @@ def test_tuple_consecutive():
     m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(m["main"], after)
+    assert tvm.ir.structural_equal(m["main"], after)
 
 
 def test_inception_like():
@@ -510,7 +510,7 @@ def test_inception_like():
     m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(m["main"], after)
+    assert tvm.ir.structural_equal(m["main"], after)
 
 
 def test_fuse_parallel_injective():
@@ -541,7 +541,7 @@ def test_fuse_parallel_injective():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_immutable():
@@ -570,8 +570,8 @@ def test_immutable():
 
     mod = before()
     new_mod = transform.FuseOps(fuse_opt_level=2)(mod)
-    assert relay.analysis.alpha_equal(mod, before())
-    assert relay.analysis.alpha_equal(new_mod, expected())
+    assert tvm.ir.structural_equal(mod, before())
+    assert tvm.ir.structural_equal(new_mod, expected())
 
 
 def test_split():
@@ -619,7 +619,7 @@ def test_fuse_max():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 if __name__ == "__main__":
     test_fuse_simple()

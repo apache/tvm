@@ -498,7 +498,9 @@ class IncompleteTypeNode : public TypeNode {
   }
 
   bool SEqualReduce(const IncompleteTypeNode* other, SEqualReducer equal) const {
-    return equal(kind, other->kind);
+    return
+        equal(kind, other->kind) &&
+        equal.FreeVarEqualImpl(this, other);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {

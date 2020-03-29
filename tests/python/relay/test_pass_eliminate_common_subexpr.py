@@ -52,7 +52,7 @@ def test_simple():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr())
-    assert analysis.alpha_equal(z, expected())
+    assert tvm.ir.structural_equal(z, expected())
 
 
 def test_callback():
@@ -82,7 +82,7 @@ def test_callback():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr(fskip))
-    assert analysis.alpha_equal(z, expected())
+    assert tvm.ir.structural_equal(z, expected())
 
 
 if __name__ == "__main__":

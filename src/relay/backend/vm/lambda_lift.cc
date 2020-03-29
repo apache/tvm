@@ -22,6 +22,7 @@
  * \brief Lift all local functions into global functions.
  */
 
+#include <tvm/node/structural_equal.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/support/logging.h>
@@ -161,7 +162,8 @@ class LambdaLifter : public ExprMutator {
 
     if (module_->ContainGlobalVar(name)) {
       const auto existing_func = module_->Lookup(name);
-      CHECK(AlphaEqual(lifted_func, existing_func)) << "lifted function hash collision";
+      CHECK(tvm::StructuralEqual()(lifted_func, existing_func))
+        << "lifted function hash collision";
       // If an identical function already exists, use its global var.
       global = module_->GetGlobalVar(name);
     } else {

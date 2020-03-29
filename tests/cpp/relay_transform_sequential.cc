@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 #include <topi/generic/injective.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/expr.h>
 #include <tvm/ir/module.h>
@@ -102,7 +103,7 @@ TEST(Relay, Sequential) {
   auto mod1 = IRModule::FromExpr(expected_func);
   mod1 = relay::transform::InferType()(mod1);
   auto expected = mod1->Lookup("main");
-  CHECK(relay::AlphaEqual(f, expected));
+  CHECK(tvm::StructuralEqual()(f, expected));
 }
 
 int main(int argc, char** argv) {

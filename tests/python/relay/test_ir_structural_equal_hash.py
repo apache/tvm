@@ -107,7 +107,7 @@ def test_func_type_sequal():
     ft = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
                          tvm.runtime.convert([tp1, tp3]),
                          tvm.runtime.convert([tr1]))
-    translate_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp1,
+    translate_vars = relay.FuncType(tvm.runtime.convert([t1, t2]), tp2,
                          tvm.runtime.convert([tp2, tp4]),
                          tvm.runtime.convert([tr2]))
     assert ft == translate_vars
