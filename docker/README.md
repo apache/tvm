@@ -53,7 +53,7 @@ jupyter notebook
 ```
 
 You can find some un-official prebuilt images in https://hub.docker.com/r/tvmai/ .
-Note that these are convenience images are not part of the ASF release.
+Note that these are convenience images and are not part of the ASF release.
 
 
 ## Use Local Build Script

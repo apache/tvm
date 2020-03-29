@@ -38,7 +38,7 @@ We can then use the following command to launch a docker image.
     /path/to/tvm/docker/bash.sh <image-name>
 
 Here the image-name can be a local docker image name, e.g. `tvm.ci_cpu` after you have done
-the local build. Or a pre-built third party images (`tvmai/demo-cpu` or `tvmai/ci-gpu`).
+the local build. Or a pre-built third party image (`tvmai/demo-cpu` or `tvmai/ci-gpu`).
 
 This auxiliary script does the following things:
 
@@ -66,7 +66,7 @@ at an URL like ``http://{container_hostname}:8888/?token=...``. You should repla
 with ``localhost`` when pasting it into browser.
 
 You can find some un-official prebuilt images in `<https://hub.docker.com/r/tvmai/>`_.
-Note that these are convenience images are not part of the ASF release.
+Note that these are convenience images and are not part of the ASF release.
 
 Docker Source
 -------------
