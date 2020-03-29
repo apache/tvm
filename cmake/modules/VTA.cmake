@@ -18,17 +18,19 @@
 # CMake Build rules for VTA
 find_program(PYTHON NAMES python python3 python3.6)
 
-# VTA sources directory
-set(VTA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/vta/vta-hw)
+# Throw error if VTA_HW_PATH is not set
+if(NOT DEFINED ENV{VTA_HW_PATH})
+    set(ENV{VTA_HW_PATH} vta/vta-hw)
+endif()
 
 if(MSVC)
   message(STATUS "VTA build is skipped in Windows..")
 elseif(PYTHON)
-  set(VTA_CONFIG ${PYTHON} ${VTA_DIR}/config/vta_config.py)
+  set(VTA_CONFIG ${PYTHON} $ENV{VTA_HW_PATH}/config/vta_config.py)
 
   if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
     message(STATUS "Use VTA config " ${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
-    set(VTA_CONFIG ${PYTHON} ${VTA_DIR}/config/vta_config.py
+    set(VTA_CONFIG ${PYTHON} $ENV{VTA_HW_PATH}/config/vta_config.py
       --use-cfg=${CMAKE_CURRENT_BINARY_DIR}/vta_config.json)
   endif()
 
@@ -43,14 +45,14 @@ elseif(PYTHON)
   # Fast simulator driver build
   if(USE_VTA_FSIM)
     # Add fsim driver sources
-    file(GLOB FSIM_RUNTIME_SRCS ${VTA_DIR}/src/*.cc)
+    file(GLOB FSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/*.cc)
     file(GLOB FSIM_RUNTIME_SRCS vta/runtime/*.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_DIR}/src/sim/sim_driver.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_DIR}/src/sim/sim_tlpp.cc)
-    list(APPEND FSIM_RUNTIME_SRCS ${VTA_DIR}/src/vmem/virtual_memory.cc)
+    list(APPEND FSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/sim/sim_driver.cc)
+    list(APPEND FSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/sim/sim_tlpp.cc)
+    list(APPEND FSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/vmem/virtual_memory.cc)
     # Target lib: vta_fsim
     add_library(vta_fsim SHARED ${FSIM_RUNTIME_SRCS})
-    target_include_directories(vta_fsim PUBLIC ${VTA_DIR}/include)
+    target_include_directories(vta_fsim PUBLIC $ENV{VTA_HW_PATH}/include)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_fsim PUBLIC ${__strip_def})
@@ -64,14 +66,14 @@ elseif(PYTHON)
   # Cycle accurate simulator driver build
   if(USE_VTA_TSIM)
     # Add tsim driver sources
-    file(GLOB TSIM_RUNTIME_SRCS ${VTA_DIR}/src/*.cc)
+    file(GLOB TSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/*.cc)
     file(GLOB TSIM_RUNTIME_SRCS vta/runtime/*.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_DIR}/src/tsim/tsim_driver.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_DIR}/src/dpi/module.cc)
-    list(APPEND TSIM_RUNTIME_SRCS ${VTA_DIR}/src/vmem/virtual_memory.cc)
+    list(APPEND TSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/tsim/tsim_driver.cc)
+    list(APPEND TSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/dpi/module.cc)
+    list(APPEND TSIM_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/vmem/virtual_memory.cc)
     # Target lib: vta_tsim
     add_library(vta_tsim SHARED ${TSIM_RUNTIME_SRCS})
-    target_include_directories(vta_tsim PUBLIC ${VTA_DIR}/include)
+    target_include_directories(vta_tsim PUBLIC $ENV{VTA_HW_PATH}/include)
     foreach(__def ${VTA_DEFINITIONS})
       string(SUBSTRING ${__def} 3 -1 __strip_def)
       target_compile_definitions(vta_tsim PUBLIC ${__strip_def})
@@ -83,15 +85,15 @@ elseif(PYTHON)
 
   # VTA FPGA driver sources
   if(USE_VTA_FPGA)
-    file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_DIR}/src/*.cc)
+    file(GLOB FPGA_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
-      list(APPEND FPGA_RUNTIME_SRCS ${VTA_HW_DIR}/src/pynq/pynq_driver.cc)
+      list(APPEND FPGA_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/pynq/pynq_driver.cc)
       # Rules for Pynq v2.4
       find_library(__cma_lib NAMES cma PATH /usr/lib)
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
-      file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_DIR}/src/de10nano/*.cc ${VTA_HW_DIR}/src/*.cc)
+      file(GLOB FPGA_RUNTIME_SRCS $ENV{VTA_HW_PATH}/src/de10nano/*.cc $ENV{VTA_HW_PATH}/src/*.cc)
     endif()
     # Target lib: vta
     add_library(vta SHARED ${FPGA_RUNTIME_SRCS})
@@ -105,7 +107,7 @@ elseif(PYTHON)
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
      #target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
-      target_include_directories(vta PUBLIC ${VTA_HW_DIR}/src/de10nano)
+      target_include_directories(vta PUBLIC $ENV{VTA_HW_PATH}/src/de10nano)
       target_include_directories(vta PUBLIC 3rdparty)
       target_include_directories(vta PUBLIC
         "/usr/local/intelFPGA_lite/18.1/embedded/ds-5/sw/gcc/arm-linux-gnueabihf/include")
