@@ -36,77 +36,87 @@ def lower(sch, args):
     return stmt
 
 
-def test_const():
-    def test(m, n, dtype):
-        A = te.placeholder((m, n), name='A')
-        B = te.placeholder((m, n), name='B')
-        C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-        s = te.create_schedule(C.op)
-        stmt = lower(s, [A, B, C])
-        assert stmt.body.loop_var.dtype == dtype
-        assert stmt.body.body.loop_var.dtype == dtype
+def test_basic():
+    def check(m, n, target_bits, target_dtype):
+        ib = tvm.tir.ir_builder.create()
+        Ab = tvm.tir.decl_buffer((m, n), name='A')
+        A = ib.buffer_ptr(Ab)
+        Bb = tvm.tir.decl_buffer((m, n), name='B')
+        B = ib.buffer_ptr(Bb)
+        with ib.for_range(0, m, name='i') as i:
+            with ib.for_range(0, n, name='j') as j:
+                B[i * n + j] = A[i * n + j] + 1
+        stmt = ib.get()
+        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        assert stmt.loop_var.dtype == target_dtype
+        assert stmt.body.loop_var.dtype == target_dtype
 
-    test(2, 2, "int32")
-    # i32 + i32 is not promoted to i64 even in the case of overflow
-    test(2**16, 2**16, "int32")
-    test(tvm.tir.const(2, dtype='int64'), tvm.tir.const(2, dtype='int64'), "int32")
-    test(tvm.tir.const(2**16, dtype='int64'), tvm.tir.const(2**16, dtype='int64'), "int64")
-
-
-def test_symbolic():
-    def test(m, n, dtype):
-        A = te.placeholder((m, n), name='A')
-        B = te.placeholder((m, n), name='B')
-        C = te.compute((m, n), lambda *idx: A[idx] + B[idx])
-        s = te.create_schedule(C.op)
-        stmt = lower(s, [A, B, C])
-        assert stmt.body.loop_var.dtype == dtype
-        assert stmt.body.body.loop_var.dtype == dtype
-
-    test(te.size_var(name='m', dtype='int32'), te.size_var(name='n', dtype='int32'), "int32")
-    test(te.size_var(name='m', dtype='int64'), te.size_var(name='n', dtype='int64'), "int64")
+    # const shape
+    check(2, 2, 32, "int32")
+    check(2**16, 2**16, 32, "int32")  # i32 + i32 is not promoted to i64 even if overflow
+    check(tvm.tir.const(2, dtype='int64'), tvm.tir.const(2, dtype='int64'), 32, "int32")
+    check(tvm.tir.const(2**16, dtype='int64'), tvm.tir.const(2**16, dtype='int64'), 32, "int64")
+    # symbolic shape
+    check(te.size_var(name='m', dtype='int32'), te.size_var(name='n', dtype='int32'), 32, "int32")
+    check(te.size_var(name='m', dtype='int64'), te.size_var(name='n', dtype='int64'), 32, "int64")
 
 
 def test_thread_axis():
-    def test(m, n, k, dtype):
-        A = te.placeholder((m, n, k), name='A')
-        B = te.placeholder((m, n, k), name='B')
-        C = te.compute((m, n, k), lambda *idx: A[idx] + B[idx])
-        s = te.create_schedule(C.op)
-        fused = s[C].fuse(*[axis for axis in C.op.axis])
-        xo, xi = s[C].split(fused, factor=32)
-        s[C].bind(xo, te.thread_axis("blockIdx.x"))
-        s[C].bind(xi, te.thread_axis("threadIdx.x"))
-        stmt = lower(s, [A, B, C])
+    def check(m, n, target_bits, target_dtype):
+        ib = tvm.tir.ir_builder.create()
+        Ab = tvm.tir.decl_buffer((m, n), name='A')
+        A = ib.buffer_ptr(Ab)
+        Bb = tvm.tir.decl_buffer((m, n), name='B')
+        B = ib.buffer_ptr(Bb)
+        bx = te.thread_axis("blockIdx.x")
+        tx = te.thread_axis("threadIdx.x")
+        ib.scope_attr(bx, "thread_extent", m)
+        ib.scope_attr(tx, "thread_extent", n)
+        B[bx * n + tx] = A[bx * n + tx] + 1
+        stmt = ib.get()
+        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        assert stmt.node.var.dtype == target_dtype
+        assert stmt.body.node.var.dtype == target_dtype
 
-    test(2, 2, 2, dtype='int32')
+
+    check(2, 32,
+          target_bits=32, target_dtype='int32')
     # i32 + i32 is not promoted to i64 even in the case of overflow
-    test(2**10, 2**11, 2**12, dtype='int32')
-    test(tvm.tir.const(2, dtype='int64'),
-         tvm.tir.const(2, dtype='int64'),
-         tvm.tir.const(2, dtype='int64'),
-         dtype='int32')
-    test(tvm.tir.const(2**10, dtype='int64'),
-         tvm.tir.const(2**11, dtype='int64'),
-         tvm.tir.const(2**12, dtype='int64'),
-         dtype='int64')
+    check(2**30, 32,
+          target_bits=32, target_dtype='int32')
+    check(tvm.tir.const(2, dtype='int64'),
+          tvm.tir.const(32, dtype='int64'),
+          target_bits=32, target_dtype='int32')
+    check(tvm.tir.const(2**30, dtype='int64'),
+          tvm.tir.const(32, dtype='int64'),
+          target_bits=32, target_dtype='int64')
 
 
 def test_multilanes():
-    def test(m, lanes, dtype):
-        A = te.placeholder((m,), name='A', dtype='float32x{}'.format(lanes))
-        B = te.placeholder((m,), name='B', dtype='float32x{}'.format(lanes))
-        C = te.compute((m,), lambda *idx: A[idx] + B[idx])
-        s = te.create_schedule(C.op)
-        stmt = lower(s, [A, B, C])
-        assert stmt.body.loop_var.dtype == dtype
+    def check(m, lanes, target_bits, target_dtype):
+        ib = tvm.tir.ir_builder.create()
+        Ab = tvm.tir.decl_buffer((m,), dtype='float32x{}'.format(lanes), name='A')
+        A = ib.buffer_ptr(Ab)
+        Bb = tvm.tir.decl_buffer((m,), dtype='float32x{}'.format(lanes), name='B')
+        B = ib.buffer_ptr(Bb)
+        with ib.for_range(0, m, name='i', dtype=m.dtype) as i:
+            B[i] = A[i] + 1
+        stmt = ib.get()
+        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        assert stmt.loop_var.dtype == target_dtype
 
-    test(tvm.tir.const(64, dtype='int32'), 2, 'int32')
-    test(tvm.tir.const(2 ** 32, dtype='int64'), 2, 'int64')
+    check(tvm.tir.const(2 ** 10, dtype='int32'), 2,
+          target_bits=32, target_dtype='int32')
+    check(tvm.tir.const(2 ** 32, dtype='int32'), 2,
+          target_bits=32, target_dtype='int32')
+    check(tvm.tir.const(2 ** 10, dtype='int64'), 2,
+          target_bits=32, target_dtype='int32')
+    check(tvm.tir.const(2 ** 32, dtype='int64'), 2,
+          target_bits=32, target_dtype='int64')
 
 
 def test_reduce():
-    def test(m, dtype):
+    def check(m, dtype):
         A = te.placeholder((m,), name='A', dtype='float32')
         k = te.reduce_axis((0, m), "k")
         B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name='B')
@@ -114,15 +124,14 @@ def test_reduce():
         stmt = lower(s, [A, B])
         assert stmt.body[1].loop_var.dtype == dtype
 
-    test(tvm.tir.const(64, dtype='int32'), 'int32')
-    test(tvm.tir.const(64, dtype='int64'), 'int32')
-    test(te.var('n', dtype='int32'), 'int32')
-    test(te.var('n', dtype='int64'), 'int64')
+    check(tvm.tir.const(64, dtype='int32'), 'int32')
+    check(tvm.tir.const(64, dtype='int64'), 'int32')
+    check(te.var('n', dtype='int32'), 'int32')
+    check(te.var('n', dtype='int64'), 'int64')
 
 
 if __name__ == "__main__":
-    test_const()
-    test_symbolic()
+    test_basic()
     test_thread_axis()
     test_multilanes()
     test_reduce()

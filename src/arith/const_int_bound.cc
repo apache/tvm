@@ -148,6 +148,16 @@ class ConstIntBoundAnalyzer::Impl :
     return res;
   }
 
+  Entry VisitExpr_(const RampNode* op) final {
+    // op = {base + i * stride | 0 <= i < lanes}
+    // Entry(op) = Union(Entry(base + i * stride) | 0 <= i < lanes)
+    // Note that `base + i * stride` is linear w.r.t. `i`
+    // Entry(op) = Union(Entry(base + i * stride) | i = 0, i = lanes-1)
+    Entry a = VisitExpr(op->base);
+    Entry b = VisitExpr(op->base + (op->lanes - 1) * op->stride);
+    return Union(a, b);
+  }
+
   Entry VisitExpr_(const CastNode* op) final {
     Entry a = VisitExpr(op->value);
     Entry b = Everything(op->dtype);
