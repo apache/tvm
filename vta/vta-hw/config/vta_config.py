@@ -108,11 +108,21 @@ def main():
         return
 
     # Path to vta config
-    config_path = "vta_config.json"
-    if not os.path.exists(config_path):
-        raise RuntimeError("Cannot find config in %s" % str(config_path))
-    cfg = json.load(open(config_path))
+    curr_path = os.path.dirname(
+        os.path.abspath(os.path.expanduser(__file__)))
 
+    path_list = [
+        "vta_config.json", os.path.join(curr_path, "vta_config.json")
+    ]
+
+    if args.use_cfg:
+        path_list = [args.use_cfg]
+
+    ok_path_list = [p for p in path_list if os.path.exists(p)]
+    if not ok_path_list:
+        raise RuntimeError("Cannot find config in %s" % str(path_list))
+
+    cfg = json.load(open(ok_path_list[0]))
     pkg = pkg_config(cfg)
 
     if args.target:
