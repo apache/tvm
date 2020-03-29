@@ -23,6 +23,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/node/structural_equal.h>
 // NOTE: reverse dependency on relay.
 // These dependencies do not happen at the interface-level,
 // and are only used in minimum cases where they are clearly marked.
@@ -194,12 +195,11 @@ relay::Function RunTypeCheck(const IRModule& mod,
         << AsText(func, false)
         << std::endl;
   }
-  func =
-      relay::Function(concat(func->params, fv),
-                                func->body,
-                                func->ret_type,
-                                concat(func->type_params, ftv),
-                                func->attrs);
+  func = relay::Function(concat(func->params, fv),
+                         func->body,
+                         func->ret_type,
+                         concat(func->type_params, ftv),
+                         func->attrs);
   // Type check the item before we add it to the module.
   relay::Function checked_func = InferType(func, mod, var);
   return checked_func;
@@ -222,7 +222,7 @@ void IRModuleNode::Add(const GlobalVar& var,
     CHECK(update)
         << "Already have definition for " << var->name_hint;
     auto old_type = functions[var]->checked_type();
-    CHECK(relay::AlphaEqual(type, old_type))
+    CHECK(tvm::StructuralEqual()(type, old_type))
         << "Module#update changes type, not possible in this mode.";
   }
   var->checked_type_ = type;
@@ -353,9 +353,8 @@ IRModule IRModule::FromExpr(
   if (auto* func_node = expr.as<BaseFuncNode>()) {
     func = GetRef<BaseFunc>(func_node);
   } else {
-    func = relay::Function(
-        relay::FreeVars(expr), expr, Type(),
-        relay::FreeTypeVars(expr, mod), {});
+    func = relay::Function(relay::FreeVars(expr), expr, Type(),
+                           relay::FreeTypeVars(expr, mod), {});
   }
   auto main_gv = GlobalVar("main");
   mod->Add(main_gv, func);

@@ -16,6 +16,7 @@
 # under the License.
 """Unified type system in the project."""
 from enum import IntEnum
+import tvm
 import tvm._ffi
 
 from .base import Node
@@ -26,7 +27,7 @@ class Type(Node):
     """The base class of all types."""
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
-        return bool(_ffi_api.type_alpha_equal(self, other))
+        return bool(tvm.ir.structural_equal(self, other))
 
     def __ne__(self, other):
         return not self.__eq__(other)
