@@ -27,6 +27,7 @@
 #include "build/graph.json.c"
 #include "build/params.bin.c"
 
+#define OUTPUT_LEN  1000
 
 int main(int argc, char **argv) {
   assert(argc == 2 && "Usage: demo_static <cat.bin>");
@@ -64,7 +65,7 @@ int main(int argc, char **argv) {
   tvm_runtime_run(handle);
   gettimeofday(&t3, 0);
 
-  float output_storage[1000];
+  float output_storage[OUTPUT_LEN];
   DLTensor output;
   output.data = output_storage;
   DLContext out_ctx = {kDLCPU, 0};
@@ -72,7 +73,7 @@ int main(int argc, char **argv) {
   output.ndim = 2;
   DLDataType out_dtype = {kDLFloat, 32, 1};
   output.dtype = out_dtype;
-  int64_t out_shape [2] = {1, 1000};
+  int64_t out_shape [2] = {1, OUTPUT_LEN};
   output.shape = &out_shape;
   output.strides = NULL;
   output.byte_offset = 0;
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
 
   float max_iter = -FLT_MAX;
   int32_t max_index = -1;
-  for (auto i = 0; i < 1000; ++i) {
+  for (auto i = 0; i < OUTPUT_LEN; ++i) {
     if (output_storage[i] > max_iter) {
       max_iter = output_storage[i];
       max_index = i;

@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#ifndef TVM_APPS_BUNDLE_H
-#define TVM_APPS_BUNDLE_H
+#ifndef TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
+#define TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 
@@ -38,4 +38,4 @@ TVM_DLL void tvm_runtime_get_output(void * runtime,
                                     int32_t index, 
                                     DLTensor * tensor);
 
-#endif /* TVM_APPS_BUNDLE_H */
+#endif /* TVM_APPS_BUNDLE_DEPLOY_BUNDLE_H_ */

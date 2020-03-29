@@ -77,4 +77,3 @@ TVM_DLL void tvm_runtime_get_output(void * runtime, int32_t index, DLTensor * te
   TVMFuncGetGlobal("tvm.graph_runtime.get_output", (TVMFunctionHandle*)&TVMGraphRuntime_GetOutput);
   TVMGraphRuntime_GetOutput(runtime, index, tensor);
 }
-
