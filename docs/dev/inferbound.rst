@@ -15,9 +15,12 @@
     specific language governing permissions and limitations
     under the License.
 
+.. _dev-InferBound-Pass:
+
 *******************************************
 InferBound Pass
 *******************************************
+
 
 The InferBound pass is run after normalize, and before ScheduleOps `build_module.py <https://github.com/apache/incubator-tvm/blob/master/python/tvm/build_module.py>`_. The main job of InferBound is to create the bounds map, which specifies a Range for each IterVar in the program. These bounds are then passed to ScheduleOps, where they are used to set the extents of For loops, see `MakeLoopNest <https://github.com/apache/incubator-tvm/blob/master/src/op/op_util.cc>`_, and to set the sizes of allocated buffers (`BuildRealize <https://github.com/apache/incubator-tvm/blob/master/src/op/compute_op.cc>`_), among other uses.
 
@@ -83,14 +86,14 @@ A TVM schedule is composed of Stages. Each stage has exactly one Operation, e.g.
    		Array<IterVarRelation> relations;
    		// remainder omitted
    	};
-   	
+
    	class OperationNode : public Node {
    	public:
    		virtual Array<IterVar> root_iter_vars();
    		virtual Array<Tensor> InputTensors();
    		// remainder omitted
    	};
-   	
+
    	class ComputeOpNode : public OperationNode {
    	public:
    		Array<IterVar> axis;

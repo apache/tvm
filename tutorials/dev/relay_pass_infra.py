@@ -27,24 +27,15 @@ execute them and maintain their dependencies manually. Therefore, we have
 introduced an infrastructure to manage the optimization passes.
 
 The optimizations of a Relay program could be applied at various granularity,
-namely function-level and module-level using `FunctionPass`_ and `ModulePass`_
-respectively. Or users can rely on `Sequential`_ to apply a sequence of passes
+namely function-level and module-level using :py:class:`tvm.relay.transform.FunctionPass`
+and py:class:`tvm.relay.transform.ModulePass`
+respectively. Or users can rely on py:class:`tvm.relay.transform.Sequential` to apply a sequence of passes
 on a Relay program where the dependencies between passes can be resolved by the
 pass infra. For more details about each type of these passes, please refer to
-the `pass infra doc`_.
+the :ref:`relay-pass-infra`
 
 This tutorial demostrates how developers can use the Relay pass infra to perform
 a certain optimization and create an optimization pipeline.
-
-.. _FunctionPass: https://docs.tvm.ai/api/python/relay/transform.html#tvm.relay.transform.FunctionPass
-
-.. _ModulePass: https://docs.tvm.ai/api/python/relay/transform.html#tvm.relay.transform.ModulePass
-
-.. _Sequential: https://docs.tvm.ai/api/python/relay/transform.html#tvm.relay.transform.Sequential
-
-.. _pass infra doc: https://docs.tvm.ai/dev/relay_pass_infra.html
-
-.. _ToANormalForm: https://docs.tvm.ai/api/python/relay/transform.html#tvm.relay.transform.ToANormalForm
 """
 
 import numpy as np
@@ -130,27 +121,27 @@ mod = relay.transform.FuseOps(fuse_opt_level=0)(mod)
 print(mod)
 
 ###############################################################################
-# Use `Sequential`_ to Apply a Sequence of Passes
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Use Sequential to Apply a Sequence of Passes
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Applying passes as above is actually tedious and it may require users to have
 # better understanding about the dependencies between them. For example, fusion
 # currently doesn't work well on let bindings. Therefore, we would not be able
-# to fuse operators that were fusable if `ToANormalForm`_ is applied before
+# to fuse operators that were fusable if :py:func:`relay.transform.ToANormalForm` is applied before
 # fusion, as this pass generates let bindings for each expression to
 # canonicalize a Relay program.
 #
-# Relay, hence, provides `Sequential`_ to alleviate developers from handling
+# Relay, hence, provides :py:class:`tvm.relay.transform.Sequential` to alleviate developers from handling
 # these issues explicitly by specifying the required passes of each pass and
 # packing them as a whole to execute. For example, the same passes can now be
-# applied using the sequential style as the following. `Sequential`_ is
+# applied using the sequential style as the following. :py:class:`tvm.relay.transform.Sequential` is
 # similiar to `torch.nn.sequential <https://pytorch.org/docs/stable/nn.html#torch.nn.Sequential>`_
 # and `mxnet.gluon.block <https://mxnet.incubator.apache.org/api/python/docs/_modules/mxnet/gluon/block.html>`_.
 # For example, `torch.nn.sequential` is used to contain a sequence of PyTorch
 # `Modules` that will be added to build a network. It focuses on the network
-# layers. Instead, the `Sequential`_ in our pass infra works on the optimizing
+# layers. Instead, the :py:class:`tvm.relay.transform.Sequential` in our pass infra works on the optimizing
 # pass.
 
-# Now let's execute some passes through `Sequential`_
+# Now let's execute some passes through :py:class:`tvm.relay.transform.Sequential`
 f = example()
 mod = tvm.IRModule.from_expr(f)
 # Glob the interested passes.
@@ -165,7 +156,8 @@ print(mod1)
 # identical addition operations. This is because `EliminateCommonSubexpr`
 # was not actually performed. The reason is because only the passes that have
 # optimization level less or equal to 2 will be executed by default under
-# `Sequential`_. The pass infra, however, provides a configuration interface
+# :py:class:`tvm.relay.transform.Sequential`. The pass infra,
+# however, provides a configuration interface
 # for users to customize the optimization level that they want to execute.
 
 with relay.build_config(opt_level=3):

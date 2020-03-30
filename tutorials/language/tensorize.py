@@ -304,7 +304,7 @@ tvm.testing.assert_allclose(c.asnumpy(), np.dot(a, b.T), rtol=1e-3)
 # For example, INT8 quantization on Intel CPUs uses tensorization
 # to invoke AVX instruction directly.
 # It also enables TVM to compile to ASICs -
-# checkout `VTA <https://docs.tvm.ai/vta/index.html>`_ for details.
+# checkout :ref:`vta-index` for details.
 # We also demonstrates how to use inline assembly importing,
 # which helps users inject asm easily into the schedule.
 #
