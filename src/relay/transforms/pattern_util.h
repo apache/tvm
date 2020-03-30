@@ -104,7 +104,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
                                      const Array<Integer>& lhs_axes,
                                      Expr* rhs_value = nullptr) {
   if (tlhs->shape.size() < trhs->shape.size()) return false;
-  AttrsEqual equal;
+  StructuralEqual equal;
   size_t base = tlhs->shape.size() - trhs->shape.size();
   size_t j = 0;
 

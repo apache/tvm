@@ -106,7 +106,6 @@ def test_function():
     check_json_roundtrip(fn)
 
 
-@pytest.mark.skip(reason="AttrsEqualHandler doesn't handle Map so far.")
 def test_function_attrs():
     param_names = ['a', 'b', 'c', 'd']
     params = tvm.runtime.convert([relay.var(n, shape=(5, 2)) for n in param_names])

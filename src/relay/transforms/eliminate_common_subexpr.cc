@@ -45,7 +45,7 @@ class CommonSubexprEliminator : public ExprMutator {
     const CallNode* new_call = new_expr.as<CallNode>();
     CHECK(new_call);
     const OpNode* op = new_call->op.as<OpNode>();
-    AttrsEqual attrs_equal;
+    StructuralEqual attrs_equal;
 
     if (new_call->args.size() == 0 || op == nullptr || op_stateful.get(GetRef<Op>(op), false)) {
       return new_expr;

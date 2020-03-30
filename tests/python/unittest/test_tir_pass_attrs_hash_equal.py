@@ -21,28 +21,28 @@ def test_attrs_equal():
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     z = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3,4,1))
-    assert tvm.tir.ir_pass.AttrsEqual(x, y)
-    assert not tvm.tir.ir_pass.AttrsEqual(x, z)
+    assert tvm.ir.structural_equal(x, y)
+    assert not tvm.ir.structural_equal(x, z)
 
     dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
-    assert not tvm.tir.ir_pass.AttrsEqual(dattr, x)
+    assert not tvm.ir.structural_equal(dattr, x)
     dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
-    assert tvm.tir.ir_pass.AttrsEqual(dattr, dattr2)
+    assert tvm.ir.structural_equal(dattr, dattr2)
 
-    assert tvm.tir.ir_pass.AttrsEqual({"x": x}, {"x": y})
+    assert tvm.ir.structural_equal({"x": x}, {"x": y})
     # array related checks
-    assert tvm.tir.ir_pass.AttrsEqual({"x": [x, x]}, {"x": [y, x]})
-    assert not tvm.tir.ir_pass.AttrsEqual({"x": [x, 1]}, {"x": [y, 2]})
+    assert tvm.ir.structural_equal({"x": [x, x]}, {"x": [y, x]})
+    assert not tvm.ir.structural_equal({"x": [x, 1]}, {"x": [y, 2]})
 
     n = te.var("n")
-    assert tvm.tir.ir_pass.AttrsEqual({"x": n+1}, {"x": n+1})
+    assert tvm.ir.structural_equal({"x": n+1}, {"x": n+1})
 
 
 
 
 
 def test_attrs_hash():
-    fhash = tvm.tir.ir_pass.AttrsHash
+    fhash = tvm.ir.structural_hash
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     assert fhash({"x": x}) == fhash({"x": y})
