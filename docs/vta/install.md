@@ -26,8 +26,8 @@ We present three installation guides, each extending on the previous one:
 
 ## VTA Simulator Installation
 
-You need [TVM installed](https://docs.tvm.ai/install/index.html) on your machine.
-For a quick and easy start, use the pre-built [TVM Docker image](https://docs.tvm.ai/install/docker.html).
+You need [TVM installed](https://tvm.apache.org/docs/install/index.html) on your machine.
+For a quick and easy start, checkout the [Docker Guide](https://tvm.apache.org/docs/install/docker.html).
 
 You'll need to set the following paths to use VTA:
 ```bash
@@ -60,7 +60,7 @@ python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 
 > Note: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolutions in software.
 
-You are invited to try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
+You are invited to try out our [VTA programming tutorials](https://tvm.apache.org/docs/vta/tutorials/index.html).
 
 
 ### Advanced Configuration (optional)
@@ -193,7 +193,7 @@ python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 
 The performance metrics measured on the Pynq board will be reported for each convolutional layer.
 
-You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
+You can also try out our [VTA programming tutorials](https://tvm.apache.org/docs/vta/tutorials/index.html).
 
 ## VTA Custom Test Setup for Intel FPGA
 

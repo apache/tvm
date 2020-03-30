@@ -17,7 +17,7 @@
 
 <img src=https://raw.githubusercontent.com/apache/incubator-tvm-site/master/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
 ==============================================
-[Documentation](https://docs.tvm.ai) |
+[Documentation](https://tvm.apache.org/docs) |
 [Contributors](CONTRIBUTORS.md) |
 [Community](https://tvm.apache.org/community) |
 [Release Notes](NEWS.md)
@@ -36,7 +36,7 @@ License
 Contribute to TVM
 -----------------
 TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-Checkout the [Contributor Guide](https://docs.tvm.ai/contribute/)
+Checkout the [Contributor Guide](https://tvm.apache.org/docs/contribute/)
 
 Acknowledgement
 ---------------
