@@ -31,18 +31,19 @@ namespace tvm {
 namespace tir {
 
 // This pass narrows indexing expressions (like StoreNode::Index)
-// that trivially fit into i32 to i32. Considering that i32 indices
-// may be more efficient on some backends (while i64 may be more
-// efficient on others, like llvm), we may want this pass when i32
+// that trivially fit into i32/i16 (denoted by `target_bits_`) to 
+// i32/i16. Considering that i32/i16 indices may be more
+// efficient on some backends (while i64 may be more efficient
+// on others, like llvm), we may want this pass when i32/i16
 // indices are more efficient.
 //
 // For Var v, we determine its dtype by examining all the PrimExpr
 // that contains v, denoted by E = {e_0 = v, e_1, e_2, ..., e_k}.
-// If all expressions in E fit into i32, then we think v can be narrowed
-// to i32.
+// If all expressions in E fit into i32/i16, then we think v can be narrowed
+// to i32/i16.
 //
-// To make an indexing expression i32, we must make sure that every
-// component of that expression is of dtype i32. So besides Var, we
+// To make an indexing expression i32/i16, we must make sure that every
+// component of that expression is of dtype i32/i16. So besides Var, we
 // rewrite the following inside an indexing expression
 // - Var
 // - IntImm
@@ -56,6 +57,16 @@ using arith::Analyzer;
 using arith::IRMutatorWithAnalyzer;
 using arith::ConstIntBound;
 
+// Determine the result dtype for Var, IntImm and Cast,
+// which will be stored in `vmap` eventually.
+//
+// Algorithm:
+// We propogate the dtypes of all the Exprs that contain Var `var` into `vmap[var]`.
+// To be more specific, if for each Expr `e` which contains `var` 
+// (`var` is a child node of `e` in AST), `e` fits into `target_bits_`,
+// then we narrow `var` into `target_bits_`. That is,
+// `vmap[var] = min(target_bits_, var.dtype.bits())`
+// Otherwise, `var` is not narrowed, that is, `vmap[var] = var.dtype.bits()`
 class DataTypeVisitor final : public StmtExprVisitor {
  public:
   explicit DataTypeVisitor(int target_bits)
@@ -65,8 +76,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
     if (e.dtype().is_int()) {
       int bits = max_bits_;
       ConstIntBound bound = analyzer_.const_int_bound(e);
-      int64_t ubound = Downcast<IntImm, PrimExpr>(max_value(DataType::Int(target_bits_)))->value;
-      int64_t lbound = Downcast<IntImm, PrimExpr>(min_value(DataType::Int(target_bits_)))->value;
+      int64_t ubound = Downcast<IntImm>(max_value(DataType::Int(target_bits_)))->value;
+      int64_t lbound = Downcast<IntImm>(min_value(DataType::Int(target_bits_)))->value;
       if (e.dtype().bits() <= target_bits_ ||
           (bound->max_value <= ubound && bound->min_value >= lbound)) {
         bits = target_bits_;
@@ -113,10 +124,13 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
   void VisitExpr_(const VarNode* op) {
     if (vextent_.find(op) != vextent_.end()) {
+      // We only narrow and never promote, so the result dtype
+      // is upperbounded by its original dtype before rewrite.
       int bits = std::min(vextent_[op].bits(), bits_);
       if (vmap.find(op) == vmap.end()) {
         vmap[op] = op->dtype.with_bits(bits);
       } else {
+        // We take maximum bits for all the possible Expr where a var occurs
         vmap[op] = op->dtype.with_bits(std::max(vmap[op].bits(), bits));
       }
     }
@@ -125,6 +139,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
   void VisitExpr_(const IntImmNode* op) {
     if (op->dtype.is_int()) {
+      // We only narrow and never promote, so the result dtype
+      // is upperbounded by its original dtype before rewrite.
       int bits = std::min(op->dtype.bits(), bits_);
       if (vmap.find(op) == vmap.end()) {
         vmap[op] = op->dtype.with_bits(bits);
@@ -137,6 +153,8 @@ class DataTypeVisitor final : public StmtExprVisitor {
 
   void VisitExpr_(const CastNode* op) {
     if (op->dtype.is_int()) {
+      // We only narrow and never promote, so the result dtype
+      // is upperbounded by its original dtype before rewrite.
       int bits = std::min(op->dtype.bits(), bits_);
       if (vmap.find(op) == vmap.end()) {
         vmap[op] = op->dtype.with_bits(bits);
@@ -201,7 +219,7 @@ class DataTypeRewriter : public StmtExprMutator {
       << "Expected type to be ForNode"
       << ", but get " << s->GetTypeKey();
     PrimExpr e = VisitExpr(op->loop_var);
-    Var var = Downcast<Var, PrimExpr>(e);
+    Var var = Downcast<Var>(e);
     return ForNode::make(var, cast(var.dtype(), op->min), cast(var.dtype(), op->extent),
                          op->for_type, op->device_api, op->body);
   }
@@ -219,7 +237,7 @@ class DataTypeRewriter : public StmtExprMutator {
         << "Expected type to be IterVarNode"
         << ", but get " << op->node->GetTypeKey();
       PrimExpr e = VisitExpr(iv->var);
-      Var var = Downcast<Var, PrimExpr>(e);
+      Var var = Downcast<Var>(e);
       if (ivmap_.find(iv) == ivmap_.end()) {
         ivmap_[iv] = IterVarNode::make(iv->dom, var, iv->iter_type, iv->thread_tag);
       }
