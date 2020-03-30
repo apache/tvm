@@ -157,6 +157,7 @@ def test_reduce():
 
 def test_slice():
     def check(m, n, target_bits, target_dtype):
+        # The index may overflow in B, while not in A
         ib = tvm.tir.ir_builder.create()
         Ab = tvm.tir.decl_buffer((m, n), name='A')
         A = ib.buffer_ptr(Ab)

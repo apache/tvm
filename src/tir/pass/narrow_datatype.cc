@@ -31,7 +31,7 @@ namespace tvm {
 namespace tir {
 
 // This pass narrows indexing expressions (like StoreNode::Index)
-// that trivially fit into i32/i16 (denoted by `target_bits_`) to 
+// that trivially fit into i32/i16 (denoted by `target_bits_`) to
 // i32/i16. Considering that i32/i16 indices may be more
 // efficient on some backends (while i64 may be more efficient
 // on others, like llvm), we may want this pass when i32/i16
@@ -62,7 +62,7 @@ using arith::ConstIntBound;
 //
 // Algorithm:
 // We propogate the dtypes of all the Exprs that contain Var `var` into `vmap[var]`.
-// To be more specific, if for each Expr `e` which contains `var` 
+// To be more specific, if for each Expr `e` which contains `var`
 // (`var` is a child node of `e` in AST), `e` fits into `target_bits_`,
 // then we narrow `var` into `target_bits_`. That is,
 // `vmap[var] = min(target_bits_, var.dtype.bits())`
