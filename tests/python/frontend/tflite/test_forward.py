@@ -273,6 +273,24 @@ def test_forward_slice():
         _test_slice(np.arange(5, dtype=np.int32).reshape((5, )), begin=[4], size=[-1])
 
 #######################################################################
+# Topk
+# ----
+def _test_topk(in_shape, k=1):
+    """ One iteration of TOPK """
+    data = np.random.uniform(size=in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_ops.top_k(in_data, k, name='TopK')
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out[0]])
+
+def test_forward_topk():
+    """ TOPK """
+    _test_topk((3,), 1)
+    _test_topk((3,), 3)
+    _test_topk((3, 5, 7), 3)
+    _test_topk((3, 5, 7), 3)
+
+#######################################################################
 # transpose
 # ---------
 
@@ -1775,6 +1793,7 @@ if __name__ == '__main__':
     test_all_resize()
     test_forward_squeeze()
     test_forward_slice()
+    test_forward_topk()
     test_forward_depthtospace()
     test_forward_spacetodepth()
 
