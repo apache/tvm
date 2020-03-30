@@ -588,8 +588,8 @@ void InjectInline(ScheduleNode* sch) {
             if (!new_value.same_as(new_body[j][0])) {
               changed[j] = true;
               const tir::ReduceNode* r = new_value.as<tir::ReduceNode>();
-              CHECK_EQ(new_body[j].size(), r->source.size());
               CHECK(r != nullptr);
+              CHECK_EQ(new_body[j].size(), r->source.size());
               for (size_t k = 0; k < new_body[j].size(); ++k) {
                 auto n = make_object<tir::ReduceNode>(*r);
                 n->value_index = static_cast<int>(k);
