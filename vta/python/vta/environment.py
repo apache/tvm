@@ -294,7 +294,8 @@ def coproc_sync(op):
     _ = op
     return tvm.tir.call_extern(
         "int32", "VTASynchronize",
-        get_env().dev.command_handle, 1<<31)
+        get_env().dev.command_handle,
+        tvm.runtime.const(1<<31, dtype="uint32"))
 
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
