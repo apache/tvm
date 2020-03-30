@@ -782,7 +782,7 @@ def test_multiple_outputs():
     mod["main"] = create_graph()
     ref_mod = expected()
     partitioned = transform.PartitionGraph()(mod)
-    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_mixed_single_multiple_outputs():
@@ -857,7 +857,7 @@ def test_mixed_single_multiple_outputs():
 
     ref_mod = expected()
     partitioned = transform.PartitionGraph()(mod)
-    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 if __name__ == "__main__":
     test_multi_node_compiler()
