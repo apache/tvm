@@ -59,7 +59,7 @@ Expr MakeConv(Expr data,
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get(op_name);
+  const Op& op = Op::Get(op_name);
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
@@ -90,7 +90,7 @@ Expr MakeConvWinograd(Expr data,
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get(op_name);
+  const Op& op = Op::Get(op_name);
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
@@ -99,25 +99,25 @@ Expr MakeConvWinogradWeightTransform(Expr weight,
                                      std::string op_name) {
   auto attrs = make_object<ConvWinogradWeightTransformAttrs>();
   attrs->tile_size = tile_size;
-  static const Op& op = Op::Get(op_name);
+  const Op& op = Op::Get(op_name);
   return Call(op, {weight}, Attrs(attrs), {});
 }
 
 template <typename T>
 Expr MakeConvTranspose(Expr data,
-              Expr weight,
-              Array<IndexExpr> strides,
-              Array<IndexExpr> padding,
-              Array<IndexExpr> dilation,
-              int groups,
-              IndexExpr channels,
-              Array<IndexExpr> kernel_size,
-              std::string data_layout,
-              std::string kernel_layout,
-              std::string out_layout,
-              Array<IndexExpr> output_padding,
-              DataType out_dtype,
-              std::string op_name) {
+                       Expr weight,
+                       Array<IndexExpr> strides,
+                       Array<IndexExpr> padding,
+                       Array<IndexExpr> dilation,
+                       int groups,
+                       IndexExpr channels,
+                       Array<IndexExpr> kernel_size,
+                       std::string data_layout,
+                       std::string kernel_layout,
+                       std::string out_layout,
+                       Array<IndexExpr> output_padding,
+                       DataType out_dtype,
+                       std::string op_name) {
   auto attrs = make_object<T>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
@@ -130,7 +130,7 @@ Expr MakeConvTranspose(Expr data,
   attrs->out_layout = std::move(out_layout);
   attrs->output_padding = std::move(output_padding);
   attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get(op_name);
+  const Op& op = Op::Get(op_name);
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
@@ -162,7 +162,7 @@ Expr MakeDeformableConv(Expr data,
   attrs->kernel_layout = kernel_layout;
   attrs->out_layout = out_layout;
   attrs->out_dtype = out_dtype;
-  static const Op& op = Op::Get(op_name);
+  const Op& op = Op::Get(op_name);
   return Call(op, {data, offset, weight}, Attrs{attrs}, {});
 }
 
@@ -545,6 +545,7 @@ weight transformation in advance.
     .add_type_rel("Conv3DWinogradWeightTransform",
                   Conv3DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
 
+
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradNNPACKWeightTransformAttrs);
 
@@ -576,6 +577,7 @@ weight transformation in advance.
     .add_type_rel("Conv2DWinogradNNPACKWeightTransform",
                   Conv2DWinogradNNPACKWeightTransformRel<Conv2DWinogradNNPACKWeightTransformAttrs>);
 
+
 // Positional relay function to create conv2d NCHWc operator
 // used by frontend FFI.
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc")
@@ -596,7 +598,6 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_NCHWc")
     groups, channels, kernel_size, data_layout,
     kernel_layout, out_layout, out_dtype, "nn.contrib_conv2d_NCHWc");
 });
-
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_NCHWc")
 .describe(R"code(Compute conv2d with NCHWc data layout. Only supports NCHW layout.
@@ -654,85 +655,6 @@ RELAY_REGISTER_OP("nn.contrib_depthwise_conv2d_NCHWc")
         ConvInferCorrectLayout<Conv2DAttrs>);
 
 
-bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
-                         const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 4);
-  const auto* data = types[0].as<TensorTypeNode>();
-  const auto* weight = types[2].as<TensorTypeNode>();
-
-  CHECK(data);
-  auto* param = attrs.as<DeformableConv2DAttrs>();
-  CHECK_EQ(param->data_layout, "NCHW") << "data layout not supported.";
-  CHECK_EQ(param->kernel_layout, "OIHW") << "kernel_layout not supported.";
-
-  IndexExpr channels, dilated_ksize_y, dilated_ksize_x, ksize_y, ksize_x;
-
-  // infer weight shape if kernel_size and channels are defiend
-  if (param->kernel_size.defined() && param->channels.defined()) {
-    CHECK_EQ(param->kernel_size.size(), 2);
-    CHECK_EQ(param->dilation.size(), 2);
-    Array<IndexExpr> wshape(
-       {param->channels,
-         indexdiv(data->shape[1], param->groups),
-         param->kernel_size[0],
-         param->kernel_size[1]});
-    channels = param->channels;
-    ksize_y = param->kernel_size[0];
-    ksize_x = param->kernel_size[1];
-    dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
-    dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
-    // assign result to reporter
-    reporter->Assign(types[2], TensorType(wshape, data->dtype));
-  } else {
-    // use weight to infer the conv shape.
-    if (weight == nullptr) return false;
-    auto wshape = weight->shape;
-    if (param->kernel_size.defined()) {
-      CHECK_EQ(param->kernel_size.size(), 2);
-      // check the size
-      CHECK(reporter->AssertEQ(param->kernel_size[0], wshape[2]) &&
-            reporter->AssertEQ(param->kernel_size[1], wshape[3]))
-          << "DeformableConv2D: shape of weight is inconsistent with kernel_size, "
-          << " kernel_size=" << param->kernel_size
-          << " wshape=" << wshape;
-    }
-    if (param->channels.defined()) {
-      CHECK(reporter->AssertEQ(param->channels, wshape[0]))
-          << "DeformableConv2D: shape of weight is inconsistent with channels, "
-          << " channels=" << param->channels
-          << " wshape=" << wshape;
-    }
-    CHECK(reporter->AssertEQ(indexdiv(data->shape[1], param->groups), wshape[1]));
-    channels = wshape[0];
-    ksize_y = wshape[2];
-    ksize_x = wshape[3];
-    dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
-    dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
-  }
-  // dilation
-  Array<IndexExpr> oshape({data->shape[0], channels, 0, 0});
-
-  IndexExpr pad_h, pad_w;
-  GetPaddingHeightWidth(param->padding, &pad_h, &pad_w);
-  oshape.Set(2, indexdiv(data->shape[2] + pad_h - dilated_ksize_y,
-                         param->strides[0]) + 1);
-  oshape.Set(3, indexdiv(data->shape[3] + pad_w - dilated_ksize_x,
-                         param->strides[1]) + 1);
-  DataType out_dtype = param->out_dtype;
-
-  // infer offset shape
-  Array<IndexExpr> offset_shape({data->shape[0], 2 * ksize_y * ksize_x * param->deformable_groups,
-          oshape[2], oshape[3]});
-  reporter->Assign(types[1], TensorType(offset_shape, data->dtype));
-  if (out_dtype.bits() == 0) {
-    out_dtype = data->dtype;
-  }
-
-  reporter->Assign(types[3], TensorType(oshape, out_dtype));
-  return true;
-}
-
-
 TVM_REGISTER_NODE_TYPE(DeformableConv2DAttrs);
 
 RELAY_REGISTER_OP("nn.deformable_conv2d")
@@ -761,7 +683,7 @@ by concating all the *g* results.
 .add_argument("offset", "Tensor", "The offset tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(5)
-.add_type_rel("DeformableConv2D", DeformableConv2DRel);
+.add_type_rel("DeformableConv2D", DeformableConv2DRel<DeformableConv2DAttrs>);
 
 // Positional relay function to create deformable_conv2d operator
 // used by frontend FFI.
