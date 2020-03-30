@@ -20,7 +20,7 @@
 Write Document and Tutorials
 ============================
 
-We use the `Sphinx <http://sphinx-doc.org>`_ for the main documentation.
+We use the `Sphinx <https://sphinx-doc.org>`_ for the main documentation.
 Sphinx support both the reStructuredText and markdown.
 When possible, we encourage to use reStructuredText as it has richer features.
 Note that the python doc-string and tutorials allow you to embed reStructuredText syntax.
