@@ -738,5 +738,5 @@ void vta(
     g2s_count++;
   }
 
-  assert(l2g_count == 0 && g2s_count == 0 && g2l_count == 0 && g2s_count == 0);
+  assert(l2g_count == 0 && g2s_count == 0 && g2l_count == 0 && s2g_count == 0);
 }
