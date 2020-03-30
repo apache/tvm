@@ -64,10 +64,18 @@ CXX_MAJOR := $(shell $(CXX) -dumpversion | sed 's/\..*//')
 CXX_HAS_ALIGN_NEW := $(shell [ $(CXX_MAJOR) -ge 7 ] && echo true)
 
 config_test = $(TOP_TEST)$(CONFIG)
-vta_dir = $(abspath ../../)
-tvm_dir = $(abspath ../../../../)
-verilator_build_dir = $(vta_dir)/$(BUILD_NAME)/verilator
-chisel_build_dir = $(vta_dir)/$(BUILD_NAME)/chisel
+
+
+ifndef TVM_PATH
+   TVM_PATH := $(abspath ../../../../)
+endif
+
+ifndef VTA_HW_PATH
+   VTA_HW_PATH := $(abspath ../../)
+endif
+
+verilator_build_dir = $(VTA_HW_PATH)/$(BUILD_NAME)/verilator
+chisel_build_dir = $(VTA_HW_PATH)/$(BUILD_NAME)/chisel
 
 verilator_opt = --cc
 verilator_opt += +define+RANDOMIZE_GARBAGE_ASSIGN
@@ -100,9 +108,9 @@ cxx_flags += -include V$(TOP_TEST).h
 cxx_flags += -I$(verilator_build_dir)
 cxx_flags += -I$(VERILATOR_INC_DIR)
 cxx_flags += -I$(VERILATOR_INC_DIR)/vltstd
-cxx_flags += -I$(vta_dir)/include
-cxx_flags += -I$(tvm_dir)/include
-cxx_flags += -I$(tvm_dir)/3rdparty/dlpack/include
+cxx_flags += -I$(VTA_HW_PATH)/include
+cxx_flags += -I$(TVM_PATH)/include
+cxx_flags += -I$(TVM_PATH)/3rdparty/dlpack/include
 
 ld_flags = -fPIC -shared
 
@@ -143,14 +151,14 @@ ifneq ($(USE_THREADS), 0)
 	cxx_objs += $(verilator_build_dir)/verilated_threads.o
 endif
 
-VPATH = $(VERILATOR_INC_DIR):$(verilator_build_dir):$(vta_dir)/hardware/dpi
+VPATH = $(VERILATOR_INC_DIR):$(verilator_build_dir):$(VTA_HW_PATH)/hardware/dpi
 
 # The following is to be consistent with cmake
 ifeq ($(shell uname), Darwin)
-	lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).dylib
+	lib_path = $(VTA_HW_PATH)/$(BUILD_NAME)/$(VTA_LIBNAME).dylib
 	cxx_flags += -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
 else
-	lib_path = $(vta_dir)/$(BUILD_NAME)/$(VTA_LIBNAME).so
+	lib_path = $(VTA_HW_PATH)/$(BUILD_NAME)/$(VTA_LIBNAME).so
 endif
 
 default: lint lib
@@ -191,7 +199,7 @@ clean:
 	-rm -rf target project/target project/project test_run_dir
 
 cleanall:
-	-rm -rf $(vta_dir)/$(BUILD_NAME)/chisel
-	-rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.so
-	-rm -rf $(vta_dir)/$(BUILD_NAME)/libvta_hw.dylib
-	-rm -rf $(vta_dir)/$(BUILD_NAME)/verilator
+	-rm -rf $(VTA_HW_PATH)/$(BUILD_NAME)/chisel
+	-rm -rf $(VTA_HW_PATH)/$(BUILD_NAME)/libvta_hw.so
+	-rm -rf $(VTA_HW_PATH)/$(BUILD_NAME)/libvta_hw.dylib
+	-rm -rf $(VTA_HW_PATH)/$(BUILD_NAME)/verilator

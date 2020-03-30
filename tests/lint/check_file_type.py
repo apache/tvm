@@ -90,12 +90,12 @@ ALLOW_FILE_NAME = {
     ".gitmodules",
     "CODEOWNERS",
     ".scalafmt.conf",
-    "Cargo.lock"
+    "Cargo.lock",
+    "with_the_same_user",
    }
 
 # List of specific files allowed in relpath to <proj_root>
 ALLOW_SPECIFIC_FILE = {
-    "docker/with_the_same_user",
     "LICENSE",
     "NOTICE",
     "KEYS",
