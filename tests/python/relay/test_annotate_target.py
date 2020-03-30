@@ -215,7 +215,7 @@ def test_multiple_ends():
 
     result = transform.AnnotateTarget("test")(before())
     expected = transform.InferType()(after())
-    assert relay.analysis.alpha_equal(expected, result)
+    assert tvm.ir.structural_equal(expected, result)
 
 
 if __name__ == "__main__":

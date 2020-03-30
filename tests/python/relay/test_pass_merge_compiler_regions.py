@@ -81,7 +81,7 @@ def test_diamond_graph_fanouts():
 
     result = run_opt_pass(diamond_graph_fanouts(), relay.transform.MergeCompilerRegions())
     golden = run_opt_pass(expected(), relay.transform.InferType())
-    assert relay.analysis.alpha_equal(result, golden)
+    assert tvm.ir.structural_equal(result, golden)
 
 
 def test_example_graph():
@@ -198,7 +198,7 @@ def test_example_graph():
     mod = annotated()
     mod = relay.transform.MergeCompilerRegions()(mod)
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(mod, ref_mod)
+    assert tvm.ir.structural_equal(mod, ref_mod)
 
 
 if __name__ == "__main__":
