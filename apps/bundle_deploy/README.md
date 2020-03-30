@@ -62,6 +62,6 @@ make demo_static
 This will:
 - Download the mobilenet0.25 model from the MXNet Gluon Model Zoo
 - Compile the model with Relay and outputs `model.o`
-- Build a `bundle_static.o` object containing the runtime functions.
+- Build a `bundle_static.o` object containing the runtime functions
 - Build a `demo_static` executable which has static link to `bundle_static.o` and 
   `model.o`, functions on a cat image, then prints the output results.
