@@ -104,6 +104,37 @@ Expr MakeConvWinogradWeightTransform(Expr weight,
 }
 
 template <typename T>
+Expr MakeConvTranspose(Expr data,
+              Expr weight,
+              Array<IndexExpr> strides,
+              Array<IndexExpr> padding,
+              Array<IndexExpr> dilation,
+              int groups,
+              IndexExpr channels,
+              Array<IndexExpr> kernel_size,
+              std::string data_layout,
+              std::string kernel_layout,
+              std::string out_layout,
+              Array<IndexExpr> output_padding,
+              DataType out_dtype,
+              std::string op_name) {
+  auto attrs = make_object<T>();
+  attrs->strides = std::move(strides);
+  attrs->padding = std::move(padding);
+  attrs->dilation = std::move(dilation);
+  attrs->groups = groups;
+  attrs->channels = std::move(channels);
+  attrs->kernel_size = std::move(kernel_size);
+  attrs->data_layout = std::move(data_layout);
+  attrs->kernel_layout = std::move(kernel_layout);
+  attrs->out_layout = std::move(out_layout);
+  attrs->output_padding = std::move(output_padding);
+  attrs->out_dtype = std::move(out_dtype);
+  static const Op& op = Op::Get(op_name);
+  return Call(op, {data, weight}, Attrs(attrs), {});
+}
+
+template <typename T>
 Expr MakeDeformableConv(Expr data,
                         Expr offset,
                         Expr weight,
@@ -287,11 +318,12 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_transpose")
                    std::string data_layout,
                    std::string kernel_layout,
                    std::string out_layout,
+                   Array<IndexExpr> output_padding,
                    DataType out_dtype) {
-  return MakeConv<Conv2DTransposeAttrs>(
+  return MakeConvTranspose<Conv2DTransposeAttrs>(
     data, weight, strides, padding, dilation,
     groups, channels, kernel_size, data_layout,
-    kernel_layout, out_layout, out_dtype, "nn.conv2d_transpose");
+    kernel_layout, out_layout, output_padding, out_dtype, "nn.conv2d_transpose");
 });
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
@@ -340,11 +372,12 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d_transpose")
                    std::string data_layout,
                    std::string kernel_layout,
                    std::string out_layout,
+                   Array<IndexExpr> output_padding,
                    DataType out_dtype) {
-  return MakeConv<Conv1DTransposeAttrs>(
+  return MakeConvTranspose<Conv1DTransposeAttrs>(
     data, weight, strides, padding, dilation,
     groups, channels, kernel_size, data_layout,
-    kernel_layout, out_layout, out_dtype, "nn.conv1d_transpose");
+    kernel_layout, out_layout, output_padding, out_dtype, "nn.conv1d_transpose");
 });
 
 RELAY_REGISTER_OP("nn.conv1d_transpose")
@@ -395,7 +428,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_without_weight_tr
   return MakeConvWinograd<Conv2DWinogradAttrs>(
     data, weight, tile_size, strides, padding, dilation,
     groups, channels, kernel_size, data_layout,
-    kernel_layout, out_layout, out_dtype, "nn.contrib.conv2d_winograd_without_weight_tranform");
+    kernel_layout, out_layout, out_dtype, "nn.contrib_conv2d_winograd_without_weight_transform");
 });
 
 
@@ -427,7 +460,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_weight_transform"
 .set_body_typed([](Expr weight,
                    int tile_size) {
   return MakeConvWinogradWeightTransform(
-    weight, tile_size, "nn.contrib.conv2d_winograd_weight_tranform");
+    weight, tile_size, "nn.contrib_conv2d_winograd_weight_transform");
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
@@ -465,7 +498,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_without_weight_tr
   return MakeConvWinograd<Conv3DWinogradAttrs>(
     data, weight, tile_size, strides, padding, dilation,
     groups, channels, kernel_size, data_layout,
-    kernel_layout, out_layout, out_dtype, "nn.contrib.conv3d_winograd_without_weight_tranform");
+    kernel_layout, out_layout, out_dtype, "nn.contrib.conv3d_winograd_without_weight_transform");
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_without_weight_transform")
@@ -494,7 +527,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_weight_transform"
 .set_body_typed([](Expr weight,
                    int tile_size) {
   return MakeConvWinogradWeightTransform(
-    weight, tile_size, "nn.contrib.conv3d_winograd_weight_tranform");
+    weight, tile_size, "nn.contrib.conv3d_winograd_weight_transform");
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_weight_transform")

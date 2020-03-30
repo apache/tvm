@@ -233,6 +233,7 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     """conv3d cuda strategy"""
     strategy = _op.OpStrategy()
+    data, kernel = inputs
     layout = attrs.data_layout
     stride_d, stride_h, stride_w = attrs.get_int_tuple("strides")
     dilation_d, dilation_h, dilation_w = attrs.get_int_tuple("dilation")                                   

@@ -34,6 +34,11 @@ class Conv2DWinogradAttrs(Attrs):
     """Attributes for nn.contrib_conv2d_winograd_without_weight_transform"""
 
 
+@tvm._ffi.register_object("relay.attrs.Conv3DAttrs")
+class Conv3DAttrs(Attrs):
+    """Attributes for nn.conv3d"""
+
+
 @tvm._ffi.register_object("relay.attrs.Conv3DWinogradAttrs")
 class Conv3DWinogradAttrs(Attrs):
     """Attributes for nn.contrib_conv3d_winograd_without_weight_transform"""
