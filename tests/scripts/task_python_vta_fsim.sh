@@ -19,9 +19,9 @@
 set -e
 set -u
 
-export TVM_PATH=.
+export TVM_PATH=`pwd`
 export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python:${TVM_PATH}/topi/python
-export VTA_HW_PATH=vta/vta-hw
+export VTA_HW_PATH=`pwd`/vta/vta-hw
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
