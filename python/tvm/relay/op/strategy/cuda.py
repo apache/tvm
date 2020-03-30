@@ -264,6 +264,26 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                                     plevel=15)
     return strategy
 
+@conv3d_winograd_without_weight_transfrom_strategy.register(["cuda", "gpu"])
+def conv3d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom cuda strategy"""
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.data_layout
+    assert dilation == (1, 1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+    strategy = _op.OpStrategy()
+    if layout == "NCDHW":
+        strategy.add_implementation(
+            wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd_without_weight_transform),
+            wrap_topi_schedule(
+                topi.cuda.schedule_conv3d_ncdhw_winograd_without_weight_transform),
+            name="conv3d_ncdhw_winograd_without_weight_transform.cuda")
+    else:
+        raise RuntimeError("Unsupported conv3d_winograd_without_weight_transfrom layout {}".
+                           format(layout))
+    return strategy
+
 @conv1d_strategy.register(["cuda", "gpu"])
 def conv1d_strategy_cuda(attrs, inputs, out_type, target):
     """conv1d cuda strategy"""
