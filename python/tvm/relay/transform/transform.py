@@ -397,6 +397,17 @@ def MergeComposite(pattern_table):
     return _ffi_api.MergeComposite(pattern_names, patterns)
 
 
+def MergeCompilerRegions():
+    """Merge together compiler regions.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that merges compiler regions.
+    """
+    return _ffi_api.MergeCompilerRegions()
+
+
 def RewriteAnnotatedOps(fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
     `on_deivce`, mark which device an expression should be scheduled to.
