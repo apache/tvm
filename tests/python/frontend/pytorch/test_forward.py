@@ -379,6 +379,27 @@ def test_forward_maxpool1d():
                                     stride=2).eval(),
                 input_data)
 
+def test_forward_split():
+    torch.set_grad_enabled(False)
+    input_shape = [4, 10]
+
+    class Split1(Module):
+        def forward(self, *args):
+            return torch.split(args[0], 2, 0)
+
+    class Split2(Module):
+        def forward(self, *args):
+            return torch.split(args[0], [2, 3, 5], 1)
+
+    class Split3(Module):
+        def forward(self, *args):
+            return torch.split(args[0], 3, 1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Split1().float().eval(), input_data=input_data)
+    verify_model(Split2().float().eval(), input_data=input_data)
+    verify_model(Split3().float().eval(), input_data=input_data)
+
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1077,6 +1098,7 @@ if __name__ == "__main__":
     test_forward_expand()
     test_forward_pow()
     test_forward_chunk()
+    test_forward_split()
     test_upsample()
     test_to()
     test_adaptive_pool3d()
