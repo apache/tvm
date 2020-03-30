@@ -24,7 +24,8 @@ from ..util import get_const_tuple
 from ..nn.util import get_pad_tuple
 
 @autotvm.register_topi_compute("conv2d_nchw_miopen.rocm")
-def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation, layout='NCHW', out_dtype='float32'):
+def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation,
+                       layout='NCHW', out_dtype='float32'):
     """Conv2D operator for rocm backend.
 
     Parameters

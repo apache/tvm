@@ -66,7 +66,8 @@ def test_conv2d():
         y = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
         f(x, w, y)
 
-        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w), (dilation_h, dilation_w))
+        Y_ref = topi.nn.conv2d_nchw(X, W, (stride_h, stride_w), (pad_h, pad_w),
+                                    (dilation_h, dilation_w))
         s_ref = te.create_schedule(Y_ref.op)
         f_ref = tvm.build(s_ref, [X, W, Y_ref], "rocm", target_host="llvm")
         y_ref = tvm.nd.array(np.random.uniform(-1, 1, yshape).astype(np.float32), ctx)
