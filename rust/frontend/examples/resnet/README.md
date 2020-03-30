@@ -22,7 +22,7 @@ This end-to-end example shows how to:
 * use the provided Rust frontend API to test for an input image
 
 To run the example with pretrained resnet weights, first `tvm`  and `mxnet` must be installed for the python build. To install mxnet for cpu, run `pip install mxnet`
-and to install `tvm` with `llvm` follow the [TVM installation guide](https://docs.tvm.ai/install/index.html).
+and to install `tvm` with `llvm` follow the [TVM installation guide](https://tvm.apache.org/docs/install/index.html).
 
 * **Build the example**: `cargo build
 

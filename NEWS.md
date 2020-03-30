@@ -31,7 +31,7 @@ to that issue so it can get added.
 ### Relay in Production
 Relay is a functional, differentiable programming language designed to be an expressive intermediate representation for machine learning systems. Relay supports algebraic data types, closures, control flow, and recursion, allowing it to directly represent more complex models than computation graph-based IRs (e.g., NNVM) can. In TVM v0.6, Relay is in stable phase and is ready for production.
 
-* Algebraic Data Types (ADT) support (#2442, #2575). ADT provides an expressive, efficient, and safe way to realize recursive computation (e.g., RNN). Refer to https://docs.tvm.ai/langref/relay_adt.html for more information.
+* Algebraic Data Types (ADT) support (#2442, #2575). ADT provides an expressive, efficient, and safe way to realize recursive computation (e.g., RNN). Refer to https://tvm.apache.org/docs/langref/relay_adt.html for more information.
 * Pass manager for Relay (#2546, #3226, #3234, #3191)
 * Most frameworks have been supported in Relay, including ONNX, Keras, Tensorflow, Caffe2, CoreML, NNVMv1, MXNet (#2246).
 * Explicitly manifest memory and tensor allocations in Relay. (#3560)
@@ -75,7 +75,7 @@ Relay is designed to natively support first-order and higher-order differentiati
 Low-bit inference is getting more and more popular as it benefits both the performance and storage usage. TVM now supports two types of quantization. 1. Automatic quantizaion takes floating-point precision model, does per-layer calibration and generates low-bit model. 2. TVM also imports pre-quantized model from Tensorflow and MXNet, a new dialect QNN is introduced to handle further lowering to normal operators.
 
 * Automatic Quantization
-  - Low-bit automatic quantization supported. (#2116). The workflow includes annotation, calibration and transformation. 
+  - Low-bit automatic quantization supported. (#2116). The workflow includes annotation, calibration and transformation.
   - Refactor quantization codebase and fix model accuracy. (#3543)
   - KL-divergence-based per-layer calibration. (#3538)
   - Add option to select which convolution layers are quantized. (#3173)
@@ -164,14 +164,14 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Vision operator `roi_align` (#2618).
 * `where` operator for MXNet (#2647).
 * Deformable conv2d (#2908)
-* Faster-RCNN Proposal OP (#2725) 
-* ROI Pool operator (#2811) 
-* Gluoncv SSD support on CPU (#2353) 
+* Faster-RCNN Proposal OP (#2725)
+* ROI Pool operator (#2811)
+* Gluoncv SSD support on CPU (#2353)
 * shape, reverse, and sign op (#2749, #2800, #2775)
 * tile and repeat op (#2720)
 * logical operators (#2743, #2453)
 * stack op (#2729)
-* NCHWc upsampling (#2806) 
+* NCHWc upsampling (#2806)
 * clip and wrap mode support in take (#2858)
 * AlterLayout support for `intel_graphics` conv2d , depthwise conv2d (#2729, #2806)
 * Add foldr1 operator (#2928)
@@ -215,7 +215,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 
 ### Frontend and User Interface
 * Frontend darknet (#2773)
-* Support tf.gather (#2935) 
+* Support tf.gather (#2935)
 * Support tf.where (#2936)
 * Adding ADD operator to tflite frontend for compiling the MobileNetV2 (#2919)
 * Support SpaceToBatchND/BatchToSpaceND in Tensorflow frontend (#2943)
@@ -281,7 +281,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 
 ### Runtime and Backend Support
 * Make external library extend TVM's NDArray more easily (#2613).
-* Improvements for NNPACK integratation, includes ci test, winograd (#2846, #2868, #2856, #2721) 
+* Improvements for NNPACK integratation, includes ci test, winograd (#2846, #2868, #2856, #2721)
 * Improvements for OpenCL runtime (#2741, #2737)
 * GraphRuntime: Enable sharing parameters of a model among multiple threads (#3384)
 * Android runtime argsort support (#3472)
@@ -343,7 +343,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Higher order reverse mode automatic differentiation that work with control flow (#2496)
 * Integer arithmetic analyzers, includes modular set analysis, const integer bound analysis and rewrite simplifier (#2904, #2851, #2768, #2722, #2668, #2860)
 * Improve operator fusion for TupleGetItem in relay (#2914, #2929
-* Compute FLOP of autotvm template for int8 models (#2776) 
+* Compute FLOP of autotvm template for int8 models (#2776)
 * Common subexpression elimination pass in Relay (#2639)
 * Improve quantization in Relay (#2723)
 * Refactor `build_func` in measure module of autotvm to better support cross compiler (#2927)
@@ -437,12 +437,12 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Relay now supports saving and loading parameter dictionaries. (#2620)
 * Add `max_num_threads` to Hybrid Script, which allows users to get max number of threads for GPU targets ([#2672](#2672/)).
 * Improvements for tensorflow frontend (#2830, #2757, #2586), includes decompiling tf control flow (#2830)
-* Improvements for mxnet frontend (#2844, #2777, #2772, #2706, #2704, #2709,, #2739) 
+* Improvements for mxnet frontend (#2844, #2777, #2772, #2706, #2704, #2709,, #2739)
 * Improvements for keras frontend (#2842, #2854)
 * Improvements for DarkNet frontend (#2673)
 * Improvements for ONNX frontend (#2843, #2840)
 * Better profile result dump in Chrome Tracing format (#2922, #2863)
-* Unified error handling in NNVM and Relay frontends (#2828) 
+* Unified error handling in NNVM and Relay frontends (#2828)
 * Improve NNVM to Relay conversion (#2734)
 * Remove `input_0d_mismatch` special handling for TF Frontend(#3087)
 * Bumped ONNX version from 1.1.0 to 1.4.1 (#3286)
@@ -509,7 +509,7 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * Documentation on operators (#2761)
 * Add gradient operator tutorial docs (#2751)
 * Add compiler pass tutorial docs (#2746)
-* Add Android Tutorial (#2977) 
+* Add Android Tutorial (#2977)
 * Developer documentation for InferBound pass (#3126)
 * Add missing targets to `target_name` documentation (#3128)
 * Various documentation improvements (#3133)
@@ -540,10 +540,10 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 
 ### Build and Test
 * Increate the robuteness of CI test (#2841, #2798, #2793, #2788, #2781, #2727, #2710, #2711, #2923)
-* Improve conda build (#2742) 
+* Improve conda build (#2742)
 * Add caffe2 nnvm frontend to CI (#3018)
 * Use bridge network and expose port on macOS when launch docker image (#3086）
-* Run DarkNet tests (#2673) 
+* Run DarkNet tests (#2673)
 * Add file type check (#3116)
 * Always run cpptest during build to ensure library correctness (#3147)
 * Handle more file types in ASF header (#3235)
@@ -641,41 +641,41 @@ Rust language support in TVM includes two parts. 1. The frontend wraps the curre
 * [Tensor Expression] Fix missing reduction init predicates. (#2495)
 * [Relay] Fix missing argument for NCHWc in Relay. (#2627)
 * [TOPI] Fix `Nms_ir` data race. (#2600)
-* Fix `compute_inline` with multiple outputs (#2934) 
+* Fix `compute_inline` with multiple outputs (#2934)
 * [TEXPR][PASS] Fix thread all reduce to avoid write after read hazzard (#2937)
 * [FRONTEND][TENSORFLOW] bug fix for tensorflow official slim models. (#2864)
 * [FRONTEND][ONNX] Some bug fixes and Shape operator fixed for relay. (#2850)
-* Turn on `USE_SORT` by default (#2916) 
-* [DOCKER] Upgrade ci-cpu to latest v0.50 (#2901) 
-* [TESTS] Import script robustness (set -u) (#2896) 
-* [Relay] Fix name of bias in testing.mlp (#2892) 
+* Turn on `USE_SORT` by default (#2916)
+* [DOCKER] Upgrade ci-cpu to latest v0.50 (#2901)
+* [TESTS] Import script robustness (set -u) (#2896)
+* [Relay] Fix name of bias in testing.mlp (#2892)
 * [TESTS] Improve script robustness (#2893)
 * Add dense schedules to `__init__` for cpu (#2855)
-* [Apps] [howto_deploy] fix cxx-flags order and build directory (#2888) 
-* [Relay] Add TVM_DLL for ANF/GNF conversion #2883 
+* [Apps] [howto_deploy] fix cxx-flags order and build directory (#2888)
+* [Relay] Add TVM_DLL for ANF/GNF conversion #2883
 * [Relay] Fix Relay ARM CPU depthwise spatial pack schedule alter op layout issue. (#2861)
-* Fix setting up hints for getaddrinfo (#2872) 
-* Add missing sgx includes (#2878) 
-* Fix error reporting for missing axis (#2835) 
+* Fix setting up hints for getaddrinfo (#2872)
+* Add missing sgx includes (#2878)
+* Fix error reporting for missing axis (#2835)
 * Fix an OrderDict initilization bug. (#2862)
 * Fix Xcode 10 metal compile error (#2836)
-* tvmrpc: Fix includes (#2825) 
-* Fix `init_proj.py`: Team ID expected (#2824) 
-* [DOCKER] Fix git clone failure. (#2816) 
-* upgrade java style-check due to CVE-2019-9658 (#2817) 
-* [Relay][Quantization] Fix duplicated simulated quantization (#2803) 
-* [Bugfix] Repeat and tile bug fixed, relay tests added (#2804) 
-* Fix caffe2 relay frontend (#2733) 
-* Fix a bug in nnvm to relay converter. (#2756) 
-* Ensure loop count is a constant before trying to unroll. (#2797) 
-* xcode.py: Decode bytes before output #2833 
-* [WIN] Fix a bug in `find_llvm` when specify llvm-config (#2758) 
-* [DLPACK] fix flaky ctypes support (#2759) 
+* tvmrpc: Fix includes (#2825)
+* Fix `init_proj.py`: Team ID expected (#2824)
+* [DOCKER] Fix git clone failure. (#2816)
+* upgrade java style-check due to CVE-2019-9658 (#2817)
+* [Relay][Quantization] Fix duplicated simulated quantization (#2803)
+* [Bugfix] Repeat and tile bug fixed, relay tests added (#2804)
+* Fix caffe2 relay frontend (#2733)
+* Fix a bug in nnvm to relay converter. (#2756)
+* Ensure loop count is a constant before trying to unroll. (#2797)
+* xcode.py: Decode bytes before output #2833
+* [WIN] Fix a bug in `find_llvm` when specify llvm-config (#2758)
+* [DLPACK] fix flaky ctypes support (#2759)
 * [Bugfix][Relay][Frontend] Fix bug in mxnet converter for `slick_like` (#2744)
-* [DOCS] Fix tutorial (#2724) 
+* [DOCS] Fix tutorial (#2724)
 * [TOPI][Relay] Fix default `out_dtype` for `conv2d_NCHWc` and Relay (#2702)
-* [Relay] fix checkwellform (#2705) 
-* fix prelu, now can use on 2d input and add one test (#2875) 
+* [Relay] fix checkwellform (#2705)
+* fix prelu, now can use on 2d input and add one test (#2875)
 * [CODEGEN][OPENCL] Fix compile error about ternary expression. (#2821)
 * Fix Placeholder issue (#2834)
 * Fix makedirs() condition in contrib (#2942)
