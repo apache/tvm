@@ -247,6 +247,51 @@ def test_type_propagation():
         return mod
 
     result = transform.AnnotateTarget(target)(before())
+
+
+def test_tuple():
+    target = "test_tuple"
+
+    @reg.register("nn.relu", "target." + target)
+    def relu(attrs, args):
+        return True
+    
+    @reg.register("concatenate", "target." + target)
+    def concatenate(attrs, args):
+        return True
+
+    """Test that TupleNode is included in annotation when surrounded by supported nodes."""
+    def before():
+        x = relay.var("x", shape=(10, 5))
+        y = relay.var("y", shape=(10, 5))
+        a_1 = relay.nn.relu(x)
+        a_2 = relay.nn.relu(y)
+        out = relay.concatenate((a_1, a_2), axis=1)
+        f = relay.Function([x, y], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        x = relay.var("x", shape=(10, 5))
+        y = relay.var("y", shape=(10, 5))
+        cb_1 = relay.annotation.compiler_begin(x, target)
+        cb_2 = relay.annotation.compiler_begin(y, target)
+        a_1 = relay.nn.relu(cb_1)
+        a_2 = relay.nn.relu(cb_2)
+        ce_1 = relay.annotation.compiler_end(a_1, target)
+        ce_2 = relay.annotation.compiler_end(a_2, target)
+        cb_3 = relay.annotation.compiler_begin(ce_1, target)
+        cb_4 = relay.annotation.compiler_begin(ce_2, target)
+        tup = relay.Tuple([cb_3, cb_4])
+        ce_3 = relay.annotation.compiler_end(tup, target)
+        cb_3 = relay.annotation.compiler_begin(ce_3, target)
+        out = relay.op._make.concatenate(cb_3, 1)
+        ce_4 = relay.annotation.compiler_end(out, target)
+        f = relay.Function([x, y], ce_4)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    result = transform.AnnotateTarget(target)(before())
     expected = transform.InferType()(after())
     assert tvm.ir.structural_equal(expected, result)
 
@@ -254,5 +299,6 @@ def test_type_propagation():
 if __name__ == "__main__":
     test_multiple_ends()
     test_type_propagation()
+    test_tuple()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
