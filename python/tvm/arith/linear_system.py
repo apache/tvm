@@ -76,8 +76,8 @@ def solve_equations(equations, variables, ranges):
 
     Parameters
     ----------
-    equations: List[tvm.ir.PrimExpr] or LinearSystemTransform
-        The linear relations between the variables (either equations or inequalities)
+    equations: List[tvm.ir.PrimExpr] or LinearSystem
+        The equations of the variables
     variables : List[tvm.tir.Var]
         The variables in the system.
     ranges    : Map[tvm.tir.Var, tvm.ir.Range]
@@ -94,6 +94,6 @@ def solve_equations(equations, variables, ranges):
         You can get the mapping from the original variables to the solution via
         linear_system_transform.src_to_dst.
     """
-    if isinstance(equations, LinearSystemTransform):
+    if isinstance(equations, LinearSystem):
         return _ffi_api.SolveEquations(equations)
     return _ffi_api.SolveEquations(variables, ranges, equations)

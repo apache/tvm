@@ -281,6 +281,9 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
   // Conditions we don't know what to do with
   std::vector<PrimExpr> rest;
 
+  Analyzer analyzer_problem;
+  analyzer_problem.Bind(system_to_solve->ranges);
+
   size_t num_vars = system_to_solve->variables.size();
 
   // initialize V_{nxn} with identity matrix,
@@ -298,7 +301,7 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
     if (const tir::EQNode* eq = equation.as<tir::EQNode>()) {
       // a-b = sum_{i=0}^{n-1} variables[i] * coeff[i] + coeff[n]
       Array<PrimExpr> coeffs = arith::DetectLinearEquation(
-          tir::Simplify(eq->a - eq->b, system_to_solve->ranges),
+          analyzer_problem.Simplify(eq->a - eq->b),
           system_to_solve->variables);
       if (!coeffs.empty()) {
         std::vector<int64_t> row;
@@ -315,7 +318,7 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
         }
 
         if (!row.empty()) {
-          // S V (a-b) = Uy
+          // S V^{-1} (a-b) = Uy
           // V is identity for now
           S.push_back(row);
           Uy.push_back(-coeffs[coeffs.size() - 1]);
@@ -331,8 +334,8 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
   // After diagonalizing, we have
   // S_{mxn} is the Smith normal form (diagonal matrix)
   // V_{nxn} is invertible
-  // however, to simplify the calculation, we modify inplace so that
-  // x' = V^{-1} x
+  // V_inv_x is V^{-1} \times x
+  // Uy is U \times y
   SmithNormalFormDiag(&S, &V, &V_inv_x, &Uy);
 
   Array<Var> new_vars;
@@ -342,7 +345,7 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
 
   // Simplify right hand sides
   for (PrimExpr r : Uy) {
-    r = tir::Simplify(r, system_to_solve->ranges);
+    r = analyzer_problem.Simplify(r);
   }
 
   // Create the relations of the existence of a solution
@@ -356,7 +359,7 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
       // is a divisor of the Ub[j]
       new_relation = (floormod(Uy[j], std::abs(S[j][j])) == 0);
     }
-    new_relation = tir::Simplify(new_relation, system_to_solve->ranges);
+    new_relation = analyzer_problem.Simplify(new_relation);
     if (tir::is_const_int(new_relation, 0)) {
       // unable to solve the system.
       return LinearSystemTransform(
@@ -385,7 +388,7 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
   for (size_t j = 0; j < num_vars; ++j) {
     if (j >= S.size() || S[j][j] == 0) {
       // The j-th variable can take any integer value, create a tvm variable for it
-      PrimExpr to_old = tir::Simplify(V_inv_x[j], system_to_solve->ranges);
+      PrimExpr to_old = analyzer_problem.Simplify(V_inv_x[j]);
       std::string name_hint = "n" + std::to_string(new_vars.size());
       if (const VarNode* v_old = to_old.as<VarNode>()) {
         name_hint += "_" + v_old->name_hint;
@@ -400,7 +403,7 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
       if (S[j][j] >= 0) {
         PrimExpr a = te::make_const(Uy[j].dtype(), S[j][j]);
         solution_for_V_inv_x.push_back(
-            tir::Simplify(floordiv(Uy[j], a), system_to_solve->ranges));
+            analyzer_problem.Simplify(floordiv(Uy[j], a)));
       } else {
         // This is required because some simplifiers
         // have problems with dividing by negative numbers
@@ -417,13 +420,15 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
     for (size_t j = 0; j < num_vars; ++j) {
       e = e + te::make_const(e.dtype(), V[i][j])*solution_for_V_inv_x[j];
     }
-    e = tir::Simplify(e);
+    e = analyzer_problem.Simplify(e);
     old_to_new_map.Set(system_to_solve->variables[i], e);
   }
 
   // The resulting ranges
   Map<Var, Range> new_ranges = InferRange(
       new_to_old_map, system_to_solve->variables, system_to_solve->ranges);
+  Analyzer analyzer_solution;
+  analyzer_solution.Bind(new_ranges);
 
   // We have to transform ranges of the old variables into relations over new variables because
   // new ranges are not enough usually.
@@ -432,10 +437,10 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
     const Range& old_range = p.second;
     if (old_to_new_map.count(old_var)) {
       PrimExpr express_by_new_vars = old_to_new_map[old_var];
-      PrimExpr lower_cond = tir::Simplify(
-          old_range->min <= express_by_new_vars, new_ranges);
-      PrimExpr upper_cond = tir::Simplify(
-          express_by_new_vars < old_range->min + old_range->extent, new_ranges);
+      PrimExpr lower_cond = analyzer_solution.Simplify(
+          old_range->min <= express_by_new_vars);
+      PrimExpr upper_cond = analyzer_solution.Simplify(
+          express_by_new_vars < old_range->min + old_range->extent);
       if (!tir::is_const_int(lower_cond, 1)) {
         new_relations.push_back(lower_cond);
       }
