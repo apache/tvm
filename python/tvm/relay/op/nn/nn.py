@@ -295,8 +295,7 @@ def conv3d(data,
         strides = (strides, strides, strides)
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
-    if isinstance(padding, int):
-        padding = (padding, padding, padding)
+    padding = get_pad_tuple3d(padding)
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)

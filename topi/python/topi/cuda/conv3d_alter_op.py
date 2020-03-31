@@ -58,7 +58,7 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
-    if topi_tmpl == "conv3d_ncdhw_winograd_cuda":
+    if topi_tmpl == "conv3d_ncdhw_winograd.cuda":
         if dilation != (1, 1, 1):
             logger.warning("Does not support weight pre-transform for dilated 3D convolution.")
             return None

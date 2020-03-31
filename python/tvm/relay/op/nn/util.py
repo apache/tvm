@@ -90,7 +90,7 @@ def get_pad_tuple3d(padding):
         else:
             raise ValueError("Size of padding can only be 3 or 6")
     elif isinstance(padding, int):
-        pad_d, pad_h = pad_w = padding * 2
+        pad_d = pad_h = pad_w = padding * 2
     else:
         raise ValueError("Unknown padding option %s" % padding)
     pad_front = (pad_d + 1) // 2
