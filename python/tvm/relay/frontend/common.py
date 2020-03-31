@@ -21,7 +21,7 @@ import logging
 import numpy as np
 
 import tvm
-from tvm.ir import IRModule
+from tvm.ir import IRModule, TypeCall
 from topi.util import get_const_tuple
 
 from .. import expr as _expr
@@ -456,12 +456,19 @@ def get_name(node):
 
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
-    new_mod = IRModule.from_expr(node)
-    if mod is not None:
-        new_mod.update(mod)
-    new_mod = _transform.InferType()(new_mod)
-    entry = new_mod["main"]
-    return entry if isinstance(node, _function.Function) else entry.body
+    if isinstance(mod, IRModule):
+        mod["main"] = _function.Function([], node)
+        mod = _transform.InferType()(mod)
+        entry = mod["main"]
+        return entry.body
+    else:
+        new_mod = IRModule.from_expr(node)
+        if mod is not None:
+            new_mod.update(mod)
+            new_mod = _transform.InferType()(new_mod)
+        entry = new_mod["main"]
+        return entry if isinstance(node, _function.Function) else entry.body
+
 
 def infer_shape(inputs, mod=None):
     """A method to get the output type of an intermediate node in the graph."""
@@ -472,15 +479,6 @@ def infer_shape(inputs, mod=None):
         return get_const_tuple(out_type.checked_type.shape)
     # The return type is not a tensor, for example List
     return checked_type
-
-def infer_channels(inputs, transpose=False):
-    """A hack for getting 'channels' or 'units' since caffe2 does not provide
-    these attributes. We check the shape of weights provided to get the number.
-    """
-    out_type = infer_type(inputs)
-    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-    channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
-    return channels
 
 
 def infer_value(input_val, params, mod=None):
@@ -505,7 +503,7 @@ def infer_value(input_val, params, mod=None):
         return m.get_output(0)
     except Exception:
         if isinstance(mod, IRModule):
-            mod["main"] = _expr.Function(analysis.free_vars(input_val), input_val)
+            mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
         else:
             mod = IRModule.from_expr(input_val)
         exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
@@ -546,6 +544,28 @@ def new_var(name_hint,
             shape=None,
             dtype="float32"):
     return _expr.var(name_hint, type_annotation, shape, dtype)
+
+
+def check_tensor_array_shape(expr, dtype, mod):
+    """Check whether a tensor array has fixed rank shape.
+    Return its shape if yes. Otherwise, return None.
+    """
+    checked_type = infer_shape(expr, mod)
+    assert isinstance(checked_type, TypeCall), "Input must be a tensor array."
+    ta_type_str = checked_type.args[0].func.name_hint
+    static_ta_ty_start = "static_tensor_{}".format(dtype)
+    if ta_type_str.startswith(static_ta_ty_start):
+        shape_str = ta_type_str.replace("{}_".format(static_ta_ty_start), '') \
+            .replace("_t", '')
+        shape = []
+        if "scalar" not in shape_str:
+            for dim_str in shape_str.split("_"):
+                if dim_str == "?":
+                    shape.append(Any())
+                else:
+                    shape.append(int(dim_str))
+        return tuple(shape)
+    return None
 
 
 class Renamer(object):

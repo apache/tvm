@@ -26,7 +26,7 @@ import numpy as np
 import tvm
 
 from tvm.ir import IRModule
-from tvm.relay.prelude import Prelude
+from tvm.relay.prelude import Prelude, StaticTensorArrayOps
 from tvm.ir import structural_hash as s_hash
 
 from .. import analysis
@@ -40,6 +40,7 @@ from .common import infer_shape as _infer_shape
 from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
+from .common import check_tensor_array_shape as _check_tensor_array_shape
 
 __all__ = ['from_tensorflow']
 
@@ -259,8 +260,6 @@ def _conv(opname):
         if opname == 'conv_transpose' and attr['data_format'] == 'NHWC':
             # transform to NCHW for TVM backend compatible and set 'flip_layout'
             # to have output flip back to NHWC
-            tmp_shape = _infer_shape(inputs[2], mod)
-            tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[2] = _op.transpose(inputs[2], axes=(0, 3, 1, 2))
             attr['strides'][1], attr['strides'][2], attr['strides'][3] = \
                 attr['strides'][3], attr['strides'][1], attr['strides'][2]
@@ -790,24 +789,124 @@ def _pack():
 def _tensor_array():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('dtype').name
-        tensor_array_constructor = prelude.get_var('tensor_array', dtype_str)
-        return tensor_array_constructor(_op.take(inputs[0], tvm.relay.const(0)))
+        assert not attr["dynamic_size"], "Dynamic size tensor array is " \
+                                         "not supported in TVM yet."
+        if attr['identical_element_shapes']:
+            # For static tensor array, we need to create with static constructor.
+            # However, at this point we might not know the input shape yet.
+            # We create a static tensor array with dummy shape and record it in
+            # _static_tensor_array_map. Later when creating other tensor array ops
+            # which uses this tensor array, we reconstruct this tensor array with
+            # actual shape.
+            dummy_shape = ()
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           dummy_shape)
+            static_tensor_array_ops.register()
+            tensor_array_constructor = prelude.get_var_static('tensor_array',
+                                                              dtype_str,
+                                                              dummy_shape)
+            tensor_array =  tensor_array_constructor(inputs[0])
+            _static_tensor_array_map[tensor_array] = None
+        else:
+            tensor_array_constructor = prelude.get_var('tensor_array', dtype_str)
+            tensor_array =  tensor_array_constructor(inputs[0])
+        return tensor_array
     return _impl
 
 def _tensor_array_scatter():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
-        values_rank = len(inputs[2].type_annotation.shape)
-        unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
-        unstack_function = prelude.get_var(unstack_name, dtype_str)
-        values = unstack_function(inputs[2])
-        tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
-        return tensor_array_scatter_func(inputs[0], inputs[1], values)
+        input_ta = inputs[0]
+        input_shape = _check_tensor_array_shape(input_ta, dtype_str, prelude.mod)
+        values_shape = _infer_shape(inputs[2], prelude.mod)
+        input_t_shape = values_shape[1:]
+        indices_shape = _infer_shape(inputs[1], prelude.mod)
+
+        if input_shape is None:
+            values_rank = len(values_shape)
+            unstack_name = "tensor_array_unstack_tensor{}".format(values_rank)
+            unstack_function = prelude.get_var(unstack_name, dtype_str)
+            values = unstack_function(inputs[2])
+            tensor_array_scatter_func = prelude.get_var('tensor_array_scatter', dtype_str)
+        else:
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           input_t_shape)
+            static_tensor_array_ops.register()
+            # For scatter operation, it is possible to write to a newly create
+            # tensor array. We need to check and recreate its input tensor array.
+            if input_ta in _static_tensor_array_map and \
+                    _static_tensor_array_map[input_ta] is None:
+                ta_constructor = prelude.get_var_static('tensor_array',
+                                                        dtype_str,
+                                                        input_t_shape)
+                new_ta =  ta_constructor(input_ta.args[0])
+                _static_tensor_array_map[input_ta] = new_ta
+                input_ta = new_ta
+
+            # Register static indices shape
+            if isinstance(indices_shape[0], int):
+                static_tensor_array_ops.define_tensor_array_scatter(indices_shape, True)
+            tensor_array_scatter_func = prelude.get_var_static('tensor_array_scatter',
+                                                               dtype_str,
+                                                               input_t_shape)
+
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           values_shape)
+            static_tensor_array_ops.register()
+            unstack_function = prelude.get_var_static('tensor_array_unstack',
+                                                      dtype_str,
+                                                      values_shape)
+            values = unstack_function(inputs[2])
+        ret = tensor_array_scatter_func(input_ta, inputs[1], values)
+        return ret
     return _impl
 
 def _tensor_array_gather():
     def _impl(inputs, attr, params, prelude):
-        return prelude.tensor_array_gather(inputs[2], inputs[1])
+        dtype_str = attr.get('dtype').name
+        input_shape = _check_tensor_array_shape(inputs[2], dtype_str, prelude.mod)
+        indices_shape = _infer_shape(inputs[1], prelude.mod)
+
+        if input_shape is None:
+            gather_func = prelude.get_var('tensor_array_gather', dtype_str)
+            return gather_func(inputs[2], inputs[1])
+        else:
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           input_shape)
+            static_tensor_array_ops.register()
+            if not isinstance(indices_shape[0], int):
+                gather_function = prelude.get_var_static('tensor_array_gather',
+                                                         dtype_str,
+                                                         input_shape)
+                out_tensor_t = gather_function(inputs[2], inputs[1])
+
+                # Output shape is (indices_shape[0],) + input_shape
+                static_tensor_array_ops.define_tensor_get_data((indices_shape[0],) + input_shape)
+                get_data_func = prelude.get_var_static('tensor_get_data',
+                                                       dtype_str,
+                                                       input_shape)
+                return get_data_func(out_tensor_t)
+            else:
+                # For fixed length indices, directly generate static shape output
+                read_func = prelude.get_var_static('tensor_array_read',
+                                                   dtype_str,
+                                                   input_shape)
+                static_tensor_array_ops.define_tensor_get_data(input_shape)
+                get_data_func = prelude.get_var_static('tensor_get_data',
+                                                       dtype_str,
+                                                       input_shape)
+                tensor_list = []
+                for i in range(indices_shape[0]):
+                    index = _op.take(inputs[1], tvm.relay.const(i))
+                    out_tensor = get_data_func(read_func(inputs[2], index))
+                    tensor_list.append(_op.expand_dims(out_tensor, axis=0))
+
+                return _op.concatenate(tensor_list, axis=0)
+
     return _impl
 
 def _tensor_array_size():
@@ -817,37 +916,160 @@ def _tensor_array_size():
 
 def _tensor_array_write():
     def _impl(inputs, attr, params, prelude):
-        input_rank = len(inputs[2].type_annotation.shape)
-        dtype = attr.get('T').name
+        dtype_str = attr.get('T').name
+        input_ta = inputs[3]
+        input_ta_shape = _check_tensor_array_shape(input_ta, dtype_str, prelude.mod)
+        input_t_shape = _infer_shape(inputs[2], prelude.mod)
+        input_rank = len(input_t_shape)
 
-        tensor_name = 'tensor{}'.format(input_rank)
-        tensor_func = prelude.get_var(tensor_name, dtype)
-        v = tensor_func(inputs[2])
-        write_func = prelude.get_var('tensor_array_write', dtype)
+        if input_ta_shape is None:
+            tensor_name = 'tensor{}'.format(input_rank)
+            tensor_func = prelude.get_var(tensor_name, dtype_str)
+            v = tensor_func(inputs[2])
+            write_func = prelude.get_var('tensor_array_write', dtype_str)
+        else:
+            # For write operation, it is possible to write to a newly create
+            # tensor array. We need to check and recreate its input tensor array.
+            if input_ta in _static_tensor_array_map and \
+                    _static_tensor_array_map[input_ta] is None:
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_t_shape)
+                static_tensor_array_ops.register()
+                ta_constructor = prelude.get_var_static('tensor_array',
+                                                        dtype_str,
+                                                        input_t_shape)
+                new_ta =  ta_constructor(input_ta.args[0])
+                _static_tensor_array_map[input_ta] = new_ta
+                input_ta = new_ta
+                input_ta_shape = input_t_shape
+            else:
+                input_ta_rank = len(input_ta_shape)
+                assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}". \
+                    format(input_ta_rank, input_rank)
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_ta_shape)
+                static_tensor_array_ops.register()
 
-        return write_func(inputs[3], _op.take(inputs[1], tvm.relay.const(0)), v)
+            tensor_func = prelude.get_var_static("tensor_constructor",
+                                                 dtype_str,
+                                                 input_ta_shape)
+            v = tensor_func(inputs[2])
+            write_func = prelude.get_var_static('tensor_array_write',
+                                                dtype_str,
+                                                input_ta_shape)
+
+        return write_func(input_ta, _op.take(inputs[1], tvm.relay.const(0)), v)
     return _impl
 
 def _tensor_array_read():
     def _impl(inputs, attr, params, prelude):
-        read_func = prelude.get_var('tensor_array_read', attr.get('dtype').name)
-        return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+        dtype_str = attr['dtype'].name
+        input_shape = _check_tensor_array_shape(inputs[2], dtype_str, prelude.mod)
+
+        if input_shape is None:
+            read_func = prelude.get_var('tensor_array_read', dtype_str)
+            return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+        else:
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           input_shape)
+            static_tensor_array_ops.register()
+            static_tensor_array_ops.define_tensor_get_data(input_shape)
+            read_func = prelude.get_var_static("tensor_array_read", dtype_str, input_shape)
+            out_tensor = read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+            get_data_func = prelude.get_var_static('tensor_get_data',
+                                                   dtype_str,
+                                                   input_shape)
+            return get_data_func(out_tensor)
     return _impl
 
 def _tensor_array_split():
     def _impl(inputs, attr, params, prelude):
-        input_rank = len(inputs[1].type_annotation.shape)
         dtype_str = attr.get('T').name
-        v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
+        input_ta = inputs[0]
+        input_ta_shape = _check_tensor_array_shape(input_ta, dtype_str, prelude.mod)
+        input_t_shape = _infer_shape(inputs[1], prelude.mod)
+        input_rank = len(input_t_shape)
         lengths = _op.cast(inputs[2], 'int32')
-        split_var = prelude.get_var('tensor_array_split', dtype_str)
-        return split_var(inputs[0], v, lengths)
+        lengths_shape = _infer_shape(lengths, prelude.mod)
+        value_shape = _infer_shape(inputs[1], prelude.mod)
+
+        if input_ta_shape is None:
+            v = prelude.get_var("tensor{}".format(input_rank), dtype_str)(inputs[1])
+            split_func = prelude.get_var('tensor_array_split', dtype_str)
+        else:
+            # For split operation, it is possible to write to a newly create
+            # tensor array. We need to check and recreate its input tensor array.
+            if input_ta in _static_tensor_array_map and \
+                    _static_tensor_array_map[input_ta] is None:
+                input_ta_shape = (Any(),) + input_t_shape[1:]
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_ta_shape)
+                static_tensor_array_ops.register()
+                ta_constructor = prelude.get_var_static('tensor_array',
+                                                        dtype_str,
+                                                        input_ta_shape)
+                new_ta =  ta_constructor(input_ta.args[0])
+                _static_tensor_array_map[input_ta] = new_ta
+                input_ta = new_ta
+            else:
+                input_ta_rank = len(input_ta_shape)
+                assert input_ta_rank == input_rank, "Shape rank mismatch: {} vs {}". \
+                    format(input_ta_rank, input_rank)
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               input_ta_shape)
+                static_tensor_array_ops.register()
+
+            # Check static value/indices shape
+            if isinstance(value_shape[0], int) or isinstance(lengths_shape[0], int):
+                static_tensor_array_ops.define_tensor_array_split(value_shape,
+                                                                  lengths_shape,
+                                                                  True)
+
+            tensor_func_name = prelude.get_name_static("tensor_constructor",
+                                                       dtype_str,
+                                                       value_shape)
+            if not hasattr(prelude, tensor_func_name):
+                static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                               dtype_str,
+                                                               value_shape)
+                static_tensor_array_ops.register()
+            tensor_func = prelude.get_var_static("tensor_constructor",
+                                                 dtype_str,
+                                                 value_shape)
+            v = tensor_func(inputs[1])
+            split_func = prelude.get_var_static('tensor_array_split',
+                                                dtype_str,
+                                                input_ta_shape)
+
+        return split_func(input_ta, v, lengths)
     return _impl
 
 def _tensor_array_concat():
     def _impl(inputs, attr, params, prelude):
-        concat_func = prelude.get_var('tensor_array_concat', attr['dtype'].name)
-        return concat_func(inputs[1])
+        dtype_str = attr['dtype'].name
+        input_shape = _check_tensor_array_shape(inputs[1], dtype_str, prelude.mod)
+
+        if input_shape is None:
+            concat_func = prelude.get_var('tensor_array_concat', dtype_str)
+            return concat_func(inputs[1])
+        else:
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           input_shape)
+            static_tensor_array_ops.register()
+            concat_func = prelude.get_var_static("tensor_array_concat", dtype_str, input_shape)
+            out_tensor = concat_func(inputs[1])
+            static_tensor_array_ops.define_tensor_get_data((Any(),) + input_shape[1:])
+            get_data_func = prelude.get_var_static('tensor_get_data',
+                                                   dtype_str,
+                                                   input_shape)
+            return get_data_func(out_tensor)
+
     return _impl
 
 def _tile():
@@ -1360,7 +1582,7 @@ def _range():
 
         return AttrCvt(
             op_name="arange",
-            ignores=['Tidx'],
+            ignores=['Tidx', '_class'],
             extras={'start': start,
                     'stop': limit,
                     'step': delta,
@@ -2072,6 +2294,9 @@ class RecurrentNetworks(object):
 # An internal list to contain all the control flow primitives used in Tensorflow
 # 1.x.
 _control_flow_nodes = ['Merge', 'Switch', 'NextIteration', 'Exit', 'Enter', 'LoopCond']
+
+# A map to record tensor array with fixed rank shape
+_static_tensor_array_map = {}
 
 class RewriteSubgraph(ExprMutator):
     """
