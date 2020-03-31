@@ -74,11 +74,18 @@ TVM_DLL Pass LowerIntrin();
 
 /*!
  * \brief Lower attached storage access information on device.
- * Do this pass after all storage access analysis finish.
+ *
+ * \note Run this pass after all storage access analysis finish.
  *
  * \return The pass.
  */
 TVM_DLL Pass LowerDeviceStorageAccessInfo();
+
+/*!
+ * \brief Lower warp memory access to low-level device related function calls.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerWarpMemory();
 
 }  // namespace transform
 }  // namespace tir
