@@ -335,6 +335,53 @@ def test_forward_relu():
     input_data = torch.rand(input_shape).float()
     verify_model(ReLU1().float().eval(), input_data=input_data)
 
+def test_forward_prelu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class PReLU1(Module):
+        def __init__(self):
+            super(PReLU1, self).__init__()
+            self.prelu = torch.nn.PReLU(num_parameters=3)
+        def forward(self, *args):
+            return self.prelu(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(PReLU1().float().eval(), input_data=input_data)
+
+def test_forward_leakyrelu():
+    torch.set_grad_enabled(False)
+    input_shape = [10, 10]
+
+    class LeakyReLU1(Module):
+        def forward(self, *args):
+            return torch.nn.LeakyReLU(negative_slope=0.05)(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(LeakyReLU1().float().eval(), input_data=input_data)
+
+def test_forward_elu():
+    torch.set_grad_enabled(False)
+    input_shape = [10, 10]
+
+    class ELU1(Module):
+        def forward(self, *args):
+            return torch.nn.ELU(alpha=1.3)(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(ELU1().float().eval(), input_data=input_data)
+
+def test_forward_log_sigmoid():
+    torch.set_grad_enabled(False)
+    input_shape = [10, 10]
+
+    class LogSigmoid1(Module):
+        def forward(self, *args):
+            return torch.nn.LogSigmoid()(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(LogSigmoid1().float().eval(), input_data=input_data)
+
 def test_forward_adaptiveavgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -1076,6 +1123,10 @@ if __name__ == "__main__":
     test_forward_unsqueeze()
     test_forward_concatenate()
     test_forward_relu()
+    test_forward_prelu()
+    test_forward_leakyrelu()
+    test_forward_elu()
+    test_forward_log_sigmoid()
     test_forward_adaptiveavgpool()
     test_forward_maxpool2d()
     test_forward_maxpool1d()
