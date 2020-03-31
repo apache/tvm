@@ -111,11 +111,11 @@ def _split():
         split_size = int(inputs[1])
         dim = int(inputs[2])
 
-        now_indice = split_size
+        split_index = split_size
         indices = []
-        while now_indice < _infer_shape(data)[dim]:
-            indices.append(now_indice)
-            now_indice += split_size
+        while split_index < _infer_shape(data)[dim]:
+            indices.append(split_index)
+            split_index += split_size
 
         return _op.split(data, indices, dim)
     return _impl
@@ -125,12 +125,12 @@ def _split_with_sizes():
         data = inputs[0]
         dim = int(inputs[2])
 
-        now_indice = 0
+        split_index = 0
         indices = []
         sections = _infer_shape(inputs[1])
         for i in range(len(sections) - 1):
-            now_indice += sections[i]
-            indices.append(now_indice)
+            split_index += sections[i]
+            indices.append(split_index)
 
         return _op.split(data, indices, dim)
     return _impl

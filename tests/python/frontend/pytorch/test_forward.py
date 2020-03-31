@@ -395,10 +395,15 @@ def test_forward_split():
         def forward(self, *args):
             return torch.split(args[0], 3, 1)
 
+    class Split4(Module):
+        def forward(self, *args):
+            return torch.split(args[0], 4, 1)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Split1().float().eval(), input_data=input_data)
     verify_model(Split2().float().eval(), input_data=input_data)
     verify_model(Split3().float().eval(), input_data=input_data)
+    verify_model(Split4().float().eval(), input_data=input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
