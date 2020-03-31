@@ -29,6 +29,9 @@ find . -type f -path "*.pyc" | xargs rm -f
 # Rebuild cython
 make cython3
 
+echo "Running relay Chainer frontend test..."
+python3 -m pytest -v tests/python/frontend/chainer
+
 echo "Running relay TFLite frontend test..."
 python3 -m pytest -v tests/python/frontend/tflite
 
