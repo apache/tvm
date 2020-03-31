@@ -62,7 +62,7 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
         if dilation != (1, 1, 1):
             logger.warning("Does not support weight pre-transform for dilated 3D convolution.")
             return None
-        
+
         assert data_layout == "NCDHW" and kernel_layout == "OIDHW"
         N, CI, D, H, W = get_const_tuple(data.shape)
         CO, _, KD, KH, KW = get_const_tuple(kernel.shape)

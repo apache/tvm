@@ -60,7 +60,8 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         # dilation is not supported
         alpha, _, _, CI, CO = get_const_tuple(kernel.shape)
         KD = KH = KW = alpha + 1 - tile_size
-        assert DSTR == 1 and HSTR == 1 and WSTR == 1 and dilation_d == 1 and dilation_h == 1 and dilation_w == 1
+        assert DSTR == 1 and HSTR == 1 and WSTR == 1 and \
+               dilation_d == 1 and dilation_h == 1 and dilation_w == 1
 
     pf, pt, pl, pb, pd, pr = nn.get_pad_tuple3d(padding, (KD, KH, KW))
     data_pad = nn.pad(data, (0, 0, pf, pt, pl), (0, 0, pb, pd, pr), name="data_pad")
@@ -187,7 +188,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         else:
             s[G].compute_inline()
             r_a, r_b, r_c = s[kernel_pack].op.reduce_axis
-            for axis in [omg, eps, nu, r_a, r_b, r_c]:
+            # Could add additional unrolling by omg, eps, nu in the future.
+            for axis in [r_a, r_b, r_c]:
                 s[kernel_pack].unroll(axis)
 
             fused = s[kernel_pack].fuse(ci, co)
@@ -300,7 +302,8 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     s[A].compute_inline()
     co, p, vd, vh, vw = s[inverse].op.axis
     r_a, r_b, r_c = s[inverse].op.reduce_axis
-    for axis in [vd, vh, vw, r_a, r_b, r_c]:
+    # Could add additional unrolling of vd, vh, vw, in the future
+    for axis in [r_a, r_b, r_c]:
         s[inverse].unroll(axis)
     s[inverse].compute_at(s[output], tt)
 

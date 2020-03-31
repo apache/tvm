@@ -233,10 +233,10 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     """conv3d cuda strategy"""
     strategy = _op.OpStrategy()
-    data, kernel = inputs
+    _, kernel = inputs
     layout = attrs.data_layout
     stride_d, stride_h, stride_w = attrs.get_int_tuple("strides")
-    dilation_d, dilation_h, dilation_w = attrs.get_int_tuple("dilation")                                   
+    dilation_d, dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     assert layout in ["NCDHW", "NDHWC"], "Not support this layout {} yet".format(layout)
     if layout == "NCDHW":
         strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_ncdhw),
@@ -244,7 +244,7 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                                     name="conv3d_ncdhw.cuda",
                                     plevel=10)
         _, _, kd, kh, kw = get_const_tuple(kernel.shape)
-        if 2< kd < 8 and 2 < kh < 8 and 2 < kw < 8 and kd == kh and kh == kw and \
+        if 2 < kd < 8 and 2 < kh < 8 and 2 < kw < 8 and kd == kh and kh == kw and \
             stride_d == 1 and stride_h == 1 and stride_w == 1 and \
             dilation_d == 1 and dilation_h == 1 and dilation_w == 1:
             strategy.add_implementation(

@@ -209,8 +209,8 @@ def schedule_conv3d_winograd_weight_transform(outs):
     s[G].compute_inline()
     omg, eps, nu, co, ci = s[output].op.axis
     r_kd, r_kh, r_kw = s[output].op.reduce_axis
-    s[output].reorder(co, ci, r_kd, r_kh, r_kw, omg, eps, nu)
-    for axis in [r_kd, r_kh, r_kw, omg, eps, nu]:
+    s[output].reorder(co, ci, omg, eps, nu, r_kd, r_kh, r_kw)
+    for axis in [r_kd, r_kh, r_kw]:
         s[output].unroll(axis)
     s[output].parallel(co)
     return s

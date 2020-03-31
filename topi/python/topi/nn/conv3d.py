@@ -17,12 +17,13 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
+import tvm
 from tvm import te
 
 from .pad import pad
 from .util import get_pad_tuple3d
 from ..util import simplify, get_const_tuple
-from .winograd_util import winograd_transform_matrice
+from .winograd_util import winograd_transform_matrices
 
 
 def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
@@ -181,7 +182,7 @@ def conv3d_winograd_weight_transform(kernel, tile_size):
     assert KD == KH == KW, "Only support NxNxN kernel"
 
     r = tile_size + KD - 1
-    shape = (r, r, r) + [CI, CO]
+    shape = (r, r, r) + (CI, CO)
 
     _, _, G = winograd_transform_matrices(tile_size, KD, kernel.dtype)
 

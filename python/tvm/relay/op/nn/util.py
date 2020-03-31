@@ -96,4 +96,4 @@ def get_pad_tuple3d(padding):
     pad_front = (pad_d + 1) // 2
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
-    return pad_front, pad_top, pad_left, pad_d - pad_fornt, pad_h - pad_top, pad_w - pad_left
+    return pad_front, pad_top, pad_left, pad_d - pad_front, pad_h - pad_top, pad_w - pad_left

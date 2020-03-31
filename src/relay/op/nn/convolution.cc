@@ -498,7 +498,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_without_weight_tr
   return MakeConvWinograd<Conv3DWinogradAttrs>(
     data, weight, tile_size, strides, padding, dilation,
     groups, channels, kernel_size, data_layout,
-    kernel_layout, out_layout, out_dtype, "nn.contrib.conv3d_winograd_without_weight_transform");
+    kernel_layout, out_layout, out_dtype, "nn.contrib_conv3d_winograd_without_weight_transform");
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_without_weight_transform")
@@ -527,7 +527,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_weight_transform"
 .set_body_typed([](Expr weight,
                    int tile_size) {
   return MakeConvWinogradWeightTransform(
-    weight, tile_size, "nn.contrib.conv3d_winograd_weight_transform");
+    weight, tile_size, "nn.contrib_conv3d_winograd_weight_transform");
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_weight_transform")

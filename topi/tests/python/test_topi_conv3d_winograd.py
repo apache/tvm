@@ -119,6 +119,8 @@ def verify_conv3d_ncdhw(batch,
 def test_conv3d_ncdhw():
     #3DCNN  workloads
     verify_conv3d_ncdhw(1, 61, 20, 120, 3, 1, 0)
+    verify_conv3d_ncdhw(1, 61, 20, 120, 5, 1, 2)
+    verify_conv3d_ncdhw(1, 61, 20, 120, 7, 1, 3)
     verify_conv3d_ncdhw(1, 128, 12, 256, 3, 1, 1)
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 1, 1)
 

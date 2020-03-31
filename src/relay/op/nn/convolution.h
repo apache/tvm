@@ -27,6 +27,7 @@
 #include <tvm/tir/ir_pass.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "../op_common.h"
 
@@ -411,8 +412,8 @@ bool Conv3DWinogradWeightTransformRel(const Array<Type>& types,
       param->tile_size + data->shape[2] - 1,
       param->tile_size + data->shape[3] - 1,
       param->tile_size + data->shape[4] - 1,
-      data->shape[0],
       data->shape[1],
+      data->shape[0],
   };
 
   reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
@@ -490,7 +491,7 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
 
   CHECK(param->kernel_size.defined() && param->channels.defined())
-      << "The kernel size and channels of a Conv must be set or infered by previous pass";
+      << "The kernel size and channels of a Conv must be set or inferred by previous pass";
 
   CHECK_EQ(param->kernel_size.size(), 2);
   CHECK_EQ(param->dilation.size(), 2);
@@ -572,7 +573,7 @@ bool Conv3DWinogradRel(const Array<Type>& types,
   IndexExpr channels, dilated_ksize_d, dilated_ksize_y, dilated_ksize_x;
 
   CHECK(param->kernel_size.defined() && param->channels.defined())
-      << "The kernel size and channels of a Conv must be set or infered by previous pass";
+      << "The kernel size and channels of a Conv must be set or inferred by previous pass";
 
   CHECK_EQ(param->kernel_size.size(), 3);
   CHECK_EQ(param->dilation.size(), 3);
@@ -815,22 +816,6 @@ bool Conv2DTransposeRel(const Array<Type>& types,
 }
 
 
-template<typename T>
-Array<Array<Layout> > ConvInferCorrectLayout(
-    const Attrs& attrs,
-    const Array<Layout>& new_in_layouts,
-    const Array<Layout>& old_in_layouts,
-    const Array<tvm::relay::Type> &old_in_types) {
-  const T* params = attrs.as<T>();
-
-  // We always make other operators to fit the layouts of convolution layers
-  // So this inference ignores all inputs
-  return Array<Array<Layout> >{{params->data_layout, params->kernel_layout},
-                               {params->out_layout == "" ?
-                                   params->data_layout : params->out_layout}};
-}
-
-
 // Deformable Convolution shape relations.
 template <typename AttrType>
 bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
@@ -909,6 +894,22 @@ bool DeformableConv2DRel(const Array<Type>& types, int num_inputs, const Attrs& 
 
   reporter->Assign(types[3], TensorType(oshape, out_dtype));
   return true;
+}
+
+
+template<typename T>
+Array<Array<Layout> > ConvInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<tvm::relay::Type> &old_in_types) {
+  const T* params = attrs.as<T>();
+
+  // We always make other operators to fit the layouts of convolution layers
+  // So this inference ignores all inputs
+  return Array<Array<Layout> >{{params->data_layout, params->kernel_layout},
+                               {params->out_layout == "" ?
+                                   params->data_layout : params->out_layout}};
 }
 
 
