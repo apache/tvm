@@ -53,17 +53,17 @@ HLS Hardware Source Organization
 
 The VTA design is currently specified in Vivado HLS C++, which is only supported
 by Xilinx toolchains.
-The VTA hardware sources are contained under ``vta/vta-hw/hardware/xilinx/sources``:
+The VTA hardware sources are contained under ``3rdparty/vta-hw/hardware/xilinx/sources``:
 
  - ``vta.cc`` contains the definitions for each VTA module, as well as a top
    level behavioral model for the top-level VTA design.
  - ``vta.h`` contains type definitions using Xilinx ``ap_int`` types, and
    function prototypes declarations.
 
-In addition preprocessor macros are defined under ``vta/vta-hw/include/vta/hw_spec.h``.
+In addition preprocessor macros are defined under ``3rdparty/vta-hw/include/vta/hw_spec.h``.
 Much of these macro definitions are derived from the parameters listed in the
-``vta/vta-hw/config/vta_config.json`` file.
-The json file is processed by ``vta/vta-hw/config/vta_config.py`` to produce a string of
+``3rdparty/vta-hw/config/vta_config.json`` file.
+The json file is processed by ``3rdparty/vta-hw/config/vta_config.py`` to produce a string of
 compile flags that define the preprocessor macros.
 That string is used by the makefile in order to set those high-level
 parameters in both the HLS hardware synthesis compiler, and the C++
@@ -220,7 +220,7 @@ Microarchitectural Overview
 ---------------------------
 
 We describe the modules that compose the VTA design.
-The module definitions are contained in ``vta/vta-hw/hardware/xilinx/sources/vta.cc``.
+The module definitions are contained in ``3rdparty/vta-hw/hardware/xilinx/sources/vta.cc``.
 
 Fetch Module
 ~~~~~~~~~~~~
