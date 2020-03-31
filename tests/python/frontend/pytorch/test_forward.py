@@ -383,27 +383,24 @@ def test_forward_split():
     torch.set_grad_enabled(False)
     input_shape = [4, 10]
 
-    class Split1(Module):
-        def forward(self, *args):
-            return torch.split(args[0], 2, 0)
+    class Split(Module):
+        def __init__(self, split_size_or_sections, dim):
+            super(Split, self).__init__()
+            self.split_size_or_sections = split_size_or_sections
+            self.dim = dim
 
-    class Split2(Module):
         def forward(self, *args):
-            return torch.split(args[0], [2, 3, 5], 1)
-
-    class Split3(Module):
-        def forward(self, *args):
-            return torch.split(args[0], 3, 1)
-
-    class Split4(Module):
-        def forward(self, *args):
-            return torch.split(args[0], 4, 1)
+            return torch.split(args[0], self.split_size_or_sections, self.dim)
 
     input_data = torch.rand(input_shape).float()
-    verify_model(Split1().float().eval(), input_data=input_data)
-    verify_model(Split2().float().eval(), input_data=input_data)
-    verify_model(Split3().float().eval(), input_data=input_data)
-    verify_model(Split4().float().eval(), input_data=input_data)
+    verify_model(Split(2, 0).float().eval(),
+                input_data=input_data)
+    verify_model(Split(3, 1).float().eval(),
+                input_data=input_data)
+    verify_model(Split(4, 1).float().eval(),
+                input_data=input_data)
+    verify_model(Split([2, 3, 5], 1).float().eval(),
+                input_data=input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
