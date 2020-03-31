@@ -114,8 +114,13 @@ class VariableStore(object):
         if str_id in self.name_list:
             return self.name_list[str_id][0]
         else:
-            new_name = 'var{}'.format(len(self.name_list))
-            self.set_name(var, new_name)
+            pinned = False
+            if var.name is not None:
+                new_name = var.name
+                pinned = True
+            else:
+                new_name = 'var{}'.format(len(self.name_list))
+            self.set_name(var, new_name, pinned)
             return new_name
 
     def set_name(self, var, name, pinned=False):
@@ -234,11 +239,14 @@ class ChainerTVMBridge(object):
 
         # Form dummy input based on input shape and datatype provided
         #TODO: Make it multi-input later
-        x = chainer.Variable(np.zeros(self._shape, dtype=np.float32))
+        input_vars = []
+        for name in self._shape:
+            input_vars.append(
+                chainer.Variable(np.zeros(self._shape[name], dtype=self._dtype[name]), name=name))
 
         # Creates a context of Chainer with Computation Graph enabled
         with function.force_backprop_mode(), chainer.using_config('train', False):
-            output = self._model(x)
+            output = self._model(*input_vars)
 
         # Instance validation of output
         if isinstance(output, (list, tuple)):

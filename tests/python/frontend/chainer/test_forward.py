@@ -30,26 +30,39 @@ from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 from tvm.relay.frontend.pytorch import get_graph_input_names
 
-def verify_model(model, input_data=[], ctx_list=ctx_list()):
+def verify_model(model, input_data, ctxl=ctx_list()):
     """Assert that the output of a compiled model matches with that of its
     baseline."""
+    # Form input data
+    shape_dict = {}
+    dtype_dict = {}
+    input_vars = []
+    input_names = []
+    for idx, data in enumerate(input_data):
+        input_vars.append(chainer.Variable(data))
+        input_name = "{}_{}".format("input", idx)
+        shape_dict[input_name] = data.shape
+        dtype_dict[input_name] = data.dtype
+        input_names.append(input_name)
 
     # Run Chainer Model for the input
-    baseline_outputs = model(chainer.Variable(input_data[0])).data
-    
+    baseline_outputs = model(*input_vars).data
+
     # Convert Chainer model to TVM and get the output
-    mod, params = relay.frontend.from_chainer(model, input_data[0].shape, "float32")
+    mod, params = relay.frontend.from_chainer(model, shape_dict, dtype_dict)
 
     with relay.build_config(opt_level=3):
-        for target, ctx in ctx_list:
+        for target, ctx in ctxl:
             relay_graph, relay_lib, relay_params = relay.build(mod, target=target, params=params)
             relay_model = graph_runtime.create(relay_graph, relay_lib, ctx)
             relay_model.set_input(**relay_params)
-            relay_model.set_input("var2", input_data[0])
+            for name, x in zip(input_names, input_data):
+                relay_model.set_input(name, tvm.nd.array(x.astype(dtype_dict[name])))
+
             relay_model.run()
 
             compiled_output = relay_model.get_output(0).asnumpy()
-
+            #TODO: Make multi-output compatible
             tvm.testing.assert_allclose(baseline_outputs, compiled_output,
                                         rtol=1e-3, atol=1e-3)
 
