@@ -29,3 +29,14 @@ def CombineContextCall():
         The result pass
     """
     return _ffi_api.CombineContextCall()
+
+
+def LowerIntrin():
+    """Lower target specific intrinsic calls.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerIntrin()

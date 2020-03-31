@@ -59,11 +59,18 @@ TVM_DLL Pass CreatePrimFuncPass(const runtime::TypedPackedFunc<
                                 const tvm::Array<tvm::PrimExpr>& required);
 
 /*!
- * \brief Create PrimFuncPass to combine context calls in the host function.
+ * \brief COmbine context calls in the host function.
  *
  * \return The pass.
  */
-Pass CombineContextCall();
+TVM_DLL Pass CombineContextCall();
+
+/*!
+ * \brief Lower the target specific function intrinsics in each of the function.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass LowerIntrin();
 
 }  // namespace transform
 }  // namespace tir
