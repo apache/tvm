@@ -29,7 +29,7 @@ ifndef DLPACK_PATH
 endif
 
 ifndef VTA_HW_PATH
-  VTA_HW_PATH = $(ROOTDIR)/vta/vta-hw
+  VTA_HW_PATH = $(ROOTDIR)/3rdparty/vta-hw
 endif
 
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include

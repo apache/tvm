@@ -111,7 +111,7 @@ names = [x.strip() for x in content]
 # --------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 # Set ``device=arm_cpu`` to run inference on the CPU
 # or ``device=vta`` to run inference on the FPGA.

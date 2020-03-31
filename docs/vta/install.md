@@ -32,7 +32,7 @@ For a quick and easy start, checkout the [Docker Guide](https://tvm.apache.org/d
 You'll need to set the following paths to use VTA:
 ```bash
 export TVM_PATH=<path to TVM root>
-export VTA_HW_PATH=$TVM_PATH/vta/vta-hw
+export VTA_HW_PATH=$TVM_PATH/3rdparty/vta-hw
 ```
 
 The VTA functional simulation library needs to be enabled when building TVM.
@@ -66,7 +66,7 @@ You are invited to try out our [VTA programming tutorials](https://tvm.apache.or
 ### Advanced Configuration (optional)
 
 VTA is a generic configurable deep learning accelerator.
-The configuration is specified by `vta_config.json` under `vta/vta-hw/config`.
+The configuration is specified by `vta_config.json` under `3rdparty/vta-hw/config`.
 This file provides an architectural specification of the VTA accelerator to parameterize the TVM compiler stack and the VTA hardware stack.
 
 The VTA configuration file also specifies the TVM compiler target.
@@ -76,7 +76,7 @@ To do so,
 
 ```bash
 cd <tvm root>
-vim vta/vta-hw/config/vta_config.json
+vim 3rdparty/vta-hw/config/vta_config.json
 # edit vta_config.json
 make
 ```
@@ -134,7 +134,7 @@ mkdir build
 cp cmake/config.cmake build/.
 echo 'set(USE_VTA_FPGA ON)' >> build/config.cmake
 # Copy pynq specific configuration
-cp vta/vta-hw/config/pynq_sample.json vta/vta-hw/config/vta_config.json
+cp 3rdparty/vta-hw/config/pynq_sample.json 3rdparty/vta-hw/config/vta_config.json
 cd build
 cmake ..
 make runtime vta -j2
@@ -168,7 +168,7 @@ In addition, you'll need to edit the `vta_config.json` file on the host to indic
 ```bash
 # On the Host-side
 cd <tvm root>
-cp vta/vta-hw/config/pynq_sample.json vta/vta-hw/config/vta_config.json
+cp 3rdparty/vta-hw/config/pynq_sample.json 3rdparty/vta-hw/config/vta_config.json
 ```
 
 This time again, we will run the 2D convolution testbench.
@@ -359,11 +359,11 @@ For this custom VTA bitstream compilation exercise, we'll change the frequency o
 * Set the `HW_FREQ` field to `142`. The Pynq board supports 100, 142, 167 and 200MHz clocks. Note that the higher the frequency, the harder it will be to close timing. Increasing the frequency can lead to timing violation and thus faulty hardware execution.
 * Set the `HW_CLK_TARGET` to `6`. This parameters refers to the target clock period in nano seconds for HLS - a lower clock period leads to more aggressive pipelining to achieve timing closure at higher frequencies. Technically a 142MHz clock would require a 7ns target, but we intentionally lower the clock target to 6ns to more aggressively pipeline our design.
 
-Bitstream generation is driven by a top-level `Makefile` under `<tvm root>/vta/vta-hw/hardware/xilinx/`.
+Bitstream generation is driven by a top-level `Makefile` under `<tvm root>/3rdparty/vta-hw/hardware/xilinx/`.
 
 If you just want to simulate the VTA design in software emulation to make sure that it is functional, enter:
 ```bash
-cd <tvm root>/vta/vta-hw/hardware/xilinx
+cd <tvm root>/3rdparty/vta-hw/hardware/xilinx
 make ip MODE=sim
 ```
 
@@ -371,7 +371,7 @@ If you just want to generate the HLS-based VTA IP cores without launching the en
 ```bash
 make ip
 ```
-You'll be able to view the HLS synthesis reports under `<tvm root>/vta/vta-hw/build/hardware/xilinx/hls/` `<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
+You'll be able to view the HLS synthesis reports under `<tvm root>/3rdparty/vta-hw/build/hardware/xilinx/hls/` `<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
 > Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters listed in the `vta_config.json`. The `<block>` name refers to the specific module (or HLS function) that compose the high-level VTA pipeline.
 
 Finally to run the full hardware compilation and generate the VTA bitstream, run:
@@ -383,20 +383,20 @@ make
 This process is lengthy, and can take around up to an hour to complete depending on your machine's specs.
 We recommend setting the `VTA_HW_COMP_THREADS` variable in the Makefile to take full advantage of all the cores on your development machine.
 
-Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/vta-hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
+Once the compilation completes, the generated bitstream can be found under `<tvm root>/3rdparty/vta-hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
 
 ### Chisel-based Custom VTA Bitstream Compilation for DE10-Nano
 
-Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/vta/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
+Similar to the HLS-based design, high-level hardware parameters in Chisel-based design are listed in the VTA configuration file [Configs.scala](https://github.com/apache/incubator-tvm/blob/master/3rdparty/vta-hw/hardware/chisel/src/main/scala/core/Configs.scala), and they can be customized by the user.
 
-For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvmroot>/vta/vta-hw/hardware/intel`.
+For Intel FPGA, bitstream generation is driven by a top-level `Makefile` under `<tvm root>/3rdparty/vta-hw/hardware/intel`.
 
 If you just want to generate the Chisel-based VTA IP core for the DE10-Nano board without compiling the design for the FPGA hardware, enter:
 ```bash
-cd <tvmroot>/vta/vta-hw/hardware/intel
+cd <tvm root>/3rdparty/vta-hw/hardware/intel
 make ip
 ```
-Then you'll be able to locate the generated verilog file at `<tvmroot>/vta/vta-hw/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
+Then you'll be able to locate the generated verilog file at `<tvm root>/3rdparty/vta-hw/build/hardware/intel/chisel/<configuration>/VTA.DefaultDe10Config.v`.
 
 If you would like to run the full hardware compilation for the `de10nano` board:
 ```bash
@@ -405,14 +405,14 @@ make
 
 This process might be a bit lengthy, and might take up to half an hour to complete depending on the performance of your PC. The Quartus Prime software would automatically detect the number of cores available on your PC and try to utilize all of them to perform such process.
 
-Once the compilation completes, the generated bistream can be found under `<tvmroot>vtay/vta-hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvmroot>/vta/vta-hw/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
+Once the compilation completes, the generated bistream can be found under `<tvm root>/3rdparty/vta-hw/build/hardware/intel/quartus/<configuration>/export/vta.rbf`. You can also open the Quartus project file (.qpf) available at `<tvm root>/3rdparty/vta-hw/build/hardware/intel/quartus/<configuration>/de10_nano_top.qpf` to look around the generated reports.
 
 ### Use the Custom Bitstream
 
 We can program the new VTA FPGA bitstream by setting the bitstream path of the `vta.program_fpga()` function in the tutorial examples, or in the `test_program_rpc.py` script.
 
 ```python
-vta.program_fpga(remote, bitstream="<tvm root>/vta/vta-hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
+vta.program_fpga(remote, bitstream="<tvm root>/3rdparty/vta-hw/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
 ```
 
 Instead of downloading a pre-built bitstream from the VTA bitstream repository, TVM will instead use the new bitstream you just generated, which is a VTA design clocked at a higher frequency.

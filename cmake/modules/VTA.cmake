@@ -20,7 +20,7 @@ find_program(PYTHON NAMES python python3 python3.6)
 
 # Throw error if VTA_HW_PATH is not set
 if(NOT DEFINED ENV{VTA_HW_PATH})
-  set(VTA_HW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/vta/vta-hw)
+  set(VTA_HW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/vta-hw)
 else()
   set(VTA_HW_PATH $ENV{VTA_HW_PATH})
 endif()

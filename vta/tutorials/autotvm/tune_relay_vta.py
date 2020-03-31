@@ -181,7 +181,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 tracker_host = os.environ.get("TVM_TRACKER_HOST", '0.0.0.0')
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
