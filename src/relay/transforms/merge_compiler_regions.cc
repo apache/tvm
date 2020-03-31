@@ -258,10 +258,14 @@ class RegionMerger : public ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     if (call->op == compiler_end_op) {
       auto region = regions_->GetRegion(GetRef<Call>(call));
+      auto node = (*region->GetOutputs().begin()).as<CallNode>();
+      std::string name = "";
+      if (node->args[0]->IsInstance<CallNode>()) {
+        name = node->args[0].as<CallNode>()->op.as<OpNode>()->name;
+      }
       // set the region target
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
       region_targets_[region->GetID()] = compiler_attrs->compiler;
-      std::vector<AnnotatedRegion> mergeable_regions;
       // first look at the region args to determine the parent regions
       for (const auto& arg : region->GetInputs()) {
         // all args should be begin annotations
@@ -275,6 +279,14 @@ class RegionMerger : public ExprVisitor {
         if (merged_regions_.find(parent_region->GetID()) == merged_regions_.end()) {
           VisitExpr(begin->args[0]);
         }
+      }
+      // get the mergeable regions now all the parents have been visited
+      std::vector<AnnotatedRegion> mergeable_regions;
+      for (const auto& arg : region->GetInputs()) {
+        auto begin = Downcast<Call>(arg);
+        CHECK_EQ(begin->op, compiler_begin_op);
+        auto parent_region = regions_->GetRegion(begin->args[0]);
+        if (!parent_region.defined()) continue;
         mergeable_regions.push_back(parent_region);
       }
       auto& region_restrictions = region_restrictions_[region->GetID()];
