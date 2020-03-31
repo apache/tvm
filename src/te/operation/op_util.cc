@@ -162,7 +162,7 @@ MakeLoopNest(const Stage& stage,
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
-        if(stage->scope != "local") {
+        if (stage->scope != "local") {
           value_map[iv] = var;
         } else {
           value_map[iv] = dom->min;
