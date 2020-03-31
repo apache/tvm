@@ -105,6 +105,36 @@ def _slice():
         return _op.transform.strided_slice(data, begin, end, strides)
     return _impl
 
+def _split():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        split_size = int(inputs[1])
+        dim = int(inputs[2])
+
+        split_index = split_size
+        indices = []
+        while split_index < _infer_shape(data)[dim]:
+            indices.append(split_index)
+            split_index += split_size
+
+        return _op.split(data, indices, dim)
+    return _impl
+
+def _split_with_sizes():
+    def _impl(inputs, inputs_types):
+        data = inputs[0]
+        dim = int(inputs[2])
+
+        split_index = 0
+        indices = []
+        sections = _infer_shape(inputs[1])
+        for i in range(len(sections) - 1):
+            split_index += sections[i]
+            indices.append(split_index)
+
+        return _op.split(data, indices, dim)
+    return _impl
+
 def _select():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -886,6 +916,8 @@ _convert_map = {
     "aten::unsqueeze"                       : _unsqueeze(),
     "aten::cat"                             : _concatenate(),
     "aten::slice"                           : _slice(),
+    "aten::split"                           : _split(),
+    "aten::split_with_sizes"                : _split_with_sizes(),
     "aten::select"                          : _select(),
     "aten::relu"                            : _relu(),
     "aten::relu_"                           : _relu(),
@@ -1415,6 +1447,10 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     ret = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
                             output_index_map, ret_name)
+
+    if isinstance(ret[0], list):
+        ret[0] = _expr.Tuple(ret[0])
+
     func = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
     return _module.IRModule.from_expr(func), tvm_params
