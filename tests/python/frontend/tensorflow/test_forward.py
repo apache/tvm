@@ -593,6 +593,17 @@ def _test_space_to_batch_nd(input_shape, block_shape, paddings, dtype='int32'):
 
         compare_tf_with_tvm(data, in_data.name, out.name)
 
+def _test_space_to_batch_nd_infer_paddings(input_shape, block_shape, dtype='int32'):
+    data = np.random.uniform(0, 5, size=input_shape).astype(dtype)
+    padding_np = np.array([0, 1]).astype(np.int32).reshape((1, 2))
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(shape=input_shape, dtype=dtype)
+        const1 = tf.constant(padding_np, dtype=tf.int32)
+        # make paddings an input to tf.transpose, but not an input to the graph,
+        # so it can be extracted with infer_value_simulated
+        paddings = tf.reverse(const1, axis=[-1])
+        out = tf.space_to_batch_nd(in_data, block_shape, paddings)
+        compare_tf_with_tvm(data, in_data.name, out.name)
 
 def test_forward_space_to_batch_nd():
     # test cases: https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/space-to-batch-n-d
@@ -635,6 +646,11 @@ def test_forward_space_to_batch_nd():
         block_shape=[2],
         paddings=[[1, 0]],
         dtype='float64'
+    )
+
+    _test_space_to_batch_nd_infer_paddings(
+        input_shape=[2, 3, 2],
+        block_shape=[2]
     )
 
 #######################################################################
