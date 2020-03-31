@@ -28,7 +28,7 @@ from . import intrin
 def get_vta_hw_path():
     """Get the VTA HW path."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../vta-hw"))
+    vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../../3rdparty/vta-hw"))
     VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
     return os.path.abspath(VTA_HW_PATH)
 
