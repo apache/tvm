@@ -28,7 +28,6 @@ import tvm
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
-from tvm.relay.frontend.pytorch import get_graph_input_names
 
 def verify_model(model, input_data, ctxl=ctx_list()):
     """Assert that the output of a compiled model matches with that of its
@@ -46,7 +45,10 @@ def verify_model(model, input_data, ctxl=ctx_list()):
         input_names.append(input_name)
 
     # Run Chainer Model for the input
-    baseline_outputs = model(*input_vars).data
+    if len(input_vars) > 1:
+        baseline_outputs = model(input_vars).data
+    else:
+        baseline_outputs = model(*input_vars).data
 
     # Convert Chainer model to TVM and get the output
     mod, params = relay.frontend.from_chainer(model, shape_dict, dtype_dict)
@@ -74,6 +76,22 @@ def test_forward_relu():
     input_data = np.random.uniform(-1, 1, (1, 3, 7, 7)).astype(np.float32)
     verify_model(Link(), [input_data])
 
+def test_forward_concat():
+    class Link_0(chainer.Chain):
+        def __call__(self, x):
+            return F.concat(x, axis=0)
+
+    class Link_1(chainer.Chain):
+        def __call__(self, x):
+            return F.concat(x, axis=1)
+
+    input_data_0 = np.random.uniform(-1, 1, (1, 3, 7, 7)).astype(np.float32)
+    input_data_1 = np.random.uniform(-1, 1, (1, 3, 7, 7)).astype(np.float32)
+
+    verify_model(Link_0(), [input_data_0, input_data_1])
+    verify_model(Link_1(), [input_data_0, input_data_1])
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_relu()
+    test_forward_concat()

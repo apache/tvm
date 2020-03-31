@@ -45,6 +45,11 @@ def _none():
         return None
     return _impl
 
+def _concat():
+    def _impl(inputs, func):
+        return _op.concatenate(inputs, axis=func.axis)
+    return _impl
+
 def _relu():
     def _impl(inputs, func):
         data = inputs[0]
@@ -61,7 +66,7 @@ CHAINER_OP_TVM_OP_MAP = {
     "LocalResponseNormalization"           : _none(),
     "ReLU"                                 : _relu(),
     "LeakyReLU"                            : _none(),
-    "Concat"                               : _none(),
+    "Concat"                               : _concat(),
     "Softmax"                              : _none(),
     "Sigmoid"                              : _none(),
     "Reshape"                              : _none(),
@@ -246,7 +251,10 @@ class ChainerTVMBridge(object):
 
         # Creates a context of Chainer with Computation Graph enabled
         with function.force_backprop_mode(), chainer.using_config('train', False):
-            output = self._model(*input_vars)
+            if len(input_vars) > 1:
+                output = self._model(input_vars)
+            else:
+                output = self._model(*input_vars)
 
         # Instance validation of output
         if isinstance(output, (list, tuple)):
