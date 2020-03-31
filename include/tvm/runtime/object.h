@@ -795,7 +795,7 @@ inline void Object::IncRef() {
 }
 
 inline void Object::DecRef() {
-  if (--ref_counter == 0) {
+  if (--ref_counter_ == 0) {
     if (this->deleter_ != nullptr) {
       (*this->deleter_)(this);
     }
