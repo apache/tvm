@@ -33,3 +33,4 @@ from .operation import placeholder, compute, scan, extern, var, size_var
 from .operation import thread_axis, reduce_axis
 
 from .tensor import PlaceholderOp, ComputeOp, TensorComputeOp, ScanOp, ExternOp, HybridOp
+from .autodiff import gradient
