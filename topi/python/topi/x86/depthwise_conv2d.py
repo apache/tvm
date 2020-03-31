@@ -220,6 +220,7 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
     _, ic_chunk, oh, ow, ic_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=tile_ow)
     s[C].reorder(ic_chunk, oh, ow_chunk, ow_block, ic_block)
+    s[C].vectorize(ic_block)
     parallel_axis = s[C].fuse(ic_chunk, oh)
     s[C].parallel(parallel_axis)
     s[CC].compute_at(s[C], ow_chunk)
