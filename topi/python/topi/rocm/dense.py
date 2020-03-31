@@ -123,6 +123,8 @@ def dense_rocblas(cfg, data, weight, bias=None, out_dtype=None):
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
+    if out_dtype is None:
+        out_dtype = data.dtype
     assert out_dtype == data.dtype, "Mixed precision not supported."
     matmul = rocblas.matmul(data, weight, False, True)
     batch, in_dim = data.shape
