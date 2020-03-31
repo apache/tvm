@@ -59,7 +59,7 @@ TVM_DLL Pass CreatePrimFuncPass(const runtime::TypedPackedFunc<
                                 const tvm::Array<tvm::PrimExpr>& required);
 
 /*!
- * \brief COmbine context calls in the host function.
+ * \brief Combine context calls in the host function.
  *
  * \return The pass.
  */
@@ -71,6 +71,14 @@ TVM_DLL Pass CombineContextCall();
  * \return The pass.
  */
 TVM_DLL Pass LowerIntrin();
+
+/*!
+ * \brief Lower attached storage access information on device.
+ * Do this pass after all storage access analysis finish.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass LowerDeviceStorageAccessInfo();
 
 }  // namespace transform
 }  // namespace tir
