@@ -517,7 +517,7 @@ def test_forward_instancenorm():
     inp_3d = torch.rand((1, 16, 10, 10, 10))
 
     for ins_norm, inp in [(torch.nn.InstanceNorm2d(16), inp_2d),
-                    (torch.nn.InstanceNorm3d(16), inp_3d)]:
+                          (torch.nn.InstanceNorm3d(16), inp_3d)]:
         verify_model(ins_norm.eval(), input_data=inp)
 
 
