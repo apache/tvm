@@ -65,7 +65,7 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
   fpush_to_stack(expr);
   while (stack.size() > 0) {
     auto node = stack.top().first;
-    if (fcheck_visited(expr)) {
+    if (fcheck_visited(node)) {
       // if this node was visited through another path
       // after being added to the stack ignore it.
       stack.pop();
