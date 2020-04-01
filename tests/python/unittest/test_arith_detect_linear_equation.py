@@ -45,7 +45,7 @@ def test_multivariate():
     v = [te.var("v%d" % i) for i in range(4)]
     b = te.var("b")
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8, v)
-    assert(tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.Simplify(m[0]), b + 5))
+    assert(tvm.tir.analysis.expr_deep_equal(tvm.tir.ir_pass.Simplify(m[0]), b + 5))
     assert(m[1].value == 8)
 
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8 * v[2], v)

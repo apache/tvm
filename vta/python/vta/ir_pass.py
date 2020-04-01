@@ -83,7 +83,7 @@ def fold_uop_loop(stmt_in):
                         fail[0] = True
                         return op
                     if gemm_offsets[i] is not None:
-                        if not tvm.tir.ir_pass.Equal(m[0], gemm_offsets[i]):
+                        if not tvm.ir.structural_equal(m[0], gemm_offsets[i]):
                             fail[0] = True
                             return op
                         args.append(m[1])
@@ -775,7 +775,7 @@ def inject_alu_intrin(stmt_in):
 
     def _do_fold(stmt):
         def _equal(x, y):
-            return tvm.tir.ir_pass.Equal(tvm.tir.ir_pass.Simplify(x - y), 0)
+            return tvm.ir.structural_equal(tvm.tir.ir_pass.Simplify(x - y), 0)
 
         def _flatten_loop(src_coeff, dst_coeff, extents):
             src_coeff = list(src_coeff)
@@ -895,9 +895,9 @@ def inject_alu_intrin(stmt_in):
                 lhs_equal = True
                 rhs_equal = True
                 for i, coef in enumerate(dst_coeff):
-                    if not tvm.tir.ir_pass.Equal(coef, src_lhs_coeff[i]):
+                    if not tvm.ir.structural_equal(coef, src_lhs_coeff[i]):
                         lhs_equal = False
-                    if not tvm.tir.ir_pass.Equal(coef, src_rhs_coeff[i]):
+                    if not tvm.ir.structural_equal(coef, src_rhs_coeff[i]):
                         rhs_equal = False
                 # Make sure at least one of the source is identical to the
                 # destination (in-place computation)
@@ -916,20 +916,20 @@ def inject_alu_intrin(stmt_in):
             assert len(src_coeff) > 1
             assert len(dst_coeff) > 1
             assert len(extents) != 0
-            assert tvm.tir.ir_pass.Equal(
+            assert tvm.ir.structural_equal(
                 tvm.tir.ir_pass.Simplify(
                     idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
-            assert tvm.tir.ir_pass.Equal(
+            assert tvm.ir.structural_equal(
                 tvm.tir.ir_pass.Simplify(
                     idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
-            assert tvm.tir.ir_pass.Equal(src_coeff[-2], 1)
-            assert tvm.tir.ir_pass.Equal(dst_coeff[-2], 1)
+            assert tvm.ir.structural_equal(src_coeff[-2], 1)
+            assert tvm.ir.structural_equal(dst_coeff[-2], 1)
             if env.BATCH > 1:
                 assert len(src_coeff) > 2
                 assert len(dst_coeff) > 2
                 assert len(extents) > 1
-                assert tvm.tir.ir_pass.Equal(src_coeff[-3], env.BLOCK_OUT)
-                assert tvm.tir.ir_pass.Equal(dst_coeff[-3], env.BLOCK_OUT)
+                assert tvm.ir.structural_equal(src_coeff[-3], env.BLOCK_OUT)
+                assert tvm.ir.structural_equal(dst_coeff[-3], env.BLOCK_OUT)
 
             # Apply tensorization of the loop coefficients
             src_offset = src_coeff[-1]

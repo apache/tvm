@@ -77,35 +77,6 @@ TVM_DLL PrimExpr CanonicalSimplify(PrimExpr expr,
                                    Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
- * \brief Deep compare lhs and rhs
- * \param lhs The left operand
- * \param rhs The right operand
- * \return The comparison result.
- */
-TVM_DLL bool Equal(const PrimExpr& lhs, const PrimExpr& rhs);
-
-/*!
- * \brief Deep compare lhs and rhs
- * \param lhs The left operand
- * \param rhs The right operand
- * \return The comparison result.
- */
-bool Equal(const Stmt& lhs, const Stmt& rhs);
-
-/*!
- * \brief Deep compare lhs and rhs.
- *
- *  If you only want equality comparison, use Equal
- *  which will also tie definitions. The compare mode
- *  will give order of expression in total order.
- *
- * \param lhs The left operand
- * \param rhs The right operand
- * \return The comparison result.
- */
-int Compare(const PrimExpr& lhs, const PrimExpr& rhs);
-
-/*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each VarExpr is defined and assigned once(in Let/For)
  *

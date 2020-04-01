@@ -27,40 +27,10 @@ def test_equal_expr():
     def func2():
         return te.exp(tvm.tir.truncdiv((x + y + 1) * y, 4))
 
-    assert tvm.tir.ir_pass.Equal(func1(), func1())
-    assert tvm.tir.ir_pass.Equal(func2(), func2())
-    assert not tvm.tir.ir_pass.Equal(func2(), func1())
-
-
-def test_equal_compute():
-    x = te.var('x')
-    y = te.var('y')
-    n = 128
-    A = te.placeholder((n, n), name='A')
-    B = te.placeholder((n, n), name='B')
-    ii = te.var('i')
-    jj = te.var('j')
-
-    def func1():
-        k = te.reduce_axis((0, n), name='k')
-        return te.sum(A[ii, k] * B[jj, k], axis=k)
-
-    Ab = tvm.tir.decl_buffer((n,), name='A')
-    n = te.var("n")
-    def func2():
-        ib = tvm.tir.ir_builder.create()
-        A = ib.buffer_ptr(Ab)
-        with ib.for_range(0, n, name="i") as i:
-            A[i] = A[i] + 1
-            with ib.for_range(0, 10, name="j") as j:
-                A[j] = A[j] + 2
-                A[j] = A[j] + 2
-        return ib.get()
-
-    assert tvm.tir.ir_pass.Equal(func1(), func1())
-    assert tvm.tir.ir_pass.Equal(func2(), func2())
+    assert tvm.tir.analysis.expr_deep_equal(func1(), func1())
+    assert tvm.tir.analysis.expr_deep_equal(func2(), func2())
+    assert not tvm.tir.analysis.expr_deep_equal(func2(), func1())
 
 
 if __name__ == "__main__":
     test_equal_expr()
-    test_equal_compute()

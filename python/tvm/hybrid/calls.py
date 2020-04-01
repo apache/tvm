@@ -22,7 +22,6 @@ import tvm.te
 from tvm.ir.container import Array
 from tvm import target as _tgt
 from tvm.tir import expr as _expr
-from tvm.tir import ir_pass
 from tvm.tir import call_pure_intrin
 from tvm.tir.stmt import For
 
@@ -47,7 +46,7 @@ def _range(annotation, args):
     else:
         _internal_assert(n == 2, "A loop intrinsic should only have 1 or 2 arguments!")
         low, ext = args[0], args[1]
-    if not ir_pass.Equal(low, const(0, dtype='int32')):
+    if not tvm.tir.analysis.expr_deep_equal(low, const(0, dtype='int32')):
         ext = ext - low
     for_type = LOOP_INTRIN[annotation]
     iter_var = None
