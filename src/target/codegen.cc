@@ -54,8 +54,6 @@ runtime::Module BuildForIRModule(const IRModule& module,
   return (*bf)(module, target->str());
 }
 
-
-
 // convert legacy LoweredFunc to PrimFunc.
 tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
   // remap args to attach type annotations.

@@ -408,8 +408,8 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
   bool update = args[3];
   CHECK(val->IsInstance<RelayExprNode>());
 
-  if (val->IsInstance<relay::FunctionNode>()) {
-    mod->Add(var, Downcast<relay::Function>(val), update);
+  if (val->IsInstance<BaseFuncNode>()) {
+    mod->Add(var, Downcast<BaseFunc>(val), update);
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = IRModule(make_object<IRModuleNode>(*mod.operator->()));
