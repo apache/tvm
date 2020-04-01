@@ -29,3 +29,40 @@ def CombineContextCall():
         The result pass
     """
     return _ffi_api.CombineContextCall()
+
+
+def LowerIntrin():
+    """Lower target specific intrinsic calls.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerIntrin()
+
+
+def LowerDeviceStorageAccessInfo():
+    """Lower attached storage access information on device.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+
+    Note
+    ----
+    Run this pass after all storage access analysis finish.
+    """
+    return _ffi_api.LowerDeviceStorageAccessInfo()
+
+
+def LowerWarpMemory():
+    """Lower warp memory access to low-level device related function calls.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerWarpMemory()
