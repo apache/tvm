@@ -118,7 +118,7 @@ set(USE_MICRO_STANDALONE_RUNTIME OFF)
 # - ON: enable llvm with cmake's find search
 # - OFF: disable llvm
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM OFF)
+set(USE_LLVM ON)
 
 #---------------------------------------------
 # Contrib libraries
@@ -203,4 +203,5 @@ set(USE_VTA_FPGA OFF)
 set(USE_EXAMPLE_EXT_RUNTIME OFF)
 
 # Whether to build the TensorFlow TVMDSOOp module
-set(USE_TF_TVMDSOOP OFF)
+set(USE_TF_TVMDSOOP ON)
+
