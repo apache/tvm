@@ -45,6 +45,16 @@ def _none():
         return None
     return _impl
 
+def _reshape():
+    def _impl(inputs, func):
+        if hasattr(func, 'shape'):
+            return _op.reshape(inputs[0], func.shape)
+        else:
+            #TODO
+            raise NotImplementedError("Yet to support dynamic input case")
+            #return _op.reshape(inputs[0], inputs[1])
+    return _impl
+
 def _concat():
     def _impl(inputs, func):
         return _op.concatenate(inputs, axis=func.axis)
@@ -98,7 +108,7 @@ CHAINER_OP_TVM_OP_MAP = {
     "Concat"                               : _concat(),
     "Softmax"                              : _none(),
     "Sigmoid"                              : _none(),
-    "Reshape"                              : _none(),
+    "Reshape"                              : _reshape(),
 }
 
 def get_array(parameter):

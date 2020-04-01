@@ -108,14 +108,33 @@ def test_forward_conv():
                   'kwargs': {}}, #TestCase-2
                  {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
                   'args': [None, 3, 3, 1, 1],
-                  'kwargs': {'groups': 3}}] #TestCase-1
+                  'kwargs': {'groups': 3}}] #TestCase-3
 
     for test in test_sets:
         input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
         verify_model(Link(test['args'], test['kwargs']), [input_data])
+
+def test_forward_reshape():
+    class Link(chainer.Chain):
+        def __init__(self, args):
+            super(Link, self).__init__()
+            self.args = args
+        def forward(self, x):
+            return F.reshape(x, **self.args)
+
+    # reshape(input, new_shape)
+    test_sets = [{'in_shape': (1, 6), 'in_type': np.float32,
+                  'args': {'shape': (1, 2, 1, 3)}}, #TestCase-1
+                 {'in_shape': (1, 3, 7, 7), 'in_type': np.float32,
+                  'args': {'shape': (1, -1)}}] #TestCase-2
+
+    for test in test_sets:
+        input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
+        verify_model(Link(test['args']), [input_data])
 
 if __name__ == "__main__":
     # Single operator tests
     test_forward_relu()
     test_forward_concat()
     test_forward_conv()
+    test_forward_reshape()
