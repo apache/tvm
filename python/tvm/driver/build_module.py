@@ -222,6 +222,15 @@ def _build_for_device(flist, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
+    @tvm.tir.transform.prim_func_pass(opt_level=0)
+    class BindTarget:
+        def __init__(self, target):
+            self.target = target
+
+        # pylint: disable=unused-argument
+        def transform_function(self, func, mod, ctx):
+            return func.with_attr("target", self.target)
+
     target = _target.create(target)
     device_type = ndarray.context(target.target_name, 0).device_type
     fhost = []
@@ -250,30 +259,39 @@ def _build_for_device(flist, target, target_host):
         else:
             raise ValueError("unknown function type %d" % func.func_type)
 
-    for i, func in enumerate(fdevice):
-        warp_size = target.thread_warp_size
-        fdevice[i] = ir_pass.LowerWarpMemory(func, warp_size)
-
     if "gpu" in target.keys and not fdevice:
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do "
             "bind?" % target)
 
     fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
-    fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
 
     if device_type == ndarray.cpu(0).device_type and target_host == target:
         assert not fdevice
 
     target_host = _target.create(target_host)
-    fdevice = [ir_pass.LowerDeviceStorageAccessInfo(x) for x in fdevice]
-    fhost = [ir_pass.LowerDeviceStorageAccessInfo(x) for x in fhost]
-    fdevice = [ir_pass.LowerIntrin(x, target.target_name) for x in fdevice]
-    fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
-    fhost = [ir_pass.CombineContextCall(x) for x in fhost]
-    mdev = codegen.build_module(fdevice, str(target)) if fdevice else None
 
-    return fhost, mdev
+    # device optimizations
+    mod_dev = tvm.testing.LoweredFuncsToIRModule(fdevice)
+    opt_device = tvm.ir.transform.Sequential(
+        [BindTarget(target),
+         tvm.tir.transform.LowerWarpMemory(),
+         tvm.tir.transform.LowerDeviceStorageAccessInfo(),
+         tvm.tir.transform.LowerIntrin()])
+    mod_dev = opt_device(mod_dev)
+
+    # host optimizations
+    mod_host = tvm.testing.LoweredFuncsToIRModule(fhost)
+    opt_host = tvm.ir.transform.Sequential(
+        [BindTarget(target_host),
+         tvm.tir.transform.LowerTVMBuiltin(),
+         tvm.tir.transform.LowerDeviceStorageAccessInfo(),
+         tvm.tir.transform.LowerIntrin(),
+         tvm.tir.transform.CombineContextCall()])
+    mod_host = opt_host(mod_host)
+
+    rt_mod_dev = codegen.build_module(mod_dev, target) if fdevice else None
+    return mod_host, rt_mod_dev
 
 
 def build(inputs,
@@ -402,19 +420,19 @@ def build(inputs,
     if not target_host:
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
-    fhost_all = []
+    mod_host_all = tvm.IRModule({})
+
     device_modules = []
     for tar, flist in target_flist.items():
-        fhost, mdev = _build_for_device(flist, tar, target_host)
-        # Save the current lowered functions of the host and the device module.
-        fhost_all += fhost
+        mod_host, mdev = _build_for_device(flist, tar, target_host)
+        mod_host_all.update(mod_host)
         device_modules.append(mdev)
 
     # Generate a unified host module.
-    mhost = codegen.build_module(fhost_all, str(target_host))
+    rt_mod_host = codegen.build_module(mod_host_all, target_host)
 
     # Import all modules.
     for mdev in device_modules:
         if mdev:
-            mhost.import_module(mdev)
-    return mhost
+            rt_mod_host.import_module(mdev)
+    return rt_mod_host

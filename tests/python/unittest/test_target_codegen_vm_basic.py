@@ -22,7 +22,7 @@ def run_jit(fapi, check):
     for target in ["llvm", "stackvm"]:
         if not tvm.runtime.enabled(target):
             continue
-        f = tvm.target.codegen.build_module(fapi, target)
+        f = tvm.driver.build(fapi, target=target)
         s = f.get_source()
         check(f)
 
@@ -37,8 +37,6 @@ def test_stack_vm_basic():
     Ab = tvm.tir.decl_buffer((n, ), "float32")
     stmt = tvm.tir.Evaluate(tvm.tir.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
     fapi = tvm.tir.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    fapi = tvm.tir.ir_pass.LowerIntrin(fapi, "stackvm")
     run_jit(fapi, lambda f: f(a))
 
 
@@ -60,7 +58,6 @@ def test_stack_vm_loop():
 
     stmt = ib.get()
     fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     def check(f):
         f(a)
@@ -83,7 +80,6 @@ def test_stack_vm_cond():
 
     stmt = ib.get()
     fapi = tvm.tir.ir_pass.MakeAPI(stmt, "test", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)
@@ -103,7 +99,6 @@ def test_vm_parallel():
         A[i] = A[i] + 1
     stmt = ib.get()
     fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)

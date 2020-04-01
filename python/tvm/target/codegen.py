@@ -17,15 +17,16 @@
 # under the License.
 """Code generation related functions."""
 from . import _ffi_api
+from . import target as _tgt
 
 
-def build_module(lowered_func, target):
-    """Build lowered_func into Module.
+def build_module(mod, target):
+    """Build IRModule into Module.
 
     Parameters
     ----------
-    lowered_func : LoweredFunc
-        The lowered function
+    mod : tvm.IRModule
+        The ir module.
 
     target : str
         The target module type.
@@ -35,7 +36,8 @@ def build_module(lowered_func, target):
     module : runtime.Module
         The corressponding module.
     """
-    return _ffi_api.Build(lowered_func, target)
+    target = _tgt.create(target) if isinstance(target, str) else target
+    return _ffi_api.Build(mod, target)
 
 
 def llvm_lookup_intrinsic_id(name):
