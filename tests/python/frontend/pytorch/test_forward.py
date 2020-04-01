@@ -512,6 +512,15 @@ def test_forward_batchnorm():
         verify_model(bn.eval(), input_data=inp)
 
 
+def test_forward_instancenorm():
+    inp_2d = torch.rand((1, 16, 10, 10))
+    inp_3d = torch.rand((1, 16, 10, 10, 10))
+
+    for ins_norm, inp in [(torch.nn.InstanceNorm2d(16), inp_2d),
+                          (torch.nn.InstanceNorm3d(16), inp_3d)]:
+        verify_model(ins_norm.eval(), input_data=inp)
+
+
 def test_forward_transpose():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -619,13 +628,11 @@ def test_forward_dense():
 def test_forward_dropout():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class Dropout1(Module):
-        def forward(self, *args):
-            return torch.nn.functional.dropout(args[0][0, 0], 0.5, False)
-
     input_data = torch.rand(input_shape).float()
-    verify_model(Dropout1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Dropout(p=0.5).eval(), input_data=input_data[0, 0])
+    verify_model(torch.nn.Dropout2d(p=0.5).eval(), input_data=input_data[0])
+    verify_model(torch.nn.Dropout3d(p=0.5).eval(), input_data=input_data)
+    verify_model(torch.nn.AlphaDropout(p=0.5).eval(), input_data=input_data[0, 0])
 
 def test_forward_slice():
     torch.set_grad_enabled(False)
@@ -1080,6 +1087,7 @@ if __name__ == "__main__":
     test_forward_threshold()
     test_forward_contiguous()
     test_forward_batchnorm()
+    test_forward_instancenorm()
     test_forward_transpose()
     test_forward_size()
     test_forward_view()
