@@ -30,10 +30,10 @@
  * as external functions.
  */
 
+#include <tvm/ir/error.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/attrs/annotation.h>
 #include <tvm/relay/expr.h>
-#include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
@@ -43,7 +43,6 @@
 #include <vector>
 
 #include "../analysis/annotated_region_set.h"
-
 
 namespace tvm {
 namespace relay {
@@ -63,7 +62,7 @@ static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 class AnnotateRestDefault : public ExprMutator {
  public:
   explicit AnnotateRestDefault(const Expr& expr) {
-      regions_ = AnnotatedRegionSet::Create(expr, compiler_begin_op, compiler_end_op);
+    regions_ = AnnotatedRegionSet::Create(expr, compiler_begin_op, compiler_end_op);
   }
 
   Expr Annotate(const Expr& expr) {
@@ -78,8 +77,7 @@ class AnnotateRestDefault : public ExprMutator {
       func_ = Downcast<Function>(mutated_expr);
       // CC1 : add that compiler end after mutation
       auto body = InsertEnd(func_->body);
-      func_ = Function(func_->params, body,
-                       body->checked_type_, {}, DictAttrs());
+      func_ = Function(func_->params, body, body->checked_type_, {}, DictAttrs());
       return Downcast<Expr>(func_);
     }
     return mutated_expr;
@@ -91,10 +89,9 @@ class AnnotateRestDefault : public ExprMutator {
    * \return expr The expression with or without a compiler end added.
    */
   Expr InsertEnd(const Expr& expr) {
-    if (annotated_nodes_.find(expr) == annotated_nodes_.end() &&
-        !expr->IsInstance<VarNode>() && !expr->IsInstance<ConstantNode>()) {
-      const auto *end_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+    if (annotated_nodes_.find(expr) == annotated_nodes_.end() && !expr->IsInstance<VarNode>() &&
+        !expr->IsInstance<ConstantNode>()) {
+      const auto* end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
       CHECK(end_op);
       Expr end = (*end_op)(expr, target_);
       return end;
@@ -103,13 +100,12 @@ class AnnotateRestDefault : public ExprMutator {
   }
 
   /*! \brief This function adds compiler begins to nodes that
- * don't belong to a region already (default).
- * \param expr The expression to add a compiler begin to.
- * \return expr The expression with or without a compiler begin added.
- */
+   * don't belong to a region already (default).
+   * \param expr The expression to add a compiler begin to.
+   * \return expr The expression with or without a compiler begin added.
+   */
   Expr InsertBegin(const Expr& expr) {
-    const auto *begin_op =
-      runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
+    const auto* begin_op = runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
     CHECK(begin_op);
     Expr begin = (*begin_op)(expr, target_);
     annotated_nodes_.insert(begin);
@@ -120,7 +116,6 @@ class AnnotateRestDefault : public ExprMutator {
     auto region = regions_->GetRegion(GetRef<Call>(cn));
     auto new_e = ExprMutator::VisitExpr_(cn);
     Call call = Downcast<Call>(new_e);
-
 
     // Add compiler ends if the parent isn't annotated
     Array<Expr> args;
@@ -144,7 +139,7 @@ class AnnotateRestDefault : public ExprMutator {
     return updated_call;
   };
 
-  Expr VisitExpr_(const TupleNode *op) {
+  Expr VisitExpr_(const TupleNode* op) {
     auto region = regions_->GetRegion(GetRef<Tuple>(op));
     auto new_e = ExprMutator::VisitExpr_(op);
     Tuple tup = Downcast<Tuple>(new_e);
@@ -167,7 +162,7 @@ class AnnotateRestDefault : public ExprMutator {
     return updated_tuple;
   }
 
-  Expr VisitExpr_(const TupleGetItemNode *op) {
+  Expr VisitExpr_(const TupleGetItemNode* op) {
     auto region = regions_->GetRegion(GetRef<TupleGetItem>(op));
     auto new_e = ExprMutator::VisitExpr_(op);
     auto get = Downcast<TupleGetItem>(new_e);
@@ -182,60 +177,51 @@ class AnnotateRestDefault : public ExprMutator {
     return updated_get;
   }
 
-  Expr VisitExpr_(const IfNode *op) {
+  Expr VisitExpr_(const IfNode* op) {
     auto region = regions_->GetRegion(GetRef<If>(op));
     auto new_e = ExprMutator::VisitExpr_(op);
     auto iff = Downcast<If>(new_e);
 
     if (!region.defined()) {
-      return If(
-        InsertBegin(InsertEnd(iff->cond)),
-        InsertBegin(InsertEnd(iff->true_branch)),
-        InsertBegin(InsertEnd(iff->false_branch)));
+      return If(InsertBegin(InsertEnd(iff->cond)), InsertBegin(InsertEnd(iff->true_branch)),
+                InsertBegin(InsertEnd(iff->false_branch)));
     } else {
-      Expr updated_iff = If(
-        InsertEnd(iff->cond),
-        InsertEnd(iff->true_branch),
-        InsertEnd(iff->false_branch));
+      Expr updated_iff =
+          If(InsertEnd(iff->cond), InsertEnd(iff->true_branch), InsertEnd(iff->false_branch));
       annotated_nodes_.insert(updated_iff);
       return updated_iff;
     }
   }
 
-  Expr VisitExpr_(const LetNode *op) {
+  Expr VisitExpr_(const LetNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto let = Downcast<Let>(new_e);
-    return Let(
-      let->var,
-      InsertEnd(let->value),
-      InsertEnd(let->body));
+    return Let(let->var, InsertEnd(let->value), InsertEnd(let->body));
   }
 
-  Expr VisitExpr_(const RefCreateNode *op) {
+  Expr VisitExpr_(const RefCreateNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto create = Downcast<RefCreate>(new_e);
     return RefCreate(InsertEnd(create->value));
   }
 
-  Expr VisitExpr_(const RefReadNode *op) {
+  Expr VisitExpr_(const RefReadNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto read = Downcast<RefRead>(new_e);
     return RefRead(InsertEnd(read->ref));
   }
 
-  Expr VisitExpr_(const RefWriteNode *op) {
+  Expr VisitExpr_(const RefWriteNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto write = Downcast<RefWrite>(new_e);
-    return RefWrite(
-      InsertEnd(write->ref),
-      InsertEnd(write->value));
+    return RefWrite(InsertEnd(write->ref), InsertEnd(write->value));
   }
 
  private:
-    AnnotatedRegionSet regions_;
-    const std::string target_ = "default";
-    Function func_;
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> annotated_nodes_;
+  AnnotatedRegionSet regions_;
+  const std::string target_ = "default";
+  Function func_;
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> annotated_nodes_;
 };
 
 class MergeAnnotations : public ExprMutator {
@@ -307,8 +293,7 @@ class RegionMerger : public ExprVisitor {
       for (const auto& parent_region : mergeable_regions) {
         // add all the parent restrictions to the current region
         auto parent_restrictions = region_restrictions_[parent_region->GetID()];
-        region_restrictions.insert(parent_restrictions.begin(),
-                                     parent_restrictions.end());
+        region_restrictions.insert(parent_restrictions.begin(), parent_restrictions.end());
       }
       for (const auto& parent_region : mergeable_regions) {
         bool merged = false;
@@ -318,7 +303,8 @@ class RegionMerger : public ExprVisitor {
           if (region_restrictions.find(parent_region->GetID()) == region_restrictions.end()) {
             // merge the parent region into the current region
             regions_->MergeRegions(parent_region, region);
-            // update the restrictions of all other regions to reflect the change in id
+            // update the restrictions of all other regions to reflect the
+            // change in id
             for (const auto& r : regions_) {
               auto& restrictions = region_restrictions_[r->GetID()];
               if (restrictions.find(parent_region->GetID()) != restrictions.end()) {
@@ -329,9 +315,9 @@ class RegionMerger : public ExprVisitor {
             merged = true;
           }
         }
-        // if the parent wasn't merged, add it as a restriction to the current region
-        if (!merged)
-          region_restrictions.insert(parent_region->GetID());
+        // if the parent wasn't merged, add it as a restriction to the current
+        // region
+        if (!merged) region_restrictions.insert(parent_region->GetID());
       }
       merged_regions_.insert(region->GetID());
     }
@@ -345,15 +331,14 @@ class RegionMerger : public ExprVisitor {
   std::map<int, std::string> region_targets_;
 };
 
-
 Expr MergeCompilerRegions(const Expr& expr) {
   // Annotate all the nodes that aren't annotated as 'default'.
   AnnotateRestDefault anno_default(expr);
   auto expr_all_annotated = anno_default.Annotate(expr);
 
   // Create regions using the annotations.
-  AnnotatedRegionSet regions = AnnotatedRegionSet::Create(expr_all_annotated,
-                                                          compiler_begin_op, compiler_end_op);
+  AnnotatedRegionSet regions =
+      AnnotatedRegionSet::Create(expr_all_annotated, compiler_begin_op, compiler_end_op);
 
   // By now, all the nodes have some sort of annotation.
   // Region merger is an ExprVisitor that will update the
@@ -381,7 +366,7 @@ Pass MergeCompilerRegions() {
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.MergeCompilerRegions")
-.set_body_typed(transform::MergeCompilerRegions);
+    .set_body_typed(transform::MergeCompilerRegions);
 
 }  // namespace transform
 
