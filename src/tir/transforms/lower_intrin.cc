@@ -23,11 +23,12 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/runtime/registry.h>
 
 #include <tvm/tir/op.h>
+#include <tvm/target/target.h>
 #include <unordered_set>
-#include "ir_util.h"
 #include "../../arith/pattern_match.h"
 #include "../../arith/ir_mutator_with_analyzer.h"
 
@@ -39,15 +40,12 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
   using IRMutatorWithAnalyzer::VisitExpr_;
 
-  IntrinInjecter(arith::Analyzer* analyzer, std::string target)
+  IntrinInjecter(arith::Analyzer* analyzer, std::string target_name)
       : IRMutatorWithAnalyzer(analyzer) {
-    std::istringstream is(target);
-    std::string starget;
-    is >> starget;
-    patterns_.push_back("tvm.intrin.rule." + starget + ".");
+    patterns_.push_back("tvm.intrin.rule." + target_name + ".");
     patterns_.push_back("tvm.intrin.rule.default.");
     fma_ = runtime::Registry::Get(patterns_[0] + "fma");
-    if (target == "stackvm") {
+    if (target_name == "stackvm") {
       support_bitwise_op_ = false;
     }
   }
@@ -280,21 +278,41 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   bool support_bitwise_op_{true};
 };
 
-Stmt LowerIntrinStmt(Stmt stmt, const std::string& target) {
+Stmt LowerIntrinStmt(Stmt stmt, const std::string target_name) {
   arith::Analyzer analyzer;
-  return IntrinInjecter(&analyzer, target)(std::move(stmt));
+  return IntrinInjecter(&analyzer, target_name)(std::move(stmt));
 }
 
 LoweredFunc
 LowerIntrin(LoweredFunc f, const std::string& target) {
   auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = LowerIntrinStmt(n->body, target);
+  std::istringstream is(target);
+  std::string target_name;
+  is >> target_name;
+  n->body = LowerIntrinStmt(n->body, target_name);
   return LoweredFunc(n);
 }
 
-// Register the api only for test purposes
-TVM_REGISTER_GLOBAL("ir_pass._LowerIntrinStmt")
-.set_body_typed(LowerIntrinStmt);
+namespace transform {
+
+Pass LowerIntrin() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    CHECK(target.defined())
+        << "LowerIntrin: Require the target attribute";
+    arith::Analyzer analyzer;
+    n->body =
+        IntrinInjecter(&analyzer, target->target_name)(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.LowerIntrin")
+.set_body_typed(LowerIntrin);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

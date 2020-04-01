@@ -126,7 +126,7 @@ Pass CombineContextCall() {
     n->body = ContextCallCombiner().Combine(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "CombineContextCall", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.CombineContextCall", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.CombineContextCall")

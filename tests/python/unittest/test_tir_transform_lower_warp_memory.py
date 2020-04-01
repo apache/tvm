@@ -24,18 +24,26 @@ def test_lower_warp_mem():
 
     s = te.create_schedule(B.op)
     AA = s.cache_read(A, "warp", [B])
-    xo, xi = s[B].split(B.op.axis[0], 32)
-    xi0, xi1 = s[B].split(xi, factor=16)
+    xo, xi = s[B].split(B.op.axis[0], 64)
+    xi0, xi1 = s[B].split(xi, factor=32)
     tx = te.thread_axis("threadIdx.x")
     s[B].bind(xi1, tx)
     s[B].bind(xo, te.thread_axis("blockIdx.x"))
     s[AA].compute_at(s[B], xo)
-    xo, xi = s[AA].split(s[AA].op.axis[0], 16)
+    xo, xi = s[AA].split(s[AA].op.axis[0], 32)
     s[AA].bind(xi, tx)
 
     f = tvm.lower(s, [A, B])
     fhost, fdevice = tvm.tir.ir_pass.SplitHostDevice(f)
-    fdevice = tvm.tir.ir_pass.LowerWarpMemory(fdevice, 16)
+
+    # temp adapter to convert loweredFunc to IRModule
+    # to test passes in the new style.
+    fname = fdevice.name
+    mod = tvm.testing.LoweredFuncsToIRModule([fdevice])
+    cuda_target = tvm.target.create("cuda")
+    assert cuda_target.thread_warp_size == 32
+    mod = tvm.IRModule.from_expr(mod[fname].with_attr("target", cuda_target))
+    fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["main"]
     assert(fdevice.body.body.value.value == "local")
     assert(fdevice.body.body.body.extents[0].value == 2)
 
