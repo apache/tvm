@@ -56,10 +56,39 @@ def _relu():
         return _op.nn.relu(data)
     return _impl
 
+def _conv():
+    def _impl(inputs, func):
+        #TODO: Map layouts
+        #TODO: Check for all possible input combinations
+        # for stride, pads, dilation, groups, channels, kernel_size
+        data_layout = "NCHW"
+        kernel_layout = "OIHW"
+
+        conv_out = _op.nn.conv2d(inputs[0],
+                   inputs[1],
+                   strides=(func.sy, func.sx),
+                   padding=(func.ph, func.pw, func.ph, func.pw),
+                   dilation=(func.dy, func.dx),
+                   groups=func.groups,
+                   channels=func.inputs[1].shape[0],
+                   kernel_size=func.inputs[1].shape[2:],
+                   data_layout=data_layout,
+                   kernel_layout=kernel_layout,
+                   out_layout="",
+                   out_dtype="")
+
+        use_bias = len(inputs) == 3
+
+        if use_bias:
+            return _op.nn.bias_add(conv_out, inputs[2])
+        else:
+            return conv_out
+    return _impl
+
 # Chainer Op --> TVM Op Map
 CHAINER_OP_TVM_OP_MAP = {
     "LinearFunction"                       : _none(),
-    "Convolution2DFunction"                : _none(),
+    "Convolution2DFunction"                : _conv(),
     "Deconvolution2DFunction"              : _none(),
     "AveragePooling2D"                     : _none(),
     "MaxPoolingND"                         : _none(),
@@ -103,7 +132,6 @@ class VariableStore(object):
     """
     def __init__(self, model):
         self.name_list = dict()
-        self.tvmparams = {}
         self.params = {}
         self.nodes = {}
         for name, param in model.namedparams():
@@ -291,7 +319,7 @@ class ChainerTVMBridge(object):
             outputs = out[0]
 
         sym = _function.Function(analysis.free_vars(outputs), outputs)
-        return IRModule.from_expr(sym), self._datastore.tvmparams
+        return IRModule.from_expr(sym), self._datastore.params
 
 
 def from_chainer(model, input_shapes, dtype="float32"):

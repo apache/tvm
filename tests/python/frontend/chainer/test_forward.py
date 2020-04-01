@@ -21,6 +21,7 @@ import sys
 from scipy.stats import t as tdistr
 import numpy as np
 import chainer
+from chainer import function
 import chainer.functions as F
 import chainer.links as L
 
@@ -45,10 +46,11 @@ def verify_model(model, input_data, ctxl=ctx_list()):
         input_names.append(input_name)
 
     # Run Chainer Model for the input
-    if len(input_vars) > 1:
-        baseline_outputs = model(input_vars).data
-    else:
-        baseline_outputs = model(*input_vars).data
+    with function.force_backprop_mode(), chainer.using_config('train', False):
+        if len(input_vars) > 1:
+            baseline_outputs = model(input_vars).data
+        else:
+            baseline_outputs = model(*input_vars).data
 
     # Convert Chainer model to TVM and get the output
     mod, params = relay.frontend.from_chainer(model, shape_dict, dtype_dict)
@@ -91,7 +93,32 @@ def test_forward_concat():
     verify_model(Link_0(), [input_data_0, input_data_1])
     verify_model(Link_1(), [input_data_0, input_data_1])
 
+def test_forward_conv():
+    class Link(chainer.Chain):
+        def __init__(self, args, kwargs):
+            super(Link, self).__init__()
+            with self.init_scope():
+                self.l1 = L.Convolution2D(*args, **kwargs)
+        def forward(self, x):
+            return self.l1(x)
+
+    # Convolution2D(in_channels, out_channels, ksize, stride, pad, groups, dilation)
+    test_sets = [{'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
+     'args': [None, 3, 3, 1, 1],
+     'kwargs': {}}, #TestCase-1
+    {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
+     'args': [None, 3, 3, 1, 2, True],
+     'kwargs': {}}, #TestCase-2
+    {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
+     'args': [None, 3, 3, 1, 1],
+     'kwargs': {'groups': 3}}] #TestCase-1
+
+    for test in test_sets:
+        input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
+        verify_model(Link(test['args'], test['kwargs']), [input_data])
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_relu()
     test_forward_concat()
+    test_forward_conv()
