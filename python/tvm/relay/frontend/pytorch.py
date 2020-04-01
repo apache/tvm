@@ -193,6 +193,33 @@ def _relu():
         return _op.nn.relu(data)
     return _impl
 
+def _prelu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = inputs[1]
+        return _op.nn.prelu(data, alpha)
+    return _impl
+
+def _leaky_relu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = int(inputs[1])
+        return _op.nn.leaky_relu(data, alpha)
+    return _impl
+
+def _elu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = _expr.const(int(inputs[1]), dtype='float32')
+        return alpha * _op.nn.relu(alpha - _op.exp(data)) + _op.nn.relu(data)
+    return _impl
+
+def _log_sigmoid():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.log(_op.tensor.sigmoid(data))
+    return _impl
+
 def _adaptive_avg_pool_2d():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -921,6 +948,10 @@ _convert_map = {
     "aten::select"                          : _select(),
     "aten::relu"                            : _relu(),
     "aten::relu_"                           : _relu(),
+    "aten::prelu"                           : _prelu(),
+    "aten::leaky_relu"                      : _leaky_relu(),
+    "aten::elu"                             : _elu(),
+    "aten::log_sigmoid"                     : _log_sigmoid(),
     "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
     "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
     "aten::max_pool2d"                      : _maxpool_2d(),
