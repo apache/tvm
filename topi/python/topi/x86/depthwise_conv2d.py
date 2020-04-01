@@ -261,12 +261,12 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data_vec, kernel_vec, conv_out
 
 @depthwise_conv2d_infer_layout.register("cpu")
 def _depthwise_conv2d_infer_layout(workload, cfg):
-    _, data, kernel, strides, padding, dilation, dtype = workload
+    _, data, kernel, strides, padding, dilation, _, _, dtype = workload
     batch_size, in_channel, in_height, in_width = data[1]
     filter_channel, channel_multiplier, k_height, k_width = kernel[1]
     out_channel = filter_channel * channel_multiplier
-    out_height = (in_height + 2 * padding[0] - k_height) // strides[0] + 1
-    out_width = (in_width + 2 * padding[1] - k_width) // strides[1] + 1
+    out_height = (in_height + padding[0] + padding[2] - k_height) // strides[0] + 1
+    out_width = (in_width + padding[1] + padding[3] - k_width) // strides[1] + 1
     tile_ic, tile_oc = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     in_shape = (batch_size, in_channel // tile_ic, in_height, in_width, tile_ic)
     in_layout = "NCHW%dc" % tile_ic
