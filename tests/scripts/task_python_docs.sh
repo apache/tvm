@@ -39,6 +39,7 @@ cd ..
 
 rm -rf _docs
 mv docs/_build/html _docs
+rm -f _docs/.buildinfo
 
 # C++ doc
 make doc
