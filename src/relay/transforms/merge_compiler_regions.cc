@@ -182,6 +182,26 @@ class AnnotateRestDefault : public ExprMutator {
     return updated_get;
   }
 
+  Expr VisitExpr_(const IfNode *op) {
+    auto region = regions_->GetRegion(GetRef<If>(op));
+    auto new_e = ExprMutator::VisitExpr_(op);
+    auto iff = Downcast<If>(new_e);
+
+    if (!region.defined()) {
+      return If(
+        InsertBegin(InsertEnd(iff->cond)),
+        InsertBegin(InsertEnd(iff->true_branch)),
+        InsertBegin(InsertEnd(iff->false_branch)));
+    } else {
+      Expr updated_iff = If(
+        InsertEnd(iff->cond),
+        InsertEnd(iff->true_branch),
+        InsertEnd(iff->false_branch));
+      annotated_nodes_.insert(updated_iff);
+      return updated_iff;
+    }
+  }
+
   Expr VisitExpr_(const LetNode *op) {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto let = Downcast<Let>(new_e);
@@ -189,15 +209,6 @@ class AnnotateRestDefault : public ExprMutator {
       let->var,
       InsertEnd(let->value),
       InsertEnd(let->body));
-  }
-
-  Expr VisitExpr_(const IfNode *op) {
-    auto new_e = ExprMutator::VisitExpr_(op);
-    auto iff = Downcast<If>(new_e);
-    return If(
-      InsertEnd(iff->cond),
-      InsertEnd(iff->true_branch),
-      InsertEnd(iff->false_branch));
   }
 
   Expr VisitExpr_(const RefCreateNode *op) {
