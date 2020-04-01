@@ -27,6 +27,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/function.h>
+#include <tvm/runtime/container.h>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -69,10 +70,9 @@ class CSourceModuleCodegenBase {
    */
   std::string GetExtSymbol(const Function& func) const {
     const auto name_node =
-        func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
+        func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
     CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
-    std::string ext_symbol = name_node->value;
-    return ext_symbol;
+    return std::string(name_node);
   }
 };
 
