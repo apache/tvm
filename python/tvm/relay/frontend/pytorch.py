@@ -442,6 +442,36 @@ def _batch_norm():
                                  scale=scale)[0]
     return _impl
 
+def _instance_norm():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        data_type = input_types[0]
+        channels = _infer_shape(data)
+
+        if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
+            scale = center = True
+            weight = inputs[1]
+            beta = inputs[2]
+            gamma = weight
+        else:
+            scale = center = False
+
+        if not scale:
+            gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
+
+        if not center:
+            beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
+
+        epsilon = float(inputs[7])
+        return _op.nn.instance_norm(data,
+                                    gamma,
+                                    beta,
+                                    axis=1,
+                                    epsilon=epsilon,
+                                    center=center,
+                                    scale=scale)
+    return _impl
+
 def _transpose():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -965,6 +995,7 @@ _convert_map = {
     "aten::threshold_"                      : _threshold(),
     "aten::contiguous"                      : _contiguous(),
     "aten::batch_norm"                      : _batch_norm(),
+    "aten::instance_norm"                   : _instance_norm(),
     "aten::transpose"                       : _transpose(),
     "aten::transpose_"                      : _transpose(),
     "aten::t"                               : _transpose(),
@@ -978,6 +1009,8 @@ _convert_map = {
     "aten::avg_pool2d"                      : _avg_pool2d(),
     "aten::dropout"                         : _dropout(),
     "aten::dropout_"                        : _dropout(),
+    "aten::feature_dropout"                 : _dropout(),
+    "aten::alpha_dropout"                   : _dropout(),
     "aten::mean"                            : _mean(),
     "aten::chunk"                           : _chunk(),
     "aten::matmul"                          : _matmul(),
