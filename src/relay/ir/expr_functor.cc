@@ -36,7 +36,7 @@ namespace relay {
 /*!
  * \brief A function to iteratively traverse dataflow regions of a graph
  *
- * ExpandDatflow manually manages a stack and performs DFS to determine the processing
+ * ExpandDataflow manually manages a stack and performs DFS to determine the processing
  * order of nodes in an input graph.
  *
  * If it finds a dataflow node (Call, Tuple, TupleGetItem), it checks if the arguments to that node
@@ -142,7 +142,7 @@ void DataflowVisitor::VisitExpr_(const TupleGetItemNode* op) {}
 
 void ScopeMutator::VisitLeaf(const Expr& expr) {
   if (!memo_.count(expr)) {
-    this->VisitExpr(expr);
+    this->DispatchVisitExpr(expr);
   }
 }
 
@@ -154,23 +154,27 @@ bool ScopeMutator::CheckVisited(const Expr& expr) {
   }
 }
 
-Expr ScopeMutator::Mutate(const Expr& expr) {
+Expr ScopeMutator::DispatchVisitExpr(const Expr& expr) {
+  return ExprMutator::VisitExpr(expr);
+}
+
+Expr ScopeMutator::VisitExpr(const Expr& expr) {
   auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
   auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
   if (memo_.count(expr)) {
     return memo_[expr];
   } else {
     ExpandDataflow(expr, fcheck_visited, fvisit_leaf);
-    Expr ret = this->VisitExpr(expr);
+    Expr ret = this->DispatchVisitExpr(expr);
     memo_[expr] = ret;
     return ret;
   }
 }
 
-class PostOrderRewriter : protected ScopeMutator {
+class PostOrderRewriter : public ScopeMutator {
  public:
   explicit PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
-  Expr VisitExpr(const Expr& expr) final {
+  Expr DispatchVisitExpr(const Expr& expr) final {
     auto post = ExprFunctor::VisitExpr(expr);
     return rewriter_->Rewrite(expr, post);
   }

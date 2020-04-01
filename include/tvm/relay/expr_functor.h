@@ -196,7 +196,7 @@ class ExprMutator
    * \brief Mutate is alias for VisitExpr
    * \return expr.
    */
-  virtual Expr Mutate(const Expr& expr) {
+  Expr Mutate(const Expr& expr) {
     return this->VisitExpr(expr);
   }
   Expr VisitExpr(const Expr& expr) override;
@@ -243,6 +243,10 @@ class ExprMutator
  */
 class DataflowVisitor : public ::tvm::relay::ExprVisitor {
  public:
+  /*! \brief The constructor of DataflowVisitor
+   *  \param visit_limit The number of times to allow visitation to a note. Usually 1, ocassionally
+   * higher (i.e., 2 for dead code elimiation), limited to 10 as a sanity check.
+   */
   DataflowVisitor(int visit_limit = 1);
 
   /*!
@@ -252,7 +256,6 @@ class DataflowVisitor : public ::tvm::relay::ExprVisitor {
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const TupleNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
-
 
  protected:
   /*!
@@ -284,7 +287,8 @@ class DataflowVisitor : public ::tvm::relay::ExprVisitor {
  */
 class ScopeMutator : public ::tvm::relay::ExprMutator {
  public:
-  Expr Mutate(const Expr& expr) final;
+  Expr VisitExpr(const Expr& expr) final;
+  virtual Expr DispatchVisitExpr(const Expr& expr);
   Expr VisitExpr_(const TupleNode* op) final { return Rewrite(op); };
   Expr VisitExpr_(const CallNode* call_node) final { return Rewrite(call_node); };
   Expr VisitExpr_(const TupleGetItemNode* op) final { return Rewrite(op); };
@@ -292,6 +296,9 @@ class ScopeMutator : public ::tvm::relay::ExprMutator {
    *  Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
    * able to rewrite the op only with data about the original node `pre` and the same node with
    * modified inputs `post` and should not recurse.
+   *
+   * \param pre The expression node before rewriting.
+   * \param post The expression with rewritten inputs.
    */
   virtual Expr Rewrite_(const TupleNode* pre, const Expr& post) { return post;}
   virtual Expr Rewrite_(const CallNode* pre, const Expr& post) { return post; }
