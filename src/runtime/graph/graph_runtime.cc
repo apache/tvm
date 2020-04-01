@@ -21,6 +21,7 @@
  * \file graph_runtime.cc
  */
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/graph/graph_runtime.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -35,7 +36,6 @@
 #include <utility>
 #include <vector>
 
-#include "graph_runtime.h"
 
 namespace tvm {
 namespace runtime {
