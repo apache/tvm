@@ -16,9 +16,6 @@
 # under the License.
 # pylint: disable=import-self, invalid-name, unused-argument
 """Unit tests for various models and operators"""
-from time import time
-import sys
-from scipy.stats import t as tdistr
 import numpy as np
 import chainer
 from chainer import function
@@ -104,14 +101,14 @@ def test_forward_conv():
 
     # Convolution2D(in_channels, out_channels, ksize, stride, pad, groups, dilation)
     test_sets = [{'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
-     'args': [None, 3, 3, 1, 1],
-     'kwargs': {}}, #TestCase-1
-    {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
-     'args': [None, 3, 3, 1, 2, True],
-     'kwargs': {}}, #TestCase-2
-    {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
-     'args': [None, 3, 3, 1, 1],
-     'kwargs': {'groups': 3}}] #TestCase-1
+                  'args': [None, 3, 3, 1, 1],
+                  'kwargs': {}}, #TestCase-1
+                 {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
+                  'args': [None, 3, 3, 1, 2, True],
+                  'kwargs': {}}, #TestCase-2
+                 {'in_shape': (1, 3, 5, 5), 'in_type': np.float32,
+                  'args': [None, 3, 3, 1, 1],
+                  'kwargs': {'groups': 3}}] #TestCase-1
 
     for test in test_sets:
         input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])

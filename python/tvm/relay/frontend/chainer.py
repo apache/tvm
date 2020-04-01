@@ -65,17 +65,17 @@ def _conv():
         kernel_layout = "OIHW"
 
         conv_out = _op.nn.conv2d(inputs[0],
-                   inputs[1],
-                   strides=(func.sy, func.sx),
-                   padding=(func.ph, func.pw, func.ph, func.pw),
-                   dilation=(func.dy, func.dx),
-                   groups=func.groups,
-                   channels=func.inputs[1].shape[0],
-                   kernel_size=func.inputs[1].shape[2:],
-                   data_layout=data_layout,
-                   kernel_layout=kernel_layout,
-                   out_layout="",
-                   out_dtype="")
+                                 inputs[1],
+                                 strides=(func.sy, func.sx),
+                                 padding=(func.ph, func.pw, func.ph, func.pw),
+                                 dilation=(func.dy, func.dx),
+                                 groups=func.groups,
+                                 channels=func.inputs[1].shape[0],
+                                 kernel_size=func.inputs[1].shape[2:],
+                                 data_layout=data_layout,
+                                 kernel_layout=kernel_layout,
+                                 out_layout="",
+                                 out_dtype="")
 
         use_bias = len(inputs) == 3
 
