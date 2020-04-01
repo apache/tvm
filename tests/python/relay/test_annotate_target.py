@@ -219,7 +219,40 @@ def test_multiple_ends():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_type_propagation():
+    target = "test_type_propagation"
+
+    @reg.register("nn.relu", "target." + target)
+    def relu(attrs, args):
+        return args[0].checked_type.dtype == "float32"
+
+    def before():
+        x = relay.var("x", shape=(10, 10))
+        r = relay.nn.relu(x)
+        out = relay.nn.relu(r)
+        f = relay.Function([x], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        x = relay.var("x", shape=(10, 10))
+        cb_1 = relay.annotation.compiler_begin(x, target)
+        r = relay.nn.relu(cb_1)
+        ce_1 = relay.annotation.compiler_end(r, target)
+        cb_1 = relay.annotation.compiler_begin(ce_1, target)
+        out = relay.nn.relu(cb_1)
+        ce_2 = relay.annotation.compiler_end(out, target)
+        f = relay.Function([x], ce_2)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    result = transform.AnnotateTarget(target)(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
+
+
 if __name__ == "__main__":
     test_multiple_ends()
+    test_type_propagation()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()

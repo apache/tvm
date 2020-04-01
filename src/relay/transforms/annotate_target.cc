@@ -65,12 +65,22 @@ class AnnotateTargetWrapper : public ExprMutator {
     return false;
   }
 
+  Expr InsertBegin(const Expr& arg) {
+    const auto* begin_op =
+        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
+    CHECK(begin_op);
+    Expr begin = (*begin_op)(arg, target_);
+    begin->checked_type_ = arg->checked_type_;
+    return begin;
+  }
+
   Expr InsertEnd(const Expr& arg) {
     if (IsSupported(arg)) {
-      const auto *end_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_end");
+      const auto* end_op =
+          runtime::Registry::Get("relay.op.annotation._make.compiler_end");
       CHECK(end_op);
       Expr end = (*end_op)(arg, target_);
+      end->checked_type_ = arg->checked_type_;
       return end;
     }
     return arg;
@@ -88,18 +98,16 @@ class AnnotateTargetWrapper : public ExprMutator {
       compiler_ends.push_back(InsertEnd(it));
     }
     call = Call(call->op, compiler_ends, call->attrs);
+    call->checked_type_ = cn->checked_type_;
 
     // add begin annotations if the call node is supported
     if (IsSupported(call)) {
       tvm::Array<tvm::relay::Expr> compiler_begins;
-      const auto* begin_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
       for (const auto& it : call->args) {
-        CHECK(begin_op);
-        Expr begin = (*begin_op)(it, target_);
-        compiler_begins.push_back(begin);
+        compiler_begins.push_back(InsertBegin(it));
       }
       call = Call(call->op, compiler_begins, call->attrs);
+      call->checked_type_ = cn->checked_type_;
     }
 
     return std::move(call);
@@ -121,10 +129,7 @@ class AnnotateTargetWrapper : public ExprMutator {
 
     auto get = Downcast<TupleGetItem>(new_e);
     if (IsSupported(get->tuple)) {
-      const auto* begin_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
-      CHECK(begin_op);
-      return TupleGetItem((*begin_op)(InsertEnd(get->tuple), target_), get->index);
+      return TupleGetItem(InsertBegin(InsertEnd(get->tuple)), get->index);
     } else {
       return TupleGetItem(InsertEnd(get->tuple), get->index);
     }
