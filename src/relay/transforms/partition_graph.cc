@@ -100,23 +100,27 @@ class AnnotationChecker : public ExprVisitor {
  * Output : A Relay module with global functions for such disjoint annotated
  * regions with calls inserted at the respective location
  *
- * Dependencies : RegionSet Utility class.
+ * Dependencies : AnnotatedRegionSet Utility class.
  *
  * Methodology :
- *      1) The RegionSet utility class is able to construct a collection of
- *         nodes that are bound by a given annotation -- here we use
- * compiler_begin and compiler_end 2) Initially, for each function in the module
- * RegionSets are populated. 3) Then, Vistor pass is traversed until a
- * compiler_end node is encountered that belongs to a "region". 4) When the
- * first compiler_end of a given annotated region is found, a function is formed
- * and inserted. a) if the region has multiple outputs, a Tuple node (capturing
- * all outputs) is returned. 5) Thereafter, if we encounter an another output of
- * the same annotated region, it is important to note that the function is
- * already formed. Therefore, it will lookup the function and add a
- * TupleGetItemNode. a) We will use the location index of "rets" of each
- * "Region" of RegionSet as TupleGetItemNode index. 6) Therefore, functions will
- * be created for all annotated regions. The name for each global function is
- * created using "Region" id and the compiler name.
+ *      1) The AnnotatedRegionSet utility class is able to construct a collection
+ *      of nodes that are bound by a given annotation -- here we use
+ *      compiler_begin and compiler_end
+ *      2) Initially, for each function in the module RegionSets are populated.
+ *      3) Then, Vistor pass is traversed until a compiler_end node is encountered
+ *         that belongs to a "region".
+ *      4) When the first compiler_end of a given annotated region is found,
+ *         a function is formed and inserted.
+ *         a) if the region has multiple outputs, a Tuple node (capturing
+ *            all outputs) is returned.
+ *      5) Thereafter, if we encounter an another output of the same annotated
+ *         region, it is important to note that the function is already formed.
+ *         Therefore, it will lookup the function and add a TupleGetItemNode.
+ *         a) We will use the location index of "rets" of each Region" of
+ *         AnnotatedRegionSet as TupleGetItemNode index.
+ *      6) Therefore, functions will be created for all annotated regions.
+ *         The name for each global function is created using "Region" id and
+ *         the compiler name.
  */
 
 class Partitioner : public ExprMutator {
