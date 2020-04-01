@@ -136,6 +136,18 @@ bool BroadcastCompRel(const Array<Type>& types,
   return false;
 }
 
+bool IdentityCompRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  if (auto* t0 = types[0].as<TensorTypeNode>()) {
+    Type out_type = TensorType(GetRef<TensorType>(t0)->shape, DataType::Bool());
+    reporter->Assign(types[1], out_type);
+    return true;
+  }
+  return false;
+}
+
 Array<IndexExpr> RankShape(const Array<IndexExpr>& shape) {
   if (shape.size() == 0) {
     return {};

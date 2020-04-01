@@ -19,7 +19,6 @@
 import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
-from ..base import register_relay_node
 from ..op import op as _reg
 from . import _quantize
 from .quantize import _forward_op
@@ -30,7 +29,7 @@ def register_partition_function(op_name, frewrite=None, level=10):
     return _register(frewrite) if frewrite is not None else _register
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.QPartitionExpr")
 class QPartitionExpr(_expr.TempExpr):
     def __init__(self, expr):
         self.__init_handle_by_constructor__(

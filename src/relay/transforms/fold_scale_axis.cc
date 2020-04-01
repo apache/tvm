@@ -92,22 +92,28 @@ class MessageNode : public RelayNode {
    */
   bool require_positive;
 
-  static Message make(const AxesSet& axes, bool require_positive);
-
   static constexpr const char* _type_key = "relay.pass.fold_scale_axis.Message";
   TVM_DECLARE_FINAL_OBJECT_INFO(MessageNode, RelayNode);
 };
 
 class Message : public ObjectRef {
  public:
+  /*!
+   * \brief The constructor
+   * \param axes Axes for scaling
+   * \param require_positive If folding requires the scales to be positive
+   *        values.
+   */
+  Message(const AxesSet& axes, bool require_positive);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Message, ObjectRef, MessageNode);
 };
 
-Message MessageNode::make(const AxesSet& axes, bool require_positive)  {
+Message::Message(const AxesSet& axes, bool require_positive)  {
   auto n = make_object<MessageNode>();
   n->axes = axes;
   n->require_positive = require_positive;
-  return Message(n);
+  data_ = std::move(n);
 }
 
 /*!
@@ -150,7 +156,7 @@ Message Intersect(const Message& lhs, const Message& rhs) {
   if (!lhs.defined()) return lhs;
   if (!rhs.defined()) return rhs;
   auto axes = Intersect(lhs->axes, rhs->axes);
-  return MessageNode::make(axes, lhs->require_positive || rhs->require_positive);
+  return Message(axes, lhs->require_positive || rhs->require_positive);
 }
 
 /*!
@@ -315,7 +321,7 @@ class ForwardPrep : private ExprVisitor {
 // Intermediate operators
 Array<Message> ReluForwardPrep(const Call& call, const Message& out_message) {
   if (out_message.defined()) {
-    return {MessageNode::make(out_message->axes, true)};
+    return {Message(out_message->axes, true)};
   }
   return {out_message};
 }
@@ -327,7 +333,7 @@ Expr ReluForwardRewrite(const Call& ref_call,
   if (input == nullptr) return Expr(nullptr);
   // return transformed conv2d
   auto rnode = make_object<ScaledExprNode>();
-  rnode->value = CallNode::make(
+  rnode->value = Call(
       ref_call->op, {input->value}, ref_call->attrs, ref_call->type_args);
   rnode->scale = input->scale;
   rnode->axes = input->axes;
@@ -377,7 +383,7 @@ Expr AddSubForwardRewrite(const Call& ref_call,
     Expr scale = ExpandBiasToMatchAxis(
         slhs->scale, tlhs->shape.size(), slhs->axes);
     Expr rhs = Divide(new_args[1], scale);
-    rnode->value = CallNode::make(ref_call->op, {slhs->value, rhs},
+    rnode->value = Call(ref_call->op, {slhs->value, rhs},
                                   ref_call->attrs, ref_call->type_args);
     rnode->scale = slhs->scale;
     rnode->axes = slhs->axes;
@@ -387,7 +393,7 @@ Expr AddSubForwardRewrite(const Call& ref_call,
     Expr scale = ExpandBiasToMatchAxis(
         srhs->scale, trhs->shape.size(), srhs->axes);
     Expr lhs = Divide(new_args[0], scale);
-    rnode->value = CallNode::make(ref_call->op, {lhs, srhs->value},
+    rnode->value = Call(ref_call->op, {lhs, srhs->value},
                                   ref_call->attrs, ref_call->type_args);
     rnode->scale = srhs->scale;
     rnode->axes = srhs->axes;
@@ -476,7 +482,7 @@ Array<Message> Conv2DForwardPrep(const Call& call, const Message& out_message) {
     data_axes = {c_big_axis};
   }
   if (data_axes.defined()) {
-    return {MessageNode::make(data_axes, false), none};
+    return {Message(data_axes, false), none};
   }
   return {none, none};
 }
@@ -521,7 +527,7 @@ Expr Conv2DForwardRewrite(const Call& ref_call,
     weight = Multiply(weight, scale);
   }
   // return transformed conv2d
-  return CallNode::make(
+  return Call(
       ref_call->op, {sdata->value, weight}, ref_call->attrs, ref_call->type_args);
 }
 
@@ -726,7 +732,7 @@ Expr BackwardTransformerNode::Transform(
 // Intermediate operators
 Message ReluBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   if (in_messages[0].defined()) {
-    return MessageNode::make(in_messages[0]->axes, true);
+    return Message(in_messages[0]->axes, true);
   }
   return in_messages[0];
 }
@@ -740,7 +746,7 @@ Expr ReluBackwardTransform(const Call& call,
   }
   Expr input = transformer->Transform(
       call->args[0], message, scale);
-  return CallNode::make(call->op, {input}, call->attrs, call->type_args);
+  return Call(call->op, {input}, call->attrs, call->type_args);
 }
 
 RELAY_REGISTER_OP("nn.relu")
@@ -796,7 +802,7 @@ Expr AddSubBackwardTransform(const Call& call,
     CHECK(equal(message->axes, lhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], message, scale);
     Expr rhs = transformer->Transform(call->args[1], message, scale);
-    return CallNode::make(call->op, {lhs, rhs}, call->attrs, call->type_args);
+    return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else if (lhs_message.defined()) {
     CHECK(equal(message->axes, lhs_message->axes));
     Expr lhs = transformer->Transform(call->args[0], message, scale);
@@ -805,7 +811,7 @@ Expr AddSubBackwardTransform(const Call& call,
     Expr rhs_scale = ExpandBiasToMatchAxis(
         scale, tlhs->shape.size(), message->axes);
     rhs = Multiply(rhs, rhs_scale);
-    return CallNode::make(call->op, {lhs, rhs}, call->attrs, call->type_args);
+    return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else if (rhs_message.defined()) {
     CHECK(equal(message->axes, rhs_message->axes));
     Expr lhs = transformer->Transform(
@@ -814,7 +820,7 @@ Expr AddSubBackwardTransform(const Call& call,
     Expr lhs_scale = ExpandBiasToMatchAxis(
         scale, trhs->shape.size(), message->axes);
     lhs = Multiply(lhs, lhs_scale);
-    return CallNode::make(call->op, {lhs, rhs}, call->attrs, call->type_args);
+    return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else {
     LOG(FATAL) << "outstanding scale";
     return Expr();
@@ -890,7 +896,7 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   kernel_layout.IndexOf(LayoutAxis::Get('i')) < 0 &&
       c_small_axis < 0 &&
       (param->groups == 1 || is_depthwise_conv2d)) {
-    return MessageNode::make({c_big_axis}, false);
+    return Message({c_big_axis}, false);
   } else {
     return NullValue<Message>();
   }
@@ -930,7 +936,7 @@ Expr Conv2DBackwardTransform(const Call& call,
   Expr wscale = ExpandBiasToMatchAxis(
       scale, kernel_layout.ndim(), {big_oc_axis});
   weight = Multiply(weight, wscale);
-  return CallNode::make(
+  return Call(
       call->op, {data, weight}, call->attrs, call->type_args);
 }
 

@@ -45,7 +45,7 @@ class MergeCompositeWrapper : public ExprMutator {
     if (var_map->find(pattern->name_hint()) == var_map->end()) {
       // if we haven't encountered this var yet, make a new free var and associate
       // it with the value at 'root'
-      auto free_var = VarNode::make(pattern->name_hint(), Type());
+      auto free_var = Var(pattern->name_hint(), Type());
       var_map->Set(pattern->name_hint(), Array<Expr>({free_var, root}));
       return std::move(free_var);
     } else {
@@ -132,7 +132,7 @@ class MergeCompositeWrapper : public ExprMutator {
       new_args.push_back(new_arg);
       i++;
     }
-    return CallNode::make(root->op, new_args, root->attrs);
+    return Call(root->op, new_args, root->attrs);
   }
 
   Expr VisitExpr_(const CallNode* cn) {
@@ -149,7 +149,7 @@ class MergeCompositeWrapper : public ExprMutator {
           auto new_e = this->Mutate(arg);
           new_args.push_back(new_e);
         }
-        return CallNode::make(call->op, new_args, call->attrs);
+        return Call(call->op, new_args, call->attrs);
       }
     }
 
@@ -175,7 +175,7 @@ class MergeCompositeWrapper : public ExprMutator {
       for (const auto& free_var : free_vars) {
         args.push_back(args_map[free_var->name_hint()][1]);
       }
-      auto new_call = CallNode::make(f, args);
+      auto new_call = Call(f, args);
       return std::move(new_call);
     }
     return std::move(call);

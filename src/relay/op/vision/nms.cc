@@ -57,7 +57,7 @@ Expr MakeGetValidCounts(Expr data,
   attrs->id_index = id_index;
   attrs->score_index = score_index;
   static const Op& op = Op::Get("vision.get_valid_counts");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 
@@ -125,7 +125,7 @@ Expr MakeNMS(Expr data,
   attrs->return_indices = return_indices;
   attrs->invalid_to_bottom = invalid_to_bottom;
   static const Op& op = Op::Get("vision.non_max_suppression");
-  return CallNode::make(op, {data, valid_count}, Attrs(attrs), {});
+  return Call(op, {data, valid_count}, Attrs(attrs), {});
 }
 
 

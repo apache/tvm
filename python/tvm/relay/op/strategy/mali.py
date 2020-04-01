@@ -49,7 +49,7 @@ def conv2d_strategy_mali(attrs, inputs, out_type, target):
                         wrap_compute_conv2d(topi.mali.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.mali.schedule_conv2d_nchw_winograd),
                         name="conv2d_nchw_winograd.mali",
-                        plevel=15)
+                        plevel=5)
             elif re.match(r"OIHW\d*o", kernel_layout):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.mali.conv2d_nchw_spatial_pack),

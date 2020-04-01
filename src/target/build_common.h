@@ -26,6 +26,9 @@
 
 #include <tvm/target/codegen.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
+#include <tvm/ir/module.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/lowered_func.h>
@@ -48,6 +51,31 @@ ExtractFuncInfo(const Array<tir::LoweredFunc>& funcs) {
       info.thread_axis_tags.push_back(f->thread_axis[i]->thread_tag);
     }
     fmap[f->name] = info;
+  }
+  return fmap;
+}
+
+inline std::unordered_map<std::string, runtime::FunctionInfo>
+ExtractFuncInfo(const IRModule& mod) {
+  std::unordered_map<std::string, runtime::FunctionInfo> fmap;
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<tir::PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    auto f = Downcast<tir::PrimFunc>(kv.second);
+
+    runtime::FunctionInfo info;
+    for (size_t i = 0; i < f->params.size(); ++i) {
+      info.arg_types.push_back(f->params[i].dtype());
+    }
+    auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis);
+    if (thread_axis.defined()) {
+      for (size_t i = 0; i < thread_axis.size(); ++i) {
+        info.thread_axis_tags.push_back(thread_axis[i]->thread_tag);
+      }
+    }
+    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    fmap[static_cast<std::string>(global_symbol)] = info;
   }
   return fmap;
 }

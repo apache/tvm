@@ -44,7 +44,7 @@ Expr DeDup(const Expr& e) {
     Var Fresh(const Var& v) {
       CHECK_EQ(rename_.count(v), 0);
       CHECK_EQ(memo_.count(v), 0) << v.as<VarNode>();
-      Var ret = VarNode::make(v->name_hint(), VisitType(v->type_annotation));
+      Var ret = Var(v->name_hint(), VisitType(v->type_annotation));
       rename_[v] = ret;
       return ret;
     }
@@ -62,7 +62,7 @@ Expr DeDup(const Expr& e) {
 
     Expr VisitExpr_(const LetNode* op) final {
       Var v = Fresh(op->var);
-      return LetNode::make(v, VisitExpr(op->value), VisitExpr(op->body));
+      return Let(v, VisitExpr(op->value), VisitExpr(op->body));
     }
 
     Type VisitType(const Type& t) final {
@@ -90,7 +90,7 @@ Expr DeDup(const Expr& e) {
     }
 
     Pattern VisitPattern_(const PatternVarNode* op) final {
-      return PatternVarNode::make(Fresh(op->var));
+      return PatternVar(Fresh(op->var));
     }
 
     Type VisitType_(const TypeVarNode* op) final {

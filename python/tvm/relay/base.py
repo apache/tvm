@@ -21,47 +21,17 @@ import tvm._ffi
 
 from tvm.runtime import Object
 from tvm.ir import SourceName, Span, Node as RelayNode
-from . import _make
-from . import _expr
-from . import _base
 
 
 __STD_PATH__ = os.path.join(os.path.dirname(os.path.realpath(__file__)), "std")
+
 
 @tvm._ffi.register_func("tvm.relay.std_path")
 def _std_path():
     return __STD_PATH__
 
 
-def register_relay_node(type_key=None):
-    """Register a Relay node type.
-
-    Parameters
-    ----------
-    type_key : str or cls
-        The type key of the node.
-    """
-    if not isinstance(type_key, str):
-        return tvm._ffi.register_object(
-            "relay." + type_key.__name__)(type_key)
-    return tvm._ffi.register_object(type_key)
-
-
-def register_relay_attr_node(type_key=None):
-    """Register a Relay attribute node.
-
-    Parameters
-    ----------
-    type_key : str or cls
-        The type key of the node.
-    """
-    if not isinstance(type_key, str):
-        return tvm._ffi.register_object(
-            "relay.attrs." + type_key.__name__)(type_key)
-    return tvm._ffi.register_object(type_key)
-
-
-@register_relay_node
+@tvm._ffi.register_object("relay.Id")
 class Id(Object):
     """Unique identifier(name) used in Var.
        Guaranteed to be stable across all passes.

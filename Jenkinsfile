@@ -41,12 +41,11 @@
 
 // Hashtag in the source to build current CI docker builds
 //
-// - ci-cpu:v0.55: 07b45d958d4af91ec1bab66f6cf391d1ce12ddaf
 //
 
 ci_lint = "tvmai/ci-lint:v0.60"
 ci_gpu = "tvmai/ci-gpu:v0.61"
-ci_cpu = "tvmai/ci-cpu:v0.60"
+ci_cpu = "tvmai/ci-cpu:v0.61"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -350,6 +349,7 @@ stage('Deploy') {
       ws(per_exec_ws("tvm/deploy-docs")) {
         if (env.BRANCH_NAME == "master") {
            unpack_lib('mydocs', 'docs.tgz')
+           sh "cp docs.tgz /var/docs/docs.tgz"
            sh "tar xf docs.tgz -C /var/docs"
         }
       }

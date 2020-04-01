@@ -62,7 +62,7 @@ Expr MakeDequantize(Expr data, Expr input_scale, Expr input_zero_point) {
   // A more detailed explanation can be found here -
   // https://github.com/google/gemmlowp/blob/master/doc/quantization.md
   static const Op& op = Op::Get("qnn.dequantize");
-  return CallNode::make(op, {data, input_scale, input_zero_point}, Attrs(), {});
+  return Call(op, {data, input_scale, input_zero_point}, Attrs(), {});
 }
 
 Expr DequantizeLower(const Expr& input_tensor, const Expr& input_scale,

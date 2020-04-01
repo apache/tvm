@@ -19,11 +19,7 @@
 tvm.relay.vision
 ----------------
 
-.. automodule:: tvm.relay.vision
+.. automodule:: tvm.relay.op.vision
     :members:
-
-.. automodule:: tvm.relay.op.vision.multibox
-    :members:
-
-.. automodule:: tvm.relay.op.vision.nms
-    :members:
+    :imported-members:
+    :autosummary:

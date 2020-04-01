@@ -73,7 +73,7 @@ class TFParser(object):
     def _get_output_names(self):
         """Return the concatenated output names"""
         try:
-            import tensorflow as tf
+            import tensorflow.compat.v1 as tf
         except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "

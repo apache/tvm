@@ -603,7 +603,7 @@ static const Op& with_funcid_op = Op::Get("annotation.with_funcid");
 Expr MkWithFuncId(const Expr& expr, FuncId fid) {
   auto attrs = make_object<WithFuncIdAttrs>();
   attrs->fid = fid;
-  return CallNode::make(with_funcid_op, {expr}, Attrs(attrs), {});
+  return Call(with_funcid_op, {expr}, Attrs(attrs), {});
 }
 
 Expr StripWithFuncId(const Expr& e);
@@ -658,7 +658,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       value.push_back(ps);
       expr.push_back(ps->dynamic);
     }
-    return HasStatic(MkSTuple(value), ll->Push(TupleNode::make(expr)));
+    return HasStatic(MkSTuple(value), ll->Push(Tuple(expr)));
   }
 
   PStatic VisitExpr_(const TupleGetItemNode* op, LetList* ll) final {
@@ -666,7 +666,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (ps->pstatic.defined()) {
       return Downcast<STuple>(ps->pstatic)->fields[op->index];
     } else {
-      return NoStatic(ll->Push(TupleGetItemNode::make(ps->dynamic, op->index)));
+      return NoStatic(ll->Push(TupleGetItem(ps->dynamic, op->index)));
     }
   }
 
@@ -724,7 +724,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
             });
         });
       store_.Invalidate();
-      return NoStatic(ll->Push(IfNode::make(c->dynamic, t, f)));
+      return NoStatic(ll->Push(If(c->dynamic, t, f)));
     }
   }
 
@@ -732,7 +732,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     PStatic ps = VisitExpr(op->value, ll);
     Static r = MkSRef();
     store_.Insert(r.as<SRefNode>(), ps);
-    return HasStatic(r, ll->Push(RefCreateNode::make(ps->dynamic)));
+    return HasStatic(r, ll->Push(RefCreate(ps->dynamic)));
   }
 
   PStatic VisitExpr_(const RefWriteNode* op, LetList* ll) final {
@@ -743,7 +743,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     } else {
       store_.Invalidate();
     }
-    return HasStatic(MkSTuple({}), ll->Push(RefWriteNode::make(r->dynamic, v->dynamic)));
+    return HasStatic(MkSTuple({}), ll->Push(RefWrite(r->dynamic, v->dynamic)));
   }
 
   PStatic VisitExpr_(const RefReadNode* op, LetList* ll) final {
@@ -754,7 +754,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         return ret;
       }
     }
-    return NoStatic(ll->Push(RefReadNode::make(r->dynamic)));
+    return NoStatic(ll->Push(RefRead(r->dynamic)));
   }
 
   PStatic VisitExpr_(const CallNode* op, LetList* ll) final {
@@ -774,7 +774,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       return Downcast<SFunc>(f->pstatic)->func(f, x, op->attrs, op->type_args, ll);
     } else {
       store_.Invalidate();
-      return NoStatic(ll->Push(CallNode::make(f->dynamic, x_dyn, op->attrs, op->type_args)));
+      return NoStatic(ll->Push(Call(f->dynamic, x_dyn, op->attrs, op->type_args)));
     }
   }
 
@@ -872,7 +872,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
             for (const auto& v : pv) {
               dyn.push_back(v->dynamic);
             }
-            return NoStatic(ll->Push(CallNode::make(var, dyn, attrs, type_args)));
+            return NoStatic(ll->Push(Call(var, dyn, attrs, type_args)));
           }
         });
     };
@@ -898,7 +898,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
 
   PStatic VisitFunc(const Function& func,
                     LetList* ll,
-                    const Var& name = VarNode::make("x", Type())) {
+                    const Var& name = Var("x", Type())) {
     Func f = VisitFuncStatic(func, name);
     Function u_func = AsFunc(RegisterFuncId(DeDup(AnnotateFuncId(func))));
     // TODO(@M.K.): we seems to reduce landin knot into letrec.
@@ -919,13 +919,13 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
     if (!st->pstatic.defined()) {
       throw ReflectError();
     } else if (const STensorNode* op = st->pstatic.as<STensorNode>()) {
-      return ConstantNode::make(op->data);
+      return Constant(op->data);
     } else if (const STupleNode* op = st->pstatic.as<STupleNode>()) {
       tvm::Array<Expr> fields;
       for (const PStatic& field : op->fields) {
         fields.push_back(Reflect(field));
       }
-      return TupleNode::make(fields);
+      return Tuple(fields);
     } else {
       LOG(FATAL) << "Unknown case: " << st->dynamic;
       throw;
@@ -935,7 +935,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
   PStatic Reify(const ObjectRef& v, LetList* ll) const {
     if (v->IsInstance<runtime::NDArray::ContainerType>()) {
       auto nd_array = Downcast<runtime::NDArray>(v);
-      return HasStatic(MkSTensor(nd_array), ll->Push(ConstantNode::make(nd_array)));
+      return HasStatic(MkSTensor(nd_array), ll->Push(Constant(nd_array)));
     } else if (const runtime::ADTObj* op = v.as<runtime::ADTObj>()) {
       std::vector<PStatic> fields;
       tvm::Array<Expr> fields_dyn;
@@ -945,7 +945,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         fields.push_back(ps);
         fields_dyn.push_back(ps->dynamic);
       }
-      return HasStatic(MkSTuple(fields), ll->Push(TupleNode::make(fields_dyn)));
+      return HasStatic(MkSTuple(fields), ll->Push(Tuple(fields_dyn)));
     } else {
       LOG(FATAL) << "Unknown case";
       throw;
@@ -977,7 +977,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         ns_args.push_back(ps->dynamic);
       }
       auto ns = [&]() {
-        return NoStatic(ll->Push(CallNode::make(expr, ns_args, attrs, type_args)));
+        return NoStatic(ll->Push(Call(expr, ns_args, attrs, type_args)));
       };
       if (StatefulOp(expr)) {
         return ns();
@@ -987,7 +987,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
         for (const PStatic& ps : pv) {
           args.push_back(Reflect(ps));
         }
-        return ConstEvaluate(CallNode::make(expr, args, attrs, type_args), ll);
+        return ConstEvaluate(Call(expr, args, attrs, type_args), ll);
       }
       catch (const ReflectError&) {
         return ns();
@@ -1010,7 +1010,7 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
       for (const PStatic& ps : pv) {
         dyn.push_back(ps->dynamic);
       }
-      return HasStatic(MkSConstructor(c, pv), ll->Push(CallNode::make(c, dyn)));
+      return HasStatic(MkSConstructor(c, pv), ll->Push(Call(c, dyn)));
     };
     return HasStatic(MkSFunc(f), GetRef<Expr>(op));
   }
@@ -1036,10 +1036,10 @@ class PartialEvaluator : public ExprFunctor<PStatic(const Expr& e, LetList* ll)>
                   return VisitExpr(c->rhs, ll)->dynamic;
                 });
               });
-              clauses.push_back(ClauseNode::make(c->lhs, expr));
+              clauses.push_back(Clause(c->lhs, expr));
             }
             store_.Invalidate();
-            return NoStatic(ll->Push(MatchNode::make(ps->dynamic, clauses, op->complete)));
+            return NoStatic(ll->Push(Match(ps->dynamic, clauses, op->complete)));
           }();
         default:
           LOG(FATAL) << "Unknown MatchStatus";

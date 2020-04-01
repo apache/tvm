@@ -90,7 +90,7 @@ inline Layout AdjustSubordinateFactors(const Layout& src_layout, const Layout& o
  *                       This can be undefined, which means we call this function before alternating
  *                       any operators.
  * \param old_in_layouts The layouts of input arguments before alter_op_layout.
- * \param old_in_shapes The shapes of old input arguments.
+ * \param old_in_types The types of old input arguments.
  * \return infered_layout An array of two elements that are inferred input layouts and
  *                        inferred output layouts.
  */
@@ -98,13 +98,13 @@ using FInferCorrectLayout = runtime::TypedPackedFunc<
     Array<Array<Layout>>(const Attrs& attrs,
                          const Array<Layout>& new_in_layouts,
                          const Array<Layout>& old_in_layouts,
-                         const Array<Array<IndexExpr>> &old_in_shapes)>;
+                         const Array<tvm::relay::Type> &old_in_types)>;
 
 /*! \brief take arbitrary input layout and copy to output */
 inline Array<Array<Layout> > ElemwiseArbitraryLayout(const Attrs& attrs,
                                                      const Array<Layout>& new_in_layouts,
                                                      const Array<Layout>& old_in_layouts,
-                                                     const Array<Array<IndexExpr>> &old_in_shapes) {
+                                                     const Array<tvm::relay::Type> &old_in_types) {
   Layout ret;
 
   if (new_in_layouts.defined()) {
@@ -126,8 +126,13 @@ inline Array<Array<Layout> > ElemwiseArbitraryLayout(const Attrs& attrs,
 inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
                                                    const Array<Layout>& new_in_layouts,
                                                    const Array<Layout>& old_in_layouts,
-                                                   const Array<Array<IndexExpr>> &old_in_shapes) {
+                                                   const Array<tvm::relay::Type> &old_in_types) {
   Array<Layout> layouts;
+  Array<Array<IndexExpr>> old_in_shapes;
+  for (auto old_in_t : old_in_types) {
+    CHECK(old_in_t.as<TensorTypeNode>());
+    old_in_shapes.push_back(old_in_t.as<TensorTypeNode>()->shape);
+  }
 
   if (new_in_layouts.defined()) {
     layouts.assign(new_in_layouts.begin(), new_in_layouts.end());
@@ -203,7 +208,7 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
  */
 static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts(
     const Call& call, const Array<Layout>& new_in_layouts, const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>>& old_in_shapes) {
+    const Array<tvm::relay::Type>& old_in_types) {
   static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
   if (!call->op.as<OpNode>()) {
     return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
@@ -213,7 +218,7 @@ static inline std::tuple<Array<Layout>, Array<Layout>, bool> InferCorrectLayouts
   if (finfer_layout.count(op)) {
     Array<Array<Layout>> inferred_layouts;
     inferred_layouts =
-        finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_shapes);
+        finfer_layout[op](call->attrs, new_in_layouts, old_in_layouts, old_in_types);
     CHECK_EQ(inferred_layouts.size(), 2)
         << "FInferCorrectLayout should return an array with size of 2";
     for (auto x : inferred_layouts) {

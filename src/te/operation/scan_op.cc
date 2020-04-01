@@ -287,10 +287,10 @@ Stmt ScanOpNode::BuildProvide(
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt provide = AttrStmtNode::make(
-      stage->op, attr::scan_update_scope, this->scan_axis->var,
+      stage->op, tir::attr::scan_update_scope, this->scan_axis->var,
       EvaluateNode::make(0));
   Stmt init = AttrStmtNode::make(
-      stage->op, attr::scan_init_scope, 0,
+      stage->op, tir::attr::scan_init_scope, 0,
       EvaluateNode::make(0));
   size_t begin_scan = 0;
   for (size_t  i = 0; i < stage->leaf_iter_vars.size(); ++i) {

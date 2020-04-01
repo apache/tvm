@@ -207,6 +207,23 @@ def test_float_bitwise():
         pass
 
 
+def test_shift_bounds():
+    x = te.var('x')
+    for test in [lambda lhs, rhs : lhs << rhs,
+                    lambda lhs, rhs : lhs >> rhs]:
+        #negative case
+        for testcase in [(x,-1), (x,32)]:
+            try:
+                test(*testcase)
+                assert False
+            except tvm.TVMError:
+                pass
+
+        #positive case
+        for testcase in [(x,0), (x,16), (x,31)]:
+            test(*testcase)
+
+
 def test_divide_by_zero():
     for test in [lambda lhs, rhs : tvm.tir.floormod(lhs,rhs),
                     lambda lhs, rhs : tvm.tir.floordiv(lhs,rhs),
@@ -265,7 +282,18 @@ def test_prim_func():
     assert func.attrs is None
 
 
+def test_vars():
+    x = tvm.tir.Var("xyz", "int8")
+    assert x.dtype == "int8"
+    ptype = tvm.ir.PointerType(tvm.ir.PrimType("float"))
+    x = tvm.tir.Var("xyz", ptype)
+    assert x.dtype == "handle"
+    assert x.type_annotation == ptype
+    assert isinstance(ptype.element_type, tvm.ir.PrimType)
+
+
 if __name__ == "__main__":
+    test_vars()
     test_prim_func()
     test_cast()
     test_attr()
@@ -282,6 +310,7 @@ if __name__ == "__main__":
     test_all()
     test_bitwise()
     test_float_bitwise()
+    test_shift_bounds()
     test_divide_by_zero()
     test_isnan()
     test_equality()

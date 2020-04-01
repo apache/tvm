@@ -45,8 +45,6 @@ class QAnnotateExprNode : public TempExprNode {
     v->Visit("kind", &kind);
   }
 
-  TVM_DLL static QAnnotateExpr make(Expr expr, QAnnotateKind kind);
-
   Expr Realize() const final;
 
   static constexpr const char* _type_key = "relay.QAnnotateExpr";
@@ -55,6 +53,13 @@ class QAnnotateExprNode : public TempExprNode {
 
 class QAnnotateExpr : public TempExpr {
  public:
+  /*!
+   * \brief The constructor
+   * \param expr The original relay expression.
+   * \param kind The annotation kind.
+   */
+  TVM_DLL QAnnotateExpr(Expr expr, QAnnotateKind kind);
+
   TVM_DEFINE_OBJECT_REF_METHODS(QAnnotateExpr, TempExpr, QAnnotateExprNode);
 };
 
@@ -63,18 +68,17 @@ Expr QAnnotateExprNode::Realize() const {
   return expr;
 }
 
-QAnnotateExpr QAnnotateExprNode::make(Expr expr, QAnnotateKind kind) {
+QAnnotateExpr::QAnnotateExpr(Expr expr, QAnnotateKind kind) {
   auto rnode = make_object<QAnnotateExprNode>();
-  rnode->expr = expr;
+  rnode->expr = std::move(expr);
   rnode->kind = kind;
-  return QAnnotateExpr(rnode);
+  data_ = std::move(rnode);
 }
 
 TVM_REGISTER_GLOBAL("relay._quantize.make_annotate_expr")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    *ret = QAnnotateExprNode::make(args[0],
-      static_cast<QAnnotateKind>(args[1].operator int()));
-  });
+.set_body_typed([](Expr expr, int kind) {
+  return QAnnotateExpr(expr, static_cast<QAnnotateKind>(kind));
+});
 
 
 Pass QuantizeAnnotate() {
@@ -87,7 +91,7 @@ Pass QuantizeAnnotate() {
       const PackedFunc* f =
           runtime::Registry::Get("relay.quantize.attach_simulated_quantize");
       Expr ret = (*f)(n->expr, static_cast<int>(kQInput));
-      return static_cast<Expr>(QAnnotateExprNode::make(ret, kQInput));
+      return static_cast<Expr>(QAnnotateExpr(ret, kQInput));
     }
     return e;
   };

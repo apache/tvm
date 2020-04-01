@@ -837,7 +837,7 @@ class FuseMutator : private ExprMutator {
       // create a new parameter.
       std::ostringstream os;
       os << "p" << params.size();
-      auto var = VarNode::make(os.str(), type);
+      auto var = Var(os.str(), type);
       params.push_back(var);
       arguments.push_back(expr);
       return var;
@@ -878,7 +878,7 @@ class FuseMutator : private ExprMutator {
       auto* ret_group = gmap_.at(call)->FindRoot();
       Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 
-      auto new_call = CallNode::make(
+      auto new_call = Call(
           call->op, new_args, call->attrs, call->type_args);
 
       if (ret_group->root_ref == call) {
@@ -902,13 +902,13 @@ class FuseMutator : private ExprMutator {
     }
     // This tuple is an intermediate node in the group
     Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
-    return TupleNode::make(new_fields);
+    return Tuple(new_fields);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* tuple_get) {
     auto* ret_group = gmap_.at(tuple_get)->FindRoot();
     auto new_tuple = GetNewArguments({tuple_get->tuple}, ret_group)[0];
-    auto new_node = TupleGetItemNode::make(new_tuple, tuple_get->index);
+    auto new_node = TupleGetItem(new_tuple, tuple_get->index);
     if (ret_group->root_ref == tuple_get) {
       if (gmap_.at(tuple_get->tuple.get())->FindRoot() != ret_group) {
         // Isolated. This case occurs when tuple is created by an Opaque op
@@ -934,7 +934,7 @@ class FuseMutator : private ExprMutator {
     const GroupInfo& ginfo = ginfo_[group];
     auto func = Function(ginfo.params, body, ret_type, {});
     func = WithAttr(std::move(func), attr::kPrimitive, tvm::Integer(visitor.has_call));
-    return CallNode::make(func, ginfo.arguments, Attrs());
+    return Call(func, ginfo.arguments, Attrs());
   }
 
   Array<Expr> GetNewArguments(const tvm::Array<Expr>& args,

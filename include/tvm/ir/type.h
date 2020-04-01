@@ -114,7 +114,8 @@ class PrimTypeNode : public TypeNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
 };
 
-/*!
+
+/*
  * \brief Managed reference to PrimTypeNode.
  * \sa PrimTypeNode
  */
@@ -124,10 +125,52 @@ class PrimType : public Type {
    * \brief Constructor
    * \param dtype The corresponding dtype.
    */
-  TVM_DLL PrimType(runtime::DataType dtype);
+  TVM_DLL explicit PrimType(runtime::DataType dtype);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimType, Type, PrimTypeNode);
 };
+
+
+/*!
+ * \brief Low-level raw pointer type.
+ *
+ *  PointerType represents type hints in the TIR to be
+ *  passed to the final code generator.
+ *
+ *  PointerType should not occur in the high-level analysis.
+ *
+ * \sa PointerType
+ */
+class PointerTypeNode : public TypeNode {
+ public:
+  /*!
+   * \brief The type of the element which the pointer points to.
+   */
+  Type element_type;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("element_type", &element_type);
+  }
+
+  static constexpr const char* _type_key = "PointerType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
+};
+
+/*
+ * \brief Managed reference to PointerTypeNode.
+ * \sa PointerTypeNode
+ */
+class PointerType : public Type {
+ public:
+  /*!
+   * \brief Constructor
+   * \param element_type The type of the element which the pointer points to.
+   */
+  TVM_DLL explicit PointerType(Type element_type);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(PointerType, Type, PointerTypeNode);
+};
+
 
 /*! \brief Possible kinds of TypeVars. */
 enum TypeKind : int {
@@ -281,6 +324,15 @@ class TupleType : public Type {
  */
 inline Type VoidType() {
   return TupleType::Empty();
+}
+
+/*!
+ * \brief Check whether the tyep represents void.
+ * \return The check result.
+ */
+inline bool IsVoidType(const Type& type) {
+  auto* n = type.as<TupleTypeNode>();
+  return n && n->fields.size() == 0;
 }
 
 /*!
