@@ -34,13 +34,13 @@ namespace tir {
  * \brief Compare two expressions recursively and check if they are equal
  *        to each other without var remapping.
  *
- *  This function do not remap variable bindings, it will not
+ *  This function does not remap variable bindings, it will not
  *  return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
  *
  *  Use StructuralEqual for such cases.
  *
  *  Due to the restriction of not remapping variables, this function can run
- *  faster than StructuralEqual and can be used as an utility function during arithmetic
+ *  faster than StructuralEqual and can be used as a utility function during arithmetic
  *  simplifications.
  *
  * \sa StructuralEqual
