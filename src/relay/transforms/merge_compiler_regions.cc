@@ -232,6 +232,14 @@ class MergeAnnotations : public ExprMutator {
   explicit MergeAnnotations(AnnotatedRegionSet regions) : regions_(regions) {}
 
   Expr VisitExpr_(const CallNode* call) final {
+    // remove 'default' annotations
+    auto attrs = call->attrs.as<CompilerAttrs>();
+    if (attrs != nullptr && attrs->compiler == "default") {
+      return VisitExpr(call->args[0]);
+    }
+    // Merge annotations which are now internal to a region.
+    // This happens if we see a compiler begin next to a
+    // compiler end and they're both in the same region.
     if (call->op == compiler_begin_op) {
       if (call->args[0]->IsInstance<CallNode>()) {
         auto arg = Downcast<Call>(call->args[0]);
@@ -239,7 +247,7 @@ class MergeAnnotations : public ExprMutator {
           auto region1 = regions_->GetRegion(GetRef<Call>(call));
           auto region2 = regions_->GetRegion(arg);
           if (region1 == region2) {
-            return ExprMutator::VisitExpr(arg->args[0]);
+            return VisitExpr(arg->args[0]);
           }
         }
       }
