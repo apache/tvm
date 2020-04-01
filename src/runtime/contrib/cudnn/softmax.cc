@@ -72,7 +72,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
   CHECK(axis >= 0 && axis < ndim);
-  CHECK(axis == ndim - 1);
+  CHECK(axis == ndim - 1) << "Currently only support axis=-1 for cudnn softmax";
   int64_t N = 1;
   for (int i = 0; i < ndim - 1; ++i) {
     N *= shape[i];
@@ -81,6 +81,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_INSTANCE;
   entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
+
   // Set shape descriptor
   CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
                                         CUDNN_TENSOR_NCHW,
@@ -89,13 +90,15 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
                                         static_cast<int>(shape[ndim - 1]),
                                         1,
                                         1));
+  auto alpha = CuDNNDataType::GetConst<1>(entry_ptr->softmax_entry.data_type);
+  auto beta = CuDNNDataType::GetConst<0>(entry_ptr->softmax_entry.data_type);
   CUDNN_CALL(cudnnSoftmaxForward(entry_ptr->handle,
                                  CUDNN_SOFTMAX_ACCURATE,
                                  entry_ptr->softmax_entry.mode,
-                                 CuDNNDataType::GetConst<1>(entry_ptr->conv_entry.data_type),
+                                 alpha,
                                  entry_ptr->softmax_entry.shape_desc,
                                  x->data,
-                                 CuDNNDataType::GetConst<0>(entry_ptr->conv_entry.data_type),
+                                 beta,
                                  entry_ptr->softmax_entry.shape_desc,
                                  y->data));
 });

@@ -75,6 +75,12 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
             plevel=15)
     return strategy
 
+@schedule_log_softmax.register(["cuda", "gpu"])
+def schedule_log_softmax_cuda(attrs, outs, target):
+    """scheudle log_softmax for cuda"""
+    with target:
+        return topi.cuda.schedule_softmax(outs)
+
 @schedule_lrn.register(["cuda", "gpu"])
 def schedule_lrn_cuda(attrs, outs, target):
     """schedule LRN for cuda"""

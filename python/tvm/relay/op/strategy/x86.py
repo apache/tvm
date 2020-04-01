@@ -65,6 +65,12 @@ def softmax_strategy_cpu(attrs, inputs, out_type, target):
         name="softmax.x86")
     return strategy
 
+@schedule_log_softmax.register("cpu")
+def schedule_log_softmax_cpu(attrs, outs, target):
+    """schedule log_softmax op for x86"""
+    with target:
+        return topi.x86.schedule_softmax(outs)
+
 @conv2d_strategy.register("cpu")
 def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     """conv2d x86 strategy"""

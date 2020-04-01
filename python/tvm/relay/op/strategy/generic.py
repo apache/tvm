@@ -115,7 +115,7 @@ def wrap_compute_softmax(topi_compute):
     return _compute_softmax
 
 @override_native_generic_func("softmax_strategy")
-def softmax_strategy(attrs, outs, target):
+def softmax_strategy(attrs, inputs, out_type, target):
     """softmax generic strategy"""
     strategy = _op.OpStrategy()
     strategy.add_implemenation(
@@ -123,6 +123,13 @@ def softmax_strategy(attrs, outs, target):
         wrap_topi_schedule(topi.generic.schedule_softmax),
         name="softmax.generic")
     return strategy
+
+# log_softmax
+@generic_func
+def schedule_log_softmax(attrs, outs, target):
+    """Schedule log_softmax op"""
+    with target:
+        return topi.generic.schedule_softmax(outs)
 
 # lrn
 @generic_func

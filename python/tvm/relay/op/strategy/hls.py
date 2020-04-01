@@ -60,6 +60,12 @@ def softmax_strategy_hls(attrs, inputs, out_type, target):
         name="softmax.hls")
     return strategy
 
+@schedule_log_softmax.register("hls")
+def schedule_log_softmax_hls(attrs, inputs, out_type, target):
+    """schedule log_softmax for hls"""
+    with target:
+        return topi.hls.schedule_softmax(outs)
+
 @override_native_generic_func("conv2d_strategy")
 def conv2d_strategy_hls(attrs, inputs, out_type, target):
     """conv2d hls strategy"""

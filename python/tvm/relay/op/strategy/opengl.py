@@ -54,6 +54,12 @@ def softmax_strategy_opengl(attrs, inputs, out_type, target):
         name="softmax.opengl")
     return strategy
 
+@schedule_log_softmax.register("opengl")
+def schedule_log_softmax_opengl(attrs, outs, target):
+    """schedule log_softmax for opengl"""
+    with target:
+        return topi.opengl.schedule_softmax(outs)
+
 @conv2d_strategy.register("opengl")
 def conv2d_strategy_opengl(attrs, inputs, out_type, target):
     """conv2d opengl strategy"""
