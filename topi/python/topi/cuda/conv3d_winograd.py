@@ -78,15 +78,22 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
 
     # transform kernel
     if not pre_computed:
-        r_kd = te.reduce_axis((0, KD), name='r_kd')
-        r_kh = te.reduce_axis((0, KH), name='r_kh')
-        r_kw = te.reduce_axis((0, KW), name='r_kw')
-        kernel_pack = te.compute(
-            (alpha, alpha, alpha, CI, CO),
-            lambda omg, eps, nu, ci, co: te.sum(
-                kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
-                axis=[r_kd, r_kh, r_kw]),
-            name='kernel_pack')
+        # Check if we are currently tuning, if so we want to avoid counting
+        # prepacking in time costs. Just use a placeholder with the packed shape instead.
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            kernel_pack = te.placeholder((alpha, alpha, alpha, CI, CO),
+                                         dtype=kernel.dtype,
+                                         name='kernel_pack')
+        else:
+            r_kd = te.reduce_axis((0, KD), name='r_kd')
+            r_kh = te.reduce_axis((0, KH), name='r_kh')
+            r_kw = te.reduce_axis((0, KW), name='r_kw')
+            kernel_pack = te.compute(
+                (alpha, alpha, alpha, CI, CO),
+                lambda omg, eps, nu, ci, co: te.sum(
+                    kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
+                    axis=[r_kd, r_kh, r_kw]),
+                name='kernel_pack')
     else:
         kernel_pack = kernel
 
@@ -177,26 +184,20 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     s[pad_data].compute_inline()
 
     # transform kernel
-    if not pre_computed:
+    if not pre_computed and not autotvm.GLOBAL_SCOPE.in_tuning:
         kernel, G = s[kernel_pack].op.input_tensors
         omg, eps, nu, ci, co = s[kernel_pack].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # skip this part during tuning to make recrods accurate
-            # this part will be pre-computed during pre-compute optimization pass
-            s[G].pragma(s[G].op.axis[0], 'debug_skip_region')
-            s[kernel_pack].pragma(eps, 'debug_skip_region')
-        else:
-            s[G].compute_inline()
-            r_a, r_b, r_c = s[kernel_pack].op.reduce_axis
-            # Could add additional unrolling by omg, eps, nu in the future.
-            for axis in [r_a, r_b, r_c]:
-                s[kernel_pack].unroll(axis)
+        s[G].compute_inline()
+        r_a, r_b, r_c = s[kernel_pack].op.reduce_axis
+        # Could add additional unrolling by omg, eps, nu in the future.
+        for axis in [r_a, r_b, r_c]:
+            s[kernel_pack].unroll(axis)
 
-            fused = s[kernel_pack].fuse(ci, co)
-            bb, tt = s[kernel_pack].split(fused, 128)
-            s[kernel_pack].reorder(bb, tt, omg, eps, nu, r_a, r_b, r_c)
-            s[kernel_pack].bind(bb, te.thread_axis("blockIdx.x"))
-            s[kernel_pack].bind(tt, te.thread_axis("threadIdx.x"))
+        fused = s[kernel_pack].fuse(ci, co)
+        bb, tt = s[kernel_pack].split(fused, 128)
+        s[kernel_pack].reorder(bb, tt, omg, eps, nu, r_a, r_b, r_c)
+        s[kernel_pack].bind(bb, te.thread_axis("blockIdx.x"))
+        s[kernel_pack].bind(tt, te.thread_axis("threadIdx.x"))
     else:
         kernel = kernel_pack
 
