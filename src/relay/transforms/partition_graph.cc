@@ -50,8 +50,8 @@ namespace partitioning {
 
 // Cache compiler_begin and compiler_end annotation ops for equivalence check to
 // reduce registry lookup overhead.
-static const Op &compiler_begin_op = Op::Get("annotation.compiler_begin");
-static const Op &compiler_end_op = Op::Get("annotation.compiler_end");
+static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
+static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
 /*!
  * \brief The checker that verifies if a Relay program is annotated correctly
@@ -72,7 +72,7 @@ class AnnotationChecker : public ExprVisitor {
     return true;
   }
 
-  void VisitExpr_(const CallNode *call) final {
+  void VisitExpr_(const CallNode* call) final {
     auto op_node = call->op.as<OpNode>();
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return;
@@ -125,20 +125,19 @@ class AnnotationChecker : public ExprVisitor {
 
 class Partitioner : public ExprMutator {
  public:
-  explicit Partitioner(const IRModule &module) : module_(module) {
+  explicit Partitioner(const IRModule& module) : module_(module) {
     for (auto f : module->functions) {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
 
       // Creating regionset per function in the module
-      auto region_set =
-          AnnotatedRegionSet::Create(f_func, partitioning::compiler_begin_op,
-                                     partitioning::compiler_end_op);
+      auto region_set = AnnotatedRegionSet::Create(f_func, partitioning::compiler_begin_op,
+                                                   partitioning::compiler_end_op);
       regions_sets_[region_set] = f_func;
     }
   }
 
-  Expr VisitExpr_(const CallNode *call) final {
+  Expr VisitExpr_(const CallNode* call) final {
     auto op_node = call->op.as<OpNode>();
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return ExprMutator::VisitExpr_(call);
@@ -156,8 +155,8 @@ class Partitioner : public ExprMutator {
       // The type of the created variable is the same as the compiler_begin
       // node.
       std::string target = call->attrs.as<CompilerAttrs>()->compiler;
-      std::string varname = target + "_" + std::to_string(sg->GetID()) + "_i" +
-                            std::to_string(index);
+      std::string varname =
+          target + "_" + std::to_string(sg->GetID()) + "_i" + std::to_string(index);
       auto var = Var(varname, GetRef<Call>(call)->checked_type_);
 
       auto cand = std::make_pair(var, input_expr);
@@ -181,8 +180,7 @@ class Partitioner : public ExprMutator {
 
       // Traverse subgraph inputs.
       auto input = VisitExpr(call->args[0]);
-      CHECK(region.defined())
-          << "Region not defined for " << GetRef<Call>(call);
+      CHECK(region.defined()) << "Region not defined for " << GetRef<Call>(call);
       // functions are created for each annotated regions,
       // when their first output is encountered.
       // If multiple outputs are there, a tuple node is inserted at the end.
@@ -200,8 +198,7 @@ class Partitioner : public ExprMutator {
         CHECK_NE(index, -1);
 
         auto tuple_get_item_ = TupleGetItem(sg_call, index);
-        tuple_get_item_->checked_type_ =
-            GetRef<Call>(call)->args[0]->checked_type_;
+        tuple_get_item_->checked_type_ = GetRef<Call>(call)->args[0]->checked_type_;
         return std::move(tuple_get_item_);
       } else {
         // First time this region is encountered in the traversal
@@ -222,7 +219,7 @@ class Partitioner : public ExprMutator {
 
         for (auto pair : region_args[region]) {
           params.push_back(pair.first);
-          if (const auto *cn = pair.second.as<ConstantNode>()) {
+          if (const auto* cn = pair.second.as<ConstantNode>()) {
             params_bind[pair.first->name_hint()] = cn->data;
           } else {
             param_expr.push_back(pair.second);
@@ -232,32 +229,28 @@ class Partitioner : public ExprMutator {
         Function global_region_func;
         if (region->GetOutputs().size() == 1) {
           // If there are only a single output; no need to add a tuple
-          global_region_func = Function(
-              params, fields[0], call->args[0]->checked_type_, {}, DictAttrs());
+          global_region_func =
+              Function(params, fields[0], call->args[0]->checked_type_, {}, DictAttrs());
         } else {
           auto tuple = Tuple(fields);
-          global_region_func =
-              Function(params, tuple, tuple->checked_type_, {}, DictAttrs());
+          global_region_func = Function(params, tuple, tuple->checked_type_, {}, DictAttrs());
         }
 
         std::string target = call->attrs.as<CompilerAttrs>()->compiler;
         std::string name = target + "_" + std::to_string(region->GetID());
 
+        global_region_func = WithAttr(std::move(global_region_func), attr::kExternalSymbol,
+                                      tir::StringImmNode::make(name));
         global_region_func =
-            WithAttr(std::move(global_region_func), attr::kExternalSymbol,
-                     tir::StringImmNode::make(name));
-        global_region_func = WithAttr(std::move(global_region_func),
-                                      attr::kPrimitive, tvm::Integer(1));
+            WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
+        global_region_func = WithAttr(std::move(global_region_func), attr::kCompiler,
+                                      tvm::tir::StringImmNode::make(target));
         global_region_func =
-            WithAttr(std::move(global_region_func), attr::kCompiler,
-                     tvm::tir::StringImmNode::make(target));
-        global_region_func = WithAttr(std::move(global_region_func),
-                                      attr::kInline, tvm::Integer(1));
+            WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
 
         // Constant propagation
         if (!params_bind.empty()) {
-          global_region_func =
-              backend::BindParamsByName(global_region_func, params_bind);
+          global_region_func = backend::BindParamsByName(global_region_func, params_bind);
         }
 
         std::string fname = name;
@@ -283,15 +276,14 @@ class Partitioner : public ExprMutator {
         } else {
           // Add a tuplegetitem node to select this output out of many
           auto tuple_get_item_ = TupleGetItem(ret, index);
-          tuple_get_item_->checked_type_ =
-              GetRef<Call>(call)->args[0]->checked_type_;
+          tuple_get_item_->checked_type_ = GetRef<Call>(call)->args[0]->checked_type_;
           return std::move(tuple_get_item_);
         }
       }
     }
   }
 
-  Expr VisitExpr_(const TupleNode *op) final {
+  Expr VisitExpr_(const TupleNode* op) final {
     auto region = GetRegion(GetRef<Tuple>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -304,7 +296,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const TupleGetItemNode *g) final {
+  Expr VisitExpr_(const TupleGetItemNode* g) final {
     auto region = GetRegion(GetRef<TupleGetItem>(g));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(g);
@@ -314,7 +306,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const FunctionNode *op) final {
+  Expr VisitExpr_(const FunctionNode* op) final {
     auto region = GetRegion(GetRef<Function>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -329,7 +321,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const LetNode *op) final {
+  Expr VisitExpr_(const LetNode* op) final {
     auto region = GetRegion(GetRef<Let>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -341,7 +333,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const IfNode *op) final {
+  Expr VisitExpr_(const IfNode* op) final {
     auto region = GetRegion(GetRef<If>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -353,7 +345,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefCreateNode *op) final {
+  Expr VisitExpr_(const RefCreateNode* op) final {
     auto region = GetRegion(GetRef<RefCreate>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -363,7 +355,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefReadNode *op) final {
+  Expr VisitExpr_(const RefReadNode* op) final {
     auto region = GetRegion(GetRef<RefRead>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -373,7 +365,7 @@ class Partitioner : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const RefWriteNode *op) final {
+  Expr VisitExpr_(const RefWriteNode* op) final {
     auto region = GetRegion(GetRef<RefWrite>(op));
     if (!region.defined()) {
       return ExprMutator::VisitExpr_(op);
@@ -386,11 +378,11 @@ class Partitioner : public ExprMutator {
 
   IRModule Partition() {
     auto glob_funcs = module_->functions;
-    for (const auto &pair : glob_funcs) {
-      if (auto *fn = pair.second.as<FunctionNode>()) {
+    for (const auto& pair : glob_funcs) {
+      if (auto* fn = pair.second.as<FunctionNode>()) {
         auto func = GetRef<Function>(fn);
-        func = Function(func->params, VisitExpr(func->body), func->ret_type,
-                        func->type_params, func->attrs);
+        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+                        func->attrs);
         module_->Update(pair.first, func);
       }
     }
@@ -402,7 +394,7 @@ class Partitioner : public ExprMutator {
    * \brief Get the region an expression belongs to
    * if its in a region.
    */
-  AnnotatedRegion GetRegion(const Expr &e) {
+  AnnotatedRegion GetRegion(const Expr& e) {
     for (auto sg_set_it : regions_sets_) {
       auto sg_set = sg_set_it.first;
       AnnotatedRegion sg = sg_set->GetRegion(e);
@@ -417,7 +409,7 @@ class Partitioner : public ExprMutator {
    * \brief Get the function an expression belongs to
    * if its in a region.
    */
-  BaseFunc GetFunc(const Expr &e) {
+  BaseFunc GetFunc(const Expr& e) {
     for (auto sg_set_it : regions_sets_) {
       auto sg_set = sg_set_it.first;
       auto func = sg_set_it.second;
@@ -434,7 +426,7 @@ class Partitioner : public ExprMutator {
    * \brief Get the index of the argument;
    * this is to be used as tuplegetitem idx
    */
-  int GetArgIdx(AnnotatedRegion sg, const Expr &arg) {
+  int GetArgIdx(AnnotatedRegion sg, const Expr& arg) {
     int idx = 0;
     for (auto arg_ : sg->GetInputs()) {
       if (arg == arg_) {
@@ -449,7 +441,7 @@ class Partitioner : public ExprMutator {
    * \brief Get the index of the return(output);
    * this is to be used as tuplegetitem idx
    */
-  int GetRetIdx(AnnotatedRegion sg, const Expr &arg) {
+  int GetRetIdx(AnnotatedRegion sg, const Expr& arg) {
     int idx = 0;
     for (auto arg_ : sg->GetOutputs()) {
       if (arg == arg_) {
@@ -465,16 +457,14 @@ class Partitioner : public ExprMutator {
    * This is required in the multi-output scenario, to link rest of the outputs
    * to call
    */
-  std::unordered_map<AnnotatedRegion, Call, ObjectHash, ObjectEqual>
-      region_function_calls;
+  std::unordered_map<AnnotatedRegion, Call, ObjectHash, ObjectEqual> region_function_calls;
 
   /*!
    * \brief This map maintains arguments (of region) visits through visitor
    * patterns. Those arguement var and expression will be used to when creating
    * the function.
    */
-  std::unordered_map<AnnotatedRegion, std::vector<std::pair<Var, Expr>>,
-                     ObjectHash, ObjectEqual>
+  std::unordered_map<AnnotatedRegion, std::vector<std::pair<Var, Expr>>, ObjectHash, ObjectEqual>
       region_args;
 
   /*!
@@ -482,8 +472,7 @@ class Partitioner : public ExprMutator {
    * This map maintains the mapping between regionsets and the function it
    * belongs to
    */
-  std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectHash, ObjectEqual>
-      regions_sets_;
+  std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectHash, ObjectEqual> regions_sets_;
   IRModule module_;
 };
 
@@ -493,15 +482,12 @@ namespace transform {
 
 Pass PartitionGraph() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) {
-        return partitioning::Partitioner(m).Partition();
-      };
+      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
   auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph")
-    .set_body_typed(transform::PartitionGraph);
+TVM_REGISTER_GLOBAL("relay._transform.PartitionGraph").set_body_typed(transform::PartitionGraph);
 
 }  // namespace transform
 
