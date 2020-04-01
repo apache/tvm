@@ -258,11 +258,6 @@ class RegionMerger : public ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     if (call->op == compiler_end_op) {
       auto region = regions_->GetRegion(GetRef<Call>(call));
-      auto node = (*region->GetOutputs().begin()).as<CallNode>();
-      std::string name = "";
-      if (node->args[0]->IsInstance<CallNode>()) {
-        name = node->args[0].as<CallNode>()->op.as<OpNode>()->name;
-      }
       // set the region target
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
       region_targets_[region->GetID()] = compiler_attrs->compiler;
