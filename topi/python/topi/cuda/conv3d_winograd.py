@@ -23,7 +23,7 @@ from tvm import te
 from tvm import autotvm
 
 from .. import nn
-from ..util import get_const_int, get_const_tuple, traverse_inline
+from ..util import get_const_int, get_const_tuple, traverse_inline, simplify
 from ..nn.winograd_util import winograd_transform_matrices
 
 logger = logging.getLogger('conv3d_winograd')
@@ -32,7 +32,7 @@ logger = logging.getLogger('conv3d_winograd')
 def _infer_tile_size(data, kernel):
     N, CI, D, H, W = get_const_tuple(data.shape)
 
-    if D % 8 == 0:
+    if H % 8 == 0:
         return 4
     return 2
 
@@ -147,6 +147,99 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
                         name='output',
                         tag='conv3d_ncdhw_winograd')
     cfg.add_flop(2 * N * CO * D * H * W * CI * KD * KH * KW)
+
+    return output
+
+
+def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype,
+                                pre_computed):
+    """Compute declaration for winograd without transforming depth"""
+    tile_size = _infer_tile_size(data, kernel)
+
+    N, CI, D, H, W = get_const_tuple(data.shape)
+
+    if isinstance(dilation, int):
+        dilation_d = dilation_h = dilation_w = dilation
+    else:
+        dilation_d, dilation_h, dilation_w = dilation
+    DSTR, HSTR, WSTR = (strides, strides, strides) if isinstance(strides, int) else strides
+
+    if not pre_computed:  # kernel tensor is raw tensor, do strict check
+        if dilation_d != 1 or dilation_h != 1 or dilation_w != 1:
+            kernel = nn.dilate(kernel, (1, 1, dilation_d, dilation_h, dilation_w))
+        CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
+        alpha = KW + tile_size - 1
+        assert HSTR == 1 and WSTR == 1 and KH == KW
+    else:
+        # kernel tensor is pre-transfomred. this op is created by alter op layout.
+        # dilation is not supported
+        alpha, _, KD, CI, CO = get_const_tuple(kernel.shape)
+        KH = KW = alpha + 1 - tile_size
+        assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
+
+    pf, pt, pl, pb, pd, pr = nn.get_pad_tuple3d(padding, (KD, KH, KW))
+    data_pad = nn.pad(data, (0, 0, pf, pt, pl), (0, 0, pb, pd, pr), name="data_pad")
+    out_depth = simplify((D - KD + pf + pb ) // DSTR + 1)
+    D += pf + pb
+
+    r = KW
+    m = tile_size
+    A, B, G = winograd_transform_matrices(m, r, out_dtype)
+
+    H = (H + pt + pd - KH) // HSTR + 1
+    W = (W + pl + pr - KW) // WSTR + 1
+    nH, nW = (H + m-1) // m, (W + m-1) // m
+    P = N * nH * nW
+
+    # transform kernel
+    if not pre_computed:
+        r_kh = te.reduce_axis((0, KH), name='r_kh')
+        r_kw = te.reduce_axis((0, KW), name='r_kw')
+        kernel_pack = te.compute((alpha, alpha, KD, CI, CO), lambda eps, nu, d, ci, co:
+                                 te.sum(kernel[co][ci][d][r_kh][r_kw] *
+                                        G[eps][r_kh] * G[nu][r_kw],
+                                        axis=[r_kh, r_kw]), name='kernel_pack')
+    else:
+        kernel_pack = kernel
+
+    idxdiv = tvm.tir.indexdiv
+    idxmod = tvm.tir.indexmod
+    # pack input tile
+    input_tile = te.compute((CI, D, P, alpha, alpha), lambda c, d, p, eps, nu:
+                            data_pad[idxdiv(p, (nH * nW))][c][d][idxmod(idxdiv(p, nW), nH) * m + eps]
+                            [idxmod(p, nW) * m + nu], name='d')
+
+    # transform data
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_a')
+    data_pack = te.compute((alpha, alpha, CI, D, P), lambda eps, nu, ci, d, p:
+                           te.sum(input_tile[ci][d][p][r_a][r_b] * B[r_a][eps] * B[r_b][nu],
+                                  axis=[r_a, r_b]), name='data_pack')
+
+    # do batch gemm
+    ci = te.reduce_axis((0, CI), name='ci')
+    rz = te.reduce_axis((0, KD), name='rz')
+    bgemm = te.compute((alpha, alpha, CO, out_depth, P), lambda eps, nu, co, d, p:
+                       te.sum(kernel_pack[eps][nu][rz][ci][co] *
+                              data_pack[eps][nu][ci][d * DSTR + rz][p],
+                              axis=[ci, rz]), name='bgemm')
+
+    # inverse transform
+    r_a = te.reduce_axis((0, alpha), 'r_a')
+    r_b = te.reduce_axis((0, alpha), 'r_a')
+    inverse = te.compute((CO, out_depth, P, m, m), lambda co, d, p, vh, vw:
+                         te.sum(bgemm[r_a][r_b][co][d][p] * A[r_a][vh] * A[r_b][vw],
+                                axis=[r_a, r_b]), name='inverse')
+
+    # output
+    output = te.compute((N, CO, out_depth, H, W), lambda n, co, d, h, w:
+                        inverse[co,
+                                d,
+                                n * nH * nW + idxdiv(h, m) * nW + idxdiv(w, m),
+                                idxmod(h, m),
+                                idxmod(w, m)],
+                        name='output', tag='conv2d_nchw_winograd')
+    cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
 
     return output
 
@@ -314,6 +407,12 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
 @autotvm.register_topi_compute("conv3d_ncdhw_winograd.cuda")
 def conv3d_ncdhw_winograd(cfg, data, kernel, strides, padding, dilation, out_dtype):
     return winograd_cuda(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False)
+
+
+@autotvm.register_topi_compute("conv3d_ncdhw_winograd_without_depth.cuda")
+def conv3d_ncdhw_winograd_without_depth(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    return winograd_without_depth_cuda(
         cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False)
 
 
