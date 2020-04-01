@@ -28,6 +28,7 @@
 #include <tvm/tir/ir_pass.h>
 #include <topi/tags.h>
 #include <string>
+#include <algorithm>
 #include "broadcast.h"
 
 namespace topi {
