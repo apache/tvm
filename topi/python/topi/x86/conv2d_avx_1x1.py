@@ -19,7 +19,6 @@
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
-from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.pad import pad

@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """Conv2D schedule on for Intel CPU"""
 import tvm
-from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..generic import conv2d as conv2d_generic

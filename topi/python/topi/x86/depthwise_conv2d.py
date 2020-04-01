@@ -151,7 +151,7 @@ def depthwise_conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation,
             in_channel_chunk = in_channel // in_channel_block
             out_channel_block = cfg["tile_oc"].size[-1]
             out_channel_chunk = out_channel // out_channel_block
-            dshape = (batch, in_channel_chunk,in_height, in_width, in_channel_block)
+            dshape = (batch, in_channel_chunk, in_height, in_width, in_channel_block)
             data = tvm.te.placeholder(dshape, data.dtype, name="data")
             kshape = (out_channel_chunk, 1, filter_height, filter_width, 1, out_channel_block)
             kernel = tvm.te.placeholder(kshape, kernel.dtype, name="kernel")
