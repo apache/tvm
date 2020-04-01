@@ -113,7 +113,8 @@ def test_extern_dnnl():
                                              padding=(1, 1),
                                              groups=32)
         end0 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
-        begin2 = relay.annotation.compiler_begin(end0, "dnnl")
+        end1 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
+        begin2 = relay.annotation.compiler_begin(end1, "dnnl")
         begin3 = relay.annotation.compiler_begin(end0, "dnnl")
         begin4 = relay.annotation.compiler_begin(weight1, "dnnl")
         depthwise_conv2d_2 = relay.nn.conv2d(begin3,
@@ -121,11 +122,11 @@ def test_extern_dnnl():
                                              kernel_size=(3, 3),
                                              padding=(1, 1),
                                              groups=32)
-        end1 = relay.annotation.compiler_end(depthwise_conv2d_2, "dnnl")
-        begin5 = relay.annotation.compiler_begin(end1, "dnnl")
+        end2 = relay.annotation.compiler_end(depthwise_conv2d_2, "dnnl")
+        begin5 = relay.annotation.compiler_begin(end2, "dnnl")
         out = relay.add(begin2, begin5)
-        end2 = relay.annotation.compiler_end(out, "dnnl")
-        f = relay.Function([data, weight1], end2)
+        end3 = relay.annotation.compiler_end(out, "dnnl")
+        f = relay.Function([data, weight1], end3)
         mod = tvm.IRModule.from_expr(f)
         return mod
 
@@ -137,7 +138,7 @@ def test_extern_dnnl():
         mod = annotated(dtype, ishape, w1shape)
         mod = transform.AnnotateTarget("dnnl")(mod)
         ref_mod = expected(dtype, ishape, w1shape)
-        # tvm.ir.assert_structural_equal(mod, ref_mod)
+        tvm.ir.assert_structural_equal(mod, ref_mod)
 
     def test_run():
         if not tvm.get_global_func("relay.ext.dnnl", True):
