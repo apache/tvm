@@ -102,7 +102,7 @@ def get_weight_quant_params(script_module):
 
 
 def add_quant_params_to_inputs(input_vars, packed_param_map,
-                                quant_params):
+                               quant_params):
     """
     Add quant params to inputs so that they can be referenced by other
     ops later. Weights are quantized here.

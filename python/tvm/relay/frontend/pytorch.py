@@ -1012,8 +1012,8 @@ def _get_op_inputs(op_node, input_vars):
 
 
 def _update_inputs_from_pairs(name_input_pairs, input_vars):
-    for input_name, input in name_input_pairs:
-        input_vars[input_name] = input
+    for input_name, inp in name_input_pairs:
+        input_vars[input_name] = inp
 
 
 def _report_missing_conversion(op_names):
@@ -1040,7 +1040,7 @@ def _check_inputs(graph, input_shapes):
     """
     ir_inputs = _get_graph_input_names(graph)
 
-    if type(input_shapes) is not list:
+    if not isinstance(input_shapes, list):
         msg = "Graph inputs input_shapes should be list"
         raise RuntimeError(msg)
     missing_inputs = len(ir_inputs) - len(input_shapes)
@@ -1048,16 +1048,16 @@ def _check_inputs(graph, input_shapes):
         msg = "Missing {} graph input(s) in input_shapes".format(missing_inputs)
         raise RuntimeError(msg)
 
-    for num, input in enumerate(input_shapes):
+    for num, inp in enumerate(input_shapes):
         if num < len(ir_inputs):
-            if type(input) is not tuple:
+            if not isinstance(inp, tuple):
                 msg = "Graph input {} is not a tuple".format(num)
                 raise RuntimeError(msg)
-            if (len(input) != 2 or type(input[0]) is not str):
-                msg = "Graph input {} is not valid, expected ('name', shape)".format(input)
+            if (len(inp) != 2 or not isinstance(inp[0], str)):
+                msg = "Graph input {} is not valid, expected ('name', shape)".format(inp)
                 raise RuntimeError(msg)
         else:
-            msg = "Unused graph input {} in input_shapes".format(input)
+            msg = "Unused graph input {} in input_shapes".format(inp)
             logging.warning(msg)
 
 
@@ -1158,9 +1158,9 @@ def _get_relay_input_vars(graph, input_shapes):
     ir_inputs = _get_graph_input_names(graph)
     for idx, ir_input in enumerate(ir_inputs):
         name, shape = input_shapes[idx]
-        input = _expr.var(name, shape=shape)
+        inp = _expr.var(name, shape=shape)
         # Translate from graph input to user input name
-        input_vars[ir_input] = input
+        input_vars[ir_input] = inp
 
     return input_vars
 
@@ -1358,7 +1358,7 @@ def convert_operators(operators, input_vars, ret_names):
             assert len(inputs) == 1
             unpacked_names = _get_output_names(op_node)
             _update_inputs_from_pairs(zip(unpacked_names, inputs[0]),
-                                       input_vars)
+                                      input_vars)
         elif operator == "prim::If":
             if_out = convert_if(op_node, input_vars)
             input_vars[node_name] = if_out
@@ -1367,7 +1367,7 @@ def convert_operators(operators, input_vars, ret_names):
             unpacked_names = _get_output_names(op_node)
             assert len(loop_out) == len(unpacked_names)
             _update_inputs_from_pairs(zip(unpacked_names, loop_out),
-                                       input_vars)
+                                      input_vars)
         else:
             relay_op = _convert_map[operator]
             relay_out = relay_op(inputs, _get_input_types(op_node))
@@ -1377,7 +1377,7 @@ def convert_operators(operators, input_vars, ret_names):
                 # See _adaptive_max_2d above for example
                 out_names = _get_output_names(op_node)
                 _update_inputs_from_pairs(zip(out_names, relay_out),
-                                           input_vars)
+                                          input_vars)
             else:
                 input_vars[node_name] = relay_out
 
@@ -1453,8 +1453,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
         qnn_torch.add_quant_params_to_inputs(input_vars,
-                                              packed_param_map,
-                                              weight_quant_params)
+                                             packed_param_map,
+                                             weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
