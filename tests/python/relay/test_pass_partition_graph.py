@@ -725,12 +725,12 @@ def test_multiple_outputs():
         mod = tvm.IRModule()
 
         # function 0
-        data = relay.var("test_target_0_i0", relay.TensorType((1, 3, 224, 224), "float32"))
-        weight = relay.var("test_target_0_i1", relay.TensorType((16, 3, 3, 3), "float32"))
-        bn_gamma = relay.var("test_target_0_i2", relay.TensorType((16, ), "float32"))
-        bn_beta = relay.var("test_target_0_i3", relay.TensorType((16, ), "float32"))
-        bn_mean = relay.var("test_target_0_i4", relay.TensorType((16, ), "float32"))
-        bn_var = relay.var("test_target_0_i5", relay.TensorType((16, ), "float32"))
+        data = relay.var("test_target_2_i0", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("test_target_2_i1", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("test_target_2_i2", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("test_target_2_i3", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("test_target_2_i4", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("test_target_2_i5", relay.TensorType((16, ), "float32"))
 
         conv_o = relay.nn.conv2d(
             data=data,
@@ -743,7 +743,7 @@ def test_multiple_outputs():
                                    bn_var)
 
         relu_o = relay.nn.relu(bn_o[0])
-        tuple_o = relay.Tuple((relu_o, bn_o[1], bn_o[2]))
+        tuple_o = relay.Tuple((bn_o[2], bn_o[1], relu_o))
 
         func0 = relay.Function([data, weight, bn_gamma, bn_beta,
                                 bn_mean, bn_var], tuple_o)
@@ -752,8 +752,8 @@ def test_multiple_outputs():
         func0 = func0.with_attr("Compiler",
                                 tvm.tir.StringImm("test_target"))
         func0 = func0.with_attr("ExternalSymbol",
-                                tvm.tir.StringImm("test_target_0"))
-        gv0 = relay.GlobalVar("test_target_0")
+                                tvm.tir.StringImm("test_target_2"))
+        gv0 = relay.GlobalVar("test_target_2")
         mod[gv0] = func0
 
         # body
@@ -765,9 +765,9 @@ def test_multiple_outputs():
         bn_var = relay.var("bn_var", relay.TensorType((16, ), "float32"))
 
         f0_o = gv0(data, weight, bn_gamma, bn_beta, bn_mean, bn_var)
-        f0_relu_o = relay.TupleGetItem(f0_o, 0)
+        f0_relu_o = relay.TupleGetItem(f0_o, 2)
         f0_mean_o = relay.TupleGetItem(f0_o, 1)
-        f0_var_o = relay.TupleGetItem(f0_o, 2)
+        f0_var_o = relay.TupleGetItem(f0_o, 0)
 
         f0_mean_abs = relay.abs(f0_mean_o)
         f0_var_abs = relay.abs(f0_var_o)
