@@ -66,10 +66,7 @@ def test_diamond_graph_fanouts():
         O_2 = relay.nn.relu(O_1)
         ce_3 = compiler_end(O_2, "test")
 
-        # cb_x = compiler_begin(ce_2, "default")
         X = relay.tanh(ce_2)
-        # ce_x1 = compiler_end(X, "default")
-        # ce_x2 = compiler_end(X, "default")
 
         cb_3 = compiler_begin(ce_3, "test")
         cb_4 = compiler_begin(X, "test")
