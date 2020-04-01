@@ -58,7 +58,7 @@ Stmt MakeCrossThreadReduction(
     cond = cond && v;
   }
 
-  std::vector<std::vector<Stmt> > common, normal_red;
+  std::vector<std::vector<Stmt>> common, normal_red;
   for (size_t i = 0, n = stage->leaf_iter_vars.size(); i < n; ++i) {
     IterVar iv = stage->leaf_iter_vars[i];
     IterVarAttr attr;
@@ -78,7 +78,7 @@ Stmt MakeCrossThreadReduction(
   }
 
   // If we load from and then store into the same res_handles in the thread_allreduce intrinsic,
-  // somethings goes wrong, so we use an extra variable here for normal reduction.
+  // something goes wrong, so we use an extra variable here for normal reduction.
   std::vector<Var> normal_res_handles;
   std::vector<Stmt> normal_init, normal_update;
   if (!normal_red.empty()) {

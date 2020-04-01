@@ -334,7 +334,7 @@ def test_cuda_mix_threaded_and_normal_reduction():
         b = topi.sum(a)
         with tvm.target.cuda():
             sb = tvm.te.create_schedule(b.op)
-            i, j = b.op.reduce_axis
+            i, _ = b.op.reduce_axis
             sb[b].bind(i, tvm.te.thread_axis("threadIdx.x"))
             ctx = tvm.gpu(0)
             func = tvm.build(sb, [a, b], 'cuda')
@@ -505,6 +505,7 @@ if __name__ == "__main__":
     test_rfactor_predicates()
     test_cuda_const_float_to_half()
     test_cuda_reduction()
+    test_cuda_mix_threaded_and_normal_reduction()
     test_cuda_floordiv_with_vectorization()
     test_vectorized_intrin1()
     test_vectorized_intrin2()
