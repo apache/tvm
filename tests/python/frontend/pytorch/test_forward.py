@@ -327,76 +327,39 @@ def test_forward_concatenate():
 def test_forward_relu():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
-
-    class ReLU1(Module):
-        def forward(self, *args):
-            return torch.nn.ReLU()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(ReLU1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.ReLU().eval(), input_data=input_data)
 
 def test_forward_prelu():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class PReLU1(Module):
-        def __init__(self):
-            super(PReLU1, self).__init__()
-            self.prelu = torch.nn.PReLU(num_parameters=3)
-        def forward(self, *args):
-            return self.prelu(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(PReLU1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
 
 def test_forward_leakyrelu():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
-
-    class LeakyReLU1(Module):
-        def forward(self, *args):
-            return torch.nn.LeakyReLU(negative_slope=0.05)(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(LeakyReLU1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=0.05).eval(), input_data=input_data)
 
 def test_forward_elu():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
-
-    class ELU1(Module):
-        def forward(self, *args):
-            return torch.nn.ELU(alpha=1.3)(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(ELU1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.ELU(alpha=1.3).eval(), input_data=input_data)
 
 def test_forward_log_sigmoid():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
-
-    class LogSigmoid1(Module):
-        def forward(self, *args):
-            return torch.nn.LogSigmoid()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(LogSigmoid1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
 
 def test_forward_adaptiveavgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class AdaptiveAvgPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([1, 1])(args[0])
-
-    class AdaptiveAvgPool2D2(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([10, 10])(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
-    verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveAvgPool2d([1, 1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveAvgPool2d([10, 10]).eval(), input_data=input_data)
 
 def test_forward_maxpool2d():
     torch.set_grad_enabled(False)
@@ -453,28 +416,19 @@ def test_forward_avgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
 
-    class AvgPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.AvgPool2d(kernel_size=[10, 10])(args[0])
-
     class AvgPool2D2(Module):
         def forward(self, *args):
             return torch.nn.functional.avg_pool2d(args[0], kernel_size=[10, 10])
 
     input_data = torch.rand(input_shape).float()
-    verify_model(AvgPool2D1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
 
 def test_forward_hardtanh():
     torch.set_grad_enabled(False)
     input_shape = [10]
-
-    class HardTanh1(Module):
-        def forward(self, *args):
-            return torch.nn.Hardtanh()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(HardTanh1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Hardtanh().eval(), input_data=input_data)
 
 def test_forward_conv():
     torch.set_grad_enabled(False)
@@ -529,13 +483,8 @@ def test_forward_conv_transpose():
 def test_forward_threshold():
     torch.set_grad_enabled(False)
     input_shape = [1, 3]
-
-    class Threshold1(Module):
-        def forward(self, *args):
-            return torch.nn.Threshold(0, 0)(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(Threshold1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Threshold(0, 0).float().eval(), input_data=input_data)
 
 def test_forward_contiguous():
     torch.set_grad_enabled(False)
@@ -642,13 +591,8 @@ def test_forward_logsoftmax():
 def test_forward_sigmoid():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class Sigmoid1(Module):
-        def forward(self, *args):
-            return torch.nn.Sigmoid()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(Sigmoid1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Sigmoid().eval(), input_data=input_data)
 
 def test_forward_dense():
     torch.set_grad_enabled(False)
