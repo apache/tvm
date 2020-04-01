@@ -40,12 +40,12 @@ class TempRealizer : private ScopeMutator {
   }
 
  private:
-  Expr VisitExpr(const Expr& expr) final {
+  Expr DispatchVisitExpr(const Expr& expr) final {
     Expr res;
     if (const auto* temp = expr.as<TempExprNode>()) {
       res = temp->Realize();
     } else {
-      res = ScopeMutator::VisitExpr(expr);
+      res = ScopeMutator::DispatchVisitExpr(expr);
     }
     return res;
   }
@@ -73,7 +73,7 @@ class ForwardRewriter : private ScopeMutator {
     if (fmulti_ref_trigger_ != nullptr) {
       ref_counter_ = GetExprRefCount(expr);
     }
-    return realizer_.Realize(Mutate(expr));
+    return realizer_.Realize(this->VisitExpr(expr));
   }
 
  private:
