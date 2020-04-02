@@ -22,6 +22,7 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -179,8 +180,8 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         // TODO(tqchen) more standard set based testing.
         if (e.touched.is_single_point() &&
             x.touched.is_single_point()) {
-          if (Equal(e.touched.point_value(),
-                    x.touched.point_value())) continue;
+          if (ExprDeepEqual()(e.touched.point_value(),
+                              x.touched.point_value())) continue;
         }
         if (x.double_buffer_write &&
             e.type == kRead &&

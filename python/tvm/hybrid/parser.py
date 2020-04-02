@@ -56,7 +56,7 @@ def concat_list_to_block(lst):
 def visit_list_to_block(visit, lst):
     """Visit and concatenate a list of Python IR nodes to HalideIR Block"""
     lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
-    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
+    lst = [stmt for stmt in lst if not tvm.ir.structural_equal(stmt, util.make_nop())]
     if not lst:
         return util.make_nop()
     return concat_list_to_block(lst)
@@ -178,7 +178,7 @@ class HybridParser(ast.NodeVisitor):
                 self.binds[val.var.name] = val
                 return
             val_ = self.binds[val.var.name]
-            _internal_assert(_ir_pass.Equal(val_.dom.extent, val.dom.extent),
+            _internal_assert(tvm.tir.analysis.expr_deep_equal(val_.dom.extent, val.dom.extent),
                              "Thread extents should be uniform!")
             self.symbols[key] = ty, val_
 
@@ -525,7 +525,7 @@ class HybridParser(ast.NodeVisitor):
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop iterating function parse error!")
             offset = iter_var = tvm.te.var(_name)
-            if not _ir_pass.Equal(low, tvm.runtime.const(0, 'int32')):
+            if not tvm.tir.analysis.expr_deep_equal(low, tvm.runtime.const(0, 'int32')):
                 offset = iter_var + low
             self.add_symbol(_name, Symbol.LoopVar, offset)
             _body = visit_list_to_block(self.visit, node.body)
