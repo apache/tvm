@@ -18,14 +18,18 @@
  */
 
 /*!
- *  Lower TVM related buildin intrinsics such as packed call.
- * \file lower_tvm_buildin.cc
+ *  Lower TVM related builtin intrinsics such as packed call.
+ * \file tir/transforms/lower_tvm_buildin.cc
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/runtime/registry.h>
+
 #include <unordered_set>
-#include "ir_util.h"
+
+#include "../pass/ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
@@ -368,11 +372,20 @@ class BuiltinLower : public StmtExprMutator {
   uint64_t max_arg_stack_{0};
 };
 
-LoweredFunc LowerTVMBuiltin(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = BuiltinLower().Build(n->body);
-  return LoweredFunc(n);
+namespace transform {
+
+Pass LowerTVMBuiltin() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = BuiltinLower().Build(n->body);
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
 }
 
+TVM_REGISTER_GLOBAL("tir.transform.LowerTVMBuiltin")
+.set_body_typed(LowerTVMBuiltin);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm
