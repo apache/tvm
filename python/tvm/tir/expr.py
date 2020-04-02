@@ -14,18 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Expression AST Node in TVM.
+# pylint: disable=redefined-builtin
+"""TIR expression nodes.
 
-User do not need to deal with expression AST node directly.
-But they can be helpful for developer to do quick proptyping.
-While not displayed in the document and python file.
 Each expression node have subfields that can be visited from python side.
-
 For example, you can use addexp.a to get the left operand of an Add node.
 
 .. code-block:: python
 
-  x = te.var("n")
+  x = tvm.tir.Var("n", "int32")
   y = x + 2
   assert(isinstance(y, tvm.tir.Add))
   assert(y.a == x)
@@ -856,6 +853,23 @@ class Load(PrimExprWithOp):
         args = [] if predicate is None else [predicate]
         self.__init_handle_by_constructor__(
             _ffi_api.Load, dtype, buffer_var, index, *args)
+
+
+@tvm._ffi.register_object
+class BufferLoad(PrimExprWithOp):
+    """Buffer load node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer to be loaded.
+
+    indices : List[PrimExpr]
+        The buffer indices.
+    """
+    def __init__(self, buffer, indices):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferLoad, buffer, indices)
 
 
 @tvm._ffi.register_object

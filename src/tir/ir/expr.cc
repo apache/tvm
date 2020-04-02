@@ -407,6 +407,22 @@ PrimExpr AnyNode::make() {
   return PrimExpr(n);
 }
 
+BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices) {
+  ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
+  node->dtype = buffer->dtype;
+  node->buffer = std::move(buffer);
+  node->indices = std::move(indices);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferLoad")
+.set_body_typed([](Buffer buffer, Array<PrimExpr> indices) {
+  return BufferLoad(buffer, indices);
+});
+
+TVM_REGISTER_NODE_TYPE(BufferLoadNode);
+
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<StringImmNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const StringImmNode*>(node.get());
