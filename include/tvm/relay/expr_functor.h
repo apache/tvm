@@ -235,19 +235,19 @@ class ExprMutator
 /*!
  * \brief A wrapper around ExprVisitor which traverses the Dataflow Normal AST.
  *
- * DataflowVisitor treats Expr as dataflow graph, and visits in post-DFS order
+ * MixedModeVisitor treats Expr as dataflow graph, and visits in post-DFS order
  *
- * DataflowVisitor provides the same recursive API as ExprVisitor, and uses
+ * MixedModeVisitor provides the same recursive API as ExprVisitor, and uses
  * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
  * of the graph and processes them iteratatively to prevent stack overflows
  */
-class DataflowVisitor : public ::tvm::relay::ExprVisitor {
+class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  public:
-  /*! \brief The constructor of DataflowVisitor
+  /*! \brief The constructor of MixedModeVisitor
    *  \param visit_limit The number of times to allow visitation to a note. Usually 1, ocassionally
    * higher (i.e., 2 for dead code elimiation), limited to 10 as a sanity check.
    */
-  DataflowVisitor(int visit_limit = 1);
+  MixedModeVisitor(int visit_limit = 1);
 
   /*!
    * \brief VisitExpr is finalized to preserve call expansion of dataflow regions
@@ -275,17 +275,17 @@ class DataflowVisitor : public ::tvm::relay::ExprVisitor {
 
 /*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
  *
- * ScopeMutator treats Expr as dataflow graph, and only Rewrites each Expr once.
+ * MixedModeMutator treats Expr as dataflow graph, and only Rewrites each Expr once.
  * The mutated results are memoized in a map and reused so that
  * local transformation on the dataflow preserves the graph structure.
  *
- * ScopeMutator provides the same recursive API as ExprMutator, and uses
+ * MixedModeMutator provides the same recursive API as ExprMutator, and uses
  * recursion to traverse most forms of the IR, but under the hood it expands nested dataflow regions
  * of the graph and processes them iteratatively to prevent stack overflows
  *
  * Uses Rewrite_ API of ExprRewriter for a cleaner split between recrusive and non-recursive behavior.
  */
-class ScopeMutator : public ::tvm::relay::ExprMutator {
+class MixedModeMutator : public ::tvm::relay::ExprMutator {
  public:
   Expr VisitExpr(const Expr& expr) final;
   virtual Expr DispatchVisitExpr(const Expr& expr);
