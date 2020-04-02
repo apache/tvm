@@ -23,6 +23,8 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/analysis.h>
+
 #include "const_fold.h"
 #include "pattern_match.h"
 #include "rewrite_simplify.h"
@@ -157,7 +159,7 @@ class SplitExpr : public PrimExpr {
 
 inline bool SplitExprNode::IndexEqual(const SplitExpr& other) const {
   if (index.same_as(other->index)) return true;
-  return tir::Equal(index, other->index);
+  return tir::ExprDeepEqual()(index, other->index);
 }
 
 inline bool SplitExprNode::DivModeCompatibleTo(DivMode mode) const {

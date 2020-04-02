@@ -24,7 +24,9 @@
 #include <tvm/tir/buffer.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/ir_pass.h>
+
 #include <iterator>
 #include <stack>
 #include "../../arith/compute_expr.h"
@@ -112,6 +114,8 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr &mult_expr,
   const PrimExpr* search_ptr = inner;
   PrimExpr mult_inner;  // The inner multiplication factor
   PrimExpr no_opt_sum;  // Sum of the exprs that cannot be optimized
+  tir::ExprDeepEqual expr_equal;
+
   while (true) {
     auto inner_div_ptr = search_ptr->as<IndexDiv>();
     auto inner_mult_ptr = search_ptr->as<MulNode>();
@@ -120,9 +124,9 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(const PrimExpr &mult_expr,
       return std::make_pair(false, PrimExpr());
     } else if (inner_div_ptr) {
       PrimExpr overall_mult = mult_inner.get() ? mult_inner * mult_outer : mult_outer;
-      if (Equal(overall_mult, inner_div_ptr->b)
-          && Equal(overall_mult, mod_r_expr)
-          && Equal(inner_div_ptr->a, mod_l_expr)) {
+      if (expr_equal(overall_mult, inner_div_ptr->b)
+          && expr_equal(overall_mult, mod_r_expr)
+          && expr_equal(inner_div_ptr->a, mod_l_expr)) {
         // Found!
         PrimExpr ret = no_opt_sum.get() ? no_opt_sum * mult_outer + mod_l_expr : mod_l_expr;
         return std::make_pair(true, ret);

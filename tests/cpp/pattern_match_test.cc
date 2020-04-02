@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/tir/analysis.h>
 #include "../src/arith/pattern_match.h"
 
 TEST(Pattern, Basic) {
@@ -39,12 +40,13 @@ TEST(Pattern, Basic) {
   {
     CHECK((px + (py + px)).Match(r));
     auto rr = (px + py).Eval();
-    CHECK(tir::Equal(rr, 1 + y));
-    CHECK(tir::Equal(px.Eval() + py.Eval(), 1 + y));
+
+    CHECK(tir::ExprDeepEqual()(rr, 1 + y));
+    CHECK(tir::ExprDeepEqual()(px.Eval() + py.Eval(), 1 + y));
   }
   {
     CHECK((px + max(py, px)).Match((x + 1) + max(y, (x + 1))));
-    CHECK(tir::Equal(px.Eval(), x + 1));
+    CHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
   }
   CHECK(!(px + min(py, px)).Match((x + 1) + max(y, (x + 1))));
   CHECK((px + min(py, px)).Match(z + min(y, z)));
@@ -64,7 +66,7 @@ TEST(Pattern, Basic) {
   {
     CHECK(select(px >= pz, py, py + pz).Match(
         tir::SelectNode::make((x + 1) >= 1, y, y + 1)));
-    CHECK(tir::Equal(px.Eval(), x + 1));
+    CHECK(tir::ExprDeepEqual()(px.Eval(), x + 1));
   }
   // bit intrinsics
   {
@@ -90,7 +92,7 @@ TEST(Pattern, Basic) {
   {
     CHECK(select(px, py, pz).Match(
         tir::SelectNode::make(x > 2, y, y + 1)));
-    CHECK(tir::Equal(pz.Eval(), y + 1));
+    CHECK(tir::ExprDeepEqual()(pz.Eval(), y + 1));
   }
   // if_then_else
   {

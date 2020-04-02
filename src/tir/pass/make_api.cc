@@ -22,6 +22,7 @@
  */
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/runtime/device_api.h>
@@ -255,7 +256,7 @@ class DeviceTypeBinder: public StmtExprMutator {
     // eager check NE for device check
     PrimExpr res = StmtExprMutator::VisitExpr_(op);
     op = res.as<NENode>();
-    if (tir::Equal(op->a, op->b)) {
+    if (tir::ExprDeepEqual()(op->a, op->b)) {
       return make_const(op->dtype, false);
     }
     return res;
