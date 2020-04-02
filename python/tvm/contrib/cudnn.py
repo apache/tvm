@@ -419,7 +419,7 @@ def softmax(x, axis=-1):
     ret : tvm.te.Tensor
         The result tensor
     """
-    assert axis == -1 or axis == len(x.shape) - 1
+    #assert axis == -1 or axis == len(x.shape) - 1
     return te.extern(
         x.shape, [x],
         lambda ins, outs: tvm.tir.call_packed(

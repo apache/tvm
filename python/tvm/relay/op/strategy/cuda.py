@@ -67,7 +67,7 @@ def softmax_strategy_cuda(attrs, inputs, out_type, target):
         wrap_compute_softmax(topi.nn.softmax),
         wrap_topi_schedule(topi.cuda.schedule_softmax),
         name="softmax.cuda")
-    if target.target_name == "cuda" and "cudnn" in target.libs and axis == -1:
+    if target.target_name == "cuda" and "cudnn" in target.libs:
         strategy.add_implementation(
             wrap_compute_softmax(topi.cuda.softmax_cudnn),
             wrap_topi_schedule(topi.cuda.schedule_softmax_cudnn),

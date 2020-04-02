@@ -18,7 +18,8 @@
  */
 
 /*!
- * \file Use external cudnn utils function
+ * \file src/runtime/contrib/cudnn/softmax.cc
+ * \brief Use external cudnn softmax function
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -29,40 +30,6 @@ namespace contrib {
 
 using namespace runtime;
 
-/*
-  cudnnStatus_t cudnnSoftmaxForward(
-    cudnnHandle_t                    handle,
-    cudnnSoftmaxAlgorithm_t          algorithm,
-    cudnnSoftmaxMode_t               mode,
-    const void                      *alpha,
-    const cudnnTensorDescriptor_t    xDesc,
-    const void                      *x,
-    const void                      *beta,
-    const cudnnTensorDescriptor_t    yDesc,
-    void                            *y)
-
-2.62. cudnnSoftmaxAlgorithm_t
-
-CUDNN_SOFTMAX_FAST
-This implementation applies the straightforward softmax operation.
-
-CUDNN_SOFTMAX_ACCURATE
-This implementation scales each point of the softmax input domain by its maximum value to avoid potential floating point overflows in the softmax evaluation.
-
-CUDNN_SOFTMAX_LOG
-This entry performs the log softmax operation, avoiding overflows by scaling each point in the input domain as in CUDNN_SOFTMAX_ACCURATE.
-
-2.63. cudnnSoftmaxMode_t
-cudnnSoftmaxMode_t is used to select over which data the cudnnSoftmaxForward() and cudnnSoftmaxBackward() are computing their results.
-
-Values
-CUDNN_SOFTMAX_MODE_INSTANCE
-The softmax operation is computed per image (N) across the dimensions C,H,W.
-
-CUDNN_SOFTMAX_MODE_CHANNEL
-The softmax operation is computed per spatial location (H,W) per image (N) across the dimension C.
-
-*/
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   DLTensor* x = args[0];
@@ -72,24 +39,44 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
   CHECK(axis >= 0 && axis < ndim);
-  CHECK(axis == ndim - 1) << "Currently only support axis=-1 for cudnn softmax";
-  int64_t N = 1;
-  for (int i = 0; i < ndim - 1; ++i) {
-    N *= shape[i];
-  }
-  
+
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
-  entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_INSTANCE;
   entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
 
-  // Set shape descriptor
-  CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
-                                        CUDNN_TENSOR_NCHW,
-                                        entry_ptr->softmax_entry.data_type,
-                                        static_cast<int>(N),
-                                        static_cast<int>(shape[ndim - 1]),
-                                        1,
-                                        1));
+  // Set mode and shape descriptor
+  if (axis == ndim - 1) {
+    int64_t N = 1;
+    for (int i = 0; i < ndim - 1; ++i) {
+      N *= shape[i];
+    }
+    entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_INSTANCE;
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
+                                          CUDNN_TENSOR_NCHW,
+                                          entry_ptr->softmax_entry.data_type,
+                                          static_cast<int>(N),
+                                          static_cast<int>(shape[ndim - 1]),
+                                          1,
+                                          1));
+  } else {
+    int64_t pre_axis_dim = 1;
+    int64_t post_axis_dim = 1;
+    for (int i = 0; i < ndim; ++i) {
+      if (i < axis) {
+        pre_axis_dim *= shape[i];
+      } else if (i > axis) {
+        post_axis_dim *= shape[i];
+      }
+    }
+    entry_ptr->softmax_entry.mode = CUDNN_SOFTMAX_MODE_CHANNEL;
+    CUDNN_CALL(cudnnSetTensor4dDescriptor(entry_ptr->softmax_entry.shape_desc,
+                                          CUDNN_TENSOR_NCHW,
+                                          entry_ptr->softmax_entry.data_type,
+                                          static_cast<int>(pre_axis_dim),
+                                          static_cast<int>(shape[axis]),
+                                          static_cast<int>(post_axis_dim),
+                                          1));
+  }
+
   auto alpha = CuDNNDataType::GetConst<1>(entry_ptr->softmax_entry.data_type);
   auto beta = CuDNNDataType::GetConst<0>(entry_ptr->softmax_entry.data_type);
   CUDNN_CALL(cudnnSoftmaxForward(entry_ptr->handle,

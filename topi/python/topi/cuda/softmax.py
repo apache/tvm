@@ -84,9 +84,10 @@ def schedule_softmax(outs):
 
 
 def softmax_cudnn(x, axis=-1):
-    assert axis == -1
+    """Perform softmax on the data using cudnn"""
     return cudnn.softmax(x, axis)
 
 
 def schedule_softmax_cudnn(outs):
+    """Schedule for softmax cudnn op"""
     return generic.schedule_extern(outs)
