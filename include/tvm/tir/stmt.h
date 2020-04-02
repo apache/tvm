@@ -275,6 +275,57 @@ class StoreNode : public StmtNode {
 };
 
 /*!
+ * \brief Store value to the high dimension buffer.
+ *
+ * \code
+ *
+ *  buffer[i, j] = value;
+ *
+ * \endcode
+ * \sa BufferLoad
+ */
+class BufferStore;
+class BufferStoreNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Buffer buffer;
+  /*! \brief The value to be stored. */
+  PrimExpr value;
+  /*! \brief The indices location to be stored. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("value", &value);
+    v->Visit("indices", &indices);
+  }
+
+  bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
+    return
+        equal(buffer, other->buffer) &&
+        equal(value, other->value) &&
+        equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(value);
+    hash_reduce(indices);
+  }
+
+  static constexpr const char* _type_key = "BufferStore";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
+};
+
+class BufferStore : public Stmt {
+ public:
+  TVM_DLL explicit BufferStore(Buffer buffer,
+                               PrimExpr value,
+                               Array<PrimExpr> indices);
+  TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
+};
+
+/*!
  * \brief Store value into mult-dimensional array defined by func.
  */
 class ProvideNode : public StmtNode {

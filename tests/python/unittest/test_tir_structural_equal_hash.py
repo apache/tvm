@@ -166,6 +166,22 @@ def test_stmt():
     assert consistent_equal(func2(), func2())
 
 
+def test_buffer_load_store():
+    b = tvm.tir.decl_buffer((10, 10), "float32")
+    x = tvm.tir.BufferLoad(b, [0, 1])
+    y = tvm.tir.BufferLoad(b, [0, 1])
+    z = tvm.tir.BufferLoad(b, [1, 2])
+    assert consistent_equal(y, x)
+    assert not consistent_equal(y, z)
+
+    i = tvm.tir.Var("x", "int32")
+    sx = tvm.tir.BufferStore(b, 0.1, [0, i])
+    sy = tvm.tir.BufferStore(b, 0.1, [0, i])
+    sz = tvm.tir.BufferStore(b, 0.1, [1, i])
+    assert consistent_equal(sy, sx)
+    assert not consistent_equal(sy, sz)
+
+
 if __name__ == "__main__":
     test_exprs()
     test_prim_func()
@@ -173,3 +189,4 @@ if __name__ == "__main__":
     test_array()
     test_env_func()
     test_stmt()
+    test_buffer_load_store()
