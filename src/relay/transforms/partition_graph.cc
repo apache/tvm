@@ -35,6 +35,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/container.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -239,8 +240,8 @@ class Partitioner : public ExprMutator {
         std::string target = call->attrs.as<CompilerAttrs>()->compiler;
         std::string name = target + "_" + std::to_string(region->GetID());
 
-        global_region_func = WithAttr(std::move(global_region_func), attr::kExternalSymbol,
-                                      tir::StringImmNode::make(name));
+        global_region_func = WithAttr(std::move(global_region_func), tvm::attr::kGlobalSymbol,
+                                      runtime::String(name));
         global_region_func =
             WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
         global_region_func = WithAttr(std::move(global_region_func), attr::kCompiler,

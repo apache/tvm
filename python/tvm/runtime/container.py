@@ -109,4 +109,22 @@ def tuple_object(fields=None):
     return _Tuple(*fields)
 
 
+@tvm._ffi.register_object("runtime.String")
+class String(Object):
+    """The string object.
+
+    Parameters
+    ----------
+    string : Str
+        The string used to construct a runtime String object
+
+    Returns
+    -------
+    ret : String
+        The created object.
+    """
+    def __init__(self, string):
+        self.__init_handle_by_constructor__(_String, string)
+
+
 tvm._ffi._init_api("tvm.runtime.container")
