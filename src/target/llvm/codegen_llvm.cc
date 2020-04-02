@@ -1121,7 +1121,8 @@ void CodeGenLLVM::VisitStmt_(const ForNode* op) {
     CHECK(op->for_type == ForType::Serial);
   }
   CreateSerialFor(MakeValue(op->min), MakeValue(op->extent),
-                  ConstInt32(1), op->loop_var, op->body);
+                  llvm::ConstantInt::getSigned(GetLLVMType(op->extent), 1),
+                  op->loop_var, op->body);
 }
 
 
