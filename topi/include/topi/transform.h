@@ -621,9 +621,8 @@ inline Tensor strided_slice(const Tensor& x,
       << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
       << "] is invalid for axis=" << i;
 
-    begin_expr.push_back(make_const(begin[0].dtype(), begin_i));
-    strides_expr.push_back(make_const((strides.size() != 0 ? strides[0].dtype() : begin[0].dtype()),
-                                     stride_vec[i]));
+    begin_expr.push_back(make_const(DataType::Int(32), begin_i));
+    strides_expr.push_back(make_const(DataType::Int(32), stride_vec[i]));
     out_shape.push_back(slice_size);
   }
 
@@ -706,19 +705,21 @@ inline Tensor take(const Tensor& a,
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
           auto idx = tvm::min(tvm::max(0, indices(out_index)), a_size - 1);
-          return a(UnravelIndex(idx, a_shape));
+          return a(UnravelIndex(tvm::cast(tvm::DataType::Int(32), idx), a_shape));
         }, name, tag);
   } else if (mode == "fast") {
     LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
                     "Make sure input indices are in bound";
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
-          return a(UnravelIndex(indices(out_index), a_shape));
+          auto idx = tvm::cast(tvm::DataType::Int(32), indices(out_index));
+          return a(UnravelIndex(idx, a_shape));
         }, name, tag);
   } else {  // mode == "wrap"
     return compute(
         out_shape, [&](const Array<Var>& out_index) {
-          auto idx = truncmod(truncmod(indices(out_index), a_size) + a_size, a_size);
+          auto idx = truncmod(truncmod(tvm::cast(
+              tvm::DataType::Int(32), indices(out_index)), a_size) + a_size, a_size);
           return a(UnravelIndex(idx, a_shape));
         }, name, tag);
   }
@@ -812,7 +813,7 @@ inline Tensor take(const Tensor& a,
           }
           auto idx = tvm::min(tvm::max(0, indices(indices_position)),
                               axis_dim - 1);
-          real_indices.push_back(idx);
+          real_indices.push_back(tvm::cast(tvm::DataType::Int(32), idx));
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
           }
@@ -831,7 +832,8 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
-          real_indices.push_back(indices(indices_position));
+          real_indices.push_back(tvm::cast(tvm::DataType::Int(32),
+                                           indices(indices_position)));
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
           }
@@ -848,7 +850,9 @@ inline Tensor take(const Tensor& a,
           for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
             real_indices.push_back(out_index[j]);
           }
-          auto idx = truncmod(truncmod(indices(indices_position), axis_dim) + axis_dim, axis_dim);
+          auto idx = truncmod(truncmod(
+              tvm::cast(tvm::DataType::Int(32), indices(indices_position)),
+              axis_dim) + axis_dim, axis_dim);
           real_indices.push_back(idx);
           for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
             real_indices.push_back(out_index[j]);
@@ -1060,12 +1064,8 @@ inline Tensor gather_nd(const Tensor& data,
           Array<PrimExpr> real_indices;
           for (size_t i = 0; i < indices_dim0; ++i) {
             indices_position.Set(0, make_const(DataType::Int(32), i));
-            if (indices->dtype.is_int()) {
-              real_indices.push_back(indices(indices_position));
-            } else {
-              real_indices.push_back(
-                  tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
-            }
+            real_indices.push_back(
+                tvm::cast(tvm::DataType::Int(32), indices(indices_position)));
           }
           for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
             real_indices.push_back(out_index[i]);
