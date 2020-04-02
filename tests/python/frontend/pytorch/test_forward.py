@@ -28,7 +28,6 @@ import torchvision
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
-from tvm.relay.frontend.pytorch import get_graph_input_names
 
 
 sys.setrecursionlimit(10000)
@@ -169,8 +168,8 @@ def verify_model(model_name, input_data=[],
     else:
         trace = trace.cpu()
 
-    input_names = get_graph_input_names(trace)
-    input_shapes = dict(zip(input_names,
+    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
+    input_shapes = list(zip(input_names,
                             [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes,
                                               custom_convert_map)
@@ -888,11 +887,12 @@ def test_3d_models():
 
 def verify_script_model(pt_model, ishapes):
     script_module = torch.jit.script(pt_model)
-    input_names = get_graph_input_names(script_module)
-    input_shapes = dict(zip(input_names, ishapes))
 
-    inputs = [torch.randn(input_shapes[input_name], dtype=torch.float)
-              for input_name in input_names]
+    input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
+    input_shapes = list(zip(input_names, ishapes))
+
+    inputs = [torch.randn(shape, dtype=torch.float)
+              for shape in ishapes]
 
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 

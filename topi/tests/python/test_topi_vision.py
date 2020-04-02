@@ -103,11 +103,14 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
         tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
         tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
 
+    """ Skip this test as it is intermittent
+        see https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094
     for device in ['llvm', 'cuda', 'opencl']:
         # Disable opencl test for now
         if device != "llvm" and device != "cuda":
             continue
         check_device(device)
+    """
 
 
 def test_get_valid_counts():
