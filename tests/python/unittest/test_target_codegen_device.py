@@ -63,79 +63,27 @@ def test_add_pipeline():
     s[D].bind(xi, te.thread_axis("threadIdx.x"))
     s[D].bind(xo, te.thread_axis("blockIdx.x"))
 
-    # compile to IR
-    s = s.normalize()
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    Db = tvm.tir.decl_buffer(D.shape, D.dtype, name='D')
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, D:Db}, 64)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "myadd", [Ab, Bb, Db], 0, True)
-    fsplits = [x for x in tvm.tir.ir_pass.SplitHostDevice(fapi)]
-    # lower the floordiv(use stackvm rules so it works for all targets)
-    fsplits = [tvm.tir.ir_pass.LowerIntrin(x, "stackvm") for x in fsplits]
-    fsplits[0] = tvm.tir.ir_pass.LowerTVMBuiltin(fsplits[0])
-
     def check_target(device, host="stackvm"):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
             return
         if not tvm.runtime.enabled(host):
             return
-        mhost = tvm.target.codegen.build_module(fsplits[0], host)
-        mdev = tvm.target.codegen.build_module(fsplits[1:], device)
-        mhost.import_module(mdev)
-        code = mdev.get_source()
+        mhost = tvm.driver.build(s, [A, B, D], target=device, target_host=host)
         f = mhost.entry_func
         # launch the kernel.
         n = 1027
-        a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
-        d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=()).astype(B.dtype), ctx)
+        d = tvm.nd.array(np.zeros(n, dtype=D.dtype), ctx)
         f(a, b, d)
         tvm.testing.assert_allclose(
             d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
-    def check_module_save(device, host="stackvm"):
-        ctx = tvm.context(device, 0)
-        if not ctx.exist:
-            return
-        if not tvm.runtime.enabled(host):
-            return
-        if device == "cuda":
-            fmt = "ptx"
-        elif device == "rocm":
-            fmt = "hsaco"
-        else:
-            fmt = device
-        mhost = tvm.target.codegen.build_module(fsplits[0], host)
-        mdev = tvm.target.codegen.build_module(fsplits[1:], device)
-        temp = util.tempdir()
-        mpath = temp.relpath("test.%s" % fmt)
-        mdev.save(mpath)
-        mdev2 = tvm.runtime.load_module(mpath)
-        mhost.import_module(mdev2)
-        f = mhost.entry_func
-        # launch the kernel.
-        n = 1027
-        a = tvm.nd.array(np.random.uniform(size=n).astype(Ab.dtype), ctx)
-        b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
-        d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
-        f(a, b, d)
-        tvm.testing.assert_allclose(
-            d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
-
-    check_target("cuda", host="stackvm")
     check_target("cuda", host="llvm")
-    check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
     check_target("vulkan", host="llvm")
-    check_module_save("vulkan", host="stackvm")
     check_target("rocm", host="llvm")
-    check_module_save("rocm", host="llvm")
 
 
 if __name__ == "__main__":
