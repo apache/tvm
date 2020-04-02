@@ -477,12 +477,6 @@ LoweredFunc RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> axis_map);
  */
 LoweredFunc LowerTVMBuiltin(LoweredFunc f);
 
-/*!
- * \brief Combine context function calls.
- * \param f The host function to be lowered.
- * \return Transformed function.
- */
-LoweredFunc CombineContextCall(LoweredFunc f);
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -496,7 +490,6 @@ LoweredFunc CombineContextCall(LoweredFunc f);
  */
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
 
-
 /*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
@@ -508,23 +501,6 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
  * \return Transformed function.
  */
 PrimFunc PointerValueTypeRewrite(PrimFunc f);
-
-/*!
- * \brief Lower attached storage access information on device.
- * Do this pass after all storage access analysis finish.
- *
- * \param func The device function to be lowered.
- * \return Transformed function.
- */
-LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc func);
-
-/*!
- * \brief Lower intrinsic function calls.
- * \param f The device function to be lowered.
- * \param target The target device.
- * \return Transformed function.
- */
-LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 
 /*!
  * \brief Lower custom datatypes.
@@ -544,13 +520,6 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
  * \return Transformed function.
  */
 LoweredFunc InferFragment(LoweredFunc f);
-
-/*!
- * \brief skip assert stmt generation
- * \param f The function to be transformed.
- * \return Transformed function.
- */
-LoweredFunc SkipAssert(LoweredFunc f);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

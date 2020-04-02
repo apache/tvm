@@ -26,6 +26,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/function.h>
 
 #include <tvm/runtime/container.h>
@@ -41,18 +42,6 @@
 
 namespace tvm {
 namespace codegen {
-
-// The new build function.
-// adapt the old function to the new one
-runtime::Module BuildForIRModule(const IRModule& module,
-                                 const Target& target) {
-  std::string build_f_name = "target.build." + target->target_name;
-  // the build function.
-  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  CHECK(bf != nullptr)
-      << "target.build." << target << " is not enabled";
-  return (*bf)(module, target->str());
-}
 
 // convert legacy LoweredFunc to PrimFunc.
 tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
@@ -97,24 +86,16 @@ IRModule ToIRModule(const Array<tir::LoweredFunc>& funcs) {
   return IRModule(functions);
 }
 
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target) {
-  std::string mode = target;
-  size_t pos = mode.find(' ');
-  if (pos != std::string::npos) {
-    mode = mode.substr(0, pos);
-  }
-  Array<tir::LoweredFunc> transformed_funcs;
+runtime::Module Build(IRModule mod, const Target& target) {
   if (BuildConfig::Current()->disable_assert) {
-    for (const auto& x : funcs) {
-      auto func = tir::SkipAssert(x);
-      transformed_funcs.push_back(func);
-    }
+    mod = tir::transform::SkipAssert()(mod);
   }
-
-  return BuildForIRModule(
-      transformed_funcs.size() != 0 ? ToIRModule(transformed_funcs) : ToIRModule(funcs),
-      Target::Create(target));
+  std::string build_f_name = "target.build." + target->target_name;
+  // the build function.
+  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
+  CHECK(bf != nullptr)
+      << "target.build." << target << " is not enabled";
+  return (*bf)(mod, target->str());
 }
 
 /*! \brief Helper class to serialize module */
@@ -300,13 +281,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
 }
 
 TVM_REGISTER_GLOBAL("target.Build")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  if (args[0].IsObjectRef<tir::LoweredFunc>()) {
-      *ret = Build({args[0]}, args[1]);
-    } else {
-      *ret = Build(args[0], args[1]);
-    }
-  });
+.set_body_typed(Build);
 
 TVM_REGISTER_GLOBAL("testing.LoweredFuncsToIRModule")
 .set_body_typed(ToIRModule);

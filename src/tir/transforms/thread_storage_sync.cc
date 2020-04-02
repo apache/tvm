@@ -18,16 +18,21 @@
  */
 
 /*!
- * \file storage_sync.cc
+ * \file thread_storage_sync.cc
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+#include <tvm/runtime/registry.h>
+
 #include <unordered_map>
 #include <unordered_set>
-#include "ir_util.h"
-#include "storage_access.h"
+
+#include "../pass/ir_util.h"
+#include "../pass/storage_access.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -376,5 +381,20 @@ LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {
   return LoweredFunc(n);
 }
 
+namespace transform {
+
+Pass ThreadSync(std::string storage_scope) {
+  auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = ThreadSync(std::move(n->body), storage_scope);
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.ThreadSync", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.ThreadSync")
+.set_body_typed(ThreadSync);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

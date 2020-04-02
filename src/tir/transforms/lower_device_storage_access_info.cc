@@ -142,11 +142,6 @@ Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower()(std::move(stmt));
 }
 
-LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = LowerStorageAccessInfo(f->body);
-  return LoweredFunc(n);
-}
 
 namespace transform {
 
