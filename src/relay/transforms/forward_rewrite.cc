@@ -22,6 +22,7 @@
  * \file forward_rewrite.cc
  * \brief Apply rewriting rules in a forward fashion.
  */
+#include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
