@@ -671,16 +671,15 @@ def _convert_padding3d(inexpr, keras_layer, etab):
     _check_data_format(keras_layer)
     padding = keras_layer.padding
 
-    d_pad = h_pad = w_pad = {0, 0}
-    if isinstance(padding, tuple):
-        if isinstance(padding[0], tuple):
-            d_pad = padding[0]
-            h_pad = padding[1]
-            w_pad = padding[2]
-        else:
-            msg = 'Value {} in attribute "padding" of operator ZeroPadding3D ' \
-                  'is not valid.'
-            raise tvm.error.OpAttributeInvalid(msg.format(str(padding)))
+    d_pad = h_pad = w_pad = [0, 0]
+
+    # padding can be 'int' or 'tuple of 3 ints' or 'tuple of 3 tuples of 2 ints' or 'tuple
+    # of 3 tuples of 2 ints different values'. In all these scenarios keras will send 3
+    # tuples of 2 ints.
+    if isinstance(padding, tuple) and isinstance(padding[0], tuple):
+        d_pad = padding[0]
+        h_pad = padding[1]
+        w_pad = padding[2]
     else:
         msg = 'Value {} in attribute "padding" of operator ZeroPadding3D is ' \
               'not valid.'
@@ -691,11 +690,12 @@ def _convert_padding3d(inexpr, keras_layer, etab):
                                                  (d_pad[0], d_pad[1]),
                                                  (h_pad[0], h_pad[1]),
                                                  (w_pad[0], w_pad[1])))
-    out = _op.nn.pad(data=inexpr, pad_width=((0, 0),
-                                             (d_pad[0], d_pad[1]),
-                                             (h_pad[0], h_pad[1]),
-                                             (w_pad[0], w_pad[1]),
-                                             (0, 0)))
+    else:
+        out = _op.nn.pad(data=inexpr, pad_width=((0, 0),
+                                                 (d_pad[0], d_pad[1]),
+                                                 (h_pad[0], h_pad[1]),
+                                                 (w_pad[0], w_pad[1]),
+                                                 (0, 0)))
     return out
 
 def _convert_concat(inexpr, keras_layer, etab):
