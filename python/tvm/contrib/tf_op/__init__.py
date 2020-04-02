@@ -17,4 +17,4 @@
 """Module container of TensorFlow TVMDSO op"""
 from . import module
 
-Module = module.Module
+OpModule = module.OpModule

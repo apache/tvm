@@ -19,7 +19,7 @@ import tensorflow as tf
 from tensorflow.python.framework import load_library
 
 
-class Module():
+class OpModule():
     """Module container of TensorFlow TVMDSO op which wraps exported
     TVM op implementation library to be called on TensorFlow side"""
 
@@ -40,16 +40,16 @@ class Module():
 
         Returns
         ----------
-        Func object that act as TensorFlow tensor to tensor function.
+        Func object that acts as TensorFlow tensor to tensor function.
         """
-        return Func(self.lib_path, name, output_dtype, output_shape)
+        return TensorFunc(self.lib_path, name, output_dtype, output_shape)
 
     def __getitem__(self, func_name):
         return self.func(func_name)
 
 
-class Func():
-    """Function object that act as TensorFlow tensor to tensor function."""
+class TensorFunc():
+    """Function object that acts as TensorFlow tensor to tensor function."""
 
     def __init__(self, lib_path, func_name, output_dtype, output_shape):
         self.lib_path = lib_path
