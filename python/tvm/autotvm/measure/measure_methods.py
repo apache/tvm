@@ -479,10 +479,9 @@ def run_through_rpc(measure_input, build_result,
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
-            # create random arrays on the remote device and copy them once.
+            # create empty arrays on the remote device and copy them once.
             # This can avoid some memory issues that make the measurement results unreliable.
-            args = [nd.array(np.random.uniform(0.0, 255.0, size=x[0]).astype(dtype=x[1]), ctx=ctx)
-                    for x in build_result.arg_info]
+            args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
             args = [nd.array(x, ctx=ctx) for x in args]
             ctx.sync()
 
