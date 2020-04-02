@@ -292,7 +292,18 @@ def test_vars():
     assert isinstance(ptype.element_type, tvm.ir.PrimType)
 
 
+def test_buffer_load_store():
+    b = tvm.tir.decl_buffer((10,), "float32")
+    x = tvm.tir.BufferLoad(b, [0])
+    assert isinstance(x, tvm.tir.BufferLoad)
+    assert x.dtype == "float32"
+    assert x.buffer == b
+    s = tvm.tir.BufferStore(b, 0.1, [0])
+    assert isinstance(s, tvm.tir.BufferStore)
+
+
 if __name__ == "__main__":
+    test_buffer_load_store()
     test_vars()
     test_prim_func()
     test_cast()
