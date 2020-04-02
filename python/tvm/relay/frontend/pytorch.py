@@ -676,7 +676,7 @@ def _avg_pool3d():
         ceil_mode = int(inputs[4])
         count_include_pad = int(inputs[5])
 
-        return _op.nn.avg_pool3d(x,
+        return _op.nn.avg_pool3d(data,
                                  pool_size=pool_size,
                                  strides=strides,
                                  padding=padding,
