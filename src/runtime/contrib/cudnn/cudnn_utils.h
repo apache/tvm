@@ -91,7 +91,7 @@ struct SoftmaxEntry {
   cudnnTensorDescriptor_t shape_desc;
   SoftmaxEntry();
   ~SoftmaxEntry();
-}; // SoftmaxEntry
+};  // SoftmaxEntry
 
 struct CuDNNThreadEntry {
   CuDNNThreadEntry();

@@ -61,7 +61,6 @@ def schedule_adaptive_pool_cuda(attrs, outs, target):
 @softmax_strategy.register(["cuda", "gpu"])
 def softmax_strategy_cuda(attrs, inputs, out_type, target):
     """softmax cuda strategy"""
-    axis = attrs.get_int("axis")
     strategy = _op.OpStrategy()
     strategy.add_implementation(
         wrap_compute_softmax(topi.nn.softmax),
