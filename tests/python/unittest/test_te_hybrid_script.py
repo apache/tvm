@@ -18,8 +18,8 @@ import tvm, inspect, sys, traceback, numpy, pytest, types, os
 
 from tvm import te
 from tvm.contrib import util
-from tvm.hybrid import script
-from tvm.hybrid.runtime import HYBRID_GLOBALS
+from tvm.te.hybrid import script
+from tvm.te.hybrid.runtime import HYBRID_GLOBALS
 
 @pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
@@ -80,7 +80,7 @@ def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
 
     module_args = [i for i in args if isinstance(i, (te.tensor.Tensor, tvm.tir.Var))]
     module_outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    h_module = tvm.hybrid.build(sch, module_args, module_outs)
+    h_module = te.hybrid.build(sch, module_args, module_outs)
 
     return h_module, module_args, module_outs
 
@@ -146,7 +146,7 @@ def test_outer_product():
     temp = util.tempdir()
     path = temp.relpath('%s.py' % func.name)
     func.save(path)
-    func_ = tvm.hybrid.HybridModule()
+    func_ = te.hybrid.HybridModule()
     func_.load(path)
     run_and_check(func_, ins, {n: 99, m: 101}, outs=outs)
 
@@ -348,7 +348,7 @@ def test_bind():
     run_and_check(func, ins, outs=outs, target='cuda')
 
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def foo(a):
         c = output_tensor((a.shape[0],), a.dtype)
         total = allocate((1,), a.dtype, 'local')
@@ -370,7 +370,7 @@ def test_bind():
     func, ins, outs = run_and_check(foo, [a], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def max_threads(a):
         b = output_tensor(a.shape, a.dtype)
         n = a.shape[0]
@@ -433,7 +433,7 @@ def test_math_intrin():
 
 # test non caconical loops
 def test_non_zero():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def blur(a):
         b = output_tensor((30, 30), 'float32')
         for i in range(2, 32):
@@ -449,7 +449,7 @@ def test_non_zero():
     func, ins, outs = run_and_check(blur, [a])
     run_and_check(func, ins, outs=outs)
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def triangle(a, b):
         c = output_tensor((10, 10), dtype='float32')
         for i in range(10):
@@ -464,7 +464,7 @@ def test_non_zero():
     run_and_check(func, ins, outs=outs)
 
 def test_allocate():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def blur2d(a):
         b = output_tensor((30, 30), 'float32')
         for i in range(30):
@@ -483,7 +483,7 @@ def test_allocate():
     run_and_check(func, ins, outs=outs)
 
     if tvm.gpu().exist:
-        @tvm.hybrid.script
+        @te.hybrid.script
         def share_vec_add(a, b):
             c = output_tensor((256, ), 'float32')
             shared = allocate((256, ), 'float32', 'shared')
@@ -505,7 +505,7 @@ def test_allocate():
         print('[Warning] No GPU found! Skip shared mem test!')
 
 def test_upstream():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def upstream(a):
         b = output_tensor((20, ), 'float32')
         for i in range(20):
@@ -535,7 +535,7 @@ def test_upstream():
     tvm.testing.assert_allclose(tvm_d.asnumpy(), ref, 1e-5, 1e-5)
 
 def test_downstream():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def downstream(a):
         b = output_tensor((20, ), 'float32')
         for i in range(20):
@@ -562,7 +562,7 @@ def test_downstream():
     tvm.testing.assert_allclose(tvm_c.asnumpy(), ref, 1e-5, 1e-5)
 
 def test_const_param():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def add_something(a, b):
         c = output_tensor((11, ), 'int32')
         for i in range(11):
@@ -588,7 +588,7 @@ def test_const_param():
     tvm.testing.assert_allclose(nd_c.asnumpy(), ref, 1e-5, 1e-5)
 
 def test_value_index():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def kernel_a(a):
         b = output_tensor((16, ), 'int32')
         c = output_tensor((4, 4), 'int32')
@@ -597,7 +597,7 @@ def test_value_index():
             c[i // 4, i % 4] = a[i] + 1
         return b, c
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def kernel_b(b, a):
         c = output_tensor((4, 4), 'int32')
         for i in range(4):
@@ -621,7 +621,7 @@ def test_value_index():
     tvm.testing.assert_allclose(res.asnumpy(), ref)
 
 def test_func_call():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def foo(a, b):
         for i in range(len(a)):
             a[i] = i + 1.0
@@ -640,7 +640,7 @@ def test_func_call():
     run_and_check(func, ins, outs=outs)
 
 def test_bool():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def foo(a):
         b = output_tensor(a.shape, a.dtype)
         b[0] = 1.2
@@ -655,7 +655,7 @@ def test_bool():
     run_and_check(func, ins, outs=outs)
 
 def test_const_range():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def foo(a, b):
         c = output_tensor(a.shape, a.dtype)
         d = output_tensor(a.shape, 'int32')
@@ -675,7 +675,7 @@ def test_const_range():
     func, ins, outs = run_and_check(foo, [a, b])
     run_and_check(func, ins, outs=outs)
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def goo(a, b):
         c = output_tensor(a.shape, a.dtype)
         len_b = len(b)
@@ -692,7 +692,7 @@ def test_const_range():
     func, ins, outs = run_and_check(goo, [a, b])
     run_and_check(func, ins, outs=outs)
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def hoo(a, b):
         c = output_tensor(a.shape, a.dtype)
         len_b = len(b)
@@ -779,7 +779,7 @@ def test_capture():
     constant_list = [[1, 2], [3, n]]
     const_value = 1
 
-    @tvm.hybrid.script
+    @te.hybrid.script
     def add_something(a):
         c = output_tensor((constant_tuple[1],), 'int32')
         for i in range(constant_tuple[1]):

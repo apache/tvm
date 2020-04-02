@@ -33,7 +33,6 @@ Python API
    rpc
    contrib
    graph_runtime
-   hybrid
    relay/index
    vta/index
    topi
