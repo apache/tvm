@@ -18,6 +18,28 @@
 # pylint: disable=invalid-name
 from . import _ffi_api
 
+def BindDeviceType():
+    """Bind the device type ofthe function to be
+       the device_type specified in the target attribute.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BindDeviceType()
+
+
+def SplitHostDevice():
+    """Split the function into a host function and device functions.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.SplitHostDevice()
+
 
 def SkipAssert():
     """Skip assert stmt.

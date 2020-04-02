@@ -59,6 +59,21 @@ TVM_DLL Pass CreatePrimFuncPass(const runtime::TypedPackedFunc<
                                 const tvm::Array<tvm::PrimExpr>& required);
 
 /*!
+ * \brief Bind the device type ofthe function to be
+ *        the device_type specified in the target attribute.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass BindDeviceType();
+
+/*!
+ * \brief Split the function into a host function and device functions.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass SplitHostDevice();
+
+/*!
  * \brief skip assert stmt.
  *
  * \return The pass.

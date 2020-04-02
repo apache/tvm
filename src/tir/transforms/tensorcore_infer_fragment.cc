@@ -218,26 +218,19 @@ Stmt InferFragment(Stmt stmt) {
   return stmt;
 }
 
-LoweredFunc InferFragment(LoweredFunc f) {
-  CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = InferFragment(f->body);
-  return LoweredFunc(n);
-}
-
 namespace transform {
 
-Pass InferFragement() {
+Pass InferFragment() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = InferFragment(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.InferFragement", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.InferFragment", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InferFragement")
-.set_body_typed(InferFragement);
+TVM_REGISTER_GLOBAL("tir.transform.InferFragment")
+.set_body_typed(InferFragment);
 
 }  // namespace transform
 }  // namespace tir
