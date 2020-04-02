@@ -117,6 +117,7 @@ class ConstIntBoundAnalyzer {
   /*!
    * \brief analyze the expr with the intermediate memorized to avoid redundant computation
    * \param expr The expression of interest.
+   * \param bound The lookup table to store the intermediate results
    * \return the result of the analysis.
    */
   ConstIntBound operator()(const PrimExpr& expr,
