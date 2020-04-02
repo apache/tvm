@@ -19,13 +19,13 @@
 from __future__ import absolute_import
 import tvm
 from tvm import te
+from tvm.te.hybrid import script
 from tvm.runtime import convert
 import topi
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
 from .op import OpPattern
-from ...hybrid import script
 
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")

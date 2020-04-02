@@ -31,8 +31,7 @@ HalideIR.
 import inspect
 import tvm._ffi
 from tvm.driver.build_module import form_body
-
-from .._ffi.base import decorate
+from tvm._ffi.base import decorate
 
 from .module import HybridModule
 from .parser import source_to_op
@@ -95,4 +94,4 @@ def build(sch, inputs, outputs, name="hybrid_func"):
     return HybridModule(src, name)
 
 
-tvm._ffi._init_api("tvm.hybrid")
+tvm._ffi._init_api("tvm.hybrid", __name__)
