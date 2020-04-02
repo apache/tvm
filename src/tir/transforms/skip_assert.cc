@@ -19,7 +19,9 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace tir {
@@ -37,11 +39,21 @@ Stmt SkipAssert(Stmt stmt) {
   return AssertSkipper()(std::move(stmt));
 }
 
-LoweredFunc SkipAssert(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = SkipAssert(f->body);
-  return LoweredFunc(n);
+namespace transform {
+
+Pass SkipAssert() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = AssertSkipper()(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.SkipAssert", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.SkipAssert")
+.set_body_typed(SkipAssert);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

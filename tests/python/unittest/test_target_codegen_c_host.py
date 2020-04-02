@@ -74,9 +74,8 @@ def test_add_pipeline():
         binds = {A : Ab}
         # BUILD and invoke the kernel.
         f1 = tvm.lower(s, [A,B,C], name="fadd_pipeline")
-        fsplits = [x for x in tvm.tir.ir_pass.SplitHostDevice(f1)]
-        fsplits[0] = tvm.tir.ir_pass.LowerTVMBuiltin(fsplits[0])
-        mhost = tvm.target.codegen.build_module(fsplits[0], "c")
+        mhost = tvm.build(f1, target="c")
+
         temp = util.tempdir()
         path_dso = temp.relpath("temp.so")
         mhost.export_library(path_dso)

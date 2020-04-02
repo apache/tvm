@@ -385,14 +385,6 @@ class WarpMemoryRewriter : private StmtMutator {
   std::unordered_map<const VarNode*, Range> var_dom_;
 };
 
-LoweredFunc
-LowerWarpMemory(LoweredFunc f, int warp_size) {
-  CHECK_EQ(f->func_type, kDeviceFunc);
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = WarpMemoryRewriter(warp_size).Rewrite(n->body);
-  return LoweredFunc(n);
-}
-
 namespace transform {
 
 Pass LowerWarpMemory() {
@@ -401,7 +393,7 @@ Pass LowerWarpMemory() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined())
         << "LowerWarpMemory: Require the target attribute";
-    n->body = WarpMemoryRewriter(target->thread_warp_size).Rewrite(n->body);
+    n->body = WarpMemoryRewriter(target->thread_warp_size).Rewrite(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});

@@ -17,34 +17,6 @@
 import tvm
 from tvm import te
 
-def test_storage_sync():
-    m = te.size_var('m')
-    l = te.size_var('l')
-    A = te.placeholder((m, l), name='A')
-
-    A1 = te.compute((m, l), lambda i, j: A[i, j], name='A1')
-    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
-
-    s = te.create_schedule(A2.op)
-    xo, xi = s[A2].split(A2.op.axis[0], factor=8)
-    s[A2].bind(xo, te.thread_axis("blockIdx.x"))
-    s[A1].compute_at(s[A2], xo)
-    s[A1].set_scope("shared")
-
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
-    f = tvm.tir.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 0, True)
-    flist = tvm.tir.ir_pass.SplitHostDevice(f)
-    f = flist[1]
-    f = tvm.tir.ir_pass.ThreadSync(f, "shared")
-    body_list = tvm.tir.stmt_list(f.body.body.body.body)
-    assert(body_list[1].value.name == "tvm_storage_sync")
-
-
 def test_coproc_sync():
     @tvm.register_func("tvm.info.mem.global.cache")
     def meminfo_cache():
@@ -133,6 +105,5 @@ def test_coproc_sync3():
 
 if __name__ == "__main__":
     test_coproc_sync()
-    test_storage_sync()
     test_coproc_sync2()
     test_coproc_sync3()

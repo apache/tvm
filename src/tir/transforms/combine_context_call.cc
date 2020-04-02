@@ -109,18 +109,13 @@ class ContextCallCombiner final : public StmtExprMutator {
   std::unordered_map<PrimExpr, Var, StructuralHash, StructuralEqual> ctx_map_;
 };
 
-LoweredFunc CombineContextCall(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = ContextCallCombiner().Combine(n->body);
-  return LoweredFunc(n);
-}
 
 namespace transform {
 
 Pass CombineContextCall() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ContextCallCombiner().Combine(n->body);
+    n->body = ContextCallCombiner().Combine(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.CombineContextCall", {});

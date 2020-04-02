@@ -23,11 +23,15 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/runtime/registry.h>
+
 #include <unordered_map>
 #include <unordered_set>
-#include "ir_util.h"
-#include "storage_access.h"
+
+#include "../pass/storage_access.h"
+#include "../pass/ir_util.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -221,5 +225,20 @@ LoweredFunc InferFragment(LoweredFunc f) {
   return LoweredFunc(n);
 }
 
+namespace transform {
+
+Pass InferFragement() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = InferFragment(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.InferFragement", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.InferFragement")
+.set_body_typed(InferFragement);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

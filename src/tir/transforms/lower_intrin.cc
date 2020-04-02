@@ -283,16 +283,6 @@ Stmt LowerIntrinStmt(Stmt stmt, const std::string target_name) {
   return IntrinInjecter(&analyzer, target_name)(std::move(stmt));
 }
 
-LoweredFunc
-LowerIntrin(LoweredFunc f, const std::string& target) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  std::istringstream is(target);
-  std::string target_name;
-  is >> target_name;
-  n->body = LowerIntrinStmt(n->body, target_name);
-  return LoweredFunc(n);
-}
-
 namespace transform {
 
 Pass LowerIntrin() {
