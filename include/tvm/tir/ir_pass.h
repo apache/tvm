@@ -358,6 +358,15 @@ Stmt DecorateDeviceScope(Stmt stmt);
 Stmt HoistIfThenElse(Stmt stmt);
 
 /*!
+ * \brief Narrow down PrimExpr datatype in stmt to target_bits.
+ * \note  Run this pass after StorageFlatten.
+ * \param stmt The stmt to do datatype rewrite
+ * \param target_bits the bit of target datatype
+ * \return Transformed stmt.
+ */
+Stmt NarrowDataType(Stmt stmt, int target_bits);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
