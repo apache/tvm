@@ -225,7 +225,6 @@ class RemapVarSEqualHandler :
   std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> equal_map_rhs_;
 };
 
-
 TVM_REGISTER_GLOBAL("node.StructuralEqual")
 .set_body_typed([](const ObjectRef& lhs,
                    const ObjectRef& rhs,

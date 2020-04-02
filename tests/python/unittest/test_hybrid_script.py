@@ -182,7 +182,7 @@ def test_fanout():
     assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == 'i'
     assert ir.min.value == 0
-    assert tvm.tir.ir_pass.Equal(ir.extent, n - 3)
+    assert tvm.ir.structural_equal(ir.extent, n - 3)
     #Check loopbody
     ibody = ir.body
     assert isinstance(ibody, tvm.tir.AttrStmt)
@@ -215,7 +215,7 @@ def test_fanout():
     assert value.a.args[0].value == 0
     assert value.b.name == 'a'
     assert len(value.b.args) == 1
-    assert tvm.tir.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
+    assert tvm.ir.structural_equal(value.b.args[0], ir.loop_var + jloop.loop_var)
     divide= rbody[2]
     assert isinstance(divide, tvm.tir.Provide)
     assert len(divide.args) == 1

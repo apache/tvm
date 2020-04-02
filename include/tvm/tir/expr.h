@@ -920,6 +920,17 @@ class FunctionBaseNode : public Object {
   virtual const std::string& func_name() const = 0;
   /*! \return the number of outputs of this function */
   virtual int num_outputs() const = 0;
+
+  // fall back to pointer equality now before refactor.
+  bool SEqualReduce(const FunctionBaseNode* other, SEqualReducer equal) const {
+    return this == other;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
 };
 
 /*! \brief reference to a function */

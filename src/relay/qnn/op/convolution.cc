@@ -27,6 +27,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/qnn/attrs.h>
 #include <tvm/relay/transform.h>
+#include <tvm/tir/analysis.h>
+
 #include "../../op/nn/convolution.h"
 #include "../../transforms/pattern_util.h"
 #include "../util.h"
@@ -86,8 +88,9 @@ Array<Array<Layout>> QnnConvInferCorrectLayout(const Attrs& attrs,
 }
 
 bool is_depthwise(const Conv2DAttrs* param) {
-  return param->channels.defined() && tvm::tir::Equal(param->channels, param->groups) &&
-         param->groups != 1;
+  return param->channels.defined() &&
+      tvm::tir::ExprDeepEqual()(param->channels, param->groups) &&
+      param->groups != 1;
 }
 
 // Workload - batch_size, in_channels, out_channels, kernel_h, kernel_w, channel_multiplier

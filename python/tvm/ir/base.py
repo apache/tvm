@@ -198,6 +198,8 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     structural_hash
     assert_strucural_equal
     """
+    lhs = tvm.runtime.convert(lhs)
+    rhs = tvm.runtime.convert(rhs)
     return bool(tvm.runtime._ffi_node_api.StructuralEqual(
         lhs, rhs, False, map_free_vars))
 
@@ -225,6 +227,8 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     --------
     structural_equal
     """
+    lhs = tvm.runtime.convert(lhs)
+    rhs = tvm.runtime.convert(rhs)
     tvm.runtime._ffi_node_api.StructuralEqual(
         lhs, rhs, True, map_free_vars)
 
