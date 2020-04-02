@@ -225,6 +225,16 @@ TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
  */
 TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
 
+/*!
+ * \brief Get reference counter of each internal ExprNode in body.
+ *
+ * \param body The body expression.
+ *
+ * \return The reference count mapping.
+ */
+TVM_DLL std::unordered_map<const Object*, size_t>
+GetExprRefCount(const Expr& body);
+
 }  // namespace relay
 }  // namespace tvm
 
