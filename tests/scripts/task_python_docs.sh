@@ -20,7 +20,7 @@ set -e
 set -u
 
 # cleanup old states
-rm -rf docs/_build/html
+rm -rf docs/_build
 mkdir -p docs/_build/html
 rm -rf docs/gen_modules
 rm -rf docs/doxygen
@@ -37,25 +37,26 @@ cd docs
 PYTHONPATH=`pwd`/../python make html
 cd ..
 
-rm -rf _docs
-mv docs/_build/html _docs
-rm -f _docs/.buildinfo
-
 # C++ doc
 make doc
 rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
-mv docs/doxygen/html _docs/doxygen
 
 # JS doc
 jsdoc -c web/.jsdoc_conf.json web/tvm_runtime.js web/README.md
-mv out _docs/jsdoc
 
 # Java doc
 make javadoc
+
+# Prepare the doc dir
+rm -rf _docs
+mv docs/_build/html _docs
+rm -f _docs/.buildinfo
+mv docs/doxygen/html _docs/doxygen
+mv out _docs/jsdoc
 mv jvm/core/target/site/apidocs _docs/javadoc
 
 echo "Start creating the docs tarball.."
 # make the tarball
-tar -C _docs -czvf docs.tgz .
+tar -C _docs -czf docs.tgz .
 echo "Finish creating the docs tarball"
 du -h docs.tgz
