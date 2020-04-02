@@ -101,10 +101,10 @@ def get_weight_quant_params(script_module):
     return quant_params
 
 
-def add_quant_params_to_inputs(input_vars, packed_param_map,
-                               quant_params):
+def add_quant_params_to_outputs(outputs, packed_param_map,
+                                quant_params):
     """
-    Add quant params to inputs so that they can be referenced by other
+    Add quant params to outputs so that they can be referenced by other
     ops later. Weights are quantized here.
     """
     for node_name, packed_param_name in packed_param_map.items():
@@ -113,7 +113,7 @@ def add_quant_params_to_inputs(input_vars, packed_param_map,
                                         qparam.zero_point, out_dtype="int8",
                                         axis=0)
         param_tup = (qweight, qparam.scale, qparam.zero_point, qparam.bias_var)
-        input_vars[node_name] = param_tup
+        outputs[node_name] = param_tup
 
 
 def _get_quant_param_for_input(input_value):

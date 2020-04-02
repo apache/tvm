@@ -1007,13 +1007,8 @@ def _get_input_names(node_or_graph):
     return [inp.debugName() for inp in node_or_graph.inputs()]
 
 
-def _get_op_inputs(op_node, input_vars):
-    return [input_vars[name] for name in _get_input_names(op_node)]
-
-
-def _update_inputs_from_pairs(name_input_pairs, input_vars):
-    for input_name, inp in name_input_pairs:
-        input_vars[input_name] = inp
+def _get_op_inputs(op_node, outputs):
+    return [outputs[name] for name in _get_input_names(op_node)]
 
 
 def _report_missing_conversion(op_names):
@@ -1156,8 +1151,7 @@ def _get_relay_input_vars(graph, input_shapes):
     """
     input_vars = {}
     ir_inputs = _get_graph_input_names(graph)
-    for idx, ir_input in enumerate(ir_inputs):
-        name, shape = input_shapes[idx]
+    for ir_input, (name, shape) in zip(ir_inputs, input_shapes):
         inp = _expr.var(name, shape=shape)
         # Translate from graph input to user input name
         input_vars[ir_input] = inp
@@ -1240,24 +1234,24 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_block(block, input_vars):
+def convert_block(block, outputs):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, input_vars, ret_names)
+    return convert_operators(ops, outputs, ret_names)
 
 
-def convert_if(if_node, input_vars):
+def convert_if(if_node, outputs):
     """ Translate Torch prim::If to Relay If """
-    cond = input_vars[if_node.inputsAt(0).debugName()]
+    cond = outputs[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], input_vars)
-    false_branch = convert_block(blocks[1], input_vars)
+    true_branch = convert_block(blocks[0], outputs)
+    false_branch = convert_block(blocks[1], outputs)
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
 
-def convert_loop(loop_node, input_vars):
+def convert_loop(loop_node, outputs):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
         ivalue = loop_node.inputsAt(index)
@@ -1265,8 +1259,8 @@ def convert_loop(loop_node, input_vars):
         if inode.kind() == "prim::Constant":
             return _expr.const(_get_constant(inode))
         var_name = ivalue.debugName()
-        assert var_name in input_vars
-        return _wrap_const(input_vars[var_name])
+        assert var_name in outputs
+        return _wrap_const(outputs[var_name])
 
     # Refer to the spec for prim::Loop below
     # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
@@ -1298,9 +1292,9 @@ def convert_loop(loop_node, input_vars):
         # Update loop variables using the prev iteration outputs
         assert len(current_vals) == len(block_input_names)
         for (i, iname) in enumerate(block_input_names):
-            input_vars[iname] = current_vals[i]
+            outputs[iname] = current_vals[i]
 
-        block_outputs = convert_block(body_block, input_vars)
+        block_outputs = convert_block(body_block, outputs)
 
         if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
@@ -1330,7 +1324,7 @@ def convert_loop(loop_node, input_vars):
 
     name_val_pairs = list(zip(block_input_names,
                               [init_loop_iter_val] + init_vals))
-    _update_inputs_from_pairs(name_val_pairs, input_vars)
+    outputs.update(name_val_pairs)
 
     loop_iter_var = _expr.var(block_input_names[0], shape=(),
                               dtype=loop_iter_dtype)
@@ -1342,32 +1336,30 @@ def convert_loop(loop_node, input_vars):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, input_vars, ret_names):
+def convert_operators(operators, outputs, ret_names):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
-        inputs = _get_op_inputs(op_node, input_vars)
+        inputs = _get_op_inputs(op_node, outputs)
 
         if operator == "prim::Constant":
-            input_vars[node_name] = _get_constant(op_node)
+            outputs[node_name] = _get_constant(op_node)
         elif operator == 'prim::ListConstruct' and _is_int_seq(inputs):
-            input_vars[node_name] = _expr.var(node_name, shape=inputs)
+            outputs[node_name] = _expr.var(node_name, shape=inputs)
         elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
-            input_vars[node_name] = inputs
+            outputs[node_name] = inputs
         elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
             assert len(inputs) == 1
             unpacked_names = _get_output_names(op_node)
-            _update_inputs_from_pairs(zip(unpacked_names, inputs[0]),
-                                      input_vars)
+            outputs.update(zip(unpacked_names, inputs[0]))
         elif operator == "prim::If":
-            if_out = convert_if(op_node, input_vars)
-            input_vars[node_name] = if_out
+            if_out = convert_if(op_node, outputs)
+            outputs[node_name] = if_out
         elif operator == "prim::Loop":
-            loop_out = convert_loop(op_node, input_vars)
+            loop_out = convert_loop(op_node, outputs)
             unpacked_names = _get_output_names(op_node)
             assert len(loop_out) == len(unpacked_names)
-            _update_inputs_from_pairs(zip(unpacked_names, loop_out),
-                                      input_vars)
+            outputs.update(zip(unpacked_names, loop_out))
         else:
             relay_op = _convert_map[operator]
             relay_out = relay_op(inputs, _get_input_types(op_node))
@@ -1376,12 +1368,11 @@ def convert_operators(operators, input_vars, ret_names):
                 # This is for torch operators that return multiple outputs
                 # See _adaptive_max_2d above for example
                 out_names = _get_output_names(op_node)
-                _update_inputs_from_pairs(zip(out_names, relay_out),
-                                          input_vars)
+                outputs.update(zip(out_names, relay_out))
             else:
-                input_vars[node_name] = relay_out
+                outputs[node_name] = relay_out
 
-    return [_wrap_const(input_vars[ret_name])
+    return [_wrap_const(outputs[ret_name])
             for ret_name in ret_names]
 
 
@@ -1415,9 +1406,10 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_shapes : Dictionary of input dimensions
-        Graph level input shape dictionary
-        The keys should be the same one returned by get_graph_input_names(...) above
+    input_shapes : List of tuples of input name and input dimensions
+        Graph level input shape list
+        The same input names need to be used for deployment, so choose easy to
+        remember names (such as: input0, input1)
 
     custom_convert_map: Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
@@ -1441,25 +1433,25 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
-    input_vars = _get_relay_input_vars(graph, input_shapes)
+    outputs = _get_relay_input_vars(graph, input_shapes)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
-    input_vars.update(param_vars)
+    outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_inputs(input_vars,
-                                             packed_param_map,
-                                             weight_quant_params)
+        qnn_torch.add_quant_params_to_outputs(outputs,
+                                              packed_param_map,
+                                              weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
     ret = convert_operators(_get_operator_nodes(graph.nodes()),
-                            input_vars, ret_name)
+                            outputs, ret_name)
 
     if isinstance(ret[0], list):
         ret[0] = _expr.Tuple(ret[0])

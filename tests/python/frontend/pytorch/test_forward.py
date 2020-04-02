@@ -894,7 +894,7 @@ def verify_script_model(pt_model, ishapes):
     input_shapes = list(zip(input_names, ishapes))
 
     inputs = [torch.randn(shape, dtype=torch.float)
-              for name, shape in input_shapes]
+              for shape in ishapes]
 
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
