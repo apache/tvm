@@ -34,7 +34,7 @@ namespace relay {
 // Realizer class that realizes the expression
 // Note that we can take benefit of its internal memo
 // so that calling realize repeatively won't hurt perf.
-class TempRealizer : private ScopeMutator {
+class TempRealizer : private MixedModeMutator {
  public:
   Expr Realize(Expr expr) {
     return Mutate(expr);
@@ -46,13 +46,13 @@ class TempRealizer : private ScopeMutator {
     if (const auto* temp = expr.as<TempExprNode>()) {
       res = temp->Realize();
     } else {
-      res = ScopeMutator::DispatchVisitExpr(expr);
+      res = MixedModeMutator::DispatchVisitExpr(expr);
     }
     return res;
   }
 };
 
-class ForwardRewriter : private ScopeMutator {
+class ForwardRewriter : private MixedModeMutator {
  public:
   ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
                   std::function<ObjectRef(const Call&)> fcontext,

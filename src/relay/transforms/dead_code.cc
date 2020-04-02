@@ -92,7 +92,7 @@ class Eliminator : private ExprMutator {
 };
 
 // calculate the dependency graph from expression
-class CalcDep : protected DataflowVisitor {
+class CalcDep : protected MixedModeVisitor {
  public:
   static Expr Eliminate(const Expr& e, bool inline_once) {
     FindDef fd;
@@ -105,11 +105,11 @@ class CalcDep : protected DataflowVisitor {
 
  private:
   explicit CalcDep(const VarMap<Expr>& expr_map)
-      : DataflowVisitor(2), expr_map_(expr_map) {}
+      : MixedModeVisitor(2), expr_map_(expr_map) {}
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
 
-  using DataflowVisitor::VisitExpr_;
+  using MixedModeVisitor::VisitExpr_;
 
   void VisitLeaf(const Expr& e) final {
     visit_counter_[e.get()]++;

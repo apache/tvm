@@ -101,20 +101,20 @@ void ExpandDataflow(Expr expr, FCheckVisited fcheck_visited, FVisitLeaf fvisit_l
   }
 }
 
-DataflowVisitor::DataflowVisitor(int visit_limit) {
+MixedModeVisitor::MixedModeVisitor(int visit_limit) {
   CHECK(visit_limit > 0) << "Dataflow visit limit must be greater than 0";
   CHECK(visit_limit < 10) << "Dataflow visit limit must be less than 10";
   visit_limit_ = visit_limit;
 }
 
-void DataflowVisitor::VisitLeaf(const Expr& expr) {
+void MixedModeVisitor::VisitLeaf(const Expr& expr) {
   if (visit_counter_[expr.get()] < visit_limit_) {
     ExprFunctor::VisitExpr(expr);
   }
   visit_counter_[expr.get()]++;
 }
 
-bool DataflowVisitor::CheckVisited(const Expr& expr) {
+bool MixedModeVisitor::CheckVisited(const Expr& expr) {
   if (visit_counter_[expr.get()] < visit_limit_) {
     return false;
   } else {
@@ -123,7 +123,7 @@ bool DataflowVisitor::CheckVisited(const Expr& expr) {
   }
 }
 
-void DataflowVisitor::VisitExpr(const Expr& expr) {
+void MixedModeVisitor::VisitExpr(const Expr& expr) {
   auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
   auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
   if (visit_counter_[expr.get()] < visit_limit_) {
@@ -132,21 +132,21 @@ void DataflowVisitor::VisitExpr(const Expr& expr) {
 }
 
 // Overwrite the VisitExpr so we don't recurse for dataflow nodes
-void DataflowVisitor::VisitExpr_(const CallNode* op) {}
+void MixedModeVisitor::VisitExpr_(const CallNode* op) {}
 
 // Overwrite the VisitExpr so we don't recurse for dataflow nodes
-void DataflowVisitor::VisitExpr_(const TupleNode* op) {}
+void MixedModeVisitor::VisitExpr_(const TupleNode* op) {}
 
 // Overwrite the VisitExpr so we don't recurse for dataflow nodes
-void DataflowVisitor::VisitExpr_(const TupleGetItemNode* op) {}
+void MixedModeVisitor::VisitExpr_(const TupleGetItemNode* op) {}
 
-void ScopeMutator::VisitLeaf(const Expr& expr) {
+void MixedModeMutator::VisitLeaf(const Expr& expr) {
   if (!memo_.count(expr)) {
     this->DispatchVisitExpr(expr);
   }
 }
 
-bool ScopeMutator::CheckVisited(const Expr& expr) {
+bool MixedModeMutator::CheckVisited(const Expr& expr) {
   if (memo_.count(expr)) {
     return true;
   } else {
@@ -154,11 +154,11 @@ bool ScopeMutator::CheckVisited(const Expr& expr) {
   }
 }
 
-Expr ScopeMutator::DispatchVisitExpr(const Expr& expr) {
+Expr MixedModeMutator::DispatchVisitExpr(const Expr& expr) {
   return ExprMutator::VisitExpr(expr);
 }
 
-Expr ScopeMutator::VisitExpr(const Expr& expr) {
+Expr MixedModeMutator::VisitExpr(const Expr& expr) {
   auto fcheck_visited = [this](const Expr& expr) { return this->CheckVisited(expr); };
   auto fvisit_leaf = [this](const Expr& expr) { return this->VisitLeaf(expr); };
   if (memo_.count(expr)) {
@@ -171,7 +171,7 @@ Expr ScopeMutator::VisitExpr(const Expr& expr) {
   }
 }
 
-class PostOrderRewriter : public ScopeMutator {
+class PostOrderRewriter : public MixedModeMutator {
  public:
   explicit PostOrderRewriter(ExprRewriter* rewriter) : rewriter_(rewriter) {}
   Expr DispatchVisitExpr(const Expr& expr) final {
