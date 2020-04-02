@@ -138,10 +138,11 @@ class ConstIntBoundAnalyzer::Impl :
 
   Entry VisitExpr(const PrimExpr& expr) final {
     Entry res = ExprFunctor::VisitExpr(expr);
+    tir::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
-      if (tir::Equal(expr, info.expr)) {
+      if (equal(expr, info.expr)) {
         res = Intersect(res, info.bound);
       }
     }

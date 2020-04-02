@@ -25,6 +25,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target_info.h>
 #include <map>
@@ -311,7 +312,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (src_ == buf) {
       if (store_ == nullptr ||
           store_->value.dtype() != op->dtype ||
-          !tir::Equal(store_->index, op->index)) {
+          !tir::ExprDeepEqual()(store_->index, op->index)) {
         result_ = false; return;
       }
     }
