@@ -24,6 +24,8 @@
 
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/transform.h>
+#include <tvm/runtime/registry.h>
 #include "../../arith/ir_mutator_with_analyzer.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
 
@@ -387,5 +389,25 @@ Stmt NarrowDataType(Stmt stmt, int target_bits) {
   return DataTypeRewriter(target_bits)(stmt);
 }
 
+namespace transform {
+
+Pass NarrowDataType() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    // TODO(@hzfan): should Target be Attr here, with target_bits inferred from it?
+    IntImm target_bits = f->GetAttr<IntImm>("target_bits");
+    CHECK(target_bits.defined())
+      << "NarrowDataType: Require the target_bits";
+    n->body = DataTypeRewriter(target_bits->value)(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(
+      pass_func, 0, "tir.LowerDeviceStorageAccessInfo", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.NarrowDataType")
+.set_body_typed(NarrowDataType);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -387,7 +387,8 @@ Stmt DecorateDeviceScope(Stmt stmt);
 Stmt HoistIfThenElse(Stmt stmt);
 
 /*!
- * \brief Narrow down PrimExpr datatype in stmt
+ * \brief Narrow down PrimExpr datatype in stmt to target_bits.
+ * \note  Run this pass after StorageFlatten.
  * \param stmt The stmt to do datatype rewrite
  * \param target_bits the bit of target datatype
  * \return Transformed stmt.

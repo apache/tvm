@@ -19,7 +19,15 @@ from tvm import te
 from tvm.tir import const
 
 
-def lower(sch, args, target_bits):
+def lower_stmt(params, stmt, target_bits):
+    func = tvm.tir.PrimFunc(params, stmt).with_attr(
+        "target_bits", target_bits)
+    func = tvm.tir.transform.NarrowDataType()(tvm.IRModule.from_expr(func))["main"]
+    stmt = func.body
+    return stmt
+
+
+def lower_sch(sch, args, target_bits):
     binds = {}
     arg_list = []
     for x in args:
@@ -33,8 +41,7 @@ def lower(sch, args, target_bits):
     bounds = te.schedule.InferBound(sch)
     stmt = te.schedule.ScheduleOps(sch, bounds)
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, False)
-    stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
-    return stmt
+    return lower_stmt(arg_list, stmt, target_bits)
 
 
 def test_basic():
@@ -48,7 +55,7 @@ def test_basic():
             with ib.for_range(0, n, name='j') as j:
                 B[i * n + j] = A[i * n + j] + 1
         stmt = ib.get()
-        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
         assert stmt.loop_var.dtype == target_dtype
         assert stmt.body.loop_var.dtype == target_dtype
 
@@ -81,7 +88,7 @@ def test_thread_axis():
         ib.scope_attr(tx, "thread_extent", n)
         B[bx * n + tx] = A[bx * n + tx] + 1
         stmt = ib.get()
-        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
         assert stmt.node.var.dtype == target_dtype
         assert stmt.body.node.var.dtype == target_dtype
 
@@ -114,7 +121,7 @@ def test_multilanes():
         with ib.for_range(0, m, name='i', dtype=m.dtype) as i:
             B[i] = A[i] + 1
         stmt = ib.get()
-        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
         assert stmt.loop_var.dtype == target_dtype
 
     # i32 -> i32
@@ -140,7 +147,7 @@ def test_reduce():
         k = te.reduce_axis((0, m), "k")
         B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name='B')
         s = te.create_schedule(B.op)
-        stmt = lower(s, [A, B], target_bits)
+        stmt = lower_sch(s, [A, B], target_bits)
         assert stmt.body[1].loop_var.dtype == target_dtype
 
     # i32 -> i32
@@ -167,7 +174,7 @@ def test_slice():
             with ib.for_range(0, n, name='j') as j:
                 A[i * n + j] = B[i * 2 * n + 2 * j] + 1
         stmt = ib.get()
-        stmt = tvm.tir.ir_pass.NarrowDataType(stmt, target_bits)
+        stmt = lower_stmt([Ab, Bb], stmt, target_bits)
         assert stmt.loop_var.dtype == target_dtype
         assert stmt.body.loop_var.dtype == target_dtype
 
