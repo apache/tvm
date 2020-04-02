@@ -190,6 +190,13 @@ def verify_softmax_4d(shape, dtype="float32"):
     tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3)
 
 def test_softmax():
+    if not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled...")
+        return
+    if not tvm.get_global_func("tvm.contrib.cudnn.conv.output_shape", True):
+        print("skip because cudnn is not enabled...")
+        return
+
     verify_softmax((32, 10), -1)
     verify_softmax((3, 4), -1)
     verify_softmax((1, 5), -1, "float64")
