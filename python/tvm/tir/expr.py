@@ -370,7 +370,8 @@ class IterVar(Object, ExprOp):
                 raise TypeError("dom need to be Range")
 
         name = var if var is not None else "iter"
-        var = Var(name, dtype="int32") if not isinstance(var, Var) else var
+        dtype = "int32" if dom is None else dom.extent.dtype
+        var = Var(name, dtype=dtype) if not isinstance(var, Var) else var
         self.__init_handle_by_constructor__(
             _ffi_api.IterVar, dom, var, iter_type, thread_tag)
 

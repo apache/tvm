@@ -66,3 +66,18 @@ def LowerWarpMemory():
         The result pass
     """
     return _ffi_api.LowerWarpMemory()
+
+
+def NarrowDataType():
+    """Narrow down PrimExpr datatype in stmt to target_bits.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+
+    Note
+    ----
+    Run this pass after StorageFlatten.
+    """
+    return _ffi_api.NarrowDataType()

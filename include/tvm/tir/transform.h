@@ -87,6 +87,16 @@ TVM_DLL Pass LowerDeviceStorageAccessInfo();
  */
 TVM_DLL Pass LowerWarpMemory();
 
+
+/*!
+ * \brief Narrow down PrimExpr datatype in stmt to target_bits.
+ *
+ * \note Run this pass after StorageFlatten.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass NarrowDataType();
+
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

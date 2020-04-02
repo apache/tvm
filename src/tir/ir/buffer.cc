@@ -452,7 +452,7 @@ Buffer BufferNode::make(Var data,
   n->buffer_type = buffer_type;
   if (n->buffer_type == kAutoBroadcast && n->shape.size() > 0 && n->strides.empty()) {
     for (size_t i = 0; i < n->shape.size(); ++i) {
-      n->strides.push_back(Var("stride"));
+      n->strides.push_back(Var("stride", n->shape[i].dtype()));
     }
   }
   return Buffer(n);
