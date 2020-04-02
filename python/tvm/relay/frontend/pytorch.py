@@ -57,6 +57,17 @@ def _elemwise(name):
         return get_relay_op(name)(data0, data1)
     return _impl
 
+def _squeeze():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 1:
+            axis = None
+        else:
+            axis = [int(inputs[1])]
+
+        return _op.transform.squeeze(data, axis)
+    return _impl
+
 def _unsqueeze():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -295,6 +306,26 @@ def _maxpool_1d():
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
+    return _impl
+
+def _maxpool_3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        pool_size = _infer_shape(inputs[1])
+        strides = _infer_shape(inputs[2])
+        padding = _infer_shape(inputs[3])
+        dilation = _infer_shape(inputs[4])
+        ceil_mode = int(inputs[5])
+        if dilation != (1, 1, 1):
+            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
+
+        return _op.nn.max_pool3d(data,
+                                 pool_size=pool_size,
+                                 strides=strides,
+                                 padding=padding,
+                                 ceil_mode=ceil_mode)
     return _impl
 
 def _hardtanh():
@@ -631,6 +662,27 @@ def _avg_pool2d():
 
     return _impl
 
+def _avg_pool3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        pool_size = _infer_shape(inputs[1])
+        if inputs[2]:
+            strides = _infer_shape(inputs[2])
+        else:
+            strides = pool_size
+        padding = _infer_shape(inputs[3])
+
+        ceil_mode = int(inputs[4])
+        count_include_pad = int(inputs[5])
+
+        return _op.nn.avg_pool3d(data,
+                                 pool_size=pool_size,
+                                 strides=strides,
+                                 padding=padding,
+                                 ceil_mode=ceil_mode,
+                                 count_include_pad=count_include_pad)
+    return _impl
 
 def _dropout():
     def _impl(inputs, input_types):
@@ -970,6 +1022,7 @@ _convert_map = {
     "aten::ones"                            : _ones(),
     "aten::zeros"                           : _zeros(),
     "aten::to"                              : _to(),
+    "aten::squeeze"                         : _squeeze(),
     "aten::unsqueeze"                       : _unsqueeze(),
     "aten::cat"                             : _concatenate(),
     "aten::slice"                           : _slice(),
@@ -987,6 +1040,7 @@ _convert_map = {
     "aten::max_pool2d"                      : _maxpool_2d(),
     "aten::max_pool2d_with_indices"         : _maxpool_2d(),
     "aten::max_pool1d"                      : _maxpool_1d(),
+    "aten::max_pool3d"                      : _maxpool_3d(),
     "aten::hardtanh"                        : _hardtanh(),
     "aten::hardtanh_"                       : _hardtanh(),
     "aten::_convolution"                    : _convolution(),
@@ -1007,6 +1061,7 @@ _convert_map = {
     "aten::log_softmax"                     : _log_softmax(),
     "aten::sigmoid"                         : _sigmoid(),
     "aten::avg_pool2d"                      : _avg_pool2d(),
+    "aten::avg_pool3d"                      : _avg_pool3d(),
     "aten::dropout"                         : _dropout(),
     "aten::dropout_"                        : _dropout(),
     "aten::feature_dropout"                 : _dropout(),

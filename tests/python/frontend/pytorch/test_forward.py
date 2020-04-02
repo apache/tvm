@@ -304,6 +304,22 @@ def test_forward_unsqueeze():
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
 
+def test_forward_squeeze():
+    torch.set_grad_enabled(False)
+    input_shape = [2, 1, 10, 1, 10]
+
+    class Squeeze1(Module):
+        def forward(self, *args):
+            return args[0].squeeze()
+
+    class Squeeze2(Module):
+        def forward(self, *args):
+            return args[0].squeeze(1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Squeeze1().float().eval(), input_data=input_data)
+    verify_model(Squeeze2().float().eval(), input_data=input_data)
+
 def test_forward_concatenate():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -388,6 +404,20 @@ def test_forward_maxpool1d():
                                     stride=2).eval(),
                 input_data)
 
+def test_forward_maxpool3d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10, 10]
+    input_data = torch.rand(input_shape).float()
+
+    verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4],
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
+
 def test_forward_split():
     torch.set_grad_enabled(False)
     input_shape = [4, 10]
@@ -422,6 +452,18 @@ def test_forward_avgpool():
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
+
+def test_forward_avgpool3d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10, 10]
+
+    class AvgPool3D1(Module):
+        def forward(self, *args):
+            return torch.nn.functional.avg_pool3d(args[0], kernel_size=[10, 10, 10])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
+    verify_model(AvgPool3D1().float().eval(), input_data=input_data)
 
 def test_forward_hardtanh():
     torch.set_grad_enabled(False)
@@ -1071,6 +1113,7 @@ if __name__ == "__main__":
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_squeeze()
     test_forward_unsqueeze()
     test_forward_concatenate()
     test_forward_relu()
@@ -1081,6 +1124,7 @@ if __name__ == "__main__":
     test_forward_adaptiveavgpool()
     test_forward_maxpool2d()
     test_forward_maxpool1d()
+    test_forward_maxpool3d()
     test_forward_hardtanh()
     test_forward_conv()
     test_forward_conv_transpose()
@@ -1097,6 +1141,7 @@ if __name__ == "__main__":
     test_forward_sigmoid()
     test_forward_dense()
     test_forward_avgpool()
+    test_forward_avgpool3d()
     test_forward_dropout()
     test_forward_slice()
     test_forward_mean()
