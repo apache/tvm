@@ -1790,7 +1790,7 @@ _convert_map = {
     "Cast"          : _cast,
     "clip"          : _clip,
     "transpose"     : _transpose,
-    "SwapAxis"     : _swap_axis,
+    "SwapAxis"      : _swap_axis,
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
     # MXNet specific implementations
