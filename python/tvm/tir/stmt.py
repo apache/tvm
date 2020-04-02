@@ -16,15 +16,12 @@
 # under the License.
 """Statement AST Node in TVM.
 
-User do not need to deal with AST node directly.
-But they can be helpful for developer to do quick proptyping.
-While not displayed in the document and python file.
 Each statement node have subfields that can be visited from python side.
 
 .. code-block:: python
 
-    x = te.var("n")
-    a = te.var("array", "handle")
+    x = tvm.tir.Var("n", "int32")
+    a = tvm.tir.Var("array", "handle")
     st = tvm.tir.stmt.Store(a, x + 1, 1)
     assert isinstance(st, tvm.tir.stmt.Store)
     assert(st.buffer_var == a)
@@ -161,6 +158,26 @@ class Store(Stmt):
         args = [] if predicate is None else [predicate]
         self.__init_handle_by_constructor__(
             _ffi_api.Store, buffer_var, value, index, *args)
+
+
+@tvm._ffi.register_object
+class BufferStore(Stmt):
+    """Buffer store node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer.
+
+    value : PrimExpr
+        The value we to be stored.
+
+    indices : List[PrimExpr]
+        The indices location to be stored.
+    """
+    def __init__(self, buffer, value, indices):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferStore, buffer, value, indices)
 
 
 @tvm._ffi.register_object

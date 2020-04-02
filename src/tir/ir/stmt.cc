@@ -324,6 +324,21 @@ Stmt EvaluateNode::make(PrimExpr value) {
 TVM_REGISTER_GLOBAL("tir.Evaluate")
 .set_body_typed(EvaluateNode::make);
 
+BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+  ObjectPtr<BufferStoreNode> node = make_object<BufferStoreNode>();
+  node->buffer = std::move(buffer);
+  node->value = std::move(value);
+  node->indices = std::move(indices);
+  data_ = std::move(node);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferStore")
+.set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+  return BufferStore(buffer, value, indices);
+});
+
+TVM_REGISTER_NODE_TYPE(BufferStoreNode);
+
 // Printers
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
