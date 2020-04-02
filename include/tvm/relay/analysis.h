@@ -30,6 +30,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/type.h>
 #include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
