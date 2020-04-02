@@ -21,6 +21,7 @@ import chainer
 from chainer import function
 import chainer.functions as F
 import chainer.links as L
+import chainercv.links as CV
 
 import tvm
 from tvm import relay
@@ -132,9 +133,83 @@ def test_forward_reshape():
         input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
         verify_model(Link(test['args']), [input_data])
 
+def test_forward_linear():
+    class Link(chainer.Chain):
+        def __init__(self, args):
+            super(Link, self).__init__()
+            with self.init_scope():
+                self.l1 = L.Linear(*args)
+        def forward(self, x):
+            return self.l1(x)
+
+    # Linear(in_size, out_size, nobias)
+    test_sets = [{'in_shape': (1, 10), 'in_type': np.float32,
+                  'args': [None, 8]}, #TestCase-1
+                 {'in_shape': (1, 10), 'in_type': np.float32,
+                  'args': [None, 8, True]}] #TestCase-2
+
+    for test in test_sets:
+        input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
+        verify_model(Link(test['args']), [input_data])
+
+def test_forward_maxpool_nd():
+    class Link(chainer.Chain):
+        def __init__(self, args, cover_all):
+            super(Link, self).__init__()
+            self.args = args
+            self.cover_all = cover_all
+        def forward(self, x):
+            return F.max_pooling_nd(*([x] + self.args), cover_all=self.cover_all)
+
+    # max_pooling_nd(ndim, ksize, stride, pad, cover_all)
+    test_sets = [{'in_shape': (1, 3, 6, 6, 6), 'in_type': np.float32,
+                  'args': [2, 1, 1], 'cover_all': False}, #TestCase-1
+                 {'in_shape': (1, 3, 6, 5, 4), 'in_type': np.float32,
+                  'args': [3, 2, 1], 'cover_all': True},  #TestCase-2
+                 {'in_shape': (1, 3, 6, 6), 'in_type': np.float32,
+                  'args': [2, 1, 1], 'cover_all': False}, #TestCase-3
+                 {'in_shape': (1, 3, 6, 5), 'in_type': np.float32,
+                  'args': [3, 2, 1], 'cover_all': True}] #TestCase-4
+
+    for test in test_sets:
+        input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
+        verify_model(Link(test['args'], test['cover_all']), [input_data])
+
+def test_forward_softmax():
+    class Link(chainer.Chain):
+        def __init__(self, args):
+            super(Link, self).__init__()
+            self.args = args
+
+        def forward(self, x):
+            return F.softmax(x, **self.args)
+
+    # softmax(input, axis)
+    test_sets = [{'in_shape': (2, 5, 3), 'in_type': np.float32,
+                  'args': {}}, #TestCase-1
+                 {'in_shape': (2, 5, 3), 'in_type': np.float32,
+                  'args': {'axis': 0}},  #TestCase-2
+                 {'in_shape': (2, 5, 3), 'in_type': np.float32,
+                  'args': {'axis': 2}}] #TestCase-3
+
+    for test in test_sets:
+        input_data = np.random.uniform(-1, 1, test['in_shape']).astype(test['in_type'])
+        verify_model(Link(test['args']), [input_data])
+
+def test_vgg16():
+    model = CV.VGG16(pretrained_model='imagenet')
+    input_data = np.random.uniform(0.1, 1, (1, 3, 224, 224)).astype(np.float32)
+    verify_model(model, [input_data])
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_relu()
     test_forward_concat()
     test_forward_conv()
     test_forward_reshape()
+    test_forward_linear()
+    test_forward_maxpool_nd()
+    test_forward_softmax()
+
+    # Model import test
+    test_vgg16()

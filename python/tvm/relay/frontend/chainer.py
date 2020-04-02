@@ -34,11 +34,45 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
 from ... import nd as _nd
-from .common import new_var
+from .common import new_var, infer_channels, infer_shape, AttrCvt
 
 __all__ = ["from_chainer"]
 
 _function_types = (function.Function, function_node.FunctionNode)
+
+def default_layout(dims):
+    if dims == 1:
+        return 'NCW'
+    elif dims == 2:
+        return 'NCHW'
+    elif dims == 3:
+        return 'NCDHW'
+
+    msg = "Only 1d, 2d and 3d layouts are currently supported"
+    raise tvm.error.OpAttributeInvalid(msg.format(op_name))
+
+def dimension_picker(prefix, suffix=''):
+    def _impl(attr):
+        kernel = attr['pool_size']
+        if len(kernel) == 1:
+            return prefix + '1d' + suffix
+        if len(kernel) == 2:
+            return prefix + '2d' + suffix
+        if len(kernel) == 3:
+            return prefix + '3d' + suffix
+        msg = 'Only 1D, 2D, and 3D kernels are supported for operator {}.'
+        op_name = prefix + '1d/2d/3d'
+        raise tvm.error.OpAttributeInvalid(msg.format(op_name))
+
+    return _impl
+
+def dimension_constraint():
+    def _dim_check(attrs):
+        if len(attrs['pool_size']) in [1, 2, 3]:
+            return True
+        return False
+
+    return _dim_check, "Only 1d, 2d and 3d kernel supported."
 
 def _none():
     def _impl(inputs, func):
@@ -95,18 +129,66 @@ def _conv():
             return conv_out
     return _impl
 
+def _linear():
+    def _impl(inputs, func):
+        # Note: This op is equivalent to Gemm Op in ONNX
+        # Y = alpha * A * B + beta * C(If exist)
+        alpha = float(1.0)
+        beta = float(1.0)
+
+        # get number of channels
+        channels = infer_channels(inputs[1])
+        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        out = _op.nn.dense(_expr.const(alpha) * inputs[0],
+                           inputs[1], units=channels)
+
+        use_bias = len(inputs) == 3
+
+        if use_bias:
+            return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
+        else:
+            return out
+    return _impl
+
+def _maxpool_nd():
+    def _impl(inputs, func):
+        input_shape = infer_shape(inputs[0])
+        pad = list(func.pad[:])
+        attrs = {}
+
+        if func.cover_all:
+            pad = pad * 2
+            attrs['ceil_mode'] = True
+        else:
+            pad = pad * 2
+
+        attrs['padding'] = pad
+        attrs['pool_size'] = func.ksize
+        attrs['strides'] = func.stride
+        attrs['layout'] = default_layout(dims=(len(input_shape) - 2))
+
+        return AttrCvt(
+            op_name=dimension_picker('max_pool'),
+            custom_check=dimension_constraint())(inputs, attrs)
+    return _impl
+
+def _softmax():
+    def _impl(inputs, func):
+        return _op.nn.softmax(inputs[0], axis=func.axis)
+    return _impl
+
 # Chainer Op --> TVM Op Map
 CHAINER_OP_TVM_OP_MAP = {
-    "LinearFunction"                       : _none(),
+    "LinearFunction"                       : _linear(),
     "Convolution2DFunction"                : _conv(),
     "Deconvolution2DFunction"              : _none(),
     "AveragePooling2D"                     : _none(),
-    "MaxPoolingND"                         : _none(),
+    "MaxPoolingND"                         : _maxpool_nd(),
     "LocalResponseNormalization"           : _none(),
     "ReLU"                                 : _relu(),
     "LeakyReLU"                            : _none(),
     "Concat"                               : _concat(),
-    "Softmax"                              : _none(),
+    "Softmax"                              : _softmax(),
     "Sigmoid"                              : _none(),
     "Reshape"                              : _reshape(),
 }
