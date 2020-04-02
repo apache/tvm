@@ -19,7 +19,7 @@
 import tvm
 from tvm import te
 
-from tvm import hybrid
+from tvm.te import hybrid
 from ..sort import argsort
 
 @hybrid.script

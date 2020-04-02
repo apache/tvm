@@ -17,7 +17,7 @@
 """Intrinsics of TVM-Python Hybrid Script for Python emulation runtime"""
 
 import numpy
-from .. import target
+from tvm import target
 
 
 class bind(object): #pylint: disable=invalid-name
