@@ -796,5 +796,49 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value,
   }
 }
 
+void CodeGenCUDA::PrintVecElemLoadExpr(
+    DataType t, int i, const std::string& value, std::ostream& os) {
+  CHECK_GT(t.lanes(), 1);
+  if (t.is_int() && t.bits() == 8) {
+    if (i != 0) {
+      os << "|";
+    }
+    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
+    return;
+  }
+
+  if (t.is_float16()) {
+    if (i == 0) {
+      os << "make_";
+      PrintType(t, os);
+      os << '(';
+    }
+    if (i % 2 == 0) {
+      os << "__pack_half2(" << value;
+    } else {
+      os << "," << value << ")";
+      if (i != t.lanes() - 1) {
+        os << ",";
+      } else {
+        os << ")";
+      }
+    }
+    return;
+  }
+
+  if (i == 0) {
+    os << "make_";
+    PrintType(t, os);
+    os << "(";
+  }
+  os << value;
+  if (i != t.lanes() - 1) {
+    os << ",";
+  } else {
+    os << ")";
+  }
+  return;
+}
+
 }  // namespace codegen
 }  // namespace tvm
