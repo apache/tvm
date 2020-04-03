@@ -477,13 +477,48 @@ class Partitioner : public ExprMutator {
   IRModule module_;
 };
 
+class DefaultRemover : public ExprMutator {
+ public:
+  explicit DefaultRemover(const IRModule& module) : module_(module) {}
+
+  IRModule Remove() {
+    auto glob_funcs = module_->functions;
+    for (const auto& pair : glob_funcs) {
+      if (auto* fn = pair.second.as<FunctionNode>()) {
+        auto func = GetRef<Function>(fn);
+        func = Function(func->params, VisitExpr(func->body), func->ret_type, func->type_params,
+                        func->attrs);
+        module_->Update(pair.first, func);
+      }
+    }
+    return module_;
+  }
+
+  Expr VisitExpr_(const CallNode* call) final {
+    auto attrs = call->attrs.as<CompilerAttrs>();
+    if (attrs != nullptr && attrs->compiler == "default") {
+      return VisitExpr(call->args[0]);
+    }
+    return ExprMutator::VisitExpr_(call);
+  }
+
+ private:
+  IRModule module_;
+};
+
 }  // namespace partitioning
 
 namespace transform {
 
 Pass PartitionGraph() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) { return partitioning::Partitioner(m).Partition(); };
+      [=](IRModule m, PassContext pc) {
+        // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
+        // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
+        // all "default" annotations and should be deleted in the future.
+        auto new_m = partitioning::DefaultRemover(m).Remove();
+        return partitioning::Partitioner(new_m).Partition();
+  };
   auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
 }

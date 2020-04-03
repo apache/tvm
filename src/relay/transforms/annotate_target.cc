@@ -27,121 +27,139 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/transform.h>
+#include <tvm/runtime/container.h>
 
 namespace tvm {
 namespace relay {
 namespace annotate_target {
 
-// Cache compiler_begin op for equivalence check.
 static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
 
 // A helper class to insert annotation boundaries for a program region that will
 // be handled by a specific compiler.
 class AnnotateTargetWrapper : public ExprMutator {
  public:
-  explicit AnnotateTargetWrapper(const std::string& target) : target_(target) {}
+  AnnotateTargetWrapper(const Array<runtime::String> targets) {
+    for (auto target : targets) {
+      targets_.push_back(target.data());
+    }
+  }
 
   Expr Annotate(const Expr& expr) {
-    return InsertEnd(Mutate(expr));
+    auto new_expr = Mutate(expr);
+    //std::cerr << AsText(new_expr);
+    return new_expr;
   }
 
-  bool IsSupported(const Expr& expr) {
-    if (expr->IsInstance<CallNode>()) {
-      Call call = Downcast<Call>(expr);
-      auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
-      if (call->op->IsInstance<OpNode>()) {
-        Op op = Downcast<Op>(call->op);
-        CHECK(op.defined());
-        if (fannotate.count(op)) {
-          return fannotate[op](call->attrs, call->args);
+  /*! \brief This function 1) annotates a compiler end and a compiler begin to all arguments.
+   * The compiler end is based on the arg target while the compiler begin is based on the given
+   * target. If target is not given and all arguments are going to the same target, then we will
+   * use that target; otherwise we use default for this op. Note that all arg exprs must be
+   * available in op_expr_to_target before calling this function.
+   *
+   * \param args An array of arguments of the given node.
+   * \param target The target of the current node.
+   * \return A pair of target and annotated argument expressions.
+   */
+  std::pair<std::string, Array<Expr>> AnnotateArgs(const Array<Expr> args,
+                                                   const std::string target = "") {
+    std::string ref_target = "";
+    Array<Expr> compiler_ends;
+    for (auto arg : args) {
+      if (op_expr_to_target_.find(arg) != op_expr_to_target_.end()) {
+        std::string arg_target = op_expr_to_target_[arg];
+        compiler_ends.push_back(InsertAnnotation(arg, arg_target, end_op));
+        if (ref_target == "") {
+          ref_target = arg_target;
+        } else if (ref_target != arg_target) {
+          ref_target = "__inconsist__";
         }
-      } else if (call->op->IsInstance<FunctionNode>()) {
-        // handle composite functions
-        Function func = Downcast<Function>(call->op);
-        CHECK(func.defined());
-        auto comp_name = func->GetAttr<String>(attr::kComposite);
-        if (comp_name.defined()) {
-          std::string comp_name_str = comp_name;
-          size_t i = comp_name_str.find('.');
-          if (i != std::string::npos) {
-            std::string target = comp_name_str.substr(0, i);
-            if (target == target_) return true;
-          }
-        }
+      } else {
+        // Input vars.
+        compiler_ends.push_back(arg);
       }
     }
-    if (expr->IsInstance<TupleGetItemNode>()) {
-      TupleGetItem get = Downcast<TupleGetItem>(expr);
-      if (get->tuple->IsInstance<CallNode>() &&
-          get->tuple.as<CallNode>()->op == compiler_begin_op) {
-        return true;
-      }
+    ref_target = (ref_target == "__inconsist__") ? "default" : ref_target;
+
+    // Determine compiler begin target.
+    std::string op_target = (target == "")? ref_target: target;
+
+    Array<Expr> compiler_begins;
+    for (auto end : compiler_ends) {
+      compiler_begins.push_back(InsertAnnotation(end, op_target, begin_op));
     }
-    return false;
+
+    return {op_target, compiler_begins};
   }
 
-  Expr InsertEnd(const Expr& arg) {
-    if (IsSupported(arg)) {
-      const auto *end_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_end");
-      CHECK(end_op);
-      Expr end = (*end_op)(arg, target_);
-      return end;
-    }
-    return arg;
+  Expr InsertAnnotation(const Expr& expr, const std::string target, const PackedFunc* ann_op) {
+    Expr new_op = (*ann_op)(expr, target);
+    new_op->checked_type_ = expr->checked_type_;
+    return new_op;
   }
 
   Expr VisitExpr_(const CallNode* cn) {
-    auto new_e = ExprMutator::VisitExpr_(cn);
+    Op op = Downcast<Op>(cn->op);
+    CHECK(op.defined());
 
+    // Supported targets for this node. The order implies the priority.
+    std::vector<std::string> supported_targets;
+
+    // Check which targets this op can be offloaded.
+    for (auto target : this->targets_) {
+      auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target);
+      if (fannotate.count(op) && fannotate[op](cn->attrs, cn->args)) {
+        supported_targets.push_back(target);
+      }
+    }
+    supported_targets.push_back("default");  // Make default as the last option.
+
+    // TODO(@comaniac, @zhiics): Now we simply assign this node to the target with
+    // the highest priority, but we should preserve all supported targets so that
+    // we can make a better decision.
+    std::string target = supported_targets[0];
+
+    // Visit and mutate arguments after the target of this op has been determined.
+    auto new_e = ExprMutator::VisitExpr_(cn);
     Call call = Downcast<Call>(new_e);
 
-    // add end annotations if the args are supported
-    Array<Expr> compiler_ends;
-    for (const auto& it : call->args) {
-      compiler_ends.push_back(InsertEnd(it));
-    }
-    call = Call(call->op, compiler_ends, call->attrs);
+    // Add annotations to each arg.
+    auto target_n_args = AnnotateArgs(call->args, target);
+    Array<Expr> compiler_begins = std::get<1>(target_n_args);
+    // for (auto b : compiler_begins) {
+    //   std::cerr << AsText(b);
+    //   std::cerr << "===============\n";
+    // }
+    //std::cerr << "*********************************************\n";
+    call = Call(call->op, compiler_begins, call->attrs);
+    call->checked_type_ = cn->checked_type_;
 
-    // add begin annotations if the call node is supported
-    if (IsSupported(call)) {
-      tvm::Array<tvm::relay::Expr> compiler_begins;
-      const auto* begin_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
-      for (const auto& it : call->args) {
-        CHECK(begin_op);
-        Expr begin = (*begin_op)(it, target_);
-        compiler_begins.push_back(begin);
-      }
-      call = Call(call->op, compiler_begins, call->attrs);
-    }
+    // Update the target map.
+    op_expr_to_target_[call] = target;
 
     return std::move(call);
   }
 
   Expr VisitExpr_(const TupleNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<Tuple>(new_e);
 
-    auto tup = Downcast<Tuple>(new_e);
-    Array<Expr> new_fields;
-    for (auto field : tup->fields) {
-      new_fields.push_back(InsertEnd(field));
-    }
-    return Tuple(new_fields);
+    auto target_n_args = AnnotateArgs(expr->fields);
+    auto new_expr = Tuple(std::get<1>(target_n_args));
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
   Expr VisitExpr_(const TupleGetItemNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<TupleGetItem>(new_e);
 
-    auto get = Downcast<TupleGetItem>(new_e);
-    if (IsSupported(get->tuple)) {
-      const auto* begin_op =
-        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
-      CHECK(begin_op);
-      return TupleGetItem((*begin_op)(InsertEnd(get->tuple), target_), get->index);
-    } else {
-      return TupleGetItem(InsertEnd(get->tuple), get->index);
-    }
+    auto target_n_args = AnnotateArgs(Array<Expr>({expr->tuple}));
+
+    std::string target = std::get<0>(target_n_args);
+    auto new_expr = TupleGetItem(std::get<1>(target_n_args)[0], expr->index);
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
   Expr VisitExpr_(const FunctionNode* fn) {
@@ -154,76 +172,96 @@ class AnnotateTargetWrapper : public ExprMutator {
     } else {
       auto new_e = ExprMutator::VisitExpr_(fn);
       func = Downcast<Function>(new_e);
-      new_body = InsertEnd(func->body);
+      new_body = func->body;
+      if (op_expr_to_target_.find(func->body) != op_expr_to_target_.end()) {
+        new_body = InsertAnnotation(func->body, op_expr_to_target_[func->body], end_op);
+        op_expr_to_target_[new_body] = op_expr_to_target_[func->body];
+      }
     }
-
-    return Function(
-      func->params,
-      new_body,
-      func->ret_type,
-      func->type_params,
-      func->attrs);
+    return Function(func->params, new_body, func->ret_type, func->type_params, func->attrs);
   }
 
   Expr VisitExpr_(const LetNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<Let>(new_e);
 
-    auto let = Downcast<Let>(new_e);
-    return Let(
-      let->var,
-      InsertEnd(let->value),
-      InsertEnd(let->body));
+    std::vector<Expr> args = {expr->value, expr->body};
+    auto target_n_args = AnnotateArgs(Array<Expr>(args));
+
+    std::string target = std::get<0>(target_n_args);
+    auto new_expr = Let(expr->var, std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
   Expr VisitExpr_(const IfNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<If>(new_e);
 
-    auto iff = Downcast<If>(new_e);
-    return If(
-      InsertEnd(iff->cond),
-      InsertEnd(iff->true_branch),
-      InsertEnd(iff->false_branch));
+    std::vector<Expr> args = {expr->cond, expr->true_branch, expr->false_branch};
+    auto target_n_args = AnnotateArgs(Array<Expr>(args));
+
+    std::string target = std::get<0>(target_n_args);
+    auto new_expr = If(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1],
+                       std::get<1>(target_n_args)[2]);
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
   Expr VisitExpr_(const RefCreateNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<RefCreate>(new_e);
 
-    auto create = Downcast<RefCreate>(new_e);
-    return RefCreate(InsertEnd(create->value));
+    auto target_n_args = AnnotateArgs(Array<Expr>({expr->value}));
+    auto new_expr = RefCreate(std::get<1>(target_n_args)[0]);
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
   Expr VisitExpr_(const RefReadNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<RefRead>(new_e);
 
-    auto read = Downcast<RefRead>(new_e);
-    return RefRead(InsertEnd(read->ref));
+    auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref}));
+
+    auto new_expr = RefRead(std::get<1>(target_n_args)[0]);
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
   Expr VisitExpr_(const RefWriteNode* op) {
     auto new_e = ExprMutator::VisitExpr_(op);
+    auto expr = Downcast<RefWrite>(new_e);
 
-    auto write = Downcast<RefWrite>(new_e);
-    return RefWrite(
-      InsertEnd(write->ref),
-      InsertEnd(write->value));
+    auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref, expr->value}));
+
+    std::string target = std::get<0>(target_n_args);
+    auto new_expr = RefWrite(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
+    op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
+    return new_expr;
   }
 
  private:
-  std::string target_;
+  /*! \brief The target backends for annotation. */
+  std::vector<std::string> targets_;
+  /*! \brief Maintain the decision of the target for each op expr. */
+  std::unordered_map<Expr, std::string, ObjectHash, ObjectEqual> op_expr_to_target_;
+  const PackedFunc* begin_op = runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
+  const PackedFunc* end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
 };
 
-Expr AnnotateTarget(const Expr& expr, const std::string& target) {
-  return AnnotateTargetWrapper(target).Annotate(expr);
+Expr AnnotateTarget(const Expr& expr, const Array<runtime::String> targets) {
+  return AnnotateTargetWrapper(targets).Annotate(expr);
 }
 
 }  // namespace annotate_target
 
 namespace transform {
 
-Pass AnnotateTarget(const std::string& target) {
+Pass AnnotateTarget(const Array<runtime::String> targets) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, target));
+        return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, targets));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc",
                                       {"InferType"});

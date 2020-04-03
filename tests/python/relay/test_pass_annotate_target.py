@@ -136,7 +136,7 @@ def test_extern_dnnl():
 
     def test_annotate():
         mod = annotated(dtype, ishape, w1shape)
-        mod = transform.AnnotateTarget("dnnl")(mod)
+        mod = transform.AnnotateTarget([tvm.runtime.container.String("dnnl")])(mod)
         ref_mod = expected(dtype, ishape, w1shape)
         tvm.ir.assert_structural_equal(mod, ref_mod)
 
@@ -208,14 +208,21 @@ def test_multiple_ends():
         r = relay.nn.relu(cb_1)
         ce_1 = relay.annotation.compiler_end(r, "test")
         ce_2 = relay.annotation.compiler_end(r, "test")
-        a_1 = relay.abs(ce_1)
-        a_2 = relay.abs(ce_2)
-        out = relay.add(a_1, a_2)
-        f = relay.Function([x], out)
+        cb_2 = relay.annotation.compiler_begin(ce_1, "default")
+        cb_3 = relay.annotation.compiler_begin(ce_2, "default")
+        a_1 = relay.abs(cb_2)
+        a_2 = relay.abs(cb_3)
+        ce_3 = relay.annotation.compiler_end(a_1, "default")
+        ce_4 = relay.annotation.compiler_end(a_2, "default")
+        cb_4 = relay.annotation.compiler_begin(ce_3, "default")
+        cb_5 = relay.annotation.compiler_begin(ce_4, "default")
+        out = relay.add(cb_4, cb_5)
+        ce_6 = relay.annotation.compiler_end(out, "default")
+        f = relay.Function([x], ce_6)
         mod = tvm.IRModule.from_expr(f)
         return mod
 
-    result = transform.AnnotateTarget("test")(before())
+    result = transform.AnnotateTarget([tvm.runtime.container.String("test")])(before())
     expected = transform.InferType()(after())
     assert tvm.ir.structural_equal(expected, result)
 
@@ -266,7 +273,7 @@ def test_composite_function():
 
 
 if __name__ == "__main__":
-    test_multiple_ends()
     test_extern_dnnl()
     #test_extern_dnnl_mobilenet()
     test_composite_function()
+    test_multiple_ends()
