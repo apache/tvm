@@ -18,12 +18,15 @@ import tvm
 from tvm import te
 import numpy as np
 
-def lower_intrin(stmt):
+def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
     lower_expr = isinstance(stmt, tvm.tir.PrimExpr)
     stmt = tvm.tir.Evaluate(stmt) if lower_expr else stmt
     stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt  = tvm.tir.ir_pass._LowerIntrinStmt(stmt, "llvm")
+    func = tvm.tir.PrimFunc(params, stmt).with_attr(
+        "target", tvm.target.create("llvm"))
+    func = tvm.tir.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"]
+    stmt = func.body
     return stmt.value if lower_expr else stmt.body
 
 
@@ -70,19 +73,19 @@ def test_lower_floordiv():
         y = te.var("y", dtype=dtype)
         zero = tvm.tir.const(0, dtype)
         # no constraints
-        res = lower_intrin(tvm.te.floordiv(x, y))
+        res = lower_intrin([x, y], tvm.te.floordiv(x, y))
         check_value(res, x, y, data, lambda a, b: a // b)
         # rhs >= 0
-        res = lower_intrin(tvm.tir.Select(y >= 0, tvm.te.floordiv(x, y), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.floordiv(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a // b if b > 0 else 0)
         # involves max
-        res = lower_intrin(tvm.tir.Select(y >= 0, tvm.te.max(tvm.te.floordiv(x, y), zero), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.max(tvm.te.floordiv(x, y), zero), zero))
         check_value(res, x, y, data, lambda a, b: max(a // b, 0) if b > 0 else 0)
         # lhs >= 0
-        res = lower_intrin(tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floordiv(x, y), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floordiv(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a // b if b > 0 and a >= 0 else 0)
         # const power of two
-        res = lower_intrin(tvm.te.floordiv(x, tvm.tir.const(8, dtype=dtype)))
+        res = lower_intrin([x, y], tvm.te.floordiv(x, tvm.tir.const(8, dtype=dtype)))
         check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a // b)
 
 
@@ -93,16 +96,16 @@ def test_lower_floormod():
         y = te.var("y", dtype=dtype)
         zero = tvm.tir.const(0, dtype)
         # no constraints
-        res = lower_intrin(tvm.te.floormod(x, y))
+        res = lower_intrin([x, y], tvm.te.floormod(x, y))
         check_value(res, x, y, data, lambda a, b: a % b)
         # rhs >= 0
-        res = lower_intrin(tvm.tir.Select(y >= 0, tvm.te.floormod(x, y), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(y >= 0, tvm.te.floormod(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a % b if b > 0 else 0)
         # lhs >= 0
-        res = lower_intrin(tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floormod(x, y), zero))
+        res = lower_intrin([x, y], tvm.tir.Select(tvm.tir.all(y >= 0, x >= 0), tvm.te.floormod(x, y), zero))
         check_value(res, x, y, data, lambda a, b: a % b if b > 0 and a >= 0 else 0)
         # const power of two
-        res = lower_intrin(tvm.te.floormod(x, tvm.tir.const(8, dtype=dtype)))
+        res = lower_intrin([x, y], tvm.te.floormod(x, tvm.tir.const(8, dtype=dtype)))
         check_value(res, x, y, [(a, b) for a, b in data if b == 8], lambda a, b: a % b)
 
 

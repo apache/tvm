@@ -178,10 +178,10 @@ class AnnotatedRegionSetNode : public Object {
   /*!
    * \brief Add an expression to a region.
    *
-   * \param region The region to add the expression to.
+   * \param dest The region to add the expression to.
    * \param expr The expression.
    */
-  void AddToRegion(AnnotatedRegion region, const Expr& expr);
+  void AddToRegion(AnnotatedRegion dest, const Expr& expr);
 
   /*!
    * \brief Make a new region.

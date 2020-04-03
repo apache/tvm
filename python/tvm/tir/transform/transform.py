@@ -16,8 +16,104 @@
 # under the License.
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
-
 from . import _ffi_api
+
+
+def SkipAssert():
+    """Skip assert stmt.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.SkipAssert()
+
+
+def ThreadSync(storage_scope):
+    """ Insert sync between parallel read/write of shared buffers.
+
+    Parameters
+    ----------
+    storage_scope: str
+        The target storage scope.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.ThreadSync(storage_scope)
+
+
+def LowerThreadAllreduce():
+    """Lower cross thread alleduce.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerThreadAllreduce()
+
+
+def InferFragment():
+    """ Infer the TensorCore fragment infomation using tensor intrinsics.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InferFragment()
+
+
+def LowerWarpMemory():
+    """Lower warp memory access to low-level device related function calls.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerWarpMemory()
+
+
+def LowerTVMBuiltin():
+    """Lower tvm builtin intrinsics.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerTVMBuiltin()
+
+
+def LowerIntrin():
+    """Lower target specific intrinsic calls.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerIntrin()
+
+
+def LowerDeviceStorageAccessInfo():
+    """Lower attached storage access information on device.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+
+    Note
+    ----
+    Run this pass after all storage access analysis finish.
+    """
+    return _ffi_api.LowerDeviceStorageAccessInfo()
 
 
 def CombineContextCall():
@@ -29,3 +125,18 @@ def CombineContextCall():
         The result pass
     """
     return _ffi_api.CombineContextCall()
+
+
+def NarrowDataType():
+    """Narrow down PrimExpr datatype in stmt to target_bits.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+
+    Note
+    ----
+    Run this pass after StorageFlatten.
+    """
+    return _ffi_api.NarrowDataType()

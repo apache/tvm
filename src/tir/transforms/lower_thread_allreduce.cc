@@ -23,9 +23,14 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/target/target.h>
+#include <tvm/runtime/registry.h>
+
 #include <unordered_set>
-#include "ir_util.h"
+
+#include "../pass/ir_util.h"
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -342,5 +347,28 @@ LowerThreadAllreduce(LoweredFunc f, int warp_size) {
   n->body = ThreadAllreduceBuilder(warp_size)(n->body);
   return LoweredFunc(n);
 }
+
+namespace transform {
+
+Pass LowerThreadAllreduce() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    CHECK(target.defined())
+        << "LowerThreadAllreduce: Require the target attribute";
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "LowerThreadAllreeduce: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    n->body = ThreadAllreduceBuilder(target->thread_warp_size)(n->body);
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.LowerThreadAllreduce")
+.set_body_typed(LowerThreadAllreduce);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

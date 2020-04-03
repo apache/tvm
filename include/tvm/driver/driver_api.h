@@ -57,20 +57,6 @@ TVM_DLL Array<tir::LoweredFunc> lower(
     const std::string& name,
     const std::unordered_map<te::Tensor, tir::Buffer>& binds,
     const BuildConfig& config);
-/*!
-* \brief Split host/device function and running necessary pass before build
-* \param funcs The functions to be built.
-* \param target The target device to build for.
-* \param target_host The target for building host code. To use the default, pass Target()
-* \param config The build configuration.
-* \return The Array<Array<LoweredFunc>> with 2 elements. First is host function Array,
-          second is device function array
-*/
-TVM_DLL Array<Array<tir::LoweredFunc> > split_dev_host_funcs(
-    const Array<tir::LoweredFunc>& funcs,
-    const Target& target,
-    const Target& target_host,
-    const BuildConfig& config);
 
 /*!
 * \brief Build a device and host module for a specific target from an array of lowered functions.

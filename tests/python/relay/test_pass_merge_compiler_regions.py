@@ -66,13 +66,10 @@ def test_diamond_graph_fanouts():
         O_2 = relay.nn.relu(O_1)
         ce_3 = compiler_end(O_2, "test")
 
-        cb_x = compiler_begin(ce_2, "default")
-        X = relay.tanh(cb_x)
-        ce_x1 = compiler_end(X, "default")
-        ce_x2 = compiler_end(X, "default")
+        X = relay.tanh(ce_2)
 
         cb_3 = compiler_begin(ce_3, "test")
-        cb_4 = compiler_begin(ce_x1, "test")
+        cb_4 = compiler_begin(X, "test")
         O_3 = relay.add(cb_3, cb_4)
         ce_4 = compiler_end(O_3, "test")
 
@@ -162,36 +159,28 @@ def test_example_graph():
         node1 = relay.add(begin2, begin3)
         node2 = relay.add(node0, node1)
 
-        begin4 = compiler_begin(in_5, "default")
-        begin5 = compiler_begin(in_6, "default")
-        begin6 = compiler_begin(in_7, "default")
-        node3 = relay.subtract(begin4, begin5)
-        node4 = relay.subtract(begin6, node3)
-        end0 = compiler_end(node4, "default")
+        node3 = relay.subtract(in_5, in_6)
+        node4 = relay.subtract(in_7, node3)
 
-        begin7 = compiler_begin(end0, "test")
-        begin8 = compiler_begin(in_9, "test")
-
-        node5 = relay.add(node2, begin7)
+        begin4 = compiler_begin(node4, "test")
+        begin5 = compiler_begin(in_9, "test")
+        node5 = relay.add(node2, begin4)
         end1 = compiler_end(node5, "test")
 
-        begin9 = compiler_begin(end1, "default")
-        begin10 = compiler_begin(in_8, "default")
-        node6 = relay.subtract(begin10, begin9)
-        end2 = compiler_end(node6, "default")
+        node6 = relay.subtract(in_8, end1)
 
-        node7 = relay.add(begin8, node5)
-        end3 = compiler_end(node7, "test")
-        begin11 = compiler_begin(end3, "test")
-        begin12 = compiler_begin(end2, "test")
+        node7 = relay.add(begin5, node5)
+        end2 = compiler_end(node7, "test")
+        begin6 = compiler_begin(end2, "test")
+        begin7 = compiler_begin(node6, "test")
 
-        node8 = relay.add(begin12, begin11)
+        node8 = relay.add(begin7, begin6)
 
-        begin13 = compiler_begin(in_10, "test")
-        node9 = relay.add(begin13, node8)
-        end4 = compiler_end(node9, "test")
+        begin8 = compiler_begin(in_10, "test")
+        node9 = relay.add(begin8, node8)
+        end3 = compiler_end(node9, "test")
 
-        f = relay.Function([in_1, in_2, in_3, in_4, in_5, in_6, in_7, in_8, in_9, in_10], end4)
+        f = relay.Function([in_1, in_2, in_3, in_4, in_5, in_6, in_7, in_8, in_9, in_10], end3)
         mod = tvm.IRModule.from_expr(f)
         return mod
 

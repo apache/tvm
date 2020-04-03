@@ -58,8 +58,7 @@ def test_dso_module_load():
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1))
         fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-        fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-        m = tvm.target.codegen.build_module(fapi, "llvm")
+        m = tvm.driver.build(fapi, target="llvm")
         for name in names:
             m.save(name)
 

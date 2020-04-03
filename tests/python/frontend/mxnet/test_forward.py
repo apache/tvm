@@ -107,6 +107,14 @@ def test_forward_resnet():
         mx_sym = model_zoo.mx_resnet(18)
         verify_mxnet_frontend_impl(mx_sym)
 
+def test_forward_leaky_relu():
+    data = mx.sym.var('data')
+    data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
+    mx_sym = mx.sym.LeakyReLU(data)
+    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
+    mx_sym = mx.sym.LeakyReLU(data, act_type='leaky')
+    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
+
 def test_forward_elu():
     data = mx.sym.var('data')
     data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
@@ -979,6 +987,7 @@ if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
     test_forward_resnet()
+    test_forward_leaky_relu()
     test_forward_elu()
     test_forward_rrelu()
     test_forward_prelu()

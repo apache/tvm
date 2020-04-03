@@ -28,7 +28,6 @@ from torch.quantization import fuse_modules, QuantWrapper
 
 import tvm
 from tvm import relay
-from tvm.relay.frontend.pytorch import get_graph_input_names
 from tvm.contrib.download import download_testdata
 
 
@@ -39,7 +38,7 @@ def torch_version_check():
 
 def get_tvm_runtime(script_module, input_name, ishape):
 
-    input_shapes = {input_name: ishape}
+    input_shapes = [(input_name, ishape)]
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
     with relay.build_config(opt_level=3):
@@ -287,7 +286,7 @@ def test_quantized_modules():
         with torch.no_grad():
             pt_result = script_module(inp.clone()).numpy()
 
-        input_name = get_graph_input_names(script_module)[0]
+        input_name = "input"
         runtime = get_tvm_runtime(script_module, input_name, ishape)
         runtime.set_input(input_name, inp.numpy().copy())
         runtime.run()
@@ -383,7 +382,7 @@ def test_quantized_imagenet():
         with torch.no_grad():
             pt_result = script_module(pt_inp).numpy()
 
-        input_name = get_graph_input_names(script_module)[0]
+        input_name = "image"
         runtime = get_tvm_runtime(script_module, input_name, (1, 3, 224, 224))
         runtime.set_input(input_name, inp)
         runtime.run()

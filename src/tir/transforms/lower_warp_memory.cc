@@ -30,9 +30,14 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
+#include <tvm/target/target.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/ir_pass.h>
+
 #include <unordered_set>
-#include "ir_util.h"
+
+#include "../pass/ir_util.h"
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -380,13 +385,24 @@ class WarpMemoryRewriter : private StmtMutator {
   std::unordered_map<const VarNode*, Range> var_dom_;
 };
 
-LoweredFunc
-LowerWarpMemory(LoweredFunc f, int warp_size) {
-  CHECK_EQ(f->func_type, kDeviceFunc);
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = WarpMemoryRewriter(warp_size).Rewrite(n->body);
-  return LoweredFunc(n);
+namespace transform {
+
+Pass LowerWarpMemory() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    CHECK(target.defined())
+        << "LowerWarpMemory: Require the target attribute";
+    n->body = WarpMemoryRewriter(target->thread_warp_size).Rewrite(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.LowerWarpMemory")
+.set_body_typed(LowerWarpMemory);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

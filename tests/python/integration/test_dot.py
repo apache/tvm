@@ -50,13 +50,12 @@ def test_dot():
     k = te.reduce_axis((0, n), 'k')
     C = te.compute((1,), lambda _: te.sum(A[k] * B[k], axis=k), name='C')
     s = te.create_schedule(C.op)
-    fapi = lower(s, [A, B, C])
 
     def verify(target):
         if not tvm.runtime.enabled(target):
             print("Target %s is not enabled" % target)
             return
-        f = tvm.target.codegen.build_module(fapi, target)
+        f = tvm.driver.build(s, [A, B, C], target)
         # verify
         ctx = tvm.cpu(0)
         a = tvm.nd.array(np.random.uniform(size=(nn,)).astype(A.dtype), ctx)

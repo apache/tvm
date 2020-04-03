@@ -66,6 +66,7 @@
 #define TVM_ARITH_PATTERN_MATCH_H_
 
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tuple>
 #include "const_fold.h"
 
@@ -135,7 +136,7 @@ class PEqualChecker<PrimExpr> {
  public:
   bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     if (lhs.same_as(rhs)) return true;
-    return tir::Equal(lhs, rhs);
+    return tir::ExprDeepEqual()(lhs, rhs);
   }
 };
 

@@ -39,7 +39,7 @@ def test_for():
     f = tvm.tir.ir_pass.MakeAPI(body, "func", [dev_type, n], 2, True)
 
     # temp adapter to convert loweredFunc to IRModule
-    # to test passes in the new style.
+    # to test passes in the new style.x
     mod = tvm.testing.LoweredFuncsToIRModule([f])
 
     mod = tvm.tir.transform.CombineContextCall()(mod)

@@ -510,7 +510,7 @@ def _mx_pad(inputs, attrs):
                       pad_mode=pad_mode)
 
 def _mx_leaky_relu(inputs, attrs):
-    act_type = attrs.get_str("act_type")
+    act_type = attrs.get_str("act_type", "leaky")
     if act_type == "leaky":
         return _op.nn.leaky_relu(inputs[0], alpha=attrs.get_float("slope", 0.25))
     if act_type == "prelu":
