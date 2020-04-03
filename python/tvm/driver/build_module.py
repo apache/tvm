@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# pylint: disable=invalid-name
 """The build utils in python.
 
 This module provides the functions to transform schedule to
@@ -25,6 +27,7 @@ import tvm.tir
 
 from tvm.runtime import ndarray
 from tvm.ir import container
+from tvm.ir import CallingConv
 from tvm.target import codegen, BuildConfig
 from tvm.tir import ir_pass
 from tvm.tir.stmt import LoweredFunc
@@ -222,75 +225,59 @@ def _build_for_device(flist, target, target_host):
     mdev : tvm.module
         A module that contains device code.
     """
-    @tvm.tir.transform.prim_func_pass(opt_level=0)
-    class BindTarget:
-        def __init__(self, target):
-            self.target = target
-
-        # pylint: disable=unused-argument
-        def transform_function(self, func, mod, ctx):
-            return func.with_attr("target", self.target)
-
     target = _target.create(target)
+    target_host = _target.create(target_host)
     device_type = ndarray.context(target.target_name, 0).device_type
-    fhost = []
-    fdevice = []
+
     for func in flist:
         if not ir_pass.VerifyMemory(func, device_type):
             raise ValueError(
                 "Direct host side access to device memory is detected in %s. "
                 "Did you forget to bind?" % func.name)
-        if func.func_type == LoweredFunc.MixedFunc:
-            if BuildConfig.current().detect_global_barrier:
-                func = ir_pass.ThreadSync(func, "global")
-            func = ir_pass.ThreadSync(func, "shared")
-            func = ir_pass.ThreadSync(func, "warp")
-            func = ir_pass.InferFragment(func)
-            warp_size = target.thread_warp_size
-            func = ir_pass.LowerThreadAllreduce(func, warp_size)
-            fsplits = list(ir_pass.SplitHostDevice(func))
-            fhost.append(fsplits[0])
-            for x in fsplits[1:]:
-                fdevice.append(x)
-        elif func.func_type == LoweredFunc.HostFunc:
-            fhost.append(func)
-        elif func.func_type == LoweredFunc.DeviceFunc:
-            fdevice.append(func)
-        else:
-            raise ValueError("unknown function type %d" % func.func_type)
 
-    if "gpu" in target.keys and not fdevice:
-        warnings.warn(
-            "Specified target %s, but cannot find device code, did you do "
-            "bind?" % target)
+    mod_mixed = tvm.testing.LoweredFuncsToIRModule(flist)
+    opt_mixed = [tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))]
+    if BuildConfig.current().detect_global_barrier:
+        opt_mixed += [tvm.tir.transform.ThreadSync("global")]
+    opt_mixed += [tvm.tir.transform.ThreadSync("shared"),
+                  tvm.tir.transform.ThreadSync("warp"),
+                  tvm.tir.transform.InferFragment(),
+                  tvm.tir.transform.LowerThreadAllreduce(),
+                  tvm.tir.transform.BindDeviceType(),
+                  tvm.tir.transform.SplitHostDevice()]
+    mod_mixed = tvm.ir.transform.Sequential(opt_mixed)(mod_mixed)
 
-    fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
-
-    if device_type == ndarray.cpu(0).device_type and target_host == target:
-        assert not fdevice
-
-    target_host = _target.create(target_host)
 
     # device optimizations
-    mod_dev = tvm.testing.LoweredFuncsToIRModule(fdevice)
     opt_device = tvm.ir.transform.Sequential(
-        [BindTarget(target),
+        [tvm.tir.transform.Filter(
+            lambda f: "calling_conv" in f.attrs and
+            f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
          tvm.tir.transform.LowerWarpMemory(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin()])
-    mod_dev = opt_device(mod_dev)
+    mod_dev = opt_device(mod_mixed)
 
     # host optimizations
-    mod_host = tvm.testing.LoweredFuncsToIRModule(fhost)
     opt_host = tvm.ir.transform.Sequential(
-        [BindTarget(target_host),
+        [tvm.tir.transform.Filter(
+            lambda f: "calling_conv" not in f.attrs or
+            f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH),
+         tvm.tir.transform.Apply(lambda f: f.with_attr("target", target)),
          tvm.tir.transform.LowerTVMBuiltin(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin(),
          tvm.tir.transform.CombineContextCall()])
-    mod_host = opt_host(mod_host)
+    mod_host = opt_host(mod_mixed)
 
-    rt_mod_dev = codegen.build_module(mod_dev, target) if fdevice else None
+    if device_type == ndarray.cpu(0).device_type and target_host == target:
+        assert len(mod_dev.functions) == 0
+    if "gpu" in target.keys and len(mod_dev.functions) == 0:
+        warnings.warn(
+            "Specified target %s, but cannot find device code, did you do "
+            "bind?" % target)
+
+    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
     return mod_host, rt_mod_dev
 
 

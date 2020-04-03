@@ -407,56 +407,6 @@ LoweredFunc MakeAPI(Stmt body,
                     bool is_restricted);
 
 /*!
- * \brief Bind the device type of host function to be device_type.
- * \param func The function to be binded.
- * \param device_type The device type to be binded.
- * \return The binded function.
- */
-LoweredFunc BindDeviceType(LoweredFunc func,
-                           int device_type);
-/*!
- * \brief Find undefined vars in the statment.
- * \param stmt The function to be checked.
- * \param defs The vars that is defined.
- * \return Array of undefined vars.
- */
-Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
-
-/*!
- * \brief Split the function into a host function and device functions.
- * \param func The function to be splitted.
- *
- * \return Array of functions, the first one is host function,
- *     the others are device functions.
- */
-Array<LoweredFunc> SplitHostDevice(LoweredFunc func);
-
-/*!
- * \brief Insert sync between parallel read/write of shared buffers.
- *
- * \param stmt The stmt to be trasnformed.
- * \param storage_scope The storage scope considered.
- */
-LoweredFunc ThreadSync(LoweredFunc stmt, std::string storage_scope);
-
-/*!
- * \brief Lower cross thread alleduce in the stmt.
- * \param f The device function to be lowered.
- * \param warp_size the size of warp where no sync is needed.
- * \return Transformed function.
- */
-LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
-
-/*!
- * \brief Lower warp memory in stmt.
- * \param f The device function to be lowered.
- * \param warp_size the size of warp where no sync is needed.
- *        this function will only take in effect if warp_size is bigger than one.
- * \return Transformed function.
- */
-LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
-
-/*!
  * \brief Remap the thread axis
  *
  *  This can be used to get equivalent program which uses
@@ -469,26 +419,6 @@ LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
  * \return Transformed function.
  */
 LoweredFunc RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> axis_map);
-
-/*!
- * \brief Lower packed function call.
- * \param f The function to be lowered.
- * \return Transformed function.
- */
-LoweredFunc LowerTVMBuiltin(LoweredFunc f);
-
-
-/*!
- * \brief Rewrite the pointer content type of arguments,
- *  as well as Alloc internal to the function to use
- *  the most frequently accessed type for load/store
- *  to avoid pointer casting in backend when possible.
- *
- * \note implemeneted in storage_rewrite.cc
- * \param f The function to be trasnformed
- * \return Transformed function.
- */
-LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -512,14 +442,6 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f);
  * \return Transformed function.
  */
 LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
-
-/*!
- * \brief Infer the TensorCore fragment infomation using tensor intrinsics
- *
- * \param f The device function to be lowered.
- * \return Transformed function.
- */
-LoweredFunc InferFragment(LoweredFunc f);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

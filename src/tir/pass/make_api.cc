@@ -218,69 +218,6 @@ LoweredFunc MakeAPI(Stmt body,
   return f;
 }
 
-class DeviceTypeBinder: public StmtExprMutator {
- public:
-  explicit DeviceTypeBinder(int device_type)
-      : device_type_(device_type) {}
-
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::device_context_type) {
-      if (const VarNode* var = op->value.as<VarNode>()) {
-        var_ = var;
-        PrimExpr value = make_const(op->value.dtype(), device_type_);
-        Stmt body = StmtExprMutator::VisitStmt_(op);
-        var_ = nullptr;
-        std::ostringstream os;
-        os << "device_type need to be " << device_type_;
-        return AssertStmtNode::make(op->value == value, os.str(), body);
-      }
-    }
-    return StmtExprMutator::VisitStmt_(op);
-  }
-
-  Stmt VisitStmt_(const IfThenElseNode* op) final {
-    // eager simplify if guard.
-    Stmt res = StmtExprMutator::VisitStmt_(op);
-    op = res.as<IfThenElseNode>();
-    if (is_zero(op->condition)) {
-      if (op->else_case.defined()) return op->else_case;
-      return EvaluateNode::make(0);
-    }
-    if (is_one(op->condition)) {
-      return op->then_case;
-    }
-    return res;
-  }
-
-  PrimExpr VisitExpr_(const NENode* op) final {
-    // eager check NE for device check
-    PrimExpr res = StmtExprMutator::VisitExpr_(op);
-    op = res.as<NENode>();
-    if (tir::ExprDeepEqual()(op->a, op->b)) {
-      return make_const(op->dtype, false);
-    }
-    return res;
-  }
-
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    if (op == var_) {
-      return make_const(op->dtype, device_type_);
-    } else {
-      return GetRef<PrimExpr>(op);
-    }
-  }
-
- public:
-  const VarNode* var_{nullptr};
-  int device_type_;
-};
-
-LoweredFunc BindDeviceType(LoweredFunc f,
-                           int device_type) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = DeviceTypeBinder(device_type)(n->body);
-  return LoweredFunc(n);
-}
 
 }  // namespace tir
 }  // namespace tvm

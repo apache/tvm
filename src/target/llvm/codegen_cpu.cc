@@ -24,6 +24,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <memory>
 #include <unordered_map>
 #include "codegen_cpu.h"

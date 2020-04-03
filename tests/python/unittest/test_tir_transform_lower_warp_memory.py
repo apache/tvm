@@ -33,16 +33,15 @@ def test_lower_warp_mem():
     xo, xi = s[AA].split(s[AA].op.axis[0], 32)
     s[AA].bind(xi, tx)
 
-    f = tvm.lower(s, [A, B])
-    fhost, fdevice = tvm.tir.ir_pass.SplitHostDevice(f)
-
-    # temp adapter to convert loweredFunc to IRModule
-    # to test passes in the new style.
-    fname = fdevice.name
-    mod = tvm.testing.LoweredFuncsToIRModule([fdevice])
     cuda_target = tvm.target.create("cuda")
     assert cuda_target.thread_warp_size == 32
-    mod = tvm.IRModule.from_expr(mod[fname].with_attr("target", cuda_target))
+    f = tvm.lower(s, [A, B], name="f")
+
+
+    mod = tvm.testing.LoweredFuncsToIRModule([f])
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
+    mod = tvm.IRModule.from_expr(fdevice)
     fdevice = tvm.tir.transform.LowerWarpMemory()(mod)["main"]
     assert(fdevice.body.body.value.value == "local")
     assert(fdevice.body.body.body.extents[0].value == 2)
