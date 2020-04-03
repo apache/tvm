@@ -28,7 +28,6 @@
 #include <string.h>
 
 struct TVMPackedFunc;
-typedef struct TVMPackedFunc TVMPackedFunc;
 
 /*!
  * \brief Module container of TVM.
