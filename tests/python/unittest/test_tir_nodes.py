@@ -302,7 +302,21 @@ def test_buffer_load_store():
     assert isinstance(s, tvm.tir.BufferStore)
 
 
+def test_intimm_cond():
+    x = tvm.runtime.convert(1)
+    y = tvm.runtime.convert(1)
+    s = {x}
+    assert y in s
+    assert x == y
+    assert x < 20
+    assert not (x >= 20)
+    assert x < 10 and y < 10
+    assert not tvm.runtime.convert(x != 1)
+    assert x == 1
+
+
 if __name__ == "__main__":
+    test_intimm_cond()
     test_buffer_load_store()
     test_vars()
     test_prim_func()
