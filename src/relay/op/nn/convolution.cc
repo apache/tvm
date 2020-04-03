@@ -348,14 +348,14 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
                 out_width = (width-1)*strides[1]-2*padding[1]+kernel_size[1]+output_padding[1]
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<Conv2DTransposeAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_support_level(2)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                   ConvInferCorrectLayout<Conv2DTransposeAttrs>)
-    .add_type_rel("Conv2DTranspose", Conv2DTransposeRel<Conv2DTransposeAttrs>);
+.set_attrs_type<Conv2DTransposeAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                ConvInferCorrectLayout<Conv2DTransposeAttrs>)
+.add_type_rel("Conv2DTranspose", Conv2DTransposeRel<Conv2DTransposeAttrs>);
 
 // relay.nn.conv1d_transpose
 TVM_REGISTER_NODE_TYPE(Conv1DTransposeAttrs);
@@ -401,12 +401,12 @@ said convolution.
                 out_width = (width-1)*strides[0]-2*padding[0]+kernel_size[0]+output_padding[0]
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<Conv1DTransposeAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_support_level(2)
-    .add_type_rel("Conv1DTranspose", Conv1DTransposeRel<Conv1DTransposeAttrs>);
+.set_attrs_type<Conv1DTransposeAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(2)
+.add_type_rel("Conv1DTranspose", Conv1DTransposeRel<Conv1DTransposeAttrs>);
 
 // relay.nn.contrib_conv2d_winograd_without_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv2DWinogradAttrs);
@@ -464,19 +464,19 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_weight_transform"
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_weight_transform")
-    .describe(R"code(Weight transformation of winograd fast convolution algorithm.
+.describe(R"code(Weight transformation of winograd fast convolution algorithm.
 
 Separate this into another operator in order to enable Precompute Pass to compute the
 weight transformation in advance.
 
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ConvWinogradWeightTransformAttrs>()
-    .set_num_inputs(1)
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_support_level(10)
-    .add_type_rel("Conv2DWinogradWeightTransform",
-                  Conv2DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
+.set_attrs_type<ConvWinogradWeightTransformAttrs>()
+.set_num_inputs(1)
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv2DWinogradWeightTransform",
+              Conv2DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
 
 // relay.nn.contrib_conv3d_winograd_without_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv3DWinogradAttrs);
@@ -502,9 +502,9 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_without_weight_tr
 });
 
 RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_without_weight_transform")
-    .describe(R"code(Compute conv3d with winograd algorithm. Only supports NCDHW layout.
-                 This operator assumes the weight tensor is already pre-transformed by
-                 nn.contrib_conv3d_winograd_weight_transform.
+.describe(R"code(Compute conv3d with winograd algorithm. Only supports NCDHW layout.
+              This operator assumes the weight tensor is already pre-transformed by
+              nn.contrib_conv3d_winograd_weight_transform.
 
 - **data**: Input is 5D array of shape  (batch_size, in_channels, depth, height, width)
 - **weight**: Any shape
@@ -513,14 +513,14 @@ RELAY_REGISTER_OP("nn.contrib_conv3d_winograd_without_weight_transform")
 
 - **out**:  Output is 5D array of shape (batch_size, channels, depth, out_height, out_width)
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<Conv3DWinogradAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_support_level(10)
-    .add_type_rel("Conv3DWinograd", Conv3DWinogradRel<Conv3DWinogradAttrs>)
-    .set_attr<FInferCorrectLayout>("FInferCorrectLayout",
-                                   ConvInferCorrectLayout<Conv3DWinogradAttrs>);
+.set_attrs_type<Conv3DWinogradAttrs>()
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv3DWinograd", Conv3DWinogradRel<Conv3DWinogradAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                                ConvInferCorrectLayout<Conv3DWinogradAttrs>);
 
 // relay.nn.contrib_conv3d_winograd_weight_transform
 TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv3d_winograd_weight_transform")
@@ -538,12 +538,12 @@ weight transformation in advance.
 
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1], kernel_size[2])
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<ConvWinogradWeightTransformAttrs>()
-    .set_num_inputs(1)
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_support_level(10)
-    .add_type_rel("Conv3DWinogradWeightTransform",
-                  Conv3DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
+.set_attrs_type<ConvWinogradWeightTransformAttrs>()
+.set_num_inputs(1)
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv3DWinogradWeightTransform",
+              Conv3DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
 
 
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
@@ -570,12 +570,12 @@ weight transformation in advance.
 - **weight**: (channels, in_channels, kernel_size[0], kernel_size[1])
 
 )code" TVM_ADD_FILELINE)
-    .set_attrs_type<Conv2DWinogradNNPACKWeightTransformAttrs>()
-    .set_num_inputs(1)
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_support_level(10)
-    .add_type_rel("Conv2DWinogradNNPACKWeightTransform",
-                  Conv2DWinogradNNPACKWeightTransformRel<Conv2DWinogradNNPACKWeightTransformAttrs>);
+.set_attrs_type<Conv2DWinogradNNPACKWeightTransformAttrs>()
+.set_num_inputs(1)
+.add_argument("weight", "Tensor", "The weight tensor.")
+.set_support_level(10)
+.add_type_rel("Conv2DWinogradNNPACKWeightTransform",
+              Conv2DWinogradNNPACKWeightTransformRel<Conv2DWinogradNNPACKWeightTransformAttrs>);
 
 
 // Positional relay function to create conv2d NCHWc operator
