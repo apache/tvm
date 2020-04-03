@@ -179,20 +179,36 @@ def conv3d_winograd_weight_transform(kernel, tile_size):
         5-D with shape [alpha, alpha, alpha, CO, CI]
     """
     CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
-    assert KD == KH == KW, "Only support NxNxN kernel"
 
-    r = tile_size + KD - 1
-    shape = (r, r, r) + (CI, CO)
+    depth_transform = 2 < KD < 8
 
-    _, _, G = winograd_transform_matrices(tile_size, KD, kernel.dtype)
+    if depth_transform:
+        assert KD == KH == KW, "Only support NxNxN kernel"
+    else:
+        assert KH == KW, "Only supports DxNxN kernel"
 
-    r_kd = te.reduce_axis((0, KD), name='r_kd')
+    r = tile_size + KH - 1
+
     r_kh = te.reduce_axis((0, KH), name='r_kh')
     r_kw = te.reduce_axis((0, KW), name='r_kw')
-    return te.compute(shape, lambda omg, eps, nu, ci, co:
-                      te.sum(kernel[co][ci][r_kd][r_kh][r_kw] *
-                             G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
-                             axis=[r_kd, r_kh, r_kw]), name='transform_weight')
+    _, _, G = winograd_transform_matrices(tile_size, KD, kernel.dtype)
+    if depth_transform:
+        shape = (r, r, r, CI, CO)
+        r_kd = te.reduce_axis((0, KD), name='r_kd')
+        return te.compute(
+            shape,
+            lambda omg, eps, nu, ci, co: te.sum(
+                kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
+                axis=[r_kd, r_kh, r_kw]),
+            name='transform_weight')
+    else:
+        shape = (r, r, KD, CI, CO)
+        return te.compute(
+            shape,
+            lambda eps, nu, d, ci, co: te.sum(
+                kernel[co][ci][d][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
+            name='transform_weight')
+
 
 
 @tvm.target.generic_func

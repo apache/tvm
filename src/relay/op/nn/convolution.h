@@ -379,7 +379,6 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
 
   CHECK_EQ(data->shape.size(), 4) << "Only support NCHW normal kernel layout";
 
-  // each pad width element should be a pair of positive integers
   std::vector<IndexExpr> oshape {
       param->tile_size + data->shape[2] - 1,
       param->tile_size + data->shape[3] - 1,
@@ -407,17 +406,21 @@ bool Conv3DWinogradWeightTransformRel(const Array<Type>& types,
 
   CHECK_EQ(data->shape.size(), 5) << "Only support NCDHW normal kernel layout";
 
-  // each pad width element should be a pair of positive integers
-  std::vector<IndexExpr> oshape {
-      param->tile_size + data->shape[2] - 1,
-      param->tile_size + data->shape[3] - 1,
-      param->tile_size + data->shape[4] - 1,
-      data->shape[1],
-      data->shape[0],
-  };
+  // Shape of packed weights depends on whether depth is being transformed or not.
+  Array<IndexExpr> oshape({0, 0, 0, data->shape[1], data->shape[0]});
+  auto* depth_imm = data->shape[2].as<IntImmNode>();
+  bool transform_depth = (depth_imm->value > 2) and (depth_imm->value < 8);
+  if (transform_depth) {
+    oshape.Set(0, param->tile_size + data->shape[2] - 1);
+    oshape.Set(1, param->tile_size + data->shape[3] - 1);
+    oshape.Set(2, param->tile_size + data->shape[4] - 1);
+  } else {
+    oshape.Set(0, param->tile_size + data->shape[3] - 1);
+    oshape.Set(1, param->tile_size + data->shape[4] - 1);
+    oshape.Set(2, data->shape[2]);
+  }
 
-  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape),
-                                                  data->dtype));
+  reporter->Assign(types[1], TensorType(oshape, data->dtype));
   return true;
 }
 
