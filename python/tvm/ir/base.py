@@ -149,3 +149,127 @@ def save_json(node):
         Saved json string.
     """
     return tvm.runtime._ffi_node_api.SaveJSON(node)
+
+
+def structural_equal(lhs, rhs, map_free_vars=False):
+    """Check structural equality of lhs and rhs.
+
+    The structural equality is recursively defined in the DAG of IRNodes.
+    There are two kinds of nodes:
+
+    - Graph node: a graph node in lhs can only be mapped as equal to
+      one and only one graph node in rhs.
+    - Normal node: equality is recursively defined without the restriction
+      of graph nodes.
+
+    Vars(tir::Var, TypeVar) and non-constant relay expression nodes are graph nodes.
+    For example, it means that `%1 = %x + %y; %1 + %1` is not structurally equal
+    to `%1 = %x + %y; %2 = %x + %y; %1 + %2` in relay.
+
+    A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
+    with the same type if one of the following condition holds:
+
+    - They appear in a same definition point(e.g. function argument).
+    - They points to the same VarNode via the same_as relation.
+    - They appear in a same usage point, and map_free_vars is set to be True.
+
+    The rules for var are used to remap variables occurs in function
+    arguments and let-bindings.
+
+    Parameters
+    ----------
+    lhs : Object
+        The left operand.
+
+    rhs : Object
+        The left operand.
+
+    map_free_vars : bool
+        Whether or not shall we map free vars that does
+        not bound to any definitions as equal to each other.
+
+    Return
+    ------
+    result : bool
+        The comparison result.
+
+    See Also
+    --------
+    structural_hash
+    assert_strucural_equal
+    """
+    lhs = tvm.runtime.convert(lhs)
+    rhs = tvm.runtime.convert(rhs)
+    return bool(tvm.runtime._ffi_node_api.StructuralEqual(
+        lhs, rhs, False, map_free_vars))
+
+
+def assert_structural_equal(lhs, rhs, map_free_vars=False):
+    """Assert lhs and rhs are structurally equal to each other.
+
+    Parameters
+    ----------
+    lhs : Object
+        The left operand.
+
+    rhs : Object
+        The left operand.
+
+    map_free_vars : bool
+        Whether or not shall we map free vars that does
+        not bound to any definitions as equal to each other.
+
+    Raises
+    ------
+    ValueError : if assertion does not hold.
+
+    See Also
+    --------
+    structural_equal
+    """
+    lhs = tvm.runtime.convert(lhs)
+    rhs = tvm.runtime.convert(rhs)
+    tvm.runtime._ffi_node_api.StructuralEqual(
+        lhs, rhs, True, map_free_vars)
+
+
+def structural_hash(node, map_free_vars=False):
+    """Compute structural hash of node
+
+    The structural hash value is recursively defined in the DAG of IRNodes.
+    There are two kinds of nodes:
+
+    - Normal node: the hash value is defined by its content and type only.
+    - Graph node: each graph node will be assigned a unique index ordered by the
+      first occurence during the visit. The hash value of a graph node is
+      combined from the hash values of its contents and the index.
+
+    structural_hash is made to be concistent with structural_equal.
+    If two nodes are structurally equal to each other,
+    then their structural hash (with the same map_free_vars option)
+    should be equal to each other as well.
+
+    If the structural hash of two nodes equals to each other,
+    then it is highly likely(except for rare hash value collison cases)
+    that the two nodes are structurally equal to each other.
+
+    Parameters
+    ----------
+    node : Object
+        The input to be hashed.
+
+    map_free_vars : bool
+        If map_free_vars is set to true, we will hash free variables
+        by the order of their occurences. Otherwise, we will hash by
+        their in-memory pointer address.
+
+    Return
+    ------
+    result : int
+        The hash result
+
+    See Also
+    --------
+    structrual_equal
+    """
+    return tvm.runtime._ffi_node_api.StructuralHash(node, map_free_vars)

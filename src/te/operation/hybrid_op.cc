@@ -27,6 +27,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <unordered_set>
 #include <string>
@@ -338,12 +339,14 @@ Stmt ApplyLoopAnnotations(const Stage &stage,
     LoopAnnotator(const VarNode *var_, const IterVarAttr &attr_) : var(var_), attr(attr_) {}
 
     Stmt VisitStmt_(const ForNode *op) final {
+      tir::ExprDeepEqual expr_equal;
+
       if (op->loop_var.get() == var) {
         if (attr->bind_thread.defined()) {
           const auto &iter_var = attr->bind_thread;
           if (iter_var->dom.defined()) {
             CHECK(is_const_int(iter_var->dom->min, 0));
-            CHECK(Equal(iter_var->dom->extent, op->extent))
+            CHECK(expr_equal(iter_var->dom->extent, op->extent))
               << "Thread extent and loop extent mismatch!\n";
           }
           std::unordered_map<const VarNode *, PrimExpr> rmap;

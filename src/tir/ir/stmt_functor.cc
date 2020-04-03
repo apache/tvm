@@ -160,6 +160,10 @@ void StmtVisitor::VisitStmt_(const StoreNode* op) {
   this->VisitExpr(op->predicate);
 }
 
+void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
+  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
+}
+
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
   this->VisitExpr(op->condition);
   this->VisitStmt(op->then_case);
@@ -339,6 +343,17 @@ Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
     n->value = std::move(value);
     n->index = std::move(index);
     n->predicate = std::move(predicate);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
+  Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
+  if (indices.same_as(op->indices)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->indices = std::move(indices);
     return Stmt(n);
   }
 }

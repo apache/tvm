@@ -68,6 +68,10 @@ class ConstIntBoundNode : public Object {
     v->Visit("max_value", &max_value);
   }
 
+  bool SEqualReduce(const ConstIntBoundNode* other, SEqualReducer equal) const {
+    return equal(min_value, other->min_value) && equal(max_value, other->max_value);
+  }
+
   /*! \brief Number to represent +inf */
   static const constexpr int64_t kPosInf = std::numeric_limits<int64_t>::max();
   /*!
@@ -109,6 +113,15 @@ class ConstIntBoundAnalyzer {
    * \return the result of the analysis.
    */
   ConstIntBound operator()(const PrimExpr& expr);
+
+  /*!
+   * \brief analyze the expr with the intermediate memorized to avoid redundant computation
+   * \param expr The expression of interest.
+   * \param bound The lookup table to store the intermediate results
+   * \return the result of the analysis.
+   */
+  ConstIntBound operator()(const PrimExpr& expr,
+                           std::unordered_map<const PrimExprNode*, ConstIntBound>* bound);
 
   /*!
    * \brief Update constant int bound information of var.
@@ -168,6 +181,10 @@ class ModularSetNode : public Object {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("coeff", &coeff);
     v->Visit("base", &base);
+  }
+
+  bool SEqualReduce(const ModularSetNode* other, SEqualReducer equal) const {
+    return equal(coeff, other->coeff) && equal(base, other->base);
   }
 
   static constexpr const char* _type_key = "arith.ModularSet";

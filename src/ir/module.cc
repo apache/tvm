@@ -23,6 +23,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/module.h>
+#include <tvm/node/structural_equal.h>
 // NOTE: reverse dependency on relay.
 // These dependencies do not happen at the interface-level,
 // and are only used in minimum cases where they are clearly marked.
@@ -63,6 +64,51 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
     n->RegisterConstructors(kv.first, kv.second);
   }
   data_ = std::move(n);
+}
+
+bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
+  if (functions.size() != other->functions.size()) return false;
+  for (const auto& kv : this->functions) {
+    if (!other->ContainGlobalVar(kv.first->name_hint)) return false;
+    if (!equal(kv.second, other->Lookup(kv.first->name_hint))) return false;
+  }
+  if (type_definitions.size() != other->type_definitions.size()) return false;
+  for (const auto& kv : this->type_definitions) {
+    if (!other->ContainGlobalTypeVar(kv.first->name_hint)) return false;
+    if (!equal(kv.second, other->LookupTypeDef(kv.first->name_hint))) return false;
+  }
+  return true;
+}
+
+void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
+  using KV = std::pair<std::string, ObjectRef>;
+  // hash the functions.
+  std::vector<KV> temp;
+
+  auto reduce_temp = [&]() {
+    // sort by the hash key of the keys.
+    std::sort(temp.begin(), temp.end(), [](const KV& lhs, const KV& rhs) {
+      return lhs.first < rhs.first;
+    });
+
+    hash_reduce(static_cast<uint64_t>(temp.size()));
+    // hash the content
+    for (size_t i = 0; i < temp.size(); ++i) {
+      hash_reduce(temp[i].first);
+      hash_reduce(temp[i].second);
+    }
+  };
+
+  for (const auto& kv : this->functions) {
+    temp.emplace_back(kv.first->name_hint, kv.second);
+  }
+  reduce_temp();
+
+  temp.clear();
+  for (const auto& kv : this->type_definitions) {
+    temp.emplace_back(kv.first->name_hint, kv.second);
+  }
+  reduce_temp();
 }
 
 bool IRModuleNode::ContainGlobalVar(const std::string& name) const {
@@ -149,12 +195,11 @@ relay::Function RunTypeCheck(const IRModule& mod,
         << AsText(func, false)
         << std::endl;
   }
-  func =
-      relay::Function(concat(func->params, fv),
-                                func->body,
-                                func->ret_type,
-                                concat(func->type_params, ftv),
-                                func->attrs);
+  func = relay::Function(concat(func->params, fv),
+                         func->body,
+                         func->ret_type,
+                         concat(func->type_params, ftv),
+                         func->attrs);
   // Type check the item before we add it to the module.
   relay::Function checked_func = InferType(func, mod, var);
   return checked_func;
@@ -177,7 +222,7 @@ void IRModuleNode::Add(const GlobalVar& var,
     CHECK(update)
         << "Already have definition for " << var->name_hint;
     auto old_type = functions[var]->checked_type();
-    CHECK(relay::AlphaEqual(type, old_type))
+    CHECK(tvm::StructuralEqual()(type, old_type))
         << "Module#update changes type, not possible in this mode.";
   }
   var->checked_type_ = type;
@@ -305,12 +350,11 @@ IRModule IRModule::FromExpr(
   const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
   auto mod = IRModule(global_funcs, type_definitions);
   BaseFunc func;
-  if (auto* func_node = expr.as<relay::FunctionNode>()) {
-    func = GetRef<relay::Function>(func_node);
+  if (auto* func_node = expr.as<BaseFuncNode>()) {
+    func = GetRef<BaseFunc>(func_node);
   } else {
-    func = relay::Function(
-        relay::FreeVars(expr), expr, Type(),
-        relay::FreeTypeVars(expr, mod), {});
+    func = relay::Function(relay::FreeVars(expr), expr, Type(),
+                           relay::FreeTypeVars(expr, mod), {});
   }
   auto main_gv = GlobalVar("main");
   mod->Add(main_gv, func);
@@ -364,8 +408,8 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
   bool update = args[3];
   CHECK(val->IsInstance<RelayExprNode>());
 
-  if (val->IsInstance<relay::FunctionNode>()) {
-    mod->Add(var, Downcast<relay::Function>(val), update);
+  if (val->IsInstance<BaseFuncNode>()) {
+    mod->Add(var, Downcast<BaseFunc>(val), update);
   } else if (val->IsInstance<GlobalVarNode>()) {
     GlobalVar gv = Downcast<GlobalVar>(val);
     auto mod_copy = IRModule(make_object<IRModuleNode>(*mod.operator->()));

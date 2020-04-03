@@ -26,4 +26,4 @@ Type the following command to run the sample code under the current folder(need 
 ./run_example.sh
 ```
 
-Checkout [How to Deploy TVM Modules](http://docs.tvm.ai/deploy/cpp_deploy.html) for more information.
+Checkout [How to Deploy TVM Modules](https://tvm.apache.org/docs/deploy/cpp_deploy.html) for more information.

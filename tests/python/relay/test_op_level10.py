@@ -99,7 +99,7 @@ def test_checkpoint_alpha_equal():
         """
     )
 
-    relay.analysis.assert_alpha_equal(df, df_parsed)
+    tvm.ir.assert_structural_equal(df, df_parsed)
 
 def test_checkpoint_alpha_equal_tuple():
     xs = [relay.var("x{}".format(i), relay.TensorType((1,), "float32")) for i in range(4)]
@@ -146,7 +146,7 @@ def test_checkpoint_alpha_equal_tuple():
         """
     )
 
-    relay.analysis.assert_alpha_equal(df, df_parsed)
+    tvm.ir.assert_structural_equal(df, df_parsed)
 
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)

@@ -68,6 +68,26 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
+    // Important to make def equal first.
+    equal->MarkGraphNode();
+    return
+        equal.DefEqual(params, other->params) &&
+        equal.DefEqual(type_params, other->type_params) &&
+        equal(ret_type, other->ret_type) &&
+        equal(attrs, other->attrs) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce.DefHash(params);
+    hash_reduce.DefHash(type_params);
+    hash_reduce(ret_type);
+    hash_reduce(attrs);
+    hash_reduce(body);
+  }
+
   /*!
    * \brief Return the derived function annotation of this expression.
    *

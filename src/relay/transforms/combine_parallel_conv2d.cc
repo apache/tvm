@@ -59,7 +59,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
-    AttrsEqual eq;
+    StructuralEqual eq;
     const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
     const auto* attrs_b = b->attrs.as<Conv2DAttrs>();
@@ -112,7 +112,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
-    AttrsEqual eq;
+    StructuralEqual eq;
     auto ta = a->args[index]->type_as<TensorTypeNode>();
     auto tb = b->args[index]->type_as<TensorTypeNode>();
     auto toutput_a = a->type_as<TensorTypeNode>();

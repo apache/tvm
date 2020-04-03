@@ -57,6 +57,17 @@ def _elemwise(name):
         return get_relay_op(name)(data0, data1)
     return _impl
 
+def _squeeze():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        if len(inputs) == 1:
+            axis = None
+        else:
+            axis = [int(inputs[1])]
+
+        return _op.transform.squeeze(data, axis)
+    return _impl
+
 def _unsqueeze():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -103,6 +114,36 @@ def _slice():
 
         strides.append(int(inputs[4]))
         return _op.transform.strided_slice(data, begin, end, strides)
+    return _impl
+
+def _split():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        split_size = int(inputs[1])
+        dim = int(inputs[2])
+
+        split_index = split_size
+        indices = []
+        while split_index < _infer_shape(data)[dim]:
+            indices.append(split_index)
+            split_index += split_size
+
+        return _op.split(data, indices, dim)
+    return _impl
+
+def _split_with_sizes():
+    def _impl(inputs, inputs_types):
+        data = inputs[0]
+        dim = int(inputs[2])
+
+        split_index = 0
+        indices = []
+        sections = _infer_shape(inputs[1])
+        for i in range(len(sections) - 1):
+            split_index += sections[i]
+            indices.append(split_index)
+
+        return _op.split(data, indices, dim)
     return _impl
 
 def _select():
@@ -161,6 +202,33 @@ def _relu():
             input_zero_point = _expr.const(inputs[2], dtype="int32")
             return qnn_torch.quantized_relu(data, input_zero_point)
         return _op.nn.relu(data)
+    return _impl
+
+def _prelu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = inputs[1]
+        return _op.nn.prelu(data, alpha)
+    return _impl
+
+def _leaky_relu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = int(inputs[1])
+        return _op.nn.leaky_relu(data, alpha)
+    return _impl
+
+def _elu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = _expr.const(int(inputs[1]), dtype='float32')
+        return alpha * _op.nn.relu(alpha - _op.exp(data)) + _op.nn.relu(data)
+    return _impl
+
+def _log_sigmoid():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.log(_op.tensor.sigmoid(data))
     return _impl
 
 def _adaptive_avg_pool_2d():
@@ -240,6 +308,26 @@ def _maxpool_1d():
         return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
     return _impl
 
+def _maxpool_3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        pool_size = _infer_shape(inputs[1])
+        strides = _infer_shape(inputs[2])
+        padding = _infer_shape(inputs[3])
+        dilation = _infer_shape(inputs[4])
+        ceil_mode = int(inputs[5])
+        if dilation != (1, 1, 1):
+            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation), )
+            raise NotImplementedError(msg)
+
+        return _op.nn.max_pool3d(data,
+                                 pool_size=pool_size,
+                                 strides=strides,
+                                 padding=padding,
+                                 ceil_mode=ceil_mode)
+    return _impl
+
 def _hardtanh():
     def _impl(inputs, input_types):
         a = inputs[0]
@@ -251,7 +339,7 @@ def _hardtanh():
 def _convolution():
     def _impl(inputs, input_types):
         # Use transpose or normal
-        use_transpose = True if inputs[6] == "1" else False
+        use_transpose = True if inputs[6] == 1 else False
 
         data = inputs[0]
         weight = inputs[1]
@@ -267,6 +355,10 @@ def _convolution():
                 weight_shape.append(infer)
         else:
             assert "data type {} could not be parsed in conv op" % (type(weight))
+
+        # Transposed convolutions have IOHW layout.
+        if use_transpose:
+            weight_shape[0], weight_shape[1] = weight_shape[1], weight_shape[0]
 
         channels = weight_shape[0]
         groups = int(inputs[8])
@@ -379,6 +471,36 @@ def _batch_norm():
                                  epsilon=epsilon,
                                  center=center,
                                  scale=scale)[0]
+    return _impl
+
+def _instance_norm():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        data_type = input_types[0]
+        channels = _infer_shape(data)
+
+        if isinstance(inputs[1], _expr.Expr) and isinstance(inputs[2], _expr.Expr):
+            scale = center = True
+            weight = inputs[1]
+            beta = inputs[2]
+            gamma = weight
+        else:
+            scale = center = False
+
+        if not scale:
+            gamma = _create_typed_const(np.ones([int(channels[1])]), data_type)
+
+        if not center:
+            beta = _create_typed_const(np.zeros([int(channels[1])]), data_type)
+
+        epsilon = float(inputs[7])
+        return _op.nn.instance_norm(data,
+                                    gamma,
+                                    beta,
+                                    axis=1,
+                                    epsilon=epsilon,
+                                    center=center,
+                                    scale=scale)
     return _impl
 
 def _transpose():
@@ -540,6 +662,27 @@ def _avg_pool2d():
 
     return _impl
 
+def _avg_pool3d():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        pool_size = _infer_shape(inputs[1])
+        if inputs[2]:
+            strides = _infer_shape(inputs[2])
+        else:
+            strides = pool_size
+        padding = _infer_shape(inputs[3])
+
+        ceil_mode = int(inputs[4])
+        count_include_pad = int(inputs[5])
+
+        return _op.nn.avg_pool3d(data,
+                                 pool_size=pool_size,
+                                 strides=strides,
+                                 padding=padding,
+                                 ceil_mode=ceil_mode,
+                                 count_include_pad=count_include_pad)
+    return _impl
 
 def _dropout():
     def _impl(inputs, input_types):
@@ -879,17 +1022,25 @@ _convert_map = {
     "aten::ones"                            : _ones(),
     "aten::zeros"                           : _zeros(),
     "aten::to"                              : _to(),
+    "aten::squeeze"                         : _squeeze(),
     "aten::unsqueeze"                       : _unsqueeze(),
     "aten::cat"                             : _concatenate(),
     "aten::slice"                           : _slice(),
+    "aten::split"                           : _split(),
+    "aten::split_with_sizes"                : _split_with_sizes(),
     "aten::select"                          : _select(),
     "aten::relu"                            : _relu(),
     "aten::relu_"                           : _relu(),
+    "aten::prelu"                           : _prelu(),
+    "aten::leaky_relu"                      : _leaky_relu(),
+    "aten::elu"                             : _elu(),
+    "aten::log_sigmoid"                     : _log_sigmoid(),
     "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
     "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
     "aten::max_pool2d"                      : _maxpool_2d(),
     "aten::max_pool2d_with_indices"         : _maxpool_2d(),
     "aten::max_pool1d"                      : _maxpool_1d(),
+    "aten::max_pool3d"                      : _maxpool_3d(),
     "aten::hardtanh"                        : _hardtanh(),
     "aten::hardtanh_"                       : _hardtanh(),
     "aten::_convolution"                    : _convolution(),
@@ -898,6 +1049,7 @@ _convert_map = {
     "aten::threshold_"                      : _threshold(),
     "aten::contiguous"                      : _contiguous(),
     "aten::batch_norm"                      : _batch_norm(),
+    "aten::instance_norm"                   : _instance_norm(),
     "aten::transpose"                       : _transpose(),
     "aten::transpose_"                      : _transpose(),
     "aten::t"                               : _transpose(),
@@ -909,8 +1061,11 @@ _convert_map = {
     "aten::log_softmax"                     : _log_softmax(),
     "aten::sigmoid"                         : _sigmoid(),
     "aten::avg_pool2d"                      : _avg_pool2d(),
+    "aten::avg_pool3d"                      : _avg_pool3d(),
     "aten::dropout"                         : _dropout(),
     "aten::dropout_"                        : _dropout(),
+    "aten::feature_dropout"                 : _dropout(),
+    "aten::alpha_dropout"                   : _dropout(),
     "aten::mean"                            : _mean(),
     "aten::chunk"                           : _chunk(),
     "aten::matmul"                          : _matmul(),
@@ -971,16 +1126,8 @@ def _get_input_names(node_or_graph):
     return [inp.debugName() for inp in node_or_graph.inputs()]
 
 
-def _get_op_inputs(op_node, outputs, output_index_map):
-    input_names = [output_index_map[name]
-                   for name in _get_input_names(op_node)]
-    return [outputs[name] for name in input_names]
-
-
-def _update_outputs_from_pairs(name_output_pairs, outputs, output_index_map):
-    for output_name, output in name_output_pairs:
-        output_index_map[output_name] = len(outputs)
-        outputs.append(output)
+def _get_op_inputs(op_node, outputs):
+    return [outputs[name] for name in _get_input_names(op_node)]
 
 
 def _report_missing_conversion(op_names):
@@ -1000,18 +1147,31 @@ def _report_missing_conversion(op_names):
         raise NotImplementedError(msg)
 
 
-def _check_input_names(script_module, input_shapes):
-    """ Check the graph inputs match the inputs """
-    ir_inputs = get_graph_input_names(script_module)
+def _check_inputs(graph, input_shapes):
+    """
+    Check the graph inputs match the expected number of inputs
+    and are in the correct format
+    """
+    ir_inputs = _get_graph_input_names(graph)
 
-    for ir_input in ir_inputs:
-        if ir_input not in input_shapes:
-            msg = "Missing graph input {} in input_shapes".format(ir_input)
-            raise RuntimeError(msg)
+    if not isinstance(input_shapes, list):
+        msg = "Graph inputs input_shapes should be list"
+        raise RuntimeError(msg)
+    missing_inputs = len(ir_inputs) - len(input_shapes)
+    if missing_inputs > 0:
+        msg = "Missing {} graph input(s) in input_shapes".format(missing_inputs)
+        raise RuntimeError(msg)
 
-    for input_name in input_shapes:
-        if input_name not in ir_inputs:
-            msg = "Unused graph input {} in input_shapes".format(input_name)
+    for num, inp in enumerate(input_shapes):
+        if num < len(ir_inputs):
+            if not isinstance(inp, tuple):
+                msg = "Graph input {} is not a tuple".format(num)
+                raise RuntimeError(msg)
+            if (len(inp) != 2 or not isinstance(inp[0], str)):
+                msg = "Graph input {} is not valid, expected ('name', shape)".format(inp)
+                raise RuntimeError(msg)
+        else:
+            msg = "Unused graph input {} in input_shapes".format(inp)
             logging.warning(msg)
 
 
@@ -1103,10 +1263,19 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_relay_input_vars(input_shapes):
-    """ Return Relay vars from input shapes """
-    return {iname: _expr.var(iname, shape=ishape)
-            for iname, ishape in input_shapes.items()}
+def _get_relay_input_vars(graph, input_shapes):
+    """
+    Return Relay vars from input shapes and create entries based on
+    expected graph inputs - to allow translation
+    """
+    input_vars = {}
+    ir_inputs = _get_graph_input_names(graph)
+    for ir_input, (name, shape) in zip(ir_inputs, input_shapes):
+        inp = _expr.var(name, shape=shape)
+        # Translate from graph input to user input name
+        input_vars[ir_input] = inp
+
+    return input_vars
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -1184,24 +1353,24 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_block(block, outputs, output_index_map):
+def convert_block(block, outputs):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, output_index_map, ret_names)
+    return convert_operators(ops, outputs, ret_names)
 
 
-def convert_if(if_node, outputs, output_index_map):
+def convert_if(if_node, outputs):
     """ Translate Torch prim::If to Relay If """
-    cond = outputs[output_index_map[if_node.inputsAt(0).debugName()]]
+    cond = outputs[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs, output_index_map)
-    false_branch = convert_block(blocks[1], outputs, output_index_map)
+    true_branch = convert_block(blocks[0], outputs)
+    false_branch = convert_block(blocks[1], outputs)
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
 
-def convert_loop(loop_node, outputs, output_index_map):
+def convert_loop(loop_node, outputs):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
         ivalue = loop_node.inputsAt(index)
@@ -1209,8 +1378,8 @@ def convert_loop(loop_node, outputs, output_index_map):
         if inode.kind() == "prim::Constant":
             return _expr.const(_get_constant(inode))
         var_name = ivalue.debugName()
-        assert var_name in output_index_map
-        return _wrap_const(outputs[output_index_map[var_name]])
+        assert var_name in outputs
+        return _wrap_const(outputs[var_name])
 
     # Refer to the spec for prim::Loop below
     # https://github.com/pytorch/pytorch/blob/master/torch/csrc/jit/OVERVIEW.md#loops
@@ -1242,9 +1411,9 @@ def convert_loop(loop_node, outputs, output_index_map):
         # Update loop variables using the prev iteration outputs
         assert len(current_vals) == len(block_input_names)
         for (i, iname) in enumerate(block_input_names):
-            outputs[output_index_map[iname]] = current_vals[i]
+            outputs[iname] = current_vals[i]
 
-        block_outputs = convert_block(body_block, outputs, output_index_map)
+        block_outputs = convert_block(body_block, outputs)
 
         if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
@@ -1274,7 +1443,7 @@ def convert_loop(loop_node, outputs, output_index_map):
 
     name_val_pairs = list(zip(block_input_names,
                               [init_loop_iter_val] + init_vals))
-    _update_outputs_from_pairs(name_val_pairs, outputs, output_index_map)
+    outputs.update(name_val_pairs)
 
     loop_iter_var = _expr.var(block_input_names[0], shape=(),
                               dtype=loop_iter_dtype)
@@ -1286,36 +1455,30 @@ def convert_loop(loop_node, outputs, output_index_map):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, outputs, output_index_map, ret_names):
+def convert_operators(operators, outputs, ret_names):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
-        inputs = _get_op_inputs(op_node, outputs, output_index_map)
+        inputs = _get_op_inputs(op_node, outputs)
 
         if operator == "prim::Constant":
-            output_index_map[node_name] = len(outputs)
-            outputs.append(_get_constant(op_node))
+            outputs[node_name] = _get_constant(op_node)
         elif operator == 'prim::ListConstruct' and _is_int_seq(inputs):
-            output_index_map[node_name] = len(outputs)
-            outputs.append(_expr.var(node_name, shape=inputs))
+            outputs[node_name] = _expr.var(node_name, shape=inputs)
         elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
-            output_index_map[node_name] = len(outputs)
-            outputs.append(inputs)
+            outputs[node_name] = inputs
         elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
             assert len(inputs) == 1
             unpacked_names = _get_output_names(op_node)
-            _update_outputs_from_pairs(zip(unpacked_names, inputs[0]),
-                                       outputs, output_index_map)
+            outputs.update(zip(unpacked_names, inputs[0]))
         elif operator == "prim::If":
-            if_out = convert_if(op_node, outputs, output_index_map)
-            output_index_map[node_name] = len(outputs)
-            outputs.append(if_out)
+            if_out = convert_if(op_node, outputs)
+            outputs[node_name] = if_out
         elif operator == "prim::Loop":
-            loop_out = convert_loop(op_node, outputs, output_index_map)
+            loop_out = convert_loop(op_node, outputs)
             unpacked_names = _get_output_names(op_node)
             assert len(loop_out) == len(unpacked_names)
-            _update_outputs_from_pairs(zip(unpacked_names, loop_out),
-                                       outputs, output_index_map)
+            outputs.update(zip(unpacked_names, loop_out))
         else:
             relay_op = _convert_map[operator]
             relay_out = relay_op(inputs, _get_input_types(op_node))
@@ -1324,13 +1487,11 @@ def convert_operators(operators, outputs, output_index_map, ret_names):
                 # This is for torch operators that return multiple outputs
                 # See _adaptive_max_2d above for example
                 out_names = _get_output_names(op_node)
-                _update_outputs_from_pairs(zip(out_names, relay_out),
-                                           outputs, output_index_map)
+                outputs.update(zip(out_names, relay_out))
             else:
-                output_index_map[node_name] = len(outputs)
-                outputs.append(relay_out)
+                outputs[node_name] = relay_out
 
-    return [_wrap_const(outputs[output_index_map[ret_name]])
+    return [_wrap_const(outputs[ret_name])
             for ret_name in ret_names]
 
 
@@ -1346,11 +1507,11 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def get_graph_input_names(script_module):
-    """ Use this function to set the keys for input_shapes"""
-    # It seems variable names could change the first time a copy is made
-    # Use the copy of the graph here to prevent troubles later
-    ir_inputs = _get_input_names(script_module.graph.copy())
+def _get_graph_input_names(graph):
+    """ Get the graph input names (use after graph copy and run jit passes) """
+    # Variable names could change the first time a copy is made and after
+    # _run_jit_passes is called, expected that those functions already invoked
+    ir_inputs = _get_input_names(graph)
     return ir_inputs[1:]  # remove self at the 0th arg
 
 
@@ -1364,9 +1525,10 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         TorchScripted PyTorch graph
         Note: We currently only support traces (ie: torch.jit.trace(model, input))
 
-    input_shapes : Dictionary of input dimensions
-        Graph level input shape dictionary
-        The keys should be the same one returned by get_graph_input_names(...) above
+    input_shapes : List of tuples of input name and input dimensions
+        Graph level input shape list
+        The same input names need to be used for deployment, so choose easy to
+        remember names (such as: input0, input1)
 
     custom_convert_map: Dictionary of str to Relay op
         A custom op conversion map in the same format as _convert_map above
@@ -1387,30 +1549,32 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     op_names = get_all_op_names(graph)
     _report_missing_conversion(op_names)
-    _check_input_names(script_module, input_shapes)
+    _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
-    input_vars = _get_relay_input_vars(input_shapes)
+    outputs = _get_relay_input_vars(graph, input_shapes)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
-    input_vars.update(param_vars)
-    outputs = list(input_vars.values())
-    output_index_map = dict(zip(input_vars.keys(), range(len(outputs))))
+    outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
         weight_quant_params = qnn_torch.get_weight_quant_params(script_module)
         qnn_torch.add_input_quant_params_to_op_inputs(graph)
-        qnn_torch.add_quant_params_to_outputs(outputs, output_index_map,
+        qnn_torch.add_quant_params_to_outputs(outputs,
                                               packed_param_map,
                                               weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
         _convert_map.update(qnn_torch.convert_map)
 
-    ret = convert_operators(_get_operator_nodes(graph.nodes()), outputs,
-                            output_index_map, ret_name)
+    ret = convert_operators(_get_operator_nodes(graph.nodes()),
+                            outputs, ret_name)
+
+    if isinstance(ret[0], list):
+        ret[0] = _expr.Tuple(ret[0])
+
     func = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
     return _module.IRModule.from_expr(func), tvm_params

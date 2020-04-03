@@ -943,7 +943,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
         PrimExpr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin),
                         MakeValue(end),
-                        ConstInt32(1),
+                        llvm::ConstantInt::getSigned(GetLLVMType(end), 1),
                         op->loop_var,
                         op->body);
       }

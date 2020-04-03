@@ -101,6 +101,16 @@ class OpNode : public RelayExprNode {
     v->Visit("support_level", &support_level);
   }
 
+  bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
+    // pointer equality is fine as there is only one op with the same name.
+    return this == other;
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    // Name uniquely identifies an Op.
+    hash_reduce(name);
+  }
+
   /*!
    * \brief Check that if current op is a "primtive operator".
    * That is the arguments are all type variables, and there is a single

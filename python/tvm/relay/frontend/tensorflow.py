@@ -27,7 +27,7 @@ import tvm
 
 from tvm.ir import IRModule
 from tvm.relay.prelude import Prelude
-from tvm.relay.analysis import structural_hash as s_hash
+from tvm.ir import structural_hash as s_hash
 
 from .. import analysis
 from .. import expr as _expr
@@ -81,7 +81,7 @@ def _dimension_constraint():
 def _get_param(params, input_node):
     if isinstance(input_node, _expr.Constant):
         return np.atleast_1d(input_node.data.asnumpy())
-    return params.pop(input_node.name_hint).asnumpy()
+    return params[input_node.name_hint].asnumpy()
 
 def _get_num_param(params, input_node):
     return _get_param(params, input_node).item()
@@ -1516,7 +1516,7 @@ def _space_to_batch_nd():
             paddings = _infer_value(inputs[2], params).asnumpy()
             paddings = np.squeeze(paddings)
             if len(paddings.shape) == 1:
-                paddings = np.expand_dims(paddings, exis=0)
+                paddings = np.expand_dims(paddings, axis=0)
             paddings = paddings.tolist()
         N = len(input_shape)
         M = len(block_shape)

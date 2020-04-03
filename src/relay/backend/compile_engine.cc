@@ -26,6 +26,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -622,10 +623,10 @@ class CompileEngineImpl : public CompileEngineNode {
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
           ext_mods[code_gen->value] = IRModule({}, {});
         }
-        auto symbol_name = src_func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
+        auto symbol_name = src_func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
-        auto gv = GlobalVar(symbol_name->value);
+        auto gv = GlobalVar(std::string(symbol_name));
         ext_mods[code_gen->value]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
@@ -693,10 +694,10 @@ class CompileEngineImpl : public CompileEngineNode {
     if (key->source_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
-          key->source_func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
+          key->source_func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
       CHECK(name_node.defined())
           << "External function has not been attached a name yet.";
-      cache_node->func_name = name_node->value;
+      cache_node->func_name = std::string(name_node);
       cache_node->target = tvm::target::ext_dev();
       value->cached_func = CachedFunc(cache_node);
       return value;

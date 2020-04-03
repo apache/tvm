@@ -444,7 +444,7 @@ def test_simple_rfactor():
     stmt2 = tvm.tir.ir_pass.Simplify(stmt2)
 
     #make sure loop partition actually did something
-    assert not tvm.tir.ir_pass.Equal(stmt1.body, stmt2.body)
+    assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 
 if __name__ == "__main__":

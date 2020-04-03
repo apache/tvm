@@ -20,6 +20,8 @@ set -e
 set -u
 
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
+# NOTE: important to use abspath, when VTA is enabled.
+export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 
 # Remove existing testcases
 rm -f build/*_test

@@ -19,7 +19,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.analysis import free_vars, free_type_vars, assert_alpha_equal
+from tvm.relay.analysis import free_vars, free_type_vars
 from tvm.relay import create_executor, transform
 from tvm.relay.transform import gradient
 from tvm.relay.prelude import Prelude
@@ -292,7 +292,7 @@ def test_concat():
     func = relay.Function([x], y)
     func = run_infer_type(func)
     back_func = run_infer_type(gradient(func))
-    assert_alpha_equal(back_func.checked_type, relay.FuncType([t], relay.TupleType([rt, relay.TupleType([t])])))
+    tvm.ir.assert_structural_equal(back_func.checked_type, relay.FuncType([t], relay.TupleType([rt, relay.TupleType([t])])))
     # no value validation as concatenate has dummy gradient right now.
 
 

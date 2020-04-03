@@ -25,6 +25,7 @@
 #define TVM_TARGET_CODEGEN_H_
 
 #include <tvm/runtime/packed_func.h>
+#include <tvm/ir/module.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/lowered_func.h>
 #include <tvm/target/target.h>
@@ -41,15 +42,24 @@ using runtime::TVMArgs;
 using runtime::TVMRetValue;
 
 /*!
- * \brief Build a module from array of lowered function.
- * \param funcs The functions to be built.
- * \param target The target to be built.
- * \return The builded module.
+ * \brief Temporary backward compatible function to convert a list
+ *  of LoweredFunc to a IRModule of PrimfFuncs
+ * \param funcs The input lowered function.
+ * \return The IRModule.
  *
- * \note Calls global API function  "_codegen_build_" + target
+ * \note This function is only used for code refactor and will be
+ *       removed once the refactor completes.
  */
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target);
+IRModule ToIRModule(const Array<tir::LoweredFunc>& funcs);
+
+/*!
+ * \brief Build a module from array of lowered function.
+ * \param mod The Module to be built
+ * \param target The target to be built.
+ * \return The result runtime::Module.
+ */
+runtime::Module Build(IRModule mod, const Target& target);
+
 /*!
  * \brief Pack imported device library to a C file.
  *  Compile the C file and link with the host library

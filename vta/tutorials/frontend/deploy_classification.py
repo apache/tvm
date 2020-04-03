@@ -68,7 +68,7 @@ assert tvm.runtime.enabled("rpc")
 # -------------------------------------
 # Execute on CPU vs. VTA, and define the model.
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # Set ``device=arm_cpu`` to run inference on the CPU
@@ -245,7 +245,7 @@ m.set_input(**params)
 m.set_input('data', image)
 
 # Perform inference and gather execution statistics
-# More on: https://docs.tvm.ai/api/python/module.html#tvm.runtime.Module.time_evaluator
+# More on: :py:method:`tvm.runtime.Module.time_evaluator`
 num = 4 # number of times we run module for a single measurement
 rep = 3 # number of measurements (we derive std dev from this)
 timer = m.module.time_evaluator("run", ctx, number=num, repeat=rep)

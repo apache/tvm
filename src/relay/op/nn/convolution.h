@@ -25,6 +25,8 @@
 #define TVM_RELAY_OP_NN_CONVOLUTION_H_
 
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
+
 #include <string>
 #include <utility>
 
@@ -158,8 +160,8 @@ bool Conv2DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK(weight && weight->shape.defined()) <<
         "Weight shape must be specified when groups is greater than 1.";
     Array<IndexExpr> wshape_oihw = trans_kernel_layout.ForwardShape(weight->shape);
-    if (tvm::tir::Equal(param->groups, dshape_nchw[1]) &&
-        tvm::tir::Equal(param->groups, wshape_oihw[0])) {
+    if (tvm::tir::ExprDeepEqual()(param->groups, dshape_nchw[1]) &&
+        tvm::tir::ExprDeepEqual()(param->groups, wshape_oihw[0])) {
       is_depthwise = true;
     }
   }
@@ -279,8 +281,9 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     CHECK_EQ(param->kernel_size.size(), 3);
     CHECK_EQ(param->dilation.size(), 3);
     Array<IndexExpr> wshape;
+    tvm::tir::ExprDeepEqual expr_equal;
 
-    if (tvm::tir::Equal(param->channels, param->groups) && !tvm::tir::Equal(param->channels, 1)) {
+    if (expr_equal(param->channels, param->groups) && !expr_equal(param->channels, 1)) {
       // infer weight's shape for depthwise convolution
       wshape = {{dshape_ncdhw[1], indexdiv(param->groups, dshape_ncdhw[1]), param->kernel_size[0],
                  param->kernel_size[1], param->kernel_size[2]}};

@@ -77,35 +77,6 @@ TVM_DLL PrimExpr CanonicalSimplify(PrimExpr expr,
                                    Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
- * \brief Deep compare lhs and rhs
- * \param lhs The left operand
- * \param rhs The right operand
- * \return The comparison result.
- */
-TVM_DLL bool Equal(const PrimExpr& lhs, const PrimExpr& rhs);
-
-/*!
- * \brief Deep compare lhs and rhs
- * \param lhs The left operand
- * \param rhs The right operand
- * \return The comparison result.
- */
-bool Equal(const Stmt& lhs, const Stmt& rhs);
-
-/*!
- * \brief Deep compare lhs and rhs.
- *
- *  If you only want equality comparison, use Equal
- *  which will also tie definitions. The compare mode
- *  will give order of expression in total order.
- *
- * \param lhs The left operand
- * \param rhs The right operand
- * \return The comparison result.
- */
-int Compare(const PrimExpr& lhs, const PrimExpr& rhs);
-
-/*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.
  *  That is: each VarExpr is defined and assigned once(in Let/For)
  *
@@ -387,6 +358,15 @@ Stmt DecorateDeviceScope(Stmt stmt);
 Stmt HoistIfThenElse(Stmt stmt);
 
 /*!
+ * \brief Narrow down PrimExpr datatype in stmt to target_bits.
+ * \note  Run this pass after StorageFlatten.
+ * \param stmt The stmt to do datatype rewrite
+ * \param target_bits the bit of target datatype
+ * \return Transformed stmt.
+ */
+Stmt NarrowDataType(Stmt stmt, int target_bits);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
@@ -497,12 +477,6 @@ LoweredFunc RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> axis_map);
  */
 LoweredFunc LowerTVMBuiltin(LoweredFunc f);
 
-/*!
- * \brief Combine context function calls.
- * \param f The host function to be lowered.
- * \return Transformed function.
- */
-LoweredFunc CombineContextCall(LoweredFunc f);
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
@@ -516,7 +490,6 @@ LoweredFunc CombineContextCall(LoweredFunc f);
  */
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
 
-
 /*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
@@ -528,23 +501,6 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
  * \return Transformed function.
  */
 PrimFunc PointerValueTypeRewrite(PrimFunc f);
-
-/*!
- * \brief Lower attached storage access information on device.
- * Do this pass after all storage access analysis finish.
- *
- * \param func The device function to be lowered.
- * \return Transformed function.
- */
-LoweredFunc LowerDeviceStorageAccessInfo(LoweredFunc func);
-
-/*!
- * \brief Lower intrinsic function calls.
- * \param f The device function to be lowered.
- * \param target The target device.
- * \return Transformed function.
- */
-LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
 
 /*!
  * \brief Lower custom datatypes.
@@ -564,13 +520,6 @@ LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
  * \return Transformed function.
  */
 LoweredFunc InferFragment(LoweredFunc f);
-
-/*!
- * \brief skip assert stmt generation
- * \param f The function to be transformed.
- * \return Transformed function.
- */
-LoweredFunc SkipAssert(LoweredFunc f);
 
 /*!
  * \brief Verify if memory accesses are legal for a specific target device type.

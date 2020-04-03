@@ -23,59 +23,27 @@
  */
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/qnn/attrs.h>
-#include "../../transforms/pattern_util.h"
-#include "../../transforms/infer_layout_util.h"
-#include "../util.h"
 #include "op_common.h"
 
 namespace tvm {
 namespace relay {
 namespace qnn {
 
-/*! \brief Infer layout for QNN binary broadcast operators */
-Array<Array<Layout> > QnnBinaryBroadcastLayout(const Attrs& attrs,
-                                               const Array<Layout>& new_in_layouts,
-                                               const Array<Layout>& old_in_layouts,
-                                               const Array<tvm::relay::Type>& old_in_types) {
-  // Use Relay Binary Broadcast Infer correct layout.
-  auto layouts = BinaryBroadcastLayout(attrs, new_in_layouts, old_in_layouts, old_in_types);
-
-  // Fill the layouts of remaining input tensors - scales and zero points. The layouts of these
-  // tensors can be treated as C.
-  Layout channel_layout = Layout("C");
-  Array<Layout> input_layouts = {layouts[0][0],  layouts[0][1],  channel_layout, channel_layout,
-                                 channel_layout, channel_layout, channel_layout, channel_layout};
-  Array<Layout> output_layouts = layouts[1];
-  return {input_layouts, output_layouts};
-}
-
 /*
  * \brief Canonicalizes the QNN add op.
- * \param attrs The QNN concatenate attrs.
+ * \param attrs The empty attribute.
  * \param new_args The new mutated args to the call node.
  * \param arg_types The types of input and output.
  * \return The sequence of Relay ops for add op.
  */
 Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
                         const Array<tvm::relay::Type>& arg_types) {
-  // Get the attrs.
-  CHECK_EQ(new_args.size(), 8);
-  auto& lhs = new_args[0];
-  auto& rhs = new_args[1];
-  auto& lhs_scale = new_args[2];
-  auto& lhs_zero_point = new_args[3];
-  auto& rhs_scale = new_args[4];
-  auto& rhs_zero_point = new_args[5];
-  auto& output_scale = new_args[6];
-  auto& output_zero_point = new_args[7];
+  // Get the args.
+  QnnBinaryOpArguments args(new_args);
 
   // Get the input dtype and shape.
-  CHECK_EQ(arg_types.size(), 9);
-  auto tensor_type = arg_types[0].as<TensorTypeNode>();
-  CHECK(tensor_type != nullptr);
-  auto input_dtype = tensor_type->dtype;
-  auto input_shape = tensor_type->shape;
+  QnnBinaryOpTensorType input_type(arg_types, 0);
+
 
   // FIXME (anijain2305) - The lowering can be further optimized. Instead of inserting requantize in
   // the start, we can insert requantize at the end if both input tensors have same qnn params. In
@@ -97,47 +65,36 @@ Expr QnnAddCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   //          Q_c = Q_a' + Q_b' - zp_c
   // The add op is done in int32 precision.
 
-  // Requantize LHS if necessary.
-  auto requantized_lhs = lhs;
-  if (!IsEqualScalar(lhs_scale, output_scale) ||
-      !IsEqualScalar(lhs_zero_point, output_zero_point)) {
-    requantized_lhs = Requantize(lhs, input_shape, lhs_scale, lhs_zero_point, output_scale,
-                                 output_zero_point, DataType::Int(32));
-  } else {
-    requantized_lhs = Cast(requantized_lhs, DataType::Int(32));
-  }
 
-  // Requantize RHS if necessary.
-  auto requantized_rhs = rhs;
-  if (!IsEqualScalar(rhs_scale, output_scale) ||
-      !IsEqualScalar(rhs_zero_point, output_zero_point)) {
-    requantized_rhs = Requantize(rhs, input_shape, rhs_scale, rhs_zero_point, output_scale,
-                                 output_zero_point, DataType::Int(32));
-  } else {
-    requantized_rhs = Cast(requantized_rhs, DataType::Int(32));
-  }
 
+  // Requantize LHS if necessary. Computes Q_a'
+  auto requantized_lhs = RequantizeOrUpcast(args.lhs, args.lhs_scale,
+                                            args.lhs_zero_point,
+                                            args.output_scale, args.output_zero_point,
+                                            input_type.shape);
+  // Requantize RHS if necessary. Computes Q_b'
+  auto requantized_rhs = RequantizeOrUpcast(args.rhs, args.rhs_scale,
+                                            args.rhs_zero_point,
+                                            args.output_scale, args.output_zero_point,
+                                            input_type.shape);
+  // Computes Q_a' + Q_b'
   auto output = Add(requantized_lhs, requantized_rhs);
 
-  // Subtract zero point.
+  // Subtract zero point. Computes (Q_a' + Q_b') - zp_c
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
-  if (!IsEqualScalar(output_zero_point, zero_scalar)) {
-    output = Subtract(output, output_zero_point);
+  if (!IsEqualScalar(args.output_zero_point, zero_scalar)) {
+    output = Subtract(output, args.output_zero_point);
   }
 
   // Go back to lower precision.
-  auto q_min = GetQmin(input_dtype);
-  auto q_max = GetQmax(input_dtype);
-  output = Clip(output, q_min, q_max);
-  return Cast(output, input_dtype);
+  return ConvertDtype(output, input_type.dtype);
 }
 
 // QNN Addition operator.
 QNN_REGISTER_BINARY_OP("add")
 .describe("Elementwise add with with broadcasting for quantized tensors.")
 .set_support_level(11)
-.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", QnnBinaryBroadcastLayout);
+.set_attr<FTVMLegalize>("FTVMQnnCanonicalize", QnnAddCanonicalize);
 
 }  // namespace qnn
 }  // namespace relay

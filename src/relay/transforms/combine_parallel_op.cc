@@ -23,6 +23,7 @@
  * \brief Abstract class to combine parallel ops and their successive element-wise ops.
  */
 
+#include <tvm/node/structural_hash.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/attrs/nn.h>
@@ -155,7 +156,7 @@ void ParallelOpCombiner::CombineBranches(const Group& branches) {
 
 bool ParallelOpCombiner::CheckLevel(const Group& branches, size_t depth, size_t parent_index) {
     const CallNode* call = branches[0][depth];
-    AttrsEqual attrs_equal;
+    tvm::StructuralEqual attrs_equal;
     // check if all branches in current depth can be combined
     for (auto it = branches.begin() + 1; it != branches.end(); it++) {
       const Branch& branch = *it;

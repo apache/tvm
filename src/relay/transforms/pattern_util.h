@@ -27,6 +27,7 @@
 #define TVM_RELAY_TRANSFORMS_PATTERN_UTIL_H_
 
 #include <builtin_fp16.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
@@ -103,7 +104,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
                                      const Array<Integer>& lhs_axes,
                                      Expr* rhs_value = nullptr) {
   if (tlhs->shape.size() < trhs->shape.size()) return false;
-  AttrsEqual equal;
+  StructuralEqual equal;
   size_t base = tlhs->shape.size() - trhs->shape.size();
   size_t j = 0;
 
@@ -300,7 +301,7 @@ inline bool IsEqualScalar(const Expr& a, const Expr& b) {
   if (!constant_a || !constant_b || !constant_a->is_scalar() || !constant_b->is_scalar()) {
     return false;
   }
-  return AlphaEqual(a, b);
+  return tvm::StructuralEqual()(a, b);
 }
 
 inline Expr GetField(Expr t, size_t i) {

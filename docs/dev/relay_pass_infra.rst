@@ -169,12 +169,12 @@ subclasses at the level of modules, functions, or sequences of passes..
 
     class PassNode : RelayNode {
       virtual PassInfo Info() const = 0;
-      virtual Module operator()(const Module& mod
+      virtual Module operator()(const IRModule& mod
                                 const PassContext& pass_ctx) const = 0;
     };
 
-The functor shows how a pass must be realized, i.e. it always works on a `Relay
-module`_ under a certain context. All passes are designed in a ``Module`` to ``Module``
+The functor shows how a pass must be realized, i.e. it always works on a
+:py:class:`IRModule` under a certain context. All passes are designed in a ``Module`` to ``Module``
 manner. Therefore, optimizations governed by the pass infra will
 always update the whole module.
 
@@ -648,8 +648,6 @@ For more pass infra related examples in Python and C++, please refer to
 .. _Sequential: https://pytorch.org/docs/stable/nn.html?highlight=sequential#torch.nn.Sequential
 
 .. _Block: https://mxnet.incubator.apache.org/api/python/docs/api/gluon/block.html#gluon-block
-
-.. _Relay module: https://docs.tvm.ai/langref/relay_expr.html#module-and-global-functions
 
 .. _include/tvm/ir/transform.h: https://github.com/apache/incubator-tvm/blob/master/include/tvm/ir/transform.h
 

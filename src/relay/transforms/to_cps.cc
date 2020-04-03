@@ -353,7 +353,7 @@ Function UnCPS(const Function& f) {
   auto answer_type = new_type_params.back();
   new_type_params.pop_back();
   // TODO(@M.K.): make alphaequal work on free term
-  // CHECK(AlphaEqual(cont_type, Arrow(new_ret_type, answer_type)));
+  // CHECK(tvm::StructuralEqual()(cont_type, Arrow(new_ret_type, answer_type)));
   auto x = Var("x", new_ret_type);
   auto cont = Function({x}, x, new_ret_type, {}, {});
   tvm::Array<Expr> args;
