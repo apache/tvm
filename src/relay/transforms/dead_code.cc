@@ -92,7 +92,7 @@ class Eliminator : private ExprMutator {
 };
 
 // calculate the dependency graph from expression
-class CalcDep : private ExprVisitor {
+class CalcDep : protected MixedModeVisitor {
  public:
   static Expr Eliminate(const Expr& e, bool inline_once) {
     FindDef fd;
@@ -104,11 +104,14 @@ class CalcDep : private ExprVisitor {
   }
 
  private:
-  explicit CalcDep(const VarMap<Expr>& expr_map) : expr_map_(expr_map) { }
+  explicit CalcDep(const VarMap<Expr>& expr_map)
+      : MixedModeVisitor(2), expr_map_(expr_map) {}
   VarMap<Expr> expr_map_;
   VarMap<size_t> use_map_;
 
-  void VisitExpr(const Expr& e) final {
+  using MixedModeVisitor::VisitExpr_;
+
+  void VisitLeaf(const Expr& e) final {
     visit_counter_[e.get()]++;
     // The dce code seprate variable into three parts:
     // used 0 times (remove)
