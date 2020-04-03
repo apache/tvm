@@ -462,10 +462,10 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
         s[kernel].compute_inline()
 
     ##### space definition begin #####
-    b1, b2, y1, y2, x = s[bgemm].op.axis
+    b1, b2, z, y, x = s[bgemm].op.axis
     # Combine channel and depth axes.
-    y = s[bgemm].fuse(y1, y2)
     rc = s[bgemm].op.reduce_axis[0]
+    rz = s[bgemm].op.reduce_axis[1]
     alpha = get_const_int(b1.dom.extent)
 
     cfg.define_split("tile_b", cfg.axis(alpha * alpha), num_outputs=4,
@@ -473,6 +473,7 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
     cfg.define_split("tile_y", y, num_outputs=4)
     cfg.define_split("tile_x", x, num_outputs=4)
     cfg.define_split("tile_rc", rc, num_outputs=2)
+    cfg.define_split("tile_rz", rz, num_outputs=2)
     cfg.define_knob("auto_unroll_max_step", [0, 128, 1500])
     target = tvm.target.Target.current()
     if target.target_name in ['nvptx', 'rocm']:
@@ -490,6 +491,7 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
     BB = s.cache_read(B0, 'shared', [OL])
 
     b = s[bgemm].fuse(b1, b2)
+    y = s[bgemm].fuse(z, y)
 
     # tile and bind spatial axes
     bgemm_scope, b = s[bgemm].split(b, nparts=1)
@@ -512,9 +514,10 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
     b1, b2, y1, y2, x = s[OL].op.axis
     y = s[OL].fuse(y1, y2)
     b = s[OL].fuse(b1, b2)
-    rc, = s[OL].op.reduce_axis
+    rc, rz = s[OL].op.reduce_axis
     rco, rci = cfg['tile_rc'].apply(s, OL, rc)
-    s[OL].reorder(rco, rci, b, y, x)
+    rzo, rzi = cfg['tile_rz'].apply(s, OL, rz)
+    s[OL].reorder(rco, rzo, rci, rzi, b, y, x)
 
     s[AA].compute_at(s[OL], rco)
     s[BB].compute_at(s[OL], rco)
