@@ -17,7 +17,6 @@
 """The interface of expr function exposed from C++."""
 import tvm._ffi
 import tvm.driver
-from tvm.ir import container as _container
 
 
 @tvm._ffi.register_func("relay.backend.lower")
@@ -56,8 +55,7 @@ def lower(sch, inputs, func_name, source_func):
         msg += "-----------------------------\n"
         msg += source_func.astext()
         raise RuntimeError(msg)
-    return f if isinstance(
-        f, (_container.Array, tuple, list)) else [f]
+    return f
 
 
 @tvm._ffi.register_func("relay.backend.build")

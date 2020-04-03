@@ -35,10 +35,8 @@ def test_lower_warp_mem():
 
     cuda_target = tvm.target.create("cuda")
     assert cuda_target.thread_warp_size == 32
-    f = tvm.lower(s, [A, B], name="f")
+    mod = tvm.lower(s, [A, B], name="f")
 
-
-    mod = tvm.testing.LoweredFuncsToIRModule([f])
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["f_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)

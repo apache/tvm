@@ -60,6 +60,36 @@ def Filter(fcond):
     return _fpass.prim_func_pass(_transform, opt_level=0)
 
 
+def LowerCustomDatatypes():
+    """Lower custom datatypes.
+
+    See tvm::datatypes::Registry for more information on adding custom datatypes.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerCustomDatatypes()
+
+
+def MakePackedAPI(num_unpacked_params=0):
+    """Transform the PrimFuncs in the module to a packed func API.
+
+    Parameters
+    ----------
+    num_unpacked_params : int
+        Number of parameters that we hope to directly pass via normal arguments
+        following the PackedFunc input signature.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MakePackedAPI(num_unpacked_params)
+
+
 def BindDeviceType():
     """Bind the device type of the function to be
        the device_type specified in the target attribute.

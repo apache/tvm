@@ -38,7 +38,6 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-using tir::LoweredFunc;
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
@@ -78,16 +77,16 @@ struct GraphCodegen {
   }
 
   Array<tvm::runtime::Module> GetExternalModules() {
-    return CallFunc<Array<tvm::runtime::Module> >("get_external_modules", nullptr);
+    return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
-    return CallFunc<Map<std::string, Array<LoweredFunc> > >("get_lowered_funcs", nullptr);
+  Map<std::string, IRModule> GetLoweredFunc() {
+    return CallFunc<Map<std::string, IRModule>>("get_lowered_funcs", nullptr);
   }
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<tvm::PrimExpr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::PrimExpr>>("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<tir::StringImmNode>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
