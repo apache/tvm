@@ -17,12 +17,10 @@
 """The Relay Pattern Language and tooling."""
 from ...ir.base import Node
 from ...ir import make_node
+from ...runtime import Object
 from ... import _ffi as tvm_ffi
 from ..op import get
 from . import _ffi as ffi
-
-def match(pattern, expr):
-    return ffi.match(pattern, expr)
 
 def register_df_node(type_key=None):
     """Register a Relay node type.
@@ -214,6 +212,11 @@ class AttrPattern(DFPattern):
         self.__init_handle_by_constructor__(
             ffi.AttrPattern, pattern, attrs)
 
+class DFPatternCallback(Object):
+    def __init__(self, pattern, callback):
+        self.__init_handle_by_constructor__(
+            ffi.DFPatternCallback, pattern, callback)
+
 def is_input(name="") -> DFPattern:
     return VarPattern(name)
 
@@ -233,3 +236,9 @@ def has_attr(attr_name, attr_value, pattern=None):
     if pattern is None:
         pattern = wildcard()
     return patter.has_attr(attr_name, attr_value)
+
+def match(pattern, expr):
+    return ffi.match(pattern, expr)
+
+def rewrite(callbacks, expr):
+    return ffi.rewrite(callbacks, expr)

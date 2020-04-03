@@ -23,15 +23,21 @@
  */
 
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/dataflow_matcher.h>
 #include <tvm/relay/transform.h>
 
 namespace tvm {
 namespace relay {
 
+// Pattern Matcher
+
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
   bool Match(const DFPattern& pattern, const Expr& expr);
+
+ protected:
+  bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
   bool VisitDFPattern_(const AltPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const AttrPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const CallPatternNode* op, const Expr& expr) override;
@@ -42,15 +48,19 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
 
- protected:
   std::unordered_map<DFPattern, Expr, ObjectHash, ObjectEqual> memo_;
 };
 
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
+  memo_.clear();
+  return VisitDFPattern(pattern, expr);
+}
+
+bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr) {
   if (memo_.count(pattern)) {
     return expr.same_as(memo_[pattern]);
   } else {
-    auto out = VisitDFPattern(pattern, expr);
+    auto out = DFPatternFunctor::VisitDFPattern(pattern, expr);
     if (out) {
       memo_[pattern] = expr;
     }
@@ -59,7 +69,7 @@ bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const AltPatternNode* op, const Expr& expr) {
-  return Match(op->left, expr) || Match(op->right, expr);
+  return VisitDFPattern(op->left, expr) || VisitDFPattern(op->right, expr);
 }
 bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr) {
   bool matches = false;
@@ -99,10 +109,10 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   bool matches = false;
   if (const auto* call_node = expr.as<CallNode>()) {
     if (op->args.size() == call_node->args.size()) {
-      matches = Match(op->op, call_node->op);
+      matches = VisitDFPattern(op->op, call_node->op);
       size_t i = 0;
       while (matches && i < op->args.size()) {
-        matches &= Match(op->args[i], call_node->args[i]);
+        matches &= VisitDFPattern(op->args[i], call_node->args[i]);
         ++i;
       }
     }
@@ -115,8 +125,8 @@ bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& ex
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
-    matches =
-        (op->index == tuple_get_item_node->index) && Match(op->tuple, tuple_get_item_node->tuple);
+    matches = (op->index == tuple_get_item_node->index) &&
+              VisitDFPattern(op->tuple, tuple_get_item_node->tuple);
   }
   return matches;
 }
@@ -127,7 +137,7 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
       matches = true;
       size_t i = 0;
       while (matches && i < op->fields.size()) {
-        matches &= Match(op->fields[i], tuple_node->fields[i]);
+        matches &= VisitDFPattern(op->fields[i], tuple_node->fields[i]);
         ++i;
       }
     }
@@ -145,7 +155,7 @@ Expr InferType(const Expr& expr) {
 }
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
   auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
-  return (StructuralEqual()(op->type, expr_type)) && Match(op->pattern, expr);
+  return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
   bool matches = false;
@@ -284,6 +294,49 @@ class DFPatternPrepare : protected DFPatternMutator {
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.match").set_body_typed([](DFPattern pattern, Expr expr) {
   return DFPatternMatcher().Match(DFPatternPrepare().Prepare(pattern), expr);
+});
+
+// Rewrite
+
+DFPatternCallback DFPatternCallbackNode::make(DFPattern pattern, PackedFunc function) {
+  ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
+  n->pattern_ = std::move(pattern);
+  n->function_ = std::move(function);
+  return DFPatternCallback(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
+
+TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
+.set_body_typed(DFPatternCallbackNode::make);
+
+class PatternRewriter : public ExprMutator {
+ public:
+  PatternRewriter(const Array<DFPatternCallback>& callbacks) : callbacks_(callbacks) {}
+  Expr Rewrite(const Expr& pre) {
+    return this->VisitExpr(pre);
+  }
+
+ protected:
+  Expr VisitExpr(const Expr& pre) override {
+    auto post = ExprMutator::VisitExpr(pre);
+    Expr out = post;
+    for (auto& callback : callbacks_) {
+      if (auto* callback_node = callback.as<DFPatternCallbackNode>()) {
+        if (matcher_.Match(callback_node->pattern_, out)) {
+          out = callback_node->function_(pre, out);
+        }
+      }
+    }
+    return out;
+  }
+  DFPatternMatcher matcher_;
+  Array<DFPatternCallback> callbacks_;
+};
+
+TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite")
+.set_body_typed([](Array<DFPatternCallback> callbacks, Expr expr) {
+  return PatternRewriter(callbacks).Rewrite(expr);
 });
 
 }  // namespace relay

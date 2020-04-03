@@ -225,6 +225,17 @@ def test_match_fake_diamond():
     # Check
     assert not diamond.match(out)
 
+def test_match_rewrite():
+    x = relay.var('x')
+    y = relay.var('y')
+    add_pattern = is_op('add')(wildcard(), wildcard())
+    sub_pattern = is_op('subtract')(wildcard(), wildcard())
+    def add_to_sub(pre, post):
+        return post.args[0] - post.args[1]
+    out = rewrite([DFPatternCallback(add_pattern, add_to_sub)], x + y)
+    assert sub_pattern.match(out)
+
+
 if __name__ == "__main__":
     test_match_op()
     test_no_match_op()
@@ -242,3 +253,4 @@ if __name__ == "__main__":
     test_match_diamond()
     test_no_match_diamond()
     test_match_fake_diamond()
+    test_match_rewrite()

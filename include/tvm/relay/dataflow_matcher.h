@@ -133,6 +133,33 @@ class DFPatternMutator : public DFPatternFunctor<DFPattern(const DFPattern&)> {
   std::unordered_map<DFPattern, DFPattern, ObjectHash, ObjectEqual> memo_;
 };
 
+class DFPatternCallback;
+/*!
+ * \brief Base type of all dataflow pattern callbacks.
+ * \sa DFPatternCallback
+ */
+class DFPatternCallbackNode : public Object {
+ public:
+  DFPattern pattern_;
+  PackedFunc function_;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+
+  TVM_DLL static DFPatternCallback make(DFPattern pattern, PackedFunc callback);
+
+  static constexpr const char* _type_key = "DFPatternCallbackNode";
+  TVM_DECLARE_BASE_OBJECT_INFO(DFPatternCallbackNode, Object);
+};
+
+/*!
+ * \brief Managed reference to dataflow pattern callbacks.
+ * \sa DFPatternCallbackNode
+ */
+class DFPatternCallback : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
+};
+
 }  // namespace relay
 }  // namespace tvm
 
