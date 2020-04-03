@@ -50,9 +50,10 @@ tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
   Map<tir::Var, PrimExpr> remap_vars;
 
   for (auto var : from->args) {
-    if (from->handle_data_type.count(var)) {
+    auto it = from->handle_data_type.find(var);
+    if (it != from->handle_data_type.end()) {
       tir::Var new_var(var->name_hint,
-                       PointerType(PrimType(var->dtype)));
+                       PointerType(PrimType((*it).second->dtype)));
       args.push_back(new_var);
       remap_vars.Set(var, new_var);
     } else {
