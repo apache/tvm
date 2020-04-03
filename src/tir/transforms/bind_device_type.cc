@@ -33,7 +33,6 @@
 namespace tvm {
 namespace tir {
 
-
 class DeviceTypeBinder: public StmtExprMutator {
  public:
   explicit DeviceTypeBinder(int device_type)
@@ -90,7 +89,6 @@ class DeviceTypeBinder: public StmtExprMutator {
   const VarNode* var_{nullptr};
   int device_type_;
 };
-
 
 namespace transform {
 

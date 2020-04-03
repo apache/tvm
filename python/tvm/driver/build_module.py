@@ -202,24 +202,6 @@ def lower(sch,
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
 
-def BindTarget(target):
-    """Bind the target to the functions"""
-    # pylint: disable=unused-argument
-    def _transform(func, mod, ctx):
-        return func.with_attr("target", target)
-    return tvm.tir.transform.prim_func_pass(_transform, opt_level=0)
-
-
-def FilterByCallingConv(fcond):
-    """Filter functions by fcond."""
-    # pylint: disable=unused-argument
-    def _transform(func, mod, ctx):
-        cconv = (func.attrs["calling_conv"].value
-                 if "calling_conv" in func.attrs else CallingConv.DEFAULT)
-        return func if fcond(cconv) else None
-    return tvm.tir.transform.prim_func_pass(_transform, opt_level=0)
-
-
 def _build_for_device(flist, target, target_host):
     """Build the lowered functions for a device with the given compilation
     target.
@@ -254,7 +236,7 @@ def _build_for_device(flist, target, target_host):
                 "Did you forget to bind?" % func.name)
 
     mod_mixed = tvm.testing.LoweredFuncsToIRModule(flist)
-    opt_mixed = [BindTarget(target)]
+    opt_mixed = [tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))]
     if BuildConfig.current().detect_global_barrier:
         opt_mixed += [tvm.tir.transform.ThreadSync("global")]
     opt_mixed += [tvm.tir.transform.ThreadSync("shared"),
@@ -265,9 +247,12 @@ def _build_for_device(flist, target, target_host):
                   tvm.tir.transform.SplitHostDevice()]
     mod_mixed = tvm.ir.transform.Sequential(opt_mixed)(mod_mixed)
 
+
     # device optimizations
     opt_device = tvm.ir.transform.Sequential(
-        [FilterByCallingConv(lambda cconv: cconv == CallingConv.DEVICE_KERNEL_LAUNCH),
+        [tvm.tir.transform.Filter(
+            lambda f: "calling_conv" in f.attrs and
+            f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
          tvm.tir.transform.LowerWarpMemory(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin()])
@@ -275,8 +260,10 @@ def _build_for_device(flist, target, target_host):
 
     # host optimizations
     opt_host = tvm.ir.transform.Sequential(
-        [FilterByCallingConv(lambda cconv: cconv != CallingConv.DEVICE_KERNEL_LAUNCH),
-         BindTarget(target_host),
+        [tvm.tir.transform.Filter(
+            lambda f: "calling_conv" not in f.attrs or
+            f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH),
+         tvm.tir.transform.Apply(lambda f: f.with_attr("target", target)),
          tvm.tir.transform.LowerTVMBuiltin(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin(),

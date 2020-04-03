@@ -38,13 +38,13 @@ def test_thread_storage_sync():
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
     f = tvm.tir.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 0, True)
-    flist = tvm.tir.ir_pass.SplitHostDevice(f)
-    f = flist[1]
-    fname = f.name
-    mod = tvm.testing.LoweredFuncsToIRModule([f])
-
     cuda_target = tvm.target.create("cuda")
-    mod = tvm.IRModule.from_expr(mod[fname].with_attr("target", cuda_target))
+
+    mod = tvm.testing.LoweredFuncsToIRModule([f])
+    mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
+    fdevice = tvm.tir.transform.SplitHostDevice()(mod)["test_kernel0"]
+    mod = tvm.IRModule.from_expr(fdevice)
+    cuda_target = tvm.target.create("cuda")
     f = tvm.tir.transform.ThreadSync("shared")(mod)["main"]
     body_list = tvm.tir.stmt_list(f.body.body.body.body)
     assert(body_list[1].value.name == "tvm_storage_sync")
