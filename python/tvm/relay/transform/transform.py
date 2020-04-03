@@ -593,7 +593,7 @@ def AnnotateTarget(targets):
 
     Parameters
     ----------
-    target : List[String]
+    targets : str or List[str]
         The list of target compilers used for codegen.
 
     Returns
@@ -602,7 +602,9 @@ def AnnotateTarget(targets):
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
-    return _ffi_api.AnnotateTarget(targets)
+    if isinstance(targets, str):
+        targets = [targets]
+    return _ffi_api.AnnotateTarget([tvm.runtime.container.String(t) for t in targets])
 
 
 def Inline():
