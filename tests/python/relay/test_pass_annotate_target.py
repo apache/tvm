@@ -229,7 +229,7 @@ def test_multiple_ends():
 def test_type_propagation():
     target = "test_type_propagation"
 
-    @reg.register("nn.relu", "target.test_type_propagation" + target)
+    @reg.register("nn.relu", "target." + target)
     def relu(attrs, args): # pylint: disable=unused-variable
         return args[0].checked_type.dtype == "float32"
 
@@ -281,7 +281,7 @@ def test_tuple():
         tup = relay.Tuple([cb_3, cb_4])
         ce_3 = relay.annotation.compiler_end(tup, target)
         cb_3 = relay.annotation.compiler_begin(ce_3, target)
-        out = relay.op.concatenate(cb_3, 1)
+        out = relay.op._make.concatenate(cb_3, 1)
         ce_4 = relay.annotation.compiler_end(out, target)
         f = relay.Function([x, y], ce_4)
         mod = tvm.IRModule.from_expr(f)
