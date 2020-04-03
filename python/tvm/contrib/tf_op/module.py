@@ -67,16 +67,11 @@ class TensorFunc():
         elif output_shape is not None:
             self.dynamic_output_shape = self._pack_shape_tensor(output_shape)
 
-        # delay op initialization to where Func.apply() get called first time
-        self.tvm_dso_op = None
         self.module = load_library.load_op_library('tvm_dso_op.so')
+        self.tvm_dso_op = self.module.tvm_dso_op
 
     def apply(self, *params):
-        if self.tvm_dso_op is None:
-            num_inputs = len(params)
-        self.tvm_dso_op = getattr(self.module, "tvm_dso_op%s" % num_inputs)
-
-        return self.tvm_dso_op(*params,
+        return self.tvm_dso_op(params,
                                dynamic_output_shape=self.dynamic_output_shape,
                                static_output_shape=self.static_output_shape,
                                has_static_output_shape=self.has_static_output_shape,

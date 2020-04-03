@@ -61,7 +61,7 @@ def test_use_tvmdso_op():
 
     def test_add(session, lib_path, tf_device):
         """test add lib with TensorFlow wrapper"""
-        module = tf_op.Module(lib_path)
+        module = tf_op.OpModule(lib_path)
 
         left = tf.placeholder("float32", shape=[4])
         right = tf.placeholder("float32", shape=[4])

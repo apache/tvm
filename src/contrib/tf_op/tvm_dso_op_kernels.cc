@@ -26,7 +26,6 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
-#include "index_seq.h"
 #include "tensorflow/core/framework/op_kernel.h"
 
 typedef Eigen::ThreadPoolDevice CPUDevice;
@@ -36,6 +35,10 @@ typedef tensorflow::gtl::InlinedVector<tensorflow::int64, 4> ShapeContainer;
 using tensorflow::OpKernel;
 using tensorflow::OpKernelConstruction;
 using tensorflow::OpKernelContext;
+
+using tvm::runtime::TVMArgs;
+using tvm::runtime::TVMArgsSetter;
+using tvm::runtime::TVMRetValue;
 
 // Op utility trait for diffrent device type template
 template <typename DEVICE_TYPE>
@@ -192,7 +195,7 @@ class TVMDSOOpTrait<GPUDevice> {
 };
 #endif
 
-template <typename DEVICE_TYPE, int NUM_INPUTS>
+template <typename DEVICE_TYPE>
 class TVMDSOOp : public OpKernel {
  private:
   tvm::runtime::PackedFunc tvm_func;
@@ -225,9 +228,12 @@ class TVMDSOOp : public OpKernel {
   }
 
   void Compute(tensorflow::OpKernelContext* context) override {
-    DLTensor args[NUM_INPUTS + 1];
-    TensorAsBuf buf_info[NUM_INPUTS];
-    ShapeContainer shapes[NUM_INPUTS];
+    // the last input is output shape spec
+    const int num_inputs = context->num_inputs() - 1;
+    const int num_total_args = num_inputs + 1;
+    std::vector<DLTensor> args(num_total_args);
+    std::vector<TensorAsBuf> buf_info(num_inputs);
+    std::vector<ShapeContainer> shapes(num_inputs);
 
     tensorflow::Status status;
     int device_id = TVMDSOOpTrait<DEVICE_TYPE>::device_id(context);
@@ -237,7 +243,7 @@ class TVMDSOOp : public OpKernel {
 
     // Get output shape
     tensorflow::TensorShape output_shape;
-    auto& output_shape_tensor = context->input(NUM_INPUTS);
+    auto& output_shape_tensor = context->input(num_inputs);
     if (has_static_output_shape) {
       // use static output shape
       const tensorflow::int64* dims = static_output_shape.data();
@@ -250,7 +256,7 @@ class TVMDSOOp : public OpKernel {
       output_shape = context->input(0).shape();
     }
 
-    for (int i = 0; i < NUM_INPUTS; ++i) {
+    for (int i = 0; i < num_inputs; ++i) {
       // Grab the input tensor
       auto& input_tensor = context->input(i);
 
@@ -279,32 +285,26 @@ class TVMDSOOp : public OpKernel {
     output.device_type = device_type;
     EnsureAlignment(context, *output_tensor, &output);
 
-    status = MakeDLTensor(output, dl_ctx, output_shape_ptr, &args[NUM_INPUTS]);
+    status = MakeDLTensor(output, dl_ctx, output_shape_ptr, &args[num_inputs]);
     OP_REQUIRES_OK(context, status);
 
-    apply_variadic_by_ptrs(tvm_func, args);
+    // Prepare PackedFunc arguments
+    std::vector<TVMValue> tvm_values(num_total_args);
+    std::vector<int> tvm_type_codes(num_total_args);
+    TVMArgsSetter setter(tvm_values.data(), tvm_type_codes.data());
+    for (int k = 0; k < num_total_args; ++k) {
+      setter(k, &args[k]);
+    }
+    TVMRetValue rv;
+    tvm_func.CallPacked(TVMArgs(tvm_values.data(), tvm_type_codes.data(), num_total_args), &rv);
 
     output.CopyToOrigin();
   }
 };
 
 #ifdef TF_TVMDSOOP_ENABLE_GPU
-#define REGISTER_TFTVM_KERNEL(n)                                              \
-  REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(tensorflow::DEVICE_CPU), \
-                          TVMDSOOp<CPUDevice, n>);                            \
-  REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(tensorflow::DEVICE_GPU), \
-                          TVMDSOOp<GPUDevice, n>);
+REGISTER_KERNEL_BUILDER(Name("TvmDsoOp").Device(tensorflow::DEVICE_CPU), TVMDSOOp<CPUDevice>);
+REGISTER_KERNEL_BUILDER(Name("TvmDsoOp").Device(tensorflow::DEVICE_GPU), TVMDSOOp<GPUDevice>);
 #else
-#define REGISTER_TFTVM_KERNEL(n)                                              \
-  REGISTER_KERNEL_BUILDER(Name("TvmDsoOp" #n).Device(tensorflow::DEVICE_CPU), \
-                          TVMDSOOp<CPUDevice, n>);
+REGISTER_KERNEL_BUILDER(Name("TvmDsoOp").Device(tensorflow::DEVICE_CPU), TVMDSOOp<CPUDevice>);
 #endif
-
-REGISTER_TFTVM_KERNEL(1)
-REGISTER_TFTVM_KERNEL(2)
-REGISTER_TFTVM_KERNEL(3)
-REGISTER_TFTVM_KERNEL(4)
-REGISTER_TFTVM_KERNEL(5)
-REGISTER_TFTVM_KERNEL(6)
-REGISTER_TFTVM_KERNEL(7)
-REGISTER_TFTVM_KERNEL(8)
