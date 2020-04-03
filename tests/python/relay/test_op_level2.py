@@ -596,15 +596,20 @@ def test_conv3d_winograd():
     kshape = (64, 32, 3, 3, 3)
     run_test_conv3d_cuda("float32", "float32", 1, dshape, kshape,
                          padding=(1, 1, 1), kernel_size=(3, 3, 3))
+    # Without depth transform using 1x3x3 kernel.
+    kshape = (64, 32, 1, 3, 3)
     run_test_conv3d_cuda("float32", "float32", 1, dshape, kshape,
-                         padding=(1, 1, 1), kernel_size=(3, 3, 3), prepack=True)
+                         padding=(0, 1, 1), kernel_size=(1, 3, 3))
+
     # extended winograd: stride 1, padding N, kernel NxNxN
     dshape = (1, 61, 20, 20, 20)
     kshape = (120, 61, 5, 5, 5)
     run_test_conv3d_cuda("float32", "float32", 1, dshape, kshape,
                          padding=(2, 2, 2), channels=120, kernel_size=(5, 5, 5))
+    # Without depth transform
+    kshape = (120, 61, 1, 5, 5)
     run_test_conv3d_cuda("float32", "float32", 1, dshape, kshape,
-                         padding=(2, 2, 2), kernel_size=(5, 5, 5), prepack=True)
+                         padding=(0, 2, 2), channels=120, kernel_size=(1, 5, 5))
 
 
 def test_conv2d_transpose_infer_type():
