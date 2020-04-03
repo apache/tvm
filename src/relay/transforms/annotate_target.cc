@@ -19,8 +19,8 @@
 
 /*!
  * \file src/relay/transforms/annotate_target.cc
- * \brief Wraps a call with compiler_begin and compiler_end to indicate that
- * the op of this call node will use external compiler.
+ * \brief Wraps an expr with compiler_begin and compiler_end to indicate that
+ * this expr should be handled by the external compiler.
  */
 
 #include <tvm/relay/attrs/annotation.h>
@@ -39,30 +39,23 @@ static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
 // be handled by a specific compiler.
 class AnnotateTargetWrapper : public ExprMutator {
  public:
-  AnnotateTargetWrapper(const Array<runtime::String> targets) {
-    for (auto target : targets) {
-      targets_.push_back(target.data());
-    }
-  }
+  explicit AnnotateTargetWrapper(Array<runtime::String> targets)
+    : targets_(std::move(targets)) {}
 
-  Expr Annotate(const Expr& expr) {
-    auto new_expr = Mutate(expr);
-    //std::cerr << AsText(new_expr);
-    return new_expr;
-  }
-
-  /*! \brief This function 1) annotates a compiler end and a compiler begin to all arguments.
-   * The compiler end is based on the arg target while the compiler begin is based on the given
-   * target. If target is not given and all arguments are going to the same target, then we will
-   * use that target; otherwise we use default for this op. Note that all arg exprs must be
-   * available in op_expr_to_target before calling this function.
+  /*!
+   * \brief This function annotates a compiler end and a compiler begin to all arguments.
+   *
+   *  The compiler end is based on the arg target while the compiler begin is based on the given
+   *  target. If target is not given and all arguments are going to the same target, then we will
+   *  use that target; otherwise we use default for this op. Note that all arg exprs must be
+   *  available in op_expr_to_target before calling this function.
    *
    * \param args An array of arguments of the given node.
    * \param target The target of the current node.
    * \return A pair of target and annotated argument expressions.
    */
-  std::pair<std::string, Array<Expr>> AnnotateArgs(const Array<Expr> args,
-                                                   const std::string target = "") {
+  std::pair<std::string, Array<Expr>> AnnotateArgs(const Array<Expr>& args,
+                                                   const std::string& target = "") {
     std::string ref_target = "";
     Array<Expr> compiler_ends;
     for (auto arg : args) {
@@ -72,27 +65,26 @@ class AnnotateTargetWrapper : public ExprMutator {
         if (ref_target == "") {
           ref_target = arg_target;
         } else if (ref_target != arg_target) {
-          ref_target = "__inconsist__";
+          ref_target = "default";
         }
       } else {
         // Input vars.
         compiler_ends.push_back(arg);
       }
     }
-    ref_target = (ref_target == "__inconsist__") ? "default" : ref_target;
 
     // Determine compiler begin target.
-    std::string op_target = (target == "")? ref_target: target;
+    std::string op_target = (target == "") ? ref_target : target;
 
     Array<Expr> compiler_begins;
-    for (auto end : compiler_ends) {
+    for (const auto& end : compiler_ends) {
       compiler_begins.push_back(InsertAnnotation(end, op_target, begin_op));
     }
 
     return {op_target, compiler_begins};
   }
 
-  Expr InsertAnnotation(const Expr& expr, const std::string target, const PackedFunc* ann_op) {
+  Expr InsertAnnotation(const Expr& expr, const std::string& target, const PackedFunc* ann_op) {
     Expr new_op = (*ann_op)(expr, target);
     new_op->checked_type_ = expr->checked_type_;
     return new_op;
@@ -106,8 +98,8 @@ class AnnotateTargetWrapper : public ExprMutator {
     std::vector<std::string> supported_targets;
 
     // Check which targets this op can be offloaded.
-    for (auto target : this->targets_) {
-      auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target);
+    for (const auto& target : this->targets_) {
+      auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + std::string(target));
       if (fannotate.count(op) && fannotate[op](cn->attrs, cn->args)) {
         supported_targets.push_back(target);
       }
@@ -120,18 +112,12 @@ class AnnotateTargetWrapper : public ExprMutator {
     std::string target = supported_targets[0];
 
     // Visit and mutate arguments after the target of this op has been determined.
-    auto new_e = ExprMutator::VisitExpr_(cn);
-    Call call = Downcast<Call>(new_e);
+    auto new_call = Downcast<Call>(ExprMutator::VisitExpr_(cn));
 
     // Add annotations to each arg.
-    auto target_n_args = AnnotateArgs(call->args, target);
+    auto target_n_args = AnnotateArgs(new_call->args, target);
     Array<Expr> compiler_begins = std::get<1>(target_n_args);
-    // for (auto b : compiler_begins) {
-    //   std::cerr << AsText(b);
-    //   std::cerr << "===============\n";
-    // }
-    //std::cerr << "*********************************************\n";
-    call = Call(call->op, compiler_begins, call->attrs);
+    Call call = Call(new_call->op, compiler_begins, new_call->attrs);
     call->checked_type_ = cn->checked_type_;
 
     // Update the target map.
@@ -243,7 +229,7 @@ class AnnotateTargetWrapper : public ExprMutator {
 
  private:
   /*! \brief The target backends for annotation. */
-  std::vector<std::string> targets_;
+  Array<runtime::String> targets_;
   /*! \brief Maintain the decision of the target for each op expr. */
   std::unordered_map<Expr, std::string, ObjectHash, ObjectEqual> op_expr_to_target_;
   const PackedFunc* begin_op = runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
@@ -251,7 +237,7 @@ class AnnotateTargetWrapper : public ExprMutator {
 };
 
 Expr AnnotateTarget(const Expr& expr, const Array<runtime::String> targets) {
-  return AnnotateTargetWrapper(targets).Annotate(expr);
+  return AnnotateTargetWrapper(targets).Mutate(expr);
 }
 
 }  // namespace annotate_target
