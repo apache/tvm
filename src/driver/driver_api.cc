@@ -185,75 +185,50 @@ transform::Pass BindTarget(Target target) {
 }
 
 
+template<typename FCond>
+transform::Pass FilterBy(FCond fcond) {
+  auto fpass = [fcond](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+    if (fcond(f)) {
+      return f;
+    } else {
+      return tir::PrimFunc(nullptr);
+    }
+  };
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "FilterBy", {});
+}
+
+
 std::pair<IRModule, IRModule>
 split_dev_host_funcs(const Array<LoweredFunc>& funcs,
                      const Target& target,
                      const Target& target_host,
                      const BuildConfig& config) {
-  std::unordered_set<std::string> all_names;
-  for (const auto& x : funcs) {
-    CHECK(all_names.count(x->name) == 0)
-        << "Duplicate function name " << x->name;
-    all_names.insert(x->name);
-  }
-
-  Array<LoweredFunc> fhost;
-  Array<LoweredFunc> fdevice;
-
   for (const auto& x : funcs) {
     CHECK(tir::VerifyMemory(x, target->device_type))
         << "Direct host side access to device memory is detected in "
         << x->func_name() << ". Did you forget to bind?";
-
-    if (x->func_type == tir::kMixedFunc) {
-      auto func = x;
-      if (config->detect_global_barrier) {
-        func = tir::ThreadSync(func, "global");
-      }
-
-      func = tir::ThreadSync(func, "shared");
-      func = tir::ThreadSync(func, "warp");
-      func = tir::InferFragment(func);
-      func = tir::LowerThreadAllreduce(func, target->thread_warp_size);
-      auto fsplits = tir::SplitHostDevice(func);
-      fhost.push_back(fsplits[0]);
-      for (auto f = fsplits.begin() + 1; f != fsplits.end(); ++f) {
-        fdevice.push_back(*f);
-      }
-    } else if (x->func_type == tir::kHostFunc) {
-      fhost.push_back(x);
-    } else if (x->func_type == tir::kDeviceFunc) {
-      fdevice.push_back(x);
-    } else {
-      LOG(FATAL) << "unknown function type " << x->func_type;
-    }
   }
 
-  auto keys = target->keys();
-  bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
-  if (target_is_gpu && fdevice.size() == 0) {
-    LOG(WARNING) << "Specified target "
-                 << target->str()
-                 << " but cannot find device code. Did you forget to bind?";
+  IRModule mod_mixed = codegen::ToIRModule(funcs);
+
+  Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target)};
+  if (config->detect_global_barrier) {
+    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
+  mixed_pass_list.push_back(tir::transform::InferFragment());
+  mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
+  mixed_pass_list.push_back(tir::transform::BindDeviceType());
+  mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+  auto opt_mixed = transform::Sequential(mixed_pass_list);
+  mod_mixed = opt_mixed(std::move(mod_mixed));
 
-
-  if (target->device_type == target::llvm()->device_type &&
-      target_host == target) {
-    CHECK(fdevice.empty()) << "No device code should be generated when target "
-                           << "and host_target are both llvm target."
-                           << "\n";
-  }
-
-  for (size_t i = 0; i < fhost.size(); ++i) {
-    auto func = fhost[i];
-    func = tir::BindDeviceType(func, target->device_type);
-    fhost.Set(i, func);
-  }
-
-  // host pipeline
-  auto mhost = codegen::ToIRModule(fhost);
   auto host_pass_list = {
+    FilterBy([](const tir::PrimFunc& f) {
+      int64_t value = f->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value;
+      return value != static_cast<int>(CallingConv::kDeviceKernelLaunch);
+    }),
     BindTarget(target_host),
     tir::transform::LowerTVMBuiltin(),
     tir::transform::LowerIntrin(),
@@ -261,18 +236,38 @@ split_dev_host_funcs(const Array<LoweredFunc>& funcs,
     tir::transform::CombineContextCall(),
   };
   auto opt_host = transform::Sequential(host_pass_list);
-  mhost = opt_host(mhost);
+  auto mhost = opt_host(mod_mixed);
 
   // device pipeline
-  auto mdevice = codegen::ToIRModule(fdevice);
   auto device_pass_list = {
+    FilterBy([](const tir::PrimFunc& f) {
+      int64_t value = f->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value;
+      return value == static_cast<int>(CallingConv::kDeviceKernelLaunch);
+    }),
     BindTarget(target),
     tir::transform::LowerWarpMemory(),
     tir::transform::LowerIntrin(),
     tir::transform::LowerDeviceStorageAccessInfo(),
   };
   auto opt_device = transform::Sequential(device_pass_list);
-  mdevice = opt_device(mdevice);
+  auto mdevice = opt_device(mod_mixed);
+
+  // some final misc checks.
+  auto keys = target->keys();
+  bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
+  if (target_is_gpu && mdevice->functions.size() == 0) {
+    LOG(WARNING) << "Specified target "
+                 << target->str()
+                 << " but cannot find device code. Did you forget to bind?";
+  }
+
+  if (target->device_type == target::llvm()->device_type &&
+      target_host == target) {
+    CHECK(mdevice->functions.empty())
+        << "No device code should be generated when target "
+        << "and host_target are both llvm target."
+        << "\n";
+  }
 
   return {mhost, mdevice};
 }

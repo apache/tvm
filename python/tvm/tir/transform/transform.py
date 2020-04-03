@@ -17,6 +17,70 @@
 """Wrapping existing transformations."""
 # pylint: disable=invalid-name
 from . import _ffi_api
+from . import function_pass as _fpass
+
+
+def Apply(ftransform):
+    """Apply ftransform to each function in the Module.
+
+    This function is a thin wrapper around tvm.tir.transform.prim_func_pass
+
+    Parameters
+    ----------
+    ftransform: tvm.tir.PrimFunc -> tvm.tir.PrimFunc
+       The transformation pass.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    # pylint: disable=unused-argument
+    def _transform(func, mod, ctx):
+        return ftransform(func)
+    return _fpass.prim_func_pass(_transform, opt_level=0)
+
+
+def Filter(fcond):
+    """Filter functions by the calling convention attribute.
+
+    Parameters
+    ----------
+    fcond : tvm.tir.PrimFunc -> bool
+        The condition of the filtering.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    # pylint: disable=unused-argument
+    def _transform(func, mod, ctx):
+        return func if fcond(func) else None
+    return _fpass.prim_func_pass(_transform, opt_level=0)
+
+
+def BindDeviceType():
+    """Bind the device type of the function to be
+       the device_type specified in the target attribute.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.BindDeviceType()
+
+
+def SplitHostDevice():
+    """Split the function into a host function and device functions.
+
+    Returns
+    -------
+    fpass : tvm.ir.transform.Pass
+        The result pass
+    """
+    return _ffi_api.SplitHostDevice()
 
 
 def SkipAssert():

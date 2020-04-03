@@ -324,6 +324,8 @@ class IRModule : public ObjectRef {
 
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
+  // allow copy on write.
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };
 
 /*!

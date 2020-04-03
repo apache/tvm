@@ -93,7 +93,10 @@ def test_flatten_double_buffer():
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
     f = tvm.tir.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
-    f = tvm.tir.ir_pass.ThreadSync(f, "shared")
+    f = tvm.tir.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
+    mod = tvm.testing.LoweredFuncsToIRModule([f])
+    f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
+
     count = [0]
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":

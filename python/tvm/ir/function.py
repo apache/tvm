@@ -15,8 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """Function defintiions."""
+from enum import IntEnum
 from .expr import RelayExpr
 from . import _ffi_api
+
+
+class CallingConv(IntEnum):
+    """Possible kinds of calling conventions."""
+    DEFAULT = 0
+    C_PACKED_FUNC = 1
+    DEVICE_KERNEL_LAUNCH = 2
 
 
 class BaseFunc(RelayExpr):

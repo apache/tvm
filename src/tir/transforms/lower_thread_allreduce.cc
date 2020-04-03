@@ -340,14 +340,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   std::unordered_map<const VarNode *, Stmt> alloc_remap_;
 };
 
-LoweredFunc
-LowerThreadAllreduce(LoweredFunc f, int warp_size) {
-  CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = ThreadAllreduceBuilder(warp_size)(n->body);
-  return LoweredFunc(n);
-}
-
 namespace transform {
 
 Pass LowerThreadAllreduce() {
@@ -356,10 +348,6 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined())
         << "LowerThreadAllreduce: Require the target attribute";
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
-        << "LowerThreadAllreeduce: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     n->body = ThreadAllreduceBuilder(target->thread_warp_size)(n->body);
     return f;
   };

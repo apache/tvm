@@ -28,7 +28,7 @@ def test_loop_dependent_allocate():
     s[AA].compute_at(s[C], s[C].op.axis[0])
     # this line should fail due to IRUseDefAnalysis sees an allocate statement
     # referencing undefined variable
-    tvm.lower(s, [A,C])
+    tvm.lower(s, [A, C])
 
 if __name__ == "__main__":
     test_loop_dependent_allocate()
