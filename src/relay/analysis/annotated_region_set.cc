@@ -22,7 +22,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/ir/error.h>
 
-#include <algorithm>
 #include <unordered_map>
 #include <vector>
 
@@ -58,8 +57,8 @@ void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src,
   std::vector<Expr> ins_to_remove;
   for (const auto& input : dest->ins) {
     auto call = Downcast<Call>(input);
-    auto it = std::find(src->outs.begin(), src->outs.end(), call->args[0]);
-    if (it != src->outs.end()) {
+    auto it = src->nodes.find(call->args[0]);
+    if (it != src->nodes.end()) {
       dest->outs.remove(*it);
       ins_to_remove.push_back(input);
     }
