@@ -21,18 +21,22 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
+#include <tvm/ir/transform.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/lowered_func.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/runtime/module.h>
+#include <tvm/target/target.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
+
 #include <unordered_map>
 
 namespace tvm {
 namespace tir {
 
 // use/def analysis, also delete unreferenced lets
-class IRUseDefAnalysis : public StmtExprMutator {
+class VarUseDefAnalysis : public StmtExprMutator {
  public:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
@@ -156,8 +160,27 @@ class IRUseDefAnalysis : public StmtExprMutator {
   std::unordered_map<const VarNode*, int> def_count_;
 };
 
+
+Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
+  VarUseDefAnalysis m;
+  for (Var arg : args) {
+    m.use_count_[arg.get()] = 0;
+  }
+  m(stmt);
+  return m.undefined_;
+}
+
+
 class HostDeviceSplitter : public StmtMutator {
  public:
+  explicit HostDeviceSplitter(IRModuleNode* device_mod,
+                              Target device_target,
+                              std::string name_prefix)
+      : device_mod_(device_mod),
+        device_target_(device_target),
+        name_prefix_(name_prefix) {
+  }
+
   Stmt VisitStmt_(const AllocateNode* op) final {
     handle_data_type_[op->buffer_var.get()] = make_const(op->dtype, 0);
     return StmtMutator::VisitStmt_(op);
@@ -172,86 +195,128 @@ class HostDeviceSplitter : public StmtMutator {
     return StmtMutator::VisitStmt_(op);
   }
 
-  Array<LoweredFunc> Split(LoweredFunc f) {
-    CHECK_EQ(f->func_type, kMixedFunc);
-    for (auto kv : f->handle_data_type) {
-      handle_data_type_[kv.first.get()] = kv.second;
-    }
-    name_ = f->name;
-    ObjectPtr<LoweredFuncNode> n =
-        make_object<LoweredFuncNode>(*f.operator->());
-    n->body = operator()(f->body);
-    n->func_type = kHostFunc;
-    Array<LoweredFunc> ret{LoweredFunc(n)};
-    for (LoweredFunc x : device_funcs_) {
-      ret.push_back(x);
-    }
-    return ret;
-  }
-
  private:
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
-    os << name_ << "_kernel" << device_funcs_.size();
-    ObjectPtr<LoweredFuncNode> n = make_object<LoweredFuncNode>();
+    os << name_prefix_ << "_kernel" << device_func_counter_++;
+    std::string kernel_symbol = os.str();
     // isolate the device function.
-    IRUseDefAnalysis m;
+    VarUseDefAnalysis m;
     m.visit_thread_extent_ = false;
-    n->body = m(std::move(body));
-    n->name = os.str();
-    n->func_type = kDeviceFunc;
-    n->thread_axis = m.thread_axis_;
+    body = m(std::move(body));
+
+    Array<Var> params;
+    Array<PrimExpr> arguments;
+    Map<tir::Var, PrimExpr> remap_vars;
+
     // Strictly order the arguments: Var pointers, positional arguments.
-    for (Var v : m.undefined_) {
-      if (v.dtype().is_handle()) {
-        n->args.push_back(v);
-        // mark handle data type.
-        auto it = handle_data_type_.find(v.get());
+    for (Var var : m.undefined_) {
+      if (var.dtype().is_handle()) {
+        // Create a new version of v.
+        auto it = handle_data_type_.find(var.get());
         if (it != handle_data_type_.end()) {
-          n->handle_data_type.Set(v, it->second);
+          tir::Var new_var(var->name_hint,
+                           PointerType(PrimType((*it).second->dtype)));
+          params.push_back(new_var);
+          remap_vars.Set(var, new_var);
+        } else {
+          params.push_back(var);
         }
+        arguments.push_back(var);
       }
     }
-    for (Var v : m.undefined_) {
-      if (!v.dtype().is_handle()) {
-        n->args.push_back(v);
+    // positional arguments
+    for (Var var : m.undefined_) {
+      if (!var.dtype().is_handle()) {
+        params.push_back(var);
+        arguments.push_back(var);
       }
     }
-    LoweredFunc f_device(n);
+    PrimFunc device_func(params, Substitute(body, remap_vars));
+    device_func = WithAttr(std::move(device_func), tir::attr::kDeviceThreadAxis, m.thread_axis_);
+    device_func = WithAttr(std::move(device_func), tvm::attr::kCallingConv,
+                           Integer(CallingConv::kDeviceKernelLaunch));
+    device_func = WithAttr(std::move(device_func), tvm::attr::kGlobalSymbol,
+                           runtime::String(kernel_symbol));
+    device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
+    device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
+    device_mod_->Add(GlobalVar(kernel_symbol), device_func);
+
+    // generate calls to the device function
     Array<PrimExpr> call_args;
-    call_args.push_back(StringImmNode::make(f_device->name));
-    for (Var arg : n->args) {
+    call_args.push_back(StringImmNode::make(kernel_symbol));
+    for (PrimExpr arg : arguments) {
       call_args.push_back(arg);
     }
     for (PrimExpr ext : m.thread_extent_) {
       call_args.push_back(ext);
     }
-    device_funcs_.emplace_back(f_device);
     return EvaluateNode::make(CallNode::make(
         DataType::Int(32), intrinsic::tvm_call_packed,
         call_args, CallNode::Intrinsic));
   }
 
-  // function name
-  std::string name_;
-  // the device functions
+  // target ir module
+  IRModuleNode* device_mod_;
+  // Device target
+  Target device_target_;
+  // function name hint
+  std::string name_prefix_;
+  // Number of device functions.
+  int device_func_counter_{0};
   std::vector<LoweredFunc> device_funcs_;
   std::unordered_map<const VarNode*, PrimExpr> handle_data_type_;
 };
 
 
-Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
-  IRUseDefAnalysis m;
-  for (Var arg : args) {
-    m.use_count_[arg.get()] = 0;
-  }
-  m(stmt);
-  return m.undefined_;
+PrimFunc SplitHostDevice(PrimFunc&& func, IRModuleNode* device_mod) {
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  CHECK(target.defined())
+      << "SplitHostDevice: Require the target attribute";
+  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
+
+  HostDeviceSplitter splitter(
+      device_mod, target, static_cast<std::string>(global_symbol));
+
+  auto* n = func.CopyOnWrite();
+  n->body = splitter(std::move(n->body));
+  // set the host target to None.
+  func = WithAttr(std::move(func), tvm::attr::kTarget, Target(nullptr));
+  return std::move(func);
 }
 
-Array<LoweredFunc> SplitHostDevice(LoweredFunc func) {
-  return HostDeviceSplitter().Split(func);
+
+
+namespace transform {
+
+Pass SplitHostDevice() {
+  auto pass_func = [](IRModule m, PassContext ctx) {
+    IRModuleNode* mptr = m.CopyOnWrite();
+    std::vector<std::pair<GlobalVar, PrimFunc> > updates;
+
+    for (const auto& kv : mptr->functions) {
+      if (auto* n = kv.second.as<PrimFuncNode>()) {
+        PrimFunc func = GetRef<PrimFunc>(n);
+        auto updated_func = SplitHostDevice(std::move(func), mptr);
+        updates.push_back({kv.first, updated_func});
+      }
+    }
+
+    for (const auto& pair : updates) {
+      mptr->Add(pair.first, pair.second, true);
+    }
+    return m;
+  };
+
+  return tvm::transform::CreateModulePass(
+      pass_func, 0, "tir.SplitHostDevice", {});
 }
 
+TVM_REGISTER_GLOBAL("tir.transform.SplitHostDevice")
+.set_body_typed(SplitHostDevice);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

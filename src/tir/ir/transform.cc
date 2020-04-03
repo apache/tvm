@@ -108,8 +108,13 @@ IRModule PrimFuncPassNode::operator()(const IRModule& mod,
       updates.push_back({it.first, updated_func});
     }
   }
+  // automatic removal of None
   for (const auto& pair : updates) {
-    updated_mod->Add(pair.first, pair.second, true);
+    if (pair.second.defined()) {
+      updated_mod->Add(pair.first, pair.second, true);
+    } else {
+      updated_mod->Remove(pair.first);
+    }
   }
   pass_ctx.Trace(updated_mod, pass_info, false);
   return updated_mod;

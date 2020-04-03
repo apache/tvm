@@ -49,6 +49,16 @@ struct ExprDeepEqual {
  public:
   TVM_DLL bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const;
 };
+
+
+/*!
+ * \brief Find undefined vars in the statment.
+ * \param stmt The function to be checked.
+ * \param defs The vars that is defined.
+ * \return Array of undefined vars.
+ */
+Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
+
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_ANALYSIS_H_
