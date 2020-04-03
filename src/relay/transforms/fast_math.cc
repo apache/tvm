@@ -31,20 +31,19 @@
 namespace tvm {
 namespace relay {
 
-class FastMathMutator : public ExprMutator {
+class FastMathMutator : public ExprRewriter {
  public:
   FastMathMutator()
       : exp_op_(Op::Get("exp")),
         tanh_op_(Op::Get("tanh")) {}
 
-  Expr VisitExpr_(const CallNode* n) {
-    auto new_n = ExprMutator::VisitExpr_(n);
-    if (n->op == exp_op_) {
-      return FastExp(new_n.as<CallNode>()->args[0]);
-    } else if (n->op == tanh_op_) {
-      return FastTanh(new_n.as<CallNode>()->args[0]);
+  Expr Rewrite_(const CallNode* pre, const Expr& post) override {
+    if (pre->op == exp_op_) {
+      return FastExp(post.as<CallNode>()->args[0]);
+    } else if (pre->op == tanh_op_) {
+      return FastTanh(post.as<CallNode>()->args[0]);
     }
-    return new_n;
+    return post;
   }
 
  private:
@@ -56,7 +55,8 @@ class FastMathMutator : public ExprMutator {
 };
 
 Expr FastMath(const Expr& e) {
-  return FastMathMutator().Mutate(e);
+  auto rewriter = FastMathMutator();
+  return PostOrderRewrite(e, &rewriter);
 }
 
 namespace transform {

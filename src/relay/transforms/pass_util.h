@@ -35,14 +35,6 @@ namespace tvm {
 namespace relay {
 
 /*!
- * \brief Get reference counter of each internal ExprNode in body.
- * \param body The body expression.
- * \return The reference count mapping.
- */
-std::unordered_map<const Object*, size_t>
-GetExprRefCount(const Expr& body);
-
-/*!
  * \brief Check if expr is positive constant.
  * \param expr The expression to be checked.
  * \return Whether all elements of expr is positive constant.
