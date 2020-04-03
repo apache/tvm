@@ -60,9 +60,6 @@ class IRModule(Node):
             type_definitions = mapped_type_defs
         self.__init_handle_by_constructor__(_ffi_api.IRModule, functions, type_definitions)
 
-    def __len__(self):
-        return len(self.functions)
-
     def __setitem__(self, var, val):
         """Add a mapping to the module.
 

@@ -271,13 +271,13 @@ def _build_for_device(flist, target, target_host):
     mod_host = opt_host(mod_mixed)
 
     if device_type == ndarray.cpu(0).device_type and target_host == target:
-        assert len(mod_dev) == 0
-    if "gpu" in target.keys and len(mod_dev) == 0:
+        assert len(mod_dev.functions) == 0
+    if "gpu" in target.keys and len(mod_dev.functions) == 0:
         warnings.warn(
             "Specified target %s, but cannot find device code, did you do "
             "bind?" % target)
 
-    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev) != 0 else None
+    rt_mod_dev = codegen.build_module(mod_dev, target) if len(mod_dev.functions) != 0 else None
     return mod_host, rt_mod_dev
 
 
