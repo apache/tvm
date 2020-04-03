@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tvm/runtime/crt/loggin.h
+ * \file runtime/crt/loggin.h
  * \brief A replacement of the dmlc logging system that avoids
  *  the usage of GLOG and C++ headers
  */

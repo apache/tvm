@@ -22,9 +22,9 @@
  * \brief implement graph runtime in pure C
  */
 
-#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 
+#include "logging.h"
 #include "graph_runtime.h"
 
 #ifndef MAX

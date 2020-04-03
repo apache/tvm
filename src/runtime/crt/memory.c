@@ -25,10 +25,11 @@
  */
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 
 #include <inttypes.h>
+
+#include "logging.h"
 
 /*! Number of bits in a page */
 #define TVM_CRT_PAGE_BITS (TVM_CRT_PAGE_BYTES << 3)
