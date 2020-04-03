@@ -381,7 +381,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.conv1d_transpose")
 });
 
 RELAY_REGISTER_OP("nn.conv1d_transpose")
-    .describe(R"code(Transposed 1D convolution layer (sometimes called Deconvolution).
+.describe(R"code(Transposed 1D convolution layer (sometimes called Deconvolution).
 
 The need for transposed convolutions generally arises
 from the desire to use a transformation going in the opposite direction
@@ -563,7 +563,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.contrib_conv2d_winograd_nnpack_weight_tra
 .set_body_typed(MakeConv2DWinogradNNPACKWeightTransform);
 
 RELAY_REGISTER_OP("nn.contrib_conv2d_winograd_nnpack_weight_transform")
-    .describe(R"code(Weight transformation of winograd fast convolution algorithm with NNPACK.
+.describe(R"code(Weight transformation of winograd fast convolution algorithm with NNPACK.
 Separate this into another symbol in order to enable Precompute Pass to compute the
 weight transformation in advance.
 
