@@ -207,11 +207,19 @@ def schedule_conv3d_winograd_weight_transform(outs):
     output = outs[0]
     _, G = s[output].op.input_tensors
     s[G].compute_inline()
-    omg, eps, nu, co, ci = s[output].op.axis
-    r_kd, r_kh, r_kw = s[output].op.reduce_axis
-    s[output].reorder(co, ci, omg, eps, nu, r_kd, r_kh, r_kw)
-    for axis in [r_kd, r_kh, r_kw]:
-        s[output].unroll(axis)
+    transform_depth = len(s[output].op.reduce_axis) == 3
+    if transform_depth:
+        omg, eps, nu, ci, co = s[output].op.axis
+        r_kd, r_kh, r_kw = s[output].op.reduce_axis
+        s[output].reorder(co, ci, omg, eps, nu, r_kd, r_kh, r_kw)
+        for axis in [r_kd, r_kh, r_kw]:
+            s[output].unroll(axis)
+    else:
+        eps, nu, d, ci, co = s[output].op.axis
+        r_kh, r_kw = s[output].op.reduce_axis
+        s[output].reorder(co, ci, d, eps, nu, r_kh, r_kw)
+        for axis in [r_kh, r_kw]:
+            s[output].unroll(axis)
     s[output].parallel(co)
     return s
 

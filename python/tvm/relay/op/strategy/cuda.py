@@ -244,9 +244,9 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                                     name="conv3d_ncdhw.cuda",
                                     plevel=10)
         _, _, kd, kh, kw = get_const_tuple(kernel.shape)
-        if 2 < kd < 8 and 2 < kh < 8 and 2 < kw < 8 and kd == kh and kh == kw and \
-            stride_d == 1 and stride_h == 1 and stride_w == 1 and \
-            dilation_d == 1 and dilation_h == 1 and dilation_w == 1:
+        if 2 < kh < 8 and 2 < kw < 8 and kh == kw and \
+            stride_h == 1 and stride_w == 1 and \
+            dilation_h == 1 and dilation_w == 1:
             strategy.add_implementation(
                 wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd),
                 wrap_topi_schedule(topi.cuda.schedule_conv3d_ncdhw_winograd),

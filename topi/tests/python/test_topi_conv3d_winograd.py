@@ -118,9 +118,13 @@ def verify_conv3d_ncdhw(batch,
 
 
 def test_conv3d_ncdhw():
+    # Try without depth transformation
     #3DCNN  workloads
     verify_conv3d_ncdhw(1, 61, 20, 120, 3, 3, 1, 0)
+    verify_conv3d_ncdhw(1, 61, 20, 120, 1, 3, 1, 0)
+    verify_conv3d_ncdhw(1, 61, 20, 120, 5, 3, 1, 0)
     verify_conv3d_ncdhw(1, 61, 20, 120, 5, 5, 1, 2)
+    verify_conv3d_ncdhw(1, 61, 20, 120, 1, 5, 1, 2)
     verify_conv3d_ncdhw(1, 61, 20, 120, 7, 7, 1, 3)
     verify_conv3d_ncdhw(1, 128, 12, 256, 3, 3, 1, 1)
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 3, 1, 1)
@@ -128,12 +132,15 @@ def test_conv3d_ncdhw():
     # bias, relu
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 3, 1, 1, add_relu=True)
     verify_conv3d_ncdhw(1, 64, 12, 128, 3, 3, 1, 1, add_relu=True, add_bias=True)
+    verify_conv3d_ncdhw(1, 64, 12, 128, 1, 3, 1, 1, add_relu=True, add_bias=True)
 
     # dilation = 2
     verify_conv3d_ncdhw(1, 16, 12, 16, 3, 3, 1, "VALID", dilation=2)
+    verify_conv3d_ncdhw(1, 16, 12, 16, 1, 3, 1, "VALID", dilation=2)
 
     # batch size
     verify_conv3d_ncdhw(4, 32, 12, 64, 3, 3, 1, 1)
+    verify_conv3d_ncdhw(4, 32, 12, 64, 1, 3, 1, 1)
 
     # weird workloads
     verify_conv3d_ncdhw(2, 2, 2, 2, 3, 3, 1, 2)

@@ -180,7 +180,7 @@ def conv3d_winograd_weight_transform(kernel, tile_size):
     """
     CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
 
-    depth_transform = 2 < KD < 8
+    depth_transform = 2 < KD < 8 and KD == KH
 
     if depth_transform:
         assert KD == KH == KW, "Only support NxNxN kernel"
@@ -191,7 +191,7 @@ def conv3d_winograd_weight_transform(kernel, tile_size):
 
     r_kh = te.reduce_axis((0, KH), name='r_kh')
     r_kw = te.reduce_axis((0, KW), name='r_kw')
-    _, _, G = winograd_transform_matrices(tile_size, KD, kernel.dtype)
+    _, _, G = winograd_transform_matrices(tile_size, KH, kernel.dtype)
     if depth_transform:
         shape = (r, r, r, CI, CO)
         r_kd = te.reduce_axis((0, KD), name='r_kd')
