@@ -244,10 +244,10 @@ class ExprMutator
 class MixedModeVisitor : public ::tvm::relay::ExprVisitor {
  public:
   /*! \brief The constructor of MixedModeVisitor
-   *  \param visit_limit The number of times to allow visitation to a note. Usually 1, ocassionally
+   *  \param visit_limit The number of times to allow visitation to a node. Usually 1, ocassionally
    * higher (i.e., 2 for dead code elimiation), limited to 10 as a sanity check.
    */
-  MixedModeVisitor(int visit_limit = 1);
+  explicit MixedModeVisitor(int visit_limit = 1);
 
   /*!
    * \brief VisitExpr is finalized to preserve call expansion of dataflow regions
@@ -293,7 +293,7 @@ class MixedModeMutator : public ::tvm::relay::ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final { return Rewrite(call_node); };
   Expr VisitExpr_(const TupleGetItemNode* op) final { return Rewrite(op); };
   /*!
-   *  Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
+   *  \brief Users should override Rewrite_ methods to implement their pass. Rewrite_ functions will be
    * able to rewrite the op only with data about the original node `pre` and the same node with
    * modified inputs `post` and should not recurse.
    *
@@ -318,15 +318,6 @@ class MixedModeMutator : public ::tvm::relay::ExprMutator {
   virtual bool CheckVisited(const Expr& expr);
 };
 
-/*! \brief A non-iterating Expression Rewriter
- *
- *  ExprRewriter provides a Rewrite interface for modifying graphs in Post-DFS order.
- *  The expectation is that ExprRewriter objects will be passed to PostOrderRewrite, which will
- * non-recursively unroll the graph and call Rewriting on inputs. It will then pass the original
- * node, called `pre`, and a node recreated with any alterned inputs, called `post`, to the
- * ExprRewriter. The ExprRewriter can then use the information in those two nodes to do more complex
- * graph rewriting.
- */
 #define RELAY_EXPR_REWRITER_DISPATCH(OP)                                                   \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self, const Expr& post) { \
     return self->Rewrite_(static_cast<const OP*>(n.get()), post);                          \
@@ -335,6 +326,16 @@ class MixedModeMutator : public ::tvm::relay::ExprMutator {
 #define EXPR_REWRITER_REWRITE_DEFAULT \
   { return post; }
 
+/*! \brief A non-iterating Expression Rewriter
+ *
+ *  ExprRewriter provides a Rewrite interface for modifying graphs in Post-DFS order.
+ *
+ *  The expectation is that ExprRewriter objects will be passed to PostOrderRewrite, which will
+ * non-recursively unroll the graph and call Rewriting on inputs. It will then pass the original
+ * node, called `pre`, and a node recreated with any alterned inputs, called `post`, to the
+ * ExprRewriter. The ExprRewriter can then use the information in those two nodes to do more complex
+ * graph rewriting.
+ */
 class ExprRewriter {
  private:
   using TSelf = ExprRewriter;
