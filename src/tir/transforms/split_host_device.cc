@@ -284,7 +284,7 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModuleNode* device_mod) {
   n->body = splitter(std::move(n->body));
   // set the host target to None.
   func = WithAttr(std::move(func), tvm::attr::kTarget, Target(nullptr));
-  return func;
+  return std::move(func);
 }
 
 
