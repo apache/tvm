@@ -309,34 +309,35 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     if (match_range_ == 0) {
       return this->Alloc(prototype, size);
     }
-    auto begin = free_.lower_bound(size / match_range_);
-    auto mid = free_.lower_bound(size);
-    auto end = free_.upper_bound(size * match_range_);
-    // search for memory blocks larger than requested
-    for (auto it = mid; it != end; ++it) {
-      StorageToken* tok = it->second;
-      if (tok->device_type != prototype->device_type) continue;
-      CHECK_EQ(tok->ref_counter, 0);
-      // Use exect matching strategy
-      tok->max_bytes = std::max(size, tok->max_bytes);
-      tok->ref_counter = prototype->ref_counter;
-      // find a exact match, erase from map and return
-      free_.erase(it);
-      return tok;
-    }
-    // then search for memory blocks smaller than requested space
-    for (auto it = mid; it != begin;) {
-      --it;
-      StorageToken* tok = it->second;
-      if (tok->device_type != prototype->device_type) continue;
-      CHECK_EQ(tok->ref_counter, 0);
-      // Use exect matching strategy
-      tok->max_bytes = std::max(size, tok->max_bytes);
-      tok->ref_counter = prototype->ref_counter;
-      // erase from map and return
-      free_.erase(it);
-      return tok;
-    }
+    // TODO(zhanghao): to avoid overwrite shared storage when we copy all the instructions in a single batch
+    // auto begin = free_.lower_bound(size / match_range_);
+    // auto mid = free_.lower_bound(size);
+    // auto end = free_.upper_bound(size * match_range_);
+    // // search for memory blocks larger than requested
+    // for (auto it = mid; it != end; ++it) {
+    //   StorageToken *tok = it->second;
+    //   if (tok->device_type != prototype->device_type) continue;
+    //   CHECK_EQ(tok->ref_counter, 0);
+    //   // Use exect matching strategy
+    //   tok->max_bytes = std::max(size, tok->max_bytes);
+    //   tok->ref_counter = prototype->ref_counter;
+    //   // find a exact match, erase from map and return
+    //   free_.erase(it);
+    //   return tok;
+    // }
+    // // then search for memory blocks smaller than requested space
+    // for (auto it = mid; it != begin;) {
+    //   --it;
+    //   StorageToken *tok = it->second;
+    //   if (tok->device_type != prototype->device_type) continue;
+    //   CHECK_EQ(tok->ref_counter, 0);
+    //   // Use exect matching strategy
+    //   tok->max_bytes = std::max(size, tok->max_bytes);
+    //   tok->ref_counter = prototype->ref_counter;
+    //   // erase from map and return
+    //   free_.erase(it);
+    //   return tok;
+    // }
     // cannot find anything return a new one.
     return this->Alloc(prototype, size);
   }

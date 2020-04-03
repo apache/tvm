@@ -251,7 +251,7 @@ TVM_DLL int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid);
  * \param wait_cycles The limit of poll cycles.
  *
  */
-TVM_DLL void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles);
+TVM_DLL void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles, bool skip=true);
 
 #ifdef __cplusplus
 }

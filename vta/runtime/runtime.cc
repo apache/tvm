@@ -37,6 +37,8 @@
 #include <memory>
 #include <vector>
 #include <set>
+#include <stdlib.h>
+#include <malloc.h>
 
 namespace vta {
 
@@ -47,6 +49,72 @@ static_assert(VTA_UOP_WIDTH == sizeof(VTAUop) * 8, "VTA_UOP_WIDTH do not match V
 static const bool kBufferCoherent = VTA_COHERENT_ACCESSES;
 /*! \brief Always cache buffers (otherwise, write back to DRAM from CPU) */
 static const bool kAlwaysCache = true;
+
+template <typename T, std::size_t N = 64>
+class AlignmentAllocator {
+public:
+  typedef T value_type;
+  typedef std::size_t size_type;
+  typedef std::ptrdiff_t difference_type;
+
+  typedef T * pointer;
+  typedef const T * const_pointer;
+
+  typedef T & reference;
+  typedef const T & const_reference;
+
+  public:
+  inline AlignmentAllocator () throw () { }
+
+  template <typename T2>
+  inline AlignmentAllocator (const AlignmentAllocator<T2, N> &) throw () { }
+
+  inline ~AlignmentAllocator () throw () { }
+
+  inline pointer adress (reference r) {
+    return &r;
+  }
+
+  inline const_pointer adress (const_reference r) const {
+    return &r;
+  }
+
+  inline pointer allocate (size_type n) {
+     return (pointer)memalign(N, n*sizeof(value_type));
+  }
+
+  inline void deallocate (pointer p, size_type) {
+    free(p);
+  }
+
+  inline void construct (pointer p, const value_type & wert) {
+     new (p) value_type (wert);
+  }
+
+  inline void destroy (pointer p) {
+    p->~value_type ();
+  }
+
+  inline size_type max_size () const throw () {
+    return size_type (-1) / sizeof (value_type);
+  }
+
+  template <typename T2>
+  struct rebind {
+    typedef AlignmentAllocator<T2, N> other;
+  };
+
+  bool operator!=(const AlignmentAllocator<T,N>& other) const  {
+    return !(*this == other);
+  }
+
+  // Returns true if and only if storage allocated from *this
+  // can be deallocated from other, and vice versa.
+  // Always returns true for stateless allocators.
+  bool operator==(const AlignmentAllocator<T,N>& other) const {
+    return true;
+  }
+};
 
 /*!
  * \brief Data buffer represents data on CMA.
@@ -84,6 +152,7 @@ struct DataBuffer {
    */
   void MemCopyFromHost(void* dst, const void* src, size_t size) {
     VTAMemCopyFromHost(dst, src, size);
+
   }
   /*!
    * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
@@ -343,7 +412,7 @@ class BaseQueue {
   // End location of current SRAM write in FIFO mode
   uint32_t sram_end_{0};
   // The buffer in DRAM
-  std::vector<T> dram_buffer_;
+  std::vector<T, AlignmentAllocator<T, 64>> dram_buffer_;
   // FPGA accessible buffer
   void* fpga_buff_{NULL};
   // Physical address of the FPGA buffer
@@ -443,13 +512,33 @@ class UopQueue : public BaseQueue<VTAUop> {
     }
     CHECK(buff_size <= kMaxBytes);
     // Move kernel contents to FPGA readable buffer
+    // uint32_t offset = 0;
+    // for (uint32_t i = 0; i < cache_.size(); ++i) {
+    //   uint32_t ksize = cache_[i]->size() * kElemBytes;
+    //   VTAMemCopyFromHost(static_cast<char*>(fpga_buff_) + offset,
+    //                      cache_[i]->data(),
+    //                      ksize);
+    //   // Update offset
+    //   offset += ksize;
+    // }
+
+    // merge all the cache entries and do CopyFromHost once
+    uint32_t total_size = 0;
+    for (uint32_t i = 0; i < cache_.size(); ++i) {
+      uint32_t ksize = cache_[i]->size() * kElemBytes;
+      total_size += ksize;
+    }
+
+    char *lbuf = (char*)memalign(64, total_size);
     uint32_t offset = 0;
     for (uint32_t i = 0; i < cache_.size(); ++i) {
       uint32_t ksize = cache_[i]->size() * kElemBytes;
-      VTAMemCopyFromHost(static_cast<char*>(fpga_buff_) + offset, cache_[i]->data(), ksize);
-      // Update offset
+      memcpy(lbuf + offset, cache_[i]->data(), ksize);
       offset += ksize;
     }
+    VTAMemCopyFromHost(static_cast<char*>(fpga_buff_), lbuf, total_size);
+    free(lbuf);
+
     // Flush if we're using a shared memory system
     // and if interface is non-coherent
     if (!coherent_ && always_cache_) {
@@ -904,6 +993,8 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
   int pending_pop_next_[4];
   static constexpr int kElemBytes = sizeof(VTAGenericInsn);
   static constexpr int kMaxElems = kMaxBytes / kElemBytes;
+
+  friend class CommandQueue;
 };
 
 /*!
@@ -1011,7 +1102,16 @@ class CommandQueue {
     }
   }
 
-  void Synchronize(uint32_t wait_cycles) {
+  void Synchronize(uint32_t wait_cycles, bool skip=true) {
+    // FIXME(zhanghao): It is required to use force_serial
+    // by using skip and sync at the final layer, we can avoid do DeviceCopy every time
+    if (skip) {
+      if (!(debug_flag_ & VTA_DEBUG_FORCE_SERIAL)) {
+        LOG(ERROR) << "Synchronizing all in one round requires to use force_serial to make things right";
+      }
+      return;
+    }
+
     // Insert dependences to force serialization
     if (debug_flag_ & VTA_DEBUG_FORCE_SERIAL) {
       insn_queue_.RewriteForceSerial();
@@ -1223,16 +1323,16 @@ void VTABufferCopy(const void* from, size_t from_offset, void* to, size_t to_off
   if (kind_mask & 2) {
     from_buffer = vta::DataBuffer::FromHandle(from);
     from = from_buffer->virt_addr();
-    // LOG(WARNING) << "BufferCopy from " << from << ", from_offset " << from_offset << ", size = " << size;
   }
   if (kind_mask & 1) {
     to_buffer = vta::DataBuffer::FromHandle(to);
     to = to_buffer->virt_addr();
-    // LOG(WARNING) << "BufferCopy to " << to << ", to_offset " << to_offset << ", size = " << size;
   }
 
   if (from_buffer) {
     // This is an FPGA to host mem transfer
+    // NOTE: Issue synchronize manually as we delay the copy until we do it synchronously and explicitly
+    VTASynchronize(VTATLSCommandHandle(), 1<<31, false);
     from_buffer->InvalidateCache(from_offset, size);
     from_buffer->MemCopyToHost(static_cast<char*>(to) + to_offset,
                                static_cast<const char*>(from) + from_offset, size);
@@ -1323,6 +1423,6 @@ int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid) {
   return 0;
 }
 
-void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles) {
-  static_cast<vta::CommandQueue*>(cmd)->Synchronize(wait_cycles);
-}
+void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles, bool skip) {
+  static_cast<vta::CommandQueue*>(cmd)->
+      Synchronize(wait_cycles, skip); }
