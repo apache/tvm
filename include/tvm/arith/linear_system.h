@@ -38,7 +38,7 @@ using tir::IterVar;
 
 /*!
  * \brief Represent a linear system including variables, their ranges and
- *        the linear relations between them (either equations or inequalities)
+ *        the relations between them (either equations or inequalities).
  * \sa LinearSystem
  */
 class LinearSystemNode : public Object {
@@ -139,8 +139,9 @@ class LinearSystemTransform : public ObjectRef {
 /*!
  * \brief Obtain Smith Normal Form of linear equation A x = y.
  *        Smith Normal Form of matrix A_{mxn} is S_{mxn} = U_{mxm} A_{mxn} V_{nxn},
- *        in which S_{mxn} is diag(s1, s2, ..., sr, 0, ..., 0),
- *        such that si | s_{i+1} and r is the rank of A.
+ *        in which S_{mxn} is diag(s1, s2, ..., sr, 0, ..., 0) and r is the rank of A.
+ *        NOTE: Although in standard Smith Normal Form the diagonal elements satisfy
+ *              s_i | s_{i+1} (| means divides), the implement here does not guarantee it.
  *        U_{mxm} and V_{nxn} are invertible matrices.
  *        This function modifies \p S to be S_{mxn}, \p V to be V_{nxn},
  *        \p y to be U_{mxm} y_{mx1} and \p x to be V^{-1} x.

@@ -312,6 +312,8 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
           } else {
             // elements in matrix S V must be integers
             // ignore equations that we cannot deal with.
+            LOG(WARNING) << "Cannot deal with non-integer coefficients, ignore equation "
+                         << equation;
             row.clear();
             break;
           }
@@ -379,11 +381,11 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
   // suppose the rank of A is r, aka r = # of non-zeros in S
   // the solution of S_{mxn} V^{-1}_{nxn} x_{nx1} = U b
   // is
-  // x = (pseudo-inverse of A) b + K_{n, n-r} z_{n-r}
-  //   = V_{n,n} S^{-1}_{n,m} (Ub)_{mxn} + K_{n, n-r} z_{n-r}
+  // x = (pseudo-inverse of A) b + K_{(n)x(n-r)} z_{n-r}
+  //   = V_{nxn} S^{-1}_{nxm} (Ub)_{mxn} + K_{(n)x(n-r)} z_{n-r}
   // in which K is the right n-r columns of V, z is variable vector
   // thus,
-  // V^{-1} x = S^{-1}_{n,m} (Ub)_{mxn} +
+  // V^{-1} x = S^{-1}_{nxm} (Ub)_{mxn} +
   //            [[0, ... 0]_{n-r}, ... [0, ..., 0], diag(1, ..., 1)_{(n-r)x(n-r)}] z_{n-r}
   for (size_t j = 0; j < num_vars; ++j) {
     if (j >= S.size() || S[j][j] == 0) {
@@ -469,6 +471,8 @@ TVM_REGISTER_GLOBAL("arith.SolveEquations")
     } else if (args.size() == 3) {
       LinearSystem problem(args[0], args[1], args[2]);
       *ret = SolveEquations(problem);
+    } else {
+      LOG(FATAL) << "arith.SolveEquations expects 1 or 3 arguments, gets " << args.size();
     }
   });
 
