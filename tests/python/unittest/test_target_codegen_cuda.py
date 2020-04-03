@@ -348,6 +348,55 @@ def test_cuda_floordiv_with_vectorization():
         func(a_nd, b_nd)
         tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
 
+def test_vectorized_casts():
+    if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+        print("skip because cuda is not enabled..")
+        return
+
+    def check(t0, t1):
+        if (t0 ==  "float16" or t1 == "float16") and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
+            return
+
+        # compute
+        n = 128
+        A = te.placeholder((n,), dtype=t0, name='A')
+        B = te.placeholder((n,), dtype=t1, name='B')
+        C = te.compute((n,), lambda i: A[i] + topi.cast(B[i], A.dtype), name='C')
+
+        # schedule
+        s = tvm.te.create_schedule(C.op)
+        ob, ib = s[C].split(s[C].op.axis[0], nparts=32)
+        _, iib = s[C].split(ib, factor=4)
+        s[C].vectorize(iib)
+        s[C].bind(ob, tx)
+        func = tvm.build(s, [A, B, C], "cuda")
+
+        # correctness
+        ctx = tvm.gpu(0)
+        low, high = (0, 20) if t0.startswith('u') or t1.startswith('u') else (-10, 10)
+        a_np = np.random.randint(low, high, size=n).astype(A.dtype)
+        b_np = np.random.randint(low, high, size=n).astype(B.dtype)
+        c_np = (a_np + b_np).astype(A.dtype)
+        a_nd = tvm.nd.array(a_np, ctx)
+        b_nd = tvm.nd.array(b_np, ctx)
+        c_nd = tvm.nd.array(np.zeros(c_np.shape, dtype=c_np.dtype), ctx)
+        func(a_nd, b_nd, c_nd)
+        tvm.testing.assert_allclose(c_nd.asnumpy(), c_np, rtol=1e-3)
+
+    def skip(t0, t1):
+        if t0 == t1:
+            return True
+        # CUDA does support cast between {u}int8 and fp16.
+        skip_set = {"float16", "uint8", "int8"}
+        if t0 in skip_set and t1 in skip_set:
+            return True
+        return False
+
+    types = ["float16", "float32", "int8", "uint8", "int16", "uint16", "int32", "uint32"]
+    for t0, t1 in [(x, y) for x in types for y in types if not skip(x, y)]:
+        check(t0, t1)
+
 def sched(B):
     s = te.create_schedule(B.op)
     io, ii = s[B].split(s[B].op.axis[0], nparts=1)
@@ -474,6 +523,7 @@ if __name__ == "__main__":
     test_cuda_make_int8x4()
     test_cuda_inf_nan()
     test_cuda_shuffle()
+    test_vectorized_casts()
     test_cuda_reducition_binding()
     test_rfactor_predicates()
     test_cuda_const_float_to_half()
