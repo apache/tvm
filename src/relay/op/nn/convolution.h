@@ -409,7 +409,7 @@ bool Conv3DWinogradWeightTransformRel(const Array<Type>& types,
   // Shape of packed weights depends on whether depth is being transformed or not.
   Array<IndexExpr> oshape({0, 0, 0, data->shape[1], data->shape[0]});
   auto* depth_imm = data->shape[2].as<IntImmNode>();
-  bool transform_depth = (depth_imm->value > 2) and (depth_imm->value < 8);
+  bool transform_depth = (depth_imm->value > 2)&&(depth_imm->value < 8);
   if (transform_depth) {
     oshape.Set(0, param->tile_size + data->shape[2] - 1);
     oshape.Set(1, param->tile_size + data->shape[3] - 1);

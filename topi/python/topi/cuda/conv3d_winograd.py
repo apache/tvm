@@ -179,7 +179,7 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
 
     pf, pt, pl, pb, pd, pr = nn.get_pad_tuple3d(padding, (KD, KH, KW))
     data_pad = nn.pad(data, (0, 0, pf, pt, pl), (0, 0, pb, pd, pr), name="data_pad")
-    out_depth = simplify((D - KD + pf + pb ) // DSTR + 1)
+    out_depth = simplify((D - KD + pf + pb) // DSTR + 1)
     D += pf + pb
 
     r = KW
@@ -202,10 +202,11 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
         else:
             r_kh = te.reduce_axis((0, KH), name='r_kh')
             r_kw = te.reduce_axis((0, KW), name='r_kw')
-            kernel_pack = te.compute((alpha, alpha, KD, CI, CO), lambda eps, nu, d, ci, co:
-                                    te.sum(kernel[co][ci][d][r_kh][r_kw] *
-                                            G[eps][r_kh] * G[nu][r_kw],
-                                            axis=[r_kh, r_kw]), name='kernel_pack')
+            kernel_pack = te.compute(
+                (alpha, alpha, KD, CI, CO),
+                lambda eps, nu, d, ci, co: te.sum(
+                    kernel[co][ci][d][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
+                name='kernel_pack')
     else:
         kernel_pack = kernel
 
@@ -213,7 +214,8 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
     idxmod = tvm.tir.indexmod
     # pack input tile
     input_tile = te.compute((CI, D, P, alpha, alpha), lambda c, d, p, eps, nu:
-                            data_pad[idxdiv(p, (nH * nW))][c][d][idxmod(idxdiv(p, nW), nH) * m + eps]
+                            data_pad[idxdiv(p, (nH * nW))][c][d]
+                            [idxmod(idxdiv(p, nW), nH) * m + eps]
                             [idxmod(p, nW) * m + nu], name='d')
 
     # transform data
@@ -577,13 +579,14 @@ def conv3d_ncdhw_winograd(cfg, data, kernel, strides, padding, dilation, out_dty
     if 2 < KD < 8 and KD == KH:
         return winograd_cuda(
             cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False)
-    else:
-        return winograd_without_depth_cuda(
-            cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False)
+
+    return winograd_without_depth_cuda(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=False)
 
 
 @autotvm.register_topi_schedule("conv3d_ncdhw_winograd.cuda")
 def schedule_conv3d_ncdhw_winograd(cfg, outs):
+    """Dispatch to schedule approriate for conv3d winograd algorithm used."""
     s = te.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -604,9 +607,9 @@ def conv3d_ncdhw_winograd_without_weight_transform(cfg, data, kernel, strides, p
     if A == B == C:
         return winograd_cuda(
             cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=True)
-    else:
-        return winograd_without_depth_cuda(
-            cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=True)
+
+    return winograd_without_depth_cuda(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, pre_computed=True)
 
 
 @autotvm.register_topi_schedule("conv3d_ncdhw_winograd_without_weight_transform.cuda")
