@@ -41,6 +41,8 @@ __all__ = ["from_chainer"]
 _function_types = (function.Function, function_node.FunctionNode)
 
 def default_layout(dims):
+    """ A helper function to get default layout.
+    """
     if dims == 1:
         return 'NCW'
     elif dims == 2:
@@ -52,6 +54,8 @@ def default_layout(dims):
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 def dimension_picker(prefix, suffix=''):
+    """ A helper function to get dimensions.
+    """
     def _impl(attr):
         kernel = attr['pool_size']
         if len(kernel) == 1:
@@ -67,6 +71,8 @@ def dimension_picker(prefix, suffix=''):
     return _impl
 
 def dimension_constraint():
+    """ A helper function to restric dimensions.
+    """
     def _dim_check(attrs):
         if len(attrs['pool_size']) in [1, 2, 3]:
             return True
