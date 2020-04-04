@@ -371,9 +371,7 @@ def build(inputs,
     elif isinstance(inputs, tvm.IRModule):
         input_mod = inputs
     elif not isinstance(inputs, (dict, container.Map)):
-        raise ValueError("inputs must be Schedule, LoweredFunc, list of "
-                         "LoweredFunc, or dict of target to list of "
-                         "LoweredFunc.")
+        raise ValueError("inputs must be Schedule, IRModule or dict of target to IRModule")
 
     if not isinstance(inputs, (dict, container.Map)):
         target = _target.Target.current() if target is None else target
@@ -387,9 +385,8 @@ def build(inputs,
             raise ValueError("The key of inputs must be str or "
                              "_target.Target when inputs is dict.")
         if not isinstance(mod, tvm.IRModule):
-            raise ValueError("inputs must be Schedule, LoweredFunc, IRModule,"
-                             "or dict of str to list of "
-                             "LoweredFunc.")
+            raise ValueError("inputs must be Schedule, IRModule,"
+                             "or dict of str to IRModule.")
 
     if not target_host:
         for tar, _ in target_input_mod.items():

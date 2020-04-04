@@ -80,8 +80,8 @@ struct GraphCodegen {
     return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<std::string, IRModule> GetLoweredFunc() {
-    return CallFunc<Map<std::string, IRModule>>("get_lowered_funcs", nullptr);
+  Map<std::string, IRModule> GetIRModule() {
+    return CallFunc<Map<std::string, IRModule>>("get_irmodule", nullptr);
   }
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
@@ -151,9 +151,9 @@ class RelayBuildModule : public runtime::ModuleNode {
           this->SetParam(kv.first, kv.second->data);
         }
       });
-    } else if (name == "get_lowered_funcs") {
+    } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetLoweredFunc();
+          *rv = this->graph_codegen_->GetIRModule();
       });
     } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -451,7 +451,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    auto lowered_funcs = graph_codegen_->GetLoweredFunc();
+    auto lowered_funcs = graph_codegen_->GetIRModule();
 
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {

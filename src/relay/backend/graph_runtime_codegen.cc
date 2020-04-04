@@ -646,7 +646,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
         CHECK_GT(this->output_.params.count(key), 0);
         *rv = this->output_.params[key];
       });
-    } else if (name == "get_lowered_funcs") {
+    } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.lowered_funcs;
       });

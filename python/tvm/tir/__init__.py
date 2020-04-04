@@ -29,7 +29,7 @@ from .expr import IterVar, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, ProducerConsumer, For
 from .stmt import BufferStore, Store, Provide, Allocate, AttrStmt, Free, Realize, SeqStmt
-from .stmt import IfThenElse, Evaluate, Prefetch, LoweredFunc, stmt_seq, stmt_list
+from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 
 from .function import PrimFunc
 

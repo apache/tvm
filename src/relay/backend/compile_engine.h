@@ -27,7 +27,6 @@
 
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/tir/lowered_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>

@@ -105,13 +105,6 @@ TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
       });
   });
 
-TVM_REGISTER_GLOBAL("ir_pass.LowerStorageAccess")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  LoweredFunc f = args[0];
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = LowerStorageAccessInfo(f->body);
-  *ret = LoweredFunc(n);
-});
 
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \

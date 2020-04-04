@@ -34,7 +34,6 @@
 #include <tvm/support/with.h>
 #include <tvm/ir/module.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/tir/lowered_func.h>
 
 #include <string>
 #include <vector>
@@ -44,7 +43,7 @@
 
 namespace tvm {
 /*!
-* \brief Build a LoweredFunc given a schedule, args and binds
+* \brief Build an IRModule given a schedule, args and binds
 * \param sch The schedule to lower.
 * \param args The arguments to the function.
 * \param name The name of the lowered function.

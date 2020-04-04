@@ -994,29 +994,6 @@ class VectorAllocRewriter : public StmtExprMutator {
 };
 
 
-LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  VectorAllocRewriter rewriter;
-  n->body = rewriter(n->body);
-  for (Var arg : f->args) {
-    if (arg.dtype().is_handle()) {
-      const auto& tvec = rewriter.acc_map_[arg.get()];
-      if (tvec.size() == 1) {
-        PrimExpr dtype = make_const(tvec[0], 0);
-        n->handle_data_type.Set(arg, dtype);
-      } else {
-        // always set data type to be non vectorized so
-        // load/store can still work via scalarization
-        if (tvec.size() != 0 && !n->handle_data_type.count(arg)) {
-          PrimExpr dtype = make_const(tvec[0].with_lanes(1), 0);
-          n->handle_data_type.Set(arg, dtype);
-        }
-      }
-    }
-  }
-  return LoweredFunc(n);
-}
-
 PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   auto* n = f.CopyOnWrite();
   VectorAllocRewriter rewriter;

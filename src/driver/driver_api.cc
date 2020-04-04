@@ -41,7 +41,6 @@ namespace tvm {
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 using runtime::PackedFunc;
-using tir::LoweredFunc;
 
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("target.build.llvm");
