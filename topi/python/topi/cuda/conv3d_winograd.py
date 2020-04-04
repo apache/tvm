@@ -56,7 +56,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         alpha = KW + tile_size - 1
         assert DSTR == 1 and HSTR == 1 and WSTR == 1 and KD == KH and KH == KW
     else:
-        # kernel tensor is pre-transfomred. this op is created by alter op layout.
+        # kernel tensor is pre-transformed. this op is created by alter op layout.
         # dilation is not supported
         alpha, _, _, CO, CI = get_const_tuple(kernel.shape)
         KD = KH = KW = alpha + 1 - tile_size

@@ -322,7 +322,7 @@ struct Conv3DWinogradAttrs : public tvm::AttrsNode<Conv3DWinogradAttrs> {
 
   TVM_DECLARE_ATTRS(Conv3DWinogradAttrs, "relay.attrs.Conv3DWinogradAttrs") {
     TVM_ATTR_FIELD(tile_size)
-      .describe("The tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)");
+      .describe("The tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)");
     TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1, 1}))
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0, 0}))

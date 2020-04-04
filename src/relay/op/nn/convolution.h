@@ -365,16 +365,13 @@ bool Conv3DRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
 
 
 // Winograd convolution shape relations
-template<typename AttrType>
-bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
-                                      int num_inputs,
-                                      const Attrs& attrs,
-                                      const TypeReporter& reporter) {
+inline bool Conv2DWinogradWeightTransformRel(const Array<Type>& types, int num_inputs,
+                                             const Attrs& attrs, const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
-  const ConvWinogradWeightTransformAttrs* param = attrs.as<AttrType>();
+  const ConvWinogradWeightTransformAttrs* param = attrs.as<ConvWinogradWeightTransformAttrs>();
   CHECK(param != nullptr);
 
   CHECK_EQ(data->shape.size(), 4) << "Only support NCHW normal kernel layout";
@@ -391,17 +388,13 @@ bool Conv2DWinogradWeightTransformRel(const Array<Type>& types,
   return true;
 }
 
-
-template <typename AttrType>
-bool Conv3DWinogradWeightTransformRel(const Array<Type>& types,
-                                      int num_inputs,
-                                      const Attrs& attrs,
-                                      const TypeReporter& reporter) {
+inline bool Conv3DWinogradWeightTransformRel(const Array<Type>& types, int num_inputs,
+                                             const Attrs& attrs, const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
-  const ConvWinogradWeightTransformAttrs* param = attrs.as<AttrType>();
+  const ConvWinogradWeightTransformAttrs* param = attrs.as<ConvWinogradWeightTransformAttrs>();
   CHECK(param != nullptr);
 
   CHECK_EQ(data->shape.size(), 5) << "Only support NCDHW normal kernel layout";
@@ -424,19 +417,17 @@ bool Conv3DWinogradWeightTransformRel(const Array<Type>& types,
   return true;
 }
 
-
-template <typename AttrType>
-bool Conv2DWinogradNNPACKWeightTransformRel(const Array<Type>& types,
-                                            int num_inputs,
-                                            const Attrs& attrs,
-                                            const TypeReporter& reporter) {
+inline bool Conv2DWinogradNNPACKWeightTransformRel(const Array<Type>& types, int num_inputs,
+                                                   const Attrs& attrs,
+                                                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
     return false;
   }
 
-  const Conv2DWinogradNNPACKWeightTransformAttrs* param = attrs.as<AttrType>();
+  const Conv2DWinogradNNPACKWeightTransformAttrs* param =
+      attrs.as<Conv2DWinogradNNPACKWeightTransformAttrs>();
   CHECK(param != nullptr);
 
   CHECK_EQ(data->shape.size(), 4) << "Only support NCHW normal kernel layout";
@@ -455,7 +446,6 @@ bool Conv2DWinogradNNPACKWeightTransformRel(const Array<Type>& types,
   reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), out_dtype));
   return true;
 }
-
 
 template<typename AttrType>
 bool Conv2DWinogradRel(const Array<Type>& types,

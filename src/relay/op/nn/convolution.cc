@@ -327,7 +327,7 @@ TVM_REGISTER_GLOBAL("relay.op.nn._make.conv2d_transpose")
 });
 
 RELAY_REGISTER_OP("nn.conv2d_transpose")
-    .describe(R"code(Transposed 2D convolution layer (sometimes called Deconvolution).
+.describe(R"code(Transposed 2D convolution layer (sometimes called Deconvolution).
 
 The need for transposed convolutions generally arises
 from the desire to use a transformation going in the opposite direction
@@ -475,8 +475,7 @@ weight transformation in advance.
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
-.add_type_rel("Conv2DWinogradWeightTransform",
-              Conv2DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
+.add_type_rel("Conv2DWinogradWeightTransform", Conv2DWinogradWeightTransformRel);
 
 // relay.nn.contrib_conv3d_winograd_without_weight_transform
 TVM_REGISTER_NODE_TYPE(Conv3DWinogradAttrs);
@@ -542,8 +541,7 @@ weight transformation in advance.
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
-.add_type_rel("Conv3DWinogradWeightTransform",
-              Conv3DWinogradWeightTransformRel<ConvWinogradWeightTransformAttrs>);
+.add_type_rel("Conv3DWinogradWeightTransform", Conv3DWinogradWeightTransformRel);
 
 
 // relay.nn.contrib_conv2d_winograd_nnpack_weight_transform
@@ -574,8 +572,7 @@ weight transformation in advance.
 .set_num_inputs(1)
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(10)
-.add_type_rel("Conv2DWinogradNNPACKWeightTransform",
-              Conv2DWinogradNNPACKWeightTransformRel<Conv2DWinogradNNPACKWeightTransformAttrs>);
+.add_type_rel("Conv2DWinogradNNPACKWeightTransform", Conv2DWinogradNNPACKWeightTransformRel);
 
 
 // Positional relay function to create conv2d NCHWc operator
