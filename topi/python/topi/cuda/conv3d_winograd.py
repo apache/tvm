@@ -58,7 +58,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
     else:
         # kernel tensor is pre-transfomred. this op is created by alter op layout.
         # dilation is not supported
-        alpha, _, _, CI, CO = get_const_tuple(kernel.shape)
+        alpha, _, _, CO, CI = get_const_tuple(kernel.shape)
         KD = KH = KW = alpha + 1 - tile_size
         assert DSTR == 1 and HSTR == 1 and WSTR == 1 and \
                dilation_d == 1 and dilation_h == 1 and dilation_w == 1
@@ -81,7 +81,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
         # Check if we are currently tuning, if so we want to avoid counting
         # prepacking in time costs. Just use a placeholder with the packed shape instead.
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            kernel_pack = te.placeholder((alpha, alpha, alpha, CI, CO),
+            kernel_pack = te.placeholder((alpha, alpha, alpha, CO, CI),
                                          dtype=kernel.dtype,
                                          name='kernel_pack')
         else:
@@ -89,8 +89,8 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
             r_kh = te.reduce_axis((0, KH), name='r_kh')
             r_kw = te.reduce_axis((0, KW), name='r_kw')
             kernel_pack = te.compute(
-                (alpha, alpha, alpha, CI, CO),
-                lambda omg, eps, nu, ci, co: te.sum(
+                (alpha, alpha, alpha, CO, CI),
+                lambda omg, eps, nu, co, ci: te.sum(
                     kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
                     axis=[r_kd, r_kh, r_kw]),
                 name='kernel_pack')
@@ -124,7 +124,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, out_dtype, pre_
     bgemm = te.compute(
         (alpha, alpha, alpha, CO, P),
         lambda omg, eps, nu, co, p: te.sum(
-            kernel_pack[omg][eps][nu][ci][co] * data_pack[omg][eps][nu][ci][p], axis=[ci]),
+            kernel_pack[omg][eps][nu][co][ci] * data_pack[omg][eps][nu][ci][p], axis=[ci]),
         name='bgemm')
 
     # inverse transform
@@ -173,7 +173,7 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
     else:
         # kernel tensor is pre-transfomred. this op is created by alter op layout.
         # dilation is not supported
-        alpha, _, KD, CI, CO = get_const_tuple(kernel.shape)
+        alpha, _, KD, CO, CI = get_const_tuple(kernel.shape)
         KH = KW = alpha + 1 - tile_size
         assert HSTR == 1 and WSTR == 1 and dilation_h == 1 and dilation_w == 1
 
@@ -196,15 +196,15 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
         # During autotuning dont count kernel packing as a time cost
         # as it will later be removed via alter_op_layout.
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            kernel_pack = te.placeholder((alpha, alpha, KD, CI, CO),
+            kernel_pack = te.placeholder((alpha, alpha, KD, CO, CI),
                                          dtype=kernel.dtype,
                                          name='kernel_pack')
         else:
             r_kh = te.reduce_axis((0, KH), name='r_kh')
             r_kw = te.reduce_axis((0, KW), name='r_kw')
             kernel_pack = te.compute(
-                (alpha, alpha, KD, CI, CO),
-                lambda eps, nu, d, ci, co: te.sum(
+                (alpha, alpha, KD, CO, CI),
+                lambda eps, nu, d, co, ci: te.sum(
                     kernel[co][ci][d][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
                 name='kernel_pack')
     else:
@@ -229,7 +229,7 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
     ci = te.reduce_axis((0, CI), name='ci')
     rz = te.reduce_axis((0, KD), name='rz')
     bgemm = te.compute((alpha, alpha, CO, out_depth, P), lambda eps, nu, co, d, p:
-                       te.sum(kernel_pack[eps][nu][rz][ci][co] *
+                       te.sum(kernel_pack[eps][nu][rz][co][ci] *
                               data_pack[eps][nu][ci][d * DSTR + rz][p],
                               axis=[ci, rz]), name='bgemm')
 
@@ -288,14 +288,14 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     # transform kernel
     if not pre_computed and not autotvm.GLOBAL_SCOPE.in_tuning:
         kernel, G = s[kernel_pack].op.input_tensors
-        omg, eps, nu, ci, co = s[kernel_pack].op.axis
+        omg, eps, nu, co, ci = s[kernel_pack].op.axis
         s[G].compute_inline()
         r_a, r_b, r_c = s[kernel_pack].op.reduce_axis
         # Could add additional unrolling by omg, eps, nu in the future.
         for axis in [r_a, r_b, r_c]:
             s[kernel_pack].unroll(axis)
 
-        fused = s[kernel_pack].fuse(ci, co)
+        fused = s[kernel_pack].fuse(co, ci)
         bb, tt = s[kernel_pack].split(fused, 128)
         s[kernel_pack].reorder(bb, tt, omg, eps, nu, r_a, r_b, r_c)
         s[kernel_pack].bind(bb, te.thread_axis("blockIdx.x"))
@@ -446,13 +446,13 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
     # transform kernel
     if not pre_computed and not autotvm.GLOBAL_SCOPE.in_tuning:
         kernel, G = s[kernel_pack].op.input_tensors
-        eps, nu, kd, ci, co = s[kernel_pack].op.axis
+        eps, nu, kd, co, ci = s[kernel_pack].op.axis
         s[G].compute_inline()
         r_a, r_b = s[kernel_pack].op.reduce_axis
         for axis in [eps, nu, r_a, r_b]:
             s[kernel_pack].unroll(axis)
 
-        fused = s[kernel_pack].fuse(kd, ci, co)
+        fused = s[kernel_pack].fuse(kd, co, ci)
         bb, tt = s[kernel_pack].split(fused, 128)
         s[kernel_pack].reorder(bb, tt, eps, nu, r_a, r_b)
         s[kernel_pack].bind(bb, te.thread_axis("blockIdx.x"))

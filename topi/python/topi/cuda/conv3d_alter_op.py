@@ -79,11 +79,11 @@ def _alter_conv3d_layout(attrs, inputs, tinfos, out_type):
         # Check if depth is transformed or not
         if 2 < KD < 8 and KD == KH:
             new_weight = te.placeholder(
-                (KD + tile_size - 1, KH + tile_size - 1, KW + tile_size - 1, CI, CO),
+                (KD + tile_size - 1, KH + tile_size - 1, KW + tile_size - 1, CO, CI),
                 dtype=kernel.dtype)
         else:
             new_weight = te.placeholder(
-                (KH + tile_size - 1, KW + tile_size - 1, KD, CI, CO),
+                (KH + tile_size - 1, KW + tile_size - 1, KD, CO, CI),
                 dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_weight, strides, padding, dilation, out_dtype],

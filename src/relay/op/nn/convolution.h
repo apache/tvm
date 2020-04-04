@@ -407,7 +407,7 @@ bool Conv3DWinogradWeightTransformRel(const Array<Type>& types,
   CHECK_EQ(data->shape.size(), 5) << "Only support NCDHW normal kernel layout";
 
   // Shape of packed weights depends on whether depth is being transformed or not.
-  Array<IndexExpr> oshape({0, 0, 0, data->shape[1], data->shape[0]});
+  Array<IndexExpr> oshape({0, 0, 0, data->shape[0], data->shape[1]});
   auto* depth_imm = data->shape[2].as<IntImmNode>();
   bool transform_depth = (depth_imm->value > 2)&&(depth_imm->value < 8);
   if (transform_depth) {

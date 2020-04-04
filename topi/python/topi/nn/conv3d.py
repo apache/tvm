@@ -193,19 +193,19 @@ def conv3d_winograd_weight_transform(kernel, tile_size):
     r_kw = te.reduce_axis((0, KW), name='r_kw')
     _, _, G = winograd_transform_matrices(tile_size, KH, kernel.dtype)
     if depth_transform:
-        shape = (r, r, r, CI, CO)
+        shape = (r, r, r, CO, CI)
         r_kd = te.reduce_axis((0, KD), name='r_kd')
         return te.compute(
             shape,
-            lambda omg, eps, nu, ci, co: te.sum(
+            lambda omg, eps, nu, co, ci: te.sum(
                 kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
                 axis=[r_kd, r_kh, r_kw]),
             name='transform_weight')
     else:
-        shape = (r, r, KD, CI, CO)
+        shape = (r, r, KD, CO, CI)
         return te.compute(
             shape,
-            lambda eps, nu, d, ci, co: te.sum(
+            lambda eps, nu, d, co, ci: te.sum(
                 kernel[co][ci][d][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
             name='transform_weight')
 
