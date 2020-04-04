@@ -33,7 +33,8 @@ namespace tvm {
 namespace relay {
 namespace annotate_target {
 
-static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
+const PackedFunc* begin_op = runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
+const PackedFunc* end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
 
 // A helper class to insert annotation boundaries for a program region that will
 // be handled by a specific compiler.
@@ -90,7 +91,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     return new_op;
   }
 
-  Expr VisitExpr_(const CallNode* cn) {
+  Expr VisitExpr_(const CallNode* cn) final {
     Op op = Downcast<Op>(cn->op);
     CHECK(op.defined());
 
@@ -126,7 +127,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     return std::move(call);
   }
 
-  Expr VisitExpr_(const TupleNode* op) {
+  Expr VisitExpr_(const TupleNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<Tuple>(new_e);
 
@@ -136,19 +137,17 @@ class AnnotateTargetWrapper : public ExprMutator {
     return new_expr;
   }
 
-  Expr VisitExpr_(const TupleGetItemNode* op) {
+  Expr VisitExpr_(const TupleGetItemNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<TupleGetItem>(new_e);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->tuple}));
-
-    std::string target = std::get<0>(target_n_args);
     auto new_expr = TupleGetItem(std::get<1>(target_n_args)[0], expr->index);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return new_expr;
   }
 
-  Expr VisitExpr_(const FunctionNode* fn) {
+  Expr VisitExpr_(const FunctionNode* fn) final {
     Function func;
     Expr new_body;
     // don't step into composite functions
@@ -167,34 +166,29 @@ class AnnotateTargetWrapper : public ExprMutator {
     return Function(func->params, new_body, func->ret_type, func->type_params, func->attrs);
   }
 
-  Expr VisitExpr_(const LetNode* op) {
+  Expr VisitExpr_(const LetNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
-    auto expr = Downcast<Let>(new_e);
+    auto let = Downcast<Let>(new_e);
 
-    std::vector<Expr> args = {expr->value, expr->body};
-    auto target_n_args = AnnotateArgs(Array<Expr>(args));
-
-    std::string target = std::get<0>(target_n_args);
-    auto new_expr = Let(expr->var, std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
+    auto target_n_args = AnnotateArgs({let->value, let->body});
+    auto new_expr = Let(let->var, std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return new_expr;
   }
 
-  Expr VisitExpr_(const IfNode* op) {
+  Expr VisitExpr_(const IfNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<If>(new_e);
 
-    std::vector<Expr> args = {expr->cond, expr->true_branch, expr->false_branch};
-    auto target_n_args = AnnotateArgs(Array<Expr>(args));
-
-    std::string target = std::get<0>(target_n_args);
+    auto target_n_args = AnnotateArgs({expr->cond, expr->true_branch, expr->false_branch});
+    CHECK_EQ(std::get<1>(target_n_args).size(), 3U);
     auto new_expr = If(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1],
                        std::get<1>(target_n_args)[2]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return new_expr;
   }
 
-  Expr VisitExpr_(const RefCreateNode* op) {
+  Expr VisitExpr_(const RefCreateNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<RefCreate>(new_e);
 
@@ -204,24 +198,21 @@ class AnnotateTargetWrapper : public ExprMutator {
     return new_expr;
   }
 
-  Expr VisitExpr_(const RefReadNode* op) {
+  Expr VisitExpr_(const RefReadNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<RefRead>(new_e);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref}));
-
     auto new_expr = RefRead(std::get<1>(target_n_args)[0]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return new_expr;
   }
 
-  Expr VisitExpr_(const RefWriteNode* op) {
+  Expr VisitExpr_(const RefWriteNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<RefWrite>(new_e);
 
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref, expr->value}));
-
-    std::string target = std::get<0>(target_n_args);
     auto new_expr = RefWrite(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
     return new_expr;
@@ -232,11 +223,9 @@ class AnnotateTargetWrapper : public ExprMutator {
   Array<runtime::String> targets_;
   /*! \brief Maintain the decision of the target for each op expr. */
   std::unordered_map<Expr, std::string, ObjectHash, ObjectEqual> op_expr_to_target_;
-  const PackedFunc* begin_op = runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
-  const PackedFunc* end_op = runtime::Registry::Get("relay.op.annotation._make.compiler_end");
 };
 
-Expr AnnotateTarget(const Expr& expr, const Array<runtime::String> targets) {
+Expr AnnotateTarget(const Expr& expr, const Array<runtime::String>& targets) {
   return AnnotateTargetWrapper(targets).Mutate(expr);
 }
 
@@ -244,7 +233,7 @@ Expr AnnotateTarget(const Expr& expr, const Array<runtime::String> targets) {
 
 namespace transform {
 
-Pass AnnotateTarget(const Array<runtime::String> targets) {
+Pass AnnotateTarget(const Array<runtime::String>& targets) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, targets));
