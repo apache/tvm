@@ -248,7 +248,7 @@ def winograd_without_depth_cuda(cfg, data, kernel, strides, padding, dilation, o
                                 idxmod(h, m),
                                 idxmod(w, m)],
                         name='output', tag='conv3d_ncdhw_winograd_without_depth')
-    cfg.add_flop(2 * N * CO * D * H * W * CI * KH * KW)
+    cfg.add_flop(2 * N * CO * D * H * W * CI * KD * KH * KW)
 
     return output
 
