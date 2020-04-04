@@ -199,6 +199,9 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
 
   // Post order tree
   void VisitExpr_(const FunctionNode* op) final {
+    if (op->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+      return;
+    }
     for (auto param : op->params) {
       this->Update(param, nullptr, kOpaque);
     }

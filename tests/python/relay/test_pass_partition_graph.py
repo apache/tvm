@@ -457,10 +457,8 @@ def test_extern_dnnl_mobilenet():
         batch_size=1, dtype='float32')
 
     mod = transform.AnnotateTarget(["dnnl"])(mod)
-    mod = transform.MergeCompilerRegions()
+    mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
-    # FIXME(@comaniac): Still try to fuse global function when lowering
-    print(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
     ref_mod, params = relay.testing.mobilenet.get_workload(batch_size=1,
