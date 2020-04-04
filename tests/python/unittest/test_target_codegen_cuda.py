@@ -321,6 +321,33 @@ def test_cuda_reduction():
     check_cuda("float32")
     check_cuda("float16")
 
+def test_cuda_mix_threaded_and_normal_reduction():
+    def check_cuda(dtype, m=32, n=32):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
+            return
+
+        a = tvm.te.placeholder((m, n), name="a", dtype=dtype)
+        b = topi.sum(a)
+        with tvm.target.cuda():
+            sb = tvm.te.create_schedule(b.op)
+            i, _ = b.op.reduce_axis
+            sb[b].bind(i, tvm.te.thread_axis("threadIdx.x"))
+            ctx = tvm.gpu(0)
+            func = tvm.build(sb, [a, b], 'cuda')
+            a_np = np.random.uniform(size=(m, n)).astype(a.dtype)
+            b_np = np.sum(a_np)
+            a_nd = tvm.nd.array(a_np, ctx)
+            b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), ctx)
+            func(a_nd, b_nd)
+            tvm.testing.assert_allclose(b_nd.asnumpy(), b_np, rtol=1e-3)
+
+    check_cuda("float32")
+    check_cuda("float16")
+
 def test_cuda_floordiv_with_vectorization():
     if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
         print("skip because cuda is not enabled..")
@@ -528,6 +555,7 @@ if __name__ == "__main__":
     test_rfactor_predicates()
     test_cuda_const_float_to_half()
     test_cuda_reduction()
+    test_cuda_mix_threaded_and_normal_reduction()
     test_cuda_floordiv_with_vectorization()
     test_vectorized_intrin1()
     test_vectorized_intrin2()
