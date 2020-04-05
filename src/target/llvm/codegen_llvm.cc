@@ -448,7 +448,7 @@ CodeGenLLVM::CreateDebugInfo(llvm::Module* module) {
   auto debug_info = llvm::make_unique<CodeGenLLVM::DebugInfo>();
   debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
 #endif
-  // TODO(tulloch): pass this information through relay::Span classes to the LoweredFunc instance?
+  // TODO(tulloch): pass this information through relay::Span classes to the IRModule instance?
   debug_info->file_ = debug_info->di_builder_->createFile("model.tvm", "/tmp/");
   debug_info->compilation_unit_ = debug_info->di_builder_->createCompileUnit(
       llvm::dwarf::DW_LANG_C, debug_info->file_, "TVM", 0, "", 0, "",

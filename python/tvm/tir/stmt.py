@@ -385,14 +385,6 @@ class Prefetch(Stmt):
             _ffi_api.Prefetch, func, value_index, dtype, bounds)
 
 
-@tvm._ffi.register_object
-class LoweredFunc(Object):
-    """Represent a LoweredFunc in TVM."""
-    MixedFunc = 0
-    HostFunc = 1
-    DeviceFunc = 2
-
-
 def stmt_seq(*args):
     """Make sequence of statements
 
