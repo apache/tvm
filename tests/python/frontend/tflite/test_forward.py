@@ -1631,7 +1631,9 @@ def test_forward_mobilenet_v2():
 
 def test_forward_mobilenet_v3():
     """Test the Mobilenet V3 TF Lite model."""
-    # MobilenetV3
+    # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
+    if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
+        return
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_float.tgz",
         "v3-large_224_1.0_float/v3-large_224_1.0_float.tflite")
@@ -1747,7 +1749,10 @@ def test_forward_qnn_mobilenet_v2_net():
 
 def test_forward_qnn_mobilenet_v3_net():
     """Test the Quantized TFLite Mobilenet V3 model."""
-    # MobilenetV3
+    # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
+    if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
+        return
+
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_uint8.tgz",
         "v3-large_224_1.0_uint8/v3-large_224_1.0_uint8.tflite")
