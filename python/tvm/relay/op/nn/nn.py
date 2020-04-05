@@ -328,7 +328,7 @@ def contrib_conv3d_winograd_without_weight_transform(data,
         The weight expressions.
 
     tile_size : int
-        The Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+        The Tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)
 
     strides : tuple of int, optional
         The strides of convolution.
@@ -2012,7 +2012,7 @@ def contrib_conv3d_winograd_weight_transform(weight,
         The weight expressions.
 
     tile_size : int
-        The Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+        The Tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)
 
     Returns
     -------
