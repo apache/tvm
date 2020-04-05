@@ -238,9 +238,9 @@ def test_fastmath():
         check_device('llvm -device=arm-cpu')
 
 
-    test_apply(topi.fast_expØ, "fast_exp", np.exp,
+    test_apply(topi.fast_exp, "fast_exp", np.exp,
                low=-88, high=88, step=0.01)
-    test_apply(topi.fast_tanh, "fast_erf", scipy.special.erf,
+    test_apply(topi.fast_erf, "fast_erf", scipy.special.erf,
                low=-10, high=10, step=0.01)
     test_apply(topi.fast_tanh, "fast_tanh", np.tanh,
                low=-10, high=10, step=0.01)

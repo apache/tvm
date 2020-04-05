@@ -42,7 +42,7 @@ class FastMathMutator : public ExprRewriter {
     if (pre->op == exp_op_) {
       return FastExp(post.as<CallNode>()->args[0]);
     } else if (pre->op == erf_op_) {
-      return FastErf(new_n.as<CallNode>()->args[0]);
+      return FastErf(post.as<CallNode>()->args[0]);
     } else if (pre->op == tanh_op_) {
       return FastTanh(post.as<CallNode>()->args[0]);
     }

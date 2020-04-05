@@ -536,7 +536,6 @@ def fast_tanh(x):
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
 
 
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def fast_erf(x):
     """Take gauss error function of input x using fast_erf implementation.
 
