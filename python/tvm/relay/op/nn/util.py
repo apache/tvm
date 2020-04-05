@@ -54,3 +54,46 @@ def get_pad_tuple2d(padding):
     pad_top = (pad_h + 1) // 2
     pad_left = (pad_w + 1) // 2
     return pad_top, pad_left, pad_h - pad_top, pad_w - pad_left
+
+
+def get_pad_tuple3d(padding):
+    """Common code to get the pad option
+    Parameters
+    ----------
+    padding : Union[int, Tuple[int, ...]]
+        Padding size
+    Returns
+    -------
+    pad_front : int
+        Padding size on front
+    pad_top : int
+        Padding size on top
+    pad_left : int
+        Padding size on left
+    pad_back : int
+        Padding size on back
+    pad_down : int
+        Padding size on down.
+    pad_right : int
+        Padding size on right.
+    """
+    # compute the padding size
+    if isinstance(padding, container.Array):
+        padding = list(padding)
+    if isinstance(padding, (tuple, list)):
+        if len(padding) == 3:
+            pad_d = padding[0] * 2
+            pad_h = padding[1] * 2
+            pad_w = padding[2] * 2
+        elif len(padding) == 6:
+            return padding[0], padding[1], padding[2], padding[3], padding[4], padding[5]
+        else:
+            raise ValueError("Size of padding can only be 3 or 6")
+    elif isinstance(padding, int):
+        pad_d = pad_h = pad_w = padding * 2
+    else:
+        raise ValueError("Unknown padding option %s" % padding)
+    pad_front = (pad_d + 1) // 2
+    pad_top = (pad_h + 1) // 2
+    pad_left = (pad_w + 1) // 2
+    return pad_front, pad_top, pad_left, pad_d - pad_front, pad_h - pad_top, pad_w - pad_left

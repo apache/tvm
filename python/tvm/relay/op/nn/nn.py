@@ -19,7 +19,7 @@
 from __future__ import absolute_import as _abs
 from ...expr import TupleWrapper
 from . import _make
-from .util import get_pad_tuple2d
+from .util import get_pad_tuple2d, get_pad_tuple3d
 
 
 def conv1d(data,
@@ -295,11 +295,82 @@ def conv3d(data,
         strides = (strides, strides, strides)
     if isinstance(dilation, int):
         dilation = (dilation, dilation, dilation)
-    if isinstance(padding, int):
-        padding = (padding, padding, padding)
+    padding = get_pad_tuple3d(padding)
     return _make.conv3d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         kernel_layout, out_layout, out_dtype)
+
+
+def contrib_conv3d_winograd_without_weight_transform(data,
+                                                     weight,
+                                                     tile_size,
+                                                     strides=(1, 1, 1),
+                                                     padding=(0, 0, 0),
+                                                     dilation=(1, 1, 1),
+                                                     groups=1,
+                                                     channels=None,
+                                                     kernel_size=None,
+                                                     data_layout="NCDHW",
+                                                     kernel_layout="OIDHW",
+                                                     out_layout="",
+                                                     out_dtype=""):
+    r"""3D convolution with winograd algorithm.
+
+    The basic parameters are the same as the ones in vanilla conv3d.
+    It assumes the weight is pre-transformed by nn.contrib_conv3d_winograd_weight_transform
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    tile_size : int
+        The Tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)
+
+    strides : tuple of int, optional
+        The strides of convolution.
+
+    padding : tuple of int, optional
+        The padding of convolution on both sides of inputs before convolution.
+
+    dilation : tuple of int, optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    channels : int, optional
+        Number of output channels of this convolution.
+
+    kernel_size : tuple of int, optional
+        The spatial of the convolution kernel.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    kernel_layout : str, optional
+        Layout of the weight.
+
+    out_layout : str, optional
+        Layout of the output, by default, out_layout is the same as data_layout
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    # convert 3-way padding to 6-way padding
+    padding = get_pad_tuple3d(padding)
+    return _make.contrib_conv3d_winograd_without_weight_transform(
+        data, weight, tile_size, strides, padding, dilation,
+        groups, channels, kernel_size, data_layout,
+        kernel_layout, out_layout, out_dtype)
 
 
 def conv2d_transpose(data,
@@ -1950,6 +2021,29 @@ def contrib_conv2d_winograd_weight_transform(weight,
         The computed result.
     """
     return _make.contrib_conv2d_winograd_weight_transform(weight, tile_size)
+
+
+def contrib_conv3d_winograd_weight_transform(weight,
+                                             tile_size):
+    r"""Weight Transformation part for 3D convolution with winograd algorithm.
+
+    We separate this as a single op to enable pre-compute for inference.
+    Use this together with nn.contrib_conv3d_winograd_without_weight_transform
+
+    Parameters
+    ----------
+    weight : tvm.relay.Expr
+        The weight expressions.
+
+    tile_size : int
+        The Tile size of winograd. E.g. 2 for F(2x2x2, 3x3x3) and 4 for F(4x4x4, 3x3x3)
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.contrib_conv3d_winograd_weight_transform(weight, tile_size)
 
 
 def contrib_conv2d_winograd_nnpack_weight_transform(weight,

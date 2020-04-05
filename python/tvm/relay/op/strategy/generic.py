@@ -374,6 +374,19 @@ def conv3d_strategy(attrs, inputs, out_type, target):
         raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
 
+# conv3d_winograd_without_weight_transform
+@override_native_generic_func("conv3d_winograd_without_weight_transform_strategy")
+def conv3d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv3d_winograd_without_weight_transform")
+
+# conv3d_winograd_weight_transform
+@generic_func
+def schedule_conv3d_winograd_weight_transform(attrs, outs, target):
+    """Schedule conv3d_winograd_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv3d_winograd_weight_transform(outs)
+
 # conv1d
 def wrap_compute_conv1d(topi_compute):
     """wrap conv1d topi compute"""
