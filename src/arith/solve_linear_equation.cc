@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file tvm/arith/linear_solver.cc
+ * \file tvm/arith/solve_linear_equation.cc
  * \brief Solve linear equations.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/arith/analyzer.h>
-#include <tvm/arith/linear_system.h>
+#include <tvm/arith/int_solver.h>
 #include <tvm/arith/util.h>
 #include <tvm/tir/op.h>
 #include <tvm/arith/pattern.h>
@@ -266,7 +266,7 @@ void DebugPrint(const std::vector<std::vector<int64_t>>& S,
   std::cout << "\n" << std::endl;
 }
 
-LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
+IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_solve) {
   // m: # of equations
   // n: # of variables
   // we first construct A_{mxn} x_{nx1} = y_{mx1}
@@ -364,9 +364,9 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
     new_relation = analyzer_problem.Simplify(new_relation);
     if (tir::is_const_int(new_relation, 0)) {
       // unable to solve the system.
-      return LinearSystemTransform(
+      return IntConstraintsTransform(
           system_to_solve,
-          LinearSystem(
+          IntConstraints(
               /*variables=*/{},
               /*ranges=*/{},
               /*relations=*/{te::make_zero(DataType::Bool())}),
@@ -457,22 +457,22 @@ LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve) {
     new_relations.push_back(Substitute(cond, old_to_new_map));
   }
 
-  LinearSystem solution(new_vars, new_ranges, new_relations);
-  LinearSystemTransform transform(
+  IntConstraints solution(new_vars, new_ranges, new_relations);
+  IntConstraintsTransform transform(
       system_to_solve, solution, old_to_new_map, new_to_old_map);
 
   return transform;
 }
 
-TVM_REGISTER_GLOBAL("arith.SolveEquations")
+TVM_REGISTER_GLOBAL("arith.SolveLinearEquations")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args.size() == 1) {
-      *ret = SolveEquations(args[0]);
+      *ret = SolveLinearEquations(args[0]);
     } else if (args.size() == 3) {
-      LinearSystem problem(args[0], args[1], args[2]);
-      *ret = SolveEquations(problem);
+      IntConstraints problem(args[0], args[1], args[2]);
+      *ret = SolveLinearEquations(problem);
     } else {
-      LOG(FATAL) << "arith.SolveEquations expects 1 or 3 arguments, gets " << args.size();
+      LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
     }
   });
 

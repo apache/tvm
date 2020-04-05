@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file linear_system.cc
- * \brief The linear system data structures.
+ * \file int_constraints.cc
+ * \brief The integer constraints data structures.
  */
-#include <tvm/arith/linear_system.h>
+#include <tvm/arith/int_solver.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/runtime/registry.h>
@@ -33,22 +33,26 @@
 namespace tvm {
 namespace arith {
 
-LinearSystem::LinearSystem(Array<Var> variables,
-                           Map<Var, Range> ranges,
-                           Array<PrimExpr> relations) {
-  ObjectPtr<LinearSystemNode> node = make_object<LinearSystemNode>();
+IntConstraints::IntConstraints(Array<Var> variables,
+                               Map<Var, Range> ranges,
+                               Array<PrimExpr> relations) {
+  ObjectPtr<IntConstraintsNode> node = make_object<IntConstraintsNode>();
+  for (const auto& var : variables) {
+    CHECK(var.dtype().is_int() || var.dtype().is_uint())
+      << "Variables in IntConstraints must be integers";
+  }
   node->variables = std::move(variables);
   node->ranges = std::move(ranges);
   node->relations = std::move(relations);
   data_ = std::move(node);
 }
 
-TVM_REGISTER_NODE_TYPE(LinearSystemNode);
+TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<LinearSystemNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const LinearSystemNode*>(node.get());
-    p->stream << "LinearSystem("
+.set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const IntConstraintsNode*>(node.get());
+    p->stream << "IntConstraints("
               << op->variables
               << ", " << op->ranges
               << ", " << op->relations
@@ -56,11 +60,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 
-LinearSystemTransform::LinearSystemTransform(LinearSystem src,
-                                             LinearSystem dst,
-                                             Map<Var, PrimExpr> src_to_dst,
-                                             Map<Var, PrimExpr> dst_to_src) {
-  ObjectPtr<LinearSystemTransformNode> node = make_object<LinearSystemTransformNode>();
+IntConstraintsTransform::IntConstraintsTransform(IntConstraints src,
+                                                 IntConstraints dst,
+                                                 Map<Var, PrimExpr> src_to_dst,
+                                                 Map<Var, PrimExpr> dst_to_src) {
+  ObjectPtr<IntConstraintsTransformNode> node = make_object<IntConstraintsTransformNode>();
   node->src = std::move(src);
   node->dst = std::move(dst);
   node->src_to_dst = std::move(src_to_dst);
@@ -68,12 +72,12 @@ LinearSystemTransform::LinearSystemTransform(LinearSystem src,
   data_ = std::move(node);
 }
 
-TVM_REGISTER_NODE_TYPE(LinearSystemTransformNode);
+TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<LinearSystemTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const LinearSystemTransformNode*>(node.get());
-    p->stream << "LinearSystemTransform("
+.set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const IntConstraintsTransformNode*>(node.get());
+    p->stream << "IntConstraintsTransform("
               << "\n\t" << op->src
               << "\n\t" << op->dst
               << "\n\t" << op->src_to_dst

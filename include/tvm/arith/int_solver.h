@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/arith/linear_system.h
- * \brief Linear system data structures and solvers
+ * \file tvm/arith/int_solver.h
+ * \brief integer constraints data structures and solvers
  */
-#ifndef TVM_ARITH_LINEAR_SYSTEM_H_
-#define TVM_ARITH_LINEAR_SYSTEM_H_
+#ifndef TVM_ARITH_INT_SOLVER_H_
+#define TVM_ARITH_INT_SOLVER_H_
 
 #include <tvm/ir/expr.h>
 #include <tvm/tir/expr.h>
@@ -37,13 +37,13 @@ using tir::VarNode;
 using tir::IterVar;
 
 /*!
- * \brief Represent a linear system including variables, their ranges and
+ * \brief Represent integer constrains including (integer) variables, their ranges and
  *        the relations between them (either equations or inequalities).
  * \sa LinearSystem
  */
-class LinearSystemNode : public Object {
+class IntConstraintsNode : public Object {
  public:
-  // e.g., \alpha, \beta
+  // e.g., \alpha, \beta, must be integers
   Array<Var> variables;
   // e.g., 1 <= \alpha <= N, etc.
   Map<Var, Range> ranges;
@@ -57,32 +57,32 @@ class LinearSystemNode : public Object {
     v->Visit("relations", &relations);
   }
 
-  static constexpr const char* _type_key = "arith.LinearSystem";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LinearSystemNode, Object);
+  static constexpr const char* _type_key = "arith.IntConstraints";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsNode, Object);
 };
 
 /*!
- * \brief Managed reference to LinearSystemNode.
- * \sa LinearSystemNode
+ * \brief Managed reference to IntConstraintsNode.
+ * \sa IntConstraintsNode
  */
-class LinearSystem : public ObjectRef {
+class IntConstraints : public ObjectRef {
  public:
   /*!
    * \brief Constructor by fields
-   * \param variables The variables in the system.
+   * \param variables The variables in the constraints, must be integers.
    * \param ranges    The ranges of the variables.
    * \param relations The linear relations between the variables
    *                  (either equations or inequalities)
    */
-  TVM_DLL LinearSystem(Array<Var> variables,
-                       Map<Var, Range> ranges,
-                       Array<PrimExpr> relations);
+  TVM_DLL IntConstraints(Array<Var> variables,
+                         Map<Var, Range> ranges,
+                         Array<PrimExpr> relations);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LinearSystem, ObjectRef, LinearSystemNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(IntConstraints, ObjectRef, IntConstraintsNode);
 };
 
 /*!
- * \brief We can have different set of variables to represent the same linear system.
+ * \brief We can have different set of variables to represent the same constraints.
  *        For example, the following two systems are equivalent,
  *        {a + b = 0 | a >= 0, b >= 0} and
  *        {m - n = 0 | m >= 0, n <= 0}
@@ -93,12 +93,12 @@ class LinearSystem : public ObjectRef {
  *        dst        : {m - n = 0 | m >= 0, n <= 0}
  *        src_to_dst : {a -> m, b -> -n}
  *        dst_to_src : {m -> a, n -> -b}
- * \sa LinearSystemTransform
+ * \sa IntConstraintsTransform
  */
-class LinearSystemTransformNode : public Object {
+class IntConstraintsTransformNode : public Object {
  public:
-  LinearSystem src;
-  LinearSystem dst;
+  IntConstraints src;
+  IntConstraints dst;
   Map<Var, PrimExpr> src_to_dst;
   Map<Var, PrimExpr> dst_to_src;
 
@@ -109,31 +109,32 @@ class LinearSystemTransformNode : public Object {
     v->Visit("dst_to_src", &dst_to_src);
   }
 
-  static constexpr const char* _type_key = "arith.LinearSystemTransform";
-  TVM_DECLARE_FINAL_OBJECT_INFO(LinearSystemTransformNode, Object);
+  static constexpr const char* _type_key = "arith.IntConstraintsTransform";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsTransformNode, Object);
 };
 
 /*!
- * \brief Managed reference to LinearSystemTransformNode.
- * \sa LinearSystemTransformNode
+ * \brief Managed reference to IntConstraintsTransformNode.
+ * \sa IntConstraintsTransformNode
  */
-class LinearSystemTransform : public ObjectRef {
+class IntConstraintsTransform : public ObjectRef {
  public:
   /*!
    * \brief Constructor by fields
-   * \param src        source linear system, e.g., {a + b = 0 | a >= 0, b >= 0}
-   * \param dst        linear system equivalent to the source, e.g., {m - n = 0 | m >= 0, n <= 0}
+   * \param src        source integer constraints, e.g., {a + b = 0 | a >= 0, b >= 0}
+   * \param dst        integer constraints equivalent to the source,
+   *                   e.g., {m - n = 0 | m >= 0, n <= 0}
    * \param src_to_dst mapping from variables in the \p src to the variables in the \p dst,
    *                   e.g., {a -> m, b -> -n}
    * \param dst_to_src mapping from variables in the \p dst to the variables in the \p src,
    *                   e.g., {m -> a, n -> -b}
    */
-  TVM_DLL LinearSystemTransform(LinearSystem src,
-                                LinearSystem dst,
-                                Map<Var, PrimExpr> src_to_dst,
-                                Map<Var, PrimExpr> dst_to_src);
+  TVM_DLL IntConstraintsTransform(IntConstraints src,
+                                  IntConstraints dst,
+                                  Map<Var, PrimExpr> src_to_dst,
+                                  Map<Var, PrimExpr> dst_to_src);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(LinearSystemTransform, ObjectRef, LinearSystemTransformNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(IntConstraintsTransform, ObjectRef, IntConstraintsTransformNode);
 };
 
 /*!
@@ -165,8 +166,8 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t>> *S,
  *          as well as inequalities inferred from the \p system_to_solve.
  *          You can get the mapping from the original variables to the solution via ret->src_to_dst.
  */
-LinearSystemTransform SolveEquations(const LinearSystem& system_to_solve);
+IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_solve);
 
 }  // namespace arith
 }  // namespace tvm
-#endif  // TVM_ARITH_LINEAR_SYSTEM_H_
+#endif  // TVM_ARITH_INT_SOLVER_H_

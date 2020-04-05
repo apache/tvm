@@ -103,14 +103,14 @@ def test_solution_consistency():
             relations.append(op(s1, s2))
 
         vranges = {v: tvm.ir.expr.Range(bounds[0], bounds[1] + 1) for v in variables}
-        solution = arith.solve_equations(relations, variables, vranges)
+        solution = arith.solve_linear_equations(relations, variables, vranges)
 
         check_solution(solution)
 
         # leaving some variables as parameters should also be ok
         for k in [1, 2]:
             if len(variables) > k:
-                solution = arith.solve_equations(relations, variables[:-k], vranges)
+                solution = arith.solve_linear_equations(relations, variables[:-k], vranges)
                 param_ranges = {v: vranges[v] for v in variables[-k:]}
                 check_solution(solution, param_ranges)
 
@@ -144,7 +144,7 @@ def test_unique_solution():
     x, y = te.var("x"), te.var("y")
     ranges = {}
 
-    solution = arith.solve_equations([
+    solution = arith.solve_linear_equations([
         tvm.tir.EQ(x + y, 20),
         tvm.tir.EQ(x - y, 10),
     ], [x, y], ranges)
@@ -157,7 +157,7 @@ def test_low_rank():
     x, y, z = te.var("x"), te.var("y"), te.var("z")
     ranges = {}
 
-    solution = arith.solve_equations([
+    solution = arith.solve_linear_equations([
         tvm.tir.EQ(x + y + z, 15),
         tvm.tir.EQ(x + y, 10),
     ], [x, y, z], ranges)
@@ -174,7 +174,7 @@ def test_infer_range():
         y: tvm.ir.Range.make_by_min_extent(0, 10),
     }
 
-    solution = arith.solve_equations([
+    solution = arith.solve_linear_equations([
         tvm.tir.EQ(x + y, 0),
     ], [x, y], ranges)
     [n0] = solution.dst.variables
@@ -193,7 +193,7 @@ def test_infer_range():
 def test_ill_formed():
     x, y = te.var("x"), te.var("y")
 
-    solution = arith.solve_equations([
+    solution = arith.solve_linear_equations([
         tvm.tir.EQ(x + y, 0),
         tvm.tir.EQ(x - y, 0),
         tvm.tir.EQ(x, 5),
