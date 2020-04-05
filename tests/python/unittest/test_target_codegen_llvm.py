@@ -22,6 +22,7 @@ import numpy as np
 import ctypes
 import math
 
+
 def test_llvm_intrin():
     ib = tvm.tir.ir_builder.create()
     n = tvm.runtime.convert(4)
@@ -34,7 +35,8 @@ def test_llvm_intrin():
         tvm.tir.Call(
             "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
     body = ib.get()
-    func = tvm.tir.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
+
+    func = tvm.testing.MakeAPILegacy(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
 
 
@@ -85,7 +87,7 @@ def test_llvm_lookup_intrin():
     x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.tir.const(1, 'uint32'), A)
     ib.emit(x)
     body = ib.get()
-    func = tvm.tir.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
+    func = tvm.testing.MakeAPILegacy(body, "ctpop", [A], 1, True)
     fcode = tvm.build(func, None, "llvm")
 
 
@@ -307,8 +309,9 @@ def test_multiple_func():
         f2 = tvm.lower(s, [A, B, C], name="fadd1")
         f1 = tvm.lower(s, [A, B, C], name="fadd2")
         m = tvm.build([f1, f2], "llvm")
-        fadd1 = m['fadd1']
         fadd2 = m['fadd2']
+        fadd1 = m['fadd1']
+
         ctx = tvm.cpu(0)
         # launch the kernel.
         n = nn
@@ -665,6 +668,7 @@ def test_llvm_shuffle():
         tvm.testing.assert_allclose(c_.asnumpy(), (a_.asnumpy() * 2).astype('int32'))
 
 if __name__ == "__main__":
+    test_multiple_func()
     test_llvm_large_uintimm()
     test_llvm_import()
     test_alignment()
@@ -676,7 +680,6 @@ if __name__ == "__main__":
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()
-    test_multiple_func()
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()
     test_llvm_temp_space()

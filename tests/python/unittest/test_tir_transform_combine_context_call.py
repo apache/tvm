@@ -36,12 +36,7 @@ def test_for():
             ib.emit(tvm.tir.call_extern
                     ("int32", "fadd", device_context(0), A))
     body = ib.get()
-    f = tvm.tir.ir_pass.MakeAPI(body, "func", [dev_type, n], 2, True)
-
-    # temp adapter to convert loweredFunc to IRModule
-    # to test passes in the new style.x
-    mod = tvm.testing.LoweredFuncsToIRModule([f])
-
+    mod = tvm.testing.MakeAPILegacy(body, "func", [dev_type, n], 2, True)
     mod = tvm.tir.transform.CombineContextCall()(mod)
 
     assert mod["func"].body.value.dtype == "handle"

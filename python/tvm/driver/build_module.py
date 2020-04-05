@@ -17,9 +17,6 @@
 
 # pylint: disable=invalid-name
 """The build utils in python.
-
-This module provides the functions to transform schedule to
-LoweredFunc and compiled Module.
 """
 import warnings
 
@@ -30,7 +27,6 @@ from tvm.ir import container
 from tvm.ir import CallingConv
 from tvm.target import codegen, BuildConfig
 from tvm.tir import ir_pass
-from tvm.tir.stmt import LoweredFunc
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm import target as _target
@@ -136,8 +132,8 @@ def lower(sch,
 
     Returns
     -------
-    f : LoweredFunc or Stmt
-       The result function, if with_api_wrapper=False
+    m : IRModule or Stmt
+       The result IRModule, if simple_mode=False
        Then the Stmt before make api is returned.
     """
     cfg = BuildConfig.current()
@@ -199,16 +195,21 @@ def lower(sch,
     if simple_mode:
         return stmt
 
-    return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
+    f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
+        "global_symbol", tvm.runtime.String(name))
+    if cfg.restricted_func:
+        f = f.with_attr("tir.no_alias", True)
+    mod = tvm.IRModule({name: f})
+    return tvm.tir.transform.MakePackedAPI()(mod)
 
 
-def _build_for_device(flist, target, target_host):
+def _build_for_device(input_mod, target, target_host):
     """Build the lowered functions for a device with the given compilation
     target.
 
     Parameters
     ----------
-    flist : list of LoweredFunc
+    input_mod : IRModule
         The schedule to be built.
 
     target : str or :any:`tvm.target.Target`
@@ -219,8 +220,8 @@ def _build_for_device(flist, target, target_host):
 
     Returns
     -------
-    fhost : list of LoweredFunc
-        A list of lowered functions for the host.
+    fhost : IRModule
+        The host IRModule.
 
     mdev : tvm.module
         A module that contains device code.
@@ -229,14 +230,13 @@ def _build_for_device(flist, target, target_host):
     target_host = _target.create(target_host)
     device_type = ndarray.context(target.target_name, 0).device_type
 
-    for func in flist:
-        if not ir_pass.VerifyMemory(func, device_type):
-            raise ValueError(
-                "Direct host side access to device memory is detected in %s. "
-                "Did you forget to bind?" % func.name)
+    mod_mixed = input_mod
+    mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
+    tvm.tir.analysis.verify_memory(mod_mixed)
 
-    mod_mixed = tvm.testing.LoweredFuncsToIRModule(flist)
-    opt_mixed = [tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))]
+    opt_mixed = []
+    if len(mod_mixed.functions) == 1:
+        opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
     if BuildConfig.current().detect_global_barrier:
         opt_mixed += [tvm.tir.transform.ThreadSync("global")]
     opt_mixed += [tvm.tir.transform.ThreadSync("shared"),
@@ -292,7 +292,7 @@ def build(inputs,
 
     Parameters
     ----------
-    inputs : tvm.te.Schedule, LoweredFunc, or dict of target to LoweredFunc list
+    inputs : tvm.te.Schedule, IRModule, or dict of target to IRModule
         The schedule to be built
 
     args : list of Buffer or Tensor or Var, optional
@@ -326,7 +326,7 @@ def build(inputs,
     ________
     There are two typical example uses of this function depending on the type
     of the argument `inputs`:
-    1. it is a list of lowered functions:
+    1. it is an IRModule.
 
     .. code-block:: python
 
@@ -335,10 +335,10 @@ def build(inputs,
         B = te.placeholder((n,), name='B')
         C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
         s = tvm.te.create_schedule(C.op)
-        f = tvm.lower(s, [A, B, C], name="test_add")
-        m = tvm.build(f, target="llvm")
+        m = tvm.lower(s, [A, B, C], name="test_add")
+        rt_mod = tvm.build(m, target="llvm")
 
-    2. it is a dict of compilation target to list of lowered functions:
+    2. it is a dict of compilation target to IRModule.
 
     .. code-block:: python
 
@@ -349,9 +349,9 @@ def build(inputs,
         s1 = tvm.te.create_schedule(C.op)
         with tvm.target.cuda() as cuda_tgt:
           s2 = topi.cuda.schedule_injective(cuda_tgt, [C])
-          f1 = tvm.lower(s1, [A, B, C], name="test_add1")
-          f2 = tvm.lower(s2, [A, B, C], name="test_add2")
-          m = tvm.build({"llvm": [f1], "cuda": [f2]}, target_host="llvm")
+          m1 = tvm.lower(s1, [A, B, C], name="test_add1")
+          m2 = tvm.lower(s2, [A, B, C], name="test_add2")
+          rt_mod = tvm.build({"llvm": m1, "cuda": m2}, target_host="llvm")
 
     Note
     ----
@@ -360,45 +360,36 @@ def build(inputs,
     if isinstance(inputs, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
-        flist = lower(inputs, args,
-                      name=name,
-                      binds=binds)
-        if isinstance(flist, LoweredFunc):
-            flist = [flist]
-    elif isinstance(inputs, LoweredFunc):
-        if args:
-            raise ValueError("args must be done when build from LoweredFunc.")
-        flist = [inputs]
+        input_mod = lower(inputs, args,
+                          name=name,
+                          binds=binds)
     elif isinstance(inputs, (list, tuple, container.Array)):
-        flist = inputs
+        merged_mod = tvm.IRModule({})
+        for x in inputs:
+            merged_mod.update(x)
+        input_mod = merged_mod
+    elif isinstance(inputs, tvm.IRModule):
+        input_mod = inputs
     elif not isinstance(inputs, (dict, container.Map)):
-        raise ValueError("inputs must be Schedule, LoweredFunc, list of "
-                         "LoweredFunc, or dict of target to list of "
-                         "LoweredFunc.")
+        raise ValueError("inputs must be Schedule, IRModule or dict of target to IRModule")
 
     if not isinstance(inputs, (dict, container.Map)):
         target = _target.Target.current() if target is None else target
         target = target if target else "llvm"
-        target_flist = {target: flist}
+        target_input_mod = {target: input_mod}
     else:
-        target_flist = inputs
+        target_input_mod = inputs
 
-    for tar, flist in target_flist.items():
+    for tar, mod in target_input_mod.items():
         if not isinstance(tar, (str, _target.Target)):
             raise ValueError("The key of inputs must be str or "
                              "_target.Target when inputs is dict.")
-        fname_set = set()
-        for x in flist:
-            if not isinstance(x, LoweredFunc):
-                raise ValueError("inputs must be Schedule, LoweredFunc, list "
-                                 "of LoweredFunc, or dict of str to list of "
-                                 "LoweredFunc.")
-            if x.name in fname_set:
-                raise ValueError("Duplicate function name %s" % x.name)
-            fname_set.add(x.name)
+        if not isinstance(mod, tvm.IRModule):
+            raise ValueError("inputs must be Schedule, IRModule,"
+                             "or dict of str to IRModule.")
 
     if not target_host:
-        for tar, _ in target_flist.items():
+        for tar, _ in target_input_mod.items():
             tar = _target.create(tar)
             device_type = ndarray.context(tar.target_name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
@@ -410,8 +401,8 @@ def build(inputs,
     mod_host_all = tvm.IRModule({})
 
     device_modules = []
-    for tar, flist in target_flist.items():
-        mod_host, mdev = _build_for_device(flist, tar, target_host)
+    for tar, input_mod in target_input_mod.items():
+        mod_host, mdev = _build_for_device(input_mod, tar, target_host)
         mod_host_all.update(mod_host)
         device_modules.append(mdev)
 

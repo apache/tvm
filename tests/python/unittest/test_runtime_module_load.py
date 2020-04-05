@@ -57,8 +57,8 @@ def test_dso_module_load():
             tvm.tir.Store(Ab.data,
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1))
-        fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-        m = tvm.driver.build(fapi, target="llvm")
+        m = tvm.testing.MakeAPILegacy(stmt, "ramp", [Ab], 0, True)
+        m = tvm.driver.build(m, target="llvm")
         for name in names:
             m.save(name)
 

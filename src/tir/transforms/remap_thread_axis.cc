@@ -22,7 +22,8 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
+#include <tvm/runtime/registry.h>
 #include <unordered_map>
 
 
@@ -74,8 +75,8 @@ class ThreadAxisRewriter : private StmtExprMutator {
   std::unordered_map<const VarNode*, Var> vmap_;
 };
 
-LoweredFunc
-RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> thread_map) {
+
+PrimFunc RemapThreadAxis(PrimFunc&& f, Map<PrimExpr, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
     const StringImmNode* str = kv.first.as<StringImmNode>();
@@ -83,18 +84,33 @@ RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> thread_map) {
     tmap[str->value] = kv.second;
   }
 
-  CHECK_EQ(f->func_type, kDeviceFunc);
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
+  auto thread_axis = f->GetAttr<Array<IterVar> >(tir::attr::kDeviceThreadAxis);
+  auto* n = f.CopyOnWrite();
+
   // replace the thread axis
-  for (size_t i = 0; i < n->thread_axis.size(); ++i) {
-    auto it = tmap.find(n->thread_axis[i]->thread_tag);
+  for (size_t i = 0; i < thread_axis.size(); ++i) {
+    auto it = tmap.find(thread_axis[i]->thread_tag);
     if (it != tmap.end()) {
-      n->thread_axis.Set(i, it->second);
+      thread_axis.Set(i, it->second);
     }
   }
-  n->body = ThreadAxisRewriter(tmap).Rewrite(n->body);
-  return LoweredFunc(n);
+  n->body = ThreadAxisRewriter(tmap).Rewrite(std::move(n->body));
+  return WithAttr(std::move(f), tir::attr::kDeviceThreadAxis, thread_axis);
 }
 
+
+namespace transform {
+
+Pass RemapThreadAxis(Map<PrimExpr, IterVar> thread_map) {
+  auto pass_func = [thread_map](PrimFunc f, IRModule m, PassContext ctx) {
+    return RemapThreadAxis(std::move(f), thread_map);
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.RemapThreadAxis", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.RemapThreadAxis")
+.set_body_typed(RemapThreadAxis);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

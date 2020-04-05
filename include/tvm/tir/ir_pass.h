@@ -31,7 +31,6 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/function.h>
-#include <tvm/tir/lowered_func.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -367,60 +366,6 @@ Stmt HoistIfThenElse(Stmt stmt);
 Stmt NarrowDataType(Stmt stmt, int target_bits);
 
 /*!
- * \brief Make an user callable API LoweredFunc.
- *
- *  The main task of this function is to create code to :
- *   - Map the values in the api_args to Var that is required by body.
- *   - Insert assertions to check type/value of the passed arguments.
- *
- * \param body The body of the function.
- * \param name The name of the function.
- * \param api_args Arguments to the function, can be either Var, or Buffer
- * \param num_unpacked_args Number of arguments that
- *         are processed in plain form instead of packed form.
- * \param is_restricted Whether the caller can guarantee that each buffer argument do not overlap.
- *  It is recommended to set to true for optimized code if such invariant holds.
- *
- * \return a LoweredFunc with the specified signiture.
- *
- * \note
- *  The function signature have two cases
- *
- *  let num_packed_args = len(api_args) - num_unpacked_args;
- *
- *  if num_packed_args is zero:
- *     f(api_arg_0, api_arg_1, .., api_arg_n) where n == len(api_args)
- *
- *  if num_packed_args is not zero:
- *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
- *         api_arg_k, api_arg_k+1, ... api_arg_n,
- *         TVMValue* out_ret_val, int* out_ret_tcode)
- *
- *       where n == len(api_args), k == num_packed_args
- *
- *  There is no thread_axis in generated function.
- */
-LoweredFunc MakeAPI(Stmt body,
-                    std::string name,
-                    Array<ObjectRef> api_args,
-                    int num_unpacked_args,
-                    bool is_restricted);
-
-/*!
- * \brief Remap the thread axis
- *
- *  This can be used to get equivalent program which uses
- *  threadIdx.y in place of threadIdx.x by passing
- *  {"threadIdx.x": thread_axis("threadIdx.y")}
- *
- *
- * \param f The device function to be lowered.
- * \param axis_map The map from StringImm -> ItrVar
- * \return Transformed function.
- */
-LoweredFunc RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> axis_map);
-
-/*!
  * \brief Rewrite the pointer content type of arguments,
  *  as well as Alloc internal to the function to use
  *  the most frequently accessed type for load/store
@@ -431,31 +376,6 @@ LoweredFunc RemapThreadAxis(LoweredFunc f, Map<PrimExpr, IterVar> axis_map);
  * \return Transformed function.
  */
 PrimFunc PointerValueTypeRewrite(PrimFunc f);
-
-/*!
- * \brief Lower custom datatypes.
- *
- * See tvm::datatypes::Registry for more information on adding custom datatypes.
- *
- * \param f The device function to be lowered.
- * \param target The target device.
- * \return Transformed function.
- */
-LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target);
-
-/*!
- * \brief Verify if memory accesses are legal for a specific target device type.
- *
- *  In the case that tgt is cuda, if not all workload is bound with
- *  threads, CPU code is generated that tries to access GPU memory,
- *  which is illegal. This pass performs verification for this case.
- *
- * \param func The function to be verified.
- * \param device_type The target device type.
- * \return Success of memory verification.
- */
-bool VerifyMemory(LoweredFunc func, int device_type);
-
 
 /*!
  * \brief Verify the correctness of a GPU code

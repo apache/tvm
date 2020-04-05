@@ -297,6 +297,15 @@ class IRModule : public ObjectRef {
     CHECK(ptr != nullptr);
     return static_cast<IRModuleNode*>(ptr);
   }
+
+  /*!
+   * \brief Construct an empty module.
+   *
+   * \returns The constructed module
+   */
+  static IRModule Empty() {
+    return IRModule(Map<GlobalVar, BaseFunc>());
+  }
   /*!
    * \brief Construct a module from a standalone expression.
    *

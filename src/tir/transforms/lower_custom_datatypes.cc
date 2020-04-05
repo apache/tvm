@@ -22,7 +22,9 @@
  */
 
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
+#include <tvm/target/target.h>
+#include <tvm/runtime/registry.h>
 #include "../../target/datatype/registry.h"
 
 namespace tvm {
@@ -129,11 +131,26 @@ class CustomDatatypesLowerer : public StmtExprMutator {
   std::string target_;
 };
 
-LoweredFunc LowerCustomDatatypes(LoweredFunc f, const std::string& target) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = CustomDatatypesLowerer(target)(n->body);
-  return LoweredFunc(n);
+
+namespace transform {
+
+Pass LowerCustomDatatypes() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    CHECK(target.defined())
+        << "LowerCustomDatatypes: Require the target attribute";
+
+    n->body = CustomDatatypesLowerer(target->target_name)(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LowerCustomDatatypes", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.LowerCustomDatatypes")
+.set_body_typed(LowerCustomDatatypes);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

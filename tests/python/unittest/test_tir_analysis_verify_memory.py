@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import pytest
 from tvm import te
 
 # The following DLDeviceType/TVMDeviceExtType values
 # are originally defined in dlpack.h and c_runtime_api.h.
-gpu_devices = [2, 4, 7, 8, 10, 11]
-other_devices = [1, 3, 9, 12]
+gpu_devices = ["cuda", "opencl", "metal", "vulkan"]
+other_devices = ["llvm", "ext_dev"]
 
 
 def lower(sch, args):
@@ -39,8 +40,11 @@ def lower(sch, args):
     stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64)
-    func = tvm.tir.ir_pass.MakeAPI(stmt, "myadd", arg_list, 0, True)
-    return func
+
+    f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
+        "global_symbol", tvm.runtime.String("test"))
+    mod = tvm.IRModule({"test": f})
+    return tvm.tir.transform.MakePackedAPI()(mod)
 
 
 # All computations are bound.
@@ -57,10 +61,13 @@ def test_verify_memory_all_bind():
   s[B].bind(bx, te.thread_axis("blockIdx.x"))
   s[B].bind(tx, te.thread_axis("threadIdx.x"))
 
-  func = lower(s, [A, B])
+  mod = lower(s, [A, B])
 
   for dev_type in gpu_devices + other_devices:
-    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
+      binded_mod = tvm.tir.transform.Apply(
+          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+      tvm.tir.analysis.verify_memory(binded_mod)
+
 
 
 # Computations are not bound.
@@ -74,12 +81,18 @@ def test_verify_memory_not_bind():
   # B is not bound to threads.
   s = te.create_schedule(B.op)
 
-  func = lower(s, [A, B])
+  mod = lower(s, [A, B])
 
   for dev_type in gpu_devices:
-    assert not tvm.tir.ir_pass.VerifyMemory(func, dev_type)
+      binded_mod = tvm.tir.transform.Apply(
+          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+      with pytest.raises(ValueError):
+          tvm.tir.analysis.verify_memory(binded_mod)
+
   for dev_type in other_devices:
-    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
+      binded_mod = tvm.tir.transform.Apply(
+          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+      tvm.tir.analysis.verify_memory(binded_mod)
 
 
 # Computations are partially bound.
@@ -98,16 +111,22 @@ def test_verify_memory_partially_bind():
   s[C].bind(bx, te.thread_axis("blockIdx.x"))
   s[C].bind(tx, te.thread_axis("threadIdx.x"))
 
-  func = lower(s, [A, B, C, D])
+  mod = lower(s, [A, B, C, D])
 
   for dev_type in gpu_devices:
-    assert not tvm.tir.ir_pass.VerifyMemory(func, dev_type)
+      binded_mod = tvm.tir.transform.Apply(
+          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+      with pytest.raises(ValueError):
+          tvm.tir.analysis.verify_memory(binded_mod)
+
   for dev_type in other_devices:
-    assert tvm.tir.ir_pass.VerifyMemory(func, dev_type)
+      binded_mod = tvm.tir.transform.Apply(
+          lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
+      tvm.tir.analysis.verify_memory(binded_mod)
+
 
 
 if __name__ == "__main__":
   test_verify_memory_all_bind()
   test_verify_memory_not_bind()
   test_verify_memory_partially_bind()
-
