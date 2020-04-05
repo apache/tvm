@@ -29,7 +29,6 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/lowered_func.h>
 #include <tvm/runtime/container.h>
 #include <string>
 #include <vector>

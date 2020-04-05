@@ -31,29 +31,12 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/lowered_func.h>
 #include <unordered_map>
 #include <string>
 #include "../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
-// Extract function information from device function.
-inline std::unordered_map<std::string, runtime::FunctionInfo>
-ExtractFuncInfo(const Array<tir::LoweredFunc>& funcs) {
-  std::unordered_map<std::string, runtime::FunctionInfo> fmap;
-  for (tir::LoweredFunc f : funcs) {
-    runtime::FunctionInfo info;
-    for (size_t i = 0; i < f->args.size(); ++i) {
-      info.arg_types.push_back(f->args[i].dtype());
-    }
-    for (size_t i = 0; i < f->thread_axis.size(); ++i) {
-      info.thread_axis_tags.push_back(f->thread_axis[i]->thread_tag);
-    }
-    fmap[f->name] = info;
-  }
-  return fmap;
-}
 
 inline std::unordered_map<std::string, runtime::FunctionInfo>
 ExtractFuncInfo(const IRModule& mod) {

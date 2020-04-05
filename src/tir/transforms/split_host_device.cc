@@ -264,7 +264,6 @@ class HostDeviceSplitter : public StmtMutator {
   std::string name_prefix_;
   // Number of device functions.
   int device_func_counter_{0};
-  std::vector<LoweredFunc> device_funcs_;
   std::unordered_map<const VarNode*, PrimExpr> handle_data_type_;
 };
 
