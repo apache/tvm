@@ -170,6 +170,33 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     return libbin
 
 
+def _coremlc_path():
+    """Return coreml compiler path.
+    """
+    cmd = ["xcode-select", "-p"]
+    cp = subprocess.run(cmd, stdout=subprocess.PIPE)
+    if cp.returncode != 0:
+        raise RuntimeError("Failed to get xcode path.")
+    xcode_path = cp.stdout
+
+    return xcode_path.decode()[:-1] + "/usr/bin/coremlc"
+
+
+def compile_coreml(model, out_dir="."):
+    """Compile coreml model and return the compiled model path.
+    """
+    import coremltools
+    mlmodel_path = os.path.join(out_dir, "tmp.mlmodel")
+    model.save(mlmodel_path)
+
+    cmd = [_coremlc_path(), "compile", mlmodel_path, out_dir]
+    cp = subprocess.run(cmd)
+    if cp.returncode != 0:
+        raise RuntimeError("Failed to compile the coreml model.")
+
+    return os.path.join(out_dir, "tmp.mlmodelc")
+
+
 class XCodeRPCServer(object):
     """Wrapper for RPC server
 

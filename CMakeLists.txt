@@ -66,6 +66,7 @@ tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime sup
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
+tvm_option(USE_COREML "Build with coreml support" OFF)
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -261,6 +262,7 @@ include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
+include(cmake/modules/contrib/CoreML.cmake)
 
 if(NOT MSVC)
   include(CheckCXXCompilerFlag)
