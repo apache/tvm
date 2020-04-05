@@ -27,6 +27,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <topi/tags.h>
+#include <algorithm>
 #include <string>
 #include "broadcast.h"
 
