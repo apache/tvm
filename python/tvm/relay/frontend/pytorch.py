@@ -34,10 +34,12 @@ from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
+from ..prelude import Prelude, StaticTensorArrayOps
 
 from . import qnn_torch
 
 __all__ = ["from_pytorch"]
+
 
 # operator implementation
 def _elemwise(name):
@@ -1077,6 +1079,49 @@ def _Float():
         return _op.cast(inputs[0], "float32")
     return _impl
 
+
+def _stack():
+    def _impl(inputs, input_types):
+        if isinstance(inputs[0], list):
+            return _op.tensor.stack(inputs[0], 0)
+        else:
+            return _wrap_const(1)
+    return _impl
+
+
+def _mm():
+    def _impl(inputs, input_types):
+        return _op.nn.dense(inputs[0], inputs[1])
+    return _impl
+
+
+def _empty_list(prelude):
+    def _impl(inputs, input_types):
+        return prelude.nil()
+    return _impl
+
+
+def _cons_list(prelude):
+    def _impl(inputs, input_types):
+        tensor2 = prelude.get_var('tensor2', "float32")
+        return prelude.cons(tensor2(inputs[0]), inputs[1])
+    return _impl
+
+
+def _rev_list(prelude):
+    def _impl(inputs, input_types):
+        return prelude.rev(inputs[0])
+    return _impl
+
+
+def _tensor_array_stack(prelude):
+    def _impl(inputs, input_types):
+        stack = prelude.get_var('tensor_array_stack', "float32")
+        stacked = stack(inputs[0])
+        get_tensor_func = prelude.get_var("get_tensor2", "float32")
+        return get_tensor_func(stacked)
+    return _impl
+
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
     convert_torch_dtype_map = {7:"torch.float64",
@@ -1153,107 +1198,114 @@ def _wrap_const(c):
     return c
 
 # Operator mappings
-
-_convert_map = {
-    "aten::device"                          : _none(),
-    "aten::add"                             : _elemwise("add"),
-    "aten::add_"                            : _elemwise("add"),
-    "aten::sub"                             : _elemwise("subtract"),
-    "aten::sub_"                            : _elemwise("subtract"),
-    "aten::max"                             : _elemwise("maximum"),
-    "aten::min"                             : _elemwise("minimum"),
-    "aten::mul"                             : _elemwise("multiply"),
-    "aten::mul_"                            : _elemwise("multiply"),
-    "aten::pow"                             : _elemwise("power"),
-    "aten::div"                             : _elemwise("divide"),
-    "aten::div_"                            : _elemwise("divide"),
-    "aten::abs"                             : _abs(),
-    "aten::arange"                          : _arange(),
-    "aten::ones"                            : _ones(),
-    "aten::zeros"                           : _zeros(),
-    "aten::reciprocal"                      : _reciprocal(),
-    "aten::repeat"                          : _repeat(),
-    "aten::repeat_interleave"               : _repeat_interleave(),
-    "aten::to"                              : _to(),
-    "aten::squeeze"                         : _squeeze(),
-    "aten::unsqueeze"                       : _unsqueeze(),
-    "aten::cat"                             : _concatenate(),
-    "aten::slice"                           : _slice(),
-    "aten::split"                           : _split(),
-    "aten::split_with_sizes"                : _split_with_sizes(),
-    "aten::select"                          : _select(),
-    "aten::relu"                            : _relu(),
-    "aten::relu_"                           : _relu(),
-    "aten::prelu"                           : _prelu(),
-    "aten::leaky_relu"                      : _leaky_relu(),
-    "aten::elu"                             : _elu(),
-    "aten::celu"                            : _celu(),
-    "aten::gelu"                            : _gelu(),
-    "aten::selu"                            : _selu(),
-    "aten::log_sigmoid"                     : _log_sigmoid(),
-    "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
-    "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
-    "aten::max_pool2d"                      : _maxpool_2d(),
-    "aten::max_pool2d_with_indices"         : _maxpool_2d(),
-    "aten::max_pool1d"                      : _maxpool_1d(),
-    "aten::max_pool3d"                      : _maxpool_3d(),
-    "aten::hardtanh"                        : _hardtanh(),
-    "aten::hardtanh_"                       : _hardtanh(),
-    "aten::_convolution"                    : _convolution(),
-    "aten::softmax"                         : _softmax(),
-    "aten::threshold"                       : _threshold(),
-    "aten::threshold_"                      : _threshold(),
-    "aten::contiguous"                      : _contiguous(),
-    "aten::batch_norm"                      : _batch_norm(),
-    "aten::instance_norm"                   : _instance_norm(),
-    "aten::layer_norm"                      : _layer_norm(),
-    "aten::transpose"                       : _transpose(),
-    "aten::transpose_"                      : _transpose(),
-    "aten::t"                               : _transpose(),
-    "aten::flatten"                         : _flatten(),
-    "aten::addmm"                           : _dense(),
-    "aten::size"                            : _size(),
-    "aten::view"                            : _view(),
-    "aten::reshape"                         : _reshape(),
-    "aten::clone"                           : _clone(),
-    "aten::log_softmax"                     : _log_softmax(),
-    "aten::sigmoid"                         : _sigmoid(),
-    "aten::softplus"                        : _softplus(),
-    "aten::avg_pool2d"                      : _avg_pool2d(),
-    "aten::avg_pool3d"                      : _avg_pool3d(),
-    "aten::dropout"                         : _dropout(),
-    "aten::dropout_"                        : _dropout(),
-    "aten::feature_dropout"                 : _dropout(),
-    "aten::alpha_dropout"                   : _dropout(),
-    "aten::mean"                            : _mean(),
-    "aten::chunk"                           : _chunk(),
-    "aten::matmul"                          : _matmul(),
-    "aten::expand"                          : _expand(),
-    "aten::Int"                             : _int(),
-    "prim::NumToTensor"                     : _numtotensor(),
-    "prim::ListUnpack"                      : _identity(),
-    "aten::constant_pad_nd"                 : _pad(),
-    "aten::permute"                         : _transpose(),
-    "aten::sum"                             : _reduce("sum"),
-    "aten::prod"                            : _reduce("prod"),
-    "aten::sqrt"                            : _sqrt(),
-    'aten::floor'                           : _floor(),
-    "aten::detach"                          : _identity(),
-    "aten::upsample_bilinear2d"             : _upsample("bilinear"),
-    "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
-    "aten::expand_as"                       : _expand_as(),
-    "aten::lt"                              : _elemwise("less"),
-    "aten::gt"                              : _elemwise("greater"),
-    "aten::le"                              : _elemwise("less_equal"),
-    "aten::ge"                              : _elemwise("greater_equal"),
-    "aten::ne"                              : _elemwise("not_equal"),
-    "aten::Bool"                            : _Bool(),
-    "aten::Float"                           : _Float(),
-    "aten::neg"                             : _neg(),
-    "aten::tanh"                            : _tanh(),
-    "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
-    "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d()
-}
+def get_convert_map(prelude):
+    convert_map = {
+        "aten::device"                          : _none(),
+        "aten::add"                             : _elemwise("add"),
+        "aten::add_"                            : _elemwise("add"),
+        "aten::sub"                             : _elemwise("subtract"),
+        "aten::sub_"                            : _elemwise("subtract"),
+        "aten::max"                             : _elemwise("maximum"),
+        "aten::min"                             : _elemwise("minimum"),
+        "aten::mul"                             : _elemwise("multiply"),
+        "aten::mul_"                            : _elemwise("multiply"),
+        "aten::pow"                             : _elemwise("power"),
+        "aten::abs"                             : _abs(),
+        "aten::arange"                          : _arange(),
+        "aten::div"                             : _elemwise("divide"),
+        "aten::div_"                            : _elemwise("divide"),
+        "aten::ones"                            : _ones(),
+        "aten::zeros"                           : _zeros(),
+        "aten::reciprocal"                      : _reciprocal(),
+        "aten::repeat"                          : _repeat(),
+        "aten::repeat_interleave"               : _repeat_interleave(),
+        "aten::to"                              : _to(),
+        "aten::squeeze"                         : _squeeze(),
+        "aten::unsqueeze"                       : _unsqueeze(),
+        "aten::cat"                             : _concatenate(),
+        "aten::slice"                           : _slice(),
+        "aten::split"                           : _split(),
+        "aten::split_with_sizes"                : _split_with_sizes(),
+        "aten::select"                          : _select(),
+        "aten::relu"                            : _relu(),
+        "aten::relu_"                           : _relu(),
+        "aten::prelu"                           : _prelu(),
+        "aten::leaky_relu"                      : _leaky_relu(),
+        "aten::elu"                             : _elu(),
+        "aten::celu"                            : _celu(),
+        "aten::gelu"                            : _gelu(),
+        "aten::selu"                            : _selu(),
+        "aten::log_sigmoid"                     : _log_sigmoid(),
+        "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
+        "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),
+        "aten::max_pool2d"                      : _maxpool_2d(),
+        "aten::max_pool2d_with_indices"         : _maxpool_2d(),
+        "aten::max_pool1d"                      : _maxpool_1d(),
+        "aten::max_pool3d"                      : _maxpool_3d(),
+        "aten::hardtanh"                        : _hardtanh(),
+        "aten::hardtanh_"                       : _hardtanh(),
+        "aten::_convolution"                    : _convolution(),
+        "aten::softmax"                         : _softmax(),
+        "aten::threshold"                       : _threshold(),
+        "aten::threshold_"                      : _threshold(),
+        "aten::contiguous"                      : _contiguous(),
+        "aten::batch_norm"                      : _batch_norm(),
+        "aten::instance_norm"                   : _instance_norm(),
+        "aten::layer_norm"                      : _layer_norm(),
+        "aten::transpose"                       : _transpose(),
+        "aten::transpose_"                      : _transpose(),
+        "aten::t"                               : _transpose(),
+        "aten::flatten"                         : _flatten(),
+        "aten::addmm"                           : _dense(),
+        "aten::size"                            : _size(),
+        "aten::view"                            : _view(),
+        "aten::reshape"                         : _reshape(),
+        "aten::clone"                           : _clone(),
+        "aten::log_softmax"                     : _log_softmax(),
+        "aten::sigmoid"                         : _sigmoid(),
+        "aten::softplus"                        : _softplus(),
+        "aten::avg_pool2d"                      : _avg_pool2d(),
+        "aten::avg_pool3d"                      : _avg_pool3d(),
+        "aten::dropout"                         : _dropout(),
+        "aten::dropout_"                        : _dropout(),
+        "aten::feature_dropout"                 : _dropout(),
+        "aten::alpha_dropout"                   : _dropout(),
+        "aten::mean"                            : _mean(),
+        "aten::chunk"                           : _chunk(),
+        "aten::matmul"                          : _matmul(),
+        "aten::expand"                          : _expand(),
+        "aten::Int"                             : _int(),
+        "prim::NumToTensor"                     : _numtotensor(),
+        "prim::ListUnpack"                      : _identity(),
+        "aten::constant_pad_nd"                 : _pad(),
+        "aten::permute"                         : _transpose(),
+        "aten::sum"                             : _reduce("sum"),
+        "aten::prod"                            : _reduce("prod"),
+        "aten::sqrt"                            : _sqrt(),
+        'aten::floor'                           : _floor(),
+        "aten::detach"                          : _identity(),
+        "aten::upsample_bilinear2d"             : _upsample("bilinear"),
+        "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
+        "aten::expand_as"                       : _expand_as(),
+        "aten::lt"                              : _elemwise("less"),
+        "aten::gt"                              : _elemwise("greater"),
+        "aten::le"                              : _elemwise("less_equal"),
+        "aten::ge"                              : _elemwise("greater_equal"),
+        "aten::ne"                              : _elemwise("not_equal"),
+        "aten::Bool"                            : _Bool(),
+        "aten::Float"                           : _Float(),
+        "aten::neg"                             : _neg(),
+        "aten::tanh"                            : _tanh(),
+        "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
+        "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d(),
+        "aten::stack"                           : _stack(),
+        "aten::mm"                              : _matmul(),
+        "relay::empty_list"                     : _empty_list(prelude),
+        "relay::cons_list"                      : _cons_list(prelude),
+        "relay::rev_list"                       : _rev_list(prelude),
+        "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
+    }
+    return convert_map
 
 
 def _run_jit_passes(graph):
@@ -1289,13 +1341,13 @@ def _get_op_inputs(op_node, outputs):
     return [outputs[name] for name in _get_input_names(op_node)]
 
 
-def _report_missing_conversion(op_names):
+def _report_missing_conversion(op_names, convert_map):
     """ Check if all ops in an input graph are supported by TVM """
     known_ops = ["prim::Constant", "prim::GetAttr",
                  "prim::ListConstruct", "prim::ListUnpack",
                  "prim::TupleConstruct", "prim::TupleUnpack",
                  "prim::If", "prim::Loop"]
-    known_ops += list(_convert_map.keys())
+    known_ops += list(convert_map.keys())
     known_ops += list(qnn_torch.convert_map.keys())
 
     missing = [op_name for op_name in op_names
@@ -1422,7 +1474,7 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_relay_input_vars(graph, input_shapes):
+def _get_relay_input_vars(graph, input_shapes, input_types):
     """
     Return Relay vars from input shapes and create entries based on
     expected graph inputs - to allow translation
@@ -1435,6 +1487,68 @@ def _get_relay_input_vars(graph, input_shapes):
         input_vars[ir_input] = inp
 
     return input_vars
+
+
+def _rewrite_for_tensor_array(graph):
+    def has_kind(chain, kind):
+        return any([node.kind() == kind for node in chain])
+
+    def needs_rewrite(chain):
+        return has_kind(chain, "aten::stack") and has_kind(chain, "prim::Loop")
+
+    def get_node(node_list, kind, filter_func=lambda node: True):
+        for node in node_list:
+            if node.kind() == kind and filter_func(node):
+                return node
+        assert False
+        return None
+
+    def node_type(node):
+        return str(node.output().type())
+
+    list_construct_ops = graph.findAllNodes("prim::ListConstruct")
+    tensor_list_ops = [op for op in list_construct_ops
+                       if node_type(op) == "List[Tensor]"]
+    chains = []
+    for tensor_list_op in tensor_list_ops:
+        chains += get_use_chains(tensor_list_op)
+
+    for chain in [chain for chain in chains if needs_rewrite(chain)]:
+        tensor_list_op = chain[0]
+        loop_op = get_node(chain, "prim::Loop")
+
+        empty_list_node = graph.create("relay::empty_list")
+        empty_list_node.insertBefore(loop_op)
+        tensor_list_op.replaceAllUsesWith(empty_list_node)
+        tensor_list_op.destroy()
+
+        rev_list_node = graph.create("relay::rev_list",
+                                     [loop_op.outputsAt(0)])
+        rev_list_node.insertAfter(loop_op)
+
+        stack_op = get_node(chain, "aten::stack")
+        tarray_stack_node = graph.create("relay::tensor_array_stack",
+                                         [rev_list_node.output()])
+        tarray_stack_node.insertBefore(stack_op)
+        stack_op.replaceAllUsesWith(tarray_stack_node)
+        stack_op.destroy()
+
+        loop_block = list(loop_op.blocks())[0]
+        loop_nodes = list(loop_block.nodes())
+
+        add_op = get_node(loop_nodes, "aten::add_",
+                          lambda node: node_type(node) == "List[Tensor]")
+
+        list_singlton_op = add_op.inputsAt(1).node()
+        list_singlton_op_input = list_singlton_op.inputsAt(0)
+        list_singlton_op.output().replaceAllUsesWith(list_singlton_op_input)
+        list_singlton_op.destroy()
+
+        cons_list_node = graph.create("relay::cons_list",
+                                      list(reversed(list(add_op.inputs()))))
+        cons_list_node.insertBefore(add_op)
+        add_op.replaceAllUsesWith(cons_list_node)
+        add_op.destroy()
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -1512,24 +1626,24 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_block(block, outputs):
+def convert_block(block, outputs, convert_map):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, ret_names)
+    return convert_operators(ops, outputs, ret_names, convert_map)
 
 
-def convert_if(if_node, outputs):
+def convert_if(if_node, outputs, convert_map):
     """ Translate Torch prim::If to Relay If """
     cond = outputs[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs)
-    false_branch = convert_block(blocks[1], outputs)
+    true_branch = convert_block(blocks[0], outputs, convert_map)
+    false_branch = convert_block(blocks[1], outputs, convert_map)
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
 
-def convert_loop(loop_node, outputs):
+def convert_loop(loop_node, outputs, convert_map):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
         ivalue = loop_node.inputsAt(index)
@@ -1572,7 +1686,7 @@ def convert_loop(loop_node, outputs):
         for (i, iname) in enumerate(block_input_names):
             outputs[iname] = current_vals[i]
 
-        block_outputs = convert_block(body_block, outputs)
+        block_outputs = convert_block(body_block, outputs, convert_map)
 
         if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
@@ -1614,7 +1728,7 @@ def convert_loop(loop_node, outputs):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, outputs, ret_names):
+def convert_operators(operators, outputs, ret_names, convert_map):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
@@ -1631,15 +1745,15 @@ def convert_operators(operators, outputs, ret_names):
             unpacked_names = _get_output_names(op_node)
             outputs.update(zip(unpacked_names, inputs[0]))
         elif operator == "prim::If":
-            if_out = convert_if(op_node, outputs)
+            if_out = convert_if(op_node, outputs, convert_map)
             outputs[node_name] = if_out
         elif operator == "prim::Loop":
-            loop_out = convert_loop(op_node, outputs)
+            loop_out = convert_loop(op_node, outputs, convert_map)
             unpacked_names = _get_output_names(op_node)
             assert len(loop_out) == len(unpacked_names)
             outputs.update(zip(unpacked_names, loop_out))
         else:
-            relay_op = _convert_map[operator]
+            relay_op = convert_map[operator]
             relay_out = relay_op(inputs, _get_input_types(op_node))
 
             if isinstance(relay_out, tuple):
@@ -1674,7 +1788,8 @@ def _get_graph_input_names(graph):
     return ir_inputs[1:]  # remove self at the 0th arg
 
 
-def from_pytorch(script_module, input_shapes, custom_convert_map=None):
+def from_pytorch(script_module, input_shapes,
+                 input_types=[], custom_convert_map=None):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -1700,18 +1815,23 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     params : dict of str to tvm.runtime.NDArray
         Dict of converted parameters stored in tvm.runtime.ndarray format
     """
+    mod = tvm.IRModule()
+    p = Prelude(mod)
+
+    convert_map = get_convert_map(p)
+
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
 
     if custom_convert_map:
-        _convert_map.update(custom_convert_map)
+        convert_map.update(custom_convert_map)
 
     op_names = get_all_op_names(graph)
-    _report_missing_conversion(op_names)
+    _report_missing_conversion(op_names, convert_map)
     _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
-    outputs = _get_relay_input_vars(graph, input_shapes)
+    outputs = _get_relay_input_vars(graph, input_shapes, input_types)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
@@ -1726,14 +1846,14 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
                                               packed_param_map,
                                               weight_quant_params)
         qnn_torch.add_quant_params(tvm_params, weight_quant_params)
-        _convert_map.update(qnn_torch.convert_map)
+        convert_map.update(qnn_torch.convert_map)
 
     ret = convert_operators(_get_operator_nodes(graph.nodes()),
-                            outputs, ret_name)
+                            outputs, ret_name, convert_map)
 
     if isinstance(ret[0], list):
         ret[0] = _expr.Tuple(ret[0])
 
-    func = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
+    mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
-    return _module.IRModule.from_expr(func), tvm_params
+    return mod, tvm_params
