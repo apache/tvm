@@ -29,6 +29,7 @@
 #include "op_util.h"
 #include "../schedule/message_passing.h"
 #include "../../arith/compute_expr.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace te {
@@ -162,7 +163,8 @@ MakeLoopNest(const Stage& stage,
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
-        if (stage->scope != "local") {
+        if (stage->scope == "" || runtime::StorageScope::make(stage->scope).rank <
+            runtime::StorageScope::make("local").rank) {
           value_map[iv] = var;
         } else {
           value_map[iv] = dom->min;
