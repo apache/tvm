@@ -461,14 +461,16 @@ def infer_type(node, mod=None):
         mod["main"] = _function.Function([], node)
         mod = _transform.InferType()(mod)
         entry = mod["main"]
-        return entry.body
+        ret = entry.body
     else:
         new_mod = IRModule.from_expr(node)
         if mod is not None:
             new_mod.update(mod)
             new_mod = _transform.InferType()(new_mod)
         entry = new_mod["main"]
-        return entry if isinstance(node, _function.Function) else entry.body
+        ret = entry if isinstance(node, _function.Function) else entry.body
+
+    return ret
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
