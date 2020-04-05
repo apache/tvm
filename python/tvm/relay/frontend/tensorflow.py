@@ -33,6 +33,7 @@ from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from ..ty import Any
 from ..expr_functor import ExprMutator, ExprVisitor
 from .common import AttrCvt, get_relay_op
 from .common import infer_type as _infer_type
@@ -788,12 +789,38 @@ def _pack():
 
 def _tensor_array():
     def _impl(inputs, attr, params, prelude):
+        try:
+            from tensorflow.python.framework import tensor_util
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import tensorflow which is required {}".format(e))
+
         dtype_str = attr.get('dtype').name
         assert not attr["dynamic_size"], "Dynamic size tensor array is " \
                                          "not supported in TVM yet."
-        if attr['identical_element_shapes']:
-            # For static tensor array, we need to create with static constructor.
-            # However, at this point we might not know the input shape yet.
+
+        raw_elem_shape = tensor_util.TensorShapeProtoToList(attr['element_shape'])
+        elem_shape = []
+        for dim in raw_elem_shape:
+            if dim < 0:
+                elem_shape.append(Any())
+            else:
+                elem_shape.append(dim)
+
+        if elem_shape:
+            # Element shape is specified.
+            # Directly create static tensor array with given shape.
+            static_tensor_array_ops = StaticTensorArrayOps(prelude,
+                                                           dtype_str,
+                                                           elem_shape)
+            static_tensor_array_ops.register()
+            tensor_array_constructor = prelude.get_var_static('tensor_array',
+                                                              dtype_str,
+                                                              elem_shape)
+            tensor_array = tensor_array_constructor(inputs[0])
+            _static_tensor_array_map[tensor_array] = tensor_array
+        elif attr['identical_element_shapes']:
+            # identical_element_shapes is set but element shape is not given.
             # We create a static tensor array with dummy shape and record it in
             # _static_tensor_array_map. Later when creating other tensor array ops
             # which uses this tensor array, we reconstruct this tensor array with
@@ -806,11 +833,11 @@ def _tensor_array():
             tensor_array_constructor = prelude.get_var_static('tensor_array',
                                                               dtype_str,
                                                               dummy_shape)
-            tensor_array =  tensor_array_constructor(inputs[0])
+            tensor_array = tensor_array_constructor(inputs[0])
             _static_tensor_array_map[tensor_array] = None
         else:
             tensor_array_constructor = prelude.get_var('tensor_array', dtype_str)
-            tensor_array =  tensor_array_constructor(inputs[0])
+            tensor_array = tensor_array_constructor(inputs[0])
         return tensor_array
     return _impl
 
@@ -841,7 +868,7 @@ def _tensor_array_scatter():
                 ta_constructor = prelude.get_var_static('tensor_array',
                                                         dtype_str,
                                                         input_t_shape)
-                new_ta =  ta_constructor(input_ta.args[0])
+                new_ta = ta_constructor(input_ta.args[0])
                 _static_tensor_array_map[input_ta] = new_ta
                 input_ta = new_ta
 
@@ -872,7 +899,7 @@ def _tensor_array_gather():
 
         if input_shape is None:
             gather_func = prelude.get_var('tensor_array_gather', dtype_str)
-            return gather_func(inputs[2], inputs[1])
+            out = gather_func(inputs[2], inputs[1])
         else:
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
@@ -889,7 +916,7 @@ def _tensor_array_gather():
                 get_data_func = prelude.get_var_static('tensor_get_data',
                                                        dtype_str,
                                                        input_shape)
-                return get_data_func(out_tensor_t)
+                out = get_data_func(out_tensor_t)
             else:
                 # For fixed length indices, directly generate static shape output
                 read_func = prelude.get_var_static('tensor_array_read',
@@ -905,8 +932,9 @@ def _tensor_array_gather():
                     out_tensor = get_data_func(read_func(inputs[2], index))
                     tensor_list.append(_op.expand_dims(out_tensor, axis=0))
 
-                return _op.concatenate(tensor_list, axis=0)
+                out = _op.concatenate(tensor_list, axis=0)
 
+        return out
     return _impl
 
 def _tensor_array_size():
@@ -939,7 +967,7 @@ def _tensor_array_write():
                 ta_constructor = prelude.get_var_static('tensor_array',
                                                         dtype_str,
                                                         input_t_shape)
-                new_ta =  ta_constructor(input_ta.args[0])
+                new_ta = ta_constructor(input_ta.args[0])
                 _static_tensor_array_map[input_ta] = new_ta
                 input_ta = new_ta
                 input_ta_shape = input_t_shape
@@ -970,7 +998,7 @@ def _tensor_array_read():
 
         if input_shape is None:
             read_func = prelude.get_var('tensor_array_read', dtype_str)
-            return read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
+            out = read_func(inputs[2], _op.take(inputs[1], tvm.relay.const(0)))
         else:
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
@@ -982,7 +1010,9 @@ def _tensor_array_read():
             get_data_func = prelude.get_var_static('tensor_get_data',
                                                    dtype_str,
                                                    input_shape)
-            return get_data_func(out_tensor)
+            out = get_data_func(out_tensor)
+
+        return out
     return _impl
 
 def _tensor_array_split():
@@ -1012,7 +1042,7 @@ def _tensor_array_split():
                 ta_constructor = prelude.get_var_static('tensor_array',
                                                         dtype_str,
                                                         input_ta_shape)
-                new_ta =  ta_constructor(input_ta.args[0])
+                new_ta = ta_constructor(input_ta.args[0])
                 _static_tensor_array_map[input_ta] = new_ta
                 input_ta = new_ta
             else:
@@ -1056,7 +1086,7 @@ def _tensor_array_concat():
 
         if input_shape is None:
             concat_func = prelude.get_var('tensor_array_concat', dtype_str)
-            return concat_func(inputs[1])
+            out = concat_func(inputs[1])
         else:
             static_tensor_array_ops = StaticTensorArrayOps(prelude,
                                                            dtype_str,
@@ -1068,8 +1098,9 @@ def _tensor_array_concat():
             get_data_func = prelude.get_var_static('tensor_get_data',
                                                    dtype_str,
                                                    input_shape)
-            return get_data_func(out_tensor)
+            out = get_data_func(out_tensor)
 
+        return out
     return _impl
 
 def _tile():

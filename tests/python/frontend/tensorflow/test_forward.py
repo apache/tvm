@@ -843,14 +843,15 @@ def test_forward_squeeze():
 # TensorArray
 # -----------
 def test_tensor_array_write_read():
-    def run(dtype_str, infer_shape):
+    def run(dtype_str, infer_shape, element_shape):
         with tf.Graph().as_default():
             dtype = tf_dtypes[dtype_str]
             np_data = np.array([[1.0, 2.0], [3.0, 4.0]]).astype(dtype_str)
             in_data = [np_data, np_data]
             t1 = tf.constant(np_data, dtype=dtype)
             t2 = tf.constant(np_data, dtype=dtype)
-            ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=infer_shape)
+            ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=infer_shape,
+                                 element_shape=element_shape)
             ta2 = ta1.write(0, t1)
             ta3 = ta2.write(1, t2)
             out = ta3.read(0)
@@ -858,8 +859,9 @@ def test_tensor_array_write_read():
             compare_tf_with_tvm([], [], 'TensorArrayReadV3:0', mode='vm')
 
     for dtype in ["float32", "int8"]:
-        run(dtype, False)
-        run(dtype, True)
+        run(dtype, False, None)
+        run(dtype, False, tf.TensorShape([None, 2]))
+        run(dtype, True, None)
 
 
 def test_tensor_array_scatter():

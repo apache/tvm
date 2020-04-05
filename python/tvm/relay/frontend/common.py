@@ -29,6 +29,7 @@ from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
+from ..ty import Any
 
 
 class RequiredAttr(object):
@@ -468,6 +469,15 @@ def infer_type(node, mod=None):
             new_mod = _transform.InferType()(new_mod)
         entry = new_mod["main"]
         return entry if isinstance(node, _function.Function) else entry.body
+
+def infer_channels(inputs, transpose=False):
+    """A hack for getting 'channels' or 'units' since caffe2 does not provide
+    these attributes. We check the shape of weights provided to get the number.
+    """
+    out_type = infer_type(inputs)
+    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+    channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
+    return channels
 
 
 def infer_shape(inputs, mod=None):
