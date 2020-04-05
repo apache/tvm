@@ -43,50 +43,6 @@
 namespace tvm {
 namespace codegen {
 
-// convert legacy LoweredFunc to PrimFunc.
-tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
-  // remap args to attach type annotations.
-  Array<tir::Var> args;
-  Map<tir::Var, PrimExpr> remap_vars;
-
-  for (auto var : from->args) {
-    auto it = from->handle_data_type.find(var);
-    if (it != from->handle_data_type.end()) {
-      tir::Var new_var(var->name_hint,
-                       PointerType(PrimType((*it).second->dtype)));
-      args.push_back(new_var);
-      remap_vars.Set(var, new_var);
-    } else {
-      args.push_back(var);
-    }
-  }
-  tir::PrimFunc func(args, Substitute(from->body, remap_vars));
-
-  func = WithAttr(std::move(func), attr::kGlobalSymbol, runtime::String(from->name));
-  func = WithAttr(std::move(func), tir::attr::kDeviceThreadAxis, from->thread_axis);
-  if (from->func_type == tir::LoweredFuncType::kDeviceFunc) {
-    func = WithAttr(std::move(func),
-                    attr::kCallingConv, Integer(CallingConv::kDeviceKernelLaunch));
-  }
-  if (from->is_restricted) {
-    func = WithAttr(std::move(func), tir::attr::kNoAlias, Integer(1));
-  }
-  return func;
-}
-
-IRModule ToIRModule(const Array<tir::LoweredFunc>& funcs) {
-  Map<GlobalVar, BaseFunc> functions;
-  for (size_t i = 0; i < funcs.size(); ++i) {
-    auto f = funcs[i];
-    tir::PrimFunc pf = ToPrimFunc(f);
-    if (i == 0) {
-      pf = WithAttr(std::move(pf), tir::attr::kIsEntryFunc, Integer(1));
-    }
-    functions.Set(GlobalVar(f->name), pf);
-  }
-  return IRModule(functions);
-}
-
 runtime::Module Build(IRModule mod, const Target& target) {
   if (BuildConfig::Current()->disable_assert) {
     mod = tir::transform::SkipAssert()(mod);
@@ -283,9 +239,6 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
 
 TVM_REGISTER_GLOBAL("target.Build")
 .set_body_typed(Build);
-
-TVM_REGISTER_GLOBAL("testing.LoweredFuncsToIRModule")
-.set_body_typed(ToIRModule);
 
 // Export two auxiliary function to the runtime namespace.
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC")

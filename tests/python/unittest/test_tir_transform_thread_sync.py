@@ -37,10 +37,9 @@ def test_thread_storage_sync():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
-    f = tvm.tir.ir_pass.MakeAPI(stmt, "test", [Ab, A2b], 0, True)
-    cuda_target = tvm.target.create("cuda")
 
-    mod = tvm.testing.LoweredFuncsToIRModule([f])
+    cuda_target = tvm.target.create("cuda")
+    mod = tvm.testing.MakeAPILegacy(stmt, "test", [Ab, A2b], 0, True)
     mod = tvm.tir.transform.Apply(lambda f: f.with_attr("target", cuda_target))(mod)
     fdevice = tvm.tir.transform.SplitHostDevice()(mod)["test_kernel0"]
     mod = tvm.IRModule.from_expr(fdevice)

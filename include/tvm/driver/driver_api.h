@@ -32,8 +32,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/support/with.h>
+#include <tvm/ir/module.h>
 #include <tvm/te/schedule_pass.h>
-#include <tvm/tir/lowered_func.h>
 
 #include <string>
 #include <vector>
@@ -43,15 +43,15 @@
 
 namespace tvm {
 /*!
-* \brief Build a LoweredFunc given a schedule, args and binds
+* \brief Build an IRModule given a schedule, args and binds
 * \param sch The schedule to lower.
 * \param args The arguments to the function.
 * \param name The name of the lowered function.
 * \param binds Buffer assignments.
 * \param config The build configuration.
-* \return The lowered function.
+* \return The result module.
 */
-TVM_DLL Array<tir::LoweredFunc> lower(
+TVM_DLL IRModule lower(
     te::Schedule sch,
     const Array<te::Tensor>& args,
     const std::string& name,
@@ -59,44 +59,43 @@ TVM_DLL Array<tir::LoweredFunc> lower(
     const BuildConfig& config);
 
 /*!
-* \brief Build a device and host module for a specific target from an array of lowered functions.
+* \brief Build a device and host module for a specific target from an IRModule.
 * \param funcs The functions to be built.
 * \param target The target device to build for.
 * \param target_host The target for building host code. To use the default, pass Target()
 * \param config The build configuration.
 * \return The built module.
 */
-TVM_DLL runtime::Module build(const Array<tir::LoweredFunc>& funcs,
+TVM_DLL runtime::Module build(const IRModule& funcs,
                               const Target& target,
                               const Target& target_host,
                               const BuildConfig& config);
 
 /*!
  * \brief Build a device and host module for a specific target from a map
- * contains target to a list of lowered functions pairs. This function is used
+ * contains target to IRModule. This function is used
  * for heterogeneous build.
- * \param input The map contains target to a list of lowered functions pairs.
+ * \param input The map contains target to an IRModule.
  * \param target_host The target for building host code. To use the default,
  *        pass Target().
  * \param config The build configuration.
  * \return The built module that contains code for different processors.
  */
-TVM_DLL runtime::Module build(const Map<Target, Array<tir::LoweredFunc>>& input,
+TVM_DLL runtime::Module build(const Map<Target, IRModule>& input,
                               const Target& target_host,
                               const BuildConfig& config);
 
 /*!
  * \brief Build a device and host module for a specific target from a map
- * contains target to a list of lowered functions pairs. This function is used
+ * contains target to IRModule. This function is used
  * for heterogeneous build.
- * \param input The map contains target string to a list of lowered functions
- *        pairs.
+ * \param input The map contains target string to an  IRModule.
  * \param target_host The target for building host code. To use the default,
  *        pass Target().
  * \param config The build configuration.
  * \return The built module that contains code for different processors.
  */
-TVM_DLL runtime::Module build(const Map<std::string, Array<tir::LoweredFunc>>& input,
+TVM_DLL runtime::Module build(const Map<std::string, IRModule>& input,
                               const Target& target_host,
                               const BuildConfig& config);
 }  // namespace tvm

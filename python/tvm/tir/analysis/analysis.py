@@ -55,3 +55,14 @@ def expr_deep_equal(lhs, rhs):
     tvm.ir.structural_equal
     """
     return _ffi_api.expr_deep_equal(lhs, rhs)
+
+
+def verify_memory(mod):
+    """Verify if module contains illegal host side direct memory access.
+
+    Parameters
+    ----------
+    mod: tvm.IRModule
+        The module to be verified.
+    """
+    _ffi_api.verify_memory(mod)

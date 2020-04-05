@@ -48,7 +48,7 @@ Buffer decl_buffer(Array<PrimExpr> shape,
                    DataType dtype,
                    std::string name) {
   return BufferNode::make(
-      Var(name, DataType::Handle()),
+      Var(name, PointerType(PrimType(dtype))),
       dtype,
       shape,
       Array<PrimExpr>(),

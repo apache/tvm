@@ -18,20 +18,24 @@
  */
 
 /*!
- * \file make_api.cc Build API function.
+ * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
+
 #include <vector>
 #include <utility>
 #include <unordered_set>
 
-#include "ir_util.h"
-#include "arg_binder.h"
+#include "../pass/ir_util.h"
+#include "../pass/arg_binder.h"
 
 namespace tvm {
 namespace tir {
@@ -40,14 +44,18 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
 }
 
-LoweredFunc MakeAPI(Stmt body,
-                    std::string name,
-                    Array<ObjectRef> api_args,
-                    int num_unpacked_args,
-                    bool is_restricted) {
+PrimFunc MakePackedAPI(PrimFunc&& func,
+                       int num_unpacked_args) {
+  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
+  std::string name_hint = global_symbol;
+
+  auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = EvaluateNode::make(0);
-  int num_args = static_cast<int>(api_args.size());
+  int num_args = static_cast<int>(func_ptr->params.size());
   CHECK_LE(num_unpacked_args, num_args);
+
   int num_packed_args = num_args - num_unpacked_args;
   // Data field definitions
   // The packed fields
@@ -69,9 +77,10 @@ LoweredFunc MakeAPI(Stmt body,
   // local function definitions
   // load i-th argument as type t
   auto f_arg_value = [&](DataType t, int i) {
-    Array<PrimExpr> call_args{v_packed_args,
-                          IntImm(DataType::Int(32), i),
-                          IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
+    Array<PrimExpr> call_args{
+      v_packed_args,
+      IntImm(DataType::Int(32), i),
+      IntImm(DataType::Int(32), intrinsic::kTVMValueContent)};
     // load 64 bit version
     DataType api_type = APIType(t);
     PrimExpr res = CallNode::make(
@@ -83,13 +92,7 @@ LoweredFunc MakeAPI(Stmt body,
     }
     return res;
   };
-  // get declaration of argument i
-  auto f_arg_decl = [&](int i) {
-    std::ostringstream os;
-    os << "arg" << i;
-    const VarNode* v = api_args[i].as<VarNode>();
-    return Var(os.str(), v ? v->dtype: DataType::Handle());
-  };
+
   // ---------------------------
   // start of logics
   // add signiture for packed arguments.
@@ -99,16 +102,25 @@ LoweredFunc MakeAPI(Stmt body,
     args.push_back(v_num_packed_args);
     std::ostringstream os;
 
-    os << name << ": num_args should be " << num_packed_args;
+    os << name_hint << ": num_args should be " << num_packed_args;
     seq_init.emplace_back(
         MakeAssertEQ(v_num_packed_args, num_packed_args, os.str()));
   }
 
-  // Save the input variables and buffers that will be bound later.
-  std::vector<std::pair<Var, Var> > var_defs;
-  std::vector<std::pair<Buffer, Var> > buf_defs;
-  for (int i = 0; i < static_cast<int>(api_args.size()); ++i) {
-    Var v_arg = f_arg_decl(i);
+  // Need to re-declare vars, in case some arguments also appears in the buffer.
+  std::vector<std::pair<Var, Var> > var_def;
+  std::vector<std::pair<Var, Buffer> > buffer_def;
+
+  for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
+    Var param = func_ptr->params[i];
+    Var v_arg = Var("arg" + std::to_string(i), param->dtype);
+
+    auto it = func_ptr->buffer_map.find(param);
+    if (it != func_ptr->buffer_map.end()) {
+      buffer_def.emplace_back(v_arg, (*it).second);
+    } else {
+      var_def.emplace_back(v_arg, param);
+    }
     if (i < num_packed_args) {
       // Value loads
       seq_init.emplace_back(LetStmtNode::make(
@@ -123,34 +135,25 @@ LoweredFunc MakeAPI(Stmt body,
       DataType t = v_arg.dtype();
       if (t.is_handle()) {
         std::ostringstream msg;
-        msg << name << ": Expect arg[" << i << "] to be pointer";
+        msg << name_hint << ": Expect arg[" << i << "] to be pointer";
         seq_check.emplace_back(
             AssertStmtNode::make(tcode == kTVMOpaqueHandle ||
-                             tcode == kTVMNDArrayHandle ||
-                             tcode == kTVMDLTensorHandle ||
-                             tcode == kTVMNullptr, msg.str(), nop));
+                                 tcode == kTVMNDArrayHandle ||
+                                 tcode == kTVMDLTensorHandle ||
+                                 tcode == kTVMNullptr, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
-        msg << name << ": Expect arg[" << i << "] to be int";
+        msg << name_hint << ": Expect arg[" << i << "] to be int";
         seq_check.emplace_back(AssertStmtNode::make(tcode == kDLInt, msg.str(), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
-        msg << name << ": Expect arg[" << i << "] to be float";
+        msg << name_hint << ": Expect arg[" << i << "] to be float";
         seq_check.emplace_back(
             AssertStmtNode::make(tcode == kDLFloat, msg.str(), nop));
       }
     } else {
       args.push_back(v_arg);
-    }
-    // add checks for functions.
-    if (api_args[i].as<VarNode>()) {
-      var_defs.emplace_back(std::make_pair(Downcast<Var>(api_args[i]), v_arg));
-    } else {
-      // Buffer checks
-      CHECK(api_args[i].as<BufferNode>())
-          << "api_args can only be Buffer or Var";
-      buf_defs.emplace_back(std::make_pair(Downcast<Buffer>(api_args[i]), v_arg));
     }
   }
 
@@ -170,24 +173,22 @@ LoweredFunc MakeAPI(Stmt body,
   // either 0 or the original stride will be correctly used. Checks here have
   // to use the args that may have no let bining yet. Therefore, hoisting let
   // binding for args before buffer declaration is needed.
-  for (const auto& arg : var_defs) {
-    binder.Bind(arg.first, arg.second, arg.second->name_hint, true);
+  for (const auto& kv : var_def) {
+    binder.Bind(kv.second, kv.first, kv.first->name_hint, true);
   }
 
-  for (const auto& buf_arg : buf_defs) {
-    binder.BindDLTensor(buf_arg.first, device_type, device_id,
-                        buf_arg.second, buf_arg.second->name_hint);
+  for (const auto& kv : buffer_def) {
+    binder.BindDLTensor(kv.second, device_type, device_id,
+                        kv.first, kv.first->name_hint);
   }
 
-  ObjectPtr<LoweredFuncNode> n = make_object<LoweredFuncNode>();
-  n->name = name;
-  n->args = args;
-  n->handle_data_type = binder.def_handle_dtype();
-  n->is_packed_func = num_unpacked_args == 0;
-  n->is_restricted = is_restricted;
-  body = AttrStmtNode::make(
+  if (num_unpacked_args == 0) {
+    func = WithAttr(std::move(func), tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc));
+  }
+
+  auto body = AttrStmtNode::make(
       make_zero(DataType::Int(32)), attr::compute_scope,
-      StringImmNode::make(name + "_compute_"), body);
+      StringImmNode::make(name_hint + "_compute_"), func_ptr->body);
   // Set device context
   if (vmap.count(device_id.get())) {
     PrimExpr node = StringImmNode::make("default");
@@ -203,21 +204,59 @@ LoweredFunc MakeAPI(Stmt body,
              device_type, device_id}, CallNode::Intrinsic)));
     body = SeqStmt({set_device, body});
   }
-  n->body = MergeNest(
+  func_ptr->body = MergeNest(
       {seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
-  LoweredFunc f(n);
-  Array<Var> undefined = UndefinedVars(f->body, f->args);
+  func_ptr->params = args;
+
+  Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
   if (undefined.size() != 0) {
     std::ostringstream os;
     for (Var v : undefined) {
       os << " \'" << v->name_hint << "\' ";
     }
-    os << " does not appear in api_args";
+    os << " is not bound to any variables";
     LOG(FATAL) << "Not all Vars are passed in api_args: " << os.str();
   }
-  return f;
+
+
+  func_ptr->buffer_map = Map<Var, Buffer>();
+  func_ptr->checked_type_ = func_ptr->func_type_annotation();
+  func_ptr->ret_type = PrimType(DataType::Int(32));
+
+  // return the function.
+  return std::move(func);
 }
 
+namespace transform {
 
+Pass MakePackedAPI(int num_unpacked_args) {
+  auto pass_func = [num_unpacked_args](IRModule m, PassContext ctx) {
+    IRModuleNode* mptr = m.CopyOnWrite();
+    std::vector<std::pair<GlobalVar, PrimFunc> > updates;
+
+    for (const auto& kv : mptr->functions) {
+      if (auto* n = kv.second.as<PrimFuncNode>()) {
+        PrimFunc func = GetRef<PrimFunc>(n);
+        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value
+            == static_cast<int>(CallingConv::kDefault)) {
+          auto updated_func = MakePackedAPI(std::move(func), num_unpacked_args);
+          updates.push_back({kv.first, updated_func});
+        }
+      }
+    }
+
+    for (const auto& pair : updates) {
+      mptr->AddUnchecked(pair.first, pair.second);
+    }
+    return m;
+  };
+
+  return tvm::transform::CreateModulePass(
+      pass_func, 0, "tir.MakePackedAPI", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.MakePackedAPI")
+.set_body_typed(MakePackedAPI);
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -24,8 +24,11 @@
 #ifndef TVM_TIR_ANALYSIS_H_
 #define TVM_TIR_ANALYSIS_H_
 
+#include <tvm/ir/module.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt.h>
+
 
 namespace tvm {
 namespace tir {
@@ -58,6 +61,18 @@ struct ExprDeepEqual {
  * \return Array of undefined vars.
  */
 Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& defs);
+
+/*!
+ * \brief Verify if memory accesses are legal for a specific target device type.
+ *
+ *  In the case that tgt is cuda, if not all workload is bound with
+ *  threads, CPU code is generated that tries to access GPU memory,
+ *  which is illegal. This pass performs verification for this case.
+ *
+ * \param mod The module to be verified.
+ * \return Success of memory verification.
+ */
+void VerifyMemory(const IRModule& mod);
 
 }  // namespace tir
 }  // namespace tvm

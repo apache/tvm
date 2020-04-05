@@ -22,8 +22,10 @@
  * \brief Pass to check if memory accesses are legal.
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/target/target.h>
+#include <tvm/runtime/registry.h>
 
 
 namespace tvm {
@@ -44,7 +46,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
  public:
   /// Special member functions
   //@{
-  explicit MemoryAccessVerifier(LoweredFunc f, int device_type)
+  explicit MemoryAccessVerifier(PrimFunc f, int device_type)
       : func_(f), dev_type_(device_type) {}
   virtual ~MemoryAccessVerifier() = default;
   MemoryAccessVerifier(const MemoryAccessVerifier &) = delete;
@@ -116,7 +118,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
       CHECK(V) << "Invalid Variable\n";
 
       // Variable is from function args. Return true.
-      if (V == func_->args[0].get()) return true;
+      if (V == func_->params[0].get()) return true;
 
       // The value is expected to come from a tvm_struct_get Call.
       // Get the first argument of tvm_struct_get, and continue.
@@ -179,18 +181,33 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   const ProducerConsumerNode *pc_{nullptr};
   bool failure_{false};  ///< If the verification fails (i.e. has illegal access)
   //@}
-  LoweredFunc func_{nullptr};  ///< Function to be verified.
+  tir::PrimFunc func_{nullptr};  ///< Function to be verified.
   int dev_type_{kDLCPU};       ///< Device type
   std::unordered_map<const VarNode *, PrimExpr> defs_;  ///< Variable definitions
 };
 }  // namespace
 
 /// Interface of VerifyMemory pass
-bool VerifyMemory(LoweredFunc func, int device_type) {
-  MemoryAccessVerifier v(func, device_type);
-  v.Run();
-  return !v.Failed();
+void VerifyMemory(const IRModule& mod) {
+  for (auto kv : mod->functions) {
+    if (auto* n = kv.second.as<PrimFuncNode>()) {
+      PrimFunc func = GetRef<PrimFunc>(n);
+      auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+      CHECK(target.defined())
+          << "LowerWarpMemory: Require the target attribute";
+      MemoryAccessVerifier v(func, target->device_type);
+      v.Run();
+      if (v.Failed()) {
+        LOG(FATAL)
+            << "ValueError: Direct host side access to device memory is detected."
+            << " Did you forget to bind?\n"
+            << func;
+      }
+    }
+  }
 }
 
+TVM_REGISTER_GLOBAL("tir.analysis.verify_memory")
+.set_body_typed(VerifyMemory);
 }  // namespace tir
 }  // namespace tvm

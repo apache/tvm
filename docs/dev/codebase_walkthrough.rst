@@ -145,15 +145,6 @@ After lowering is done, ``build()`` function generates target machine code from 
 
 Code generation is done by ``build_module()`` function, defined in ``python/tvm/target/codegen.py``. On the C++ side, code generation is implemented in ``src/target/codegen`` subdirectory. ``build_module()`` Python function will reach ``Build()`` function below in ``src/target/codegen/codegen.cc``:
 
-::
-
-   runtime::Module Build(const Array<LoweredFunc>& funcs,
-                         const std::string& target) {
-     std::string build_f_name = "codegen.build_" + target;
-     const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-     runtime::Module m = (*bf)(funcs, target);
-     return m;
-   }
 
 
 The ``Build()`` function looks up the code generator for the given target in the ``PackedFunc`` registry, and invokes the function found. For example, ``codegen.build_cuda`` function is registered in ``src/codegen/build_cuda_on.cc``, like this:

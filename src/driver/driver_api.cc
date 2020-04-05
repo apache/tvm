@@ -26,8 +26,10 @@
 #include <tvm/te/operation.h>
 
 #include <tvm/tir/transform.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/target/codegen.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -39,7 +41,6 @@ namespace tvm {
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
 using runtime::PackedFunc;
-using tir::LoweredFunc;
 
 bool LLVMEnabled() {
   const runtime::PackedFunc* pf = runtime::Registry::Get("target.build.llvm");
@@ -166,17 +167,6 @@ tir::Stmt BuildStmt(te::Schedule sch,
   return stmt;
 }
 
-Array<LoweredFunc> lower(te::Schedule sch,
-                         const Array<te::Tensor>& args,
-                         const std::string& name,
-                         const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                         const BuildConfig& config) {
-  Array<ObjectRef> out_arg_list;
-  auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
-  return Array<LoweredFunc>({ tir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
-}
-
-
 transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tvm::attr::kTarget, target);
@@ -198,18 +188,46 @@ transform::Pass FilterBy(FCond fcond) {
 }
 
 
+IRModule lower(te::Schedule sch,
+               const Array<te::Tensor>& args,
+               const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+               const BuildConfig& config) {
+  Array<ObjectRef> out_arg_list;
+  auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
+
+  Array<tir::Var> params;
+  Map<tir::Var, tir::Buffer> buffer_map;
+
+  for (auto var : out_arg_list) {
+    if (auto* n = var.as<tir::VarNode>()) {
+      params.push_back(GetRef<tir::Var>(n));
+    } else {
+      tir::Buffer buffer = Downcast<tir::Buffer>(var);
+      tir::Var bptr(buffer->name, DataType::Handle());
+      params.push_back(bptr);
+      buffer_map.Set(bptr, buffer);
+    }
+  }
+
+  auto f = tir::PrimFunc(params, stmt, VoidType(), buffer_map);
+  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
+
+  if (config->restricted_func) {
+    f = WithAttr(std::move(f), "tir.no_alias", Integer(1));
+  }
+  auto mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+  return tir::transform::MakePackedAPI(0)(mod);
+}
+
+
 std::pair<IRModule, IRModule>
-split_dev_host_funcs(const Array<LoweredFunc>& funcs,
+split_dev_host_funcs(IRModule mod_mixed,
                      const Target& target,
                      const Target& target_host,
                      const BuildConfig& config) {
-  for (const auto& x : funcs) {
-    CHECK(tir::VerifyMemory(x, target->device_type))
-        << "Direct host side access to device memory is detected in "
-        << x->func_name() << ". Did you forget to bind?";
-  }
-
-  IRModule mod_mixed = codegen::ToIRModule(funcs);
+  mod_mixed = BindTarget(target)(std::move(mod_mixed));
+  tir::VerifyMemory(mod_mixed);
 
   Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target)};
   if (config->detect_global_barrier) {
@@ -274,10 +292,9 @@ split_dev_host_funcs(const Array<LoweredFunc>& funcs,
 
 
 // Build for heterogeneous execution.
-runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
+runtime::Module build(const Map<Target, IRModule>& inputs,
                       const Target& target_host,
                       const BuildConfig& config) {
-  Array<LoweredFunc> fhost_all;
   std::vector<runtime::Module> device_modules;
 
   Target target_host_val = target_host;
@@ -319,10 +336,10 @@ runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
 }
 
 // Build for heterogeneous execution when target is a string.
-runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
+runtime::Module build(const Map<std::string, IRModule>& inputs,
                       const Target& target_host,
                       const BuildConfig& config) {
-  Map<Target, Array<LoweredFunc>> updated_input;
+  Map<Target, IRModule> updated_input;
   for (const auto& it : inputs) {
     auto target = Target::Create(it.first);
     if (target->device_name == "vta") {
@@ -334,11 +351,11 @@ runtime::Module build(const Map<std::string, Array<LoweredFunc>>& inputs,
 }
 
 // Build for homogeneous execution.
-runtime::Module build(const Array<LoweredFunc>& funcs,
+runtime::Module build(const IRModule& funcs,
                       const Target& target,
                       const Target& target_host,
                       const BuildConfig& config) {
-  Map<Target, Array<LoweredFunc>> inputs = {{target, funcs}};
+  Map<Target, IRModule> inputs = {{target, funcs}};
   return build(inputs, target_host, config);
 }
 
