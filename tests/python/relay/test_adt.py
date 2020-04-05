@@ -19,7 +19,7 @@ from tvm import te
 from tvm import relay
 from tvm.relay.backend.interpreter import ConstructorValue
 from tvm.relay import create_executor
-from tvm.relay.prelude import Prelude
+from tvm.relay.prelude import Prelude, StaticTensorArrayOps
 from tvm.relay.testing import add_nat_definitions, count as count_, make_nat_value, make_nat_expr
 
 import numpy as np
@@ -980,6 +980,395 @@ def test_tensor_array_split():
     run('float32')
     run('int32')
 
+def test_static_tensor_take():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        take = p.get_var_static('tensor_take', dtype, shape)
+        tensor_constructor = p.get_var_static('tensor_constructor', dtype, shape)
+        v = relay.var('v')
+        lower = relay.var('lower')
+        upper = relay.var('upper')
+        mod["main"] = relay.Function([v, lower, upper], take(tensor_constructor(v), lower, upper))
+        v_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        expected = [np.take(v_data, range(2, 5), axis=0)]
+        check_tensor_array(mod, expected, *(v_data, 2, 5), dtype=dtype)
+        expected = [np.take(v_data, range(0, 9), axis=0)]
+        check_tensor_array(mod, expected, *(v_data, 0, 9), dtype=dtype)
+    run('float32', [10, 10])
+    run('int32', [15, 11])
+
+
+def test_static_tensor_concatenate():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        concat = p.get_var_static('tensor_concatenate', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        mod["main"] = relay.Function([v1, v2], concat(tensor(v1),
+                                                      tensor(v2)))
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        expected = [np.concatenate((v1_data, v2_data))]
+        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
+    run('float32', [5,])
+    run('int32', [2, 3])
+
+
+def test_static_tensor_expand_dims():
+    def run(dtype, shape):
+        x = relay.var('x')
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        expand_dims_func = p.get_var_static('tensor_expand_dims', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        mod["main"] = relay.Function([x], expand_dims_func(tensor(x)))
+        x_np = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        expected = [np.expand_dims(x_np, axis=0)]
+        check_tensor_array(mod, expected, x_np)
+    run('float32', [])
+    run('int32', [2,])
+
+
+def test_static_tensor_array_constructor():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+        tensor_constructor = p.get_name_static('tensor_constructor', dtype, shape)
+        assert tensor_constructor != None
+    run('float32', [1, 1])
+
+
+def test_static_tensor_array_read():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        np_data_list = []
+        ta_length = 3
+        for _ in range(ta_length):
+            np_data_list.append(np.random.uniform(0, 10, size=shape).astype(dtype))
+
+        v0 = relay.var('v0')
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        n = relay.var('n')
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        init_tensor_array = tensor_array(relay.const(ta_length))
+        read_func = p.get_var_static('tensor_array_read', dtype, shape)
+        write_func = p.get_var_static('tensor_array_write', dtype, shape)
+        tensor_array0 = write_func(init_tensor_array, relay.const(0),
+                                   tensor(v0))
+        tensor_array1 = write_func(tensor_array0, relay.const(1),
+                                   tensor(v1))
+        tensor_array2 = write_func(tensor_array1, relay.const(2),
+                                   tensor(v2))
+
+        mod["main"] = relay.Function([v0, v1, v2, n], read_func(tensor_array2, n))
+        expected = [np_data_list[0]]
+        check_tensor_array(mod, expected, *list(np_data_list + [0]), dtype=dtype)
+        expected = [np_data_list[1]]
+        check_tensor_array(mod, expected, *list(np_data_list + [1]), dtype=dtype)
+        expected = [np_data_list[2]]
+        check_tensor_array(mod, expected, *list(np_data_list + [2]), dtype=dtype)
+    run('float32', [])
+    run('int32', [2, 3])
+
+
+def test_static_tensor_array_write():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        ta_length = 2
+        np_data_list = [np.random.uniform(0, 10, size=shape).astype(dtype) for _ in range(ta_length)]
+
+        v0 = relay.var('v0')
+        v1 = relay.var('v1')
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        init_tensor_array = tensor_array(relay.const(ta_length))
+        write_func = p.get_var_static('tensor_array_write', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        tensor_array0 = write_func(init_tensor_array, relay.const(0),
+                                   tensor(v0))
+        tensor_array1 = write_func(tensor_array0, relay.const(1), tensor(v1))
+        mod["main"] = relay.Function([v0, v1], tensor_array1)
+        expected = np_data_list
+        check_tensor_array(mod, expected, *np_data_list, dtype=dtype)
+    run('float32', [])
+    run('int32', [2, 3])
+
+
+def test_static_tensor_array_unstack():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        unstack_tensor = p.get_var_static('tensor_array_unstack', dtype, shape)
+        v = relay.var('v')
+        mod["main"] = relay.Function([v], unstack_tensor(v))
+        t = np.random.uniform(low=0, high=10, size=shape).astype(dtype)
+        *expected, = t
+        check_tensor_array(mod, expected, t, dtype=dtype)
+    run('float32', [4])
+    run('int32', [2, 3])
+
+
+def test_static_tensor_array_scatter():
+    def run(dtype, shape, indices_shape=None):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+        if indices_shape is not None:
+            static_tensor_array_ops.define_tensor_array_scatter(indices_shape, True)
+
+        # tensor array
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        v3 = relay.var('v2')
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        tensor_array0 = tensor_array(relay.const(3))
+        write_func = p.get_var_static('tensor_array_write', dtype, shape)
+        scatter_func = p.get_var_static('tensor_array_scatter', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        tensor_array1 = write_func(tensor_array0, relay.const(0), tensor(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
+        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor(v3))
+
+        # indices array
+        index = relay.var('index')
+
+        # values array
+        value_0 = relay.var('value_0')
+        value_1 = relay.var('value_1')
+        values_array = tensor_array(relay.const(2))
+        values_array = write_func(values_array, relay.const(0),
+                                  tensor(value_0))
+        values_array = write_func(values_array, relay.const(1),
+                                  tensor(value_1))
+
+        # create the scatter function
+        tensor_array_scatter = scatter_func(tensor_array1, index, values_array)
+        mod["main"] = relay.Function([v1, v2, v3, index, value_0, value_1],
+                                     tensor_array_scatter)
+
+        # initialize and check
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        v3_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        index_data = np.array([0, 1], dtype="int32")
+        val1_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        val2_data = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        expected = [val1_data, val2_data, v3_data]
+        check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
+                                            index_data, val1_data,
+                                            val2_data), dtype=dtype)
+    run('float32', [2, 3])
+    run('int32', [2, 3])
+    run('float32', [2, 3], [2,])
+
+
+def test_static_tensor_array_split():
+    def run(dtype, shape, value_shape=None, lengths_shape=None):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+        if value_shape is not None or lengths_shape is not None:
+            static_tensor_array_ops.define_tensor_array_split(value_shape, lengths_shape, True)
+
+        # tensor array
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        v3 = relay.var('v2')
+
+        adt_shape = [relay.Any(),] + shape[1:]
+        origin_shape = static_tensor_array_ops.shape
+        static_tensor_array_ops.shape = adt_shape
+        static_tensor_array_ops.define_tensor_array()
+        tensor_array = p.get_var_static('tensor_array', dtype, adt_shape)
+        static_tensor_array_ops.shape = origin_shape
+        tensor_array1 = tensor_array(relay.const(3))
+        write_func = p.get_var_static('tensor_array_write', dtype, adt_shape)
+        split_func = p.get_var_static('tensor_array_split', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, adt_shape)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
+        tensor_array1 = write_func(tensor_array1, relay.const(2), tensor(v3))
+
+        # value tensor
+        value = relay.var('value')
+
+        # lengths tensor
+        ta_len = relay.var('length')
+
+        # create the split function
+        if value_shape is None:
+            tensor1 = p.get_var_static('tensor_constructor', dtype, shape)
+        else:
+            static_tensor_array_ops = StaticTensorArrayOps(p, dtype, value_shape)
+            static_tensor_array_ops.register()
+            tensor1 = p.get_var_static('tensor_constructor', dtype, value_shape)
+        tensor_array_split = split_func(tensor_array1, tensor1(value), ta_len)
+        mod["main"] = relay.Function([v1, v2, v3, value, ta_len],
+                                     tensor_array_split)
+
+        # initialize and check
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
+        v3_data = np.random.uniform(low=0.0, high=8.0, size=[2, 3]).astype(dtype)
+        value_data = np.random.uniform(low=0.0, high=8.0,
+                                       size=value_shape or shape).astype(dtype)
+        length_data = np.array([2, 2], dtype="int32")
+        expected = np.concatenate([value_data, v3_data])
+        expected = np.split(expected, indices_or_sections=[2, 4])
+        check_tensor_array(mod, expected, *(v1_data, v2_data, v3_data,
+                                            value_data, length_data),
+                           dtype=dtype)
+
+    run('float32', [4, 3])
+    run('int32', [4, 3])
+    run('int32', [relay.Any(), 3], [4, 3], [2,])
+
+
+def test_static_tensor_array_concat():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        tensor_array1 = tensor_array(relay.const(2))
+        write_func = p.get_var_static('tensor_array_write', dtype, shape)
+        concat_func = p.get_var_static('tensor_array_concat', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        tensor_array1 = write_func(tensor_array1, relay.const(0), tensor(v1))
+        tensor_array1 = write_func(tensor_array1, relay.const(1), tensor(v2))
+        tensor_array_concat = concat_func(tensor_array1)
+        mod["main"] = relay.Function([v1, v2], tensor_array_concat)
+        v1_data = np.random.uniform(low=0.0, high=8.0, size=(2, 3)).astype(dtype)
+        v2_data = np.random.uniform(low=0.0, high=8.0, size=(1, 3)).astype(dtype)
+        expected = [np.concatenate((v1_data, v2_data), axis=0)]
+        check_tensor_array(mod, expected, *(v1_data, v2_data), dtype=dtype)
+    run('float32', [relay.Any(), 3])
+    run('int32', [relay.Any(), 3])
+
+
+def test_static_tensor_array_gather():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        write = p.get_var_static('tensor_array_write', dtype, shape)
+        gather = p.get_var_static('tensor_array_gather', dtype, shape)
+        v = relay.var('v')
+        indice = relay.var('indice')
+        init_tensor_array = tensor_array(relay.const(3))
+        tensor_array1 = write(init_tensor_array, relay.const(0), tensor(v))
+        tensor_array2 = write(tensor_array1, relay.const(1), tensor(v))
+        tensor_array3 = write(tensor_array2, relay.const(2), tensor(v))
+        out = gather(tensor_array3, indice)
+        mod["main"] = relay.Function([v, indice], out)
+        t = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        indice_data = np.array([0, 2], dtype="int32")
+        expected = [np.stack([t, t])]
+        check_tensor_array(mod, expected, *(t, indice_data), dtype=dtype)
+    run('float32', [])
+    run('int32', [2, 3])
+
+
+def test_static_tensor_array_stack():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        write = p.get_var_static('tensor_array_write', dtype, shape)
+        stack = p.get_var_static('tensor_array_stack', dtype, shape)
+        v = relay.var('v')
+        init_tensor_array = tensor_array(relay.const(3))
+        tensor_array1 = write(init_tensor_array, relay.const(0), tensor(v))
+        tensor_array2 = write(tensor_array1, relay.const(1), tensor(v))
+        tensor_array3 = write(tensor_array2, relay.const(2), tensor(v))
+        tensor_array4 = stack(tensor_array3)
+        mod["main"] = relay.Function([v], tensor_array4)
+        t = np.random.uniform(low=0.0, high=8.0, size=shape).astype(dtype)
+        expected = [np.stack([t, t, t])]
+        check_tensor_array(mod, expected, t, dtype=dtype)
+    run('float32', [])
+    run('int32', [2, 3])
+
+
+def test_static_tensor_get_data():
+    def run(dtype, shape):
+        mod = tvm.IRModule()
+        p = Prelude(mod)
+        static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
+        static_tensor_array_ops.register()
+        static_tensor_array_ops.define_tensor_get_data(shape)
+
+        np_data_list = []
+        ta_length = 3
+        for _ in range(ta_length):
+            np_data_list.append(np.random.uniform(0, 10, size=shape).astype(dtype))
+
+        v0 = relay.var('v0')
+        v1 = relay.var('v1')
+        v2 = relay.var('v2')
+        n = relay.var('n')
+        tensor = p.get_var_static('tensor_constructor', dtype, shape)
+        tensor_array = p.get_var_static('tensor_array', dtype, shape)
+        init_tensor_array = tensor_array(relay.const(ta_length))
+        read_func = p.get_var_static('tensor_array_read', dtype, shape)
+        write_func = p.get_var_static('tensor_array_write', dtype, shape)
+        get_data_func = p.get_var_static('tensor_get_data', dtype, shape)
+        tensor_array0 = write_func(init_tensor_array, relay.const(0),
+                                   tensor(v0))
+        tensor_array1 = write_func(tensor_array0, relay.const(1),
+                                   tensor(v1))
+        tensor_array2 = write_func(tensor_array1, relay.const(2),
+                                   tensor(v2))
+
+        mod["main"] = relay.Function([v0, v1, v2, n], get_data_func(read_func(tensor_array2, n)))
+        expected = [np_data_list[0]]
+        check_tensor_array(mod, expected, *list(np_data_list + [0]), dtype=dtype)
+        expected = [np_data_list[1]]
+        check_tensor_array(mod, expected, *list(np_data_list + [1]), dtype=dtype)
+        expected = [np_data_list[2]]
+        check_tensor_array(mod, expected, *list(np_data_list + [2]), dtype=dtype)
+    run('float32', [])
+    run('int32', [2, 3])
 
 if __name__ == "__main__":
     test_nat_constructor()
@@ -1016,3 +1405,17 @@ if __name__ == "__main__":
     test_tensor_array_concat()
     test_tensor_array_scatter()
     test_tensor_array_split()
+
+    test_static_tensor_take()
+    test_static_tensor_concatenate()
+    test_static_tensor_expand_dims()
+    test_static_tensor_array_constructor()
+    test_static_tensor_array_read()
+    test_static_tensor_array_write()
+    test_static_tensor_array_unstack()
+    test_static_tensor_array_scatter()
+    test_static_tensor_array_split()
+    test_static_tensor_array_concat()
+    test_static_tensor_array_stack()
+    test_static_tensor_array_gather()
+    test_static_tensor_get_data()
