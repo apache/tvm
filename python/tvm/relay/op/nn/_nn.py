@@ -178,6 +178,29 @@ def legalize_conv2d_transpose(attrs, inputs, types):
 reg.register_strategy("nn.conv3d", strategy.conv3d_strategy)
 reg.register_pattern("nn.conv3d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+@reg.register_alter_op_layout("nn.conv3d")
+def alter_op_layout_conv3d(attrs, inputs, tinfos, out_type):
+    """Alternate the layout of conv3d"""
+    return topi.nn.conv3d_alter_layout(attrs, inputs, tinfos, out_type)
+
+# conv3d_winograd related operators
+reg.register_strategy("nn.contrib_conv3d_winograd_without_weight_transform",
+                      strategy.conv3d_winograd_without_weight_transfrom_strategy)
+reg.register_pattern("nn.contrib_conv3d_winograd_without_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+@reg.register_compute("nn.contrib_conv3d_winograd_weight_transform")
+def compute_contrib_conv3d_winograd_weight_transform(attrs, inputs, out_dtype):
+    """Compute definition of contrib_conv3d_winograd_weight_transform"""
+    out = topi.nn.conv3d_winograd_weight_transform(
+        inputs[0], attrs.get_int('tile_size'))
+    return [out]
+
+reg.register_schedule("nn.contrib_conv3d_winograd_weight_transform",
+                      strategy.schedule_conv3d_winograd_weight_transform)
+reg.register_pattern("nn.contrib_conv3d_winograd_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
 
 # conv1d_transpose
 reg.register_strategy("nn.conv1d_transpose", strategy.conv1d_transpose_strategy)

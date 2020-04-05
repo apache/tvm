@@ -233,13 +233,25 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     """conv3d cuda strategy"""
     strategy = _op.OpStrategy()
+    _, kernel = inputs
     layout = attrs.data_layout
+    _, stride_h, stride_w = attrs.get_int_tuple("strides")
+    _, dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     assert layout in ["NCDHW", "NDHWC"], "Not support this layout {} yet".format(layout)
     if layout == "NCDHW":
         strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_ncdhw),
                                     wrap_topi_schedule(topi.cuda.schedule_conv3d_ncdhw),
                                     name="conv3d_ncdhw.cuda",
                                     plevel=10)
+        _, _, _, kh, kw = get_const_tuple(kernel.shape)
+        if 2 < kh < 8 and 2 < kw < 8 and kh == kw and \
+            stride_h == 1 and stride_w == 1 and \
+            dilation_h == 1 and dilation_w == 1:
+            strategy.add_implementation(
+                wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd),
+                wrap_topi_schedule(topi.cuda.schedule_conv3d_ncdhw_winograd),
+                name="conv3d_ncdhw_winograd.cuda",
+                plevel=5)
     else: # layout == "NDHWC":
         strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
                                     wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc),
@@ -250,6 +262,26 @@ def conv3d_strategy_cuda(attrs, inputs, out_type, target):
                                     wrap_topi_schedule(topi.cuda.schedule_conv3d_cudnn),
                                     name="conv3d_cudnn.cuda",
                                     plevel=15)
+    return strategy
+
+@conv3d_winograd_without_weight_transfrom_strategy.register(["cuda", "gpu"])
+def conv3d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom cuda strategy"""
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.data_layout
+    assert dilation == (1, 1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+    strategy = _op.OpStrategy()
+    if layout == "NCDHW":
+        strategy.add_implementation(
+            wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd_without_weight_transform),
+            wrap_topi_schedule(
+                topi.cuda.schedule_conv3d_ncdhw_winograd_without_weight_transform),
+            name="conv3d_ncdhw_winograd_without_weight_transform.cuda")
+    else:
+        raise RuntimeError("Unsupported conv3d_winograd_without_weight_transfrom layout {}".
+                           format(layout))
     return strategy
 
 @conv1d_strategy.register(["cuda", "gpu"])

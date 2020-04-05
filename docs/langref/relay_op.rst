@@ -82,8 +82,13 @@ This level enables typical convnet models.
    tvm.relay.nn.pad
    tvm.relay.nn.lrn
    tvm.relay.nn.l2_normalize
+   tvm.relay.nn.bitpack
+   tvm.relay.nn.bitserial_dense
+   tvm.relay.nn.bitserial_conv2d
    tvm.relay.nn.contrib_conv2d_winograd_without_weight_transform
    tvm.relay.nn.contrib_conv2d_winograd_weight_transform
+   tvm.relay.nn.contrib_conv3d_winograd_without_weight_transform
+   tvm.relay.nn.contrib_conv3d_winograd_weight_transform
 
 
 **Level 3: Additional Math And Transform Operators**
