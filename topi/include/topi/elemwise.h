@@ -63,7 +63,7 @@ TOPI_DECLARE_UNARY_OP(tanh);
 TOPI_DECLARE_UNARY_OP(isfinite);
 TOPI_DECLARE_UNARY_OP(isinf);
 
-/*
+/*!
  * \brief Fast_tanh_float implementation from Eigen
  * https://github.com/eigenteam/eigen-git-mirror/blob/master/Eigen/src/Core/MathFunctionsImpl.h#L26
  */
@@ -461,7 +461,10 @@ inline Tensor fast_exp(const Tensor& x,
   }
 }
 
-// https://github.com/eigenteam/eigen-git-mirror/blob/master/unsupported/Eigen/src/SpecialFunctions/SpecialFunctionsImpl.h#L290
+/*!
+ * \brief Fast_tanh_float implementation from Eigen
+ * https://github.com/eigenteam/eigen-git-mirror/blob/master/unsupported/Eigen/src/SpecialFunctions/SpecialFunctionsImpl.h#L290
+ */
 inline Tensor fast_erf_float32(const Tensor& data,
                                std::string name,
                                std::string tag) {
@@ -516,7 +519,6 @@ inline Tensor fast_erf_float32(const Tensor& data,
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is erf operation
- *
  */
 inline Tensor fast_erf(const Tensor& x,
                        std::string name = "T_fast_erf",
