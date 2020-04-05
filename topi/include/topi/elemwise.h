@@ -489,26 +489,26 @@ inline Tensor fast_erf_float32(const Tensor& data,
   auto beta_8 = make_const(DataType::Float(32), -1.45660718464996e-05f);
 
   return compute(data->shape, [&](const Array<Var> &i) {
-      // clamp x
-      auto x = tvm::max(tvm::min(data(i), plus_4), minus_4);
-      auto x2 = x * x;
+    // clamp x
+    auto x = tvm::max(tvm::min(data(i), plus_4), minus_4);
+    auto x2 = x * x;
 
-      // Evaluate the numerator polynomial p.
-      auto p = x2 * alpha_13 + alpha_11;
-      p = x2 * p + alpha_9;
-      p = x2 * p + alpha_7;
-      p = x2 * p + alpha_5;
-      p = x2 * p + alpha_3;
-      p = x2 * p + alpha_1;
-      p = x * p;
+    // Evaluate the numerator polynomial p.
+    auto p = x2 * alpha_13 + alpha_11;
+    p = x2 * p + alpha_9;
+    p = x2 * p + alpha_7;
+    p = x2 * p + alpha_5;
+    p = x2 * p + alpha_3;
+    p = x2 * p + alpha_1;
+    p = x * p;
 
-      // Evaluate the denominator polynomial p.
-      auto q = x2 * beta_8 + beta_6;
-      q = x2 * q + beta_4;
-      q = x2 * q + beta_2;
-      q = x2 * q + beta_0;
+    // Evaluate the denominator polynomial p.
+    auto q = x2 * beta_8 + beta_6;
+    q = x2 * q + beta_4;
+    q = x2 * q + beta_2;
+    q = x2 * q + beta_0;
 
-      return p / q;
+    return p / q;
   }, name, tag);
 }
 
@@ -528,7 +528,7 @@ inline Tensor fast_erf(const Tensor& x,
     auto ret = fast_erf_float32(x, name, tag);
     return ret;
   } else {
-    return erf(x);
+    return topi::erf(x);
   }
 }
 
