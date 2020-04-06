@@ -23,7 +23,7 @@ The Hexagon runtime is a part of the TVM runtime that facilitates communication 
 
 The TVM runtime that contains Hexagon runtime is the one executing on host.  In either case, there will need to be a separate TVM runtime (i.e.  the `libtvm_runtime.so` library) compiled for execution on Hexagon.
 
-The prerequisite is to have Hexagon SDK installed, preferably version 3.5.0.
+The prerequisite is to have Hexagon SDK installed, preferably version 3.5.0 or later. The Hexagon SDK can be downloaded from https://developer.qualcomm.com/software/hexagon-dsp-sdk.
 
 ### Compiling TVM runtime for x86
 
