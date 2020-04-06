@@ -21,7 +21,7 @@ import logging
 import numpy as np
 
 import tvm
-from tvm.ir import IRModule, TypeCall
+from tvm.ir import IRModule
 from topi.util import get_const_tuple
 
 from .. import expr as _expr
