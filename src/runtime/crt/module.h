@@ -41,7 +41,7 @@ typedef struct TVMModule {
    *
    *  This function will return PackedFunc(nullptr) if function do not exist.
    */
-  void (*GetFunction)(struct TVMModule * mod, const char * name, TVMPackedFunc * pf);
+  void (*GetFunction)(struct TVMModule * mod, const char * name, struct TVMPackedFunc * pf);
 } TVMModule;
 
 #endif  // TVM_RUNTIME_CRT_MODULE_H_
