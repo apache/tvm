@@ -279,7 +279,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
 
     # Target string
     def create_target(cpu_ver):
-        target  = ' -target=hexagon'
+        target = ' -target=hexagon'
         mcpu = ' -mcpu=hexagon' + cpu_ver
         mattr = ''
         # HVX enable
