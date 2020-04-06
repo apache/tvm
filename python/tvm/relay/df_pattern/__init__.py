@@ -47,6 +47,18 @@ class DFPattern(Node):
     def __or__(self, other):
         return AltPattern(self, other)
 
+    def __add__(self, other):
+        return is_op("add")(self, other)
+
+    def __sub__(self, other):
+        return is_op("subtract")(self, other)
+
+    def __mul__(self, other):
+        return is_op("multiply")(self, other)
+
+    def __truediv__(self, other):
+        return is_op("divide")(self, other)
+
     def has_attr(self, attr_name, attr_value):
         attrs = make_node("DictAttrs", **{attr_name:attr_value})
         return AttrPattern(self, attrs)
@@ -241,4 +253,6 @@ def match(pattern, expr):
     return ffi.match(pattern, expr)
 
 def rewrite(callbacks, expr):
+    if isinstance(callbacks, DFPatternCallback):
+        callbacks = [callbacks]
     return ffi.rewrite(callbacks, expr)

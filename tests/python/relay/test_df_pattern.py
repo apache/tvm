@@ -17,6 +17,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.df_pattern import *
+import numpy as np
 
 # NB: 1 corresponds to the C++ enum that specicfies this
 # we loose the type safety due to the Python/C++ calling
@@ -225,7 +226,7 @@ def test_match_fake_diamond():
     # Check
     assert not diamond.match(out)
 
-def test_match_rewrite():
+def test_rewrite():
     x = relay.var('x')
     y = relay.var('y')
     add_pattern = is_op('add')(wildcard(), wildcard())
@@ -235,22 +236,141 @@ def test_match_rewrite():
     out = rewrite([DFPatternCallback(add_pattern, add_to_sub)], x + y)
     assert sub_pattern.match(out)
 
+def fuse_batchnorm(pre, post):
+    def left_right_call(post):
+        if isinstance(post.args[0], relay.Call):
+            return (post.args[1], post.args[0])
+        else:
+            return (post.args[0], post.args[1])
+    
+    beta, post = left_right_call(post)
+    assert isinstance(post, relay.Call)
+    
+    if post.op == relay.op.get("divide"):
+        numerator = post.args[0]
+        denominator = post.args[1]
+        gamma, numerator = left_right_call(numerator)
+    elif post.op == relay.op.get("multiply"):
+        gamma, quotient = left_right_call(post)
+        numerator = quotient.args[0]
+        denominator = quotient.args[1]
+    else:
+        raise "Found unexcepted op"
+
+    x = numerator.args[0]
+    mean = numerator.args[1]
+
+    var = denominator.args[0].args[0]
+    eps = denominator.args[0].args[1]
+    
+    out = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = eps.data.asnumpy().item())
+    return out[0]
+
+def test_fuse_batchnorm():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
+    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
+
+def test_no_fuse_batchnorm():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
+    fake_BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) - beta
+
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), fake_BN)
+    assert tvm.ir.structural_equal(out, fake_BN)
+
+def test_fuse_double_batchnorm():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
+    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+    BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN2)
+
+    bn = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0]
+    bn2 = relay.op.nn.batch_norm(bn, gamma, beta, mean, var, epsilon = 1e-5)[0]
+
+    assert tvm.ir.structural_equal(out, bn2)
+
+def test_partial_fuse_double_batchnorm():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
+    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) - beta
+    BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN2)
+
+    bn2 = relay.op.nn.batch_norm(BN, gamma, beta, mean, var, epsilon = 1e-5)[0]
+
+    assert tvm.ir.structural_equal(out, bn2)
+
+def test_fuse_batchnorm_commutation():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
+    #commute add
+    BN = beta + gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5))
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
+
+    # associate multiply/divide
+    BN = (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) * gamma + beta
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
+
+    # associate divide/multiply
+    BN_pattern = wildcard() * ((wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard())) + wildcard()
+    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
 if __name__ == "__main__":
-    test_match_op()
-    test_no_match_op()
-    test_match_op_or()
-    test_match_call()
-    test_no_match_call()
-    test_match_call_commutive()
-    test_no_match_call_commutive()
-    test_match_tuple()
-    test_no_match_tuple()
-    test_match_type()
-    test_no_match_type()
-    test_match_attr()
-    test_no_match_attr()
-    test_match_diamond()
-    test_no_match_diamond()
-    test_match_fake_diamond()
-    test_match_rewrite()
+    #test_match_op()
+    #test_no_match_op()
+    #test_match_op_or()
+    #test_match_call()
+    #test_no_match_call()
+    #test_match_call_commutive()
+    #test_no_match_call_commutive()
+    #test_match_tuple()
+    #test_no_match_tuple()
+    #test_match_type()
+    #test_no_match_type()
+    #test_match_attr()
+    #test_no_match_attr()
+    #test_match_diamond()
+    #test_no_match_diamond()
+    #test_match_fake_diamond()
+    #test_rewrite()
+    #test_fuse_batchnorm()
+    #test_no_fuse_batchnorm()
+    #test_fuse_double_batchnorm()
+    #test_partial_fuse_double_batchnorm()
+    test_fuse_batchnorm_commutation()
