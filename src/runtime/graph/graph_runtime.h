@@ -124,6 +124,12 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    */
   void SetInputZeroCopy(int index, DLTensor* data_ref);
   /*!
+   * \brief set index-th output to the graph
+   * \param index The output index.
+   * \param data_ref The output data that is written.
+   */
+  void SetOutput(int index, DLTensor* data_out);
+  /*!
    * \brief Get the number of outputs
    *
    * \return The number of outputs from graph.

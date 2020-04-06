@@ -133,6 +133,7 @@ class GraphModule(object):
         self.module = module
         self._set_input = module["set_input"]
         self._run = module["run"]
+        self._set_output = module["set_output"]
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
@@ -162,6 +163,19 @@ class GraphModule(object):
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
                 self._get_input(k).copyfrom(params[k])
+
+    def set_output(self, index, out):
+        """Set index-th output to out
+
+        Parameters
+        ----------
+        index : int
+            The output index
+
+        out : NDArray
+            The output array container
+        """
+        return self._set_output(index, out)
 
     def run(self, **input_dict):
         """Run forward execution of the graph

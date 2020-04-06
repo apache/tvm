@@ -129,6 +129,31 @@ void GraphRuntime::SetInputZeroCopy(int index, DLTensor* data_ref) {
   }
 }
 /*!
+ * \brief set index-th output to the graph.
+ * \param index The output index.
+ * \param data_ref The output data that is written.
+ */
+void GraphRuntime::SetOutput(int index, DLTensor* data_out) {
+  CHECK_LT(static_cast<size_t>(index), outputs_.size());
+  uint32_t eid = this->entry_id(outputs_[index]);
+  const DLTensor* old_t = data_entry_[eid].operator->();
+
+  // check the consistency of input
+  CHECK_EQ(data_alignment_[eid], details::GetDataAlignment(*data_out));
+  CHECK_EQ(reinterpret_cast<size_t>(data_out->data) % kAllocAlignment, 0);
+  CHECK_EQ(old_t->ndim, static_cast<size_t>(data_out->ndim));
+  CHECK_EQ(old_t->ctx.device_type, data_out->ctx.device_type);
+  CHECK_EQ(old_t->ctx.device_id, data_out->ctx.device_id);
+  for (auto i = 0; i < data_out->ndim; ++i) {
+    CHECK_EQ(old_t->shape[i], data_out->shape[i]);
+  }
+  old_t = data_out;
+  // Update the data pointer for each argument of each op
+  for (DLTensor* t : input_dltensors_[eid]) {
+    t->data = data_out->data;
+  }
+}
+/*!
  * \brief Get the number of outputs
  *
  * \return The number of outputs from graph.
@@ -425,6 +450,10 @@ PackedFunc GraphRuntime::GetFunction(
       } else {
         this->SetInputZeroCopy(args[0], args[1]);
       }
+    });
+  } else if (name == "set_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      this->SetOutput(args[0], args[1]);
     });
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
