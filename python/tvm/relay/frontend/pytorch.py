@@ -25,7 +25,6 @@ import sys
 import numpy as np
 
 import tvm
-from tvm.ir import module as _module
 
 from .. import analysis as _analysis
 from .. import expr as _expr
@@ -1507,6 +1506,18 @@ def _get_relay_input_vars(graph, input_shapes):
     return input_vars
 
 
+def _unpack_tuple(tup):
+    def unpack(tup, num_fields):
+        return [_expr.TupleGetItem(tup, i) for i in range(num_fields)]
+
+    if isinstance(tup, _expr.Tuple):
+        return unpack(tup, len(tup.fields))
+    elif isinstance(tup.type_annotation, TupleType):
+        return unpack(tup, len(tup.type_annotation.fields))
+    else:
+        assert False
+
+
 def _rewrite_for_tensor_array(graph):
     def has_kind(chain, kind):
         return any([node.kind() == kind for node in chain])
@@ -1718,6 +1729,10 @@ def convert_loop(loop_node, outputs, convert_map):
     def get_var(name, val):
         if isinstance(val, _expr.Constant):
             return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
+        if isinstance(val, _expr.Var):
+            return _expr.var(name, type_annotation=val.type_annotation)
+        if isinstance(val, list):
+            assert False
         return _expr.var(name)
 
     if is_while_loop:
@@ -1756,12 +1771,17 @@ def convert_operators(operators, outputs, ret_names, convert_map):
             outputs[node_name] = _get_constant(op_node)
         elif operator == 'prim::ListConstruct' and _is_int_seq(inputs):
             outputs[node_name] = _expr.var(node_name, shape=inputs)
-        elif operator in ['prim::ListConstruct', 'prim::TupleConstruct']:
+        elif operator == 'prim::ListConstruct':
             outputs[node_name] = inputs
+        elif operator == 'prim::TupleConstruct':
+            outputs[node_name] = _expr.Tuple(inputs)
         elif operator in ["prim::ListUnpack", 'prim::TupleUnpack']:
             assert len(inputs) == 1
-            unpacked_names = _get_output_names(op_node)
-            outputs.update(zip(unpacked_names, inputs[0]))
+            if isinstance(inputs[0], list):
+                unpacked = inputs[0]
+            else:
+                unpacked = _unpack_tuple(inputs[0])
+            outputs.update(zip(_get_output_names(op_node), unpacked))
         elif operator == "prim::If":
             if_out = convert_if(op_node, outputs, convert_map)
             outputs[node_name] = if_out
@@ -1831,6 +1851,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+    _rewrite_for_tensor_array(graph)
+    print(graph)
 
     if custom_convert_map:
         convert_map.update(custom_convert_map)
