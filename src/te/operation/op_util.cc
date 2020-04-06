@@ -165,7 +165,7 @@ MakeLoopNest(const Stage& stage,
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::make(bind_iv->thread_tag);
         if (stage->scope == "" || stage->scope == "warp" ||
-            static_cast<int>(runtime::StorageScope::make(stage->scope).rank) < ts.rank) {
+            static_cast<int>(runtime::StorageScope::make(stage->scope).rank) <= ts.rank) {
           value_map[iv] = var;
         } else {
           value_map[iv] = dom->min;
