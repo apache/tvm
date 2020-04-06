@@ -270,7 +270,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
     valid_hex = ['v60', 'v62', 'v65', 'v66', 'v67', 'v67t']
     try:
         cpu_ver = cpu_ver[cpu_ver.index('v'):].lower()
-        assert(3 <= len(cpu_ver) <= 4)
+        assert 3 <= len(cpu_ver) <= 4
     except:
         msg = '{} is not a valid Hexagon version\nvalid versions include {}'
         raise ValueError(msg.format(cpu_ver, valid_hex)) from None
@@ -280,8 +280,8 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
     # Target string
     def create_target(cpu_ver):
         target  = ' -target=hexagon'
-        mcpu    = ' -mcpu=hexagon'+cpu_ver
-        mattr   = ''
+        mcpu = ' -mcpu=hexagon' + cpu_ver
+        mattr = ''
         # HVX enable
         if hvx:
             mattr = ' -mattr=+hvx' + cpu_ver + ',+hvx-length' + str(hvx) + 'b'
