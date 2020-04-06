@@ -26,7 +26,7 @@ import numpy as np
 import tvm
 
 from tvm.ir import IRModule
-from tvm.relay.prelude import Prelude, StaticTensorArrayOps
+from tvm.relay.prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
 from tvm.ir import structural_hash as s_hash
 
 from .. import analysis
@@ -41,7 +41,6 @@ from .common import infer_shape as _infer_shape
 from .common import infer_channels as _infer_channels
 from .common import infer_value as _infer_value
 from .common import infer_value_simulated as _infer_value_simulated
-from .common import check_tensor_array_shape as _check_tensor_array_shape
 
 __all__ = ['from_tensorflow']
 
@@ -845,7 +844,7 @@ def _tensor_array_scatter():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
         input_ta = inputs[0]
-        input_shape = _check_tensor_array_shape(input_ta, dtype_str, prelude.mod)
+        input_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         values_shape = _infer_shape(inputs[2], prelude.mod)
         input_t_shape = values_shape[1:]
         indices_shape = _infer_shape(inputs[1], prelude.mod)
@@ -894,7 +893,7 @@ def _tensor_array_scatter():
 def _tensor_array_gather():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('dtype').name
-        input_shape = _check_tensor_array_shape(inputs[2], dtype_str, prelude.mod)
+        input_shape = get_tensor_array_shape(inputs[2], dtype_str, prelude)
         indices_shape = _infer_shape(inputs[1], prelude.mod)
 
         if input_shape is None:
@@ -946,7 +945,7 @@ def _tensor_array_write():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
         input_ta = inputs[3]
-        input_ta_shape = _check_tensor_array_shape(input_ta, dtype_str, prelude.mod)
+        input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         input_t_shape = _infer_shape(inputs[2], prelude.mod)
         input_rank = len(input_t_shape)
 
@@ -994,7 +993,7 @@ def _tensor_array_write():
 def _tensor_array_read():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr['dtype'].name
-        input_shape = _check_tensor_array_shape(inputs[2], dtype_str, prelude.mod)
+        input_shape = get_tensor_array_shape(inputs[2], dtype_str, prelude)
 
         if input_shape is None:
             read_func = prelude.get_var('tensor_array_read', dtype_str)
@@ -1019,7 +1018,7 @@ def _tensor_array_split():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr.get('T').name
         input_ta = inputs[0]
-        input_ta_shape = _check_tensor_array_shape(input_ta, dtype_str, prelude.mod)
+        input_ta_shape = get_tensor_array_shape(input_ta, dtype_str, prelude)
         input_t_shape = _infer_shape(inputs[1], prelude.mod)
         input_rank = len(input_t_shape)
         lengths = _op.cast(inputs[2], 'int32')
@@ -1082,7 +1081,7 @@ def _tensor_array_split():
 def _tensor_array_concat():
     def _impl(inputs, attr, params, prelude):
         dtype_str = attr['dtype'].name
-        input_shape = _check_tensor_array_shape(inputs[1], dtype_str, prelude.mod)
+        input_shape = get_tensor_array_shape(inputs[1], dtype_str, prelude)
 
         if input_shape is None:
             concat_func = prelude.get_var('tensor_array_concat', dtype_str)

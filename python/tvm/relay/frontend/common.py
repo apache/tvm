@@ -29,7 +29,6 @@ from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
-from ..ty import Any
 
 
 class RequiredAttr(object):
@@ -556,28 +555,6 @@ def new_var(name_hint,
             shape=None,
             dtype="float32"):
     return _expr.var(name_hint, type_annotation, shape, dtype)
-
-
-def check_tensor_array_shape(expr, dtype, mod):
-    """Check whether a tensor array has fixed rank shape.
-    Return its shape if yes. Otherwise, return None.
-    """
-    checked_type = infer_shape(expr, mod)
-    assert isinstance(checked_type, TypeCall), "Input must be a tensor array."
-    ta_type_str = checked_type.args[0].func.name_hint
-    static_ta_ty_start = "static_tensor_{}".format(dtype)
-    if ta_type_str.startswith(static_ta_ty_start):
-        shape_str = ta_type_str.replace("{}_".format(static_ta_ty_start), '') \
-            .replace("_t", '')
-        shape = []
-        if "scalar" not in shape_str:
-            for dim_str in shape_str.split("_"):
-                if dim_str == "?":
-                    shape.append(Any())
-                else:
-                    shape.append(int(dim_str))
-        return tuple(shape)
-    return None
 
 
 class Renamer(object):
