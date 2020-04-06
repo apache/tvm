@@ -67,20 +67,23 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else if (name == "_get_target_triple") {
       std::string target_triple = tm_->getTargetTriple().str();
       return PackedFunc([target_triple](TVMArgs args, TVMRetValue *rv) {
-        * rv = target_triple;
+        *rv = target_triple;
       });
     }
     if (ee_ == nullptr) LazyInitJIT();
 
-    // This LLVMModule is empty and no function can be retrieved.
-    if (entry_func_.empty()) return nullptr;
-
     std::lock_guard<std::mutex> lock(mutex_);
-    const std::string& fname = (name == runtime::symbol::tvm_module_main ?
-                                entry_func_ : name);
 
-    TVMBackendPackedCFunc faddr =
-        reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(fname));
+    TVMBackendPackedCFunc faddr;
+    if (name == runtime::symbol::tvm_module_main) {
+      const char* entry_name = reinterpret_cast<const char*>(
+          GetGlobalAddr(runtime::symbol::tvm_module_main));
+      CHECK(entry_name != nullptr)
+          << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
+      faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(entry_name));
+    } else {
+      faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name));
+    }
     if (faddr == nullptr) return PackedFunc();
     return WrapPackedFunc(faddr, sptr_to_self);
   }
@@ -205,6 +208,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
 
     std::vector<PrimFunc> funcs;
+    std::string entry_func;
     for (auto kv :  mod->functions) {
       CHECK(kv.second->IsInstance<PrimFuncNode>())
           << "Can only lower IR Module with PrimFuncs";
@@ -212,7 +216,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
         auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
         CHECK(global_symbol.defined());
-        entry_func_ = global_symbol;
+        entry_func = global_symbol;
       }
       funcs.push_back(f);
     }
@@ -225,8 +229,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       cg->AddFunction(f);
     }
 
-    if (entry_func_.length() != 0) {
-      cg->AddMainFunction(entry_func_);
+    if (entry_func.length() != 0) {
+      cg->AddMainFunction(entry_func);
     }
 
     module_ = cg->Finish();
@@ -321,13 +325,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     CHECK(ee_ != nullptr)
         << "Failed to initialize jit engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
-    // setup context address.
-    // we will skip context setup if this LLVMModule is empty.
-    if (GetGlobalAddr(runtime::symbol::tvm_module_main) == 0)
-      return;
 
-    entry_func_ =
-        reinterpret_cast<const char*>(GetGlobalAddr(runtime::symbol::tvm_module_main));
     if (void** ctx_addr = reinterpret_cast<void**>(
             GetGlobalAddr(runtime::symbol::tvm_module_ctx))) {
       *ctx_addr = this;
@@ -356,8 +354,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   // The target configuration string
   std::string target_;
-  // Name of entry function.
-  std::string entry_func_;
   // JIT lock
   std::mutex mutex_;
   // execution engine

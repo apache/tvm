@@ -55,7 +55,7 @@ using TargetsMap = std::unordered_map<int, Target>;
 /*! \brief Lowered outputs */
 struct LoweredOutput {
   std::string graph_json;
-  Map<std::string, Array<tir::LoweredFunc> > lowered_funcs;
+  Map<std::string, IRModule> lowered_funcs;
   Array<tvm::runtime::Module> external_mods;
   std::unordered_map<std::string, tvm::runtime::NDArray> params;
 };
@@ -214,19 +214,14 @@ class GraphRuntimeCodegen
     LoweredOutput ret;
     ret.graph_json = os.str();
     ret.params = params_;
+
     for (auto& kv : lowered_funcs_) {
       if (ret.lowered_funcs.count(kv.first) == 0) {
-        ret.lowered_funcs.Set(kv.first, Array<tir::LoweredFunc>());
+        ret.lowered_funcs.Set(kv.first, IRModule::Empty());
       }
-      auto& vec = ret.lowered_funcs[kv.first];
-      Array<tir::LoweredFunc> tmp;
-      for (auto f : kv.second) {
-        tmp.push_back(f);
-      }
-      for (auto f : vec) {
-        tmp.push_back(f);
-      }
-      ret.lowered_funcs.Set(kv.first, tmp);
+      auto& mod = ret.lowered_funcs[kv.first];
+      mod->Update(kv.second);
+      ret.lowered_funcs.Set(kv.first, mod);
     }
     ret.external_mods = compile_engine_->LowerExternalFunctions();
     return ret;
@@ -457,12 +452,9 @@ class GraphRuntimeCodegen
     CCacheKey key = (*pf0)(func, target);
     CachedFunc lowered_func = (*pf1)(compile_engine_, key);
     if (!lowered_funcs_.count(target->str())) {
-      lowered_funcs_[target->str()] = {};
+      lowered_funcs_[target->str()] = IRModule::Empty();
     }
-    for (auto f : lowered_func->funcs) {
-      lowered_funcs_[target->str()].insert(f);
-    }
-
+    lowered_funcs_[target->str()]->Update(lowered_func->funcs);
     return GraphAddCallNode(op,
                            _GetUniqueName(lowered_func->func_name),
                            lowered_func->func_name);
@@ -602,8 +594,7 @@ class GraphRuntimeCodegen
   /*! \brief plan memory of device result */
   Map<Expr, Array<IntegerArray>> storage_device_map_;
   /*! \brief lowered funcs */
-  std::unordered_map<std::string, std::unordered_set<tir::LoweredFunc, ObjectHash, ObjectEqual>>
-      lowered_funcs_;
+  std::unordered_map<std::string, IRModule> lowered_funcs_;
   /*! \brief name map */
   std::unordered_map<std::string, size_t> name_map_;
   /*! \brief compile engine */
@@ -655,7 +646,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
         CHECK_GT(this->output_.params.count(key), 0);
         *rv = this->output_.params[key];
       });
-    } else if (name == "get_lowered_funcs") {
+    } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->output_.lowered_funcs;
       });

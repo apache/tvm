@@ -439,6 +439,7 @@ class FloatImm(ConstExpr):
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.FloatImm, dtype, value)
 
+
 @tvm._ffi.register_object
 class IntImm(ConstExpr):
     """Int constant.
@@ -455,8 +456,23 @@ class IntImm(ConstExpr):
         self.__init_handle_by_constructor__(
             tvm.ir._ffi_api.IntImm, dtype, value)
 
+    def __hash__(self):
+        return self.value
+
     def __int__(self):
         return self.value
+
+    def __nonzero__(self):
+        return self.value != 0
+
+    def __eq__(self, other):
+        return _ffi_api._OpEQ(self, other)
+
+    def __ne__(self, other):
+        return _ffi_api._OpNE(self, other)
+
+    def __bool__(self):
+        return self.__nonzero__()
 
 
 @tvm._ffi.register_object

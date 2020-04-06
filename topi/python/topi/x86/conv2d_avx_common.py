@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """Conv2D schedule on for Intel CPU"""
 import tvm
-from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..generic import conv2d as conv2d_generic
@@ -91,17 +90,12 @@ def _schedule_conv_NCHWc(s, cfg, data_vec, kernel_vec, conv_out, last):
     if isinstance(s[data_vec].op, tvm.te.ComputeOp) \
             and "pad" in data_vec.op.tag:
         batch, ic_chunk, ih, iw, ic_block = s[data_vec].op.axis
+        s[data_vec].vectorize(ic_block)
         parallel_axis = s[data_vec].fuse(batch, ic_chunk, ih)
         s[data_vec].parallel(parallel_axis)
         data_vec = data_vec.op.input_tensors[0]
 
-    if autotvm.GLOBAL_SCOPE.in_tuning:
-        # only in autotuning, input data of conv2d_NCHWc will be 4-D.
-        # skip this part during tuning to make records accurate.
-        # this part will be folded during Relay fold_constant pass.
-        s[data_vec].pragma(s[data_vec].op.axis[0], "debug_skip_region")
-        s[kernel_vec].pragma(s[kernel_vec].op.axis[0], "debug_skip_region")
-    elif isinstance(kernel_vec.op, tvm.te.ComputeOp) and \
+    if isinstance(kernel_vec.op, tvm.te.ComputeOp) and \
             kernel_vec.name == 'kernel_vec':
         # data and kernel are not pre-computed, schedule layout transform here.
         # this should only be used by x86 conv2d_nchw, which is for

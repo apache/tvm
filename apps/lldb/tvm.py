@@ -46,7 +46,6 @@ def __lldb_init_module(debugger, _):
         "tvm::IterVarAttr",
         "tvm::IterVarRelation",
         "tvm::Layout",
-        "tir::LoweredFunc",
         "tvm::Map",
         "tvm::Map",
         "tvm::MemoryInfo",

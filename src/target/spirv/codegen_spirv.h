@@ -27,7 +27,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/lowered_func.h>
 
 #include <vector>
 #include <memory>

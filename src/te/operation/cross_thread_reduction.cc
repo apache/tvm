@@ -57,10 +57,63 @@ Stmt MakeCrossThreadReduction(
   for (PrimExpr v : conds) {
     cond = cond && v;
   }
+
+  std::vector<std::vector<Stmt>> common, normal_red;
+  for (size_t i = 0, n = stage->leaf_iter_vars.size(); i < n; ++i) {
+    IterVar iv = stage->leaf_iter_vars[i];
+    IterVarAttr attr;
+    auto it = stage->iter_var_attrs.find(iv);
+    if (it != stage->iter_var_attrs.end()) {
+      attr = (*it).second;
+    }
+    if (iv->iter_type == kCommReduce) {
+      if (attr.defined() && attr->bind_thread.defined()) {
+        common.emplace_back(nest[i + 1]);
+      } else {
+        normal_red.emplace_back(nest[i + 1]);
+      }
+    } else {
+      common.emplace_back(nest[i + 1]);
+    }
+  }
+
+  // If we load from and then store into the same res_handles in the thread_allreduce intrinsic,
+  // something goes wrong, so we use an extra variable here for normal reduction.
+  std::vector<Var> normal_res_handles;
+  std::vector<Stmt> normal_init, normal_update;
+  if (!normal_red.empty()) {
+    normal_res_handles.reserve(size);
+    normal_init.reserve(size);
+    normal_update.resize(size);
+    const CommReducerNode* combiner = reduces[0]->combiner.as<CommReducerNode>();
+    CHECK(combiner);
+    Array<PrimExpr> lhs;
+    for (size_t i = 0; i < size; ++i) {
+      DataType t = reduces[i]->dtype;
+      normal_res_handles.emplace_back("normal_reduce_temp" + std::to_string(i), DataType::Handle());
+      lhs.push_back(LoadNode::make(t, normal_res_handles[i], 0, const_true(t.lanes())));
+    }
+    Array<PrimExpr> init_value = combiner->identity_element;
+    Array<PrimExpr> update_value = (*combiner)(lhs, reduces[0]->source);
+    for (size_t i = 0; i < size; ++i) {
+      DataType t = reduces[i]->dtype;
+      normal_init.emplace_back(StoreNode::make(
+            normal_res_handles[i], init_value[i], 0, const_true(t.lanes())));
+      normal_update.emplace_back(StoreNode::make(
+            normal_res_handles[i], update_value[i], 0, const_true(t.lanes())));
+    }
+  }
+
   Array<PrimExpr> freduce_args;
   freduce_args.push_back(make_const(DataType::UInt(32), static_cast<uint32_t>(size)));
   for (size_t i = 0; i < size; ++i) {
-    freduce_args.push_back(reduces[0]->source[i]);
+    if (!normal_red.empty()) {
+      DataType t = reduces[i]->dtype;
+      freduce_args.push_back(LoadNode::make(
+            t, normal_res_handles[i], 0, const_true(t.lanes())));
+    } else {
+      freduce_args.push_back(reduces[0]->source[i]);
+    }
   }
   freduce_args.push_back(cond);
   std::vector<Var> res_handles(size);
@@ -94,6 +147,15 @@ Stmt MakeCrossThreadReduction(
       tir::attr::reduce_scope,
       make_zero(DataType::Handle()),
       reduce_body);
+
+  if (!normal_red.empty()) {
+    Stmt init_body = SeqStmt::Flatten(normal_init);
+    Stmt update_body = SeqStmt::Flatten(normal_update);
+    update_body = MergeNest(normal_red, update_body);
+    reduce_body = SeqStmt::Flatten(init_body, update_body, reduce_body);
+    reduce_body = MergeNest(MakeIfNest(conds), reduce_body);
+  }
+
   std::vector<Stmt> assigns(size);
   for (size_t idx = 0; idx < size; ++idx) {
     DataType t = reduces[idx]->dtype;
@@ -110,9 +172,15 @@ Stmt MakeCrossThreadReduction(
       res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
     body = AttrStmtNode::make(
       res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
+    if (!normal_red.empty()) {
+      body = AllocateNode::make(
+        normal_res_handles[idx - 1], reduces[idx - 1]->dtype, {1}, const_true(), body);
+      body = AttrStmtNode::make(
+        normal_res_handles[idx - 1], tir::attr::storage_scope, StringImmNode::make("local"), body);
+    }
   }
   body = Substitute(body, value_map);
-  return MergeNest(nest, body);
+  return MergeNest(common, body);
 }
 }  // namespace te
 }  // namespace tvm

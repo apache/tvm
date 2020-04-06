@@ -741,6 +741,30 @@ def _test_upsample_nearest():
         tvm.testing.assert_allclose(out_array, tvm_out)
 
 
+def _test_upsample3d_nearest():
+    scale = 2
+    in_shape = (1, 1, 3, 3, 3)
+    out_shape = (1, 1, 3*scale, 3*scale, 3*scale)
+    y = helper.make_node("Upsample", ['in'], [
+                         'out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0, 2.0])
+
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+    out_array = topi.testing.upsampling3d_python(
+        in_array, (scale, scale, scale), "NCDHW")
+
+    graph = helper.make_graph([y],
+                              'upsample_nearest_test',
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='upsample_nearest_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, in_array, target, ctx, out_shape, 'float32')
+        tvm.testing.assert_allclose(out_array, tvm_out)
+
 def _test_upsample_bilinear():
     scale = 2
     in_shape = (1, 1, 3, 3)
@@ -800,11 +824,45 @@ def _test_upsample_bilinear_opset9():
         tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 
+def _test_upsample3d_trilinear():
+    scale = 2
+    in_shape = (1, 1, 3, 3, 3)
+    out_shape = (1, 1, 3*scale, 3*scale, 3*scale)
+    y = helper.make_node("Upsample", ['in', 'scales'], ['out'], mode='linear')
+    scales = [1.0, 1.0, 2.0, 2.0, 2.0]
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+    out_array = topi.testing.trilinear_resize3d_python(
+        in_array, (3*scale, 3*scale, 3*scale), "NCDHW", coordinate_transformation_mode="half_pixel")
+
+    ref_array = np.array(scales)
+    ref_node = helper.make_node('Constant',
+                                inputs=[],
+                                outputs=['scales'],
+                                value=onnx.helper.make_tensor(name='const_tensor',
+                                                              data_type=TensorProto.FLOAT,
+                                                              dims=ref_array.shape,
+                                                              vals=ref_array.flatten().astype(float)))
+
+    graph = helper.make_graph([ref_node, y],
+                              'upsample_trilinear_test',
+                              inputs=[helper.make_tensor_value_info(
+                                  "in", TensorProto.FLOAT, list(in_shape))],
+                              outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(
+        graph, producer_name='upsample_trilinear_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, in_array, target, ctx, out_shape, 'float32')
+        tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+
 def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
     _test_upsample_bilinear_opset9()
-
+    _test_upsample3d_nearest()
+    _test_upsample3d_trilinear()
 
 def _test_softmax(inshape, axis):
     opname = 'Softmax'
@@ -1996,6 +2054,23 @@ def test_pooling():
                        strides=[2, 2],
                        pads=None,
                        out_shape=[1, 1, 16, 16],
+                       mode=mode,
+                       auto_pad='SAME_UPPER')
+
+        # Pool3D with stride
+        verify_pooling(x_shape=[1, 1, 32, 32, 32],
+                       kernel_shape=[3, 3, 3],
+                       strides=[2, 2, 2],
+                       pads=[1, 1, 1, 1, 1, 1],
+                       out_shape=[1, 1, 16, 16, 16],
+                       mode=mode)
+
+        # Pool3D with stride and autopadding
+        verify_pooling(x_shape=[1, 1, 32, 32, 32],
+                       kernel_shape=[3, 3, 3],
+                       strides=[2, 2, 2],
+                       pads=None,
+                       out_shape=[1, 1, 16, 16, 16],
                        mode=mode,
                        auto_pad='SAME_UPPER')
 

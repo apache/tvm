@@ -561,6 +561,9 @@ def test_forward_instancenorm():
                           (torch.nn.InstanceNorm3d(16), inp_3d)]:
         verify_model(ins_norm.eval(), input_data=inp)
 
+def test_forward_layernorm():
+    inp = torch.rand((20, 5, 10, 10))
+    verify_model(torch.nn.LayerNorm(10).eval(), input_data=inp)
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
@@ -1132,6 +1135,7 @@ if __name__ == "__main__":
     test_forward_contiguous()
     test_forward_batchnorm()
     test_forward_instancenorm()
+    test_forward_layernorm()
     test_forward_transpose()
     test_forward_size()
     test_forward_view()

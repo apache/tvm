@@ -18,20 +18,22 @@
  */
 
 /*!
- * \file lowered_func.cc
- */
-#include <tvm/tir/lowered_func.h>
+* \brief Registration of vision operators
+* \file vision.cc
+*/
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
 
-namespace tvm {
-namespace tir {
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<LoweredFuncNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const LoweredFuncNode*>(node.get());
-    p->stream << "LoweredFunc(" << op->name << ", " << op << ")";
-});
+#include <topi/vision/reorg.h>
 
-TVM_REGISTER_NODE_TYPE(LoweredFuncNode);
+namespace topi {
 
+using namespace tvm;
+using namespace tvm::runtime;
 
-}  // namespace tir
-}  // namespace tvm
+TVM_REGISTER_GLOBAL("topi.vision.reorg")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = vision::reorg(args[0], args[1]);
+  });
+
+}  // namespace topi
