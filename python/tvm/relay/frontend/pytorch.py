@@ -29,7 +29,7 @@ import tvm
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import op as _op
-from ..ty import TupleType, TensorType
+from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
@@ -1123,7 +1123,12 @@ def _tensor_array_stack(prelude):
         shape = (2, 4)
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
         stacked = stack(inputs[0])
-        return stacked
+
+        stacked_shape = (Any(),) + shape
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
+        static_tensor_array_ops.define_tensor_get_data(stacked_shape)
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+        return get_tensor(stacked)
     return _impl
 
 
@@ -1797,6 +1802,8 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
+
+    print(graph)
 
     if custom_convert_map:
         convert_map.update(custom_convert_map)
