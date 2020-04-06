@@ -30,6 +30,7 @@ from tvm.ir import module as _module
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import op as _op
+from ..ty import TupleType, TensorType
 from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
@@ -1474,15 +1475,32 @@ def _get_operator_nodes(nodes):
     return ops
 
 
-def _get_relay_input_vars(graph, input_shapes, input_types):
+def _get_graph_input_names(graph):
+    """ Get the graph input names (use after graph copy and run jit passes) """
+    # Variable names could change the first time a copy is made and after
+    # _run_jit_passes is called, expected that those functions already invoked
+    ir_inputs = _get_input_names(graph)
+    return ir_inputs[1:]  # remove self at the 0th arg
+
+
+def _get_relay_input_vars(graph, input_shapes):
     """
     Return Relay vars from input shapes and create entries based on
     expected graph inputs - to allow translation
     """
+    def get_relay_ty(tup):
+        if _is_int_seq(tup):
+            return TensorType(tup)
+        elif isinstance(tup, tuple):
+            # tuple of tuple
+            return TupleType([get_relay_ty(elem) for elem in tup])
+        raise NotImplementedError("Only int tuple or tuple of int tuple supported")
+
+    input_types = [(tup[0], get_relay_ty(tup[1])) for tup in input_shapes]
     input_vars = {}
     ir_inputs = _get_graph_input_names(graph)
-    for ir_input, (name, shape) in zip(ir_inputs, input_shapes):
-        inp = _expr.var(name, shape=shape)
+    for ir_input, (name, itype) in zip(ir_inputs, input_types):
+        inp = _expr.var(name, type_annotation=itype)
         # Translate from graph input to user input name
         input_vars[ir_input] = inp
 
@@ -1780,16 +1798,7 @@ def get_all_op_names(graph):
     return set(node.kind() for node in nodes)
 
 
-def _get_graph_input_names(graph):
-    """ Get the graph input names (use after graph copy and run jit passes) """
-    # Variable names could change the first time a copy is made and after
-    # _run_jit_passes is called, expected that those functions already invoked
-    ir_inputs = _get_input_names(graph)
-    return ir_inputs[1:]  # remove self at the 0th arg
-
-
-def from_pytorch(script_module, input_shapes,
-                 input_types=[], custom_convert_map=None):
+def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     """ Load PyTorch model in the form of a scripted PyTorch model and convert into relay.
     The companion parameters will be handled automatically.
 
@@ -1831,7 +1840,7 @@ def from_pytorch(script_module, input_shapes,
     _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
-    outputs = _get_relay_input_vars(graph, input_shapes, input_types)
+    outputs = _get_relay_input_vars(graph, input_shapes)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
