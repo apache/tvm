@@ -164,14 +164,11 @@ MakeLoopNest(const Stage& stage,
         value_map[iv] = dom->min;
       } else {
         runtime::ThreadScope ts = runtime::ThreadScope::make(bind_iv->thread_tag);
-        if (stage->scope == "" ||
+        if (stage->scope == "" || stage->scope == "warp" ||
             static_cast<int>(runtime::StorageScope::make(stage->scope).rank) < ts.rank) {
-          // if (stage->scope == "" || runtime::StorageScope::make(stage->scope).rank <
-          //     runtime::StorageScope::make("local").rank) {
           value_map[iv] = var;
         } else {
           value_map[iv] = dom->min;
-          // value_map[iv] = var;
         }
       }
     }
