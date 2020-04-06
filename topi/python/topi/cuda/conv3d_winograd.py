@@ -493,13 +493,12 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
     BB = s.cache_read(B0, 'shared', [OL])
 
     b = s[bgemm].fuse(b1, b2)
-    y = s[bgemm].fuse(z, y)
 
     # tile and bind spatial axes
     bgemm_scope, b = s[bgemm].split(b, nparts=1)
     bz, vz, tz, zi = cfg["tile_b"].apply(s, C, b)
-    by, vy, ty, yi = cfg["tile_y"].apply(s, C, y)
-    bx, vx, tx, xi = cfg["tile_x"].apply(s, C, x)
+    by, vy, ty, yi = cfg["tile_y"].apply(s, C, z)
+    bx, vx, tx, xi = cfg["tile_x"].apply(s, C, y)
     s[C].bind(bz, te.thread_axis("blockIdx.z"))
     s[C].bind(by, te.thread_axis("blockIdx.y"))
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
@@ -510,6 +509,7 @@ def schedule_winograd_no_depth_cuda(cfg, s, output, pre_computed):
     s[C].bind(ty, te.thread_axis("threadIdx.y"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].reorder(bgemm_scope, bz, by, bx, vz, vy, vx, tz, ty, tx, zi, yi, xi)
+    s[C].unroll(x)
 
     # tile reduction axes
     s[OL].compute_at(s[C], tx)
