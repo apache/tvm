@@ -45,9 +45,9 @@ namespace topi {
  * \return A Tensor whose op member is a broadcast operation
  */
 inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
-                                const tvm::Array<tvm::PrimExpr>& output_shape,
-                                std::string name = "T_broadcast_to",
-                                std::string tag = kBroadcast) {
+                                    const tvm::Array<tvm::PrimExpr>& output_shape,
+                                    std::string name = "T_broadcast_to",
+                                    std::string tag = kBroadcast) {
   CHECK_GE(output_shape.size(), t->shape.size())
       << "Not a broadcast, output dimensionality smaller than input.\noutput: "
       << output_shape << "\nvs\ninput: " << t;
