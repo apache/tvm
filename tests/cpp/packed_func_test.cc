@@ -91,6 +91,8 @@ TEST(PackedFunc, str) {
       CHECK(args.num_args == 1);
       std::string x = args[0];
       CHECK(x == "hello");
+      String y = args[0];
+      CHECK(y == "hello");
       *rv = x;
     })("hello");
 }
