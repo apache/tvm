@@ -34,7 +34,7 @@ from .conv3d import *
 from .conv3d_winograd import *
 from . import conv3d_alter_op
 from .reduction import schedule_reduce
-from .softmax import schedule_softmax
+from .softmax import *
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
 from .dense import *
 from .pooling import *

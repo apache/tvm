@@ -34,12 +34,12 @@ reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 
 # softmax
-reg.register_schedule("nn.softmax", strategy.schedule_softmax)
+reg.register_strategy("nn.softmax", strategy.softmax_strategy)
 reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
 
 
 # log_softmax
-reg.register_schedule("nn.log_softmax", strategy.schedule_softmax)
+reg.register_schedule("nn.log_softmax", strategy.schedule_log_softmax)
 reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 

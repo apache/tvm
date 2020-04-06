@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name, unused-variable, trailing-whitespace
 """Schedule for softmax operator"""
 from tvm import te
+from tvm.contrib import cudnn
+from .. import generic
 from .injective import schedule_injective_from_existing
 
 
@@ -79,3 +81,13 @@ def schedule_softmax(outs):
         s[softmax].bind(tx, thread_x)
 
     return s
+
+
+def softmax_cudnn(x, axis=-1):
+    """Perform softmax on the data using cudnn"""
+    return cudnn.softmax(x, axis)
+
+
+def schedule_softmax_cudnn(outs):
+    """Schedule for softmax cudnn op"""
+    return generic.schedule_extern(outs)
