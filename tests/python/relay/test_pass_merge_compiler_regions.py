@@ -69,14 +69,16 @@ def test_diamond_graph_fanouts():
         O_2 = relay.nn.relu(O_1)
         ce_3 = compiler_end(O_2, "test")
 
-        X = relay.tanh(ce_2)
+        cb_3 = compiler_begin(ce_2, "default")
+        X = relay.tanh(cb_3)
+        ce_4 = compiler_end(X, "default")
 
-        cb_3 = compiler_begin(ce_3, "test")
-        cb_4 = compiler_begin(X, "test")
-        O_3 = relay.add(cb_3, cb_4)
-        ce_4 = compiler_end(O_3, "test")
+        cb_4 = compiler_begin(ce_3, "test")
+        cb_5 = compiler_begin(ce_4, "test")
+        O_3 = relay.add(cb_4, cb_5)
+        ce_5 = compiler_end(O_3, "test")
 
-        func = relay.Function([data], ce_4)
+        func = relay.Function([data], ce_5)
         return func
 
     result = run_opt_pass(diamond_graph_fanouts(), relay.transform.MergeCompilerRegions())
@@ -171,20 +173,27 @@ def test_example_graph():
         node1 = relay.add(begin2, begin3)
         node2 = relay.add(node0, node1)
 
-        node3 = relay.subtract(in_5, in_6)
-        node4 = relay.subtract(in_7, node3)
+        dbegin0 = compiler_begin(in_5, "default")
+        dbegin1 = compiler_begin(in_6, "default")
+        dbegin2 = compiler_begin(in_7, "default")
+        node3 = relay.subtract(dbegin0, dbegin1)
+        node4 = relay.subtract(dbegin2, node3)
+        dend0 = compiler_end(node4, "default")
 
-        begin4 = compiler_begin(node4, "test")
+        begin4 = compiler_begin(dend0, "test")
         begin5 = compiler_begin(in_9, "test")
         node5 = relay.add(node2, begin4)
         end1 = compiler_end(node5, "test")
 
-        node6 = relay.subtract(in_8, end1)
+        dbegin4 = compiler_begin(end1, "default")
+        dbegin5 = compiler_begin(in_8, "default")
+        node6 = relay.subtract(dbegin5, dbegin4)
+        dend1 = compiler_end(node6, "default")
 
         node7 = relay.add(begin5, node5)
         end2 = compiler_end(node7, "test")
         begin6 = compiler_begin(end2, "test")
-        begin7 = compiler_begin(node6, "test")
+        begin7 = compiler_begin(dend1, "test")
 
         node8 = relay.add(begin7, begin6)
 

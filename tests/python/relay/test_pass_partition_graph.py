@@ -858,6 +858,7 @@ if __name__ == "__main__":
     test_extern_ccompiler_default_ops()
     test_extern_ccompiler()
     test_extern_dnnl()
+    # TODO(@comaniac, @zhiics): Fix constant node and re-open this case.
     #test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()

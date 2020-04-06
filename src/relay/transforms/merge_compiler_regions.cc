@@ -53,38 +53,6 @@ namespace merge_compiler_region {
 static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
 static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
-class MergeAnnotations : public ExprMutator {
- public:
-  explicit MergeAnnotations(AnnotatedRegionSet regions) : regions_(regions) {}
-
-  Expr VisitExpr_(const CallNode* call) final {
-    // remove 'default' annotations
-    auto attrs = call->attrs.as<CompilerAttrs>();
-    if (attrs != nullptr && attrs->compiler == "default") {
-      return VisitExpr(call->args[0]);
-    }
-    // Merge annotations which are now internal to a region.
-    // This happens if we see a compiler begin next to a
-    // compiler end and they're both in the same region.
-    if (call->op == compiler_begin_op) {
-      if (call->args[0]->IsInstance<CallNode>()) {
-        auto arg = Downcast<Call>(call->args[0]);
-        if (arg->op == compiler_end_op) {
-          auto region1 = regions_->GetRegion(GetRef<Call>(call));
-          auto region2 = regions_->GetRegion(arg);
-          if (region1 == region2) {
-            return VisitExpr(arg->args[0]);
-          }
-        }
-      }
-    }
-    return ExprMutator::VisitExpr_(call);
-  }
-
- private:
-  AnnotatedRegionSet regions_;
-};
-
 class RegionMerger : public ExprVisitor {
  public:
   explicit RegionMerger(AnnotatedRegionSet regions) : regions_(regions) {}
@@ -92,62 +60,75 @@ class RegionMerger : public ExprVisitor {
   void VisitExpr_(const CallNode* call) final {
     if (call->op == compiler_end_op) {
       auto region = regions_->GetRegion(GetRef<Call>(call));
-      if (merged_regions_.find(region->GetID()) != merged_regions_.end()) return;
-      // set the region target
+
+      // Skip this region if it has been merged to the other region.
+      if (merged_regions_.find(region->GetID()) != merged_regions_.end()) {
+        return;
+      }
+
+      // Check the region target.
       auto compiler_attrs = call->attrs.as<CompilerAttrs>();
-      region_targets_[region->GetID()] = compiler_attrs->compiler;
-      // first look at the region args to determine the parent regions
+      CHECK_EQ(region->GetTarget(), compiler_attrs->compiler);
+
+      // Visit the unmerged parent regions.
       for (const auto& arg : region->GetInputs()) {
-        // all args should be begin annotations
+        // Region inputs must be begin annotation, and the region of
+        // the begin annotation's argument is the parent region.
         auto begin = Downcast<Call>(arg);
         CHECK_EQ(begin->op, compiler_begin_op);
-        // the arguments of the begin annotations will be in the parent regions
         auto parent_region = regions_->GetRegion(begin->args[0]);
-        // if there is no parent region, move on
-        if (!parent_region.defined()) continue;
-        // merge the parent region if it hasn't been done already
-        if (merged_regions_.find(parent_region->GetID()) == merged_regions_.end()) {
+
+        // Skip this region if it has been merged.
+        if (!parent_region.defined()) {
+          continue;
+        } else if (merged_regions_.find(parent_region->GetID()) == merged_regions_.end()) {
           VisitExpr(begin->args[0]);
         }
       }
-      // get the mergeable regions now all the parents have been visited
+
+      // Collect unmerged parent regions.
       std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> mergeable_regions;
       for (const auto& arg : region->GetInputs()) {
         auto begin = Downcast<Call>(arg);
         CHECK_EQ(begin->op, compiler_begin_op);
         auto parent_region = regions_->GetRegion(begin->args[0]);
-        if (!parent_region.defined()) continue;
+        if (!parent_region.defined()) {
+          continue;
+        }
         mergeable_regions.insert(parent_region);
       }
+
+      // Propogate all the parent restrictions to the current region.
       auto& region_restrictions = region_restrictions_[region->GetID()];
       for (const auto& parent_region : mergeable_regions) {
-        // add all the parent restrictions to the current region
         auto parent_restrictions = region_restrictions_[parent_region->GetID()];
         region_restrictions.insert(parent_restrictions.begin(), parent_restrictions.end());
       }
+
       for (const auto& parent_region : mergeable_regions) {
-        bool merged = false;
-        // check the parent region has the same target
-        if (region_targets_[parent_region->GetID()] == compiler_attrs->compiler) {
-          // check the parent region isn't in the restrictions
-          if (region_restrictions.find(parent_region->GetID()) == region_restrictions.end()) {
-            // merge the parent region into the current region
-            regions_->MergeRegions(parent_region, region);
-            // update the restrictions of all other regions to reflect the
-            // change in id
-            for (const auto& r : regions_) {
-              auto& restrictions = region_restrictions_[r->GetID()];
-              if (restrictions.find(parent_region->GetID()) != restrictions.end()) {
-                restrictions.erase(parent_region->GetID());
-                restrictions.insert(region->GetID());
-              }
-            }
-            merged = true;
+        // Skip the parent region with a different target.
+        if (parent_region->GetTarget() != compiler_attrs->compiler) {
+          region_restrictions.insert(parent_region->GetID());
+          continue;
+        }
+
+        // Skip the parent region if it is in the restriction set.
+        if (region_restrictions.find(parent_region->GetID()) != region_restrictions.end()) {
+          continue;
+        }
+
+        // Merge the parent region to the current one.
+        regions_->MergeRegions(parent_region, region);
+
+        // Replace the parent region ID with the current region for all
+        // other regions' restriction sets.
+        for (const auto& r : regions_) {
+          auto& restrictions = region_restrictions_[r->GetID()];
+          if (restrictions.find(parent_region->GetID()) != restrictions.end()) {
+            restrictions.erase(parent_region->GetID());
+            restrictions.insert(region->GetID());
           }
         }
-        // if the parent wasn't merged, add it as a restriction to the current
-        // region
-        if (!merged) region_restrictions.insert(parent_region->GetID());
       }
       merged_regions_.insert(region->GetID());
     }
@@ -157,8 +138,31 @@ class RegionMerger : public ExprVisitor {
  private:
   AnnotatedRegionSet regions_;
   std::unordered_set<int> merged_regions_;
-  std::map<int, std::unordered_set<int>> region_restrictions_;
-  std::map<int, std::string> region_targets_;
+  std::unordered_map<int, std::unordered_set<int>> region_restrictions_;
+};
+class MergeAnnotations : public ExprMutator {
+ public:
+  explicit MergeAnnotations(AnnotatedRegionSet regions) : regions_(regions) {}
+
+  Expr VisitExpr_(const CallNode* call) final {
+    // Merge annotations which are now internal to a region.
+    // This happens if we see a compiler begin next to a
+    // compiler end and they're both in the same region.
+    if (call->op == compiler_begin_op && call->args[0]->IsInstance<CallNode>()) {
+      auto arg = Downcast<Call>(call->args[0]);
+      if (arg->op == compiler_end_op) {
+        auto region1 = regions_->GetRegion(GetRef<Call>(call));
+        auto region2 = regions_->GetRegion(arg);
+        if (region1 == region2) {
+          return VisitExpr(arg->args[0]);
+        }
+      }
+    }
+    return ExprMutator::VisitExpr_(call);
+  }
+
+ private:
+  AnnotatedRegionSet regions_;
 };
 
 Expr MergeCompilerRegions(const Expr& expr) {
