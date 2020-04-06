@@ -57,11 +57,11 @@ $(build_dir)/test_dynamic: test.cc ${build_dir}/test_graph.json ${build_dir}/tes
 
 $(build_dir)/demo_static: demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o ${build_dir}/graph.json.c ${build_dir}/params.bin.c
 	@mkdir -p $(@D)
-	gcc $(PKG_CXXFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o -lm
+	gcc $(PKG_CFLAGS) -o $@ demo_static.c ${build_dir}/bundle_static.o ${build_dir}/model.o -lm
 
 $(build_dir)/test_static: test_static.c ${build_dir}/bundle_static.o ${build_dir}/test_model.o
 	@mkdir -p $(@D)
-	gcc $(PKG_CXXFLAGS) -o $@ $^
+	gcc $(PKG_CFLAGS) -o $@ $^
 
 # Serialize our graph.json file.
 $(build_dir)/graph.json.c: $(build_dir)/graph.json
