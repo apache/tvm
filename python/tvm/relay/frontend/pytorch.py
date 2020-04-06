@@ -1093,6 +1093,17 @@ def _empty_list(prelude):
 
 
 def _add_(prelude):
+    def concat_list(lhs, rhs_static):
+        shape = _infer_shape(rhs_static[0])
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
+        static_tensor_array_ops.register()
+        tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
+
+        rhs = prelude.nil()
+        for elem in reversed(rhs_static):
+            rhs = prelude.cons(tensor_create(elem), rhs)
+        return prelude.concat(lhs, rhs)
+
     def _impl(inputs, input_types):
         if isinstance(inputs[1], list):
             # list concat op
@@ -1100,16 +1111,7 @@ def _add_(prelude):
             # inputs[1] is python list (static list)
             if len(inputs[1]) == 0:
                 return inputs[0]
-
-            shape = _infer_shape(inputs[1][0])
-            static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-            static_tensor_array_ops.register()
-            tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
-
-            rhs = prelude.nil()
-            for elem in reversed(inputs[1]):
-                rhs = prelude.cons(tensor_create(elem), rhs)
-            return prelude.concat(inputs[0], rhs)
+            return concat_list(inputs[0], inputs[1])
         return _elemwise("add")(inputs, input_types)
     return _impl
 
