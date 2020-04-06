@@ -70,6 +70,7 @@ tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
+tvm_option(USE_JSON_RUNTIME "Build with JSON runtime" OFF)
 
 if(USE_CPP_RPC AND UNIX)
   message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")
@@ -305,6 +306,7 @@ if(USE_EXAMPLE_EXT_RUNTIME)
 endif(USE_EXAMPLE_EXT_RUNTIME)
 
 # Module rules
+include(cmake/modules/JSON.cmake)
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/Hexagon.cmake)

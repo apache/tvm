@@ -15,15 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-if(USE_DNNL_CODEGEN STREQUAL "ON")
-  file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/dnnl/*.cc)
-  file(GLOB DNNL_RELAY_CONTRIB_SRC src/relay/backend/contrib/codegen_json/*.cc)
-  list(APPEND COMPILER_SRCS ${DNNL_RELAY_CONTRIB_SRC})
-
-  find_library(EXTERN_LIBRARY_DNNL dnnl)
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${EXTERN_LIBRARY_DNNL})
-  file(GLOB DNNL_CONTRIB_SRC src/runtime/contrib/dnnl/*)
-  list(APPEND RUNTIME_SRCS ${DNNL_CONTRIB_SRC})
-  message(STATUS "Build with DNNL codegen: " ${EXTERN_LIBRARY_DNNL})
-endif()
-
+if(USE_JSON_RUNTIME)
+  message(STATUS "Build with JSON runtime support")
+  file(GLOB RUNTIME_JSON_SRCS src/runtime/json/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_JSON_SRCS})
+endif(USE_JSON_RUNTIME)

@@ -118,6 +118,23 @@ inline const runtime::TypedPackedFunc<R(Args...)> GetTypedPackedFunc(const std::
   CHECK(pf != nullptr) << "can not find packed function";
   return runtime::TypedPackedFunc<R(Args...)>(*pf);
 }
+
+/*!
+ * \brief Extract shape from an IndexExpr array to std::vector<int64_t>
+ *
+ * \param shape The shape in Array
+ * \return The converted shape in std::vector<int64_t>
+ */
+inline std::vector<int64_t> GetIntShape(const Array<IndexExpr>& shape) {
+  std::vector<int64_t> ret;
+  for (const auto& dim : shape) {
+    const int64_t* pval = tir::as_const_int(dim);
+    CHECK(pval) << "Expect integer, but received: " << dim->GetTypeKey();
+    ret.push_back(*pval);
+  }
+  return ret;
+}
+
 /*!
  * \brief Convert type to string
  *
