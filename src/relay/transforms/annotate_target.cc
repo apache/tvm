@@ -40,8 +40,7 @@ const PackedFunc* end_op = runtime::Registry::Get("relay.op.annotation._make.com
 // be handled by a specific compiler.
 class AnnotateTargetWrapper : public ExprMutator {
  public:
-  explicit AnnotateTargetWrapper(Array<runtime::String> targets)
-    : targets_(std::move(targets)) {}
+  explicit AnnotateTargetWrapper(Array<runtime::String> targets) : targets_(std::move(targets)) {}
 
   /*!
    * \brief This function annotates a compiler end and a compiler begin to all arguments.
@@ -243,8 +242,7 @@ Pass AnnotateTarget(const Array<runtime::String>& targets) {
   return transform::Sequential({func_pass, InferType()}, "AnnotateTarget");
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.AnnotateTarget")
-.set_body_typed(AnnotateTarget);
+TVM_REGISTER_GLOBAL("relay._transform.AnnotateTarget").set_body_typed(AnnotateTarget);
 
 }  // namespace transform
 
