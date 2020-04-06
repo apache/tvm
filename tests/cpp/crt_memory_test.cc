@@ -21,7 +21,6 @@
 #define TVM_CRT_PAGE_BYTES 4096
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/crt/logging.h>
 #include <tvm/runtime/crt/memory.h>
 
 #include "../../src/runtime/crt/memory.c"
