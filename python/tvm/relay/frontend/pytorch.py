@@ -1101,25 +1101,29 @@ def _empty_list(prelude):
     return _impl
 
 
-def _cons_list(prelude):
-    def _impl(inputs, input_types):
-        tensor2 = prelude.get_var('tensor2', "float32")
-        return prelude.cons(tensor2(inputs[0]), inputs[1])
-    return _impl
-
-
 def _rev_list(prelude):
     def _impl(inputs, input_types):
         return prelude.rev(inputs[0])
     return _impl
 
 
+def _cons_list(prelude):
+    def _impl(inputs, input_types):
+        shape = _infer_shape(inputs[0])
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
+        static_tensor_array_ops.register()
+        tensor = prelude.get_var_static('tensor_constructor', "float32", shape)
+        return prelude.cons(tensor(inputs[0]), inputs[1])
+    return _impl
+
+
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
-        stack = prelude.get_var('tensor_array_stack', "float32")
+        # print(prelude.mod)
+        # TODO: how to get the fixed shape of static_tensor_array inputs[0]?
+        stack = prelude.get_var_static('tensor_array_stack', "float32", (2, 4))
         stacked = stack(inputs[0])
-        get_tensor_func = prelude.get_var("get_tensor2", "float32")
-        return get_tensor_func(stacked)
+        return stacked
     return _impl
 
 # Helper functions for operator implementation
