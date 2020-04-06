@@ -60,9 +60,25 @@ def schedule_adaptive_pool_cuda(attrs, outs, target):
     with target:
         return topi.cuda.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register(["cuda", "gpu"])
-def schedule_softmax_cuda(attrs, outs, target):
-    """schedule softmax for cuda"""
+@softmax_strategy.register(["cuda", "gpu"])
+def softmax_strategy_cuda(attrs, inputs, out_type, target):
+    """softmax cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="softmax.cuda")
+    if target.target_name == "cuda" and "cudnn" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(topi.cuda.softmax_cudnn),
+            wrap_topi_schedule(topi.cuda.schedule_softmax_cudnn),
+            name="softmax.cudnn",
+            plevel=15)
+    return strategy
+
+@schedule_log_softmax.register(["cuda", "gpu"])
+def schedule_log_softmax_cuda(attrs, outs, target):
+    """scheudle log_softmax for cuda"""
     with target:
         return topi.cuda.schedule_softmax(outs)
 

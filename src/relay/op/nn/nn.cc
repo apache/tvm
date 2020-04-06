@@ -347,14 +347,7 @@ RELAY_REGISTER_OP("nn.softmax")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
-.add_type_rel("Identity", IdentityRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<te::Tensor>& inputs,
-                                         const Type& out_type) {
-  const auto* param = attrs.as<SoftmaxAttrs>();
-  CHECK(param != nullptr);
-  return Array<te::Tensor>{ topi::nn::softmax(inputs[0], param->axis) };
-});
+.add_type_rel("Identity", IdentityRel);
 
 
 // relay.nn.log_softmax

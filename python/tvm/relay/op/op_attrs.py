@@ -69,6 +69,11 @@ class DenseAttrs(Attrs):
     """Attributes for nn.dense"""
 
 
+@tvm._ffi.register_object("relay.attrs.SoftmaxAttrs")
+class SoftmaxAttrs(Attrs):
+    """Attributes for nn.softmax"""
+
+
 @tvm._ffi.register_object("relay.attrs.FIFOBufferAttrs")
 class FIFOBufferAttrs(Attrs):
     """Attributes for nn.fifo_buffer"""

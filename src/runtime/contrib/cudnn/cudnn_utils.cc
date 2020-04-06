@@ -140,5 +140,15 @@ void ConvEntry::CleanWorkspace() {
   workspace_size = 0;
 }
 
+// SoftmaxEntry
+
+SoftmaxEntry::SoftmaxEntry() {
+  CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_desc));
+}
+
+SoftmaxEntry::~SoftmaxEntry() {
+  CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc));
+}
+
 }  // namespace contrib
 }  // namespace tvm

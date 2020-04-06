@@ -44,9 +44,19 @@ def schedule_adaptive_pool_opengl(attrs, outs, target):
     with target:
         return topi.opengl.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register("opengl")
-def schedule_softmax_opengl(attrs, outs, target):
-    """schedule softmax for opengl"""
+@softmax_strategy.register("opengl")
+def softmax_strategy_opengl(attrs, inputs, out_type, target):
+    """softmax opengl strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.opengl.schedule_softmax),
+        name="softmax.opengl")
+    return strategy
+
+@schedule_log_softmax.register("opengl")
+def schedule_log_softmax_opengl(attrs, outs, target):
+    """schedule log_softmax for opengl"""
     with target:
         return topi.opengl.schedule_softmax(outs)
 
