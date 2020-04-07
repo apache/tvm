@@ -19,7 +19,7 @@
 A pass for manifesting explicit memory allocations.
 """
 import numpy as np
-from ..expr_functor import ExprMutator
+from ..expr_functor import ExprMutator, ExprVisitor
 from ..scope_builder import ScopeBuilder
 from . import transform
 from .. import op
@@ -31,6 +31,15 @@ from ..backend import compile_engine
 def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
+
+class ContextAnalysis(ExprVisitor):
+    """Compute on which device each sub-expression will execute."""
+    def __init__(self):
+        self.context_map = {}
+
+    def visit(self, expr):
+        import pdb; pdb.set_trace()
+        pass
 
 # TODO(@jroesch): port to c++ and unify with existing code
 class LinearizeRetType:
@@ -81,7 +90,7 @@ class LinearizeRetType:
 
 
 class ManifestAllocPass(ExprMutator):
-    """A pass for explictly manifesting all memory allocations in Relay."""
+    """A pass for explicitly manifesting all memory allocations in Relay."""
 
     def __init__(self, target_host):
         self.invoke_tvm = op.memory.invoke_tvm_op
