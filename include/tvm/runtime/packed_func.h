@@ -513,8 +513,11 @@ class TVMArgValue : public TVMPODValue_ {
     }
   }
   operator tvm::runtime::String() const {
-    // directly use the std::string constructor for now.
-    return tvm::runtime::String(operator std::string());
+    if (IsObjectRef<tvm::runtime::String>()) {
+      return AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(operator std::string());
+    }
   }
   operator DLDataType() const {
     if (type_code_ == kTVMStr) {
@@ -605,8 +608,11 @@ class TVMRetValue : public TVMPODValue_ {
     return *ptr<std::string>();
   }
   operator tvm::runtime::String() const {
-    // directly use the std::string constructor for now.
-    return tvm::runtime::String(operator std::string());
+    if (IsObjectRef<tvm::runtime::String>()) {
+      return AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(operator std::string());
+    }
   }
   operator DLDataType() const {
     if (type_code_ == kTVMStr) {
