@@ -591,13 +591,17 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
-  if (op->dtype.is_int() && op->dtype.bits() == 8 && op->lanes == 4) {
+  if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && op->lanes == 4) {
     // make_int8x4
     const int64_t *p = as_const_int(op->value);
     CHECK(p);
     int64_t v = *p & 0xFF;
     v = (v << 24) | (v << 16) | (v << 8) | v;
-    os << "(int)" << v;
+    if (op->dtype.is_uint()) {
+      os << "(uint)" << v;
+    } else {
+      os << "(int)" << v;
+    }
     return;
   }
 
@@ -799,7 +803,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value,
 void CodeGenCUDA::PrintVecElemLoadExpr(
     DataType t, int i, const std::string& value, std::ostream& os) {
   CHECK_GT(t.lanes(), 1);
-  if (t.is_int() && t.bits() == 8) {
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (i != 0) {
       os << "|";
     }

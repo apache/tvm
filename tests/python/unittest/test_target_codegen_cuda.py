@@ -548,6 +548,9 @@ def test_cuda_vectorize_load_permute_pad():
         if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
+            return
 
         ctx = tvm.gpu(0)
         A = tvm.te.placeholder((n, l), name='A', dtype=dtype)
@@ -573,6 +576,7 @@ def test_cuda_vectorize_load_permute_pad():
         tvm.testing.assert_allclose(b.asnumpy(), ref)
 
     check_cuda("int8", 64, 16, 3, 4)
+    check_cuda("uint8", 64, 16, 3, 4)
     check_cuda("int32", 64, 16, 3, 4)
     check_cuda("float16", 64, 16, 3, 4)
     check_cuda("float32", 64, 16, 3, 4)

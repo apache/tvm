@@ -949,7 +949,7 @@ void CodeGenC::VisitStmt_(const ProducerConsumerNode* op) {
 void CodeGenC::PrintVecElemLoadExpr(
     DataType t, int i, const std::string& value, std::ostream& os) {
   CHECK_GT(t.lanes(), 1);
-  if (t.is_int() && t.bits() == 8) {
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     if (i != 0) {
       os << "|";
     }
