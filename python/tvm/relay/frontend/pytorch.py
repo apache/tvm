@@ -166,7 +166,8 @@ def _ones():
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             shape = data.shape
         else:
-            assert "data type {} could not be parsed in ones op" % (type(data))
+            msg = "Data type %s could not be parsed in ones op" % (type(data))
+            raise AssertionError(msg)
 
         dtype_map = {6: "float32", 3: "int32"}
         dtype_id = inputs[1]
@@ -186,7 +187,8 @@ def _zeros():
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             shape = data.shape
         else:
-            assert "data type {} could not be parsed in zeros op" % (type(data))
+            msg = "Data type %s could not be parsed in zeros op" % (type(data))
+            raise AssertionError(msg)
 
         dtype_map = {6: "float32", 3: "int32"}
         dtype_id = inputs[1]
@@ -354,7 +356,8 @@ def _convolution():
             for infer in inferred_shape:
                 weight_shape.append(infer)
         else:
-            assert "data type {} could not be parsed in conv op" % (type(weight))
+            msg = "Data type %s could not be parsed in conv op" % (type(weight))
+            raise AssertionError(msg)
 
         # Transposed convolutions have IOHW layout.
         if use_transpose:
@@ -523,12 +526,12 @@ def _layer_norm():
         assert ndims == 1, "Support only normalization over last one dimension."
 
         return _op.nn.layer_norm(data,
-                                 gamma=inputs[1],
-                                 beta=inputs[2],
+                                 gamma=inputs[2],
+                                 beta=inputs[3],
                                  axis=-1,
                                  epsilon=float(inputs[4]),
-                                 center=False,
-                                 scale=False)
+                                 center=True,
+                                 scale=True)
     return _impl
 
 def _transpose():
@@ -543,7 +546,8 @@ def _transpose():
         elif isinstance(data, (torch.Tensor, np.ndarray)):
             ndims = data.shape
         else:
-            assert "data type {} could not be parsed in transpose op" % (type(data))
+            msg = "Data type %s could not be parsed in transpose op" % (type(data))
+            raise AssertionError(msg)
 
         if isinstance(data, tvm.runtime.NDArray):
             ndims = len(data.shape)

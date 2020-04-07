@@ -562,8 +562,16 @@ def test_forward_instancenorm():
         verify_model(ins_norm.eval(), input_data=inp)
 
 def test_forward_layernorm():
-    inp = torch.rand((20, 5, 10, 10))
-    verify_model(torch.nn.LayerNorm(10).eval(), input_data=inp)
+    def init_weight(m):
+        torch.nn.init.normal_(m.weight, 0, 0.01)
+        torch.nn.init.normal_(m.bias, 0.02)
+
+    inp_2d = torch.rand((1, 16, 10, 10))
+    inp_3d = torch.rand((1, 16, 10, 10, 10))
+    for ln, inp in [(torch.nn.LayerNorm(10), inp_2d),
+                    (torch.nn.LayerNorm(10), inp_3d)]:
+        init_weight(ln.eval())
+        verify_model(ln.eval(), input_data=inp)
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
