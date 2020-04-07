@@ -95,6 +95,12 @@ TEST(PackedFunc, str) {
       CHECK(y == "hello");
       *rv = x;
     })("hello");
+
+  PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      CHECK(args.num_args == 1);
+      runtime::String s = args[0];
+      CHECK(s == "hello");
+  })(runtime::String("hello"));
 }
 
 
