@@ -199,7 +199,7 @@ def MakeAPILegacy(stmt, name, args, num_unpacked_args, noalias):
         "global_symbol", tvm.runtime.String(name))
     f = f.with_attr("tir.is_entry_func", True)
     if noalias:
-        f = f.with_attr("tir.no_alias", True)
+        f = f.with_attr("tir.noalias", True)
     mod = tvm.IRModule({name: f})
     return tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)
 
