@@ -77,6 +77,8 @@ macro_rules! impl_handle_val {
 impl_handle_val!(Function, FuncHandle, TVMFunctionHandle, Function::new);
 impl_handle_val!(Module, ModuleHandle, TVMModuleHandle, Module::new);
 impl_handle_val!(NDArray, ArrayHandle, TVMArrayHandle, NDArray::new);
+// TODO(@jroesch): introduce NDArray handle on C++ side.
+// impl_handle_val!(NDArray, NDArrayHandle, TVMObjectHandle, NDArray::new)
 
 #[cfg(test)]
 mod tests {
