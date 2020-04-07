@@ -17,31 +17,37 @@
  * under the License.
  */
 
-/*!
- * \file src/runtime/crt/module.h
- * \brief Runtime container of the functions
- */
-#ifndef TVM_RUNTIME_CRT_MODULE_H_
-#define TVM_RUNTIME_CRT_MODULE_H_
+#define TVM_CRT_LOG_VIRT_MEM_SIZE 16
+#define TVM_CRT_PAGE_BYTES 4096
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <string.h>
+#include <gtest/gtest.h>
+#include <tvm/runtime/crt/memory.h>
 
-struct TVMPackedFunc;
+#include "../../src/runtime/crt/memory.c"
 
-/*!
- * \brief Module container of TVM.
- */
-typedef struct TVMModule {
-  /*!
-   * \brief Get packed function from current module by name.
-   *
-   * \param name The name of the function.
-   * \param pf The result function.
-   *
-   *  This function will return PackedFunc(nullptr) if function do not exist.
-   */
-  void (*GetFunction)(struct TVMModule * mod, const char * name, struct TVMPackedFunc * pf);
-} TVMModule;
+TEST(CRTMemory, Alloc) {
+  for (int idx = 0; idx < 65536; idx++) {
+    void * a = vmalloc(1);
+    EXPECT_EQ(vleak_size, 1);
+    vfree(a);
+    EXPECT_EQ(vleak_size, 0);
+  }
+}
 
-#endif  // TVM_RUNTIME_CRT_MODULE_H_
+TEST(CRTMemory, Realloc) {
+  for (int idx = 0; idx < 65536; idx++) {
+    void * a = vrealloc(0, 1);
+    EXPECT_EQ(vleak_size, 1);
+    void * b = vrealloc(a, 1);
+    EXPECT_EQ(a, b);
+    EXPECT_EQ(vleak_size, 1);
+    vfree(a);
+    EXPECT_EQ(vleak_size, 0);
+  }
+}
+
+int main(int argc, char ** argv) {
+  testing::InitGoogleTest(&argc, argv);
+  testing::FLAGS_gtest_death_test_style = "threadsafe";
+  return RUN_ALL_TESTS();
+}

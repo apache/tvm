@@ -18,30 +18,35 @@
  */
 
 /*!
- * \file src/runtime/crt/module.h
- * \brief Runtime container of the functions
+ * \file tvm/runtime/crt/memory.h
+ * \brief The virtual memory manager for micro-controllers
  */
-#ifndef TVM_RUNTIME_CRT_MODULE_H_
-#define TVM_RUNTIME_CRT_MODULE_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <string.h>
+#ifndef TVM_RUNTIME_CRT_MEMORY_H_
+#define TVM_RUNTIME_CRT_MEMORY_H_
 
-struct TVMPackedFunc;
+static int vleak_size = 0;
 
 /*!
- * \brief Module container of TVM.
+ * \brief Allocate memory from manager
+ * \param size The size of memory
+ * \return The virtual address
  */
-typedef struct TVMModule {
-  /*!
-   * \brief Get packed function from current module by name.
-   *
-   * \param name The name of the function.
-   * \param pf The result function.
-   *
-   *  This function will return PackedFunc(nullptr) if function do not exist.
-   */
-  void (*GetFunction)(struct TVMModule * mod, const char * name, struct TVMPackedFunc * pf);
-} TVMModule;
+void * vmalloc(size_t size);
 
-#endif  // TVM_RUNTIME_CRT_MODULE_H_
+/*!
+ * \brief Reallocate memory from manager
+ * \param ptr The pointer to the memory area to be reallocated
+ * \param size The size of memory
+ * \return The virtual address
+ */
+void * vrealloc(void * ptr, size_t size);
+
+/*!
+ * \brief Free the memory.
+ * \param ptr The pointer to the memory to deallocate
+ * \return The virtual address
+ */
+void vfree(void * ptr);
+
+#endif  // TVM_RUNTIME_CRT_MEMORY_H_
