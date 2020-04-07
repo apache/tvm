@@ -94,6 +94,9 @@ class HexagonTarget : public tvm::runtime::hexagon::Device {
   // in the future.
   mutable std::mutex crit_section_;
 
+  // Don't use unsigned PDs by default. Change this to "true" to enable.
+  static constexpr bool unsigned_pd = false;
+
   static void* const vtcm_mark_;
 };
 
@@ -253,7 +256,7 @@ void* HexagonTarget::Alloc(unsigned size, unsigned align) {
 
   // Opening the domain channel should be done once.
   crit_section_.lock();
-  int rc_oc = OpenDomainChannel(/*use_unsigned_pd*/ true);
+  int rc_oc = OpenDomainChannel(/*use_unsigned_pd*/ unsigned_pd);
   crit_section_.unlock();
   if (rc_oc != AEE_SUCCESS) {
     TVM_LOGE_HT("mem alloc failed: unable to open domain channel");
@@ -421,7 +424,7 @@ void HexagonTarget::CopyHostToDevice(void* dst, const void* host_src,
 
 void* HexagonTarget::Load(const std::string& data, const std::string& fmt) {
   crit_section_.lock();
-  int rc_oc = OpenDomainChannel(/*use_unsigned_pd*/ true);
+  int rc_oc = OpenDomainChannel(/*use_unsigned_pd*/ unsigned_pd);
   crit_section_.unlock();
   if (rc_oc != AEE_SUCCESS) {
     TVM_LOGE_HT("loading of %s failed: unable to open domain channel",
