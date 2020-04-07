@@ -204,3 +204,7 @@ set(USE_EXAMPLE_EXT_RUNTIME OFF)
 
 # Whether use Thrust
 set(USE_THRUST OFF)
+
+# Whether to build the TensorFlow TVMDSOOp module
+set(USE_TF_TVMDSOOP OFF)
+

@@ -53,6 +53,9 @@ cd ../..
 TVM_FFI=cython python3 -m pytest -v apps/dso_plugin_module
 TVM_FFI=ctypes python3 -m pytest -v apps/dso_plugin_module
 
+# Do not enable TensorFlow op
+# TVM_FFI=cython sh prepare_and_test_tfop_module.sh
+# TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
 TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
 TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
