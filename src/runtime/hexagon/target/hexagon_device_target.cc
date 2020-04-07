@@ -87,14 +87,17 @@ class HexagonTarget : public tvm::runtime::hexagon::Device {
   // Using void* pointers is ok, since DSP pointers will always fit
   // in apps's pointers, i.e. sizeof_dsp(void*) <= sizeof_apps(void*).
   std::map<const void*, std::pair<void*, size_t>> dsp_to_apps_;
-  std::map<const void*, std::pair<void*, size_t>> vtcm_addr_;
   remote_handle64 domain_channel_handle_ = AEE_EUNKNOWN;
   tvm_hexagon_remote_handle_t module_pointer_ = AEE_EUNKNOWN;
   uint64_t count_channel_open_ = 0;
   // Global lock, used for all critical sections. This can be refined
   // in the future.
   mutable std::mutex crit_section_;
+
+  static void* const vtcm_mark_;
 };
+
+void* const HexagonTarget::vtcm_mark_ = reinterpret_cast<void*>(~0);
 
 std::shared_ptr<Device> CreateHexagonTarget() {
   return std::make_shared<HexagonTarget>();
@@ -243,6 +246,7 @@ void HexagonTarget::FreeMemoryBeforeChannelClose() {
     HexagonTarget::Free(dsp_addr);
   }
 }
+
 void* HexagonTarget::Alloc(unsigned size, unsigned align) {
   const DspRpcAPI* dsp_api = DspRpcAPI::Global();
   const StubAPI* stub_api = StubAPI::Global();
@@ -294,7 +298,7 @@ void HexagonTarget::Free(void* ptr) {
   const DspRpcAPI* dsp_api = DspRpcAPI::Global();
   const StubAPI* stub_api = StubAPI::Global();
   auto bb = GetAppsAddr(ptr, true);
-  if (bb.first == reinterpret_cast<void*>(~0)) {
+  if (bb.first == vtcm_mark_) {
     TVM_LOGD_HT("VTCM mapping found. dsp_addr=0x%p", ptr);
     RemoveAddrMapping(ptr);
     FreeVtcm(ptr);
@@ -326,7 +330,7 @@ void* HexagonTarget::AllocVtcm(unsigned size, unsigned align) {
   }
   void* dsp_addr = reinterpret_cast<void*>(dsp_va);
   TVM_LOGD_HT("Done vtcm alloc dsp:%p", dsp_addr);
-  AddAddrMapping(dsp_addr, reinterpret_cast<void*>(~0), size);
+  AddAddrMapping(dsp_addr, vtcm_mark_, size);
   return dsp_addr;
 }
 
@@ -349,8 +353,8 @@ void HexagonTarget::CopyDeviceToDevice(void* dst, const void* src,
 void HexagonTarget::CopyDeviceToHost(void* host_dst, const void* src,
                                      unsigned len) {
   auto aa = GetAppsAddr(src, false);
-  if (aa.first == reinterpret_cast<void*>(~0)) {
-    TVM_LOGD_HT("VTCM address. Copy operation not needed");
+  if (aa.first == vtcm_mark_) {
+    TVM_LOGE_HT("VTCM address. Copy operation not supported");
     return;
   }
   if (!aa.first) {
@@ -358,7 +362,7 @@ void HexagonTarget::CopyDeviceToHost(void* host_dst, const void* src,
     return;
   }
   if (aa.second < len) {
-    TVM_LOGE_HT(
+    TVM_LOGD_HT(
         "specified length:%u larger than buffer size:%zu, copy truncated", len,
         aa.second);
     len = aa.second;
@@ -371,8 +375,8 @@ void HexagonTarget::CopyDeviceToHost(void* host_dst, const void* src,
 void HexagonTarget::CopyHostToDevice(void* dst, const void* host_src,
                                      unsigned len) {
   auto aa = GetAppsAddr(dst, false);
-  if (aa.first == reinterpret_cast<void*>(~0)) {
-    TVM_LOGD_HT("VTCM address. Copy operation not needed");
+  if (aa.first == vtcm_mark_) {
+    TVM_LOGE_HT("VTCM address. Copy operation not supported");
     return;
   }
   if (!aa.first) {
@@ -380,7 +384,7 @@ void HexagonTarget::CopyHostToDevice(void* dst, const void* host_src,
     return;
   }
   if (aa.second < len) {
-    TVM_LOGE_HT(
+    TVM_LOGD_HT(
         "specified length:%u larger than buffer size:%zu, copy truncated", len,
         aa.second);
     len = aa.second;
@@ -476,7 +480,7 @@ void HexagonTarget::Call(void* func, uint32_t* scalar, unsigned scalar_num,
     for (unsigned i = 0; i != num; ++i) {
       void* ptr = reinterpret_cast<void*>(static_cast<uintptr_t>(inputs[i]));
       auto aa = GetAppsAddr(ptr, false);
-      if (aa.first == reinterpret_cast<void*>(~0)) {
+      if (aa.first == vtcm_mark_) {
         buffers[i].data = nullptr;
         buffers[i].dataLen = 0;
       } else if (aa.first) {
