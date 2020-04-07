@@ -37,8 +37,8 @@ namespace merge_composite {
 
 class MergeCompositeWrapper : public ExprMutator {
  public:
-  explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern)
-    : pattern_name_(pattern_name), pattern_(pattern) {}
+  explicit MergeCompositeWrapper(const std::string& pattern_name, const Expr& pattern, const PackedFunc& check)
+    : pattern_name_(pattern_name), pattern_(pattern), check_(check) {}
 
   Expr ExtractPattern(const Var& pattern, const Expr& root,
           Map<std::string, Array<Expr>>* var_map) {
@@ -193,7 +193,7 @@ class MergeCompositeWrapper : public ExprMutator {
     Map<std::string, Array<Expr>> args_map;
     Map<Expr, Expr> call_map;
     auto extract = ExtractPattern(pattern, call, &args_map, &call_map);
-    if (extract.defined()) {
+    if (extract.defined() && static_cast<bool>(check_(extract))) {
       auto free_vars = FreeVars(extract);
       // make the composite function
       auto f = Function(free_vars, extract, call->checked_type_, {}, DictAttrs());
@@ -215,17 +215,20 @@ class MergeCompositeWrapper : public ExprMutator {
   std::string pattern_name_;
   /*! \brief The pattern to match */
   Expr pattern_;
+  /*! \brief The function to check whether an extract is supported */
+  PackedFunc check_;
 };
 
 Expr MergeComposite(const Expr& expr,
-    const Array<tir::StringImm>& pattern_names, const Array<Expr>& patterns) {
+    const Array<tir::StringImm>& pattern_names, const Array<Expr>& patterns, const std::vector<PackedFunc>& checks) {
   CHECK_EQ(pattern_names.size(), patterns.size());
   Expr merged_expr = expr;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
     std::string pattern_name = pattern_names[i]->value;
     Expr pattern = patterns[i];
-    merged_expr = MergeCompositeWrapper(pattern_name, pattern).Mutate(merged_expr);
+    PackedFunc check = checks[i];
+    merged_expr = MergeCompositeWrapper(pattern_name, pattern, check).Mutate(merged_expr);
   }
   return merged_expr;
 }
@@ -235,18 +238,27 @@ Expr MergeComposite(const Expr& expr,
 namespace transform {
 
 Pass MergeComposite(const tvm::Array<tir::StringImm>& pattern_names,
-    const tvm::Array<Expr>& patterns) {
+    const tvm::Array<Expr>& patterns,
+    const std::vector<PackedFunc>& checks) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
         return Downcast<Function>(
-            relay::merge_composite::MergeComposite(f, pattern_names, patterns));
+            relay::merge_composite::MergeComposite(f, pattern_names, patterns, checks));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "MergeComposite", {});
   return func_pass;
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.MergeComposite")
-.set_body_typed(MergeComposite);
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  tvm::Array<tir::StringImm> pattern_names = args[0];
+  tvm::Array<Expr> patterns = args[1];
+  std::vector<PackedFunc> checks;
+  for (int i=2;i<args.size();i++) {
+    checks.push_back(args[i]);
+  }
+  *rv = MergeComposite(pattern_names, patterns, checks);
+});
 
 }  // namespace transform
 
