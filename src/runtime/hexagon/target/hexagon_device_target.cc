@@ -348,7 +348,32 @@ void HexagonTarget::FreeVtcm(void* ptr) {
 }
 
 void HexagonTarget::CopyDeviceToDevice(void* dst, const void* src,
-                                       unsigned len) {}
+                                       unsigned len) {
+  auto aa_src = GetAppsAddr(src, false);
+  auto aa_dst = GetAppsAddr(dst, false);
+  if (aa_src.first == vtcm_mark_ || aa_dst.first == vtcm_mark_) {
+    TVM_LOGE_HT("VTCM address. Copy operation not supported");
+    return;
+  }
+  if (!aa_src.first || !aa_dst.first) {
+    TVM_LOGE_HT("copy failed, dsp:%p -> dsp:%p, len:%u", src, dst, len);
+    return;
+  }
+  if (aa_src.second < len) {
+    TVM_LOGD_HT(
+        "specified length:%u larger than source buffer size:%zu, copy "
+        "truncated", len, aa_src.second);
+  }
+  if (aa_dst.second < len) {
+    TVM_LOGD_HT(
+        "specified length:%u larger than dest buffer size:%zu, copy "
+        "truncated", len, aa_dst.second);
+  }
+  len = std::min({size_t(len), aa_src.second, aa_dst.second});
+  TVM_LOGD_HT("copy, dsp:%p(apps:%p) -> dsp:%p(apps:%p), len:%u",
+              src, aa_src.first, dst, aa_dst.first, len);
+  std::memcpy(aa_dst.first, aa_src.first, len);
+}
 
 void HexagonTarget::CopyDeviceToHost(void* host_dst, const void* src,
                                      unsigned len) {
