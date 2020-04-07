@@ -29,12 +29,14 @@ import tvm
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import op as _op
+from ..function import Function
+from .. import transform
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
-from ..prelude import Prelude, StaticTensorArrayOps
+from ..prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
 
 from . import qnn_torch
 
@@ -896,7 +898,6 @@ def _chunk():
             chunk_out = _op.transform.strided_slice(data, begin, end, stride)
             chunks.append(chunk_out)
 
-
         if dim % num_chunks:
             begin = [0] * len(shape)
             end = shape[:]
@@ -1092,16 +1093,26 @@ def _empty_list(prelude):
     return _impl
 
 
+def _list_getitem(prelude):
+    def _impl(inputs, input_types):
+        return prelude.nth(inputs[0], _wrap_const(inputs[1]))
+    return _impl
+
+
 def _add_(prelude):
     def concat_list(lhs, rhs_static):
-        shape = _infer_shape(rhs_static[0])
+        shape = (2, 4)  # _infer_shape(rhs_static[0])
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
         static_tensor_array_ops.register()
         tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
 
         rhs = prelude.nil()
         for elem in reversed(rhs_static):
-            rhs = prelude.cons(tensor_create(elem), rhs)
+            if isinstance(elem, _expr.Tuple):
+                tup = _expr.Tuple([tensor_create(tup_elem) for tup_elem in elem.fields])
+                rhs = prelude.cons(tup, rhs)
+            else:
+                rhs = prelude.cons(tensor_create(elem), rhs)
         return prelude.concat(lhs, rhs)
 
     def _impl(inputs, input_types):
@@ -1118,15 +1129,14 @@ def _add_(prelude):
 
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
-        # print(prelude.mod)
-        # TODO: how to get the fixed shape of static_tensor_array inputs[0]?
-        shape = (2, 4)
+        shape = get_tensor_array_shape(inputs[0], "float32", prelude)
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
         stacked = stack(inputs[0])
 
         stacked_shape = (Any(),) + shape
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
         static_tensor_array_ops.define_tensor_get_data(stacked_shape)
+        # passing stacked_shape below gives "'Prelude' object has no attribute" error
         get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
         return get_tensor(stacked)
     return _impl
@@ -1312,6 +1322,7 @@ def get_convert_map(prelude):
         "relay::cons_list"                      : _cons_list(prelude),
         "relay::rev_list"                       : _rev_list(prelude),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
+        "aten::__getitem__"                     : _list_getitem(prelude),
     }
     return convert_map
 
@@ -1490,18 +1501,24 @@ def _get_graph_input_names(graph):
     return ir_inputs[1:]  # remove self at the 0th arg
 
 
-def _get_relay_input_vars(graph, input_shapes):
+def _get_relay_input_vars(graph, input_shapes, prelude):
     """
     Return Relay vars from input shapes and create entries based on
     expected graph inputs - to allow translation
     """
-    def get_relay_ty(tup):
-        if _is_int_seq(tup):
-            return TensorType(tup)
-        elif isinstance(tup, tuple):
-            # tuple of tuple
-            return TupleType([get_relay_ty(elem) for elem in tup])
-        raise NotImplementedError("Only int tuple or tuple of int tuple supported")
+    def get_relay_ty(ishape):
+        if _is_int_seq(ishape):
+            return TensorType(ishape)
+        elif isinstance(ishape, tuple):
+            # ishapele of ishapele
+            return TupleType([get_relay_ty(elem) for elem in ishape])
+        elif isinstance(ishape, list):
+            assert len(ishape) > 0
+            elem_tys = [get_relay_ty(s) for s in ishape]
+            msg = "List elements should have identical types"
+            assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
+            return prelude.l(elem_tys[0])
+        raise NotImplementedError("unsupported input type")
 
     input_types = [(tup[0], get_relay_ty(tup[1])) for tup in input_shapes]
     input_vars = {}
@@ -1523,6 +1540,8 @@ def _unpack_tuple(tup):
     elif isinstance(tup.type_annotation, TupleType):
         return unpack(tup, len(tup.type_annotation.fields))
     else:
+        # print(type(tup), tup)
+        return unpack(tup, 2)
         assert False
 
 
@@ -1601,24 +1620,24 @@ def convert_params(graph, state_dict):
     return params, param_tensors, packed_param_map
 
 
-def convert_block(block, outputs, convert_map):
+def convert_block(block, outputs, convert_map, prelude):
     """ Translate Torch "Block", used for prim::If and prim::Loop """
     ops = _get_operator_nodes(block.nodes())
     ret_names = _get_input_names(block.returnNode())
-    return convert_operators(ops, outputs, ret_names, convert_map)
+    return convert_operators(ops, outputs, ret_names, convert_map, prelude)
 
 
-def convert_if(if_node, outputs, convert_map):
+def convert_if(if_node, outputs, convert_map, prelude):
     """ Translate Torch prim::If to Relay If """
     cond = outputs[if_node.inputsAt(0).debugName()]
     blocks = list(if_node.blocks())
-    true_branch = convert_block(blocks[0], outputs, convert_map)
-    false_branch = convert_block(blocks[1], outputs, convert_map)
+    true_branch = convert_block(blocks[0], outputs, convert_map, prelude)
+    false_branch = convert_block(blocks[1], outputs, convert_map, prelude)
     assert len(true_branch) == 1 and len(false_branch) == 1
     return _expr.If(cond, true_branch[0], false_branch[0])
 
 
-def convert_loop(loop_node, outputs, convert_map):
+def convert_loop(loop_node, outputs, convert_map, prelude):
     """ Translate Torch prim::Loop to Relay while_loop """
     def get_input(index):
         ivalue = loop_node.inputsAt(index)
@@ -1661,7 +1680,7 @@ def convert_loop(loop_node, outputs, convert_map):
         for (i, iname) in enumerate(block_input_names):
             outputs[iname] = current_vals[i]
 
-        block_outputs = convert_block(body_block, outputs, convert_map)
+        block_outputs = convert_block(body_block, outputs, convert_map, prelude)
 
         if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
@@ -1677,8 +1696,15 @@ def convert_loop(loop_node, outputs, convert_map):
             return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
         if isinstance(val, _expr.Var):
             return _expr.var(name, type_annotation=val.type_annotation)
-        if isinstance(val, list):
-            assert False
+
+        # print("loop var type:", name, val, type(val))
+        mod = prelude.mod
+        func = Function([], val)
+        mod["main"] = func
+        mod = transform.InferType()(mod)
+        checked_type = mod["main"].body.checked_type
+        print("checked type:", checked_type)
+
         return _expr.var(name)
 
     if is_while_loop:
@@ -1688,6 +1714,7 @@ def convert_loop(loop_node, outputs, convert_map):
         if isinstance(init_cond, _expr.Constant):
             init_cond = _op.cast(init_cond, "bool")
         init_loop_iter_val = init_cond
+
     else:
         loop_iter_dtype = "int32"
         # always count from 0
@@ -1707,7 +1734,7 @@ def convert_loop(loop_node, outputs, convert_map):
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
 
 
-def convert_operators(operators, outputs, ret_names, convert_map):
+def convert_operators(operators, outputs, ret_names, convert_map, prelude):
     """ Convert each Torch IR operators to Relay equivalent """
     for node_name, op_node in operators:
         operator = op_node.kind()
@@ -1734,10 +1761,10 @@ def convert_operators(operators, outputs, ret_names, convert_map):
                 unpacked = _unpack_tuple(inputs[0])
             outputs.update(zip(_get_output_names(op_node), unpacked))
         elif operator == "prim::If":
-            if_out = convert_if(op_node, outputs, convert_map)
+            if_out = convert_if(op_node, outputs, convert_map, prelude)
             outputs[node_name] = if_out
         elif operator == "prim::Loop":
-            loop_out = convert_loop(op_node, outputs, convert_map)
+            loop_out = convert_loop(op_node, outputs, convert_map, prelude)
             unpacked_names = _get_output_names(op_node)
             assert len(loop_out) == len(unpacked_names)
             outputs.update(zip(unpacked_names, loop_out))
@@ -1796,9 +1823,9 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         Dict of converted parameters stored in tvm.runtime.ndarray format
     """
     mod = tvm.IRModule()
-    p = Prelude(mod)
+    prelude = Prelude(mod)
 
-    convert_map = get_convert_map(p)
+    convert_map = get_convert_map(prelude)
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
@@ -1813,7 +1840,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     _check_inputs(graph, input_shapes)
 
     params = script_module.state_dict()
-    outputs = _get_relay_input_vars(graph, input_shapes)
+    outputs = _get_relay_input_vars(graph, input_shapes, prelude)
     param_vars, tensors, packed_param_map = convert_params(graph, params)
     tvm_params = {k: tvm.nd.array(v) for k, v in tensors.items()}
 
@@ -1831,7 +1858,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
         convert_map.update(qnn_torch.convert_map)
 
     ret = convert_operators(_get_operator_nodes(graph.nodes()),
-                            outputs, ret_name, convert_map)
+                            outputs, ret_name, convert_map, prelude)
 
     if isinstance(ret[0], list):
         ret[0] = _expr.Tuple(ret[0])
