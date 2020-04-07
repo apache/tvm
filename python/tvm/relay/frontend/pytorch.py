@@ -43,6 +43,14 @@ from . import qnn_torch
 __all__ = ["from_pytorch"]
 
 
+def _infer_type_with_prelude(val, prelude):
+    mod = prelude.mod
+    func = Function([], val)
+    mod["main"] = func
+    mod = transform.InferType()(mod)
+    return mod["main"].body.checked_type
+
+
 # operator implementation
 def _elemwise(name):
     def _impl(inputs, input_types):
@@ -1107,12 +1115,21 @@ def _add_(prelude):
         tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
 
         rhs = prelude.nil()
+        elem_ty = _infer_type_with_prelude(rhs_static[0], prelude)
+        print("elem_ty:", elem_ty)
+
         for elem in reversed(rhs_static):
-            if isinstance(elem, _expr.Tuple):
-                tup = _expr.Tuple([tensor_create(tup_elem) for tup_elem in elem.fields])
+            if isinstance(elem_ty, TensorType):
+                rhs = prelude.cons(tensor_create(elem), rhs)
+            elif isinstance(elem_ty, TupleType):
+                print("ty fields:", elem_ty.fields)
+                msg = "Only a tuple of tensors supported for now"
+                #assert all(map(lambda ty: ty == TensorType, elem_ty.fields)), msg
+                tup = _expr.Tuple([tensor_create(_expr.TupleGetItem(elem, i))
+                                   for i in range(len(elem_ty.fields))])
                 rhs = prelude.cons(tup, rhs)
             else:
-                rhs = prelude.cons(tensor_create(elem), rhs)
+                assert False
         return prelude.concat(lhs, rhs)
 
     def _impl(inputs, input_types):
@@ -1540,8 +1557,6 @@ def _unpack_tuple(tup):
     elif isinstance(tup.type_annotation, TupleType):
         return unpack(tup, len(tup.type_annotation.fields))
     else:
-        # print(type(tup), tup)
-        return unpack(tup, 2)
         assert False
 
 
@@ -1697,15 +1712,10 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
         if isinstance(val, _expr.Var):
             return _expr.var(name, type_annotation=val.type_annotation)
 
-        # print("loop var type:", name, val, type(val))
-        mod = prelude.mod
-        func = Function([], val)
-        mod["main"] = func
-        mod = transform.InferType()(mod)
-        checked_type = mod["main"].body.checked_type
+        checked_type = _infer_type_with_prelude(val, prelude)
         print("checked type:", checked_type)
 
-        return _expr.var(name)
+        return _expr.var(name, type_annotation=checked_type)
 
     if is_while_loop:
         loop_iter_dtype = "bool"
