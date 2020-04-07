@@ -463,7 +463,12 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
       llvm::VectorType::get(value->getType(), lanes));
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
+#if TVM_LLVM_VERSION >= 110
+  llvm::Constant* mask =
+      llvm::ConstantVector::getSplat(llvm::ElementCount(lanes, /*Scalable=*/false), zero);
+#else
   llvm::Constant* mask = llvm::ConstantVector::getSplat(lanes, zero);
+#endif
   return builder_->CreateShuffleVector(value, undef, mask);
 }
 
