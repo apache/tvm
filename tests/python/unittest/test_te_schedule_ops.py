@@ -490,26 +490,43 @@ def test_local_stage_predicate():
     A = tvm.te.placeholder((m, n, p), name='A')
     B = tvm.te.compute((m, n, p), lambda bi, bj, bk: A[bi, bj, bk], name="B")
     C = tvm.te.compute((m, n, p), lambda ci, cj, ck: B[ci, cj, ck], name="C")
-    s = tvm.te.create_schedule(C.op)
-    bx = tvm.te.thread_axis("blockIdx.x")
+    by = tvm.te.thread_axis("blockIdx.y")
     tx = tvm.te.thread_axis("threadIdx.x")
-    s[B].compute_at(s[C], s[C].op.axis[0])
-    s[B].set_scope("local")
-    bno, bni = s[B].split(s[B].op.axis[1], n)
-    s[C].bind(s[C].op.axis[0], bx)
-    s[C].bind(s[C].op.axis[1], tx)
-    s[B].bind(bni, tx)
-    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    vx = tvm.te.thread_axis("vthread")
+
+    def schedule(thread_tag, mem_scope) :
+        s = tvm.te.create_schedule(C.op)
+        s[B].compute_at(s[C], s[C].op.axis[0])
+        s[B].set_scope(mem_scope)
+        bno, bni = s[B].split(s[B].op.axis[1], n)
+        bx = tvm.te.thread_axis("blockIdx.x")
+        s[C].bind(s[C].op.axis[0], bx)
+        s[C].bind(s[C].op.axis[1], thread_tag)
+        s[B].bind(bni, thread_tag)
+        return s
 
     def collect_visit(stmt, f):
         ret = []
         tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
         return ret
-
+    # local vs. threadIdx
+    s = schedule(tx, "local")
+    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
     assert (not any(
         collect_visit(lowered_body,
                       lambda x: isinstance(x, tvm.tir.IfThenElse))))
-
+    # local vs. vthread
+    s = schedule(vx, "local")
+    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    assert (not any(
+        collect_visit(lowered_body,
+                      lambda x: isinstance(x, tvm.tir.IfThenElse))))
+    # shared vs. blockIdx
+    s = schedule(by, "shared")
+    lowered_body = tvm.lower(s, [A, C], simple_mode=True).body
+    assert (not any(
+        collect_visit(lowered_body,
+                      lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 def test_local_stage_predicate2():
     A = tvm.te.placeholder((128, ), name="A")
