@@ -22,6 +22,8 @@
  * \brief NDArray container infratructure.
  */
 
+#include <tvm/runtime/crt/memory.h>
+
 #include "ndarray.h"
 
 TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t * shape,
@@ -29,7 +31,7 @@ TVMNDArray TVMNDArray_Create(uint32_t ndim, const tvm_index_t * shape,
   TVMNDArray ret;
   memset(&ret, 0, sizeof(TVMNDArray));
   ret.dl_tensor.ndim = ndim;
-  ret.dl_tensor.shape = (int64_t*)malloc(sizeof(int64_t)*ndim);  // NOLINT(*)
+  ret.dl_tensor.shape = (int64_t*)vmalloc(sizeof(int64_t)*ndim);  // NOLINT(*)
   memcpy(ret.dl_tensor.shape, shape, sizeof(int64_t)*ndim);
   ret.dl_tensor.dtype = dtype;
   ret.dl_tensor.ctx = ctx;
@@ -109,7 +111,9 @@ TVMNDArray TVMNDArray_CreateView(TVMNDArray * arr, const tvm_index_t * shape,
 }
 
 int TVMNDArray_Release(TVMNDArray * arr) {
-  free(arr->dl_tensor.data);
-  free(arr->dl_tensor.shape);
+  vfree(arr->dl_tensor.data);
+  arr->dl_tensor.data = 0;
+  vfree(arr->dl_tensor.shape);
+  arr->dl_tensor.shape = 0;
   return 0;
 }
