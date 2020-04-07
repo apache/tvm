@@ -126,7 +126,7 @@ Pass AlterOpLayout() {
       return Downcast<Function>(relay::alter_op_layout::AlterOpLayout(f));
   };
   return CreateFunctionPass(pass_func, 3, "AlterOpLayout",
-                            {tir::StringImmNode::make("InferType")});
+                            {runtime::String("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.AlterOpLayout")

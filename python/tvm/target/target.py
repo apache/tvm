@@ -48,26 +48,26 @@ class Target(Object):
     @property
     def keys(self):
         if not self._keys:
-            self._keys = [k.value for k in self.keys_array]
+            self._keys = [str(k) for k in self.keys_array]
         return self._keys
 
     @property
     def options(self):
         if not self._options:
-            self._options = [o.value for o in self.options_array]
+            self._options = [str(o) for o in self.options_array]
         return self._options
 
     @property
     def libs(self):
         if not self._libs:
-            self._libs = [l.value for l in self.libs_array]
+            self._libs = [str(l) for l in self.libs_array]
         return self._libs
 
     @property
     def model(self):
         for opt in self.options_array:
-            if opt.value.startswith('-model='):
-                return opt.value[7:]
+            if opt.startswith('-model='):
+                return opt[7:]
         return 'unknown'
 
     @property

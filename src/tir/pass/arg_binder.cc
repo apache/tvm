@@ -42,7 +42,8 @@ void BinderAddAssert(PrimExpr cond,
   if (!is_one(scond)) {
     std::ostringstream os;
     os << "Argument " << arg_name << " has an unsatisfied constraint";
-    asserts->emplace_back(AssertStmtNode::make(scond, os.str(), EvaluateNode::make(0)));
+    asserts->emplace_back(AssertStmtNode::make(scond, tvm::tir::StringImmNode::make(os.str()),
+                                               EvaluateNode::make(0)));
   }
 }
 
@@ -173,7 +174,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   ndim_err_msg << arg_name
                << ".ndim is expected to equal "
                << buffer->shape.size();
-  asserts_.emplace_back(AssertStmtNode::make(a_ndim == v_ndim, ndim_err_msg.str(), nop));
+  auto msg = tvm::tir::StringImmNode::make(ndim_err_msg.str());
+  asserts_.emplace_back(AssertStmtNode::make(a_ndim == v_ndim, msg, nop));
   // type checks
   DataType dtype = buffer->dtype;
   std::ostringstream type_err_msg;
@@ -187,7 +189,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   if (!(dtype == DataType::Int(4) ||
         dtype == DataType::UInt(4) ||
         dtype == DataType::Int(1))) {
-    asserts_.emplace_back(AssertStmtNode::make(cond, type_err_msg.str(), nop));
+    auto type_msg = tvm::tir::StringImmNode::make(type_err_msg.str());
+    asserts_.emplace_back(AssertStmtNode::make(a_ndim == v_ndim, msg, nop));
+    asserts_.emplace_back(AssertStmtNode::make(cond, type_msg, nop));
   }
   // data field
   if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, intrinsic::kArrData),
@@ -245,9 +249,10 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
     stride_err_msg << arg_name << ".strides:"
                    << " expected to be compact array";
     if (conds.size() != 0) {
+      auto stride_msg = tvm::tir::StringImmNode::make(stride_err_msg.str());
       Stmt check =
           AssertStmtNode::make(arith::ComputeReduce<tir::AndNode>(conds, PrimExpr()),
-                           stride_err_msg.str(), EvaluateNode::make(0));
+                           stride_msg, EvaluateNode::make(0));
       check = IfThenElseNode::make(NotNode::make(is_null), check, Stmt());
       asserts_.emplace_back(SeqStmt({check, EvaluateNode::make(0)}));
     }
@@ -269,9 +274,8 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   } else {
     std::ostringstream stride_null_err_msg;
     stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
-    asserts_.emplace_back(
-        AssertStmtNode::make(
-            NotNode::make(is_null), stride_null_err_msg.str(), nop));
+    asserts_.emplace_back(AssertStmtNode::make(
+        NotNode::make(is_null), tvm::tir::StringImmNode::make(stride_null_err_msg.str()), nop));
 
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;

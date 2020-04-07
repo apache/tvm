@@ -134,8 +134,8 @@ Pass ConvertLayout(const std::string& desired_layout) {
       };
   return CreateFunctionPass(
       pass_func, 3, "ConvertLayout",
-      {tir::StringImmNode::make("InferType"),
-       tir::StringImmNode::make("CanonicalizeOps")});
+      {runtime::String("InferType"),
+       runtime::String("CanonicalizeOps")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ConvertLayout").set_body_typed(ConvertLayout);

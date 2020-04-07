@@ -141,7 +141,12 @@ class RelayTextPrinter :
     } else {
       // default module.
       std::ostringstream os;
-      os << node;
+      if (node->IsInstance<runtime::StringObj>()) {
+        runtime::String str = Downcast<runtime::String>(node);
+        os << "\"" << str.c_str() << "\"";
+      } else {
+        os << node;
+      }
       return Doc::RawText(os.str());
     }
   }

@@ -92,7 +92,7 @@ Pass EliminateCommonSubexpr(PackedFunc fskip) {
       return Downcast<Function>(EliminateCommonSubexpr(f, fskip));
   };
   return CreateFunctionPass(pass_func, 3, "EliminateCommonSubexpr",
-                            {tir::StringImmNode::make("InferType")});
+                            {runtime::String("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.EliminateCommonSubexpr")

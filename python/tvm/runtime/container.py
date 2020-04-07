@@ -16,8 +16,9 @@
 # under the License.
 """Runtime container structures."""
 import tvm._ffi
-
+from tvm._ffi.base import string_types
 from tvm.runtime import Object, ObjectTypes
+from tvm.runtime import _ffi_api
 
 def getitem_helper(obj, elem_getter, length, idx):
     """Helper function to implement a pythonic getitem function.
@@ -75,18 +76,19 @@ class ADT(Object):
         for f in fields:
             assert isinstance(f, ObjectTypes), "Expect object or " \
             "tvm NDArray type, but received : {0}".format(type(f))
-        self.__init_handle_by_constructor__(_ADT, tag, *fields)
+        self.__init_handle_by_constructor__(_ffi_api.ADT, tag,
+                                            *fields)
 
     @property
     def tag(self):
-        return _GetADTTag(self)
+        return _ffi_api.GetADTTag(self)
 
     def __getitem__(self, idx):
         return getitem_helper(
-            self, _GetADTFields, len(self), idx)
+            self, _ffi_api.GetADTFields, len(self), idx)
 
     def __len__(self):
-        return _GetADTSize(self)
+        return _ffi_api.GetADTSize(self)
 
 
 def tuple_object(fields=None):
@@ -106,7 +108,7 @@ def tuple_object(fields=None):
     for f in fields:
         assert isinstance(f, ObjectTypes), "Expect object or tvm " \
         "NDArray type, but received : {0}".format(type(f))
-    return _Tuple(*fields)
+    return _ffi_api.Tuple(*fields)
 
 
 @tvm._ffi.register_object("runtime.String")
@@ -115,7 +117,7 @@ class String(Object):
 
     Parameters
     ----------
-    string : Str
+    string : str
         The string used to construct a runtime String object
 
     Returns
@@ -124,7 +126,50 @@ class String(Object):
         The created object.
     """
     def __init__(self, string):
-        self.__init_handle_by_constructor__(_String, string)
+        self.__init_handle_by_constructor__(_ffi_api.String, string)
 
+    def __str__(self):
+        return _ffi_api.GetStdString(self)
 
-tvm._ffi._init_api("tvm.runtime.container")
+    def __len__(self):
+        return _ffi_api.GetStringSize(self)
+
+    def __hash__(self):
+        return _ffi_api.StringHash(self)
+
+    def __eq__(self, other):
+        if isinstance(other, string_types):
+            return self.__str__() == other
+
+        if not isinstance(other, String):
+            return False
+
+        return _ffi_api.CompareString(self, other) == 0
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __gt__(self, other):
+        return _ffi_api.CompareString(self, other) > 0
+
+    def __lt__(self, other):
+        return _ffi_api.CompareString(self, other) < 0
+
+    def __getitem__(self, key):
+        return self.__str__()[key]
+
+    def startswith(self, string):
+        """Check if the runtime string starts with a given string
+
+        Parameters
+        ----------
+        string : str
+            The provided string
+
+        Returns
+        -------
+        ret : boolean
+            Return true if the runtime string starts with the given string,
+        otherwise, false.
+        """
+        return self.__str__().startswith(string)

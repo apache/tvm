@@ -280,6 +280,8 @@ class JSONAttrGetter : public AttrVisitor {
         node_->data.push_back(
             node_index_->at(const_cast<Object*>(kv.second.get())));
       }
+    } else if (node->IsInstance<runtime::StringObj>()) {
+      node_->data.push_back(node_index_->at(node));
     } else {
       // recursively index normal object.
       reflection_->VisitAttrs(node, this);
@@ -373,7 +375,7 @@ class JSONAttrSetter : public AttrVisitor {
         n->data[node_->keys[i]]
             = ObjectRef(node_list_->at(node_->data[i]));
       }
-    } else {
+    } else if (!node->IsInstance<runtime::StringObj>()) {
       reflection_->VisitAttrs(node, this);
     }
   }

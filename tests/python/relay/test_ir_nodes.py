@@ -96,7 +96,7 @@ def test_function():
     body = relay.Tuple(tvm.runtime.convert([]))
     type_params = tvm.runtime.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
-    fn = fn.with_attr("test_attribute", tvm.tir.StringImm("value"))
+    fn = fn.with_attr("test_attribute", "value")
     assert fn.params == params
     assert fn.body == body
     assert fn.type_params == type_params

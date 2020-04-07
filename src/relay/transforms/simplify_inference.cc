@@ -205,7 +205,7 @@ Pass SimplifyInference() {
     return Downcast<Function>(SimplifyInference(f));
   };
   return CreateFunctionPass(pass_func, 0, "SimplifyInference",
-                            {tir::StringImmNode::make("InferType")});
+                            {runtime::String("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.SimplifyInference")

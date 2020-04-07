@@ -230,7 +230,7 @@ def test_composite_function():
         add_node = relay.add(in_1, in_2)
         relu_node = relay.nn.relu(add_node)
         add_relu = relay.Function([in_1, in_2], relu_node)
-        add_relu = add_relu.with_attr("Composite", tvm.tir.StringImm("test.add_relu"))
+        add_relu = add_relu.with_attr("Composite", "test.add_relu")
 
         # merged function
         r = relay.Call(add_relu, [a, b])
@@ -248,7 +248,7 @@ def test_composite_function():
         add_node = relay.add(in_1, in_2)
         relu_node = relay.nn.relu(add_node)
         add_relu = relay.Function([in_1, in_2], relu_node)
-        add_relu = add_relu.with_attr("Composite", tvm.tir.StringImm("test.add_relu"))
+        add_relu = add_relu.with_attr("Composite", "test.add_relu")
 
         # merged function
         cb_1 = relay.annotation.compiler_begin(a, "test")

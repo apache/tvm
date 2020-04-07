@@ -47,7 +47,6 @@ Var::Var(std::string name_hint, Type type_annotation) {
   data_ = std::move(n);
 }
 
-
 Var Var::copy_with_suffix(const std::string& suffix) const {
   const VarNode* node = get();
   ObjectPtr<VarNode> new_ptr;
@@ -826,20 +825,28 @@ TVM_REGISTER_GLOBAL("tir.Load")
     }
   });
 
-
-
 TVM_REGISTER_GLOBAL("tir.Call")
 .set_body_typed([](
   DataType type, std::string name,
-  Array<PrimExpr> args, int call_type,
+  Array<ObjectRef> args, int call_type,
   FunctionRef func, int value_index
 ) {
+  Array<PrimExpr> prim_expr_args;
+  for (const auto& it : args) {
+    CHECK(it->IsInstance<runtime::StringObj>() ||
+          it->IsInstance<PrimExprNode>());
+    if (const auto* str = it.as<runtime::StringObj>()) {
+      prim_expr_args.push_back(StringImmNode::make(str->data));
+    } else {
+      prim_expr_args.push_back(Downcast<PrimExpr>(it));
+    }
+  }
   return CallNode::make(type,
-                    name,
-                    args,
-                    static_cast<CallNode::CallType>(call_type),
-                    func,
-                    value_index);
+                        name,
+                        prim_expr_args,
+                        static_cast<CallNode::CallType>(call_type),
+                        func,
+                        value_index);
 });
 
 }  // namespace tir

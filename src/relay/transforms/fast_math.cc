@@ -71,7 +71,7 @@ Pass FastMath() {
     return Downcast<Function>(FastMath(f));
   };
   return CreateFunctionPass(pass_func, 4, "FastMath",
-                            {tir::StringImmNode::make("InferType")});
+                            {runtime::String("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FastMath")

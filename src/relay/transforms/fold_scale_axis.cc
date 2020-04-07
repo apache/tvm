@@ -961,7 +961,7 @@ Pass ForwardFoldScaleAxis() {
           relay::fold_scale_axis::ForwardFoldScaleAxis(f));
   };
   return CreateFunctionPass(pass_func, 3, "ForwardFoldScaleAxis",
-                            {tir::StringImmNode::make("InferType")});
+                            {runtime::String("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
@@ -974,7 +974,7 @@ Pass BackwardFoldScaleAxis() {
           relay::fold_scale_axis::BackwardFoldScaleAxis(f));
     };
   return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis",
-                            {tir::StringImmNode::make("InferType")});
+                            {runtime::String("InferType")});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis")

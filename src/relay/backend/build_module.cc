@@ -86,9 +86,9 @@ struct GraphCodegen {
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<tvm::PrimExpr>>("list_params_name", nullptr);
+    auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
     for (auto expr : names) {
-      auto key = expr.as<tir::StringImmNode>()->value;
+      auto key = expr.operator std::string();
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
     }
     return ret;
@@ -191,12 +191,12 @@ class RelayBuildModule : public runtime::ModuleNode {
   /*!
    * \brief List all paramter names
    *
-   * \return Array<StringImm> names of params
+   * \return Array<runtime::String> names of params
    */
-  Array<tvm::PrimExpr> ListParamNames() {
-    Array<tvm::PrimExpr> ret;
+  Array<runtime::String> ListParamNames() {
+    Array<runtime::String> ret;
     for (const auto& kv : params_) {
-      ret.push_back(tir::StringImmNode::make(kv.first));
+      ret.push_back(runtime::String(kv.first));
     }
     return ret;
   }
@@ -272,7 +272,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     Array<Pass> pass_seqs;
-    Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
+    Array<runtime::String> entry_functions{runtime::String("main")};
     pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
 
     // Run all dialect legalization passes.
