@@ -46,6 +46,11 @@ TVM_REGISTER_GLOBAL("topi.erf")
   *rv = erf(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.fast_erf")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = fast_erf(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.tan")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = tan(args[0]);
