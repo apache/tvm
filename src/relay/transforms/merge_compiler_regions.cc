@@ -92,10 +92,9 @@ class RegionMerger : public ExprVisitor {
         auto begin = Downcast<Call>(arg);
         CHECK_EQ(begin->op, compiler_begin_op);
         auto parent_region = regions_->GetRegion(begin->args[0]);
-        if (!parent_region.defined()) {
-          continue;
+        if (parent_region.defined()) {
+          mergeable_regions.insert(parent_region);
         }
-        mergeable_regions.insert(parent_region);
       }
 
       // Propogate all the parent restrictions to the current region.
@@ -140,6 +139,7 @@ class RegionMerger : public ExprVisitor {
   std::unordered_set<int> merged_regions_;
   std::unordered_map<int, std::unordered_set<int>> region_restrictions_;
 };
+
 class MergeAnnotations : public ExprMutator {
  public:
   explicit MergeAnnotations(AnnotatedRegionSet regions) : regions_(regions) {}
@@ -175,8 +175,7 @@ Expr MergeCompilerRegions(const Expr& expr) {
 
   // Remove annotations that are not in the region boundaries.
   MergeAnnotations merge_anno(regions);
-  auto new_expr = merge_anno.Mutate(expr);
-  return new_expr;
+  return merge_anno.Mutate(expr);
 }
 
 }  // namespace merge_compiler_region
