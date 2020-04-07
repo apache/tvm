@@ -198,7 +198,7 @@ def lower(sch,
     f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
         "global_symbol", tvm.runtime.String(name))
     if cfg.restricted_func:
-        f = f.with_attr("tir.no_alias", True)
+        f = f.with_attr("tir.noalias", True)
     mod = tvm.IRModule({name: f})
     return tvm.tir.transform.MakePackedAPI()(mod)
 
