@@ -30,7 +30,7 @@ namespace codegen {
 namespace llvm {
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.prefetch")
-.set_body(DispatchLLVMIntrin<::llvm::Intrinsic::prefetch, 0>);
+.set_body(DispatchLLVMIntrin<::llvm::Intrinsic::prefetch, 4>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.exp")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::exp, 1>);
