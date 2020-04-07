@@ -212,7 +212,7 @@ def test_rpc_return_ndarray():
         if name == "get_arr":
             return lambda : nd
         elif name == "ref_count":
-            return lambda : tvm.testing.ndarray_use_count(nd)
+            return lambda : tvm.testing.object_use_count(nd)
         elif name == "get_elem":
             return lambda idx: nd.asnumpy()[idx]
         elif name == "get_arr_elem":

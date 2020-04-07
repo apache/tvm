@@ -477,6 +477,17 @@ class ObjectPtr {
       data_->IncRef();
     }
   }
+  /*!
+   * \brief Move an ObjectPtr from an RValueRef argument.
+   * \param ref The rvalue reference.
+   * \return the moved result.
+   */
+  static ObjectPtr<T> MoveFromRValueRefArg(Object** ref) {
+    ObjectPtr<T> ptr;
+    ptr.data_ = *ref;
+    *ref = nullptr;
+    return ptr;
+  }
   // friend classes
   friend class Object;
   friend class ObjectRef;
@@ -489,6 +500,7 @@ class ObjectPtr {
   friend class TVMArgsSetter;
   friend class TVMRetValue;
   friend class TVMArgValue;
+  friend class TVMMovableArgValue_;
   template <typename RelayRefType, typename ObjType>
   friend RelayRefType GetRef(const ObjType* ptr);
   template <typename BaseType, typename ObjType>
@@ -549,6 +561,10 @@ class ObjectRef {
   /*! \return whether the reference is unique */
   bool unique() const {
     return data_.unique();
+  }
+  /*! \return The use count of the ptr, for debug purposes */
+  int use_count() const {
+    return data_.use_count();
   }
   /*!
    * \brief Try to downcast the internal Object to a

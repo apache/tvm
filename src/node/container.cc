@@ -370,7 +370,6 @@ TVM_REGISTER_GLOBAL("node.MapGetItem")
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
 
     if (ptr->IsInstance<MapNode>()) {
-      CHECK(args[1].type_code() == kTVMObjectHandle);
       auto* n = static_cast<const MapNode*>(ptr);
       auto it = n->data.find(args[1].operator ObjectRef());
       CHECK(it != n->data.end())

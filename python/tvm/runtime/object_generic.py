@@ -18,6 +18,7 @@
 # pylint: disable=unused-import, invalid-name
 from numbers import Number, Integral
 from tvm._ffi.base import string_types
+from tvm._ffi.runtime_ctypes import ObjectRValueRef
 
 from . import _ffi_node_api, _ffi_api
 from .object import ObjectBase, _set_class_object_generic
@@ -33,7 +34,7 @@ class ObjectGeneric(object):
         raise NotImplementedError()
 
 
-ObjectTypes = (ObjectBase, NDArrayBase, Module)
+ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef)
 
 
 def convert_to_object(value):

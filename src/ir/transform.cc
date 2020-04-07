@@ -371,7 +371,7 @@ TVM_REGISTER_GLOBAL("transform.MakeModulePass")
 .set_body_typed(
   [](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
      PassInfo pass_info) {
-  return ModulePass(pass_func, pass_info);
+    return ModulePass(pass_func, pass_info);
 });
 
 TVM_REGISTER_GLOBAL("transform.RunPass")

@@ -20,7 +20,7 @@ import traceback
 from cpython cimport Py_INCREF, Py_DECREF
 from numbers import Number, Integral
 from ..base import string_types, py2cerror
-from ..runtime_ctypes import DataType, TVMContext, TVMByteArray
+from ..runtime_ctypes import DataType, TVMContext, TVMByteArray, ObjectRValueRef
 
 
 cdef void tvm_callback_finalize(void* fhandle):
@@ -43,8 +43,9 @@ cdef int tvm_callback(TVMValue* args,
         if (tcode == kTVMObjectHandle or
             tcode == kTVMPackedFuncHandle or
             tcode == kTVMModuleHandle or
+            tcode == kTVMObjectRefArg or
             tcode > kTVMExtBegin):
-            CALL(TVMCbArgToReturn(&value, tcode))
+            CALL(TVMCbArgToReturn(&value, &tcode))
 
         if tcode != kTVMDLTensorHandle:
             pyargs.append(make_ret(value, tcode))
@@ -167,6 +168,9 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, ctypes.c_void_p):
         value[0].v_handle = c_handle(arg)
         tcode[0] = kTVMOpaqueHandle
+    elif isinstance(arg, ObjectRValueRef):
+        value[0].v_handle = &((<ObjectBase>(arg.obj)).chandle)
+        tcode[0] = kTVMObjectRefArg
     elif callable(arg):
         arg = convert_to_tvm_func(arg)
         value[0].v_handle = (<PackedFuncBase>arg).chandle

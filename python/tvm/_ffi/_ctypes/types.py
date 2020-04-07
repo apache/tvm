@@ -73,9 +73,9 @@ def _return_context(value):
 
 
 def _wrap_arg_func(return_f, type_code):
-    tcode = ctypes.c_int(type_code)
     def _wrap_func(x):
-        check_call(_LIB.TVMCbArgToReturn(ctypes.byref(x), tcode))
+        tcode = ctypes.c_int(type_code)
+        check_call(_LIB.TVMCbArgToReturn(ctypes.byref(x), ctypes.byref(tcode)))
         return return_f(x)
     return _wrap_func
 

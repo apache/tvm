@@ -60,6 +60,9 @@ RETURN_SWITCH[TypeCode.OBJECT_HANDLE] = _return_object
 C_TO_PY_ARG_SWITCH[TypeCode.OBJECT_HANDLE] = _wrap_arg_func(
     _return_object, TypeCode.OBJECT_HANDLE)
 
+C_TO_PY_ARG_SWITCH[TypeCode.OBJECT_RVALUE_REF_ARG] = _wrap_arg_func(
+    _return_object, TypeCode.OBJECT_RVALUE_REF_ARG)
+
 
 class ObjectBase(object):
     """Base object for all object types"""
