@@ -29,21 +29,16 @@ from . import op, transform
 
 def get_tensor_array_shape(expr, dtype, prelude):
     """Get the static shape of a tensor array if it has fixed rank shape.
-
     By design, static ADT tensor in TVM has type name in the format
     of static_tensor_dim0_dim1_..._dimN_t.
-
     Parameters
     ----------
     expr : Relay Expr
         Input expression.
-
     dtype : str
         Data type.
-
     prelude : Prelude
         Tensor array prelude
-
     Returns
     -------
     shape : tuple of (int, Any) or None
@@ -69,6 +64,7 @@ def get_tensor_array_shape(expr, dtype, prelude):
                     shape.append(int(dim_str))
         return tuple(shape)
     return None
+
 
 def _get_name_static(canonical, dtype, shape):
     """Get name for static shape tensor array op corresponding
