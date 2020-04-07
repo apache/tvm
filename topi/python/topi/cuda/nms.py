@@ -272,10 +272,12 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
         data.shape, data.dtype, "data_buf", data_alignment=8)
     valid_count_buf = tvm.tir.decl_buffer(
         (batch_size,), "int32", "valid_count_buf", data_alignment=8)
+    '''
     temp_flag_buf = tvm.tir.decl_buffer(
         (batch_size, num_anchors,), "int32", "temp_flag", data_alignment=8)
     temp_partial_buf = tvm.tir.decl_buffer(
         (batch_size, num_anchors), "int32", "temp_partial", data_alignment=8)
+    '''
     out_buf = tvm.tir.decl_buffer(
         data.shape, data.dtype, "out_buf", data_alignment=8)
 
@@ -702,6 +704,7 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     if return_indices:
         return box_indices
 
+    '''
     if invalid_to_bottom:
         output_buf = tvm.tir.decl_buffer(
             data.shape, data.dtype, "output_buf", data_alignment=8)
@@ -727,5 +730,6 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
             name="invalid_to_bottom",
             tag="invalid_to_bottom")
         return output
+    '''
 
     return out
