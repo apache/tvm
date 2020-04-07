@@ -84,6 +84,7 @@ class OperatorConverter(object):
             'FULLY_CONNECTED': self.convert_fully_connected,
             'GREATER_EQUAL': self.convert_greater_equal,
             'GREATER': self.convert_greater,
+            'HARD_SWISH': self.convert_hard_swish,
             'L2_NORMALIZATION': self.convert_l2_normalization,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
@@ -592,6 +593,42 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.nn.relu(in_expr)
+
+        return out
+
+    def convert_hard_swish(self, op):
+        """Convert TFLite Hard swish"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        assert isinstance(op, Operator)
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        def _relu6(data):
+            return _op.tensor.clip(data, 0.0, 6.0)
+
+        def _hard_swish(data):
+            return data * _relu6(data + relay.const(3.0)) / relay.const(6.0)
+
+        # Dequantize if the input is quantized.
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+
+        # Perform hardswish
+        out = _hard_swish(in_expr)
+
+        # Go back to integer dataype if the original operator was quantized.
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
 
         return out
 
