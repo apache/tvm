@@ -212,3 +212,7 @@ set(USE_TF_COMPILE_FLAGS OFF)
 
 # Whether use Thrust
 set(USE_THRUST OFF)
+
+# Whether to build the TensorFlow TVMDSOOp module
+set(USE_TF_TVMDSOOP OFF)
+
