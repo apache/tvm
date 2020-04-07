@@ -425,9 +425,9 @@ void PassUpBitMaskOr(const Stage& stage,
         continue;
       }
       int res = 0;
-      if (!state.count(s->parent)) res |= state[s->parent];
-      if (!state.count(s->inner)) res |= state[s->inner];
-      if (!state.count(s->outer)) res |= state[s->outer];
+      if (state.count(s->parent)) res |= state[s->parent];
+      if (state.count(s->inner)) res |= state[s->inner];
+      if (state.count(s->outer)) res |= state[s->outer];
       state[s->parent] = res;
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->fused)) {
