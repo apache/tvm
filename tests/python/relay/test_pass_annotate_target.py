@@ -339,8 +339,12 @@ def test_composite_function():
 
 if __name__ == "__main__":
     test_extern_dnnl()
+<<<<<<< HEAD
     #test_extern_dnnl_mobilenet()
+=======
+>>>>>>> Skip e2e test
     test_composite_function()
+    #test_extern_dnnl_mobilenet()
     test_multiple_ends()
     test_type_propagation()
     test_tuple()

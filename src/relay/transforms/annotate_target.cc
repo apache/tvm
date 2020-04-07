@@ -91,17 +91,38 @@ class AnnotateTargetWrapper : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* cn) final {
-    Op op = Downcast<Op>(cn->op);
-    CHECK(op.defined());
-
     // Supported targets for this node. The order implies the priority.
     std::vector<std::string> supported_targets;
 
     // Check which targets this op can be offloaded.
-    for (const auto& target : this->targets_) {
-      auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + std::string(target));
-      if (fannotate.count(op) && fannotate[op](cn->attrs, cn->args)) {
-        supported_targets.push_back(target);
+    if (cn->op->IsInstance<OpNode>()) {
+      // TVM operators: Check target specific op checking function and add to supported_targets
+      // if it is supported.
+      Op op = Downcast<Op>(cn->op);
+      CHECK(op.defined());
+      for (const auto& target : this->targets_) {
+        auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + std::string(target));
+        if (fannotate.count(op) && fannotate[op](cn->attrs, cn->args)) {
+          supported_targets.push_back(target);
+        }
+      }
+    } else if (cn->op->IsInstance<FunctionNode>()) {
+      // Composite function: Add the target of a composite function to supported_targets
+      // if it is in the target list.
+      Function func = Downcast<Function>(cn->op);
+      CHECK(func.defined());
+      auto comp_name = func->GetAttr<tir::StringImm>(attr::kComposite);
+      if (comp_name.defined()) {
+        size_t i = comp_name->value.find('.');
+        if (i != std::string::npos) {
+          std::string comp_target = comp_name->value.substr(0, i);
+          for (const auto& target : this->targets_) {
+            if (std::string(target) == comp_target) {
+              supported_targets.push_back(comp_target);
+              break;
+            }
+          }
+        }
       }
     }
     supported_targets.push_back("default");  // Make default as the last option.
