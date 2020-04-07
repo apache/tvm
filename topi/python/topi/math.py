@@ -534,3 +534,19 @@ def fast_tanh(x):
         The result.
     """
     return cpp.fast_tanh(x, x.dtype, tag.ELEMWISE)
+
+
+def fast_erf(x):
+    """Take gauss error function of input x using fast_erf implementation.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return cpp.fast_erf(x, x.dtype, tag.ELEMWISE)
