@@ -402,6 +402,35 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+
+def verify_cumsum(src_shape, axis=0, exclusive=False, reverse=False):
+    src_dtype = "float32"
+    A = te.placeholder(shape=src_shape, dtype=src_dtype, name="A")
+    out_tensor = topi.cumsum(A, axis, exclusive, reverse)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.testing.get_injective_schedule(device)(out_tensor)
+
+        func = tvm.build(s, [A, out_tensor], device, name="take")
+        shape_size = 1
+        for i in range(len(src_shape)):
+            shape_size = shape_size * src_shape[i]
+        data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
+        data_nd = tvm.nd.array(data_npy, ctx)
+        out_nd = tvm.nd.empty(src_shape, ctx=ctx, dtype=src_dtype)
+        func(data_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy())
+
+    for device in get_all_backend():
+        check_device(device)
+
+
 def verify_gather_nd(src_shape, indices_src, indices_dtype):
     src_dtype = "float32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
@@ -732,6 +761,18 @@ def test_take():
     verify_take((3,4), [0, 2], axis=0, mode="fast")
     verify_take((3,4), [0, 2], axis=1, mode="fast")
 
+def test_cumsum():
+    for reverse in [True, False]:
+        for exclusive in [True, False]:
+            verify_cumsum((4,), exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3), axis=0, exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3), axis=1, exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3, 4), axis=1, exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3, 4), axis=2, exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3, 4), axis=0, exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3, 4), axis=-1, exclusive=exclusive, reverse=reverse)
+            verify_cumsum((2, 3, 4), axis=-2, exclusive=exclusive, reverse=reverse)
+
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:
         verify_gather_nd((4,), [[1.8]], indices_dtype)
@@ -926,26 +967,28 @@ def test_unravel_index():
 
 
 if __name__ == "__main__":
-    test_strided_slice()
-    test_concatenate()
-    test_stack()
-    test_transpose()
-    test_expand_dims()
-    test_reshape()
-    test_where()
-    test_squeeze()
-    test_split()
-    test_flip()
-    test_expand_like()
-    test_take()
-    test_gather_nd()
-    test_arange()
-    test_layout_transform()
-    test_repeat()
-    test_tile()
-    test_shape()
-    test_sequence_mask()
-    test_ndarray_size()
-    test_where_fusion()
-    test_one_hot()
-    test_unravel_index()
+    # test_strided_slice()
+    # test_concatenate()
+    # test_stack()
+    # test_transpose()
+    # test_expand_dims()
+    # test_reshape()
+    # test_where()
+    # test_squeeze()
+    # test_split()
+    # test_flip()
+    # test_expand_like()
+    # test_take()
+    # test_gather_nd()
+    # test_arange()
+    # test_layout_transform()
+    # test_repeat()
+    # test_tile()
+    # test_shape()
+    # test_sequence_mask()
+    # test_ndarray_size()
+    # test_where_fusion()
+    # test_one_hot()
+    # test_unravel_index()
+    test_cumsum()
+
