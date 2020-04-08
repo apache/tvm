@@ -87,7 +87,7 @@ jnilint:
 scalalint:
 	make -C $(VTA_HW_PATH)/hardware/chisel lint
 
-lint: cpplint pylint jnilint scalalint
+lint: cpplint pylint jnilint
 
 doc:
 	doxygen docs/Doxyfile
