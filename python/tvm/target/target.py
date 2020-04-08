@@ -295,13 +295,13 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
                 # vs codegen
                 i = sim_args.index('hvx_length') + len('hvx_length') + 1
                 sim_hvx = sim_args[i:i+3]
-                if sim_hvx != str(hvx):
+                if sim_hvx != str(codegen_hvx):
                     print('WARNING: sim hvx {} and codegen hvx {} mismatch!' \
-                          .format(sim_hvx, hvx))
-            elif hvx != 0:
+                          .format(sim_hvx, codegen_hvx))
+            elif codegen_hvx != 0:
                 # If --hvx_length was not given, add it if HVX is enabled
                 sim_args = sim_args + ' ' if isinstance(sim_args, str) else ''
-                sim_args += '--hvx_length ' + str(hvx)
+                sim_args += '--hvx_length ' + str(codegen_hvx)
             return sim_args or ''
 
         if not sim_args:
