@@ -117,8 +117,7 @@ inline Expr MulAndDiv(Expr data, float s1, float s2, DataType dtype,
   } else if (static_cast<int>(factor) == factor) {
     return Multiply(data, MakeConstantScalar(dtype, factor));
   } else {
-    data = qnn::FixedPointMultiply(
-        Cast(data, DataType::Int(64)), factor, data_shape, cfg->rounding);
+    data = qnn::FixedPointMultiply(data, factor, data_shape, cfg->rounding);
     return Cast(data, dtype);
   }
 }
