@@ -274,7 +274,7 @@ def test_not_fuse_multi_diamond():
     # Check
     assert not diamond.match(out)
 
-def (pre, post):
+def fuse_batchnorm(pre, post):
     def left_right_call(post):
         if isinstance(post.args[0], relay.Call):
             return (post.args[1], post.args[0])
