@@ -1149,22 +1149,19 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
                 }
                 range = tvm::Range{0, end};
             }
-            return tvm::te::reduce_axis(range, "k" + std::to_string(random()));
+            return reduce_axis(range, "k" + std::to_string(random()));
         }();
         reduce_axes.push_back(k);
         Array<PrimExpr> indices;
         //axis轴放置k
         for(int i = 0; i < totalSize; ++i) {
-            if(i == axis) {
-                indices.push_back(k);
-                continue;
-            }
             indices.push_back(input_indices[i]);
         }
+        indices.Set(axis, k);
         //处理累加部分
-        return tvm::sum(A(input_indices), reduce_axes);
+        return sum(A(input_indices), reduce_axes);
     };
-    return tvm::te::compute(A->shape, l, name, tag);
+    return compute(A->shape, l, name, tag);
 }
 
 /*!
