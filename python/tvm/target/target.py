@@ -289,8 +289,23 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
 
     # Simulator string
     def create_sim(cpu_ver, sim_args):
+        def validate_hvx_length(codegen_hvx, sim_args):
+            if sim_args and '--hvx_length' in sim_args:
+                # If --hvx_length was specified, check HVX length of sim
+                # vs codegen
+                i = sim_args.index('hvx_length') + len('hvx_length') + 1
+                sim_hvx = sim_args[i:i+3]
+                if sim_hvx != str(hvx):
+                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!' \
+                          .format(sim_hvx, hvx))
+            elif hvx != 0:
+                # If --hvx_length was not given, add it if HVX is enabled
+                sim_args = sim_args + ' ' if isinstance(sim_args, str) else ''
+                sim_args += '--hvx_length ' + str(hvx)
+            return sim_args or ''
+
         if not sim_args:
-            return cpu_ver
+            return cpu_ver + ' ' + validate_hvx_length(hvx, sim_args)
 
         sim_cpu = cpu_ver + ' '
 
@@ -319,15 +334,7 @@ def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
                        cpu_attr['rev'] + ' ' +     \
                        cpu_attr['pre'] + cpu_attr['post']
 
-        # Check HVX length of sim vs codegen
-        if "--hvx_length" in sim_args:
-            i = sim_args.index('hvx_length') + len('hvx_length') + 1
-            sim_hvx = sim_args[i:i+3]
-            if sim_hvx != str(hvx):
-                print('WARNING: sim hvx {} and codegen hvx {} do not match!' \
-                      .format(sim_hvx, hvx))
-
-        return sim_cpu + str(sim_args)
+        return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
 
     # Sim args
     os.environ['HEXAGON_SIM_ARGS'] = create_sim(cpu_ver, sim_args)

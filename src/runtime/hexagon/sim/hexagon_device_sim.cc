@@ -585,9 +585,6 @@ HexagonSimulator::HexagonSimulator(bool enable_queuing) {
   sim_dev_args_ = detail::non_const_str(app_args);
   CHECKED_CALL(ConfigureAppCommandLine, sim_dev_args_.size(), sim_dev_args_);
 
-  LOG(INFO) << "HexagonSimulator: ConfigureHVXLength: 128";
-  CHECKED_CALL(ConfigureHVXLength, 128);
-
   Configure(sim_args);
 
   CHECKED_CALL(EndOfConfiguration);
