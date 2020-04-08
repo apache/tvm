@@ -154,7 +154,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto target_n_args = AnnotateArgs(expr->fields);
     auto new_expr = Tuple(std::get<1>(target_n_args));
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
   Expr VisitExpr_(const TupleGetItemNode* op) final {
@@ -164,7 +164,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->tuple}));
     auto new_expr = TupleGetItem(std::get<1>(target_n_args)[0], expr->index);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
   Expr VisitExpr_(const FunctionNode* fn) final {
@@ -193,7 +193,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto target_n_args = AnnotateArgs({let->value, let->body});
     auto new_expr = Let(let->var, std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
   Expr VisitExpr_(const IfNode* op) final {
@@ -205,7 +205,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_expr = If(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1],
                        std::get<1>(target_n_args)[2]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
   Expr VisitExpr_(const RefCreateNode* op) final {
@@ -215,7 +215,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->value}));
     auto new_expr = RefCreate(std::get<1>(target_n_args)[0]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
   Expr VisitExpr_(const RefReadNode* op) final {
@@ -225,7 +225,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref}));
     auto new_expr = RefRead(std::get<1>(target_n_args)[0]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
   Expr VisitExpr_(const RefWriteNode* op) final {
@@ -235,7 +235,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto target_n_args = AnnotateArgs(Array<Expr>({expr->ref, expr->value}));
     auto new_expr = RefWrite(std::get<1>(target_n_args)[0], std::get<1>(target_n_args)[1]);
     op_expr_to_target_[new_expr] = std::get<0>(target_n_args);
-    return new_expr;
+    return std::move(new_expr);
   }
 
  private:

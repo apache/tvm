@@ -125,8 +125,7 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
         // Create a new region if the argument is not belonged to any regions yet.
         region = region_set_->MakeRegion(target);
         region->nodes_.insert(call->args[0]);
-      }
-      else {
+      } else {
         // If the argument is belonged to a region, it must have the same target.
         // Otherwise we should see a region_begin op.
         CHECK_EQ(region->GetTarget(), target);
