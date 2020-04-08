@@ -17,12 +17,6 @@
  * under the License.
  */
 
-/*!
- *  Copyright (c) 2019 by Contributors
- * \file utvm_init.s
- * \brief uTVM init definition for Spike
- */
-
 UTVMInit:
   /* set stack pointer */
   la sp, _utvm_stack_pointer_init

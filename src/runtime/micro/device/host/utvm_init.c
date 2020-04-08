@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file utvm_init.c
  * \brief uTVM init definition for the host emulated device
  */

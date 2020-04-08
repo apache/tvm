@@ -52,26 +52,65 @@ enum class SectionKind : size_t {
   kNumKinds,
 };
 
-/*! \brief union for storing values on varying target word sizes */
-union TargetVal {
-  /*! \brief 32-bit pointer */
-  uint32_t val32;
-  /*! \brief 64-bit pointer */
-  uint64_t val64;
+/*! \brief class for storing values on varying target word sizes */
+class TargetVal {
+ private:
+  size_t width_bits_;
+  uint64_t value_;
+
+ public:
+  template<typename T, typename U = typename std::enable_if<std::is_integral<T>::value, T>::type>
+  explicit constexpr TargetVal(T value) :
+      width_bits_{sizeof(T) * 8}, value_{value} {}
+
+  TargetVal(size_t width_bits, uint64_t value) : width_bits_{width_bits} {
+    CHECK(width_bits != 0 && (width_bits & (width_bits - 1)) == 0)
+      << "width_bits must be a power of 2, got " << width_bits;
+    *this = value;
+  }
+
+  size_t width_bits() const { return width_bits_; }
+  uint64_t bitmask() const {
+    if (width_bits_ == 64) {
+      return 0xffffffff;
+    } else {
+      return (1 << width_bits_) - 1;
+    }
+  }
+
+  uint32_t uint32() const {
+    CHECK(width_bits_ <= 32) << "TargetVal: requested 32-bit value, actual width is "
+                             << width_bits_;
+    return uint32_t(value_ & bitmask());
+  }
+
+  uint64_t uint64() const {
+    return value_;
+  }
+
+  TargetVal& operator=(const uint64_t& value) {
+    if (width_bits_ == 64) {
+      value_ = value;
+    } else {
+      CHECK((value & ~bitmask()) == 0) << "bits above " << width_bits_ << " are non-zero";
+      value_ = value & bitmask();
+    }
+    return *this;
+  }
 };
 
-// TODO just get rid of `DevPtr`.
+// TODO(areusch): just get rid of `TargetPtr`.
 /*! \brief absolute device address */
 class TargetPtr {
  public:
-  /*! \brief construct a device address with value `value` */
-  explicit TargetPtr(std::uintptr_t value) : value_(TargetVal { .val64 = value }) {}
+  /*! \brief construct a device address with val64 `value` */
+  explicit TargetPtr(std::uint64_t value) : value_(TargetVal(64, value)) {}
 
-  /*! \brief default constructor */
-  TargetPtr() : value_(TargetVal { .val64 = 0 }) {}
+  /*! \brief default constructor (val64 0) */
+  TargetPtr() : value_(TargetVal(64, 0)) {}
 
-  /*! \brief construct a null address */
-  explicit TargetPtr(std::nullptr_t value) : value_(TargetVal { .val64 = 0 }) {}
+  /*! \brief construct a null address (stored in val64) */
+  explicit TargetPtr(std::nullptr_t value) : value_{TargetVal(64, 0)} {}
 
   /*! \brief destructor */
   ~TargetPtr() {}
@@ -87,33 +126,33 @@ class TargetPtr {
    * \return casted result
    */
   template <typename T>
-  T cast_to() const { return reinterpret_cast<T>(value_.val64); }
+  T cast_to() const { return reinterpret_cast<T>(value_.uint64()); }
 
   /*! \brief check if location is null */
-  bool operator==(std::nullptr_t) const { return value_.val64 == 0; }
+  bool operator==(std::nullptr_t) const { return value_.uint64() == 0; }
 
   /*! \brief check if location is not null */
-  bool operator!=(std::nullptr_t) const { return value_.val64 != 0; }
+  bool operator!=(std::nullptr_t) const { return value_.uint64() != 0; }
 
   /*! \brief add an integer to this absolute address to get a larger absolute address */
   TargetPtr operator+(size_t n) const {
-    return TargetPtr(value_.val64 + n);
+    return TargetPtr(value_.uint64() + n);
   }
 
   /*! \brief mutably add an integer to this absolute address */
   TargetPtr& operator+=(size_t n) {
-    value_.val64 += n;
+    value_ = value_.uint64() + n;
     return *this;
   }
 
   /*! \brief subtract an integer from this absolute address to get a smaller absolute address */
   TargetPtr operator-(size_t n) const {
-    return TargetPtr(value_.val64 - n);
+    return TargetPtr(value_.uint64() - n);
   }
 
   /*! \brief mutably subtract an integer from this absolute address */
   TargetPtr& operator-=(size_t n) {
-    value_.val64 -= n;
+    value_ = value_.uint64() - n;
     return *this;
   }
 
@@ -172,6 +211,12 @@ class SymbolMap {
 
   bool HasSymbol(const std::string& name) const {
     return map_.find(name) != map_.end();
+  }
+
+  void Dump(std::ostream& stream) const {
+    for (auto e : map_) {
+      stream << "Entry:" << e.first << std::endl;
+    }
   }
 
  private:

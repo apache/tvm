@@ -85,7 +85,7 @@ def _convert_activation(inexpr, keras_layer, _):
         return _op.sigmoid(inexpr)
     if act_type == 'tanh':
         return _op.tanh(inexpr)
-    if act_type in ('relu', 'swish'):
+    if act_type == 'relu':
         return _op.nn.relu(inexpr)
     if act_type == 'softplus':
         return _op.log(_op.add(_op.exp(inexpr), _expr.const(1., dtype='float32')))

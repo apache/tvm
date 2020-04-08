@@ -50,7 +50,7 @@ class TargetDataLayoutEncoder {
      * \param size size (in bytes) of the memory region allocated for this slot
      * \param start_addr start address of the slot in the device's memory
      */
-    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, DevPtr start_addr);
+    Slot(TargetDataLayoutEncoder* parent, size_t start_offset, size_t size, TargetPtr start_addr);
 
     ~Slot();
 
@@ -71,7 +71,7 @@ class TargetDataLayoutEncoder {
      * \brief returns start address of the slot in device memory
      * \return device start address
      */
-    DevPtr start_addr();
+    TargetPtr start_addr();
 
     /*!
      * \brief returns number of bytes allocated for this slot
@@ -89,7 +89,7 @@ class TargetDataLayoutEncoder {
     /*! \brief size (in bytes) of the memory region allocated for this slot */
     size_t size_;
     /*! \brief start address of the slot in the device's memory */
-    DevPtr start_addr_;
+    TargetPtr start_addr_;
   };
 
   /*!
@@ -139,17 +139,14 @@ class TargetDataLayoutEncoder {
     return buf_.size();
   }
 
-  /*!
-   * \brief TODO
-   */
-  DevPtr start_addr() const {
-    CHECK_NE(start_addr_.value().val64, 0) << "start addr uninitialized";
+  TargetPtr start_addr() const {
+    CHECK_NE(start_addr_.value().uint64(), 0) << "start addr uninitialized";
     return start_addr_;
   }
 
-  void set_start_addr(DevPtr start_addr) {
+  void set_start_addr(TargetPtr start_addr) {
     CHECK_EQ(buf_.size(), 0) << "cannot change encoder start addr unless empty";
-    start_addr_ = DevPtr(UpperAlignValue(start_addr.value().val64, word_size_));
+    start_addr_ = TargetPtr(UpperAlignValue(start_addr.value().uint64(), word_size_));
   }
 
  private:
@@ -158,7 +155,7 @@ class TargetDataLayoutEncoder {
   /*! \brief current offset */
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
-  DevPtr start_addr_;
+  TargetPtr start_addr_;
   /*! \brief TODO */
   size_t capacity_;
   /*! \brief number of bytes in a word on the target device */
@@ -169,7 +166,7 @@ template <typename T>
 TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
                                        size_t start_offset,
                                        size_t size,
-                                       DevPtr start_addr)
+                                       TargetPtr start_addr)
     : parent_(parent),
       start_offset_(start_offset),
       curr_offset_(0),
@@ -178,8 +175,10 @@ TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
 
 template <typename T>
 TargetDataLayoutEncoder::Slot<T>::~Slot() {
-  // TODO this can mask the exception thrown by slot allocation... even though that doesn't make sense.
-  CHECK(curr_offset_ == size_) << "unwritten space in slot";
+  // TODO(areusch): this can mask the exception thrown by slot allocation... even though that
+  // doesn't make sense.
+  CHECK(curr_offset_ == size_) << "unwritten space in slot; curr_offset="
+                               << curr_offset_ << ", size=" << size_;
 }
 
 template <typename T>
@@ -198,7 +197,7 @@ void TargetDataLayoutEncoder::Slot<T>::WriteValue(const T& val) {
 }
 
 template <typename T>
-DevPtr TargetDataLayoutEncoder::Slot<T>::start_addr() {
+TargetPtr TargetDataLayoutEncoder::Slot<T>::start_addr() {
   return start_addr_;
 }
 

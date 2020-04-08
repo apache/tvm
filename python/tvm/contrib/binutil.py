@@ -90,80 +90,6 @@ def run_cmd(cmd):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT)
     (output, _) = proc.communicate()
-    output = output.decode('utf-8')
-    if proc.returncode != 0:
-        cmd_str = ' '.join(cmd)
-        msg = f'error while running command \"{cmd_str}\":\n{output}'
-        raise RuntimeError(msg)
-    return output
-
-
-RELOCATION_LD_SCRIPT_TEMPLATE = """
-/* linker symbol for use in UTVMInit */
-_utvm_stack_pointer_init = 0x{stack_pointer_init:x};
-
-SECTIONS
-{{
-  . = 0x{text_start:x};
-  . = ALIGN({word_size});
-  .text :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.text))
-    KEEP(*(.text*))
-    . = ALIGN({word_size});
-  }}
-
-  . = 0x{rodata_start:x};
-  . = ALIGN({word_size});
-  .rodata :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.rodata))
-    KEEP(*(.rodata*))
-    . = ALIGN({word_size});
-  }}
-
-  . = 0x{data_start:x};
-  . = ALIGN({word_size});
-  .data :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.data))
-    KEEP(*(.data*))
-    . = ALIGN({word_size});
-  }}
-
-  . = 0x{bss_start:x};
-  . = ALIGN({word_size});
-  .bss :
-  {{
-    . = ALIGN({word_size});
-    KEEP(*(.bss))
-    KEEP(*(.bss*))
-    . = ALIGN({word_size});
-  }}
-}}
-"""
-
-def run_cmd(cmd):
-    """Runs `cmd` in a subprocess and awaits its completion.
-
-    Parameters
-    ----------
-    cmd : List[str]
-        list of command-line arguments
-
-    Returns
-    -------
-    output : str
-        resulting stdout capture from the subprocess
-    """
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
-    (output, _) = proc.communicate()
     output = output.decode("utf-8")
     if proc.returncode != 0:
         cmd_str = " ".join(cmd)
@@ -236,11 +162,11 @@ def tvm_callback_get_section_size(binary_path, section_name, toolchain_prefix):
         # padding for most cases, but symbols can be arbitrarily large, so this
         # isn't bulletproof.
         return section_size + 32
-    # TODO remove this arbitrary addition once we figure out why section sizes
-    # are being undercalculated.
-    # maybe stop relying on `*size` to give us the size and instead read the
-    # section with `*objcopy` and count the bytes.
-    return section_size + 8
+
+    # NOTE: in the past, section_size has been wrong on x86. it may be
+    # inconsistent. TODO: maybe stop relying on `*size` to give us the size and
+    # instead read the section with `*objcopy` and count the bytes.
+    return section_size
 
 
 @tvm._ffi.register_func("tvm_callback_relocate_binary")
@@ -315,17 +241,18 @@ def tvm_callback_relocate_binary(
     with open(rel_obj_path, 'rb') as f:
         rel_bin = bytearray(f.read())
 
-    gdb_init_dir = os.environ['MICRO_GDB_INIT_DIR']
-    gdb_init_path = f'{gdb_init_dir}/.gdbinit'
-    with open(gdb_init_path, 'r') as f:
-        gdbinit_contents = f.read().split('\n')
-    new_contents = []
-    for line in gdbinit_contents:
-        new_contents.append(line)
-        if line.startswith('target'):
-            new_contents.append(f'add-symbol-file {rel_obj_path}')
-    with open(gdb_init_path, 'w') as f:
-        f.write('\n'.join(new_contents))
+    gdb_init_dir = os.environ.get('MICRO_GDB_INIT_DIR')
+    if gdb_init_dir is not None:
+        gdb_init_path = f'{gdb_init_dir}/.gdbinit'
+        with open(gdb_init_path, 'r') as f:
+            gdbinit_contents = f.read().split('\n')
+        new_contents = []
+        for line in gdbinit_contents:
+            new_contents.append(line)
+            if line.startswith('target'):
+                new_contents.append(f'add-symbol-file {rel_obj_path}')
+        with open(gdb_init_path, 'w') as f:
+            f.write('\n'.join(new_contents))
 
     return rel_bin
 

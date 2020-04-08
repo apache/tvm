@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Compilation and config definitions for Spike, a RISC-V functional ISA simulator"""
-from collections import OrderedDict
 
 from . import create_micro_lib_base, register_device, gen_mem_layout, MemConstraint
 

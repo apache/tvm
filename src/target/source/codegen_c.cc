@@ -840,12 +840,10 @@ void CodeGenC::VisitStmt_(const AttrStmtNode* op) {
     const VarNode* v = op->node.as<VarNode>();
     CHECK(v);
     volatile_buf_.insert(v);
-  } else if (op->attr_key == ir::attr::pragma_import_c) {
-    const StringImm* value = op->value.as<StringImm>();
+  } else if (op->attr_key == tir::attr::pragma_import_c) {
+    const StringImmNode* value = op->value.as<StringImmNode>();
     CHECK(value != nullptr);
     decl_stream << value->value;
-    //this->HandleImport(value->value);
-    //this->VisitStmt(op->body);
   }
   this->PrintStmt(op->body);
 }

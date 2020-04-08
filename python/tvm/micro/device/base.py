@@ -19,7 +19,6 @@ import glob
 import os
 import enum
 import pathlib
-import operator
 
 from tvm.contrib import util as _util
 from tvm.contrib.binutil import run_cmd
@@ -98,14 +97,8 @@ def create_micro_lib_base(
         additional options to pass to GCC
 
     lib_src_paths : Optional[List[str]]
-        TODO
+        paths to additional source files to be compiled into the library
     """
-    print('[MicroBinutil.create_lib]')
-    print('  EXTENDED OPTIONS')
-    print(f'    {out_obj_path}')
-    print(f'    {in_src_path}')
-    print(f'    {lib_type}')
-    print(f'    {options}')
     # look at these (specifically `strip`):
     #   https://stackoverflow.com/questions/15314581/g-compiler-flag-to-minimize-binary-size
     base_compile_cmd = [
@@ -115,10 +108,6 @@ def create_micro_lib_base(
         '-Wextra',
         '--pedantic',
         '-c',
-        # TODO(weberlo): make a debug flag
-        '-O0',
-        # '-O2',
-        # '-Os',
         '-g',
         '-nostartfiles',
         '-nodefaultlibs',
@@ -162,12 +151,12 @@ def create_micro_lib_base(
     if lib_src_paths is not None:
         src_paths += lib_src_paths
 
-    print(f'include paths: {include_paths}')
+    # print(f'include paths: {include_paths}')
     for path in include_paths:
         base_compile_cmd += ['-I', path]
 
     prereq_obj_paths = []
-    print(src_paths)
+    # print(src_paths)
     for src_path in src_paths:
         curr_obj_path = tmp_dir.relpath(pathlib.Path(src_path).with_suffix('.o').name)
         assert curr_obj_path not in prereq_obj_paths
@@ -190,9 +179,28 @@ class MemConstraint(enum.Enum):
 
 
 def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
-    print('[gen_mem_layout]')
-    byte_sum = sum(map(operator.itemgetter(0), filter(lambda x: x[1] == MemConstraint.ABSOLUTE_BYTES, section_constraints.values())))
-    weight_sum = sum(map(operator.itemgetter(0), filter(lambda x: x[1] == MemConstraint.WEIGHT, section_constraints.values())))
+    """Template function to generate memory layout for devices.
+
+    Parameters
+    ----------
+    base_addr: Number
+        The address where usable memory begins on this device.
+
+    available_mem: Number
+        Available memory at base_addr, given in bytes.
+
+    word_size: Number
+        Number of bytes in one word on this device.
+
+    section_constraints: Optional[Dict[str, [Number, MemConstraint]]]
+        maps section name to the quantity of available memory
+    """
+    byte_sum = sum(x[0]
+                   for x in section_constraints.values()
+                   if x[1] == MemConstraint.ABSOLUTE_BYTES)
+    weight_sum = sum(x[0]
+                     for x in section_constraints.values()
+                     if x[1] == MemConstraint.WEIGHT)
     assert byte_sum <= available_mem
     available_weight_mem = available_mem - byte_sum
 
@@ -201,7 +209,8 @@ def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
     for section in DEVICE_SECTIONS:
         (val, cons_type) = section_constraints[section]
         if cons_type == MemConstraint.ABSOLUTE_BYTES:
-            assert val % word_size == 0, f'constraint {val} for {section} section is not word-aligned'
+            assert val % word_size == 0, \
+                f'constraint {val} for {section} section is not word-aligned'
             size = val
             res[section] = {
                 'start': curr_addr,
@@ -216,13 +225,6 @@ def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
             }
         curr_addr += size
 
-    print('  result mem layout:')
-    for section in DEVICE_SECTIONS:
-        start = res[section]['start']
-        size = res[section]['size']
-        print(f'    {section}: start={start:x}, size={size}')
-    # import pprint
-    # pprint.pprint(res)
     return res
 
 

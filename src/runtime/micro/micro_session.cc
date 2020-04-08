@@ -25,6 +25,7 @@
 #include <tvm/runtime/registry.h>
 #include <chrono>
 #include <memory>
+#include <locale>
 #include <stack>
 #include <tuple>
 #include <vector>
@@ -107,7 +108,7 @@ MicroSession::MicroSession(
     low_level_device_ = HostLowLevelDeviceCreate(memory_size, &base_addr);
     CHECK_EQ(reinterpret_cast<std::uintptr_t>(base_addr) % word_size_, 0)
       << "base address not aligned to " << word_size_ << " bytes";
-    DevPtr curr_addr = DevPtr(reinterpret_cast<std::uintptr_t>(base_addr));
+    TargetPtr curr_addr = TargetPtr(reinterpret_cast<std::uintptr_t>(base_addr));
 
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(
       "text",
@@ -170,66 +171,56 @@ MicroSession::MicroSession(
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(
       "text",
       DevMemRegion {
-        .start = DevPtr(text_start),
+        .start = TargetPtr(text_start),
         .size = text_size,
       }, word_size_);
     section_allocators_[1] = std::make_shared<MicroSectionAllocator>(
       "rodata",
       DevMemRegion {
-        .start = DevPtr(rodata_start),
+        .start = TargetPtr(rodata_start),
         .size = rodata_size,
       }, word_size_);
     section_allocators_[2] = std::make_shared<MicroSectionAllocator>(
       "data",
       DevMemRegion {
-        .start = DevPtr(data_start),
+        .start = TargetPtr(data_start),
         .size = data_size,
       }, word_size_);
     section_allocators_[3] = std::make_shared<MicroSectionAllocator>(
       "bss",
       DevMemRegion {
-        .start = DevPtr(bss_start),
+        .start = TargetPtr(bss_start),
         .size = bss_size,
       }, word_size_);
     section_allocators_[4] = std::make_shared<MicroSectionAllocator>(
       "args",
       DevMemRegion {
-        .start = DevPtr(args_start),
+        .start = TargetPtr(args_start),
         .size = args_size,
       }, word_size_);
     section_allocators_[5] = std::make_shared<MicroSectionAllocator>(
       "heap",
       DevMemRegion {
-        .start = DevPtr(heap_start),
+        .start = TargetPtr(heap_start),
         .size = heap_size,
       }, word_size_);
     section_allocators_[6] = std::make_shared<MicroSectionAllocator>(
       "workspace",
       DevMemRegion {
-        .start = DevPtr(workspace_start),
+        .start = TargetPtr(workspace_start),
         .size = workspace_size,
       }, word_size_);
     section_allocators_[7] = std::make_shared<MicroSectionAllocator>(
       "stack",
       DevMemRegion {
-        .start = DevPtr(stack_start),
+        .start = TargetPtr(stack_start),
         .size = stack_size,
       }, word_size_);
   } else {
     LOG(FATAL) << "unsupported micro low-level device";
   }
 
-  std::cout << "[Memory Layout]" << std::endl;
-  std::cout << "  text (size = " << (section_allocators_[0]->capacity() / 1000.0) << " KB): " << section_allocators_[0]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  rodata (size = " << (section_allocators_[1]->capacity() / 1000.0) << " KB): " << section_allocators_[1]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  data (size = " << (section_allocators_[2]->capacity() / 1000.0) << " KB): " << section_allocators_[2]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  bss (size = " << (section_allocators_[3]->capacity() / 1000.0) << " KB): " << section_allocators_[3]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  args (size = " << (section_allocators_[4]->capacity() / 1000.0) << " KB): " << section_allocators_[4]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  heap (size = " << (section_allocators_[5]->capacity() / 1000.0) << " KB): " << section_allocators_[5]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  workspace (size = " << (section_allocators_[6]->capacity() / 1000.0) << " KB): " << section_allocators_[6]->start_addr().cast_to<void*>() << std::endl;
-  std::cout << "  stack (size = " << (section_allocators_[7]->capacity() / 1000.0) << " KB): " << section_allocators_[7]->start_addr().cast_to<void*>() << std::endl;
-
-  DevPtr args_start_addr = GetAllocator(SectionKind::kArgs)->start_addr();
+  TargetPtr args_start_addr = GetAllocator(SectionKind::kArgs)->start_addr();
   batch_args_encoder_.set_start_addr(args_start_addr);
 
   runtime_symbol_map_ = LoadBinary(binary_path, false).symbol_map;
@@ -237,17 +228,17 @@ MicroSession::MicroSession(
   // Patch pointers to define the bounds of the workspace section and the word
   // size (for allocation alignment).
   std::shared_ptr<MicroSectionAllocator> ws_allocator = GetAllocator(SectionKind::kWorkspace);
-  TargetVal ws_start = ws_allocator->start_addr().value();
-  TargetVal ws_end = ws_allocator->max_addr().value();
-  TargetVal target_word_size { .val64 = word_size_ };
+  TargetVal ws_start(word_size_ * 8, ws_allocator->start_addr().value().uint64());
+  TargetVal ws_end(word_size_ * 8, ws_allocator->max_addr().value().uint64());
+  TargetVal target_word_size(word_size_ * 8, word_size_);
   if (word_size_ == 4) {
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.val32);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.val32);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.val32);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.uint32());
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.uint32());
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.uint32());
   } else if (word_size_ == 8) {
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.val64);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.val64);
-    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.val64);
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.uint64());
+    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.uint64());
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.uint64());
   }
 }
 
@@ -258,17 +249,16 @@ MicroSession::~MicroSession() {
   low_level_device_ = nullptr;
 }
 
-void MicroSession::PushToTaskQueue(DevPtr func_ptr, const TVMArgs& args) {
-  std::cout << "[MicroSession::PushToTaskQueue]" << std::endl;
-  std::cout << "  pushed func ptr: " << func_ptr.cast_to<void*>() << std::endl;
+void MicroSession::PushToTaskQueue(TargetPtr func_ptr, const TVMArgs& args) {
   if (thumb_mode_) {
-    func_ptr |= 1;
+    // TODO(areusch): should be |=
+    func_ptr += 1;
   }
-  DevVal func_dev_addr = func_ptr.value();
+  TargetVal func_dev_addr = func_ptr.value();
 
-  std::tuple<DevPtr, DevPtr> arg_field_addrs = EncoderAppend(&batch_args_encoder_, args);
-  DevVal arg_values_dev_addr = { .val64 = std::get<0>(arg_field_addrs).value() };
-  DevVal arg_type_codes_dev_addr = { .val64 = std::get<1>(arg_field_addrs).value() };
+  std::tuple<TargetPtr, TargetPtr> arg_field_addrs = EncoderAppend(&batch_args_encoder_, args);
+  TargetVal arg_values_dev_addr{std::get<0>(arg_field_addrs).cast_to<uint64_t>()};
+  TargetVal arg_type_codes_dev_addr{std::get<1>(arg_field_addrs).cast_to<uint64_t>()};
 
   task_queue_.push_back(
       DevTask {
@@ -289,15 +279,15 @@ void MicroSession::FlushTaskQueue() {
     return;
   }
   if (word_size_ == 4) {
-    FlushTaskQueuePriv<UTVMTask32>();
+    FlushTaskQueuePriv<StructUTVMTask32>();
   } else if (word_size_ == 8) {
-    FlushTaskQueuePriv<UTVMTask64>();
+    FlushTaskQueuePriv<StructUTVMTask64>();
   }
 }
 
 template <typename T>
 void MicroSession::FlushTaskQueuePriv() {
-  std::cout << "[MicroSession::FlushTaskQueue]" << std::endl;
+  // std::cout << "[MicroSession::FlushTaskQueue]" << std::endl;
   std::vector<T> prepped_tasks;
   for (const auto& task : task_queue_) {
     prepped_tasks.push_back(T(task));
@@ -310,102 +300,65 @@ void MicroSession::FlushTaskQueuePriv() {
       batch_args_encoder_.buf_size());
 
   // Flush `tasks` to device memory.
-  DevPtr dev_tasks_addr = runtime_symbol_map_["utvm_tasks"];
+//  runtime_symbol_map_.Dump(std::cout);
+  TargetPtr dev_tasks_addr = runtime_symbol_map_["utvm_tasks"];
   low_level_device()->Write(
       dev_tasks_addr,
       reinterpret_cast<void*>(prepped_tasks.data()),
       prepped_tasks.size() * sizeof(T));
   DevSymbolWrite<uint32_t>(runtime_symbol_map_, "utvm_num_tasks", prepped_tasks.size());
 
-  DevPtr utvm_init_addr = runtime_symbol_map_["UTVMInit"];
-  DevPtr utvm_done_addr = runtime_symbol_map_["UTVMDone"];
+  TargetPtr utvm_init_addr = runtime_symbol_map_["UTVMInit"];
+  TargetPtr utvm_done_addr = runtime_symbol_map_["UTVMDone"];
   if (thumb_mode_) {
-    utvm_init_addr |= 1;
+    // TODO(areusch): should be |=
+    utvm_init_addr += 1;
   }
 
   std::chrono::time_point<
     std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin, tend;
   tbegin = std::chrono::high_resolution_clock::now();
-  // std::cout << "  do execution things: ";
-  // char tmp;
-  // std::cin >> tmp;
+  // std::string tmp;
+  // while (tmp[0] != 'd' && tmp[0] != 'e') {
+  //   std::cout << "How to proceed? [Debug / Execute] ";
+  //   getline(std::cin, tmp);
+  //   CHECK(std::cin.good()) << "Stdin closed";
+  //   tmp[0] = std::tolower(tmp[0]);
+  // }
+  // if (tmp[0] == 'd') {
+  //   std::cout << "Launch debugger; [Enter] to resume automated execution";
+  //   getline(std::cin, tmp);
+  // } else {
   low_level_device()->Execute(utvm_init_addr, utvm_done_addr);
+  // }
   tend = std::chrono::high_resolution_clock::now();
 
   // Check if there was an error during execution.  If so, log it.
   CheckDeviceError();
-  uint32_t task_time = DevSymbolRead<uint32_t>(runtime_symbol_map_, "utvm_task_time");
-  GetAllocator(SectionKind::kArgs)->Free(stream_dev_addr);
-  return static_cast<double>(task_time);
-}
-
-BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {
-  DevMemRegion text_section;
-  DevMemRegion rodata_section;
-  DevMemRegion data_section;
-  DevMemRegion bss_section;
-
-  text_section.size = GetSectionSize(
-      binary_path, SectionKind::kText, toolchain_prefix_, word_size_);
-  rodata_section.size = GetSectionSize(
-      binary_path, SectionKind::kRodata, toolchain_prefix_, word_size_);
-  data_section.size = GetSectionSize(
-      binary_path, SectionKind::kData, toolchain_prefix_, word_size_);
-  bss_section.size = GetSectionSize(
-      binary_path, SectionKind::kBss, toolchain_prefix_, word_size_);
-
-  text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
-  rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
-  data_section.start = AllocateInSection(SectionKind::kData, data_section.size);
-  bss_section.start = AllocateInSection(SectionKind::kBss, bss_section.size);
-  CHECK(text_section.start != nullptr && rodata_section.start != nullptr &&
-        data_section.start != nullptr && bss_section.start != nullptr)
-      << "not enough space to load module on device";
-
-  std::string relocated_bin = RelocateBinarySections(
-      binary_path,
-      word_size_,
-      text_section.start,
-      rodata_section.start,
-      data_section.start,
-      bss_section.start,
-      GetAllocator(SectionKind::kStack)->max_addr(),
-      toolchain_prefix_);
-  std::string text_contents = ReadSection(relocated_bin, SectionKind::kText, toolchain_prefix_);
-  std::string rodata_contents = ReadSection(relocated_bin, SectionKind::kRodata, toolchain_prefix_);
-  std::string data_contents = ReadSection(relocated_bin, SectionKind::kData, toolchain_prefix_);
-  std::string bss_contents = ReadSection(relocated_bin, SectionKind::kBss, toolchain_prefix_);
-
-  low_level_device_->Write(text_section.start, &text_contents[0], text_section.size);
-  low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
-  low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
-  low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
-  SymbolMap symbol_map {relocated_bin, toolchain_prefix_};
-
-  if (patch_dylib_pointers) {
-    // Patch device lib pointers.
-    PatchImplHole(symbol_map, "TVMBackendAllocWorkspace");
-    PatchImplHole(symbol_map, "TVMBackendFreeWorkspace");
-    PatchImplHole(symbol_map, "TVMAPISetLastError");
-  }
 
   if (use_device_timer_) {
     uint64_t sum = 0;
     std::vector<uint32_t> times;
     times.resize(task_queue_.size());
-    low_level_device()->Read(runtime_symbol_map_["utvm_task_times"], times.data(), task_queue_.size() * sizeof(uint32_t));
+    low_level_device()->Read(runtime_symbol_map_["utvm_task_times"],
+                             times.data(),
+                             task_queue_.size() * sizeof(uint32_t));
+    int i = 0;
     for (uint32_t time : times) {
+      LOG(INFO) << "Time " << i++ << ": " << time;
       sum += time;
     }
-    last_batch_time_ += static_cast<double>(sum);
+    last_batch_time_ += static_cast<double>(sum) / 1e3;
   } else {
     last_batch_time_ += std::chrono::duration_cast<std::chrono::duration<double> >
         (tend - tbegin).count() * 1000;
-    // TODO fukn hack
+    // TODO(weberlo): Reading internal data structure is hacky.
     uint64_t sum = 0;
     std::vector<uint32_t> times;
     times.resize(task_queue_.size());
-    low_level_device()->Read(runtime_symbol_map_["utvm_task_times"], times.data(), task_queue_.size() * sizeof(uint32_t));
+    low_level_device()->Read(runtime_symbol_map_["utvm_task_times"],
+                             times.data(),
+                             task_queue_.size() * sizeof(uint32_t));
     for (uint32_t time : times) {
       sum += time;
     }
@@ -417,7 +370,6 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
 }
 
 BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_dylib_pointers) {
-  std::cout << "[MicroSession::LoadBinary]" << std::endl;
   DevMemRegion text_section;
   DevMemRegion rodata_section;
   DevMemRegion data_section;
@@ -431,10 +383,6 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
       binary_path, SectionKind::kData, toolchain_prefix_, word_size_);
   bss_section.size = GetSectionSize(
       binary_path, SectionKind::kBss, toolchain_prefix_, word_size_);
-  std::cout << "  text_section.size: " << text_section.size << std::endl;
-  std::cout << "  rodata_section.size: " << rodata_section.size << std::endl;
-  std::cout << "  data_section.size: " << data_section.size << std::endl;
-  std::cout << "  bss_section.size: " << bss_section.size << std::endl;
 
   text_section.start = AllocateInSection(SectionKind::kText, text_section.size);
   rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
@@ -480,9 +428,8 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   };
 }
 
-std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
+std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(
     TargetDataLayoutEncoder* encoder, const TVMArgs& args) {
-  std::cout << "[MicroSession::EncoderAppend(TVMArgs)]" << std::endl;
   const int* type_codes = args.type_codes;
   int num_args = args.num_args;
 
@@ -529,7 +476,7 @@ std::tuple<DevPtr, DevPtr> MicroSession::EncoderAppend(
 }
 
 template <typename T>
-DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr) {
+TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr) {
   auto tvm_arr_slot = encoder->Alloc<T>();
   auto shape_slot = encoder->Alloc<int64_t>(arr.ndim);
 
@@ -537,8 +484,8 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTen
   // the device first. The `data` field is already allocated on the device and
   // is a device pointer, so we don't need to write it.
   shape_slot.WriteArray(arr.shape, arr.ndim);
-  DevPtr shape_dev_addr = shape_slot.start_addr();
-  DevPtr strides_dev_addr = DevPtr(nullptr);
+  TargetPtr shape_dev_addr = shape_slot.start_addr();
+  TargetPtr strides_dev_addr = TargetPtr(nullptr);
   if (arr.strides != nullptr) {
     auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
     stride_slot.WriteArray(arr.strides, arr.ndim);
@@ -546,13 +493,13 @@ DevPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTen
   }
 
   T dev_arr(
-      TargetVal { .val64 = reinterpret_cast<uint64_t>(arr.data) },
+      TargetVal { word_size_ * 8, reinterpret_cast<uint64_t>(arr.data) },
       arr.ctx,
       arr.ndim,
       arr.dtype,
       shape_dev_addr.value(),
       strides_dev_addr.value(),
-      TargetVal { .val64 = arr.byte_offset });
+      TargetVal { word_size_ * 8, arr.byte_offset });
   CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
     << "attempt to write DLTensor with non-micro device type";
   // Update the device type to CPU, because from the microcontroller's
@@ -575,7 +522,7 @@ void MicroSession::CheckDeviceError() {
       return;
     }
     std::string err_msg;
-    switch(last_error) {
+    switch (last_error) {
       case UTVM_ERR_NOT_FINISHED:
         err_msg = "execution timed out";
         break;
@@ -583,7 +530,7 @@ void MicroSession::CheckDeviceError() {
         err_msg = "timer is not implemented for the target device";
         break;
       case UTVM_ERR_TIMER_OVERFLOW:
-        // TODO this should be remedied by using interrupts to accumulate the
+        // TODO(weberlo): this should be remedied by using interrupts to accumulate the
         // timer into a larger datatype (ARM timers are only 24 bits)
         err_msg = "timer overflowed during execution";
         break;
@@ -616,20 +563,20 @@ void MicroSession::CheckDeviceError() {
 }
 
 void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string& func_name) {
-  DevPtr runtime_impl_addr = runtime_symbol_map_[func_name];
+  TargetPtr runtime_impl_addr = runtime_symbol_map_[func_name];
   if (thumb_mode_) {
     runtime_impl_addr += 1;
   }
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
   if (word_size_ == 4) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().val32);
+    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().uint32());
   } else if (word_size_ == 8) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().val64);
+    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().uint64());
   }
 }
 
-std::string MicroSession::ReadString(DevPtr str_addr) {
+std::string MicroSession::ReadString(TargetPtr str_addr) {
   std::ostringstream result;
   const size_t buf_size = 256;
   std::vector<char> buf(buf_size, 0);
@@ -647,29 +594,17 @@ std::string MicroSession::ReadString(DevPtr str_addr) {
   return result.str();
 }
 
-DevPtr MicroSession::AllocateInSection(SectionKind type, size_t size) {
-  if (type == SectionKind::kHeap) {
-    std::cout << "[MicroSession::AllocateInSection(Heap)]" << std::endl;
-    std::cout << "  allocating " << std::dec << size << " hex=" << (void*) size << " bytes" << std::endl;
-  }
-  DevPtr result = GetAllocator(type)->Allocate(size);
-  if (type == SectionKind::kHeap) {
-    std::cout << "  allocated at addr " << result.cast_to<void*>() << std::endl;
-  }
-  return result;
+TargetPtr MicroSession::AllocateInSection(SectionKind type, size_t size) {
+  return GetAllocator(type)->Allocate(size);
 }
 
-void MicroSession::FreeInSection(SectionKind type, DevPtr addr) {
-  if (type == SectionKind::kHeap) {
-    std::cout << "[MicroSession::FreeInSection]" << std::endl;
-    std::cout << "  freeing alloc at addr " << addr.cast_to<void*>() << std::endl;
-  }
+void MicroSession::FreeInSection(SectionKind type, TargetPtr addr) {
   return GetAllocator(type)->Free(addr);
 }
 
 template <typename T>
 T MicroSession::DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol) {
-  DevPtr sym_addr = symbol_map[symbol];
+  TargetPtr sym_addr = symbol_map[symbol];
   T result;
   low_level_device()->Read(sym_addr, &result, sizeof(T));
   return result;
@@ -679,7 +614,7 @@ template <typename T>
 void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
                                   const std::string& symbol,
                                   const T& value) {
-  DevPtr sym_addr = symbol_map[symbol];
+  TargetPtr sym_addr = symbol_map[symbol];
   low_level_device()->Write(sym_addr, &value, sizeof(T));
 }
 
@@ -694,12 +629,12 @@ PackedFunc MicroSession::GetFunction(
     return PackedFunc([sptr_to_self](TVMArgs args, TVMRetValue* rv) {
       MicroSession::ExitWithScope();
     });
-    // TODO add a `clear_batch_timer` func
+    // TODO(weberlo): add a `clear_batch_timer` func
   } else if (name == "get_last_batch_time") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetLastBatchTime();
     });
-    // TODO remove this func
+    // TODO(weberlo): remove this func
   } else if (name == "get_last_batch_cycles") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetLastBatchCycles();
@@ -716,22 +651,22 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     const std::string& binary_path = args[1];
     const std::string& toolchain_prefix = args[2];
     uint64_t text_start = args[3];
-    size_t text_size = args[4];
+    size_t text_size = uint64_t(args[4]);
     uint64_t rodata_start = args[5];
-    size_t rodata_size = args[6];
+    size_t rodata_size = uint64_t(args[6]);
     uint64_t data_start = args[7];
-    size_t data_size = args[8];
+    size_t data_size = uint64_t(args[8]);
     uint64_t bss_start = args[9];
-    size_t bss_size = args[10];
+    size_t bss_size = uint64_t(args[10]);
     uint64_t args_start = args[11];
-    size_t args_size = args[12];
+    size_t args_size = uint64_t(args[12]);
     uint64_t heap_start = args[13];
-    size_t heap_size = args[14];
+    size_t heap_size = uint64_t(args[14]);
     uint64_t workspace_start = args[15];
-    size_t workspace_size = args[16];
+    size_t workspace_size = uint64_t(args[16]);
     uint64_t stack_start = args[17];
-    size_t stack_size = args[18];
-    size_t word_size = args[19];
+    size_t stack_size = uint64_t(args[18]);
+    size_t word_size = uint64_t(args[19]);
     bool thumb_mode = args[20];
     bool use_device_timer = args[21];
     const std::string& server_addr = args[22];

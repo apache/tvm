@@ -69,8 +69,6 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
     if (error_indices.size() != 0) {
       err_msg << rang::fg::red;
       err_msg << " ";
-      // TODO should fix this reverse problem further upstream (in the error reporter).
-      //
       // the errors are in reverse order, so print them with a reversed iteration
       err_msg << this->errors_[error_indices[error_indices.size()-1]].what();
       for (int i = error_indices.size() - 2; i >= 0; i--) {

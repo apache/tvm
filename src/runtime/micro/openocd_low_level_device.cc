@@ -50,7 +50,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.SendCommand();
   }
 
-  void Read(DevPtr addr, void* buf, size_t num_bytes) {
+  void Read(TargetPtr addr, void* buf, size_t num_bytes) {
     if (num_bytes == 0) {
       return;
     }
@@ -88,7 +88,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
 
     {
-      socket_.cmd_builder() << "ocd_echo $output";
+      socket_.cmd_builder() << "return $output";
       socket_.SendCommand();
       const std::string& reply = socket_.last_reply();
 
@@ -119,7 +119,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
   }
 
-  void Write(DevPtr addr, const void* buf, size_t num_bytes) {
+  void Write(TargetPtr addr, const void* buf, size_t num_bytes) {
     if (num_bytes == 0) {
       return;
     }
@@ -171,7 +171,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
   }
 
-  void Execute(DevPtr func_addr, DevPtr breakpoint_addr) {
+  void Execute(TargetPtr func_addr, TargetPtr breakpoint_addr) {
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
 
@@ -210,9 +210,9 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
   // NOTE: OpenOCD will call any request larger than this constant an "absurd
   // request".
   /*! \brief maximum number of bytes allowed in a single memory transfer */
-  static const constexpr ssize_t kMemTransferLimit = 64000;
+  static const constexpr ssize_t kMemTransferLimit = 8000;
   /*! \brief number of milliseconds to wait for function execution to halt */
-  static const constexpr int kWaitTime = 10000;
+  static const constexpr int kWaitTime = 30000;
 };
 
 const std::shared_ptr<LowLevelDevice> OpenOCDLowLevelDeviceCreate(const std::string& server_addr,

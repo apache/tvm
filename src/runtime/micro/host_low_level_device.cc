@@ -60,16 +60,16 @@ class HostLowLevelDevice final : public LowLevelDevice {
     munmap(base_addr_, size_);
   }
 
-  void Read(DevPtr addr, void* buf, size_t num_bytes) {
+  void Read(TargetPtr addr, void* buf, size_t num_bytes) {
     std::memcpy(buf, addr.cast_to<void*>(), num_bytes);
   }
 
-  void Write(DevPtr addr, const void* buf, size_t num_bytes) {
+  void Write(TargetPtr addr, const void* buf, size_t num_bytes) {
     std::memcpy(addr.cast_to<void*>(), buf, num_bytes);
   }
 
-  void Execute(DevPtr func_addr, DevPtr breakpoint_addr) {
-    reinterpret_cast<void (*)(void)>(func_addr.value().val64)();
+  void Execute(TargetPtr func_addr, TargetPtr breakpoint_addr) {
+    reinterpret_cast<void (*)(void)>(func_addr.value().uint64())();
   }
 
   const char* device_type() const final {

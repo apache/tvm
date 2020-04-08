@@ -74,8 +74,7 @@ def conv2d_spatial_pack_nchw(cfg, data, kernel, strides, padding, dilation,
                            [n, co, oh, ow, ci, kh, kw, vc, vh, vw]])
 
     cfg.define_annotate("ann_reduce", [kh, kw], policy='try_unroll')
-    #cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
-    cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll')
+    cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
 
     # fallback support
     if cfg.is_fallback:
@@ -153,7 +152,7 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
     cfg["ann_reduce"].apply(s, conv, [kh, kw],
                             axis_lens=[get_const_int(kh.dom.extent),
                                        get_const_int(kw.dom.extent)],
-                            max_unroll=16,
+                            max_unroll=None,
                             cfg=cfg)
     cfg["ann_spatial"].apply(s, conv, [vh, vw, vc],
                              axis_lens=[cfg['tile_oh'].size[-1],
@@ -178,14 +177,14 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
                                  cfg=cfg)
     s[conv].compute_at(s[last], ow)
 
-    ## mark parallel
-    #s[last].parallel(co)
+    # mark parallel
+    s[last].parallel(co)
 
     if data_vec.op.name == 'data_vec_undilated':
         _, h, _, _, _, _, _, _ = s[data_vec].op.axis
     else:
         _, h, _, _, _, _ = s[data_vec].op.axis
-    #s[data_vec].parallel(h)
+    s[data_vec].parallel(h)
 
     if kernel_vec.op.name == 'kernel_vec':
         co, _, _, _, _ = s[kernel_vec].op.axis
@@ -194,12 +193,10 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
             # this part to make tuning records correct
             s[kernel_vec].pragma(co, 'debug_skip_region')
         else:
-            #s[kernel_vec].parallel(co)
-            pass
+            s[kernel_vec].parallel(co)
     elif kernel_vec.op.name == 'kernel_vec_conv2d_transpose':  # for conv2d transpose
-        #co, _, _, _, _ = s[kernel_vec].op.axis
-        #s[kernel_vec].parallel(co)
-        pass
+        co, _, _, _, _ = s[kernel_vec].op.axis
+        s[kernel_vec].parallel(co)
 
     return s
 

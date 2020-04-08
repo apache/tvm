@@ -52,11 +52,11 @@ const char* SectionToString(SectionKind section) {
 std::string RelocateBinarySections(
     const std::string& binary_path,
     size_t word_size,
-    DevPtr text_start,
-    DevPtr rodata_start,
-    DevPtr data_start,
-    DevPtr bss_start,
-    DevPtr stack_end,
+    TargetPtr text_start,
+    TargetPtr rodata_start,
+    TargetPtr data_start,
+    TargetPtr bss_start,
+    TargetPtr stack_end,
     const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)

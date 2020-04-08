@@ -23,6 +23,7 @@
 #ifndef TVM_RUNTIME_MICRO_MICRO_SECTION_ALLOCATOR_H_
 #define TVM_RUNTIME_MICRO_MICRO_SECTION_ALLOCATOR_H_
 
+#include <string>
 #include <unordered_map>
 #include "micro_common.h"
 
@@ -44,7 +45,7 @@ class MicroSectionAllocator {
       size_(0),
       capacity_(region.size),
       word_size_(word_size) {
-      CHECK_EQ(start_addr_.value().val64 % word_size, 0)
+      CHECK_EQ(start_addr_.value().uint64() % word_size, 0)
         << "micro section start not aligned to " << word_size << " bytes";
       CHECK_EQ(capacity_ % word_size, 0)
         << "micro section end not aligned to " << word_size << " bytes";
@@ -60,14 +61,15 @@ class MicroSectionAllocator {
    * \param alloc_size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  DevPtr Allocate(size_t size) {
+  TargetPtr Allocate(size_t size) {
     size_ = UpperAlignValue(size_, word_size_);
     CHECK(size_ + size < capacity_)
-        << "cannot alloc " << size << " bytes in section with start_addr " <<
-        start_addr_.cast_to<void*>();
-    DevPtr alloc_addr = start_addr_ + size_;
+      << "cannot alloc " << size << " bytes in section \""
+      << section_name_ << "\" (start_addr=" << start_addr_.cast_to<void*>()
+      << ", used=" << size_ << ", capacity=" << capacity_ << ")";
+    TargetPtr alloc_addr = start_addr_ + size_;
     size_ += size;
-    alloc_map_[alloc_addr.value().val64] = size;
+    alloc_map_[alloc_addr.value().uint64()] = size;
     return alloc_addr;
   }
 
@@ -76,10 +78,10 @@ class MicroSectionAllocator {
    * \param offs offset to allocated memory
    * \note simple allocator scheme, more complex versions will be implemented later
    */
-  void Free(DevPtr addr) {
-    CHECK(alloc_map_.find(addr.value().val64) != alloc_map_.end())
+  void Free(TargetPtr addr) {
+    CHECK(alloc_map_.find(addr.value().uint64()) != alloc_map_.end())
       << "freed pointer was never allocated";
-    alloc_map_.erase(addr.value().val64);
+    alloc_map_.erase(addr.value().uint64());
     if (alloc_map_.empty()) {
       size_ = 0;
     }
@@ -88,17 +90,17 @@ class MicroSectionAllocator {
   /*!
    * \brief start offset of the memory region managed by this allocator
    */
-  DevPtr start_addr() const { return start_addr_; }
+  TargetPtr start_addr() const { return start_addr_; }
 
   /*!
    * \brief current end addr of the space being used in this memory region
    */
-  DevPtr curr_end_addr() const { return start_addr_ + size_; }
+  TargetPtr curr_end_addr() const { return start_addr_ + size_; }
 
   /*!
    * \brief end addr of the memory region managed by this allocator
    */
-  DevPtr max_addr() const { return start_addr_ + capacity_; }
+  TargetPtr max_addr() const { return start_addr_ + capacity_; }
 
   /*!
    * \brief size of the section
@@ -114,7 +116,7 @@ class MicroSectionAllocator {
   /*! \brief name of the section (for debugging) */
   std::string section_name_;
   /*! \brief start address of the section */
-  DevPtr start_addr_;
+  TargetPtr start_addr_;
   /*! \brief current size of the section */
   size_t size_;
   /*! \brief total storage capacity of the section */

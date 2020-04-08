@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Compilation and config definitions for Arm STM32F746XX devices"""
+import os
 from .. import create_micro_lib_base, register_device, gen_mem_layout, MemConstraint
 
 DEVICE_ID = 'arm.stm32f746xx'
@@ -60,13 +61,16 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
     """
     if options is None:
         options = []
+    else:
+        options = list(options)
+
     options += [
+        # TODO(weberlo): make a debug flag
+        '-O2',
         '-march=armv7e-m',
         '-mcpu=cortex-m7',
         '-mlittle-endian',
         '-mfloat-abi=hard',
-        # TODO try this one?
-        #'-mfpu=fpv5-d16',
         '-mfpu=fpv5-sp-d16',
         '-mthumb',
         '-ffast-math',
@@ -74,9 +78,14 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
         '-DARM_MATH_CM7',
         '-D__FPU_PRESENT=1U',
         '-DARM_MATH_DSP',
+        '-Wno-unused-variable',
+        '-Wno-unused-parameter',
+        '-I{}'.format(os.environ['CMSIS_ST_PATH']),
+        '-I{}/Core/Include'.format(os.environ['CMSIS_ST_PATH'])
         ]
     create_micro_lib_base(
-        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options, lib_src_paths=lib_src_paths)
+        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
+        lib_src_paths=lib_src_paths)
 
 
 def generate_config(server_addr, server_port, section_constraints=None):
@@ -90,8 +99,8 @@ def generate_config(server_addr, server_port, section_constraints=None):
     server_port : int
         port of OpenOCD server to connect to
 
-    section_constraints: Optional[Dict[str, Tuple[Number, MemConstraint]]]
-        TODO correct type annotation?
+    section_constraints: Optional[Dict[str, [Number, MemConstraint]]]
+        maps section name to the quantity of available memory
 
     Return
     ------
@@ -106,7 +115,7 @@ def generate_config(server_addr, server_port, section_constraints=None):
         'mem_layout': gen_mem_layout(BASE_ADDR, AVAILABLE_MEM, WORD_SIZE, section_constraints),
         'word_size': WORD_SIZE,
         'thumb_mode': True,
-        'use_device_timer': False,
+        'use_device_timer': True,
         'comms_method': 'openocd',
         'server_addr': server_addr,
         'server_port': server_port,

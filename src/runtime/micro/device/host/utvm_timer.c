@@ -20,12 +20,10 @@
 /*!
  * \file utvm_timer.c
  * \brief uTVM timer API stubs for the host emulated device
- *  Copyright (c) 2019 by Contributors
  */
 
 #include <stdint.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/c_backend_api.h>
+#include "utvm_runtime.h"
 
 // TODO(weberlo): use this? https://stackoverflow.com/questions/5141960/get-the-current-time-in-c
 
@@ -37,17 +35,3 @@ uint32_t UTVMTimerStop(int32_t* err) {
   *err = UTVM_ERR_OK;
   return 0;
 }
-
-extern void UTVMInit();
-
-extern void UTVMTimerReset();
-
-extern int32_t UTVMTimerStart();
-
-extern void UTVMTimerStop();
-
-extern uint32_t UTVMTimerRead();
-
-void UTVMMain();
-
-void UTVMDone();

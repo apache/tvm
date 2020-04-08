@@ -32,11 +32,10 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-// TODO compiler errors say volatile qualifier is discarded. should we just get rid of em?
-volatile void *(*TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) =
-    (void *(*)(int, int, uint64_t, int, int)) NULL;
-volatile int (*TVMBackendFreeWorkspace_)(int, int, void*) = (int (*)(int, int, void*)) NULL;
-volatile void (*TVMAPISetLastError_)(const char*) = (void (*)(const char*)) NULL;
+// TODO(areusch): compiler errors say volatile qualifier is discarded. should we just get rid of em?
+void* (* volatile TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) = NULL;
+int (* volatile TVMBackendFreeWorkspace_)(int, int, void*) = NULL;
+void (* volatile TVMAPISetLastError_)(const char*) = NULL;
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
     int dtype_code_hint, int dtype_bits_hint) {

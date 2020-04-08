@@ -19,13 +19,13 @@
 from __future__ import absolute_import
 
 import os
+import re
 import sys
 from enum import Enum
 
 import tvm
 import tvm._ffi
 
-import tvm
 from tvm.contrib import util as _util
 from tvm.contrib import cc as _cc
 
@@ -86,7 +86,9 @@ class Session:
         runtime_src_path = os.path.join(get_micro_host_driven_dir(), 'utvm_runtime.c')
         tmp_dir = _util.tempdir()
         runtime_obj_path = tmp_dir.relpath('utvm_runtime.obj')
-        dev_funcs['create_micro_lib'](runtime_obj_path, runtime_src_path, LibType.RUNTIME)
+        options = ['-I{}'.format(get_micro_host_driven_dir())]
+        dev_funcs['create_micro_lib'](
+            runtime_obj_path, runtime_src_path, LibType.RUNTIME, options=options)
 
         comms_method = config['comms_method']
         if comms_method == 'openocd':
@@ -98,7 +100,8 @@ class Session:
         else:
             raise RuntimeError(f'unknown communication method: f{self.comms_method}')
 
-        assert all(map(lambda sec: sec in self.mem_layout, DEVICE_SECTIONS)), 'not all sections have an assigned memory layout'
+        assert all(map(lambda sec: sec in self.mem_layout, DEVICE_SECTIONS)), \
+            'not all sections have an assigned memory layout'
         self.module = _CreateSession(
             comms_method,
             runtime_obj_path,
@@ -139,7 +142,7 @@ class Session:
         # TODO(weberlo): Add 32-bit support.
         # It's primarily the compilation pipeline that isn't compatible.
         if sys.maxsize <= 2**32:
-            raise RuntimeError('MicroTVM is currently only supported on 64-bit platforms')
+            raise RuntimeError('MicroTVM is currently only supported on 64-bit host platforms')
 
     def __enter__(self):
         self._enter()
@@ -151,8 +154,8 @@ class Session:
 
 def _calc_max_workspace_usage(src):
     # TODO factor in alignment to the calculation (alloc sizes will be aligned up to the word size)
-    import re
-    alloc_re = re.compile(r'.*\* ?(.+) = (\(.+\))? TVMBackendAllocWorkspace\(.+, .+, \(uint64_t\)(.+), .+, .+\).*')
+    alloc_re = re.compile(
+        r'.*\* ?(.+) = (\(.+\))? TVMBackendAllocWorkspace\(.+, .+, \(uint64_t\)(.+), .+, .+\).*')
     free_re = re.compile(r'.*if \(TVMBackendFreeWorkspace\(.+, .+, (\(void\*\))? (.+)\) != 0\) {.*')
     max_usage = 0
     alloc_map = {}
@@ -171,7 +174,8 @@ def _calc_max_workspace_usage(src):
     return max_usage
 
 
-def create_micro_mod(c_mod, dev_config, lib_src_paths=None, lib_headers=None, lib_include_paths=None):
+def create_micro_mod(c_mod, dev_config, lib_src_paths=None, lib_headers=None,
+                     lib_include_paths=None):
     """Produces a micro module from a given module.
 
     Parameters
@@ -193,24 +197,24 @@ def create_micro_mod(c_mod, dev_config, lib_src_paths=None, lib_headers=None, li
     micro_mod : tvm.module.Module
         micro module for the target device
     """
-    print('[create_micro_mod]')
     temp_dir = _util.tempdir()
     lib_obj_path = temp_dir.relpath('dev_lib.obj')
     # TODO use dev config to dispatch on the type of C codegen to run through
     # (e.g., CodeGenCArm, CodeGenCHost, CodeGenCRiscV)
     c_mod.export_library(
-            lib_obj_path,
-            fcompile=cross_compiler(
-                dev_config,
-                LibType.OPERATOR,
-                lib_src_paths=lib_src_paths,
-                lib_headers=lib_headers,
-                lib_include_paths=lib_include_paths))
-    micro_mod = tvm.module.load(lib_obj_path)
+        lib_obj_path,
+        fcompile=cross_compiler(
+            dev_config,
+            LibType.OPERATOR,
+            lib_src_paths=lib_src_paths,
+            lib_headers=lib_headers,
+            lib_include_paths=lib_include_paths))
+    micro_mod = tvm.runtime.load_module(lib_obj_path)
     return micro_mod
 
 
-def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None, lib_include_paths=None):
+def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None,
+                   lib_include_paths=None):
     """Create a cross compile function that wraps `create_lib` for a `Binutil` instance.
 
     For use in `tvm.runtime.Module.export_library`.
@@ -247,7 +251,8 @@ def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None, l
       fcompile = tvm.micro.cross_compiler(dev_config, LibType.OPERATOR)
       c_mod.export_library('dev_lib.obj', fcompile=fcompile)
     """
-    assert (lib_headers is None) == (lib_include_paths is None), 'must specify both `lib_headers` and `lib_include_paths` or neither'
+    assert (lib_headers is None) == (lib_include_paths is None), \
+        'must specify both `lib_headers` and `lib_include_paths` or neither'
 
     if lib_src_paths is None:
         lib_src_paths = []
@@ -257,7 +262,8 @@ def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None, l
     for include_path in lib_include_paths:
         include_options.append('-I')
         include_options.append(include_path)
-    create_micro_lib = tvm.micro.device.get_device_funcs(dev_config['device_id'])['create_micro_lib']
+    create_micro_lib = tvm.micro.device.get_device_funcs(
+        dev_config['device_id'])['create_micro_lib']
     mem_layout = dev_config['mem_layout']
 
     def compile_func(obj_path, src_path, **kwargs):
@@ -274,7 +280,8 @@ def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None, l
             max_ws_usage = _calc_max_workspace_usage(src_contents)
             available_mem = mem_layout['workspace']['size']
             if max_ws_usage > available_mem:
-                raise RuntimeError(f'workspace allocations in library ({max_ws_usage}) exceed available memory ({available_mem})')
+                raise RuntimeError(f'workspace allocations in library ({max_ws_usage}) '
+                                   f'exceed available memory ({available_mem})')
         # inject headers into new source path, if requested
         if lib_headers:
             headers_to_inject = '\n'.join(map(lambda s: f'#include <{s}>', lib_headers)) + '\n'

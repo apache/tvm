@@ -54,14 +54,19 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
         additional options to pass to GCC
 
     lib_src_paths : Optional[List[str]]
-        TODO
+        paths to additional source files to be compiled into the library
     """
     if options is None:
         options = []
+    else:
+        options = list(options)
+    # Cannot increase optimization level on host due to code loading method.
+    options.append('-O0')
     if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
         options += ['-mcmodel=large']
     create_micro_lib_base(
-        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options, lib_src_paths=lib_src_paths)
+        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
+        lib_src_paths=lib_src_paths)
 
 
 def generate_config(available_mem=None, section_constraints=None):
@@ -69,13 +74,11 @@ def generate_config(available_mem=None, section_constraints=None):
 
     Parameters
     ----------
-    TODO correct type annotation?
     available_mem: int
-        TODO
+        number of RW bytes available for use on device
 
-    TODO correct type annotation?
-    section_constraints: Optional[Dict[str, Dict[str, Number]]]
-        TODO
+    section_constraints: Optional[Dict[str, Dict[Number, MemConstraint]]]
+        maps section name to the quantity of available memory
 
     Return
     ------

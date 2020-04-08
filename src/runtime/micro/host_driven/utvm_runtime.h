@@ -18,7 +18,6 @@
  */
 
 /*!
- *  Copyright (c) 2019 by Contributors
  * \file utvm_runtime.h
  * \brief uTVM runtime headers
  */

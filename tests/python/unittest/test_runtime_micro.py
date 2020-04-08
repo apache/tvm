@@ -26,9 +26,9 @@ from tvm.micro import create_micro_mod
 from tvm.relay.testing import resnet
 
 # # Use the host emulated micro device.
-# DEV_CONFIG_A = micro.device.host.generate_config()
-# DEV_CONFIG_B = micro.device.host.generate_config()
-# TARGET = 'c -device=micro_dev'
+DEV_CONFIG_A = micro.device.host.generate_config()
+DEV_CONFIG_B = micro.device.host.generate_config()
+TARGET = 'c -device=micro_dev'
 
 # # TODO why do spike examples have memory that starts at 0x10000000, but you
 # # should set the base addr as 0x10010000? should somehow help the user to be
@@ -41,9 +41,9 @@ from tvm.relay.testing import resnet
 # DEV_CONFIG_B = micro.device.riscv_spike.generate_config(BASE_ADDR, AVAILABLE_MEM, '127.0.0.1', 6667)
 # TARGET = 'c -device=micro_dev'
 
-DEV_CONFIG_A = micro.device.arm.stm32f746xx.generate_config('127.0.0.1', 6666)
-DEV_CONFIG_B = micro.device.arm.stm32f746xx.generate_config('127.0.0.1', 6667)
-TARGET = 'c -device=micro_dev'
+# DEV_CONFIG_A = micro.device.arm.stm32f746xx.generate_config('127.0.0.1', 6666)
+# DEV_CONFIG_B = micro.device.arm.stm32f746xx.generate_config('127.0.0.1', 6667)
+# TARGET = 'c -device=micro_dev'
 
 def relay_micro_build(func, dev_config, params=None):
     """Create a graph runtime module with a micro device context from a Relay function.
@@ -64,11 +64,10 @@ def relay_micro_build(func, dev_config, params=None):
     mod : tvm.runtime.Module
         graph runtime module for the target device
     """
-    disable_vectorize = tvm.build_config(disable_vectorize=True)
+    disable_vectorize = tvm.target.build_config(disable_vectorize=True)
     disable_fusion = relay.build_config(disabled_pass={'FuseOps'})
     with disable_vectorize, disable_fusion:
         graph, c_mod, params = relay.build(func, target=TARGET, params=params)
-    print(c_mod.get_source())
     micro_mod = micro.create_micro_mod(c_mod, dev_config)
     ctx = tvm.micro_dev(0)
     mod = graph_runtime.create(graph, micro_mod, ctx)
@@ -82,6 +81,7 @@ target remote localhost:{gdb_port}
 set $pc = UTVMInit
 break UTVMDone
 """
+
 
 def reset_gdbinit():
     if 'server_port' not in DEV_CONFIG_A:
@@ -210,7 +210,7 @@ def test_graph_runtime():
 
 
 def test_conv2d():
-    if not tvm.module.enabled("micro_dev"):
+    if not tvm.runtime.enabled("micro_dev"):
         return
 
     from tvm.relay import create_executor
@@ -230,19 +230,27 @@ def test_conv2d():
             padding=(1, 1),
             channels=4)
     func = relay.Function(relay.analysis.free_vars(conv_expr), conv_expr)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = transform.InferType()(mod)
 
     x_shape = list(map(lambda x: x.value, mod['main'].params[0].checked_type.shape))
     w_shape = list(map(lambda x: x.value, mod['main'].params[1].checked_type.shape))
     out_shape = list(map(lambda x: x.value, mod['main'].ret_type.shape))
 
-    with tvm.build_config(disable_vectorize=True):
+    with tvm.target.build_config(disable_vectorize=True):
         graph, c_mod, params = relay.build(mod, target="c")
 
     with micro.Session(DEV_CONFIG_A):
         micro_mod = micro.create_micro_mod(c_mod, DEV_CONFIG_A)
-        micro_func = micro_mod[func_name]
+        candidate_func_name = func_name
+        for i in range(100):
+            try:
+                micro_func = micro_mod[candidate_func_name]
+                break
+            except tvm.TVMError as e:
+                candidate_func_name = f'{func_name}_{i}'
+        else:
+            assert False
         ctx = tvm.micro_dev(0)
 
         x_data = tvm.nd.array(np.random.uniform(size=x_shape).astype(dtype), ctx)
@@ -253,41 +261,9 @@ def test_conv2d():
         out_data = np.zeros(out_shape, dtype=dtype)
         params = { 'x': x_data.asnumpy(), 'w': w_data.asnumpy() }
         intrp = create_executor('debug')
-        expected_result = intrp.evaluate(mod['main'])(x_data, w_data).data
+        expected_result = intrp.evaluate(mod['main'])(x_data, w_data)
 
         tvm.testing.assert_allclose(result.asnumpy(), expected_result.asnumpy())
-
-
-def test_multiple_modules():
-    """Test loading multiple modules on the device simultaneously."""
-    if not tvm.runtime.enabled("micro_dev"):
-        return
-    shape = (1024,)
-    dtype = "float32"
-
-    # Construct Relay add program.
-    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
-    ret = relay.add(x, relay.const(1.0))
-    add_const_func = relay.Function([x], ret)
-    # Construct Relay subtract program.
-    x = relay.var("x", relay.TensorType(shape=shape, dtype=dtype))
-    ret = relay.subtract(x, relay.const(1.0))
-    sub_const_func = relay.Function([x], ret)
-
-    with micro.Session(DEV_CONFIG_A):
-        add_const_mod = relay_micro_build(add_const_func, DEV_CONFIG_A)
-        sub_const_mod = relay_micro_build(sub_const_func, DEV_CONFIG_A)
-
-        x_in = np.random.uniform(size=shape[0]).astype(dtype)
-        add_const_mod.run(x=x_in)
-        add_result = add_const_mod.get_output(0).asnumpy()
-        sub_const_mod.run(x=x_in)
-        sub_result = sub_const_mod.get_output(0).asnumpy()
-
-        tvm.testing.assert_allclose(
-                add_result, x_in + 1.0)
-        tvm.testing.assert_allclose(
-                sub_result, x_in - 1.0)
 
 
 def test_interleave_sessions():

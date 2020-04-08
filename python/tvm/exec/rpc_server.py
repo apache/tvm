@@ -122,9 +122,10 @@ if __name__ == "__main__":
                               '--utvm-dev-config-args is specified.'))
     parser.add_argument('--utvm-dev-config-args', type=str,
                         help=("Arguments to the device module's generate_config function. "
-                              'Must be a python literal parseable by literal_eval. If specified, the '
-                              "device configuration is generated using the device module's generate_config. "
-                              "Can't be specified when --utvm-dev-config is specified."))
+                              'Must be a python literal parseable by literal_eval. If specified, '
+                              "the device configuration is generated using the device module's "
+                              "generate_config. Can't be specified when --utvm-dev-config is "
+                              "specified."))
     parser.add_argument('--utvm-dev-id', type=str,
                         help=('Unique ID for the target device (if using MicroTVM). Should '
                               'match the name of a module underneath tvm.micro.device).'))

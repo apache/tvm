@@ -239,26 +239,16 @@ def build(mod, target=None, target_host=None, params=None):
         raise ValueError("target host must be the type of str, " +
                          "tvm.target.Target, or None")
 
-    # # If current dispatch context is fallback context (the default root context),
-    # # then load pre-tuned parameters from TopHub
-    # if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-    #     tophub_context = autotvm.tophub.context(list(target.values()))
-    # else:
-    #     tophub_context = autotvm.util.EmptyContext()
-
-    # with tophub_context:
-    #     bld_mod = BuildModule()
-    #     graph_json, mod, params = bld_mod.build(func, target, target_host, params)
-
+    # If current dispatch context is fallback context (the default root context),
+    # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(list(target.values()))
-        with tophub_context:
-            bld_mod = BuildModule()
-            graph_json, mod, params = bld_mod.build(func, target, target_host, params)
     else:
-        bld_mod = BuildModule()
-        graph_json, mod, params = bld_mod.build(func, target, target_host, params)
+        tophub_context = autotvm.util.EmptyContext()
 
+    with tophub_context:
+        bld_mod = BuildModule()
+        graph_json, mod, params = bld_mod.build(mod, target, target_host, params)
     return graph_json, mod, params
 
 

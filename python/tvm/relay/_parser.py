@@ -630,12 +630,6 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def call(self, func, args, attrs, type_args):
         if isinstance(func, OpWrapper):
-            #if hasattr(func.operator, '__name__') and func.operator.__name__ == 'clip':
-            #    # TODO(wbelrlo) this big fucking hack yes
-            #    import copy
-            #    args = copy.deepcopy(args)
-            #    args[1] = float(args[1].data.asnumpy())
-            #    args[2] = float(args[2].data.asnumpy())
             return func(args, attrs, type_args)
         if isinstance(func, adt.Constructor):
             return func(*args)

@@ -36,42 +36,12 @@
 #include <algorithm>
 #include "rpc_session.h"
 #include "../object_internal.h"
-#include "../../common/ring_buffer.h"
-#include "../../common/socket.h"
+#include "../../support/ring_buffer.h"
+#include "../../support/socket.h"
 #include "../micro/micro_session.h"
 
 namespace tvm {
 namespace runtime {
-
-std::string RPCCodeToString(RPCCode code) {
-  switch (code) {
-    case RPCCode::kNone: return "None";
-    case RPCCode::kCallFunc: return "CallFunc";
-    case RPCCode::kReturn: return "Return";
-    case RPCCode::kException: return "Exception";
-    case RPCCode::kShutdown: return "Shutdown";
-    case RPCCode::kCopyFromRemote: return "CopyFromRemote";
-    case RPCCode::kCopyToRemote: return "CopyToRemote";
-    case RPCCode::kCopyAck: return "CopyAck";
-    case RPCCode::kSystemFuncStart: return "SystemFuncStart";
-    case RPCCode::kGetGlobalFunc: return "GetGlobalFunc";
-    case RPCCode::kGetTimeEvaluator: return "GetTimeEvaluator";
-    case RPCCode::kFreeFunc: return "FreeFunc";
-    case RPCCode::kDevSetDevice: return "DevSetDevice";
-    case RPCCode::kDevGetAttr: return "DevGetAttr";
-    case RPCCode::kDevAllocData: return "DevAllocData";
-    case RPCCode::kDevFreeData: return "DevFreeData";
-    case RPCCode::kDevStreamSync: return "DevStreamSync";
-    case RPCCode::kCopyAmongRemote: return "CopyAmongRemote";
-    case RPCCode::kModuleLoad: return "ModuleLoad";
-    case RPCCode::kModuleImport: return "ModuleImport";
-    case RPCCode::kModuleFree: return "ModuleFree";
-    case RPCCode::kModuleGetFunc: return "ModuleGetFunc";
-    case RPCCode::kModuleGetSource: return "ModuleGetSource";
-    case RPCCode::kNDArrayFree: return "NDArrayFree";
-    default: CHECK(false) << "invalid RPC code";
-  }
-}
 
 // Temp buffer for data array
 struct RPCByteArrayBuffer {
@@ -929,12 +899,6 @@ void RPCSession::Init() {
       &reader_, &writer_, table_index_, name_, &remote_key_);
   // Quick function to call remote.
   call_remote_ = PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-      std::cout << "[RPCSession::call_remote_]" << std::endl;
-      if (args.type_codes[0] == kTVMContext) {
-        const TVMContext ctx = args[0];
-        std::cout << "  ctx.device_type: " << ctx.device_type << std::endl;
-        std::cout << "  ctx.device_id: " << ctx.device_id << std::endl;
-      }
       handler_->SendPackedSeq(args.values, args.type_codes, args.num_args, true);
       RPCCode code = HandleUntilReturnEvent(rv, true, nullptr);
       CHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
@@ -1117,10 +1081,7 @@ void RPCDevSetDevice(TVMArgs args, TVMRetValue *rv) {
 }
 
 void RPCDevGetAttr(TVMArgs args, TVMRetValue *rv) {
-  std::cout << "[RPCDevGetAttr]" << std::endl;
   TVMContext ctx = args[0];
-  std::cout <<  "  ctx.device_type: " << ctx.device_type << std::endl;
-  std::cout <<  "  ctx.device_id: " << ctx.device_id << std::endl;
   DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[1].operator int());
   if (kind == kExist) {
     DeviceAPI* api = DeviceAPI::Get(ctx, true);
@@ -1136,10 +1097,7 @@ void RPCDevGetAttr(TVMArgs args, TVMRetValue *rv) {
 }
 
 void RPCDevAllocData(TVMArgs args, TVMRetValue *rv) {
-  std::cout <<  "[RPCDevAllocData]" << std::endl;
   TVMContext ctx = args[0];
-  std::cout <<  "  ctx.device_type: " << ctx.device_type << std::endl;
-  std::cout <<  "  ctx.device_id: " << ctx.device_id << std::endl;
   uint64_t nbytes = args[1];
   uint64_t alignment = args[2];
   DLDataType type_hint = args[3];
@@ -1161,18 +1119,13 @@ void RPCDevStreamSync(TVMArgs args, TVMRetValue *rv) {
 }
 
 void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
-  std::cout << "[RPCCopyAmongRemote]" << std::endl;
   void* from = args[0];
   uint64_t from_offset = args[1];
   void* to = args[2];
   uint64_t to_offset = args[3];
   uint64_t size = args[4];
   TVMContext ctx_from = args[5];
-  std::cout << "  ctx_from.device_type: " << ctx_from.device_type << std::endl;
-  std::cout << "  ctx_from.device_id: " << ctx_from.device_type << std::endl;
   TVMContext ctx_to = args[6];
-  std::cout << "  ctx_to.device_type: " << ctx_to.device_type << std::endl;
-  std::cout << "  ctx_to.device_id: " << ctx_to.device_type << std::endl;
   DLDataType type_hint = args[7];
   TVMStreamHandle stream = args[8];
   TVMContext ctx = ctx_from;
@@ -1183,12 +1136,10 @@ void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
           ctx_to.device_type == ctx_from.device_type)
         << "Can not copy across different ctx types directly";
   }
-  std::cout << "  before CopyDataFromTo" << std::endl;
   DeviceAPI::Get(ctx)->CopyDataFromTo(
       from, from_offset,
       to, to_offset,
       size, ctx_from, ctx_to, type_hint, stream);
-  std::cout << "  after CopyDataFromTo" << std::endl;
 }
 
 void RPCModuleLoad(TVMArgs args, TVMRetValue *rv) {
@@ -1250,7 +1201,6 @@ void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
 }
 
 void RPCSession::EventHandler::HandlePackedCall() {
-  std::cout << "[RPCSession::EventHandler::HandlePackedCall]" << std::endl;
   CHECK_EQ(pending_request_bytes_, 0U);
   if (code_ == RPCCode::kReturn) {
     state_ = kReturnReceived; return;
@@ -1259,7 +1209,6 @@ void RPCSession::EventHandler::HandlePackedCall() {
   state_ = kRecvCode;
   this->RequestBytes(sizeof(RPCCode));
   // Event handler sit at clean state at this point.
-  std::cout << "  RPC code is " << static_cast<int>(code_) << "(" << RPCCodeToString(code_) << ")" << std::endl;
   switch (code_) {
     case RPCCode::kCallFunc: {
       PackedFunc* pf = reinterpret_cast<PackedFunc*>(call_handle_);
@@ -1274,7 +1223,6 @@ void RPCSession::EventHandler::HandlePackedCall() {
       std::ostringstream os;
       os << "Except caught from RPC call: " << arg_buf_->value[0].v_str;
       arg_buf_.reset();
-      std::cout << os.str() << std::endl;
       throw dmlc::Error(os.str());
       break;
     }
@@ -1302,10 +1250,10 @@ void RPCSession::EventHandler::HandlePackedCall() {
 PackedFunc MicroTimeEvaluator(
     PackedFunc pf,
     TVMContext ctx,
-    int number,
+    size_t number,
     int repeat,
     int min_repeat_ms) {
-  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
+  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
 
@@ -1313,13 +1261,12 @@ PackedFunc MicroTimeEvaluator(
       // start timing
       CHECK(number < MicroSession::kTaskQueueCapacity)
         << "`number` must be less than uTVM task queue capacity";
-      for (int i = 0; i < number; ++i) {
+      for (unsigned int j = 0; j < number; ++j) {
         pf.CallPacked(args, &temp);
       }
       ObjectPtr<MicroSession> session = MicroSession::Current();
       DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
       double time_per_batch = session->GetLastBatchTime() / number;
-      std::cout << "LAST AVERAGE BATCH TIME WAS " << time_per_batch << std::endl;
       os.write(reinterpret_cast<char*>(&time_per_batch), sizeof(time_per_batch));
     }
     std::string blob = os.str();
@@ -1337,12 +1284,9 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
-  std::cout << "[WrapTimeEvaluator]" << std::endl;
   if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
-    std::cout << "  USING MICRO TIME EVAL" << std::endl;
     return MicroTimeEvaluator(pf, ctx, number, repeat, min_repeat_ms);
   }
-  std::cout << "  USING NORMAL TIME EVAL" << std::endl;
 
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;

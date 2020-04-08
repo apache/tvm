@@ -143,7 +143,7 @@ class MicroSession : public ModuleNode {
    * \param args args to the packed function
    * \return elapsed time during function execution on the device
    */
-  double PushToTaskQueue(DevPtr func, const TVMArgs& args);
+  void PushToTaskQueue(TargetPtr func, const TVMArgs& args);
 
   /*!
    * \brief serialize runtime metadata to the device for enqueued tasks and execute
@@ -171,21 +171,21 @@ class MicroSession : public ModuleNode {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  DevPtr AllocateInSection(SectionKind type, size_t size);
+  TargetPtr AllocateInSection(SectionKind type, size_t size);
 
   /*!
    * \brief free prior allocation from section
    * \param type type of section to allocate in
    * \param addr device address of allocated memory
    */
-  void FreeInSection(SectionKind type, DevPtr addr);
+  void FreeInSection(SectionKind type, TargetPtr addr);
 
   /*!
    * \brief read string from device to host
    * \param str_addr device address of first character of string
    * \return host copy of device string that was read
    */
-  std::string ReadString(DevPtr str_addr);
+  std::string ReadString(TargetPtr str_addr);
 
   /*!
   * \brief read value of symbol from device memory
@@ -234,8 +234,6 @@ class MicroSession : public ModuleNode {
   /*! \brief array of memory allocators for each on-device section */
   std::shared_ptr<MicroSectionAllocator>
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
-  /*! \brief total number of bytes of usable device memory for this session */
-  size_t memory_size_;
   /*! \brief number of bytes in a word on the target device */
   size_t word_size_;
   /*! \brief whether the target device requires a thumb-mode bit on function addresses
@@ -272,7 +270,8 @@ class MicroSession : public ModuleNode {
    * \param args args to be appended
    * \return device address of the allocated args
    */
-  std::tuple<DevPtr, DevPtr> EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args);
+  std::tuple<TargetPtr, TargetPtr> EncoderAppend(TargetDataLayoutEncoder* encoder,
+                                                 const TVMArgs& args);
 
   /*!
    * \brief appends a `DLTensor` to the host-side buffer of `encoder`
@@ -335,15 +334,15 @@ struct TVMArray32 {
       TargetVal shape,
       TargetVal strides,
       TargetVal byte_offset)
-    : data(data.val32),
+    : data(data.uint32()),
       ctx(ctx),
       ndim(ndim),
       pad0(0),
       dtype(dtype),
-      shape(shape.val32),
-      strides(strides.val32),
+      shape(shape.uint32()),
+      strides(strides.uint32()),
       pad1(0),
-      byte_offset(byte_offset.val32),
+      byte_offset(byte_offset.uint32()),
       pad2(0) { }
 
   /*!
@@ -385,14 +384,14 @@ struct TVMArray64 {
       TargetVal shape,
       TargetVal strides,
       TargetVal byte_offset)
-    : data(data.val64),
+    : data(data.uint64()),
       ctx(ctx),
       ndim(ndim),
       pad0(0),
       dtype(dtype),
-      shape(shape.val64),
-      strides(strides.val64),
-      byte_offset(byte_offset.val64) { }
+      shape(shape.uint64()),
+      strides(strides.uint64()),
+      byte_offset(byte_offset.uint64()) { }
   /*!
    * \brief The opaque data pointer points to the allocated data.
    *  This will be CUDA device pointer or cl_mem handle in OpenCL.
@@ -421,11 +420,11 @@ struct TVMArray64 {
 /*! \brief MicroTVM task to store in task queue before specializing to word size */
 struct DevTask {
   /*! \brief Pointer to function to call for this task */
-  DevVal func;
+  TargetVal func;
   /*! \brief Array of argument values */
-  DevVal arg_values;
+  TargetVal arg_values;
   /*! \brief Array of type codes for each argument value */
-  DevVal arg_type_codes;
+  TargetVal arg_type_codes;
   /*! \brief Number of arguments */
   int32_t num_args;
 };
@@ -433,9 +432,9 @@ struct DevTask {
 /*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {
   StructUTVMTask32(DevTask task)
-    : func(task.func.val32),
-      arg_values(task.arg_values.val32),
-      arg_type_codes(task.arg_type_codes.val32),
+    : func(task.func.uint32()),
+      arg_values(task.arg_values.uint32()),
+      arg_type_codes(task.arg_type_codes.uint32()),
       num_args(task.num_args) { }
 
   /*! \brief Pointer to function to call for this task */
@@ -451,9 +450,9 @@ typedef struct StructUTVMTask32 {
 /*! \brief MicroTVM task for serialization to 64-bit devices */
 typedef struct StructUTVMTask64 {
   StructUTVMTask64(DevTask task)
-    : func(task.func.val64),
-      arg_values(task.arg_values.val64),
-      arg_type_codes(task.arg_type_codes.val64),
+    : func(task.func.uint64()),
+      arg_values(task.arg_values.uint64()),
+      arg_type_codes(task.arg_type_codes.uint64()),
       num_args(task.num_args) { }
 
   /*! \brief Pointer to function to call for this task */
