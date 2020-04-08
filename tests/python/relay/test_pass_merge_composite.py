@@ -732,6 +732,43 @@ def test_tuple_get_item_merge():
     assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
 
 
+def test_pattern_with_check():
+    def before():
+        x = relay.var('x', shape=(1, 10, 10, 10))
+        w = relay.var('w', shape=(10, 10, 3, 3))
+        b = relay.var('b', shape=(8,))
+        conv = relay.nn.conv2d(x,
+                               w,
+                               kernel_size=(3, 3),
+                               kernel_layout="OIHW",
+                               data_layout="NHWC")
+        bias = relay.nn.bias_add(conv, b)
+        relu = relay.nn.relu(bias)
+        return relay.Function([x, w, b], relu)
+
+    def _check_true(extract):
+        conv = extract.args[0].args[0]
+        return conv.attrs.data_layout == "NHWC"
+
+    def _check_false(extract):
+        conv = extract.args[0].args[0]
+        return conv.attrs.data_layout == "NCHW"
+
+    pattern_table_true = [
+        ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_true)
+    ]
+    pattern_table_false = [
+        ("conv_bias_relu", make_conv_bias_relu_pattern(), _check_false)
+    ]
+
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table_false))
+    expected = run_opt_pass(before(), relay.transform.InferType())
+    assert tvm.ir.structural_equal(result, expected, map_free_vars=True)
+
+    result = run_opt_pass(before(), relay.transform.MergeComposite(pattern_table_true))
+    assert result.body.op.attrs["Composite"] == "conv_bias_relu"
+
+
 if __name__ == "__main__":
     test_simple_merge()
     test_branch_merge()
@@ -741,3 +778,4 @@ if __name__ == "__main__":
     test_multiple_input_subgraphs()
     test_reuse_call_merge()
     test_tuple_get_item_merge()
+    test_pattern_with_check()
