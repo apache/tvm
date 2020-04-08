@@ -41,6 +41,7 @@ extern "C" {
 #define VTA_DEBUG_SKIP_READ_BARRIER (1 << 3)
 #define VTA_DEBUG_SKIP_WRITE_BARRIER (1 << 4)
 #define VTA_DEBUG_FORCE_SERIAL (1 << 5)
+#define VTA_DEBUG_AUTO_TUNE (1 << 6)
 
 /*!
  * \brief Allocate data buffer.

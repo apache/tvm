@@ -76,7 +76,7 @@ from vta.top import graph_pack
 # Perform vta-specific compilation with Relay from a Gluon model
 
 
-def compile_network(env, target, model, start_pack, stop_pack):
+def compile_network(env, target, model, start_pack, stop_pack, device_annot=False):
 
     # Populate the shape and data type dictionary
     dtype_dict = {"data": 'float32'}
@@ -104,7 +104,8 @@ def compile_network(env, target, model, start_pack, stop_pack):
                                 env.BLOCK_OUT,
                                 env.WGT_WIDTH,
                                 start_name=start_pack,
-                                stop_name=stop_pack)
+                                stop_name=stop_pack,
+                                device_annot=device_annot)
 
     return relay_prog, params
 
@@ -341,8 +342,11 @@ def tune_and_evaluate(tuning_opt):
                                                 tracker_port,
                                                 timeout=10000)
         # Reconfigure the JIT runtime and FPGA.
-        vta.reconfig_runtime(remote)
-        vta.program_fpga(remote, bitstream=None)
+        bitstream = os.environ.get("TVM_BIT", None)
+        if bitstream:
+            print("Program fpga with {}".format(bitstream))
+            vta.reconfig_runtime(remote)
+            vta.program_fpga(remote, bitstream)
     else:
         # In simulation mode, host the RPC server locally.
         remote = rpc.LocalSession()
@@ -382,12 +386,14 @@ def tune_and_evaluate(tuning_opt):
 
     # We do not run the tuning in our webpage server since it takes too long.
     # Comment the following line to run it by yourself.
-    return
+    # return
 
     # run tuning tasks
     print("Tuning...")
     tune_tasks(tasks, **tuning_opt)
 
+    # recompile the programs with device annotations
+    relay_prog, params = compile_network(env, target, network, start_pack, stop_pack, device_annot=True)
     # compile kernels with history best records
     with autotvm.tophub.context(target, extra_files=[log_file]):
         # Compile network
@@ -395,14 +401,18 @@ def tune_and_evaluate(tuning_opt):
         if target.device_name != "vta":
             with tvm.transform.PassContext(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(relay_prog,
-                                                target=target,
-                                                params=params,
-                                                target_host=env.target_host)
+                                                 target=target,
+                                                 params=params,
+                                                 target_host=env.target_host)
         else:
+            targets = {
+                "cpu": env.target_vta_cpu,
+                "ext_dev": env.target
+            }
             with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(
                     relay_prog,
-                    target=target,
+                    target=targets,
                     params=params,
                     target_host=env.target_host)
 
@@ -415,7 +425,8 @@ def tune_and_evaluate(tuning_opt):
 
         # Generate the graph runtime
         ctx = remote.ext_dev(0) if device == "vta" else remote.cpu(0)
-        m = graph_runtime.create(graph, lib, ctx)
+        ctxes = [ctx, remote.cpu(0)]
+        m = graph_runtime.create(graph, lib, ctxes)
 
         # upload parameters to device
         image = tvm.nd.array(

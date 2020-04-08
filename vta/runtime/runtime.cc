@@ -40,6 +40,10 @@
 #include <stdlib.h>
 #include <malloc.h>
 
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
+
 namespace vta {
 
 // Avoid bad configurations.
@@ -151,8 +155,12 @@ struct DataBuffer {
    * Bytes.
    */
   void MemCopyFromHost(void* dst, const void* src, size_t size) {
+    // struct timespec start, stop;
+    // clock_gettime(CLOCK_REALTIME, &start);
     VTAMemCopyFromHost(dst, src, size);
-
+    // clock_gettime(CLOCK_REALTIME, &stop);
+    // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
+    // LOG(WARNING) << "DataBuffer VTAMemCopyFromHost: " << elapsed << " us";
   }
   /*!
    * \brief Performs a copy operation from buffer allocated with VTAMemAlloc to host memory.
@@ -739,8 +747,79 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
 
     return "unknown op";
   }
+
+  std::string GetOpName(const union VTAInsn& c) {
+    switch (c.mem.opcode) {
+      case VTA_OPCODE_LOAD:
+        if (c.mem.x_size == 0) {
+          if (GetMemPipelineStage(c.mem.memory_type) == kComputeStage) {
+            return "NOP-COMPUTE-STAGE";
+          } else {
+            return "NOP-MEMORY-STAGE";
+          }
+        } else {
+          if (c.mem.memory_type == VTA_MEM_ID_UOP) {
+            return "LOAD UOP";
+          } else if (c.mem.memory_type == VTA_MEM_ID_WGT) {
+            return "LOAD WGT";
+          } else if (c.mem.memory_type == VTA_MEM_ID_INP) {
+            return "LOAD INP";
+          } else if (c.mem.memory_type == VTA_MEM_ID_ACC) {
+            return "LOAD ACC";
+          } else if (c.mem.memory_type == VTA_MEM_ID_ACC_8) {
+            return "LOAD ACC 8";
+          } else {
+            return "LOAD";
+          }
+        }
+      case VTA_OPCODE_STORE:
+        if (c.mem.x_size == 0) {
+          return "NOP-STORE-STAGE";
+        } else {
+          return "STORE";
+        }
+      case VTA_OPCODE_GEMM:
+        return "GEMM";
+      case VTA_OPCODE_ALU:
+        return "ALU - " + getOpcodeString(c.alu.alu_opcode, c.alu.use_imm, c.alu.imm);
+      case VTA_OPCODE_FINISH:
+        return "FINISH";
+      default:
+        return "Not recogonized";
+    }
+  }
+
+  std::string GetOpcodeName(const union VTAInsn& c) {
+    switch (c.mem.opcode) {
+      case VTA_OPCODE_LOAD:
+        if (c.mem.x_size == 0) {
+          return "NOP";
+        } else {
+          return "LOAD";
+        }
+      case VTA_OPCODE_STORE:
+        if (c.mem.x_size == 0) {
+          return "NOP";
+        } else {
+          return "STORE";
+        }
+      case VTA_OPCODE_GEMM:
+        return "GEMM";
+      case VTA_OPCODE_ALU:
+        if (c.alu.use_imm) {
+          return "ALU IMM";
+        } else {
+          return "ALU";
+        }
+      case VTA_OPCODE_FINISH:
+        return "NOP";
+      default:
+        return "Unknown";
+    }
+  }
+
   // Dump instructions in the queue
-  void DumpInsn() {
+  void DumpInsn(FILE* out = stderr, bool json=false) {
     // Keep tabs on dependence queues
     int l2g_queue = 0;
     int g2l_queue = 0;
@@ -751,98 +830,158 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
     // Iterate over all instructions
     int insn_count = count();
     const VTAGenericInsn* insn = data();
-    printf("There are %u instructions\n", insn_count);
+    rapidjson::StringBuffer s;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(s);
+
+    if (!json) {
+      fprintf(out, "There are %u instructions\n", insn_count);
+    } else {
+      writer.StartArray();
+    }
+
     for (int i = 0; i < insn_count; ++i) {
       // Fetch instruction and decode opcode
       c.generic = insn[i];
-      printf("INSTRUCTION %u: ", i);
-      if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
-        if (c.mem.x_size == 0) {
-          if (c.mem.opcode == VTA_OPCODE_STORE) {
-            printf("NOP-STORE-STAGE\n");
-          } else if (GetMemPipelineStage(c.mem.memory_type) == kComputeStage) {
-            printf("NOP-COMPUTE-STAGE\n");
-          } else {
-            printf("NOP-MEMORY-STAGE\n");
-          }
-          printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
-                 static_cast<int>(c.mem.pop_prev_dep), static_cast<int>(c.mem.pop_next_dep),
-                 static_cast<int>(c.mem.push_prev_dep), static_cast<int>(c.mem.push_next_dep));
-          // Count status in queues
-          if (c.mem.opcode == VTA_OPCODE_STORE) {
-            CHECK(c.mem.pop_next_dep == false);
-            CHECK(c.mem.push_next_dep == false);
-            if (c.mem.pop_prev_dep) g2s_queue--;
-            if (c.mem.push_prev_dep) s2g_queue++;
-          } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
-                     (c.mem.memory_type == VTA_MEM_ID_INP || c.mem.memory_type == VTA_MEM_ID_WGT)) {
-            CHECK(c.mem.pop_prev_dep == false);
-            CHECK(c.mem.push_prev_dep == false);
-            if (c.mem.pop_next_dep) g2l_queue--;
-            if (c.mem.push_next_dep) l2g_queue++;
-          } else {
-            if (c.mem.pop_prev_dep) l2g_queue--;
-            if (c.mem.push_prev_dep) g2l_queue++;
-            if (c.mem.pop_next_dep) s2g_queue--;
-            if (c.mem.push_next_dep) g2s_queue++;
-          }
-          printf("\tl2g_queue = %d, g2l_queue = %d\n", l2g_queue, g2l_queue);
-          printf("\ts2g_queue = %d, g2s_queue = %d\n", s2g_queue, g2s_queue);
-          continue;
-        }
-        // Print instruction field information
-        if (c.mem.opcode == VTA_OPCODE_LOAD) {
-          printf("LOAD ");
-          if (c.mem.memory_type == VTA_MEM_ID_UOP) printf("UOP\n");
-          if (c.mem.memory_type == VTA_MEM_ID_WGT) printf("WGT\n");
-          if (c.mem.memory_type == VTA_MEM_ID_INP) printf("INP\n");
-          if (c.mem.memory_type == VTA_MEM_ID_ACC) printf("ACC\n");
-          if (c.mem.memory_type == VTA_MEM_ID_ACC_8) printf("ACC 8\n");
-        }
-        if (c.mem.opcode == VTA_OPCODE_STORE) {
-          printf("STORE:\n");
-        }
-        printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
-               static_cast<int>(c.mem.pop_prev_dep), static_cast<int>(c.mem.pop_next_dep),
-               static_cast<int>(c.mem.push_prev_dep), static_cast<int>(c.mem.push_next_dep));
-        printf("\tDRAM: 0x%08x, SRAM:0x%04x\n", static_cast<int>(c.mem.dram_base),
-               static_cast<int>(c.mem.sram_base));
-        printf("\ty: size=%d, pad=[%d, %d]\n", static_cast<int>(c.mem.y_size),
-               static_cast<int>(c.mem.y_pad_0), static_cast<int>(c.mem.y_pad_1));
-        printf("\tx: size=%d, stride=%d, pad=[%d, %d]\n", static_cast<int>(c.mem.x_size),
-               static_cast<int>(c.mem.x_stride), static_cast<int>(c.mem.x_pad_0),
-               static_cast<int>(c.mem.x_pad_1));
-      } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
-        // Print instruction field information
-        printf("GEMM\n");
+      if (json) {
+        writer.StartObject();
+        writer.Key("name");
+        writer.String(GetOpName(c).c_str());
 
-        printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
-               static_cast<int>(c.mem.pop_prev_dep), static_cast<int>(c.mem.pop_next_dep),
-               static_cast<int>(c.mem.push_prev_dep), static_cast<int>(c.mem.push_next_dep));
-        printf("\treset_out: %d\n", static_cast<int>(c.gemm.reset_reg));
-        printf("\trange (%d, %d)\n", static_cast<int>(c.gemm.uop_bgn),
-               static_cast<int>(c.gemm.uop_end));
-        printf("\touter loop - iter: %d, wgt: %d, inp: %d, acc: %d\n",
-               static_cast<int>(c.gemm.iter_out), static_cast<int>(c.gemm.wgt_factor_out),
-               static_cast<int>(c.gemm.src_factor_out), static_cast<int>(c.gemm.dst_factor_out));
-        printf("\tinner loop - iter: %d, wgt: %d, inp: %d, acc: %d\n",
-               static_cast<int>(c.gemm.iter_in), static_cast<int>(c.gemm.wgt_factor_in),
-               static_cast<int>(c.gemm.src_factor_in), static_cast<int>(c.gemm.dst_factor_in));
+        writer.Key("type");
+        writer.String(GetOpcodeName(c).c_str());
+
+        writer.Key("pop_prev");
+        writer.Int(c.mem.pop_prev_dep);
+        writer.Key("pop_next");
+        writer.Int(c.mem.pop_next_dep);
+        writer.Key("push_prev");
+        writer.Int(c.mem.push_prev_dep);
+        writer.Key("push_next");
+        writer.Int(c.mem.push_next_dep);
+      } else {
+        fprintf(out, "INSTRUCTION %u: ", i);
+        fprintf(out, "%s\n", GetOpName(c).c_str());
+
+        fprintf(out, "\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
+               static_cast<int>(c.mem.pop_prev_dep),
+               static_cast<int>(c.mem.pop_next_dep),
+               static_cast<int>(c.mem.push_prev_dep),
+               static_cast<int>(c.mem.push_next_dep));
+      }
+
+      if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
+        if (json) {
+          writer.Key("dram");
+          writer.Uint64(c.mem.dram_base);
+          writer.Key("sram");
+          writer.Uint64(c.mem.sram_base);
+
+          writer.Key("y");
+          writer.StartArray();
+          writer.Uint64(c.mem.y_size);
+          writer.Uint64(c.mem.y_pad_0);
+          writer.Uint64(c.mem.y_pad_1);
+          writer.EndArray();
+
+          writer.Key("x");
+          writer.StartArray();
+          writer.Uint64(c.mem.x_size);
+          writer.Uint64(c.mem.x_pad_0);
+          writer.Uint64(c.mem.x_pad_1);
+          writer.Uint64(c.mem.x_stride);
+          writer.EndArray();
+        } else {
+          fprintf(out, "\tDRAM: 0x%08x, SRAM:0x%04x\n",
+                 static_cast<int>(c.mem.dram_base),
+                 static_cast<int>(c.mem.sram_base));
+          fprintf(out, "\ty: size=%d, pad=[%d, %d]\n",
+                 static_cast<int>(c.mem.y_size),
+                 static_cast<int>(c.mem.y_pad_0),
+                 static_cast<int>(c.mem.y_pad_1));
+          fprintf(out, "\tx: size=%d, stride=%d, pad=[%d, %d]\n",
+                 static_cast<int>(c.mem.x_size),
+                 static_cast<int>(c.mem.x_stride),
+                 static_cast<int>(c.mem.x_pad_0),
+                 static_cast<int>(c.mem.x_pad_1));
+        }
+      } else if (c.mem.opcode == VTA_OPCODE_GEMM) {
+        if (json) {
+          writer.Key("reset_out");
+          writer.Int(c.gemm.reset_reg);
+          writer.Key("range");
+          writer.StartArray();
+          writer.Int(c.gemm.uop_bgn);
+          writer.Int(c.gemm.uop_end);
+          writer.EndArray();
+
+          writer.Key("outer_loop");
+          writer.StartArray();
+          writer.Int(c.gemm.iter_out);
+          writer.Int(c.gemm.wgt_factor_out),
+          writer.Int(c.gemm.src_factor_out),
+          writer.Int(c.gemm.dst_factor_out);
+          writer.EndArray();
+
+          writer.Key("inner_loop");
+          writer.StartArray();
+          writer.Int(c.gemm.iter_in);
+          writer.Int(c.gemm.wgt_factor_in),
+          writer.Int(c.gemm.src_factor_in),
+          writer.Int(c.gemm.dst_factor_in);
+          writer.EndArray();
+        } else {
+          fprintf(out, "\treset_out: %d\n", static_cast<int>(c.gemm.reset_reg));
+          fprintf(out, "\trange (%d, %d)\n",
+                 static_cast<int>(c.gemm.uop_bgn),
+                 static_cast<int>(c.gemm.uop_end));
+          fprintf(out, "\touter loop - iter: %d, wgt: %d, inp: %d, acc: %d\n",
+                 static_cast<int>(c.gemm.iter_out),
+                 static_cast<int>(c.gemm.wgt_factor_out),
+                 static_cast<int>(c.gemm.src_factor_out),
+                 static_cast<int>(c.gemm.dst_factor_out));
+          fprintf(out, "\tinner loop - iter: %d, wgt: %d, inp: %d, acc: %d\n",
+                 static_cast<int>(c.gemm.iter_in),
+                 static_cast<int>(c.gemm.wgt_factor_in),
+                 static_cast<int>(c.gemm.src_factor_in),
+                 static_cast<int>(c.gemm.dst_factor_in));
+        }
       } else if (c.mem.opcode == VTA_OPCODE_ALU) {
-        // Print instruction field information
-        printf("ALU - %s\n", getOpcodeString(c.alu.alu_opcode, c.alu.use_imm, c.alu.imm).c_str());
-        printf("\tdep - pop prev: %d, pop next: %d, push prev: %d, push next: %d\n",
-               static_cast<int>(c.mem.pop_prev_dep), static_cast<int>(c.mem.pop_next_dep),
-               static_cast<int>(c.mem.push_prev_dep), static_cast<int>(c.mem.push_next_dep));
-        printf("\treset_out: %d\n", static_cast<int>(c.alu.reset_reg));
-        printf("\trange (%d, %d)\n", static_cast<int>(c.alu.uop_bgn),
-               static_cast<int>(c.alu.uop_end));
-        printf("\touter loop - iter: %d, dst: %d, src: %d\n", static_cast<int>(c.alu.iter_out),
-               static_cast<int>(c.alu.dst_factor_out), static_cast<int>(c.alu.src_factor_out));
-        printf("\tinner loop - iter: %d, dst: %d, src: %d\n", static_cast<int>(c.alu.iter_in),
-               static_cast<int>(c.alu.dst_factor_in), static_cast<int>(c.alu.src_factor_in));
-      } else if (c.mem.opcode == VTA_OPCODE_FINISH) {
-        printf("FINISH\n");
+        if (json) {
+          writer.Key("reset_out");
+          writer.Int(c.alu.reset_reg);
+          writer.Key("range");
+          writer.StartArray();
+          writer.Int(c.alu.uop_bgn);
+          writer.Int(c.alu.uop_end);
+          writer.EndArray();
+
+          writer.Key("outer_loop");
+          writer.StartArray();
+          writer.Int(c.alu.iter_out);
+          writer.Int(c.alu.dst_factor_out),
+          writer.Int(c.alu.src_factor_out),
+          writer.EndArray();
+
+          writer.Key("inner_loop");
+          writer.StartArray();
+          writer.Int(c.alu.iter_in);
+          writer.Int(c.alu.dst_factor_in);
+          writer.Int(c.alu.src_factor_in),
+          writer.EndArray();
+        } else {
+          fprintf(out, "\treset_out: %d\n", static_cast<int>(c.alu.reset_reg));
+          fprintf(out, "\trange (%d, %d)\n",
+                 static_cast<int>(c.alu.uop_bgn),
+                 static_cast<int>(c.alu.uop_end));
+          fprintf(out, "\touter loop - iter: %d, dst: %d, src: %d\n",
+                 static_cast<int>(c.alu.iter_out),
+                 static_cast<int>(c.alu.dst_factor_out),
+                 static_cast<int>(c.alu.src_factor_out));
+          fprintf(out, "\tinner loop - iter: %d, dst: %d, src: %d\n",
+                 static_cast<int>(c.alu.iter_in),
+                 static_cast<int>(c.alu.dst_factor_in),
+                 static_cast<int>(c.alu.src_factor_in));
+        }
       }
 
       // Count status in queues
@@ -871,8 +1010,27 @@ class InsnQueue : public BaseQueue<VTAGenericInsn> {
         if (c.gemm.pop_next_dep) s2g_queue--;
         if (c.gemm.push_next_dep) g2s_queue++;
       }
-      printf("\tl2g_queue = %d, g2l_queue = %d\n", l2g_queue, g2l_queue);
-      printf("\ts2g_queue = %d, g2s_queue = %d\n", s2g_queue, g2s_queue);
+      if (json) {
+        writer.Key("l2g_queue");
+        writer.Int(l2g_queue);
+        writer.Key("g2l_queue");
+        writer.Int(g2l_queue);
+        writer.Key("s2g_queue");
+        writer.Int(s2g_queue);
+        writer.Key("g2s_queue");
+        writer.Int(g2s_queue);
+
+        writer.EndObject();
+      } else {
+        fprintf(out, "\tl2g_queue = %d, g2l_queue = %d\n", l2g_queue, g2l_queue);
+        fprintf(out, "\ts2g_queue = %d, g2s_queue = %d\n", s2g_queue, g2s_queue);
+      }
+    }
+
+    if (json) {
+      writer.EndArray();
+      auto str = s.GetString();
+      fwrite(str, 1, s.GetSize(), out);
     }
   }
   // Commit all pending pop of corresponding stage
@@ -1103,11 +1261,27 @@ class CommandQueue {
   }
 
   void Synchronize(uint32_t wait_cycles, bool skip=true) {
+    if (debug_flag_ & VTA_DEBUG_AUTO_TUNE) {
+      const char* insn_file = std::getenv("TVM_INSN_DUMP");
+      if (insn_file == nullptr) {
+        insn_file = "insn.dump";
+      }
+      FILE* out = fopen(insn_file, "w+");
+      if (out) {
+        insn_queue_.DumpInsn(out, true);
+        fclose(out);
+      } else {
+        LOG(ERROR) << insn_file << " open failed";
+      }
+      return;
+    }
+
     // FIXME(zhanghao): It is required to use force_serial
     // by using skip and sync at the final layer, we can avoid do DeviceCopy every time
     if (skip) {
       if (!(debug_flag_ & VTA_DEBUG_FORCE_SERIAL)) {
-        LOG(ERROR) << "Synchronizing all in one round requires to use force_serial to make things right";
+        LOG(ERROR) <<
+            "Synchronizing all in one round requires to use force_serial to make things right";
       }
       return;
     }
@@ -1130,8 +1304,18 @@ class CommandQueue {
     // Check if there are no instruction to execute at all
     if (insn_queue_.count() == 0) return;
     // Synchronization for the queues
+    // struct timespec start, stop;
+    // clock_gettime(CLOCK_REALTIME, &start);
     uop_queue_.AutoReadBarrier();
+    // clock_gettime(CLOCK_REALTIME, &stop);
+    // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
+    // LOG(WARNING) << "UopQueue VTAMemCopyFromHost: " << elapsed << " us";
+
+    // clock_gettime(CLOCK_REALTIME, &start);
     insn_queue_.AutoReadBarrier();
+    // clock_gettime(CLOCK_REALTIME, &stop);
+    // elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
+    // LOG(WARNING) << "InsnQueue VTAMemCopyFromHost: " << elapsed << " us";
     // Dump instructions if debug enabled
     if (debug_flag_ & VTA_DEBUG_DUMP_INSN) {
       insn_queue_.DumpInsn();
@@ -1332,7 +1516,12 @@ void VTABufferCopy(const void* from, size_t from_offset, void* to, size_t to_off
   if (from_buffer) {
     // This is an FPGA to host mem transfer
     // NOTE: Issue synchronize manually as we delay the copy until we do it synchronously and explicitly
+    // struct timespec start, stop;
+    // clock_gettime(CLOCK_REALTIME, &start);
     VTASynchronize(VTATLSCommandHandle(), 1<<31, false);
+    // clock_gettime(CLOCK_REALTIME, &stop);
+    // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
+    // LOG(WARNING) << "Final Synchronize: " << elapsed << " us";
     from_buffer->InvalidateCache(from_offset, size);
     from_buffer->MemCopyToHost(static_cast<char*>(to) + to_offset,
                                static_cast<const char*>(from) + from_offset, size);

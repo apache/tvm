@@ -507,7 +507,7 @@ def graph_pack(expr,
                stop_name="nn.global_avg_pool2d",
                start_name_idx=None,
                stop_name_idx=None,
-               count_meta=False):
+               count_meta=False, device_annot=True):
     """Pack the graph into batch&channel packed format.
 
     Parameters
@@ -560,26 +560,29 @@ def graph_pack(expr,
     assert not packer.start_pack
     expr = run_opt_pass(expr, transform.InferType())
 
-    expr_locator = ExprLocater()
-    expr_locator.visit(expr)
+    if device_annot:
+        expr_locator = ExprLocater()
+        expr_locator.visit(expr)
 
-    # from the second conv2d to the global_avg_pool2d, all will run on vta
-    conv2d = op.op.get("nn.conv2d")
-    avg_pool2d = op.op.get("nn.global_avg_pool2d")
-    start = expr_locator.op2nodes[conv2d][1]
-    # preceeding the nn.global_avg_pool2d, it will look like this
-    #
-    # %310 = annotation.stop_fusion(%309) /* ty=Tensor[(1, 16, 7, 7, 1, 32), int8] */;
-    # %311 = cast(%310, dtype="int32") /* ty=Tensor[(1, 16, 7, 7, 1, 32), int32] */;
-    # %312 = transpose(%311, axes=[0, 4, 1, 5, 2, 3]) /* ty=Tensor[(1, 1, 16, 32, 7, 7), int32] */;
-    # %313 = reshape(%312, newshape=[1, 512, 7, 7]) /* ty=Tensor[(1, 512, 7, 7), int32] */;
-    # %314 = nn.global_avg_pool2d(%313) /* ty=Tensor[(1, 512, 1, 1), int32] */;
-    #
-    # we mark the preceeding three ops also on cpu device
-    end = expr_locator.op2nodes[avg_pool2d][0] - 3
+        # from the second conv2d to the global_avg_pool2d, all will run on vta
+        conv2d = op.op.get("nn.conv2d")
+        avg_pool2d = op.op.get("nn.global_avg_pool2d")
+        start = expr_locator.op2nodes[conv2d][1]
+        # preceeding the nn.global_avg_pool2d, it will look like this
+        #
+        # %310 = annotation.stop_fusion(%309) /* ty=Tensor[(1, 16, 7, 7, 1, 32), int8] */;
+        # %311 = cast(%310, dtype="int32") /* ty=Tensor[(1, 16, 7, 7, 1, 32), int32] */;
+        # %312 = transpose(%311, axes=[0, 4, 1, 5, 2, 3]) /* ty=Tensor[(1, 1, 16, 32, 7, 7), int32] */;
+        # %313 = reshape(%312, newshape=[1, 512, 7, 7]) /* ty=Tensor[(1, 512, 7, 7), int32] */;
+        # %314 = nn.global_avg_pool2d(%313) /* ty=Tensor[(1, 512, 1, 1), int32] */;
+        #
+        # we mark the preceeding three ops also on cpu device
+        end = expr_locator.op2nodes[avg_pool2d][0] - 3
 
-    device_annot = ExprDeviceAnnot(start=start, end=end)
-    expr = device_annot.visit(expr)
-    ret = run_opt_pass(expr, transform.InferType())
+        device_annot = ExprDeviceAnnot(start=start, end=end)
+        expr = device_annot.visit(expr)
+        ret = run_opt_pass(expr, transform.InferType())
 
-    return ret
+        return ret
+    else:
+        return expr

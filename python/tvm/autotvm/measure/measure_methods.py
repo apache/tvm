@@ -32,6 +32,7 @@ from collections import namedtuple
 import tempfile
 
 import numpy as np
+import json
 
 import tvm._ffi
 import tvm.ir.transform
@@ -46,6 +47,8 @@ from ..task.space import InstantiationError
 
 from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
 from .local_executor import LocalExecutor
+
+from tvm.contrib.util import eprint
 
 logger = logging.getLogger('autotvm')
 
@@ -186,6 +189,16 @@ class RPCRunner(Runner):
                  timeout=10, n_parallel=None,
                  number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
                  check_correctness=False):
+        static_tune = os.getenv("TVM_STATIC_TUNE")
+        if static_tune:
+            if n_parallel is None or n_parallel > 1:
+                print("static tune only allows n_parallel == 1")
+                n_parallel = 1
+
+            if check_correctness == True:
+                print("static tune does not support check_correctness")
+                check_correctness = False
+
         super(RPCRunner, self).__init__(timeout, n_parallel)
 
         self.key = key
@@ -369,7 +382,15 @@ def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_opti
             measure_input.target.device_name == 'vta':
             # pylint: disable=import-outside-toplevel
             import vta
-            func = vta.build(s, args, target_host=task.target_host)
+
+            static_tune = os.getenv("TVM_STATIC_TUNE")
+            if static_tune:
+                debug_flag = 1 << 6
+            else:
+                debug_flag = 0
+
+            with vta.build_config(debug_flag=debug_flag):
+                func = vta.build(s, args, target_host=task.target_host)
         else:
             with tvm.ir.transform.PassContext(config=opts):
                 func = build(s, args, target_host=task.target_host)
@@ -419,6 +440,63 @@ def _wrap_build_func(build_func):
     return _wrapped
 
 
+def cal_cost(insn):
+    """
+    Cal the runtime cost statically
+
+    Parameters
+    ------------
+    insn: the insn (json)
+
+    Returns
+    ------------
+    the cost in s
+    """
+    def alu_imm_cost(outer, inner, uops):
+        return 0.00001
+
+    def alu_cost(outer, inner, uops):
+        return 0.00001
+
+    def gemm_cost(outer, inner, uops):
+        return 0.00001
+
+    def load_inp_cost(y, x):
+        return 0.00001
+
+    def load_uop_cost(y, x):
+        return 0.00001
+
+    def load_wgt_cost(y, x):
+        return 0.00001
+
+    def store_cost(y, x):
+        return 0.00001
+
+    if insn['type'] == "ALU":
+        return alu_cost(insn['outer_loop'], insn['inner_loop'],
+                        insn['range'][1] - insn['range'][0])
+    elif insn['type'] == "ALU IMM":
+        return alu_imm_cost(insn['outer_loop'], insn['inner_loop'],
+                        insn['range'][1] - insn['range'][0])
+    elif insn['type'] == "GEMM":
+        return gemm_cost(insn['outer_loop'], insn['inner_loop'],
+                        insn['range'][1] - insn['range'][0])
+    elif insn['name'] == "LOAD INP":
+        return load_inp_cost(insn['y'][0], insn['x'][0])
+    elif insn['name'] == "LOAD WGT":
+        return load_wgt_cost(insn['y'][0], insn['x'][0])
+    elif insn['name'] == "LOAD UOP":
+        return load_uop_cost(insn['y'][0], insn['x'][0])
+    elif insn['type'] == "STORE":
+        return store_cost(insn['y'][0], insn['x'][0])
+    elif insn['type'] == "NOP":
+        return 0
+    else:
+        print("Unknown op type: {}".format(insn['type']))
+        return 0
+
+
 def run_through_rpc(measure_input, build_result,
                     number, repeat, min_repeat_ms, cooldown_interval,
                     remote_args, ref_input=None, ref_output=None):
@@ -460,6 +538,7 @@ def run_through_rpc(measure_input, build_result,
 
     tic = time.time()
     errno = MeasureErrorNo.NO_ERROR
+    static_tune = os.getenv("TVM_STATIC_TUNE")
     try:
         # upload built module
         remote = request_remote(*remote_args)
@@ -474,8 +553,6 @@ def run_through_rpc(measure_input, build_result,
         remote.upload(build_result.filename)
         func = remote.load_module(os.path.split(build_result.filename)[1])
         ctx = remote.context(str(measure_input.target), 0)
-        time_f = func.time_evaluator(
-            func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
 
         # set input
         if ref_input:
@@ -487,12 +564,25 @@ def run_through_rpc(measure_input, build_result,
             args = [nd.array(x, ctx=ctx) for x in args]
             ctx.sync()
 
-        costs = time_f(*args).results
+        if static_tune is None:
+            time_f = func.time_evaluator(
+                func.entry_name, ctx, number=number, repeat=repeat, min_repeat_ms=min_repeat_ms)
+            costs = time_f(*args).results
 
-        # clean up remote files
-        remote.remove(build_result.filename)
-        remote.remove(os.path.splitext(build_result.filename)[0] + '.so')
-        remote.remove('')
+            # clean up remote files
+            remote.remove(build_result.filename)
+            remote.remove(os.path.splitext(build_result.filename)[0] + '.so')
+            remote.remove('')
+        else:
+            func(*args)
+            cost = 0
+            insn_dump = os.getenv('TVM_INSN_DUMP', "insn.dump")
+            with open(insn_dump) as json_file:
+                insns = json.load(json_file)
+                for insn in insns:
+                    cost += cal_cost(insn)
+
+            costs = [cost] * repeat
 
         if len(costs) > 2:  # remove largest and smallest value to reduce variance
             costs = list(costs)
@@ -540,6 +630,10 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
     ------
     session: RPCSession
     """
+    static_tune = os.getenv("TVM_STATIC_TUNE")
+    if static_tune:
+        return _rpc.LocalSession()
+
     # connect to the tracker
     host = host or os.environ['TVM_TRACKER_HOST']
     port = port or int(os.environ['TVM_TRACKER_PORT'])
