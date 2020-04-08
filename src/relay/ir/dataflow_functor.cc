@@ -185,21 +185,24 @@ DFPattern DFPatternMutator::VisitDFPattern_(const WildcardPatternNode* op) {
   return GetRef<DFPattern>(op);
 }
 
+
+
 // IndexedGraph
 
 IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
-  using NodePtr = std::shared_ptr<Node<Expr>>;
+  using NodePtr = std::shared_ptr<IndexedGraph<Expr>::Node>;
   class Creator : public MixedModeVisitor {
    public:
     IndexedGraph<Expr> CreateGraph(const Expr& expr) {
       VisitExpr(expr);
+      graph_.node_map_[expr]->is_external_ = true;
       return std::move(graph_);
     }
 
    protected:
     void VisitLeaf(const Expr& expr) override {
       MixedModeVisitor::VisitLeaf(expr);
-      auto node = std::make_shared<Node<Expr>>(expr, index_++);
+      auto node = std::make_shared<IndexedGraph<Expr>::Node>(expr, index_++);
       graph_.node_map_[expr] = node;
       graph_.topological_order_.push_back(node);
     }
@@ -213,12 +216,15 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
       for (const auto& node : graph_.topological_order_) {
         ExprFunctor::VisitExpr(node->ref_, nullptr);
       }
+      graph_.PostDom();
       return std::move(graph_);
     }
 
     void VisitExpr(const Expr& expr, NodePtr parent) override {
+      auto current = graph_.node_map_[expr];
       if (parent) {
-        graph_.node_map_[expr]->outputs_.push_back(parent);
+        auto edge = std::make_shared<IndexedGraph<Expr>::Edge>(parent);
+        current->outputs_.push_back(edge);
       }
     }
 
@@ -318,18 +324,19 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
 }
 
 IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
-  using NodePtr = std::shared_ptr<Node<DFPattern>>;
+  using NodePtr = std::shared_ptr<IndexedGraph<DFPattern>::Node>;
   class Creator : public DFPatternVisitor {
    public:
     IndexedGraph<DFPattern> CreateGraph(const DFPattern& pattern) {
       VisitDFPattern(pattern);
+      graph_.node_map_[pattern]->is_external_ = true;
       return std::move(graph_);
     }
 
    protected:
     void VisitDFPattern(const DFPattern& pattern) override {
       DFPatternVisitor::VisitDFPattern(pattern);
-      auto node = std::make_shared<Node<DFPattern>>(pattern, index_++);
+      auto node = std::make_shared<IndexedGraph<DFPattern>::Node>(pattern, index_++);
       graph_.node_map_[pattern] = node;
       graph_.topological_order_.push_back(node);
     }
@@ -343,12 +350,15 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
       for (const auto& node : graph_.topological_order_) {
         DFPatternFunctor::VisitDFPattern(node->ref_, nullptr);
       }
+      graph_.PostDom();
       return std::move(graph_);
     }
 
     void VisitDFPattern(const DFPattern& pattern, NodePtr parent) override {
+      auto current = graph_.node_map_[pattern];
       if (parent) {
-        graph_.node_map_[pattern]->outputs_.push_back(parent);
+        auto edge = std::make_shared<IndexedGraph<DFPattern>::Edge>(parent);
+        current->outputs_.push_back(edge);
       }
     }
 
@@ -400,6 +410,8 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
   };
   return Annotator(Creator().CreateGraph(pattern)).Annotate();
 }
+
+
 
 }  // namespace relay
 }  // namespace tvm

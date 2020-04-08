@@ -153,24 +153,71 @@ class DFPatternMutator : public DFPatternFunctor<DFPattern(const DFPattern&)> {
   std::unordered_map<DFPattern, DFPattern, ObjectHash, ObjectEqual> memo_;
 };
 
-
 template <typename T>
-struct Node {
-  Node(const T& ref, const size_t index) : ref_(ref), index_(index) {}
-  const T ref_;
-  const size_t index_;
-  std::vector<std::shared_ptr<Node<T>>> outputs_;
+class IndexedGraph {
+ public:
+  struct Node;
+  struct Edge {
+    Edge(const std::shared_ptr<Node>& sink) : sink_(sink) {}
+    std::shared_ptr<Node> sink_;
+  };
+  struct Node {
+    Node(const T& ref, const size_t index) : ref_(ref), index_(index) {}
+    const T ref_;
+    const size_t index_;
+
+    bool is_external_ = false;
+    std::vector<std::shared_ptr<Edge>> outputs_;
+
+    size_t depth_;
+    std::shared_ptr<Node> dominator_parent_;
+  };
+  void PostDom() {
+    for (size_t i = topological_order_.size(); i != 0; --i) {
+      size_t index = i - 1;
+      auto current = topological_order_[index];
+      if (current->is_external_) {
+        current->depth_ = 1;
+        current->dominator_parent_ = nullptr;
+      } else {
+        auto parent = LeastCommonAncestor(current->outputs_);
+        current->depth_ = parent ? parent->depth_ + 1 : 1;
+        current->dominator_parent_ = parent;
+      }
+    }
+  }
+  std::unordered_map<T, std::shared_ptr<Node>, ObjectHash, ObjectEqual> node_map_;
+  std::vector<std::shared_ptr<Node>> topological_order_;
+
+ protected:
+  std::shared_ptr<Node> LeastCommonAncestor(const std::vector<std::shared_ptr<Edge>>& outputs) {
+    if (outputs.size() == 0) {
+      return nullptr;
+    }
+    auto parent = outputs.at(0)->sink_;
+    for (size_t i = 1; i < outputs.size(); ++i) {
+      parent = LeastCommonAncestor(parent, outputs.at(i)->sink_);
+    }
+    return parent;
+  }
+  std::shared_ptr<Node> LeastCommonAncestor(std::shared_ptr<Node> lhs, std::shared_ptr<Node> rhs) {
+    if (lhs == nullptr || rhs == nullptr) {
+      return nullptr;
+    }
+    while (lhs != rhs) {
+      if (lhs->depth_ < rhs->depth_) {
+        rhs = rhs->dominator_parent_;
+      } else if (lhs->depth_ > rhs->depth_) {
+        lhs = lhs->dominator_parent_;
+      } else {
+        rhs = rhs->dominator_parent_;
+        lhs = lhs->dominator_parent_;
+      }
+    }
+    return lhs;
+  }
 };
 
-template <typename T>
-struct IndexedGraph {
-  std::unordered_map<T, std::shared_ptr<Node<T>>, ObjectHash, ObjectEqual> node_map_;
-  std::vector<std::shared_ptr<Node<T>>> topological_order_;
-};
-
-IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr);
-IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 }  // namespace relay
 }  // namespace tvm
-
 #endif  // TVM_RELAY_DATAFLOW_FUNCTOR_H_
