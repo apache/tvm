@@ -216,15 +216,44 @@ def _prelu():
 def _leaky_relu():
     def _impl(inputs, input_types):
         data = inputs[0]
-        alpha = int(inputs[1])
+        alpha = float(inputs[1])
         return _op.nn.leaky_relu(data, alpha)
     return _impl
 
 def _elu():
     def _impl(inputs, input_types):
         data = inputs[0]
-        alpha = _expr.const(int(inputs[1]), dtype='float32')
-        return alpha * _op.nn.relu(alpha - _op.exp(data)) + _op.nn.relu(data)
+        alpha = _expr.const(float(inputs[1]))
+        return alpha * _op.nn.relu(_expr.const(1.0) - _op.exp(data)) + _op.nn.relu(data)
+    return _impl
+
+def _celu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        alpha = _expr.const(float(inputs[1]))
+        return alpha * _op.nn.relu(_expr.const(1.0) - _op.exp(data / alpha)) + _op.nn.relu(data)
+    return _impl
+
+def _gelu():
+    def _impl(inputs, input_types):
+        import math
+        data = inputs[0]
+
+        def _pow3(x):
+            return x * x * x
+        return _expr.const(0.5) * data * (_expr.const(1.0) +
+                                          _op.tanh(_expr.const(math.sqrt(2.0 / math.pi)) *
+                                                   (data + _expr.const(0.044715) * _pow3(data))))
+    return _impl
+
+def _selu():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        # https://pytorch.org/docs/stable/nn.html#selu
+        alpha = _expr.const(-1.6732632423543772848170429916717)
+        gamma = _expr.const(1.0507009873554804934193349852946)
+        return gamma * (alpha * _op.nn.relu(_expr.const(1.0)
+                                            - _op.exp(data)) + _op.nn.relu(data))
     return _impl
 
 def _log_sigmoid():
@@ -1066,6 +1095,9 @@ _convert_map = {
     "aten::prelu"                           : _prelu(),
     "aten::leaky_relu"                      : _leaky_relu(),
     "aten::elu"                             : _elu(),
+    "aten::celu"                            : _celu(),
+    "aten::gelu"                            : _gelu(),
+    "aten::selu"                            : _selu(),
     "aten::log_sigmoid"                     : _log_sigmoid(),
     "aten::adaptive_avg_pool2d"             : _adaptive_avg_pool_2d(),
     "aten::adaptive_max_pool2d"             : _adaptive_max_pool_2d(),

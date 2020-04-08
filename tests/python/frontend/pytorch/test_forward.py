@@ -353,15 +353,42 @@ def test_forward_prelu():
 
 def test_forward_leakyrelu():
     torch.set_grad_enabled(False)
-    input_shape = [10, 10]
+    input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.LeakyReLU().eval(), input_data=input_data)
     verify_model(torch.nn.LeakyReLU(negative_slope=0.05).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.0).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.25).eval(), input_data=input_data)
 
 def test_forward_elu():
     torch.set_grad_enabled(False)
-    input_shape = [10, 10]
+    input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.ELU().eval(), input_data=input_data)
+    verify_model(torch.nn.ELU(alpha=0.3).eval(), input_data=input_data)
+    verify_model(torch.nn.ELU(alpha=1.0).eval(), input_data=input_data)
     verify_model(torch.nn.ELU(alpha=1.3).eval(), input_data=input_data)
+
+def test_forward_celu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.CELU().eval(), input_data=input_data)
+    verify_model(torch.nn.CELU(alpha=0.3).eval(), input_data=input_data)
+    verify_model(torch.nn.CELU(alpha=1.0).eval(), input_data=input_data)
+    verify_model(torch.nn.CELU(alpha=1.3).eval(), input_data=input_data)
+
+def test_forward_gelu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.GELU().eval(), input_data=input_data)
+
+def test_forward_selu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.SELU().eval(), input_data=input_data)
 
 def test_forward_log_sigmoid():
     torch.set_grad_enabled(False)
@@ -1131,6 +1158,9 @@ if __name__ == "__main__":
     test_forward_prelu()
     test_forward_leakyrelu()
     test_forward_elu()
+    test_forward_celu()
+    test_forward_gelu()
+    test_forward_selu()
     test_forward_log_sigmoid()
     test_forward_adaptiveavgpool()
     test_forward_maxpool2d()
