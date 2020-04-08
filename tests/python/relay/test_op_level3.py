@@ -16,6 +16,7 @@
 # under the License.
 """ Support level3 operator test cases.
 """
+
 import numpy as np
 import pytest
 import tvm
@@ -664,13 +665,16 @@ def test_reverse():
 
 
 def test_cumsum():
+    print('in...')
     def verify_cumsum(xshape, axis=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
-        z = relay.gather_nd(x, axis=axis, exclusive=False, reverse=False)
+        z = relay.cumsum(x, axis=axis, exclusive=False, reverse=False)
 
         func = relay.Function([x], z)
         x_data = np.random.uniform(size=xshape).astype("float32")
+        print(x_data)
         ref_res = np.cumsum(x_data, axis)
+        print(ref_res)
 
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
@@ -769,35 +773,37 @@ def test_unravel_index():
 
 
 if __name__ == "__main__":
-    test_arange()
-    test_cast()
-    test_zeros_ones()
-    test_unary_identity()
-    test_clip()
-    test_transpose_infer_type()
-    test_transpose()
-    test_reshape_infer_type()
-    test_reshape()
-    test_reshape_like_infer_type()
-    test_reshape_like()
-    test_take_infer_type()
-    test_take()
-    test_full_infer_type()
-    test_full()
-    test_full_like_infer_type()
-    test_full_like()
-    test_infer_type_leaky_relu()
-    test_infer_type_prelu()
-    test_squeeze()
-    test_squeeze_infer_type()
-    test_squeeze_bad_axes_infer_type()
-    test_split_infer_type()
-    test_arange()
-    test_reverse()
-    test_stack()
-    test_tile()
-    test_repeat()
-    test_gather_nd()
-    test_isfinite()
-    test_isinf()
-    test_unravel_index()
+    # test_arange()
+    # test_cast()
+    # test_zeros_ones()
+    # test_unary_identity()
+    # test_clip()
+    # test_transpose_infer_type()
+    # test_transpose()
+    # test_reshape_infer_type()
+    # test_reshape()
+    # test_reshape_like_infer_type()
+    # test_reshape_like()
+    # test_take_infer_type()
+    # test_take()
+    # test_full_infer_type()
+    # test_full()
+    # test_full_like_infer_type()
+    # test_full_like()
+    # test_infer_type_leaky_relu()
+    # test_infer_type_prelu()
+    # test_squeeze()
+    # test_squeeze_infer_type()
+    # test_squeeze_bad_axes_infer_type()
+    # test_split_infer_type()
+    # test_arange()
+    # test_reverse()
+    # test_stack()
+    # test_tile()
+    # test_repeat()
+    # test_gather_nd()
+    # test_isfinite()
+    # test_isinf()
+    # test_unravel_index()
+    test_cumsum()
+
