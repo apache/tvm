@@ -135,6 +135,11 @@ TVM_REGISTER_GLOBAL("topi.gather_nd")
   *rv = gather_nd(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.cumsum")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    *rv = cumsum(args[0], args[1], args[2], args[3]);
+});
+
 TVM_REGISTER_GLOBAL("topi.unravel_index")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = unravel_index(args[0], args[1]);
