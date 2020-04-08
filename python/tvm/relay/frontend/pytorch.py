@@ -51,6 +51,29 @@ def _infer_type_with_prelude(val, prelude):
     return mod["main"].body.checked_type
 
 
+def _convert_to_list_adt(py_lst, prelude):
+    elem_tys = [_infer_type_with_prelude(elem, prelude) for elem in py_lst]
+    msg = "List elements should have identical types"
+    assert all(map(lambda ty: ty == elem_tys[0], elem_tys)), msg
+
+    adt_lst = prelude.nil()
+    for elem in reversed(py_lst):
+        adt_lst = prelude.cons(elem, adt_lst)
+    return adt_lst
+
+
+def _convert_to_tensor_array(adt_lst, prelude):
+    if prelude.length(adt_lst) == 0:
+        return prelude.nil()
+
+    shape = _infer_type_with_prelude(prelude.hd(adt_lst), prelude).shape
+    static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
+    static_tensor_array_ops.register()
+    tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
+
+    return prelude.map(tensor_create, adt_lst)
+
+
 # operator implementation
 def _elemwise(name):
     def _impl(inputs, input_types):
@@ -1109,27 +1132,8 @@ def _list_getitem(prelude):
 
 def _add_(prelude):
     def concat_list(lhs, rhs_static):
-        shape = (2, 4)  # _infer_shape(rhs_static[0])
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.register()
-        tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
-
-        rhs = prelude.nil()
-        elem_ty = _infer_type_with_prelude(rhs_static[0], prelude)
-        print("elem_ty:", elem_ty)
-
-        for elem in reversed(rhs_static):
-            if isinstance(elem_ty, TensorType):
-                rhs = prelude.cons(tensor_create(elem), rhs)
-            elif isinstance(elem_ty, TupleType):
-                print("ty fields:", elem_ty.fields)
-                msg = "Only a tuple of tensors supported for now"
-                #assert all(map(lambda ty: ty == TensorType, elem_ty.fields)), msg
-                tup = _expr.Tuple([tensor_create(_expr.TupleGetItem(elem, i))
-                                   for i in range(len(elem_ty.fields))])
-                rhs = prelude.cons(tup, rhs)
-            else:
-                assert False
+        # TODO: check lhs is an ADT list
+        rhs = _convert_to_list_adt(rhs_static, prelude)
         return prelude.concat(lhs, rhs)
 
     def _impl(inputs, input_types):
@@ -1146,9 +1150,12 @@ def _add_(prelude):
 
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
-        shape = get_tensor_array_shape(inputs[0], "float32", prelude)
+        # TODO: check inputs[0] is List[TensorType]
+        # assert type_equal(inputs[0], prelude.l(TensorType))
+        tensor_array = _convert_to_tensor_array(inputs[0], prelude)
+        shape = get_tensor_array_shape(tensor_array, "float32", prelude)
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
-        stacked = stack(inputs[0])
+        stacked = stack(tensor_array)
 
         stacked_shape = (Any(),) + shape
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
