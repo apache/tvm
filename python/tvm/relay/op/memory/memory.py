@@ -99,3 +99,12 @@ def shape_func(func, inputs, outputs, dependent=False):
         The shape function expression.
     """
     return _make.shape_func(func, inputs, outputs, dependent)
+
+def flatten_tuple_type(ty):
+    return _make.FlattenTupleType(ty)
+
+def from_tuple_type(ty, expr):
+    return _make.FromTupleType(ty, expr)
+
+def to_tuple_type(ty, exprs):
+    return _make.ToTupleType(ty, exprs)

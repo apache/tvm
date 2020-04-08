@@ -275,28 +275,89 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
       return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
     });
 
-static void FlattenTypeAux(const Type& type, std::vector<TensorType>* out) {
+// # TODO(@jroesch): port to c++ and unify with existing code
+// class LinearizeRetType:
+//     """A linear view of a Relay type, handles a linear order
+//        for nested tuples, and tensor types.
+//     """
+
+//     def __init__(self, typ):
+//         """Initialize the linearizer."""
+//         self.typ = typ
+
+//     def unpack(self):
+//         """Return the linear representation of the type."""
+//         def _unpack(typ, out):
+//             # TODO(@jroesch): replace with new flattening pass
+//             if isinstance(typ, ty.TensorType):
+//                 out.append(typ)
+//             elif isinstance(typ, ty.TupleType):
+//                 for field_ty in typ.fields:
+//                     _unpack(field_ty, out)
+//             else:
+//                 raise Exception("unsupported Relay type: {0}".format(typ))
+
+//         output = []
+//         _unpack(self.typ, output)
+//         return output
+
+//     def pack(self, seq):
+//         """Repack a linear type as a nested type."""
+//         def _pack(value, typ, out):
+//             if isinstance(typ, ty.TensorType):
+//                 out.append(value)
+//             elif isinstance(typ, ty.TupleType):
+//                 tuple_out = []
+//                 for i, field_ty in enumerate(typ.fields):
+//                     _pack(value[i], field_ty, tuple_out)
+//                 out.append(expr.Tuple(tuple_out))
+//             else:
+//                 raise Exception("unsupported Relay type: {0}".format(typ))
+
+//         if len(seq) == 1:
+//             return seq[0]
+//         else:
+//             out = []
+//             _pack(seq, self.typ, out)
+//             assert len(out) == 1, "must return fully packed type"
+//             return out[0]
+
+static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
   if (auto tt = type.as<TensorTypeNode>()) {
     out->push_back(GetRef<TensorType>(tt));
   } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
     for (auto field : tuple_ty->fields) {
-      FlattenTypeAux(field, out);
+      FlattenTupleTypeAux(field, out);
     }
   } else {
     LOG(FATAL) << "unsupported " << type;
   }
 }
 
-std::vector<TensorType> FlattenType(const Type& type) {
+std::vector<TensorType> FlattenTupleType(const Type& type) {
   std::vector<TensorType> out;
-  FlattenTypeAux(type, &out);
+  FlattenTupleTypeAux(type, &out);
   return out;
 }
 
-Expr PackByType(const Type& t, const Array<Expr>& exprs) {
+Array<Expr> FromTupleType(const Type& type, const Expr& expr) {
+  LOG(FATAL) << "NYI";
+}
+
+// Pack the sequence of expressions according to the provided TupleType.
+Expr ToTupleType(const Type& t, const Array<Expr>& exprs) {
   LOG(FATAL) << "NYI";
   return Expr();
 }
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
+.set_body_typed(FlattenTupleType);
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType")
+.set_body_typed(FromTupleType);
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.ToTupleType")
+.set_body_typed(ToTupleType);
 
 bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
