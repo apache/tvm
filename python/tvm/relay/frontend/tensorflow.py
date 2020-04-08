@@ -1547,6 +1547,7 @@ _convert_map = {
     'Conv3D'                            : _conv3d('conv'),
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'CropAndResize'                     : _crop_and_resize(),
+    'Cumsum'                            : AttrCvt('cumsum'),
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'DepthToSpace'                      : _depth_to_space(),

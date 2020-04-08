@@ -41,6 +41,7 @@ constexpr auto kDepthwiseConv2dNHWC = "depthwise_conv2d_nhwc";
 constexpr auto kDepthwiseConv2dBackInputNHWC = "depthwise_conv2d_back_input_nhwc";
 constexpr auto kDepthwiseConv2dBackWeightNHWC = "depthwise_conv2d_back_weight_nhwc";
 constexpr auto kGroupConv2d = "group_conv2d";
+constexpr auto kCumsum = "cumsum";
 
 inline bool is_broadcast(std::string tag) {
   return

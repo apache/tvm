@@ -2512,6 +2512,65 @@ output shape will simply be (Y_0, ..., Y_{K-1}).
 .set_attr<FTVMCompute>("FTVMCompute", GatherNDCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+TVM_REGISTER_NODE_TYPE(CumsumAttrs);
+
+Expr MakeCumsum(Expr data,
+                int axis,
+                bool exclusive,
+                bool reverse) {
+    auto attrs = make_object<CumsumAttrs>();
+    attrs->axis = axis;
+    attrs->exclusive = exclusive;
+    attrs->reverse = reverse;
+    static const Op& op = Op::Get("cumsum");
+    return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+bool CumsumRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+    CHECK_EQ(types.size(), 2);
+    const auto* data = types[0].as<TensorTypeNode>();
+    if (data == nullptr) {
+        CHECK(types[0].as<IncompleteTypeNode>())
+            << "Cumsum: expect input data type to be TensorType but get "
+            << types[0];
+        return false;
+    }
+    const auto* param = attrs.as<CumsumAttrs>();
+    int axis = param->axis;
+    const int ndim = static_cast<int>(data->shape.size());
+    CHECK(-ndim <= axis && axis < ndim)
+        << "expand_dims only accepts `axis` in [-data.ndim, data.ndim)"
+        << ", but got axis = " << axis
+        << ", and data.ndim = " << ndim;
+    reporter->Assign(types[1], types[0]);
+    return true;
+}
+
+Array<te::Tensor> CumsumCompute(const Attrs& attrs,
+                                  const Array<te::Tensor>& inputs,
+                                  const Type& out_type) {
+    const CumsumAttrs *param = attrs.as<CumsumAttrs>();
+    CHECK(param != nullptr);
+    return { topi::cumsum(inputs[0], param->axis, param->exclusive, param->reverse) };
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.cumsum")
+.set_body_typed(MakeCumsum);
+
+RELAY_REGISTER_OP("cumsum")
+.describe("cumsum for tensorflow")
+.set_attrs_type<CumsumAttrs>()
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Cumsum", CumsumRel)
+.set_attr<FTVMCompute>("FTVMCompute", CumsumCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
+
 // relay.sequence_mask
 TVM_REGISTER_NODE_TYPE(SequenceMaskAttrs);
 

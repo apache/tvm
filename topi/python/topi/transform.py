@@ -367,6 +367,10 @@ def take(a, indices, axis=None, mode="clip"):
     return cpp.take(a, indices, int(axis), mode)
 
 
+def cumsum(array, axis=0, exclusive=False, reverse=False):
+    return cpp.cumsum(array, axis, exclusive, reverse)
+
+
 def gather_nd(a, indices):
     """Gather elements from a n-dimension array..
 

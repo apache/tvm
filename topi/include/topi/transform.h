@@ -1057,6 +1057,64 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
   return tvm::te::compute(output_shape, l, name, tag);
 }
 
+/**
+ * 计算cumsum
+ * @param A             输入Tensor
+ * @param B             沿哪个轴
+ * @param exclusive     第一行是否直接为0
+ * @param reverse       是否倒序
+ * @param name
+ * @param tag
+ * @return
+ */
+inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
+                              int axis,
+                              bool exclusive = false,
+                              bool reverse = false,
+                              std::string name = "T_cumsum",
+                              std::string tag = kCumsum) {
+    int totalSize = static_cast<int>(A->shape.size());
+    //兼容axis指定为负数的场景
+    if(axis < 0) {
+        axis = totalSize - axis;
+    }
+    auto maxLength = A->shape[axis];
+    auto l = [&](const Array<Var>& input_indices) {
+        //在这个轴进行累加，同时处理exclusive
+        tvm::Range range;
+        if(reverse) {
+            PrimExpr begin;
+            if(exclusive) {
+                begin = input_indices[axis] + 1;
+            } else {
+                begin = input_indices[axis];
+            }
+            range = tvm::Range{begin, maxLength};
+        } else {
+            PrimExpr end;
+            if(exclusive) {
+                end = input_indices[axis] - 1;
+            } else {
+                end = input_indices[axis];
+            }
+            range = tvm::Range{0, end};
+        }
+        auto k = tvm::te::reduce_axis(range, "k");
+        Array<PrimExpr> indices;
+        //axis轴放置k
+        for(unsigned i = 0; i < totalSize; ++i) {
+            if(i == axis) {
+                indices.push_back(k);
+                continue;
+            }
+            indices.push_back(input_indices[i]);
+        }
+        //处理累加部分
+        return tvm::sum(A(input_indices), {k});
+    };
+    return tvm::te::compute(A->shape, l, name, tag);
+}
+
 /*!
  * \brief A generalization of matrix multiplication to tensors.
  *

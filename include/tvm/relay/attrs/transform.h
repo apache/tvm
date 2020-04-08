@@ -42,6 +42,21 @@ struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
   }
 };  // struct CastAttrs.
 
+struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
+    int axis;
+    bool exclusive;
+    bool reverse;
+
+    TVM_DECLARE_ATTRS(CumsumAttrs, "relay.attrs.CumsumAttrs") {
+        TVM_ATTR_FIELD(axis)
+                .describe("cumsum axis");
+        TVM_ATTR_FIELD(exclusive)
+                .describe("cumsum exclusive");
+        TVM_ATTR_FIELD(reverse)
+                .describe("cumsum reverse");
+    }
+};
+
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   int axis;
