@@ -1150,11 +1150,11 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
         auto k = tvm::te::reduce_axis(range, "k" + std::to_string(random()));
         Array<PrimExpr> indices;
         //axis轴放置k
-        for(unsigned i = 0; i < totalSize; ++i) {
-            if(i == axis) {
-                indices.push_back(k);
-                continue;
-            }
+        for(int i = 0; i < totalSize; ++i) {
+//            if(i == axis) {
+//                indices.push_back(k);
+//                continue;
+//            }
             indices.push_back(input_indices[i]);
         }
         //处理累加部分
