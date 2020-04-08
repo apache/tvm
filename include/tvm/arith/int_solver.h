@@ -143,6 +143,9 @@ class IntConstraintsTransform : public ObjectRef {
  *        in which S_{mxn} is diag(s1, s2, ..., sr, 0, ..., 0) and r is the rank of A.
  *        NOTE: Although in standard Smith Normal Form the diagonal elements satisfy
  *              s_i | s_{i+1} (| means divides), the implement here does not guarantee it.
+ *        TODO(yzhliu): From sergei-grechanik:
+ *          computing the proper Smith normal form may improve stability of automatic differentiation
+ *          (generating the same gradient code for slightly different but equivalent input code
  *        U_{mxm} and V_{nxn} are invertible matrices.
  *        This function modifies \p S to be S_{mxn}, \p V to be V_{nxn},
  *        \p y to be U_{mxm} y_{mx1} and \p x to be V^{-1} x.

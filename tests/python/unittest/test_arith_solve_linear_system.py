@@ -16,11 +16,17 @@
 # under the License.
 import random
 import numpy as np
+import sys
+import pytest
 import tvm
 from tvm import te, arith, ir, tir
 
 
 def run_expr(expr, vranges):
+    """ Evaluate expr for every value of free variables
+    given by vranges and return the tensor of results.
+    TODO(yzhliu): move to utils
+    """
     def _compute_body(*us):
         vmap = {v: u + r.min for (v, r), u in zip(vranges.items(), us)}
         return tir.ir_pass.Substitute(expr, vmap)
@@ -34,6 +40,10 @@ def run_expr(expr, vranges):
 
 
 def check_bruteforce(bool_expr, vranges, cond=None):
+    """ Check that bool_expr holds given the condition cond
+    for every value of free variables from vranges.
+    TODO(yzhliu): move to utils
+    """
     if cond is not None:
         bool_expr = te.any(tir.Not(cond), bool_expr)
 
@@ -49,29 +59,30 @@ def check_bruteforce(bool_expr, vranges, cond=None):
 
 
 def check_solution(solution, vranges={}):
-    def _check_forward(formula1, formula2, varmap, backvarmap):
+    """Check that solution is a bijective transformation"""
+    def _check_forward(constraints1, constraints2, varmap, backvarmap):
         all_vranges = vranges.copy()
-        all_vranges.update({v: r for v, r in formula1.ranges.items()})
+        all_vranges.update({v: r for v, r in constraints1.ranges.items()})
 
         # Check that the transformation is injective
         cond_on_vars = tir.const(1, 'bool')
-        for v in formula1.variables:
+        for v in constraints1.variables:
             # variable mapping is consistent
             v_back = tir.ir_pass.Simplify(tir.ir_pass.Substitute(varmap[v], backvarmap))
             cond_on_vars = te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
         cond_subst = tir.ir_pass.Substitute(
-            te.all(tir.const(1, 'bool'), *formula2.relations), backvarmap)
+            te.all(tir.const(1, 'bool'), *constraints2.relations), backvarmap)
         # We have to include relations from vranges too
-        for v in formula2.variables:
-            if v in formula2.ranges:
-                r = formula2.ranges[v]
+        for v in constraints2.variables:
+            if v in constraints2.ranges:
+                r = constraints2.ranges[v]
                 range_cond = te.all(v >= r.min, v < r.min + r.extent)
                 range_cond = tir.ir_pass.Substitute(range_cond, backvarmap)
                 cond_subst = te.all(cond_subst, range_cond)
         cond_subst = tir.ir_pass.Simplify(cond_subst)
         check_bruteforce(te.all(cond_subst, cond_on_vars), all_vranges,
-                         cond=te.all(tir.const(1, 'bool'), *formula1.relations))
+                         cond=te.all(tir.const(1, 'bool'), *constraints1.relations))
 
     rels = solution.dst.relations
     if len(rels) == 1 and ir.structural_equal(rels[0], False):
@@ -83,8 +94,11 @@ def check_solution(solution, vranges={}):
                    solution.dst_to_src, solution.src_to_dst)
 
 
-def test_solution_consistency():
-    random.seed(0)
+def test_solution_consistency(capsys):
+    seed = random.randrange(sys.maxsize)
+    with capsys.disabled():
+        print("\nUse seed {} to reproduce the results.\n".format(seed))
+    random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
         variables = [te.var("x" + str(i)) for i in range(num_vars)]
@@ -206,8 +220,4 @@ def test_ill_formed():
 
 
 if __name__ == "__main__":
-    test_unique_solution()
-    test_low_rank()
-    test_infer_range()
-    test_ill_formed()
-    test_solution_consistency()
+    pytest.main([__file__])
