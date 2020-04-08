@@ -1118,12 +1118,6 @@ def _mm():
     return _impl
 
 
-def _empty_list(prelude):
-    def _impl(inputs, input_types):
-        return prelude.nil()
-    return _impl
-
-
 def _list_getitem(prelude):
     def _impl(inputs, input_types):
         return prelude.nth(inputs[0], _wrap_const(inputs[1]))
@@ -1340,12 +1334,10 @@ def get_convert_map(prelude):
         "aten::tanh"                            : _tanh(),
         "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
         "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d(),
-        "aten::stack"                           : _stack(),
         "aten::mm"                              : _matmul(),
-        "relay::empty_list"                     : _empty_list(prelude),
-        "relay::cons_list"                      : _cons_list(prelude),
-        "relay::rev_list"                       : _rev_list(prelude),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
+        "aten::add_"                            : _add_(prelude),
+        "aten::stack"                           : _tensor_array_stack(prelude),
         "aten::__getitem__"                     : _list_getitem(prelude),
     }
     return convert_map
@@ -1607,6 +1599,10 @@ def get_attr_chains(root_getattr_node):
     return get_use_chains(root_getattr_node, terminate)
 
 
+def is_list_dynamic(list_construct_node):
+    return False
+
+
 def convert_params(graph, state_dict):
     """
     Return Relay vars and TVM NDArrays for input parameters
@@ -1761,13 +1757,13 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
             outputs[node_name] = _get_constant(op_node)
         elif operator == "prim::ListConstruct" and _is_int_seq(inputs):
             outputs[node_name] = _expr.var(node_name, shape=inputs)
-        elif operator == "prim::ListConstruct" and len(inputs) > 0:  # static
+        elif operator == "prim::ListConstruct" and is_list_dynamic(op_node):
+            outputs[node_name] = _convert_to_list_adt(inputs, prelude)
+        elif operator == "prim::ListConstruct":
+            assert len(inputs) > 0, "An empty static list found"
             # This assumes that no more elements will be appended to this list
+            # In this case, we keep the Python list
             outputs[node_name] = inputs
-        elif operator == "prim::ListConstruct":  # dynamic
-            # %outputs : Tensor[] = prim::ListConstruct()
-            relay_op = convert_map["relay::empty_list"]
-            outputs[node_name] = relay_op(inputs, _get_input_types(op_node))
         elif operator == "prim::TupleConstruct":
             outputs[node_name] = _expr.Tuple(inputs)
         elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
