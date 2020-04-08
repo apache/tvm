@@ -2485,7 +2485,7 @@ Expr MakeCumsum(Expr data,
     attrs->exclusive = exclusive;
     attrs->reverse = reverse;
     static const Op& op = Op::Get("cumsum");
-    return CallNode::make(op, {data}, Attrs(attrs), {});
+    return Call(op, {data}, Attrs(attrs), {});
 }
 
 bool CumsumRel(const Array<Type>& types,
