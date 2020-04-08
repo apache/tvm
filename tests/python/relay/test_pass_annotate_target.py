@@ -337,6 +337,32 @@ def test_composite_function():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_multiple_runs():
+    @reg.register("nn.relu", "target.A")
+    def relu(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    @reg.register("add", "target.B")
+    def add(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    def before():
+        x = relay.var("x", shape=(10, 5))
+        a_1 = relay.nn.relu(x)
+        a_2 = relay.abs(a_1)
+        a_3 = relay.nn.relu(a_1)
+        out = relay.add(a_2, a_3)
+
+        f = relay.Function([x], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    mod = transform.AnnotateTarget("A")(before())
+    mod = transform.AnnotateTarget("B")(mod)
+    expected = transform.AnnotateTarget(["A", "B"])(before())
+    assert tvm.ir.structural_equal(expected, mod)
+
+
 if __name__ == "__main__":
     test_extern_dnnl()
 <<<<<<< HEAD
@@ -348,3 +374,4 @@ if __name__ == "__main__":
     test_multiple_ends()
     test_type_propagation()
     test_tuple()
+    test_multiple_runs()
