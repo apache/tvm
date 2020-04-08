@@ -79,10 +79,10 @@ def ndhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dty
     Output = te.compute(
         (batch, out_depth, out_height, out_width, out_channel),
         lambda nn, zz, yy, xx, ff: te.sum(
-            TransPaddedInput[nn, 
+            TransPaddedInput[nn,
                              zz * stride_d + rz * dilation_d,
                              yy * stride_h + ry * dilation_h,
-                             xx * stride_w + rx * dilation_w, 
+                             xx * stride_w + rx * dilation_w,
                              rc].astype(out_dtype) *
             TransFilter[rz, ry, rx, rc, ff].astype(out_dtype),
             axis=[rz, ry, rx, rc]),
