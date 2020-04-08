@@ -1141,9 +1141,9 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
         } else {
             PrimExpr end;
             if(exclusive) {
-                end = input_indices[axis] - 1;
-            } else {
                 end = input_indices[axis];
+            } else {
+                end = input_indices[axis] + 1;
             }
             range = tvm::Range{0, end};
         }
