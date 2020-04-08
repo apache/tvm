@@ -48,8 +48,9 @@ class AnnotateTargetWrapper : public ExprMutator {
   bool IsSupported(const Expr& expr) {
     if (expr->IsInstance<CallNode>()) {
       Call call = Downcast<Call>(expr);
-      auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
       if (call->op->IsInstance<OpNode>()) {
+        if (!Op::HasAttr("target." + target_)) return false;
+        auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
         Op op = Downcast<Op>(call->op);
         CHECK(op.defined());
         if (fannotate.count(op)) {
