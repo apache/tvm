@@ -185,24 +185,9 @@ DFPattern DFPatternMutator::VisitDFPattern_(const WildcardPatternNode* op) {
   return GetRef<DFPattern>(op);
 }
 
-//IndexedGraph
+// IndexedGraph
 
-template <typename T>
-struct Node {
-  Node(const T& ref, const size_t index) : ref_(ref), index_(index) {}
-  const T ref_;
-  const size_t index_;
-  std::vector<std::shared_ptr<Node<T>>> outputs_;
-};
-
-template <typename T>
-struct IndexedGraph {
-  std::unordered_map<T, std::shared_ptr<Node<T>>, ObjectHash, ObjectEqual> node_map_;
-  std::vector<std::shared_ptr<Node<T>>> topological_order_;
-};
-
-IndexedGraph<Expr>
-CreateIndexedGraph(const Expr& expr) {
+IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
   using NodePtr = std::shared_ptr<Node<Expr>>;
   class Creator : public MixedModeVisitor {
    public:
@@ -210,7 +195,6 @@ CreateIndexedGraph(const Expr& expr) {
       VisitExpr(expr);
       return std::move(graph_);
     }
-    void Create(const Expr& expr) { VisitExpr(expr); }
 
    protected:
     void VisitLeaf(const Expr& expr) override {
@@ -332,139 +316,90 @@ CreateIndexedGraph(const Expr& expr) {
   };
   return Annotator(Creator().CreateGraph(expr)).Annotate();
 }
-// 
-// IndexedGraph<DFPattern>
-// CreateIndexedGraph(const Expr& expr) {
-//   using NodePtr = std::shared_ptr<IndexedGraph::Node>;
-//   class Creator : public MixedModeVisitor {
-//    public:
-//     IndexedGraph<Expr> CreateGraph(const Expr& expr) {
-//       VisitExpr(expr);
-//       return std::move(graph_);
-//     }
-//     void Create(const Expr& expr) { VisitExpr(expr); }
-// 
-//    protected:
-//     void DispatchVisitExpr(const Expr& expr) override {
-//       MixedModeVisitor::DispatchVisitExpr(expr);
-//       graph_.node_map[expr] = std::make_shared<IndexedGraph::Node>(expr, index++, {});
-//       l graph_.topological_order.push_back(expr);
-//     }
-//     IndexdecGraph<Expr> graph_;
-//     size_t index_ = 0;
-//   };
-//   class Annotator : public ExprFunctor<void(const Expr&, NodePtr)> {
-//    public:
-//     Annotator(const IndexedGraph<Expr>& graph) : graph_(graph) {}
-//     Annotate() {
-//       for (const auto& node : graph_.topological_order) {
-//         ExprFunctor::VisitExpr(node.ref, nullptr);
-//       }
-//       return std::move(graph_);
-//     }
-// 
-//     VisitExpr(const Expr& expr, NodePtr parent) override {
-//       if (parent) {
-//         graph_.node_map[expr].outputs.push_back(parent);
-//       }
-//     }
-// 
-//    protected:
-//     void VisitExpr_(const VarNode* op, NodePtr parent) override {
-//       if (op->type_annotation.defined()) {
-//         this->VisitType(op->type_annotation);
-//       }
-//     }
-// 
-//     void VisitExpr_(const GlobalVarNode* op, NodePtr parent) override {}
-// 
-//     void VisitExpr_(const ConstantNode* op, NodePtr parent) override {}
-// 
-//     void VisitExpr_(const TupleNode* op, NodePtr parent) override {
-//       for (auto field : op->fields) {
-//         this->VisitExpr(field, GetRef<Expr>(op));
-//       }
-//     }
-// 
-//     void VisitExpr_(const FunctionNode* op, NodePtr parent) override {
-//       for (auto param : op->params) {
-//         this->VisitExpr(param, GetRef<Expr>(op));
-//       }
-// 
-//       this->VisitExpr(op->body, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const CallNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->op, GetRef<Expr>(op));
-// 
-//       for (auto ty_arg : op->type_args, NodePtr parent) override {
-//         this->VisitType(ty_arg, GetRef<Expr>(op));
-//       }
-// 
-//       for (auto arg : op->args) {
-//         this->VisitExpr(arg, GetRef<Expr>(op));
-//       }
-//     }
-// 
-//     void VisitExpr_(const LetNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->value, GetRef<Expr>(op));
-//       this->VisitExpr(op->var, GetRef<Expr>(op));
-//       this->VisitExpr(op->body, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const IfNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->cond, GetRef<Expr>(op));
-//       this->VisitExpr(op->true_branch, GetRef<Expr>(op));
-//       this->VisitExpr(op->false_branch, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const OpNode* op, NodePtr parent) override { return; }
-// 
-//     void VisitExpr_(const TupleGetItemNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->tuple, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const RefCreateNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->value, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const RefReadNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->ref, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const RefWriteNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->ref, GetRef<Expr>(op));
-//       this->VisitExpr(op->value, GetRef<Expr>(op));
-//     }
-// 
-//     void VisitExpr_(const ConstructorNode* op, NodePtr parent) override {
-//       for (const Type& t : op->inputs) {
-//         this->VisitType(t);
-//       }
-//       this->VisitType(op->belong_to);
-//     }
-// 
-//     void VisitExpr_(const MatchNode* op, NodePtr parent) override {
-//       this->VisitExpr(op->data, GetRef<Expr>(op));
-//       for (const Clause& c : op->clauses) {
-//         this->VisitClause(c, GetRef<Expr>(op));
-//       }
-//     }
-// 
-//     void VisitClause(const Clause& op, NodePtr parent) override {
-//       this->VisitPattern(op->lhs);
-//       this->VisitExpr(op->rhs, parent);
-//     }
-// 
-//     void VisitPattern(const Pattern& p) { return; }
-// 
-//     void VisitType(const Type& t) { return; }
-//   };
-//   return Annotator(Creator().CreateGraph(expr)).Annotate();
-// }
 
-//IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern&) {
-//}
+IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
+  using NodePtr = std::shared_ptr<Node<DFPattern>>;
+  class Creator : public DFPatternVisitor {
+   public:
+    IndexedGraph<DFPattern> CreateGraph(const DFPattern& pattern) {
+      VisitDFPattern(pattern);
+      return std::move(graph_);
+    }
+
+   protected:
+    void VisitDFPattern(const DFPattern& pattern) override {
+      DFPatternVisitor::VisitDFPattern(pattern);
+      auto node = std::make_shared<Node<DFPattern>>(pattern, index_++);
+      graph_.node_map_[pattern] = node;
+      graph_.topological_order_.push_back(node);
+    }
+    IndexedGraph<DFPattern> graph_;
+    size_t index_ = 0;
+  };
+  class Annotator : public DFPatternFunctor<void(const DFPattern&, NodePtr)> {
+   public:
+    Annotator(const IndexedGraph<DFPattern>& graph) : graph_(graph) {}
+    IndexedGraph<DFPattern> Annotate() {
+      for (const auto& node : graph_.topological_order_) {
+        DFPatternFunctor::VisitDFPattern(node->ref_, nullptr);
+      }
+      return std::move(graph_);
+    }
+
+    void VisitDFPattern(const DFPattern& pattern, NodePtr parent) override {
+      if (parent) {
+        graph_.node_map_[pattern]->outputs_.push_back(parent);
+      }
+    }
+
+   protected:
+    IndexedGraph<DFPattern> graph_;
+    void VisitDFPattern_(const AltPatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->left, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->right, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const AttrPatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->pattern, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const CallPatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->op, graph_.node_map_[GetRef<DFPattern>(op)]);
+      for (auto arg : op->args) {
+        VisitDFPattern(arg, graph_.node_map_[GetRef<DFPattern>(op)]);
+      }
+    }
+    void VisitDFPattern_(const DominatorPatternNode* op,
+                                           NodePtr parent) override {
+      VisitDFPattern(op->parent, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->path, graph_.node_map_[GetRef<DFPattern>(op)]);
+      VisitDFPattern(op->child, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const ExprPatternNode* op, NodePtr parent) override {}
+
+    void VisitDFPattern_(const TupleGetItemPatternNode* op,
+                                           NodePtr parent) override {
+      VisitDFPattern(op->tuple, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const TuplePatternNode* op, NodePtr parent) override {
+      for (auto field : op->fields) {
+        VisitDFPattern(field, graph_.node_map_[GetRef<DFPattern>(op)]);
+      }
+    }
+
+    void VisitDFPattern_(const TypePatternNode* op, NodePtr parent) override {
+      VisitDFPattern(op->pattern, graph_.node_map_[GetRef<DFPattern>(op)]);
+    }
+
+    void VisitDFPattern_(const VarPatternNode* op, NodePtr parent) override {}
+
+    void VisitDFPattern_(const WildcardPatternNode* op, NodePtr parent) override {
+    }
+  };
+  return Annotator(Creator().CreateGraph(pattern)).Annotate();
+}
 
 }  // namespace relay
 }  // namespace tvm

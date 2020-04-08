@@ -153,6 +153,23 @@ class DFPatternMutator : public DFPatternFunctor<DFPattern(const DFPattern&)> {
   std::unordered_map<DFPattern, DFPattern, ObjectHash, ObjectEqual> memo_;
 };
 
+
+template <typename T>
+struct Node {
+  Node(const T& ref, const size_t index) : ref_(ref), index_(index) {}
+  const T ref_;
+  const size_t index_;
+  std::vector<std::shared_ptr<Node<T>>> outputs_;
+};
+
+template <typename T>
+struct IndexedGraph {
+  std::unordered_map<T, std::shared_ptr<Node<T>>, ObjectHash, ObjectEqual> node_map_;
+  std::vector<std::shared_ptr<Node<T>>> topological_order_;
+};
+
+IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr);
+IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 }  // namespace relay
 }  // namespace tvm
 
