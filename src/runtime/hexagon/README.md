@@ -61,6 +61,7 @@ The TVM runtime executing on Hexagon does not need to have support for Hexagon d
 
 When configuring TVM (cmake), set the following variables:
 ```
+USE_RPC=OFF
 USE_LLVM=OFF
 USE_HEXAGON_DEVICE=OFF
 USE_HEXAGON_SDK=/path/to/sdk
