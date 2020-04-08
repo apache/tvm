@@ -128,7 +128,7 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   llvm::FunctionType* ftype = llvm::FunctionType::get(
       ret_void ? t_void_ : t_int_, param_types, false);
 
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
   CHECK(module_->getFunction(static_cast<std::string>(global_symbol)) == nullptr)

@@ -47,7 +47,7 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
 
 PrimFunc MakePackedAPI(PrimFunc&& func,
                        int num_unpacked_args) {
-  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
   std::string name_hint = global_symbol;

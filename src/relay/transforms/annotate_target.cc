@@ -59,7 +59,7 @@ class AnnotateTargetWrapper : public ExprMutator {
         // handle composite functions
         Function func = Downcast<Function>(call->op);
         CHECK(func.defined());
-        auto comp_name = func->GetAttr<runtime::String>(attr::kComposite);
+        auto comp_name = func->GetAttr<String>(attr::kComposite);
         if (comp_name.defined()) {
           std::string comp_name_str = comp_name;
           size_t i = comp_name_str.find('.');
@@ -148,7 +148,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     Function func;
     Expr new_body;
     // don't step into composite functions
-    if (fn->GetAttr<runtime::String>(attr::kComposite).defined()) {
+    if (fn->GetAttr<String>(attr::kComposite).defined()) {
       func = GetRef<Function>(fn);
       new_body = func->body;
     } else {

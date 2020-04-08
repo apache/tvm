@@ -161,7 +161,7 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
       code = (*f)(code).operator std::string();
     }
 
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
     runtime::String func_name(global_symbol);

@@ -36,6 +36,8 @@
 
 namespace tvm {
 
+using runtime::String;
+using runtime::StringObj;
 using runtime::Object;
 using runtime::ObjectPtr;
 using runtime::ObjectRef;

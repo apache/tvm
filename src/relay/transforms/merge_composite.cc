@@ -159,7 +159,7 @@ class MergeCompositeWrapper : public ExprMutator {
     if (call->op->IsInstance<FunctionNode>()) {
       Function func = Downcast<Function>(call->op);
       CHECK(func.defined());
-      auto name_node = func->GetAttr<runtime::String>(attr::kComposite);
+      auto name_node = func->GetAttr<String>(attr::kComposite);
       // don't step into existing composite functions
       if (name_node.defined() && name_node != "") {
         tvm::Array<tvm::relay::Expr> new_args;

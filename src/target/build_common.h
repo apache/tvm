@@ -57,7 +57,7 @@ ExtractFuncInfo(const IRModule& mod) {
         info.thread_axis_tags.push_back(thread_axis[i]->thread_tag);
       }
     }
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     fmap[static_cast<std::string>(global_symbol)] = info;
   }
   return fmap;

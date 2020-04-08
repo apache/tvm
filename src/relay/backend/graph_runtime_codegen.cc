@@ -419,7 +419,7 @@ class GraphRuntimeCodegen
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
     // Handle external function
-    if (func->GetAttr<runtime::String>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
       CCacheKey key = (*pf0)(func, target);
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
@@ -482,7 +482,7 @@ class GraphRuntimeCodegen
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    CHECK(op->GetAttr<runtime::String>(attr::kCompiler).defined())
+    CHECK(op->GetAttr<String>(attr::kCompiler).defined())
         << "Only functions supported by custom codegen";
     return {};
   }

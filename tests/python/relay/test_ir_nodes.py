@@ -25,7 +25,9 @@ import numpy as np
 
 def check_json_roundtrip(node):
     json_str = tvm.ir.save_json(node)
+    print(node)
     back = tvm.ir.load_json(json_str)
+    print(back)
     assert tvm.ir.structural_equal(back, node, map_free_vars=True)
 
 
