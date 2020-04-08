@@ -23,7 +23,13 @@
  */
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
+
+#include <tvm/ir/module.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
+#include <tvm/tir/function.h>
+
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -37,29 +43,16 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target) {
-  std::string mode = target;
-  size_t pos = mode.find(' ');
-  if (pos != std::string::npos) {
-    mode = mode.substr(0, pos);
-  }
-  Array<tir::LoweredFunc> transformed_funcs;
+runtime::Module Build(IRModule mod, const Target& target) {
   if (BuildConfig::Current()->disable_assert) {
-    for (const auto& x : funcs) {
-      auto func = tir::SkipAssert(x);
-      transformed_funcs.push_back(func);
-    }
+    mod = tir::transform::SkipAssert()(mod);
   }
-  std::string build_f_name = "codegen.build_" + mode;
+  std::string build_f_name = "target.build." + target->target_name;
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   CHECK(bf != nullptr)
-      << "Target " << target << " is not enabled";
-  runtime::Module m = transformed_funcs.empty() ?
-                      (*bf)(funcs, target) :
-                      (*bf)(transformed_funcs, target);
-  return m;
+      << "target.build." << target << " is not enabled";
+  return (*bf)(mod, target->str());
 }
 
 /*! \brief Helper class to serialize module */
@@ -245,13 +238,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
 }
 
 TVM_REGISTER_GLOBAL("target.Build")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  if (args[0].IsObjectRef<tir::LoweredFunc>()) {
-      *ret = Build({args[0]}, args[1]);
-    } else {
-      *ret = Build(args[0], args[1]);
-    }
-  });
+.set_body_typed(Build);
 
 // Export two auxiliary function to the runtime namespace.
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC")

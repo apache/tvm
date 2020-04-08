@@ -76,7 +76,13 @@ TVM_REGISTER_GLOBAL("runtime.container._ADT")
   *rv = ADT(tag, fields);
 });
 
+TVM_REGISTER_GLOBAL("runtime.container._String")
+.set_body_typed([](std::string str) {
+  return String(std::move(str));
+});
+
 TVM_REGISTER_OBJECT_TYPE(ADTObj);
+TVM_REGISTER_OBJECT_TYPE(StringObj);
 TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
 }  // namespace runtime

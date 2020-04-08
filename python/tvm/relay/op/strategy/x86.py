@@ -55,9 +55,19 @@ def schedule_adaptive_pool_cpu(attrs, outs, target):
     with target:
         return topi.x86.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register("cpu")
-def schedule_softmax_cpu(attrs, outs, target):
-    """schedule softmax for x86"""
+@softmax_strategy.register("cpu")
+def softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """softmax x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="softmax.x86")
+    return strategy
+
+@schedule_log_softmax.register("cpu")
+def schedule_log_softmax_cpu(attrs, outs, target):
+    """schedule log_softmax op for x86"""
     with target:
         return topi.x86.schedule_softmax(outs)
 
@@ -232,13 +242,13 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_cblas),
                                     wrap_topi_schedule(topi.x86.schedule_dense_cblas),
                                     name="dense_cblas.x86",
-                                    plevel=5)
+                                    plevel=15)
     with SpecializedCondition(m >= 16):
         # this implementation may not be well-optimized, so use plevel=8 for now.
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_pack),
                                     wrap_topi_schedule(topi.x86.schedule_dense_pack),
                                     name="dense_pack.x86",
-                                    plevel=8)
+                                    plevel=5)
     return strategy
 
 @batch_matmul_strategy.register("cpu")
@@ -253,7 +263,7 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
         strategy.add_implementation(wrap_compute_batch_matmul(topi.x86.batch_matmul_cblas),
                                     wrap_topi_schedule(topi.x86.schedule_batch_matmul_cblas),
                                     name="batch_matmul_cblas.x86",
-                                    plevel=5)
+                                    plevel=15)
     return strategy
 
 @schedule_sparse_dense.register("cpu")

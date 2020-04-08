@@ -299,24 +299,24 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   p->stream << "CallGraph: \n" << GetRef<CallGraph>(node);
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.CallGraph")
+TVM_REGISTER_GLOBAL("relay.analysis.CallGraph")
 .set_body_typed([](IRModule module) {
   return CallGraph(module);
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.PrintCallGraph")
+TVM_REGISTER_GLOBAL("relay.analysis.PrintCallGraph")
 .set_body_typed([](CallGraph call_graph) {
   std::stringstream ss;
   ss << call_graph;
   return ss.str();
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.GetModule")
+TVM_REGISTER_GLOBAL("relay.analysis.GetModule")
 .set_body_typed([](CallGraph call_graph) {
   return call_graph->module;
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.PrintCallGraphGlobalVar")
+TVM_REGISTER_GLOBAL("relay.analysis.PrintCallGraphGlobalVar")
 .set_body_typed([](CallGraph call_graph, GlobalVar var) {
   const auto* entry_node = call_graph[var];
   std::stringstream ss;
@@ -324,19 +324,19 @@ TVM_REGISTER_GLOBAL("relay._analysis.PrintCallGraphGlobalVar")
   return ss.str();
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.GetRefCountGlobalVar")
+TVM_REGISTER_GLOBAL("relay.analysis.GetRefCountGlobalVar")
 .set_body_typed([](CallGraph call_graph, GlobalVar var) {
   const auto* entry_node = call_graph[var];
   return static_cast<int>(entry_node->GetRefCount());
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.GetGlobalVarCallCount")
+TVM_REGISTER_GLOBAL("relay.analysis.GetGlobalVarCallCount")
 .set_body_typed([](CallGraph call_graph, GlobalVar var) {
   const auto* entry_node = call_graph[var];
   return static_cast<int>(entry_node->size());
 });
 
-TVM_REGISTER_GLOBAL("relay._analysis.IsRecursive")
+TVM_REGISTER_GLOBAL("relay.analysis.IsRecursive")
 .set_body_typed([](CallGraph call_graph, GlobalVar var) {
   const auto* entry_node = call_graph[var];
   return entry_node->IsRecursive();

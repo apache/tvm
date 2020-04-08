@@ -24,12 +24,12 @@ from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, Load, Ramp, Broadcast, Shuffle, Call, Let
+from .expr import Select, BufferLoad, Load, Ramp, Broadcast, Shuffle, Call, Let
 from .expr import IterVar, Any
 
 from .stmt import Stmt, LetStmt, AssertStmt, ProducerConsumer, For
-from .stmt import Store, Provide, Allocate, AttrStmt, Free, Realize, SeqStmt
-from .stmt import IfThenElse, Evaluate, Prefetch, LoweredFunc, stmt_seq, stmt_list
+from .stmt import BufferStore, Store, Provide, Allocate, AttrStmt, Free, Realize, SeqStmt
+from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
 
 from .function import PrimFunc
 
@@ -38,9 +38,12 @@ from .op import call_llvm_intrin, all, any, min_value, max_value, trace
 from .op import exp, exp2, exp10, log, log2, log10
 from .op import cos, sin, cosh, sinh, tan, tanh, atan
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil
-from .op import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else
+from .op import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
+from .op import isnan, isfinite, isinf
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 
 from . import ir_builder
 from . import ir_pass
+from . import transform
+from . import analysis

@@ -21,7 +21,7 @@ from __future__ import absolute_import
 import tvm
 from tvm import relay
 from .. import op as reg
-from ...util import get_scalar_from_constant
+from ...frontend.util import get_scalar_from_constant
 
 #################################################
 # Register the functions for different operators.

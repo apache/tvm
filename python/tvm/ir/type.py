@@ -16,6 +16,7 @@
 # under the License.
 """Unified type system in the project."""
 from enum import IntEnum
+import tvm
 import tvm._ffi
 
 from .base import Node
@@ -26,7 +27,7 @@ class Type(Node):
     """The base class of all types."""
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
-        return bool(_ffi_api.type_alpha_equal(self, other))
+        return bool(tvm.ir.structural_equal(self, other))
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -46,6 +47,7 @@ class TypeKind(IntEnum):
     TypeData = 6
 
 
+@tvm._ffi.register_object("PrimType")
 class PrimType(Type):
     """Primitive data type in the low level IR
 
@@ -57,6 +59,20 @@ class PrimType(Type):
     def __init__(self, dtype):
         self.__init_handle_by_constructor__(
             _ffi_api.PrimType, dtype)
+
+
+@tvm._ffi.register_object("PointerType")
+class PointerType(Type):
+    """PointerType used in the low-level TIR.
+
+    Parameters
+    ----------
+    element_type : tvm.ir.Type
+        The type of pointer's element.
+    """
+    def __init__(self, element_type):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PointerType, element_type)
 
 
 @tvm._ffi.register_object("TypeVar")

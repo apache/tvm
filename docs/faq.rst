@@ -62,3 +62,8 @@ TVM can incorporate these libraries as external calls. One goal of TVM is to be 
 generate high-performing kernels. We will evolve TVM an incremental manner as
 we learn from the techniques of manual kernel crafting and add these as primitives in DSL.
 See also top for recipes of operators in TVM.
+
+
+Security
+--------
+See :ref:`dev-security`

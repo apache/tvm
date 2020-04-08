@@ -24,10 +24,11 @@ from tvm.ir import IRModule
 from tvm import relay
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
-from ..util import get_scalar_from_constant
 from ... import nd as _nd
+from .util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -70,6 +71,7 @@ class OperatorConverter(object):
             'CONCATENATION': self.convert_concatenation,
             'CONV_2D': self.convert_conv2d,
             'COS': self.convert_cos,
+            'DEPTH_TO_SPACE': self.convert_depth_to_space,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'DIV': self.convert_div,
@@ -82,6 +84,7 @@ class OperatorConverter(object):
             'FULLY_CONNECTED': self.convert_fully_connected,
             'GREATER_EQUAL': self.convert_greater_equal,
             'GREATER': self.convert_greater,
+            'HARD_SWISH': self.convert_hard_swish,
             'L2_NORMALIZATION': self.convert_l2_normalization,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
@@ -116,6 +119,7 @@ class OperatorConverter(object):
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
+            'SPACE_TO_DEPTH': self.convert_space_to_depth,
             'SPLIT': self.convert_split,
             'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
@@ -126,6 +130,7 @@ class OperatorConverter(object):
             'TAN': self.convert_tan,
             'TANH':self.convert_tanh,
             'TILE': self.convert_tile,
+            'TOPK_V2': self.convert_topk_v2,
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'TRANSPOSE': self.convert_transpose,
             'UNPACK': self.convert_unpack,
@@ -588,6 +593,42 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.nn.relu(in_expr)
+
+        return out
+
+    def convert_hard_swish(self, op):
+        """Convert TFLite Hard swish"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        assert isinstance(op, Operator)
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        def _relu6(data):
+            return _op.tensor.clip(data, 0.0, 6.0)
+
+        def _hard_swish(data):
+            return data * _relu6(data + relay.const(3.0)) / relay.const(6.0)
+
+        # Dequantize if the input is quantized.
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+
+        # Perform hardswish
+        out = _hard_swish(in_expr)
+
+        # Go back to integer dataype if the original operator was quantized.
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
 
         return out
 
@@ -1547,6 +1588,24 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_topk_v2(self, op):
+        """ Convert TFLite TOPK_v2 """
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+        k = self.get_tensor_value(input_tensors[1])
+        out = _op.topk(in_expr, int(k))
+
+        return out
+
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
         try:
@@ -1895,6 +1954,56 @@ class OperatorConverter(object):
         reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
 
         return reshaped_permuted_reshaped_padded
+
+    def convert_depth_to_space(self, op):
+        """Convert TFLite DEPTH_TO_SPACE"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.DepthToSpaceOptions import DepthToSpaceOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.DepthToSpaceOptions
+        op_options = op.BuiltinOptions()
+        depth_to_space_options = DepthToSpaceOptions()
+        depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
+        block_size = depth_to_space_options.BlockSize()
+        out = _op.nn.depth_to_space(in_expr, block_size, layout='NHWC')
+
+        return out
+
+    def convert_space_to_depth(self, op):
+        """Convert TFLite SPACE_TO_DEPTH"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.SpaceToDepthOptions import SpaceToDepthOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SpaceToDepthOptions
+        op_options = op.BuiltinOptions()
+        space_to_depth_options = SpaceToDepthOptions()
+        space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
+        block_size = space_to_depth_options.BlockSize()
+        out = _op.nn.space_to_depth(in_expr, block_size, layout='NHWC')
+
+        return out
 
     def convert_prelu(self, op):
         """Convert TFLite PReLU"""
@@ -2313,6 +2422,6 @@ def from_tflite(model, shape_dict, dtype_dict):
     params = {k:_nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(analysis.free_vars(outputs), outputs)
+    func = _function.Function(analysis.free_vars(outputs), outputs)
     mod = IRModule.from_expr(func)
     return mod, params

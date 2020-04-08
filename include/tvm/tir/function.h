@@ -102,6 +102,23 @@ class PrimFuncNode : public BaseFuncNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
+    // visit params and buffer_map first as they contains defs.
+    return
+        equal.DefEqual(params, other->params) &&
+        equal(buffer_map, other->buffer_map) &&
+        equal(ret_type, other->ret_type) &&
+        equal(body, other->body) &&
+        equal(attrs, other->attrs);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(params);
+    hash_reduce(buffer_map);
+    hash_reduce(ret_type);
+    hash_reduce(body);
+    hash_reduce(attrs);
+  }
   /*!
    * \brief Return the derived function annotation of this function.
    *
@@ -171,6 +188,16 @@ constexpr const char* kDeviceThreadAxis = "tir.device_thread_axis";
  * Type: Integer
  */
 constexpr const char* kNoAlias = "tir.noalias";
+
+/*!
+ * \brief Mark the function as the entry function of
+ *        the final generated runtime module.
+ *
+ * Type: Integer
+ *
+ * \note There can only be one entry function per module.
+ */
+constexpr const char* kIsEntryFunc = "tir.is_entry_func";
 }  // namespace attr
 }  // namespace tir
 }  // namespace tvm

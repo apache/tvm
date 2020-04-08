@@ -19,13 +19,18 @@
 name = "tvm-macros"
 version = "0.1.1"
 license = "Apache-2.0"
-description = "Proc macros used by the TVM crates."
+description = "Procedural macros of the TVM crate."
 repository = "https://github.com/apache/incubator-tvm"
 readme = "README.md"
 keywords = ["tvm"]
 authors = ["TVM Contributors"]
 edition = "2018"
 
+[lib]
+proc-macro = true
 
 [dependencies]
-tvm-macros-raw = { path = "../macros_raw" }
+goblin = "0.0.24"
+proc-macro2 = "^1.0"
+quote = "1.0"
+syn = "1.0"

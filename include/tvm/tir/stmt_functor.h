@@ -91,6 +91,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const ForNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AllocateNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const StoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
+  virtual R VisitStmt_(const BufferStoreNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const FreeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const AssertStmtNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmt_(const ProducerConsumerNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
@@ -154,6 +155,7 @@ class TVM_DLL StmtVisitor :
   void VisitStmt_(const ForNode* op) override;
   void VisitStmt_(const AllocateNode* op) override;
   void VisitStmt_(const StoreNode* op) override;
+  void VisitStmt_(const BufferStoreNode* op) override;
   void VisitStmt_(const FreeNode* op) override;
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const ProducerConsumerNode* op) override;
@@ -248,6 +250,7 @@ class TVM_DLL StmtMutator :
   Stmt VisitStmt_(const ForNode* op) override;
   Stmt VisitStmt_(const AllocateNode* op) override;
   Stmt VisitStmt_(const StoreNode* op) override;
+  Stmt VisitStmt_(const BufferStoreNode* op) override;
   Stmt VisitStmt_(const FreeNode* op) override;
   Stmt VisitStmt_(const AssertStmtNode* op) override;
   Stmt VisitStmt_(const ProducerConsumerNode* op) override;

@@ -28,7 +28,6 @@ import torchvision
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
-from tvm.relay.frontend.pytorch import get_graph_input_names
 
 
 sys.setrecursionlimit(10000)
@@ -169,8 +168,8 @@ def verify_model(model_name, input_data=[],
     else:
         trace = trace.cpu()
 
-    input_names = get_graph_input_names(trace)
-    input_shapes = dict(zip(input_names,
+    input_names = ["input{}".format(idx) for idx, inp in enumerate(baseline_input)]
+    input_shapes = list(zip(input_names,
                             [inp.shape for inp in baseline_input]))
     mod, params = relay.frontend.from_pytorch(trace, input_shapes,
                                               custom_convert_map)
@@ -305,6 +304,22 @@ def test_forward_unsqueeze():
     input_data = torch.rand(input_shape).float()
     verify_model(Unsqueeze1().float().eval(), input_data=input_data)
 
+def test_forward_squeeze():
+    torch.set_grad_enabled(False)
+    input_shape = [2, 1, 10, 1, 10]
+
+    class Squeeze1(Module):
+        def forward(self, *args):
+            return args[0].squeeze()
+
+    class Squeeze2(Module):
+        def forward(self, *args):
+            return args[0].squeeze(1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Squeeze1().float().eval(), input_data=input_data)
+    verify_model(Squeeze2().float().eval(), input_data=input_data)
+
 def test_forward_concatenate():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -327,72 +342,161 @@ def test_forward_concatenate():
 def test_forward_relu():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
-
-    class ReLU1(Module):
-        def forward(self, *args):
-            return torch.nn.ReLU()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(ReLU1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.ReLU().eval(), input_data=input_data)
+
+def test_forward_prelu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.PReLU(num_parameters=3).eval(), input_data=input_data)
+
+def test_forward_leakyrelu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.LeakyReLU().eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=0.05).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.0).eval(), input_data=input_data)
+    verify_model(torch.nn.LeakyReLU(negative_slope=1.25).eval(), input_data=input_data)
+
+def test_forward_elu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.ELU().eval(), input_data=input_data)
+    verify_model(torch.nn.ELU(alpha=0.3).eval(), input_data=input_data)
+    verify_model(torch.nn.ELU(alpha=1.0).eval(), input_data=input_data)
+    verify_model(torch.nn.ELU(alpha=1.3).eval(), input_data=input_data)
+
+def test_forward_celu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.CELU().eval(), input_data=input_data)
+    verify_model(torch.nn.CELU(alpha=0.3).eval(), input_data=input_data)
+    verify_model(torch.nn.CELU(alpha=1.0).eval(), input_data=input_data)
+    verify_model(torch.nn.CELU(alpha=1.3).eval(), input_data=input_data)
+
+def test_forward_gelu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.GELU().eval(), input_data=input_data)
+
+def test_forward_selu():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.SELU().eval(), input_data=input_data)
+
+def test_forward_log_sigmoid():
+    torch.set_grad_enabled(False)
+    input_shape = [10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.LogSigmoid().eval(), input_data=input_data)
 
 def test_forward_adaptiveavgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class AdaptiveAvgPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([1, 1])(args[0])
-
-    class AdaptiveAvgPool2D2(Module):
-        def forward(self, *args):
-            return torch.nn.AdaptiveAvgPool2d([10, 10])(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(AdaptiveAvgPool2D1().float().eval(), input_data=input_data)
-    verify_model(AdaptiveAvgPool2D2().float().eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveAvgPool2d([1, 1]).eval(), input_data=input_data)
+    verify_model(torch.nn.AdaptiveAvgPool2d([10, 10]).eval(), input_data=input_data)
 
-def test_forward_maxpool():
+def test_forward_maxpool2d():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
 
-    class MaxPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[1, 1])(args[0])
+    verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
 
-    class MaxPool2D2(Module):
+def test_forward_maxpool1d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10]
+    input_data = torch.rand(input_shape).float()
+
+    verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(),
+                input_data)
+    verify_model( torch.nn.MaxPool1d(kernel_size=4,
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
+
+def test_forward_maxpool3d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10, 10]
+    input_data = torch.rand(input_shape).float()
+
+    verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(),
+                input_data)
+    verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4],
+                                    padding=2,
+                                    stride=2).eval(),
+                input_data)
+
+def test_forward_split():
+    torch.set_grad_enabled(False)
+    input_shape = [4, 10]
+
+    class Split(Module):
+        def __init__(self, split_size_or_sections, dim):
+            super(Split, self).__init__()
+            self.split_size_or_sections = split_size_or_sections
+            self.dim = dim
+
         def forward(self, *args):
-            return torch.nn.MaxPool2d(kernel_size=[10, 10])(args[0])
+            return torch.split(args[0], self.split_size_or_sections, self.dim)
 
     input_data = torch.rand(input_shape).float()
-    verify_model(MaxPool2D1().float().eval(), input_data=input_data)
-    verify_model(MaxPool2D2().float().eval(), input_data=input_data)
+    verify_model(Split(2, 0).float().eval(),
+                input_data=input_data)
+    verify_model(Split(3, 1).float().eval(),
+                input_data=input_data)
+    verify_model(Split(4, 1).float().eval(),
+                input_data=input_data)
+    verify_model(Split([2, 3, 5], 1).float().eval(),
+                input_data=input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class AvgPool2D1(Module):
-        def forward(self, *args):
-            return torch.nn.AvgPool2d(kernel_size=[10, 10])(args[0])
 
     class AvgPool2D2(Module):
         def forward(self, *args):
             return torch.nn.functional.avg_pool2d(args[0], kernel_size=[10, 10])
 
     input_data = torch.rand(input_shape).float()
-    verify_model(AvgPool2D1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.AvgPool2d(kernel_size=[10, 10]).eval(), input_data=input_data)
     verify_model(AvgPool2D2().float().eval(), input_data=input_data)
+
+def test_forward_avgpool3d():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10, 10]
+
+    class AvgPool3D1(Module):
+        def forward(self, *args):
+            return torch.nn.functional.avg_pool3d(args[0], kernel_size=[10, 10, 10])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.AvgPool3d(kernel_size=[10, 10, 10]).eval(), input_data=input_data)
+    verify_model(AvgPool3D1().float().eval(), input_data=input_data)
 
 def test_forward_hardtanh():
     torch.set_grad_enabled(False)
     input_shape = [10]
-
-    class HardTanh1(Module):
-        def forward(self, *args):
-            return torch.nn.Hardtanh()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(HardTanh1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Hardtanh().eval(), input_data=input_data)
 
 def test_forward_conv():
     torch.set_grad_enabled(False)
@@ -428,18 +532,27 @@ def test_forward_conv():
     input_data = torch.rand(input_shape).float()
     verify_model(Conv2D1().float().eval(), input_data=input_data)
     verify_model(Conv2D2().float().eval(), input_data=input_data)
+    # depth wise conv with channel mult 2
     verify_model(Conv2D3().float().eval(), input_data=input_data)
+    # group conv
+    verify_model(torch.nn.Conv2d(8, 8, kernel_size=(3, 3),
+                                 stride=(1, 1), groups=2).eval(),
+                 input_data=torch.randn((1, 8, 16, 16)))
+
+
+def test_forward_conv_transpose():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.ConvTranspose2d(3, 6, 7, bias=True), input_data=input_data)
+    verify_model(torch.nn.ConvTranspose2d(3, 12, 3, bias=False), input_data=input_data)
+
 
 def test_forward_threshold():
     torch.set_grad_enabled(False)
     input_shape = [1, 3]
-
-    class Threshold1(Module):
-        def forward(self, *args):
-            return torch.nn.Threshold(0, 0)(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(Threshold1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Threshold(0, 0).float().eval(), input_data=input_data)
 
 def test_forward_contiguous():
     torch.set_grad_enabled(False)
@@ -452,27 +565,40 @@ def test_forward_contiguous():
     input_data = torch.rand(input_shape).float()
     verify_model(Contiguous1().float().eval(), input_data=input_data)
 
+
 def test_forward_batchnorm():
-    torch.set_grad_enabled(False)
-    input_shape = [1, 3, 10, 10]
+    def init_weight(m):
+        torch.nn.init.normal_(m.weight, 0, 0.01)
+        torch.nn.init.normal_(m.bias)
 
-    class BatchNorm1(Module):
-        def __init__(self):
-            super(BatchNorm1, self).__init__()
-            self.batch_norm = torch.nn.BatchNorm2d(3, affine=True)
-        def forward(self, *args):
-            return self.batch_norm(args[0])
+    inp_2d = torch.rand((1, 16, 10, 10))
+    inp_3d = torch.rand((1, 16, 10, 10, 10))
 
-    class BatchNorm2(Module):
-        def __init__(self):
-            super(BatchNorm2, self).__init__()
-            self.batch_norm = torch.nn.BatchNorm2d(3, affine=False)
-        def forward(self, *args):
-            return self.batch_norm(args[0])
+    for bn, inp in [(torch.nn.BatchNorm2d(16), inp_2d),
+                    (torch.nn.BatchNorm3d(16), inp_3d)]:
+        init_weight(bn.eval())
+        verify_model(bn.eval(), input_data=inp)
 
-    input_data = torch.rand(input_shape).float()
-    verify_model(BatchNorm1().float().eval(), input_data=input_data)
-    verify_model(BatchNorm2().float().eval(), input_data=input_data)
+
+def test_forward_instancenorm():
+    inp_2d = torch.rand((1, 16, 10, 10))
+    inp_3d = torch.rand((1, 16, 10, 10, 10))
+
+    for ins_norm, inp in [(torch.nn.InstanceNorm2d(16), inp_2d),
+                          (torch.nn.InstanceNorm3d(16), inp_3d)]:
+        verify_model(ins_norm.eval(), input_data=inp)
+
+def test_forward_layernorm():
+    def init_weight(m):
+        torch.nn.init.normal_(m.weight, 0, 0.01)
+        torch.nn.init.normal_(m.bias, 0.02)
+
+    inp_2d = torch.rand((1, 16, 10, 10))
+    inp_3d = torch.rand((1, 16, 10, 10, 10))
+    for ln, inp in [(torch.nn.LayerNorm(10), inp_2d),
+                    (torch.nn.LayerNorm(10), inp_3d)]:
+        init_weight(ln.eval())
+        verify_model(ln.eval(), input_data=inp)
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
@@ -553,13 +679,8 @@ def test_forward_logsoftmax():
 def test_forward_sigmoid():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class Sigmoid1(Module):
-        def forward(self, *args):
-            return torch.nn.Sigmoid()(args[0])
-
     input_data = torch.rand(input_shape).float()
-    verify_model(Sigmoid1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Sigmoid().eval(), input_data=input_data)
 
 def test_forward_dense():
     torch.set_grad_enabled(False)
@@ -586,13 +707,11 @@ def test_forward_dense():
 def test_forward_dropout():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
-
-    class Dropout1(Module):
-        def forward(self, *args):
-            return torch.nn.functional.dropout(args[0][0, 0], 0.5, False)
-
     input_data = torch.rand(input_shape).float()
-    verify_model(Dropout1().float().eval(), input_data=input_data)
+    verify_model(torch.nn.Dropout(p=0.5).eval(), input_data=input_data[0, 0])
+    verify_model(torch.nn.Dropout2d(p=0.5).eval(), input_data=input_data[0])
+    verify_model(torch.nn.Dropout3d(p=0.5).eval(), input_data=input_data)
+    verify_model(torch.nn.AlphaDropout(p=0.5).eval(), input_data=input_data[0, 0])
 
 def test_forward_slice():
     torch.set_grad_enabled(False)
@@ -708,6 +827,37 @@ def test_to():
     verify_model(ToInt().eval(), torch.tensor(2.0))
 
 
+def test_adaptive_pool3d():
+    for ishape in [(1, 32, 16, 16, 16),
+                   (1, 32, 9, 15, 15),
+                   (1, 32, 13, 7, 7)]:
+        inp = torch.rand(ishape)
+        verify_model(torch.nn.AdaptiveMaxPool3d((1, 1, 1)).eval(), inp)
+        verify_model(torch.nn.AdaptiveMaxPool3d((2, 2, 2)).eval(), inp)
+        verify_model(torch.nn.AdaptiveAvgPool3d((1, 1, 1)).eval(), inp)
+        verify_model(torch.nn.AdaptiveAvgPool3d((2, 2, 2)).eval(), inp)
+        verify_model(torch.nn.AdaptiveAvgPool3d((4, 8, 8)).eval(), inp)
+        verify_model(torch.nn.AdaptiveMaxPool3d((7, 8, 9)).eval(), inp)
+
+
+def test_conv3d():
+    for ishape in [(1, 32, 16, 16, 16),
+                   (1, 32, 9, 15, 15),
+                   (1, 32, 13, 7, 7)]:
+        inp = torch.rand(ishape)
+        verify_model(torch.nn.Conv3d(32, 16, (3, 3, 3),
+                                     padding=(1, 1, 1)).eval(),
+                     inp),
+        verify_model(torch.nn.Conv3d(32, 16, (5, 5, 5),
+                                     padding=(2, 2, 2)).eval(),
+                     inp),
+        verify_model(torch.nn.Conv3d(32, 16, kernel_size=1).eval(),
+                     inp)
+        # downsample
+        verify_model(torch.nn.Conv3d(32, 16, kernel_size=1, stride=2).eval(),
+                     inp)
+
+
 # Model tests
 def test_resnet18():
     torch.set_grad_enabled(False)
@@ -809,13 +959,20 @@ def test_segmentaton_models():
         verify_model(SegmentationModelWrapper(deeplab.eval()), inp, [cuda_ctx])
 
 
+def test_3d_models():
+    input_shape = (1, 3, 4, 56, 56)
+    resnet3d = torchvision.models.video.r3d_18(pretrained=True).eval()
+    verify_model(resnet3d, [torch.rand(input_shape)])
+
+
 def verify_script_model(pt_model, ishapes):
     script_module = torch.jit.script(pt_model)
-    input_names = get_graph_input_names(script_module)
-    input_shapes = dict(zip(input_names, ishapes))
 
-    inputs = [torch.randn(input_shapes[input_name], dtype=torch.float)
-              for input_name in input_names]
+    input_names = ["i{}".format(idx) for idx, ish in enumerate(ishapes)]
+    input_shapes = list(zip(input_names, ishapes))
+
+    inputs = [torch.randn(shape, dtype=torch.float)
+              for shape in ishapes]
 
     mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
@@ -994,16 +1151,29 @@ if __name__ == "__main__":
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_squeeze()
     test_forward_unsqueeze()
     test_forward_concatenate()
     test_forward_relu()
+    test_forward_prelu()
+    test_forward_leakyrelu()
+    test_forward_elu()
+    test_forward_celu()
+    test_forward_gelu()
+    test_forward_selu()
+    test_forward_log_sigmoid()
     test_forward_adaptiveavgpool()
-    test_forward_maxpool()
+    test_forward_maxpool2d()
+    test_forward_maxpool1d()
+    test_forward_maxpool3d()
     test_forward_hardtanh()
     test_forward_conv()
+    test_forward_conv_transpose()
     test_forward_threshold()
     test_forward_contiguous()
     test_forward_batchnorm()
+    test_forward_instancenorm()
+    test_forward_layernorm()
     test_forward_transpose()
     test_forward_size()
     test_forward_view()
@@ -1013,21 +1183,27 @@ if __name__ == "__main__":
     test_forward_sigmoid()
     test_forward_dense()
     test_forward_avgpool()
+    test_forward_avgpool3d()
     test_forward_dropout()
     test_forward_slice()
     test_forward_mean()
     test_forward_expand()
     test_forward_pow()
     test_forward_chunk()
+    test_forward_split()
     test_upsample()
     test_to()
+    test_adaptive_pool3d()
+    test_conv3d()
 
     # Model tests
     test_resnet18()
     test_squeezenet1_0()
     test_squeezenet1_1()
     test_densenet121()
-    test_inception_v3()
+    # disable inception test for now, since loading it takes ~5min on torchvision-0.5 due to scipy bug
+    # See https://discuss.pytorch.org/t/torchvisions-inception-v3-takes-much-longer-to-load-than-other-models/68756
+    # test_inception_v3()
     test_googlenet()
     test_mnasnet0_5()
     test_mobilenet_v2()
@@ -1035,6 +1211,7 @@ if __name__ == "__main__":
     test_custom_conversion_map()
 
     test_segmentaton_models()
+    test_3d_models()
 
     # Quantization test
     from qnn_test import test_quantized_imagenet, test_quantized_modules

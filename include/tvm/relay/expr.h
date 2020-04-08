@@ -26,6 +26,7 @@
 
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/module.h>
 #include <string>
 #include <functional>
@@ -72,7 +73,13 @@ class ConstantNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Constant make(runtime::NDArray data);
+  bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
+    return equal(data, other->data);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(data);
+  }
 
   static constexpr const char* _type_key = "relay.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, ExprNode);
@@ -80,6 +87,12 @@ class ConstantNode : public ExprNode {
 
 class Constant : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param data The data of the constant tensor.
+   */
+  TVM_DLL explicit Constant(runtime::NDArray data);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, RelayExpr, ConstantNode);
 };
 
@@ -97,7 +110,22 @@ class TupleNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Tuple make(tvm::Array<relay::Expr> fields);
+  bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
+    // specially handle empty tuple as a constant is not a graph node.
+    if (fields.size() == other->fields.size() && fields.size() == 0) {
+      return true;
+    } else {
+      equal->MarkGraphNode();
+      return equal(fields, other->fields);
+    }
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    if (fields.size() != 0) {
+      hash_reduce->MarkGraphNode();
+      hash_reduce(fields);
+    }
+  }
 
   static constexpr const char* _type_key = "relay.Tuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
@@ -105,6 +133,12 @@ class TupleNode : public ExprNode {
 
 class Tuple : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param fields The fields of a tuple.
+   */
+  TVM_DLL explicit Tuple(tvm::Array<relay::Expr> fields);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, RelayExpr, TupleNode);
 };
 
@@ -149,6 +183,17 @@ class VarNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
+    return
+        equal(type_annotation, other->type_annotation) &&
+        equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(type_annotation);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+
   TVM_DLL static Var make(std::string name_hint,
                           Type type_annotation);
 
@@ -161,6 +206,21 @@ class VarNode : public ExprNode {
 
 class Var : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param name_hint The name hint of a variable.
+   * \param type_annotation The type annotation of a variable.
+   */
+  TVM_DLL Var(std::string name_hint, Type type_annotation) :
+    Var(Id(name_hint), type_annotation) {}
+
+  /*!
+   * \brief The constructor
+   * \param vid The unique id of a variable.
+   * \param type_annotation The type annotation of a variable.
+   */
+  TVM_DLL Var(Id vid, Type type_annotation);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Var, RelayExpr, VarNode);
 };
 
@@ -215,10 +275,25 @@ class CallNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Call make(Expr op,
-                           Array<Expr> args,
-                           Attrs attrs = Attrs(),
-                           Array<Type> type_args = Array<Type>());
+  bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
+    // skip type_args check for primitive ops.
+    equal->MarkGraphNode();
+    return
+        equal(op, other->op) &&
+        equal(args, other->args) &&
+        equal(attrs, other->attrs) &&
+        (IsPrimitiveOp(op) || equal(type_args, other->type_args));
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(op);
+    hash_reduce(args);
+    hash_reduce(attrs);
+    if (!IsPrimitiveOp(op)) {
+      hash_reduce(type_args);
+    }
+  }
 
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
@@ -226,6 +301,18 @@ class CallNode : public ExprNode {
 
 class Call : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param op The operator will be invoked.
+   * \param args The arguments of the call.
+   * \param attrs The attributes of the call node.
+   * \param type_args The type arguments passed to a polymorphic function.
+   */
+  TVM_DLL Call(Expr op,
+               Array<Expr> args,
+               Attrs attrs = Attrs(),
+               Array<Type> type_args = Array<Type>());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Call, RelayExpr, CallNode);
 };
 
@@ -259,7 +346,20 @@ class LetNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Let make(Var var, Expr value, Expr body);
+  bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return
+        equal.DefEqual(var, other->var) &&
+        equal(value, other->value) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce.DefHash(var);
+    hash_reduce(value);
+    hash_reduce(body);
+  }
 
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetNode, ExprNode);
@@ -267,6 +367,14 @@ class LetNode : public ExprNode {
 
 class Let : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param var The variable that is bound to.
+   * \param value The value used to bind to the variable.
+   * \param body The body of the let binding.
+   */
+  TVM_DLL Let(Var var, Expr value, Expr body);
+
   TVM_DEFINE_OBJECT_REF_METHODS(Let, RelayExpr, LetNode);
 };
 
@@ -300,7 +408,20 @@ class IfNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static If make(Expr cond, Expr true_branch, Expr false_branch);
+  bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return
+        equal(cond, other->cond) &&
+        equal(true_branch, other->true_branch) &&
+        equal(false_branch, other->false_branch);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(cond);
+    hash_reduce(true_branch);
+    hash_reduce(false_branch);
+  }
 
   static constexpr const char* _type_key = "relay.If";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
@@ -308,6 +429,14 @@ class IfNode : public ExprNode {
 
 class If : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param cond The condition of a if node.
+   * \param true_branch The fall through branch
+   * \param false_branch The branch for execution when condition is false.
+   */
+  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch);
+
   TVM_DEFINE_OBJECT_REF_METHODS(If, RelayExpr, IfNode);
 };
 
@@ -327,7 +456,16 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static TupleGetItem make(Expr tuple, int index);
+  bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
+    return
+        equal(tuple, other->tuple) &&
+        equal(index, other->index);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(tuple);
+    hash_reduce(index);
+  }
 
   static constexpr const char* _type_key = "relay.TupleGetItem";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemNode, ExprNode);
@@ -335,6 +473,13 @@ class TupleGetItemNode : public ExprNode {
 
 class TupleGetItem : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param tuple The tuple to get an element from.
+   * \param index The index for extracting a value in the tuple.
+   */
+  TVM_DLL TupleGetItem(Expr tuple, int index);
+
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItem, RelayExpr, TupleGetItemNode);
 };
 
@@ -351,7 +496,15 @@ class RefCreateNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static RefCreate make(Expr value);
+  bool SEqualReduce(const RefCreateNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(value);
+  }
 
   static constexpr const char* _type_key = "relay.RefCreate";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefCreateNode, ExprNode);
@@ -359,6 +512,12 @@ class RefCreateNode : public ExprNode {
 
 class RefCreate : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param value The initial value of the reference.
+   */
+  TVM_DLL explicit RefCreate(Expr value);
+
   TVM_DEFINE_OBJECT_REF_METHODS(RefCreate, RelayExpr, RefCreateNode);
 };
 
@@ -375,7 +534,15 @@ class RefReadNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static RefRead make(Expr ref);
+  bool SEqualReduce(const RefReadNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return equal(ref, other->ref);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(ref);
+  }
 
   static constexpr const char* _type_key = "relay.RefRead";
   TVM_DECLARE_FINAL_OBJECT_INFO(RefReadNode, ExprNode);
@@ -383,6 +550,12 @@ class RefReadNode : public ExprNode {
 
 class RefRead : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param ref The reference where to read data.
+   */
+  TVM_DLL explicit RefRead(Expr ref);
+
   TVM_DEFINE_OBJECT_REF_METHODS(RefRead, RelayExpr, RefReadNode);
 };
 /*! \brief Set value of Reference. The whole expression evaluates to an Empty Tuple. */
@@ -401,6 +574,19 @@ class RefWriteNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
+  bool SEqualReduce(const RefWriteNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return
+        equal(ref, other->ref) &&
+        equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(ref);
+    hash_reduce(value);
+  }
+
   TVM_DLL static RefWrite make(Expr ref, Expr value);
 
   static constexpr const char* _type_key = "relay.RefWrite";
@@ -409,6 +595,13 @@ class RefWriteNode : public ExprNode {
 
 class RefWrite : public Expr {
  public:
+  /*!
+   * \brief The constructor
+   * \param ref The reference where data is write to.
+   * \param value The value to write.
+   */
+  TVM_DLL RefWrite(Expr ref, Expr value);
+
   TVM_DEFINE_OBJECT_REF_METHODS(RefWrite, RelayExpr, RefWriteNode);
 };
 
@@ -435,6 +628,8 @@ class TempExprNode : public ExprNode {
   virtual Expr Realize() const = 0;
 
   static constexpr const char* _type_key = "relay.TempExpr";
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(TempExprNode, ExprNode);
 };
 

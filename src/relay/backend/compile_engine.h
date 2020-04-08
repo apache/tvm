@@ -25,7 +25,8 @@
 #ifndef TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
-#include <tvm/tir/lowered_func.h>
+#include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -80,7 +81,8 @@ struct CachedFuncNode : public Object {
   /*! \brief The schedule to the function */
   te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
-  tvm::Array<tir::LoweredFunc> funcs;
+  IRModule funcs = IRModule::Empty();
+
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
 
@@ -124,14 +126,6 @@ class CCacheKeyNode : public Object {
    * \return The result of equality check.
    */
   inline bool Equal(const CCacheKeyNode* other) const;
-  /*!
-   * \brief create a cache key.
-   * \param source_func The source function.
-   * \param target The target device.
-   * \return the created key.
-   */
-  TVM_DLL static CCacheKey make(Function source_func,
-                                Target target);
 
   static constexpr const char* _type_key = "relay.CCacheKey";
   TVM_DECLARE_FINAL_OBJECT_INFO(CCacheKeyNode, tvm::Object);
@@ -148,6 +142,14 @@ class CCacheKey : public ObjectRef {
  public:
   CCacheKey() {}
   explicit CCacheKey(ObjectPtr<Object> n) : ObjectRef(n) {}
+
+  /*!
+   * \brief The constructor
+   * \param source_func The source function.
+   * \param target The target device.
+   */
+  TVM_DLL CCacheKey(Function source_func, Target target);
+
   const CCacheKeyNode* operator->() const {
     return static_cast<const CCacheKeyNode*>(get());
   }
@@ -257,7 +259,7 @@ bool IsDynamic(const Type& ty);
 inline size_t CCacheKeyNode::Hash() const {
   if (hash_ != 0) return hash_;
   // do structral hash, avoid 0.
-  hash_ = StructuralHash()(this->source_func);
+  hash_ = tvm::StructuralHash()(this->source_func);
   hash_ = dmlc::HashCombine(
       hash_, std::hash<std::string>()(target->str()));
   if (hash_ == 0) hash_ = 1;
@@ -268,7 +270,7 @@ inline bool CCacheKeyNode::Equal(
     const CCacheKeyNode* other) const {
   if (Hash() != other->Hash()) return false;
   return this->target->str() == other->target->str() &&
-      AlphaEqual(this->source_func, other->source_func);
+      tvm::StructuralEqual()(this->source_func, other->source_func);
 }
 
 }  // namespace relay

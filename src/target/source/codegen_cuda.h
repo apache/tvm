@@ -37,12 +37,12 @@ class CodeGenCUDA final : public CodeGenC {
  public:
   CodeGenCUDA();
   void Init(bool output_ssa);
-  void AddFunction(LoweredFunc f);
   std::string Finish();
   bool need_include_path() {
     return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
+  void PrintFuncPrefix() final;
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
@@ -62,6 +62,7 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
   void VisitExpr_(const CallNode *op, std::ostream& os) final;
+  void VisitExpr_(const CastNode* op, std::ostream& os) final;
   void VisitStmt_(const EvaluateNode *op) final;
   void VisitStmt_(const AllocateNode *op) final;
   void VisitStmt_(const AttrStmtNode *op) final;

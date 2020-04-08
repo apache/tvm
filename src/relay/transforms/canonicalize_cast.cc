@@ -83,7 +83,7 @@ class CastCanonicalizer : public ExprMutator {
         if (unchanged) {
           return GetRef<Expr>(call);
         }
-        return CallNode::make(call->op, call_args, call->attrs, call->type_args);
+        return Call(call->op, call_args, call->attrs, call->type_args);
       }
     }
 
@@ -112,7 +112,7 @@ class CastCanonicalizer : public ExprMutator {
             const CallNode* new_call = new_expr.as<CallNode>();
             CHECK(new_call);
             CHECK(new_call->op == cast_op_);
-            return CallNode::make(new_call->op, new_call->args, new_call->attrs,
+            return Call(new_call->op, new_call->args, new_call->attrs,
                  new_call->type_args);
           }
         }

@@ -26,7 +26,10 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
@@ -156,7 +159,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         if init_global_variables:
             sess.run(variables.global_variables_initializer())
         # convert to tflite model
-        converter = interpreter_wrapper.TFLiteConverter.from_session(
+        converter = tf.lite.TFLiteConverter.from_session(
             sess, input_tensors, output_tensors)
 
         if quantized:
@@ -268,6 +271,24 @@ def test_forward_slice():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
         _test_slice(np.arange(8, dtype=np.int32).reshape((2, 4)), begin=[0, 1], size=[-1, -1])
         _test_slice(np.arange(5, dtype=np.int32).reshape((5, )), begin=[4], size=[-1])
+
+#######################################################################
+# Topk
+# ----
+def _test_topk(in_shape, k=1):
+    """ One iteration of TOPK """
+    data = np.random.uniform(size=in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = nn_ops.top_k(in_data, k, name='TopK')
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out[0]])
+
+def test_forward_topk():
+    """ TOPK """
+    _test_topk((3,), 1)
+    _test_topk((3,), 3)
+    _test_topk((3, 5, 7), 3)
+    _test_topk((3, 5, 7), 3)
 
 #######################################################################
 # transpose
@@ -1446,6 +1467,40 @@ def test_forward_prelu():
     _test_prelu(np.random.uniform(-5, 5, size=(1, 32, 32, 3)).astype("float32"), np.full((1, 1, 3), 0.2, dtype="float32"))
 
 #######################################################################
+# DepthToSpace
+# ------------
+
+def _test_depthtospace(data, block_size):
+    """ One iteration of depth_to_space operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = array_ops.depth_to_space(in_data, block_size)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_depthtospace():
+    # DEPTH_TO_SPACE comes with TFLite >= 1.15.0 fbs schema
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+        _test_depthtospace(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
+        _test_depthtospace(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
+
+#######################################################################
+# SpaceToDepth
+# ------------
+
+def _test_spacetodepth(data, block_size):
+    """ One iteration of space_to_depth operation with given data and block size """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = array_ops.space_to_depth(in_data, block_size)
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+def test_forward_spacetodepth():
+    _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
+    _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
+
+#######################################################################
 # Fully Connected
 # ---------------
 
@@ -1571,6 +1626,26 @@ def test_forward_mobilenet_v2():
                                 rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# Mobilenet V3
+# ------------
+
+def test_forward_mobilenet_v3():
+    """Test the Mobilenet V3 TF Lite model."""
+    # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
+    if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
+        return
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_float.tgz",
+        "v3-large_224_1.0_float/v3-large_224_1.0_float.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # Inception
 # ---------
 
@@ -1669,6 +1744,35 @@ def test_forward_qnn_mobilenet_v2_net():
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
 #######################################################################
+# Mobilenet V3 Quantized
+# ----------------------
+
+def test_forward_qnn_mobilenet_v3_net():
+    """Test the Quantized TFLite Mobilenet V3 model."""
+    # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
+    if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
+        return
+
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_uint8.tgz",
+        "v3-large_224_1.0_uint8/v3-large_224_1.0_uint8.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    # Test image. Checking the labels because the requantize implementation is different between
+    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
+    # labels. Also, giving a real image, instead of random inputs.
+    data = get_real_image(224, 224)
+
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+#######################################################################
 # SSD Mobilenet
 # -------------
 
@@ -1738,6 +1842,9 @@ if __name__ == '__main__':
     test_all_resize()
     test_forward_squeeze()
     test_forward_slice()
+    test_forward_topk()
+    test_forward_depthtospace()
+    test_forward_spacetodepth()
 
     # NN
     test_forward_convolution()
@@ -1773,6 +1880,7 @@ if __name__ == '__main__':
     # End to End
     test_forward_mobilenet_v1()
     test_forward_mobilenet_v2()
+    test_forward_mobilenet_v3()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
     test_forward_ssd_mobilenet_v1()
@@ -1782,3 +1890,4 @@ if __name__ == '__main__':
     test_forward_qnn_inception_v1_net()
     test_forward_qnn_mobilenet_v1_net()
     test_forward_qnn_mobilenet_v2_net()
+    test_forward_qnn_mobilenet_v3_net()

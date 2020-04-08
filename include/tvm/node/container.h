@@ -23,7 +23,9 @@
 #ifndef TVM_NODE_CONTAINER_H_
 #define TVM_NODE_CONTAINER_H_
 
-#include <tvm/node/node.h>
+#include <tvm/runtime/object.h>
+#include <tvm/runtime/memory.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <type_traits>
 #include <vector>
@@ -34,14 +36,18 @@
 
 namespace tvm {
 
+using runtime::Object;
+using runtime::ObjectPtr;
+using runtime::ObjectRef;
+using runtime::make_object;
+using runtime::ObjectHash;
+using runtime::ObjectEqual;
+
 /*! \brief array node content in array */
 class ArrayNode : public Object {
  public:
   /*! \brief the data content */
   std::vector<ObjectRef> data;
-
-  void VisitAttrs(AttrVisitor* visitor) {
-  }
 
   static constexpr const char* _type_key = "Array";
   TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Object);
@@ -50,9 +56,6 @@ class ArrayNode : public Object {
 /*! \brief map node content */
 class MapNode : public Object {
  public:
-  void VisitAttrs(AttrVisitor* visitor) {
-  }
-
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<
     ObjectRef,
@@ -72,9 +75,6 @@ class StrMapNode : public Object {
  public:
   /*! \brief The corresponding conatiner type */
   using ContainerType = std::unordered_map<std::string, ObjectRef>;
-
-  void VisitAttrs(AttrVisitor* visitor) {
-  }
 
   /*! \brief the data content */
   ContainerType data;

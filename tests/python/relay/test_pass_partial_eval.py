@@ -19,7 +19,6 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import relay
-from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 from tvm.relay.prelude import Prelude
 from tvm.relay import op, create_executor, transform
 from tvm.relay import Var, TypeVar, TupleGetItem, Let, Function, const, RefRead, RefWrite, RefCreate
@@ -72,7 +71,7 @@ def test_tuple():
     f = Function([x], body, None, [t])
     expected = relay.Function([x], x, None, [t])
     expected = run_opt_pass(expected, transform.InferType())
-    assert alpha_equal(dcpe(f), expected)
+    assert tvm.ir.structural_equal(dcpe(f), expected)
 
 
 def test_const_inline():
@@ -80,7 +79,7 @@ def test_const_inline():
     d = Var("d", t)
     double = Function([d], d + d)
     orig = double(const(4.0))
-    assert alpha_equal(dcpe(orig), const(8.0))
+    assert tvm.ir.structural_equal(dcpe(orig), const(8.0))
 
 
 def test_ref():
@@ -93,7 +92,7 @@ def test_ref():
     body = Let(r, RefCreate(d), body)
     square = Function([d], body)
     expected = run_opt_pass(Function([d], d * d), transform.InferType())
-    assert alpha_equal(dcpe(square), expected)
+    assert tvm.ir.structural_equal(dcpe(square), expected)
 
 
 def test_empty_ad():
@@ -105,7 +104,7 @@ def test_empty_ad():
     g = dcpe(f, grad=True)
     expected = Function([d], Tuple([d, Tuple([op.ones_like(d)])]))
     expected = run_opt_pass(expected, transform.InferType())
-    assert alpha_equal(g, expected)
+    assert tvm.ir.structural_equal(g, expected)
 
 
 def test_ad():
@@ -124,7 +123,7 @@ def test_ad():
     body = relay.Let(x1, o, body)
     expected = Function([d], relay.Let(x, m, body))
     expected = run_opt_pass(expected, transform.InferType())
-    assert_alpha_equal(g, expected)
+    tvm.ir.assert_structural_equal(g, expected)
 
 
 def test_if_ref():
@@ -180,7 +179,7 @@ def test_head_cons():
     body = hd(p.cons(x, p.nil()))
     f = Function([x], body, None, [t])
     res = dcpe(f, mod)
-    assert alpha_equal(res, Function([x], x, t, [t]))
+    assert tvm.ir.structural_equal(res, Function([x], x, t, [t]))
 
 
 def test_map():
@@ -197,7 +196,7 @@ def test_map():
     expected = mod["main"]
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, expected.body)
+    assert tvm.ir.structural_equal(res.body, expected.body)
 
 
 def test_loop():
@@ -211,7 +210,7 @@ def test_loop():
     expected = mod["main"].body
     call = Function([], loop(const(1)))
     res = dcpe(call, mod=mod)
-    assert alpha_equal(res.body, expected)
+    assert tvm.ir.structural_equal(res.body, expected)
 
 
 def test_swap_loop():
@@ -226,7 +225,7 @@ def test_swap_loop():
     prog = loop(make_nat_expr(p, 1), make_nat_expr(p, 2))
     res = Function([], prog)
     res = dcpe(res, mod=mod)
-    assert alpha_equal(prog, res.body)
+    assert tvm.ir.structural_equal(prog, res.body)
 
 
 def test_abs_diff():
@@ -248,7 +247,7 @@ def test_abs_diff():
     orig = diff(make_nat_expr(p, 7), make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, make_nat_expr(p, 4))
+    assert tvm.ir.structural_equal(res.body, make_nat_expr(p, 4))
 
 
 def test_match_nat_id():
@@ -265,7 +264,7 @@ def test_match_nat_id():
     orig = nat_id(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, make_nat_expr(p, 3))
+    assert tvm.ir.structural_equal(res.body, make_nat_expr(p, 3))
 
 
 def test_nat_id():
@@ -280,7 +279,7 @@ def test_nat_id():
     orig = nat_id(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, make_nat_expr(p, 3))
+    assert tvm.ir.structural_equal(res.body, make_nat_expr(p, 3))
 
 
 def test_global_match_nat_id():
@@ -294,7 +293,7 @@ def test_global_match_nat_id():
     orig = Match(make_nat_expr(p, 3), [z_case, s_case])
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, make_nat_expr(p, 3))
+    assert tvm.ir.structural_equal(res.body, make_nat_expr(p, 3))
 
 
 def test_double():
@@ -304,7 +303,7 @@ def test_double():
     orig = p.double(make_nat_expr(p, 3))
     orig = Function([], orig)
     res = dcpe(orig, mod=mod)
-    assert alpha_equal(res.body, make_nat_expr(p, 6))
+    assert tvm.ir.structural_equal(res.body, make_nat_expr(p, 6))
 
 
 def test_concat():
@@ -312,7 +311,7 @@ def test_concat():
     x = Var("x", t)
     y = Var("x", t)
     orig = run_infer_type(Function([x, y], op.concatenate([x, y], axis=0)))
-    assert_alpha_equal(dcpe(orig), orig)
+    tvm.ir.assert_structural_equal(dcpe(orig), orig)
 
 
 def test_triangle_number():
@@ -321,7 +320,7 @@ def test_triangle_number():
     f_var = Var("f")
     f = Function([x], If(op.equal(x, const(0)), const(0), x + f_var(x - const(1))))
     orig = run_infer_type(Let(f_var, f, f_var(const(10))))
-    assert_alpha_equal(dcpe(orig), const(55))
+    tvm.ir.assert_structural_equal(dcpe(orig), const(55))
 
 
 def test_nat_update():
@@ -337,7 +336,7 @@ def test_tuple_match():
     b = relay.Var("b")
     clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
     x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
-    assert_alpha_equal(dcpe(x), const(2))
+    tvm.ir.assert_structural_equal(dcpe(x), const(2))
 
 
 if __name__ == '__main__':

@@ -382,6 +382,7 @@ TVM_REGISTER_GLOBAL("transform.RunPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   IRModule mod = args[1];
+  ObjectRef ref = args[1];
   *ret = pass(mod);
 });
 

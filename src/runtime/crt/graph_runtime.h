@@ -63,10 +63,11 @@ typedef struct TVMGraphRuntimeNode {
   // parameters
   TVMOpParam param;
   // inputs
-  TVMGraphRuntimeNodeEntry inputs[GRAPH_RUNTIME_NODE_MAX_INPUTS];
-  size_t                   inputs_count;
+  TVMGraphRuntimeNodeEntry * inputs;
+  // number of inputs
+  size_t inputs_count;
   // control deps
-  uint32_t control_deps[200];
+  uint32_t control_deps[20];
   // JSON Loader
   void (*LoadAttrs)(struct TVMGraphRuntimeNode * node, JSONReader *reader, TVMOpParam* param);
   // JSON Loader
@@ -76,12 +77,12 @@ typedef struct TVMGraphRuntimeNode {
 // Graph attribute
 typedef struct TVMGraphRuntimeGraphAttr {
   uint32_t storage_num_not_alloctaed;
-  uint32_t storage_id[GRAPH_RUNTIME_MAX_NODES];
-  uint32_t device_index[GRAPH_RUNTIME_MAX_NODES];
-  char     dltype[GRAPH_RUNTIME_MAX_NODES][10];  // "int8", "int16", "float32"
+  uint32_t * storage_id;
+  uint32_t * device_index;
+  char * dltype;  // "int8", "int16", "float32"
   uint32_t dltype_count;
-  int64_t  shape[GRAPH_RUNTIME_MAX_NODES][TVM_CRT_MAX_NDIM];
-  uint32_t ndim[GRAPH_RUNTIME_MAX_NODES];
+  int64_t * shape;
+  uint32_t * ndim;
   uint32_t shape_count;
 } TVMGraphRuntimeGraphAttr;
 
@@ -99,6 +100,7 @@ typedef struct TVMGraphRuntime {
 
   /*!
    * \brief Initialize the graph executor with graph and context.
+   * \param runtime The graph runtime.
    * \param graph_json The execution graph.
    * \param module The module containing the compiled functions for the host
    *  processor.
@@ -112,27 +114,34 @@ typedef struct TVMGraphRuntime {
 
   /*!
    * \brief Get the input index given the name of input.
+   * \param runtime The graph runtime.
    * \param name The name of the input.
    * \return The index of input.
    */
   int (*GetInputIndex)(struct TVMGraphRuntime * runtime, const char * name);
 
   /*!
-   * \brief set index-th input to the graph.
-   * \param index The input index.
+   * \brief set input to the graph based on name.
+   * \param runtime The graph runtime.
+   * \param name The name of the input.
    * \param data_in The input data.
    */
   void (*SetInput)(struct TVMGraphRuntime * runtime, const char * name, DLTensor* data_in);
+
   /*!
    * \brief Return NDArray for given output index.
+   * \param runtime The graph runtime.
    * \param index The output index.
-   *
-   * \return NDArray corresponding to given output node index.
+   * \param out The DLTensor corresponding to given output node index.
+   * \return The result of this function execution.
    */
   int (*GetOutput)(struct TVMGraphRuntime * runtime, const int32_t index, DLTensor * out);
   /*!
    * \brief Load parameters from parameter blob.
+   * \param runtime The graph runtime.
    * \param param_blob A binary blob of parameter.
+   * \param param_size The parameter size.
+   * \return The result of this function execution.
    */
   int (*LoadParams)(struct TVMGraphRuntime * runtime, const char * param_blob,
                     const uint32_t param_size);
@@ -146,10 +155,13 @@ typedef struct TVMGraphRuntime {
 
   /*!
    * \brief Create an execution function given input.
+   * \param runtime The graph runtime.
    * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
+   * \param args_count The total number of arguments.
    * \param num_inputs Number of inputs.
-   * \return The created executor.
+   * \param pf The created executor.
+   * \return The result of this function execution.
    */
   int32_t (*CreateTVMOp)(struct TVMGraphRuntime * runtime, const TVMOpParam * attrs,
                          DLTensorPtr * args, const uint32_t args_count,
@@ -158,34 +170,35 @@ typedef struct TVMGraphRuntime {
   // Get node entry index.
   uint32_t (*GetEntryId)(struct TVMGraphRuntime * runtime, uint32_t nid, uint32_t index);
 
-  // /*! \brief The graph nodes. */
-  /* GraphRuntimeNode nodes_[GRAPH_RUNTIME_MAX_NODES]; */
-  TVMGraphRuntimeNode nodes[GRAPH_RUNTIME_MAX_NODES];
-  uint32_t           nodes_count;
+  /*! \brief The graph nodes. */
+  TVMGraphRuntimeNode * nodes;
+  /*! \brief The graph nodes counter. */
+  uint32_t nodes_count;
   /*! \brief The argument nodes. */
-  uint32_t input_nodes[GRAPH_RUNTIME_MAX_INPUT_NODES];
-  uint32_t   input_nodes_count;
+  uint32_t * input_nodes;
+  uint32_t input_nodes_count;
   /*! \brief Used for quick entry indexing. */
-  uint32_t node_row_ptr[GRAPH_RUNTIME_MAX_NODE_ROW_PTR];
+  uint32_t * node_row_ptr;
   uint32_t node_row_ptr_count;
   /*! \brief Output entries. */
-  TVMGraphRuntimeNodeEntry outputs[GRAPH_RUNTIME_MAX_OUTPUTS];
-  uint32_t              outputs_count;
+  TVMGraphRuntimeNodeEntry * outputs;
+  /*! \brief Output entries counter. */
+  uint32_t outputs_count;
   /*! \brief Additional graph attributes. */
   TVMGraphRuntimeGraphAttr attrs;
   /*! \brief The code module that contains both host and device code. */
   TVMModule module;
   /*! \brief Execution context of all devices including the host. */
-  TVMContext ctxs[GRAPH_RUNTIME_MAX_CONTEXTS];
+  TVMContext ctxs[1];
   uint32_t   ctxs_count;
   /*! \brief Common storage pool for all devices. */
-  TVMNDArray  storage_pool[GRAPH_RUNTIME_MAX_NODES];
+  TVMNDArray * storage_pool;
   uint32_t storage_pool_count;
   /*! \brief Data entry of each node. */
-  TVMNDArray  data_entry[GRAPH_RUNTIME_MAX_NODES];
+  TVMNDArray * data_entry;
   uint32_t data_entry_count;
   /*! \brief Operator on each node. */
-  TVMPackedFunc op_execs[GRAPH_RUNTIME_MAX_NODES];
+  TVMPackedFunc * op_execs;
   uint32_t op_execs_count;
 } TVMGraphRuntime;
 

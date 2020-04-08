@@ -31,8 +31,10 @@ from . import conv2d_alter_op
 from .conv2d_transpose_nchw import *
 from .deformable_conv2d import *
 from .conv3d import *
+from .conv3d_winograd import *
+from . import conv3d_alter_op
 from .reduction import schedule_reduce
-from .softmax import schedule_softmax
+from .softmax import *
 from .injective import schedule_injective, schedule_elemwise, schedule_broadcast
 from .dense import *
 from .pooling import *
@@ -43,3 +45,5 @@ from .ssd import *
 from .nms import get_valid_counts, non_max_suppression
 from .rcnn import *
 from .sort import *
+from .conv2d_nhwc_tensorcore import *
+from .dense_tensorcore import *

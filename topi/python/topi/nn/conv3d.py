@@ -17,11 +17,13 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
+import tvm
 from tvm import te
 
 from .pad import pad
 from .util import get_pad_tuple3d
-from ..util import simplify
+from ..util import simplify, get_const_tuple
+from .winograd_util import winograd_transform_matrices
 
 
 def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
@@ -159,3 +161,74 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
             Filter[rd, rh, rw, rc, cc].astype(out_dtype), axis=[rd, rh, rw, rc]),
         name="Conv3dOutput", tag="conv3d_ndhwc")
     return Output
+
+
+def conv3d_winograd_weight_transform(kernel, tile_size):
+    """Weight transformation for 3D winograd
+
+    Parameters
+    ----------
+    kernel: Tensor
+        The raw kernel tensor with layout "NCDHW".
+    tile_size: int
+        Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        5-D with shape [alpha, alpha, alpha, CO, CI]
+    """
+    CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
+
+    depth_transform = 2 < KD < 8 and KD == KH
+
+    if depth_transform:
+        assert KD == KH == KW, "Only support NxNxN kernel"
+    else:
+        assert KH == KW, "Only supports DxNxN kernel"
+
+    r = tile_size + KH - 1
+
+    r_kh = te.reduce_axis((0, KH), name='r_kh')
+    r_kw = te.reduce_axis((0, KW), name='r_kw')
+    _, _, G = winograd_transform_matrices(tile_size, KH, kernel.dtype)
+    if depth_transform:
+        shape = (r, r, r, CO, CI)
+        r_kd = te.reduce_axis((0, KD), name='r_kd')
+        return te.compute(
+            shape,
+            lambda omg, eps, nu, co, ci: te.sum(
+                kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
+                axis=[r_kd, r_kh, r_kw]),
+            name='transform_weight')
+    else:
+        shape = (r, r, KD, CO, CI)
+        return te.compute(
+            shape,
+            lambda eps, nu, d, co, ci: te.sum(
+                kernel[co][ci][d][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
+            name='transform_weight')
+
+
+
+@tvm.target.generic_func
+def conv3d_alter_layout(attrs, inputs, tinfos, out_type):
+    """Change Conv3D layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    # not to change by default
+    return None

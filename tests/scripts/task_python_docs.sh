@@ -19,9 +19,11 @@
 set -e
 set -u
 
+# cleanup old states
+rm -rf docs/_build
 mkdir -p docs/_build/html
-rm -rf docs/_build/html/jsdoc
-rm -rf docs/_build/html/javadoc
+rm -rf docs/gen_modules
+rm -rf docs/doxygen
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials
@@ -29,22 +31,32 @@ rm -rf docs/vta/tutorials
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
-
-# C++ doc
-make doc
-
-# JS doc
-jsdoc web/tvm_runtime.js web/README.md
-mv out docs/_build/html/jsdoc
-
-# Java doc
-make javadoc
-mv jvm/core/target/site/apidocs docs/_build/html/javadoc
-
 find . -type f -path "*.pyc" | xargs rm -f
 
 cd docs
 PYTHONPATH=`pwd`/../python make html
-cd _build/html
-tar czf docs.tgz *
-mv docs.tgz ../../../
+cd ..
+
+# C++ doc
+make doc
+rm -f docs/doxygen/html/*.map docs/doxygen/html/*.md5
+
+# JS doc
+jsdoc -c web/.jsdoc_conf.json web/tvm_runtime.js web/README.md
+
+# Java doc
+make javadoc
+
+# Prepare the doc dir
+rm -rf _docs
+mv docs/_build/html _docs
+rm -f _docs/.buildinfo
+mv docs/doxygen/html _docs/doxygen
+mv out _docs/jsdoc
+mv jvm/core/target/site/apidocs _docs/javadoc
+
+echo "Start creating the docs tarball.."
+# make the tarball
+tar -C _docs -czf docs.tgz .
+echo "Finish creating the docs tarball"
+du -h docs.tgz

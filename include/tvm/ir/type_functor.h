@@ -93,6 +93,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeDataNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const PointerTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
     throw;  // unreachable, written to stop compiler warning
@@ -115,6 +116,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     TVM_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
     TVM_TYPE_FUNCTOR_DISPATCH(TypeDataNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
+    TVM_TYPE_FUNCTOR_DISPATCH(PointerTypeNode);
     return vtable;
   }
 };
@@ -138,6 +140,7 @@ class TVM_DLL TypeVisitor :
   void VisitType_(const TypeCallNode* op) override;
   void VisitType_(const TypeDataNode* op) override;
   void VisitType_(const PrimTypeNode* op) override;
+  void VisitType_(const PointerTypeNode* op) override;
 };
 
 /*!
@@ -158,6 +161,7 @@ class TVM_DLL TypeMutator :
   Type VisitType_(const TypeCallNode* op) override;
   Type VisitType_(const TypeDataNode* op) override;
   Type VisitType_(const PrimTypeNode* op) override;
+  Type VisitType_(const PointerTypeNode* op) override;
 
  private:
   Array<Type> MutateArray(Array<Type> arr);

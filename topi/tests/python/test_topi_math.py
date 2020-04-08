@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import scipy
+from scipy import special
 import tvm
 from tvm import te
 import topi
@@ -113,6 +114,36 @@ def test_ewise():
         for target in get_all_backend():
             check_device(target)
 
+    def test_infiniteness_ops(topi_op, ref_op, name):
+        for dtype in ['float32', 'float64', 'int32', 'int16']:
+            m = te.var("m")
+            l = te.var("l")
+            A = te.placeholder((m, l), dtype=dtype, name="A")
+            B = topi_op(A)
+            assert tuple(B.shape) == tuple(A.shape)
+
+            a_np = np.random.uniform(size=(8, 8)).astype(A.dtype) * 10
+            if dtype.startswith('float'):
+                a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.infty
+                a_np.ravel()[np.random.choice(a_np.size, int(a_np.size * 0.5), replace=False)] = np.nan
+            b_np = ref_op(a_np)
+
+            def check_device(device):
+                ctx = tvm.context(device, 0)
+                if not ctx.exist:
+                    print("Skip because %s is not enabled" % device)
+                    return
+                with tvm.target.create(device):
+                    s = topi.testing.get_injective_schedule(device)(B)
+                foo = tvm.build(s, [A, B], device, name=name)
+                a = tvm.nd.array(a_np, ctx)
+                b = tvm.nd.array(np.zeros_like(b_np), ctx)
+                foo(a, b)
+                tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+
+            for target in get_all_backend():
+                check_device(target)
+
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
     test_apply(topi.sign, "sign", np.sign, -100, 100, skip_name_check=True)
@@ -132,6 +163,8 @@ def test_ewise():
     test_apply(topi.sin, "sin", np.sin, -2.0*np.pi, 2.0*np.pi)
     test_apply(topi.erf, "erf", scipy.special.erf, -.1, .1, dtype="float32")
     test_isnan(-100, 100)
+    test_infiniteness_ops(topi.isfinite, np.isfinite, 'isifinite')
+    test_infiniteness_ops(topi.isinf, np.isinf, 'isinf')
 
 
 def test_cast():
@@ -206,8 +239,11 @@ def test_fastmath():
 
 
     test_apply(topi.fast_exp, "fast_exp", np.exp,
-               low=-88, high=88,
-               step = 0.01)
+               low=-88, high=88, step=0.01)
+    test_apply(topi.fast_erf, "fast_erf", scipy.special.erf,
+               low=-10, high=10, step=0.01)
+    test_apply(topi.fast_tanh, "fast_tanh", np.tanh,
+               low=-10, high=10, step=0.01)
 
 if __name__ == "__main__":
     test_util()

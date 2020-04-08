@@ -34,6 +34,7 @@
  */
 #include <tvm/ir/type_functor.h>
 #include <tvm/ir/module.h>
+#include <tvm/tir/function.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
 #include "doc.h"
@@ -434,6 +435,10 @@ class RelayTextPrinter :
   Doc PrintFunc(const Doc& prefix, const BaseFunc& base_func) {
     if (auto* n = base_func.as<relay::FunctionNode>()) {
       return PrintFunc(prefix, GetRef<relay::Function>(n));
+    } else if (auto* n = base_func.as<tir::PrimFuncNode>()) {
+      std::ostringstream os;
+      os << GetRef<tir::PrimFunc>(n);
+      return Doc::RawText(os.str());
     } else {
       // def @xyz = meta['ExternalFunc'][id]
       Doc doc;
@@ -455,8 +460,9 @@ class RelayTextPrinter :
     }
     // functions
     for (const auto& kv : mod->functions) {
-      dg_ = DependencyGraph::Create(&arena_, kv.second);
-
+      if (kv.second.as<relay::FunctionNode>()) {
+        dg_ = DependencyGraph::Create(&arena_, kv.second);
+      }
       if (counter++ != 0) {
         doc << Doc::NewLine();
       }

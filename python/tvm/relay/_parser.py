@@ -43,6 +43,7 @@ from tvm.ir import IRModule
 from .base import Span, SourceName
 from . import adt
 from . import expr
+from . import function
 from . import ty
 from . import op
 
@@ -481,7 +482,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def mk_func(
             self,
             ctx: Union[RelayParser.FuncContext, RelayParser.DefnContext]) \
-            -> expr.Function:
+            -> function.Function:
         """Construct a function from either a Func or Defn."""
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
@@ -511,10 +512,10 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.exit_var_scope()
 
         attrs = tvm.ir.make_node("DictAttrs", **attr_list) if attr_list is not None else None
-        return expr.Function(var_list, body, ret_type, type_params, attrs)
+        return function.Function(var_list, body, ret_type, type_params, attrs)
 
     @spanify
-    def visitFunc(self, ctx: RelayParser.FuncContext) -> expr.Function:
+    def visitFunc(self, ctx: RelayParser.FuncContext) -> function.Function:
         return self.mk_func(ctx)
 
     # TODO: how to set spans for definitions?

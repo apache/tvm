@@ -18,6 +18,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/te/operation.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
@@ -27,18 +28,18 @@
 TEST(Relay, SelfReference) {
   using namespace tvm;
   auto tensor_type = relay::TensorType({}, DataType::Bool());
-  auto x = relay::VarNode::make("x", relay::Type());
+  auto x = relay::Var("x", relay::Type());
   auto f = relay::Function(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
   CHECK(f->IsInstance<BaseFuncNode>());
-  auto y = relay::VarNode::make("y", tensor_type);
-  auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
+  auto y = relay::Var("y", tensor_type);
+  auto call = relay::Call(f, Array<relay::Expr>{ y });
   auto fx = relay::Function(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
   auto mod = IRModule::FromExpr(fx);
   mod = relay::transform::InferType()(mod);
   auto type_fx = mod->Lookup("main");
 
   auto expected = relay::FuncType(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
-  CHECK(relay::AlphaEqual(type_fx->checked_type(), expected));
+  CHECK(tvm::StructuralEqual()(type_fx->checked_type(), expected));
 }
 
 int main(int argc, char ** argv) {

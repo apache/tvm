@@ -51,14 +51,13 @@ def test_dict_attrs():
 
 
 def test_attrs_equal():
-    attr_equal = tvm.ir._ffi_api.AttrsEqual
     dattr0 = tvm.ir.make_node("DictAttrs", x=1, y=[10, 20])
     dattr1 = tvm.ir.make_node("DictAttrs", y=[10, 20], x=1)
     dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=None)
-    assert attr_equal(dattr0, dattr1)
-    assert not attr_equal(dattr0, dattr2)
-    assert not attr_equal({"x": 1}, tvm.runtime.convert(1))
-    assert not attr_equal([1, 2], tvm.runtime.convert(1))
+    assert tvm.ir.structural_equal(dattr0, dattr1)
+    assert not tvm.ir.structural_equal(dattr0, dattr2)
+    assert not tvm.ir.structural_equal({"x": 1}, tvm.runtime.convert(1))
+    assert not tvm.ir.structural_equal([1, 2], tvm.runtime.convert(1))
 
 
 

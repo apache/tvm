@@ -26,6 +26,8 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/function.h>
+#include <tvm/runtime/container.h>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -68,10 +70,9 @@ class CSourceModuleCodegenBase {
    */
   std::string GetExtSymbol(const Function& func) const {
     const auto name_node =
-        func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
+        func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
     CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
-    std::string ext_symbol = name_node->value;
-    return ext_symbol;
+    return std::string(name_node);
   }
 };
 
@@ -196,7 +197,7 @@ class CodegenCBase {
    * \return true if the call's name is equivalent to the given name. Otherwise,
    * false.
    */
-  bool IsOp(const CallNode* call, std::string op_name) const {
+  bool IsOp(const CallNode* call, const std::string& op_name) const {
     const auto* op_node = call->op.as<OpNode>();
     CHECK(op_node) << "Expects a single op.";
     Op op = GetRef<Op>(op_node);
@@ -217,7 +218,7 @@ class CodegenCBase {
    *
    * \return The emitted code string.
    */
-  std::string JitImpl(std::string ext_func_id, const Array<Var>& args,
+  std::string JitImpl(const std::string& ext_func_id, const Array<Var>& args,
                       const std::vector<std::string>& buf_decl,
                       const std::vector<std::string>& body,
                       const std::vector<Output>& out) {

@@ -30,6 +30,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/type.h>
 #include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
@@ -63,61 +64,6 @@ TVM_DLL Kind KindCheck(const Type& t, const IRModule& mod);
  * \return whether the expression is constant.
  */
 TVM_DLL bool ConstantCheck(const Expr& e);
-
-/*!
- * \brief Compare two expressions for structural equivalence.
- *
- * This comparison operator respects scoping and compares
- * expressions without regard to variable choice.
- *
- * For example: `let x = 1 in x` is equal to `let y = 1 in y`.
- *
- *   See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
- *   for more details.
- *
- *   \param e1 The left hand expression.
- *   \param e2 The right hand expression.
- *
- *   \return true if equal, otherwise false
- */
-TVM_DLL bool AlphaEqual(const Expr& e1, const Expr& e2);
-
-/*!
- * \brief Compare two types for structural equivalence.
- *
- * This comparison operator respects scoping and compares
- * expressions without regard to variable choice.
- *
- * For example: `forall s, Tensor[f32, s]` is equal to
- * `forall w, Tensor[f32, w]`.
- *
- * See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
- * for more details.
- *
- * \param t1 The left hand type.
- * \param t2 The right hand type.
- *
- * \return true if equal, otherwise false
- */
-TVM_DLL bool AlphaEqual(const Type& t1, const Type& t2);
-
-/*!
- * \brief Compare two patterns for structural equivalence.
- *
- * This comparison operator respects scoping and compares
- * patterns without regard to variable choice.
- *
- * For example: `A(x, _, y)` is equal to `A(z, _, a)`.
- *
- * See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
- * for more details.
- *
- * \param t1 The left hand pattern.
- * \param t2 The right hand pattern.
- *
- * \return true if equal, otherwise false
- */
-TVM_DLL bool AlphaEqual(const Pattern& t1, const Pattern& t2);
 
 /*!
  * \brief Check that each Var is only bound once.
@@ -280,27 +226,15 @@ TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
  */
 TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
 
-/*! \brief A hashing structure in the style of std::hash. */
-struct StructuralHash {
-  /*! \brief Hash a Relay type.
-   *
-   * Implements structural hashing of a Relay type.
-   *
-   * \param type the type to hash.
-   *
-   * \return the hash value.
-   */
-  size_t operator()(const Type& type) const;
-  /*! \brief Hash a Relay expression.
-   *
-   * Implements structural hashing of a Relay expression.
-   *
-   * \param expr the expression to hash.
-   *
-   * \return the hash value.
-   */
-  size_t operator()(const Expr& expr) const;
-};
+/*!
+ * \brief Get reference counter of each internal ExprNode in body.
+ *
+ * \param body The body expression.
+ *
+ * \return The reference count mapping.
+ */
+TVM_DLL std::unordered_map<const Object*, size_t>
+GetExprRefCount(const Expr& body);
 
 }  // namespace relay
 }  // namespace tvm

@@ -117,8 +117,8 @@ TEST(BuildModule, Heterogeneous) {
   std::unordered_map<Tensor, Buffer> binds;
   auto lowered_s1 = lower(s1, args1, "elemwise_add", binds, config);
   auto lowered_s2 = lower(s2, args2, "elemwise_sub", binds, config);
-  Map<tvm::Target, Array<LoweredFunc>> inputs = {{target_cuda, lowered_s1},
-                                                 {target_llvm, lowered_s2}};
+  Map<tvm::Target, IRModule> inputs = {{target_cuda, lowered_s1},
+                                       {target_llvm, lowered_s2}};
   auto module = build(inputs, Target(), config);
 
   // Assertion for build.

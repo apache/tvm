@@ -25,7 +25,7 @@ def test_const_saveload_json():
     z = z + z
     json_str = tvm.ir.save_json(z)
     zz = tvm.ir.load_json(json_str)
-    assert tvm.ir.save_json(zz) == tvm.ir.save_json(z)
+    tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
 
 
 def test_make_smap():
@@ -38,6 +38,7 @@ def test_make_smap():
     arr = tvm.ir.load_json(json_str)
     assert len(arr) == 1
     assert arr[0]["z"].a == arr[0]["x"]
+    tvm.ir.assert_structural_equal(arr, [smap], map_free_vars=True)
 
 
 def test_make_node():
@@ -90,7 +91,6 @@ def test_env_func():
 
 if __name__ == "__main__":
     test_env_func()
-    test_make_attrs()
     test_make_node()
     test_make_smap()
     test_const_saveload_json()

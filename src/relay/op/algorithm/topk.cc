@@ -79,7 +79,7 @@ Expr MakeTopK(Expr data,
   attrs->is_ascend = is_ascend;
   attrs->dtype = dtype;
   static const Op& op = Op::Get("topk");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 

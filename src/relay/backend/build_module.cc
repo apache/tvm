@@ -28,15 +28,16 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/qnn/transform.h>
+#include <tvm/tir/ir_pass.h>
 #include <memory>
 
+#include "../../target/source/codegen_source_base.h"
 #include "utils.h"
 
 namespace tvm {
 namespace relay {
 namespace backend {
 
-using tir::LoweredFunc;
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
@@ -76,16 +77,16 @@ struct GraphCodegen {
   }
 
   Array<tvm::runtime::Module> GetExternalModules() {
-    return CallFunc<Array<tvm::runtime::Module> >("get_external_modules", nullptr);
+    return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
-    return CallFunc<Map<std::string, Array<LoweredFunc> > >("get_lowered_funcs", nullptr);
+  Map<std::string, IRModule> GetIRModule() {
+    return CallFunc<Map<std::string, IRModule>>("get_irmodule", nullptr);
   }
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<tvm::PrimExpr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::PrimExpr>>("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<tir::StringImmNode>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
@@ -150,9 +151,9 @@ class RelayBuildModule : public runtime::ModuleNode {
           this->SetParam(kv.first, kv.second->data);
         }
       });
-    } else if (name == "get_lowered_funcs") {
+    } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetLoweredFunc();
+          *rv = this->graph_codegen_->GetIRModule();
       });
     } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -208,7 +209,7 @@ class RelayBuildModule : public runtime::ModuleNode {
   Map<std::string, Constant> GetParams() {
     Map<std::string, Constant> ret;
     for (const auto& kv : ret_.params) {
-      ret.Set(kv.first, ConstantNode::make(kv.second));
+      ret.Set(kv.first, Constant(kv.second));
     }
     return ret;
   }
@@ -450,29 +451,52 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    auto lowered_funcs = graph_codegen_->GetLoweredFunc();
+    auto lowered_funcs = graph_codegen_->GetIRModule();
+
+    // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {
-      LOG(WARNING) << "no lowered funcs exist in the compiled module";
+      Target target_host = GetTargetHost();
+
+      // If no target_host has been set, we choose a default one, which is
+      // llvm if "codegen.LLVMModuleCreate" is accessible.
+      const runtime::PackedFunc* pf = runtime::Registry::Get("codegen.LLVMModuleCreate");
+      if (!target_host.defined())
+        target_host = (pf != nullptr) ? target::llvm() : target::stackvm();
+
+      if (target_host.defined() && target_host->target_name == "llvm") {
+        // If we can decide the target is LLVM, we then create an empty LLVM module.
+        ret_.mod = (*pf)(target_host->str(), "empty_module");
+      } else {
+        // If we cannot decide the target is LLVM, we create an empty CSourceModule.
+        // The code content is initialized with ";" to prevent complaining
+        // from CSourceModuleNode::SaveToFile.
+        ret_.mod = tvm::codegen::CSourceModuleCreate(";", "");
+      }
     } else {
       ret_.mod = tvm::build(
         lowered_funcs,
         target_host_,
         BuildConfig::Current());
     }
+
     Array<tvm::runtime::Module> ext_mods = graph_codegen_->GetExternalModules();
-    if (!ext_mods.empty()) {
-      CHECK(lowered_funcs.size() > 0 || ext_mods.size() == 1)
-          << "Expect to have a TVM DSOModule when multiple external runtime modules exist";
-      if (lowered_funcs.size() == 0) {
-        // Execute the whole module using external runtime.
-        ret_.mod = ext_mods[0];
-      } else {
-        // Import all external runtime modules.
-        for (const auto& it : ext_mods) {
-          ret_.mod.Import(it);
+    // Import all external runtime modules.
+    for (const auto& it : ext_mods)
+      ret_.mod.Import(it);
+  }
+
+ private:
+  Target GetTargetHost() {
+    Target target_host = target_host_;
+    if (!target_host_.defined()) {
+      for (const auto &it : targets_) {
+        if (it.second->device_type == kDLCPU) {
+          target_host = it.second;
+          break;
         }
       }
     }
+    return target_host;
   }
 
  protected:

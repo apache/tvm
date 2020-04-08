@@ -76,12 +76,12 @@ TVM_REGISTER_GLOBAL("relay.backend.lower_call")
 
 TEST(Relay, BuildModule) {
   auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
-  auto a = relay::VarNode::make("a", tensor_type);
-  auto b = relay::VarNode::make("b", tensor_type);
+  auto a = relay::Var("a", tensor_type);
+  auto b = relay::Var("b", tensor_type);
   auto add_op = relay::Op::Get("add");
-  auto x = relay::CallNode::make(add_op, {a, b}, tvm::Attrs(), {});
-  auto c = relay::VarNode::make("c", tensor_type);
-  auto y = relay::CallNode::make(add_op, {x, c}, tvm::Attrs(), {});
+  auto x = relay::Call(add_op, {a, b}, tvm::Attrs(), {});
+  auto c = relay::Var("c", tensor_type);
+  auto y = relay::Call(add_op, {x, c}, tvm::Attrs(), {});
   auto func = relay::Function(relay::FreeVars(y), y, relay::Type(), {});
   auto A = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -159,6 +159,23 @@ TEST(Relay, BuildModule) {
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
+}
+
+TEST(Relay, GetExprRefCount) {
+  auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
+  auto a = relay::Var("a", tensor_type);
+  auto add_op = relay::Op::Get("add");
+  auto relu_op = relay::Op::Get("nn.relu");
+  auto x = relay::Call(relu_op, {a}, tvm::Attrs(), {});
+  auto y = relay::Call(relu_op, {x}, tvm::Attrs(), {});
+  auto z = relay::Call(add_op, {y, x}, tvm::Attrs(), {});
+  auto ref_count = GetExprRefCount(z);
+  CHECK(ref_count[a.get()] == 1);
+  CHECK(ref_count[relu_op.get()] == 2);
+  CHECK(ref_count[add_op.get()] == 1);
+  CHECK(ref_count[x.get()] == 2);
+  CHECK(ref_count[y.get()] == 1);
+  CHECK(ref_count[z.get()] == 1);
 }
 
 int main(int argc, char ** argv) {

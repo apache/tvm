@@ -125,13 +125,13 @@ class Inliner : ExprMutator {
     CHECK(fn) << "Expected to work on a Relay function.";
 
     auto func = Function(fn->params,
-                                   fn->body,
-                                   fn->ret_type,
-                                   fn->type_params,
-                                   fn->attrs);
+                         fn->body,
+                         fn->ret_type,
+                         fn->type_params,
+                         fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
-    if (func->UseDefaultCompiler()) {
+    if (!func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       CHECK_EQ(func->params.size(), args.size())
           << "Mismatch found in the number of parameters and call args";
       // Bind the parameters with call args.
@@ -151,7 +151,7 @@ class Inliner : ExprMutator {
         return Bind(func->body, bind_map);
       }
     } else if (const auto* call_node = callee.as<CallNode>()) {
-        return CallNode::make(func, args, call_node->attrs, call_node->type_args);
+        return Call(func, args, call_node->attrs, call_node->type_args);
     } else {
       return std::move(func);
     }

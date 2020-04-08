@@ -25,6 +25,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target_info.h>
 #include <map>
@@ -311,7 +312,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (src_ == buf) {
       if (store_ == nullptr ||
           store_->value.dtype() != op->dtype ||
-          !tir::Equal(store_->index, op->index)) {
+          !tir::ExprDeepEqual()(store_->index, op->index)) {
         result_ = false; return;
       }
     }
@@ -993,27 +994,45 @@ class VectorAllocRewriter : public StmtExprMutator {
 };
 
 
-LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
+PrimFunc PointerValueTypeRewrite(PrimFunc f) {
+  auto* n = f.CopyOnWrite();
   VectorAllocRewriter rewriter;
   n->body = rewriter(n->body);
-  for (Var arg : f->args) {
-    if (arg.dtype().is_handle()) {
-      const auto& tvec = rewriter.acc_map_[arg.get()];
+
+  Array<tir::Var> args;
+  Map<tir::Var, PrimExpr> remap_vars;
+
+  for (Var var : f->params) {
+    if (var.dtype().is_handle()) {
+      const auto& tvec = rewriter.acc_map_[var.get()];
+
       if (tvec.size() == 1) {
-        PrimExpr dtype = make_const(tvec[0], 0);
-        n->handle_data_type.Set(arg, dtype);
+        tir::Var new_var(var->name_hint,
+                         PointerType(PrimType(tvec[0])));
+        args.push_back(new_var);
+        remap_vars.Set(var, new_var);
+
       } else {
         // always set data type to be non vectorized so
         // load/store can still work via scalarization
-        if (tvec.size() != 0 && !n->handle_data_type.count(arg)) {
-          PrimExpr dtype = make_const(tvec[0].with_lanes(1), 0);
-          n->handle_data_type.Set(arg, dtype);
+        if (tvec.size() != 0 && !var->type_annotation.defined()) {
+          tir::Var new_var(var->name_hint,
+                           PointerType(PrimType(tvec[0].with_lanes(1))));
+          args.push_back(new_var);
+          remap_vars.Set(var, new_var);
+        } else {
+          args.push_back(var);
         }
       }
+    } else {
+      args.push_back(var);
     }
   }
-  return LoweredFunc(n);
+
+  CHECK_EQ(args.size(), n->params.size());
+  n->params = args;
+  n->body = Substitute(n->body, remap_vars);
+  return f;
 }
 
 Stmt StorageRewrite(Stmt stmt) {

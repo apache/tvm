@@ -41,12 +41,11 @@
 
 // Hashtag in the source to build current CI docker builds
 //
-// - ci-cpu:v0.55: 07b45d958d4af91ec1bab66f6cf391d1ce12ddaf
 //
 
 ci_lint = "tvmai/ci-lint:v0.60"
 ci_gpu = "tvmai/ci-gpu:v0.61"
-ci_cpu = "tvmai/ci-cpu:v0.60"
+ci_cpu = "tvmai/ci-cpu:v0.61"
 ci_i386 = "tvmai/ci-i386:v0.52"
 
 // tvm libraries
@@ -144,48 +143,11 @@ stage('Build') {
     node('GPUBUILD') {
       ws(per_exec_ws("tvm/build-gpu")) {
         init_git()
-        sh """
-           mkdir -p build
-           cd build
-           cp ../cmake/config.cmake .
-           echo set\\(USE_CUBLAS ON\\) >> config.cmake
-           echo set\\(USE_CUDNN ON\\) >> config.cmake
-           echo set\\(USE_CUDA ON\\) >> config.cmake
-           echo set\\(USE_OPENGL ON\\) >> config.cmake
-           echo set\\(USE_MICRO ON\\) >> config.cmake
-           echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-9\\) >> config.cmake
-           echo set\\(USE_NNPACK ON\\) >> config.cmake
-           echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
-           echo set\\(USE_RPC ON\\) >> config.cmake
-           echo set\\(USE_SORT ON\\) >> config.cmake
-           echo set\\(USE_GRAPH_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_STACKVM_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
-           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_ANTLR ON\\) >> config.cmake
-           echo set\\(USE_BLAS openblas\\) >> config.cmake
-           echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
-           echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
-           """
+        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh"
         make(ci_gpu, 'build', '-j2')
         pack_lib('gpu', tvm_multilib)
         // compiler test
-        sh """
-           mkdir -p build2
-           cd build2
-           cp ../cmake/config.cmake .
-           echo set\\(USE_OPENCL ON\\) >> config.cmake
-           echo set\\(USE_ROCM ON\\) >> config.cmake
-           echo set\\(USE_VULKAN ON\\) >> config.cmake
-           echo set\\(USE_MICRO ON\\) >> config.cmake
-           echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
-           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
-           echo set\\(CMAKE_CXX_COMPILER clang-7\\) >> config.cmake
-           echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
-           """
+        sh "${docker_run} ${ci_gpu} ./tests/scripts/task_config_build_gpu_vulkan.sh"
         make(ci_gpu, 'build2', '-j2')
       }
     }
@@ -194,24 +156,7 @@ stage('Build') {
     node('CPU') {
       ws(per_exec_ws("tvm/build-cpu")) {
         init_git()
-        sh """
-           mkdir -p build
-           cd build
-           cp ../cmake/config.cmake .
-           echo set\\(USE_SORT ON\\) >> config.cmake
-           echo set\\(USE_MICRO ON\\) >> config.cmake
-           echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
-           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-8\\) >> config.cmake
-           echo set\\(USE_NNPACK ON\\) >> config.cmake
-           echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
-           echo set\\(USE_ANTLR ON\\) >> config.cmake
-           echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
-           echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
-           echo set\\(HIDE_PRIVATE_SYMBOLS ON\\) >> config.cmake
-           """
+        sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh"
         make(ci_cpu, 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -229,20 +174,7 @@ stage('Build') {
     node('CPU') {
       ws(per_exec_ws("tvm/build-i386")) {
         init_git()
-        sh """
-           mkdir -p build
-           cd build
-           cp ../cmake/config.cmake .
-           echo set\\(USE_SORT ON\\) >> config.cmake
-           echo set\\(USE_RPC ON\\) >> config.cmake
-           echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
-           echo set\\(USE_MICRO_STANDALONE_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_VM_PROFILER ON\\) >> config.cmake
-           echo set\\(USE_EXAMPLE_EXT_RUNTIME ON\\) >> config.cmake
-           echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
-           echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
-           echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
-           """
+        sh "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh"
         make(ci_i386, 'build', '-j2')
         pack_lib('i386', tvm_multilib)
       }
@@ -350,6 +282,7 @@ stage('Deploy') {
       ws(per_exec_ws("tvm/deploy-docs")) {
         if (env.BRANCH_NAME == "master") {
            unpack_lib('mydocs', 'docs.tgz')
+           sh "cp docs.tgz /var/docs/docs.tgz"
            sh "tar xf docs.tgz -C /var/docs"
         }
       }

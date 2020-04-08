@@ -22,6 +22,7 @@ import pytest
 
 import tvm
 import tvm.relay.testing
+import tvm.relay.op as reg
 import tvm.relay.transform as transform
 from tvm import relay
 from tvm import runtime
@@ -112,7 +113,8 @@ def test_extern_dnnl():
                                              padding=(1, 1),
                                              groups=32)
         end0 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
-        begin2 = relay.annotation.compiler_begin(end0, "dnnl")
+        end1 = relay.annotation.compiler_end(depthwise_conv2d_1, "dnnl")
+        begin2 = relay.annotation.compiler_begin(end1, "dnnl")
         begin3 = relay.annotation.compiler_begin(end0, "dnnl")
         begin4 = relay.annotation.compiler_begin(weight1, "dnnl")
         depthwise_conv2d_2 = relay.nn.conv2d(begin3,
@@ -120,11 +122,11 @@ def test_extern_dnnl():
                                              kernel_size=(3, 3),
                                              padding=(1, 1),
                                              groups=32)
-        end1 = relay.annotation.compiler_end(depthwise_conv2d_2, "dnnl")
-        begin5 = relay.annotation.compiler_begin(end1, "dnnl")
+        end2 = relay.annotation.compiler_end(depthwise_conv2d_2, "dnnl")
+        begin5 = relay.annotation.compiler_begin(end2, "dnnl")
         out = relay.add(begin2, begin5)
-        end2 = relay.annotation.compiler_end(out, "dnnl")
-        f = relay.Function([data, weight1], end2)
+        end3 = relay.annotation.compiler_end(out, "dnnl")
+        f = relay.Function([data, weight1], end3)
         mod = tvm.IRModule.from_expr(f)
         return mod
 
@@ -136,7 +138,7 @@ def test_extern_dnnl():
         mod = annotated(dtype, ishape, w1shape)
         mod = transform.AnnotateTarget("dnnl")(mod)
         ref_mod = expected(dtype, ishape, w1shape)
-        assert relay.analysis.alpha_equal(mod, ref_mod)
+        tvm.ir.assert_structural_equal(mod, ref_mod)
 
     def test_run():
         if not tvm.get_global_func("relay.ext.dnnl", True):
@@ -183,6 +185,87 @@ def test_extern_dnnl_mobilenet():
                  (1, 1000), ref_res.asnumpy(), tol=1e-5, params=params)
 
 
+@reg.register("nn.relu", "target.test")
+def relu(attrs, args):
+    return True
+
+
+def test_multiple_ends():
+    def before():
+        x = relay.var("x", shape=(10, 10))
+        r = relay.nn.relu(x)
+        a_1 = relay.abs(r)
+        a_2 = relay.abs(r)
+        out = relay.add(a_1, a_2)
+        f = relay.Function([x], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        x = relay.var("x", shape=(10, 10))
+        cb_1 = relay.annotation.compiler_begin(x, "test")
+        r = relay.nn.relu(cb_1)
+        ce_1 = relay.annotation.compiler_end(r, "test")
+        ce_2 = relay.annotation.compiler_end(r, "test")
+        a_1 = relay.abs(ce_1)
+        a_2 = relay.abs(ce_2)
+        out = relay.add(a_1, a_2)
+        f = relay.Function([x], out)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    result = transform.AnnotateTarget("test")(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
+
+
+def test_composite_function():
+    def before():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+
+        # add_relu function
+        in_1 = relay.var('in_1', shape=(10, 10))
+        in_2 = relay.var('in_2', shape=(10, 10))
+        add_node = relay.add(in_1, in_2)
+        relu_node = relay.nn.relu(add_node)
+        add_relu = relay.Function([in_1, in_2], relu_node)
+        add_relu = add_relu.with_attr("Composite", tvm.tir.StringImm("test.add_relu"))
+
+        # merged function
+        r = relay.Call(add_relu, [a, b])
+        f = relay.Function([a, b], r)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+
+        # add_relu function
+        in_1 = relay.var('in_1', shape=(10, 10))
+        in_2 = relay.var('in_2', shape=(10, 10))
+        add_node = relay.add(in_1, in_2)
+        relu_node = relay.nn.relu(add_node)
+        add_relu = relay.Function([in_1, in_2], relu_node)
+        add_relu = add_relu.with_attr("Composite", tvm.tir.StringImm("test.add_relu"))
+
+        # merged function
+        cb_1 = relay.annotation.compiler_begin(a, "test")
+        cb_2 = relay.annotation.compiler_begin(b, "test")
+        r = relay.Call(add_relu, [cb_1, cb_2])
+        ce_1 = relay.annotation.compiler_end(r, "test")
+        f = relay.Function([a, b], ce_1)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    result = transform.AnnotateTarget("test")(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
+
+
 if __name__ == "__main__":
+    test_multiple_ends()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
+    test_composite_function()

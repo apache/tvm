@@ -107,9 +107,27 @@ def schedule_adaptive_pool(attrs, outs, target):
         return topi.generic.schedule_adaptive_pool(outs)
 
 # softmax
+def wrap_compute_softmax(topi_compute):
+    """Wrap softmax topi compute"""
+    def _compute_softmax(attrs, inputs, out_type):
+        axis = attrs.get_int("axis")
+        return [topi_compute(inputs[0], axis)]
+    return _compute_softmax
+
+@override_native_generic_func("softmax_strategy")
+def softmax_strategy(attrs, inputs, out_type, target):
+    """softmax generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implemenation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.generic.schedule_softmax),
+        name="softmax.generic")
+    return strategy
+
+# log_softmax
 @generic_func
-def schedule_softmax(attrs, outs, target):
-    """Schedule softmax"""
+def schedule_log_softmax(attrs, outs, target):
+    """Schedule log_softmax op"""
     with target:
         return topi.generic.schedule_softmax(outs)
 
@@ -374,6 +392,19 @@ def conv3d_strategy(attrs, inputs, out_type, target):
         raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
 
+# conv3d_winograd_without_weight_transform
+@override_native_generic_func("conv3d_winograd_without_weight_transform_strategy")
+def conv3d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv3d_winograd_without_weight_transform")
+
+# conv3d_winograd_weight_transform
+@generic_func
+def schedule_conv3d_winograd_weight_transform(attrs, outs, target):
+    """Schedule conv3d_winograd_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv3d_winograd_weight_transform(outs)
+
 # conv1d
 def wrap_compute_conv1d(topi_compute):
     """wrap conv1d topi compute"""
@@ -441,6 +472,57 @@ def conv1d_transpose_strategy(attrs, inputs, out_type, target):
                                 wrap_topi_schedule(topi.generic.schedule_conv1d_transpose_ncw),
                                 name="conv1d_transpose_ncw.generic")
     return strategy
+
+
+# dilation2d
+def wrap_compute_dilation2d(topi_compute, need_data_layout=False):
+    """Wrap dilation2d topi compute"""
+    def _compute_dilation2d(attrs, inputs, out_type):
+        padding = get_const_tuple(attrs.padding)
+        strides = get_const_tuple(attrs.strides)
+        dilations = get_const_tuple(attrs.dilations)
+        data_layout = attrs.get_str("data_layout")
+        out_dtype = attrs.out_dtype
+        out_dtype = (inputs[0].dtype if out_dtype in ("same", "")
+                     else out_dtype)
+        args = [inputs[0], inputs[1], strides, padding, dilations]
+        if need_data_layout:
+            args.append(data_layout)
+        args.append(out_dtype)
+        return [topi_compute(*args)]
+    return _compute_dilation2d
+
+
+@override_native_generic_func("dilation2d_strategy")
+def dilation2d_strategy(attrs, inputs, out_type, target):
+    """dilation2d_strategy generic strategy"""
+    logger.warning("dilation2d_strategy is not optimized for this platform.")
+    strategy = _op.OpStrategy()
+    dilations = get_const_tuple(attrs.dilations)
+    layout = attrs.data_layout
+    kernel_layout = attrs.kernel_layout
+
+    assert layout in ["NCHW", "NHWC"]
+    (dilation_h, dilation_w) = dilations
+    if dilation_h < 1 or dilation_w < 1:
+        raise ValueError("dilation should be positive value")
+
+    if layout == "NCHW":
+        assert kernel_layout == "IHW"
+        strategy.add_implementation(
+            wrap_compute_dilation2d(topi.image.dilation2d_nchw),
+            wrap_topi_schedule(topi.generic.schedule_dilation2d_nchw),
+            name="dilation2d_nchw.generic")
+    elif layout == "NHWC":
+        assert kernel_layout == "HWI"
+        strategy.add_implementation(
+            wrap_compute_dilation2d(topi.image.dilation2d_nhwc),
+            wrap_topi_schedule(topi.generic.schedule_dilation2d_nhwc),
+            name="dilation2d_nhwc.generic")
+    else:
+        raise RuntimeError("Unsupported dilation2d layout {}".format(layout))
+    return strategy
+
 
 # dense
 def wrap_compute_dense(topi_compute):

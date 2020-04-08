@@ -16,21 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
-import tvm
 from tvm import te
-
-def _default_schedule(outs, auto_inline):
-    """Default schedule for llvm."""
-    target = tvm.target.Target.current(allow_none=False)
-    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
-    if target.target_name not in ("llvm", "c"):
-        raise RuntimeError("schedule not registered for '%s'" % target)
-    s = te.create_schedule([x.op for x in outs])
-    if auto_inline:
-        x = outs[0]
-        te.schedule.AutoInlineInjective(s)
-        s[x].fuse(s[x].op.axis)
-    return s
+from .default import default_schedule as _default_schedule
 
 
 def schedule_conv1d_ncw(outs):
@@ -196,6 +183,43 @@ def schedule_conv2d_winograd_weight_transform(outs):
     s[output].reorder(co, ci, r_kh, r_kw, eps, nu)
     for axis in [r_kh, r_kw, eps, nu]:
         s[output].unroll(axis)
+    s[output].parallel(co)
+    return s
+
+
+def schedule_conv3d_winograd_weight_transform(outs):
+    """Schedule for weight transformation of 3D winograd
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    # Typically this is computed in PreCompute pass
+    # so we make a schedule here for cpu llvm
+    s = te.create_schedule([x.op for x in outs])
+    output = outs[0]
+    _, G = s[output].op.input_tensors
+    s[G].compute_inline()
+    transform_depth = len(s[output].op.reduce_axis) == 3
+    if transform_depth:
+        omg, eps, nu, ci, co = s[output].op.axis
+        r_kd, r_kh, r_kw = s[output].op.reduce_axis
+        s[output].reorder(co, ci, omg, eps, nu, r_kd, r_kh, r_kw)
+        for axis in [r_kd, r_kh, r_kw]:
+            s[output].unroll(axis)
+    else:
+        eps, nu, d, ci, co = s[output].op.axis
+        r_kh, r_kw = s[output].op.reduce_axis
+        s[output].reorder(co, ci, d, eps, nu, r_kh, r_kw)
+        for axis in [r_kh, r_kw]:
+            s[output].unroll(axis)
     s[output].parallel(co)
     return s
 

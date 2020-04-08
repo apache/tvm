@@ -18,7 +18,7 @@
 """SSD multibox operators"""
 import tvm
 
-from tvm import hybrid
+from tvm.te import hybrid
 from tvm.tir import exp, sqrt
 
 import topi

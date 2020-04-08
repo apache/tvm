@@ -125,7 +125,7 @@ bool WellFormed(const Expr& e) {
   return WellFormedChecker().CheckWellFormed(e);
 }
 
-TVM_REGISTER_GLOBAL("relay._analysis.well_formed")
+TVM_REGISTER_GLOBAL("relay.analysis.well_formed")
 .set_body_typed(WellFormed);
 
 }  // namespace relay

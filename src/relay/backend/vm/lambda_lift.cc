@@ -22,6 +22,8 @@
  * \brief Lift all local functions into global functions.
  */
 
+#include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/support/logging.h>
@@ -38,7 +40,7 @@ namespace relay {
 namespace vm {
 
 inline std::string GenerateName(const Function& func) {
-  size_t hash = StructuralHash()(func);
+  size_t hash = tvm::StructuralHash()(func);
   return std::string("lifted_name") + std::to_string(hash);
 }
 
@@ -73,7 +75,7 @@ class LambdaLifter : public ExprMutator {
       letrec_.pop_back();
     }
     auto body = VisitExpr(let_node->body);
-    return LetNode::make(let_node->var, value, body);
+    return Let(let_node->var, value, body);
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
@@ -83,7 +85,7 @@ class LambdaLifter : public ExprMutator {
       if (!letrec_.empty() && var == letrec_.back()) {
         auto it = lambda_map_.find(var);
         CHECK(it != lambda_map_.end());
-        return CallNode::make(it->second, call->args, call_node->attrs,
+        return Call(it->second, call->args, call_node->attrs,
                               call_node->type_args);
       }
     }
@@ -118,7 +120,7 @@ class LambdaLifter : public ExprMutator {
         for (auto fv : captured_vars) {
           fvs.push_back(fv);
         }
-        lambda_map_.emplace(letrec_.back(), CallNode::make(global, fvs));
+        lambda_map_.emplace(letrec_.back(), Call(global, fvs));
       } else {
         lambda_map_.emplace(letrec_.back(), global);
       }
@@ -161,7 +163,8 @@ class LambdaLifter : public ExprMutator {
 
     if (module_->ContainGlobalVar(name)) {
       const auto existing_func = module_->Lookup(name);
-      CHECK(AlphaEqual(lifted_func, existing_func)) << "lifted function hash collision";
+      CHECK(tvm::StructuralEqual()(lifted_func, existing_func))
+        << "lifted function hash collision";
       // If an identical function already exists, use its global var.
       global = module_->GetGlobalVar(name);
     } else {
@@ -178,7 +181,7 @@ class LambdaLifter : public ExprMutator {
       for (auto fv : captured_vars) {
         fvs.push_back(fv);
       }
-      return CallNode::make(global, fvs);
+      return Call(global, fvs);
     }
   }
 
@@ -187,13 +190,13 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
-        if (!n->UseDefaultCompiler()) continue;
+        if (n->GetAttr<tir::StringImm>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
         func = Function(func->params,
-                                  VisitExpr(func->body),
-                                  func->ret_type,
-                                  func->type_params,
-                                  func->attrs);
+                        VisitExpr(func->body),
+                        func->ret_type,
+                        func->type_params,
+                        func->attrs);
         module_->Add(pair.first, func, true);
       }
     }

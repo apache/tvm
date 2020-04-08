@@ -128,6 +128,17 @@ RELAY_REGISTER_UNARY_OP("erf")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::erf));
 
 
+RELAY_REGISTER_UNARY_OP("fast_erf")
+.describe(R"code(Returns the error function value for input array, computed element-wise.
+
+.. math::
+   \fast_erf(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_erf));
+
+
 RELAY_REGISTER_UNARY_OP("sqrt")
 .describe(R"code(Returns the sqrt input array, computed element-wise.
 
@@ -184,7 +195,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.clip")
     attrs->a_min = a_min;
     attrs->a_max = a_max;
     static const Op& op = Op::Get("clip");
-  return CallNode::make(op, {a}, Attrs(attrs), {});
+  return Call(op, {a}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("clip")
@@ -347,7 +358,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.shape_of")
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("shape_of");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("shape_of")
@@ -397,7 +408,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.ndarray_size")
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("ndarray_size");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("ndarray_size")
@@ -414,6 +425,24 @@ RELAY_REGISTER_OP("ndarray_size")
 ElemwiseArbitraryLayout)
 .set_support_level(10)
 .set_attr<FTVMCompute>("FTVMCompute", NdarraySizeCompute);
+
+RELAY_REGISTER_UNARY_OP("isfinite")
+.describe(R"code(Returns the finiteness of input, computed element-wise.
+.. math::
+   isfinite(x)
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("IdentityCompRel", IdentityCompRel)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::isfinite));
+
+RELAY_REGISTER_UNARY_OP("isinf")
+.describe(R"code(Returns the infiniteness of input, computed element-wise.
+.. math::
+   isfinite(x)
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("IdentityCompRel", IdentityCompRel)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::isinf));
 
 }  // namespace relay
 }  // namespace tvm

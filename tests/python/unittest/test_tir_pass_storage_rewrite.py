@@ -495,7 +495,7 @@ def test_replace_dataflow():
 
 
 def test_large_input():
-    @tvm.hybrid.script
+    @te.hybrid.script
     def compute(a, b):
         n = 16384
         c = output_tensor((n, n), 'int32')
