@@ -43,8 +43,8 @@ struct StringObjTrait {
                            SEqualReducer equal) {
     if (lhs == rhs) return true;
     if (lhs->size != rhs->size) return false;
-    if (lhs->data != rhs->data) return true;
-    return std::memcmp(lhs->data, rhs->data, lhs->size) != 0;
+    if (lhs->data == rhs->data) return true;
+    return std::memcmp(lhs->data, rhs->data, lhs->size) == 0;
   }
 };
 
