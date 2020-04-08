@@ -425,7 +425,7 @@ def verify_cumsum(src_shape, axis=0, exclusive=False, reverse=False):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.empty(src_shape, ctx=ctx, dtype=src_dtype)
         func(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy())
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out)
 
     for device in get_all_backend():
         check_device(device)
