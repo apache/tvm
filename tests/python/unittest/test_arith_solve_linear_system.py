@@ -97,7 +97,8 @@ def check_solution(solution, vranges={}):
 def test_solution_consistency(capsys):
     seed = random.randrange(sys.maxsize)
     with capsys.disabled():
-        print("\nUse seed {} to reproduce the results.\n".format(seed))
+        print("\nThis test is intentionally non-deterministic, "
+              "if it fails please report it in github issue together with this seed {}\n".format(seed))
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
