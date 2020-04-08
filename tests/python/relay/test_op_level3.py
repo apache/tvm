@@ -670,18 +670,20 @@ def test_cumsum():
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         z = relay.cumsum(x, axis=axis, exclusive=False, reverse=False)
 
+
         func = relay.Function([x], z)
+
+
         x_data = np.random.uniform(size=xshape).astype("float32")
         print(x_data)
         ref_res = np.cumsum(x_data, axis)
         print(ref_res)
-
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 op_res = intrp.evaluate(func)(x_data)
                 tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
-    verify_cumsum((2, 2), 0)
+    verify_cumsum((3, 2), 0)
     verify_cumsum((2, 2, 2), 1)
     verify_cumsum((3, 2, 2), 2)
     verify_cumsum((3, 2), 1)

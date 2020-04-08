@@ -1129,25 +1129,25 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
     auto maxLength = A->shape[axis];
     auto l = [&](const Array<Var>& input_indices) {
         //在这个轴进行累加，同时处理exclusive
-        tvm::Range range;
-        if(reverse) {
-            PrimExpr begin;
-            if(exclusive) {
-                begin = input_indices[axis] + 1;
-            } else {
-                begin = input_indices[axis];
-            }
-            range = tvm::Range{begin, maxLength};
-        } else {
-            PrimExpr end;
-            if(exclusive) {
-                end = input_indices[axis];
-            } else {
-                end = input_indices[axis] + 1;
-            }
-            range = tvm::Range{0, end};
-        }
-        auto k = tvm::te::reduce_axis(range, "k");
+        tvm::Range range = tvm::Range{0, 1};
+//        if(reverse) {
+//            PrimExpr begin;
+//            if(exclusive) {
+//                begin = input_indices[axis] + 1;
+//            } else {
+//                begin = input_indices[axis];
+//            }
+//            range = tvm::Range{begin, maxLength};
+//        } else {
+//            PrimExpr end;
+//            if(exclusive) {
+//                end = input_indices[axis];
+//            } else {
+//                end = input_indices[axis] + 1;
+//            }
+//            range = tvm::Range{0, end};
+//        }
+        auto k = tvm::te::reduce_axis(range, "k" + std::to_string(random()));
         Array<PrimExpr> indices;
         //axis轴放置k
         for(unsigned i = 0; i < totalSize; ++i) {
