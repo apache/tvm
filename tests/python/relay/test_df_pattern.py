@@ -226,6 +226,26 @@ def test_match_fake_diamond():
     # Check
     assert not diamond.match(out)
 
+
+def test_match_dominator():
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_elemwise = wildcard().has_attr("TOpPattern", K_ELEMWISE)
+    reduction = is_op('add')(wildcard(), wildcard())
+    diamond = dominates(is_conv2d, is_elemwise, reduction)
+
+    # Expr
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    assert diamond.match(out)
+
 def test_rewrite():
     x = relay.var('x')
     y = relay.var('y')
@@ -236,7 +256,25 @@ def test_rewrite():
     out = rewrite([DFPatternCallback(add_pattern, add_to_sub)], x + y)
     assert sub_pattern.match(out)
 
-def fuse_batchnorm(pre, post):
+def test_not_fuse_multi_diamond():
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    path1 = is_op('nn.relu')(is_conv2d)
+    path2 = is_op('nn.leaky_relu')(is_conv2d)
+    diamond = is_op('add')(path1, path2)
+
+    # Expr
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+    out = out + conv2d
+    # Check
+    assert not diamond.match(out)
+
+def (pre, post):
     def left_right_call(post):
         if isinstance(post.args[0], relay.Call):
             return (post.args[1], post.args[0])
@@ -373,4 +411,5 @@ if __name__ == "__main__":
     #test_no_fuse_batchnorm()
     #test_fuse_double_batchnorm()
     #test_partial_fuse_double_batchnorm()
-    test_fuse_batchnorm_commutation()
+    #test_fuse_batchnorm_commutation()
+    test_match_dominator()

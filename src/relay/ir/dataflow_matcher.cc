@@ -41,6 +41,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const AltPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const AttrPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const CallPatternNode* op, const Expr& expr) override;
+  bool VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
@@ -53,8 +54,40 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   std::vector<DFPattern> matched_nodes_;
 };
 
+class DominatorMatcher : public DFPatternMatcher {
+ public:
+  DominatorMatcher(const DominatorPatternNode* dominator) : dominator_(dominator) {}
+  bool Dominates(const Expr& expr) {
+    found_child = DFPatternMatcher::VisitDFPattern(dominator_->child, expr);
+    if (found_child) {
+      return false;
+    }
+    return false;
+  }
+
+  const std::unordered_map<DFPattern, Expr, ObjectHash, ObjectEqual>& GetMemo() { return memo_; }
+  const std::vector<DFPattern> GetMatched() { return matched_nodes_; }
+ protected:
+  bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override {
+    std::cout << "visiting " << pattern << "\n\t -> " << expr << std::endl;
+    if (DFPatternMatcher::VisitDFPattern(pattern, expr)) {
+      return true;
+    } else if (found_child) {
+      if (DFPatternMatcher::VisitDFPattern(dominator_->parent, expr)) {
+        return true;
+      } else {
+        return DFPatternMatcher::VisitDFPattern(dominator_->path, expr);
+      }
+    }
+    return false;
+  }
+  const DominatorPatternNode* dominator_;
+  bool found_child = false;
+};
+
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   memo_.clear();
+  matched_nodes_.clear();
   return VisitDFPattern(pattern, expr);
 }
 
@@ -163,11 +196,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
         return true;
       }
       if (auto* op_node = get_op_node(op)) {
-        if ((op_node->name == "add")) {
-          if (match_args(reverse(op->args), call_node->args)) {
-            return true;
-          }
-        } else if ((op_node->name == "multiply")) {
+        if ((op_node->name == "add") || (op_node->name == "multiply")) {
           if (match_args(reverse(op->args), call_node->args)) {
             return true;
           }
@@ -175,6 +204,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       }
     } else {
       ClearMap(watermark);
+      // TODO(mbrookhart): This is nasty. Find a cleaner way to do this
       if (const OpNode* op_node = get_op_node(op)) {
         if (op_node->name == "divide") {
           if (auto* arg_node = op->args[0].as<CallPatternNode>()) {
@@ -289,6 +319,19 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   }
   return false;
 }
+bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
+  DominatorMatcher visitor(op);
+  if (visitor.Dominates(expr)) {
+    const auto new_memo = visitor.GetMemo();
+    const auto new_matched = visitor.GetMatched();
+    for (const auto &pattern : new_matched) {
+      matched_nodes_.push_back(pattern);
+      memo_[pattern] = new_memo.at(pattern);
+    }
+    return true;
+  }
+  return false;
+}
 bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) {
   return op->expr == expr;
 }
@@ -341,6 +384,8 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
   return true;
 }
 
+
+
 // DFPatternMutator
 
 DFPattern DFPatternMutator::Mutate(const DFPattern& pattern) { return VisitDFPattern(pattern); }
@@ -389,6 +434,18 @@ DFPattern DFPatternMutator::VisitDFPattern_(const CallPatternNode* op) {
     return GetRef<DFPattern>(op);
   } else {
     return CallPatternNode::make(new_op, call_args, op->attrs, op->type_args);
+  }
+}
+
+DFPattern DFPatternMutator::VisitDFPattern_(const DominatorPatternNode* op) {
+  auto new_parent = Mutate(op->parent);
+  auto new_path = Mutate(op->path);
+  auto new_child = Mutate(op->child);
+  if (op->parent.same_as(new_child) && op->parent.same_as(new_child) &&
+      op->parent.same_as(new_child)) {
+    return GetRef<DFPattern>(op);
+  } else {
+    return DominatorPatternNode::make(new_parent, new_path, new_child);
   }
 }
 

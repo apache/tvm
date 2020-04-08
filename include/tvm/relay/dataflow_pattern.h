@@ -276,6 +276,25 @@ class WildcardPattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
 };
 
+/*!
+ * \brief Null Pattern.
+ */
+class NullPatternNode : public DFPatternNode {
+ public:
+  void VisitAttrs(tvm::AttrVisitor* v) {}
+
+  static constexpr const char* _type_key = "relay.df_pattern.NullPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(NullPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief A pattern which matches anything.
+ */
+class NullPattern : public DFPattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(NullPattern, DFPattern, NullPatternNode);
+};
+
 class TypePattern;
 /*!
  * \brief Pattern for Types.
@@ -334,6 +353,39 @@ class AttrPatternNode : public DFPatternNode {
 class AttrPattern : public DFPattern {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(AttrPattern, DFPattern, AttrPatternNode);
+};
+
+class DominatorPattern;
+/*!
+ * \brief Pattern for Types.
+ */
+class DominatorPatternNode : public DFPatternNode {
+ public:
+  /*! \brief The parent. */
+  DFPattern parent;
+  /*! \brief The path. */
+  DFPattern path;
+  /*! \brief The child. */
+  DFPattern child;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("parent", &parent);
+    v->Visit("path", &path);
+    v->Visit("child", &child);
+  }
+
+  TVM_DLL static DominatorPattern make(DFPattern parent, DFPattern path, DFPattern child);
+
+  static constexpr const char* _type_key = "relay.df_pattern.DominatorPattern";
+  TVM_DECLARE_FINAL_OBJECT_INFO(DominatorPatternNode, DFPatternNode);
+};
+
+/*!
+ * \brief A pattern which matches a variable length dominator path
+ */
+class DominatorPattern : public DFPattern {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(DominatorPattern, DFPattern, DominatorPatternNode);
 };
 
 }  // namespace relay

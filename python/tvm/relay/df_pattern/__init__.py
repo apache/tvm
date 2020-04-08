@@ -224,6 +224,23 @@ class AttrPattern(DFPattern):
         self.__init_handle_by_constructor__(
             ffi.AttrPattern, pattern, attrs)
 
+@register_df_node
+class DominatorPattern(DFPattern):
+    """Get index-th item from a TuplePattern.
+
+    Parameters
+    ----------
+    parent: tvm.relay.df_pattern.DFPattern
+        The root of domination 
+    path: tvm.relay.df_pattern.DFPattern
+        The fuzzy path pattern between parent and child
+    child: tvm.relay.df_pattern.DFPattern
+        The last node in the domination
+    """
+    def __init__(self, parent, path, child):
+        self.__init_handle_by_constructor__(
+            ffi.DominatorPattern, parent, path, child)
+        
 class DFPatternCallback(Object):
     def __init__(self, pattern, callback):
         self.__init_handle_by_constructor__(
@@ -256,3 +273,6 @@ def rewrite(callbacks, expr):
     if isinstance(callbacks, DFPatternCallback):
         callbacks = [callbacks]
     return ffi.rewrite(callbacks, expr)
+
+def dominates(parent, path, child):
+    return DominatorPattern(parent, path, child)

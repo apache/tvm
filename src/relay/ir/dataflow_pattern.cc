@@ -193,5 +193,24 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "AttrPattern(" << node->pattern << " has attributes " << node->attrs << ")";
   });
 
+DominatorPattern DominatorPatternNode::make(DFPattern parent, DFPattern path, DFPattern child) {
+  ObjectPtr<DominatorPatternNode> n = make_object<DominatorPatternNode>();
+  n->parent = std::move(parent);
+  n->path = std::move(path);
+  n->child = std::move(child);
+  return DominatorPattern(n);
+}
+
+TVM_REGISTER_NODE_TYPE(DominatorPatternNode);
+
+TVM_REGISTER_GLOBAL("relay.df_pattern.DominatorPattern").set_body_typed(DominatorPatternNode::make);
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<DominatorPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const DominatorPatternNode*>(ref.get());
+      p->stream << "DominatorPattern(" << node->parent << ", " << node->path << ", " << node->child
+                << ")";
+    });
+
 }  // namespace relay
 }  // namespace tvm
