@@ -36,8 +36,6 @@ USE_HEXAGON_DEVICE=sim
 USE_HEXAGON_SDK=/path/to/sdk
 ```
 
-Set the C/C++ compiler to `clang`, and pass `-DCMAKE_CXX_FLAGS='-stdlib=libc++'` to the cmake command.
-
 You can then build the entire TVM with the usual command (e.g. `make`).
 
 ### Compiling TVM runtime for Android
