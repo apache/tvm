@@ -763,14 +763,14 @@ def test_take():
     verify_take((3,4), [0, 2], axis=1, mode="fast")
 
 def test_cumsum():
-        verify_cumsum((4,))
-        verify_cumsum((2, 3), axis=0)
-        verify_cumsum((2, 3), axis=1)
-        verify_cumsum((2, 3, 4), axis=1)
-        verify_cumsum((2, 3, 4), axis=2)
-        verify_cumsum((2, 3, 4), axis=0)
-        verify_cumsum((2, 3, 4), axis=-1)
-        verify_cumsum((2, 3, 4), axis=-2)
+    verify_cumsum((4,))
+    verify_cumsum((2, 3), axis=0)
+    verify_cumsum((2, 3), axis=1)
+    verify_cumsum((2, 3, 4), axis=1)
+    verify_cumsum((2, 3, 4), axis=2)
+    verify_cumsum((2, 3, 4), axis=0)
+    verify_cumsum((2, 3, 4), axis=-1)
+    verify_cumsum((2, 3, 4), axis=-2)
 
 def test_gather_nd():
     for indices_dtype in ['int32', 'float32']:
