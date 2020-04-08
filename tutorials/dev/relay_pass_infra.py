@@ -216,13 +216,13 @@ class CustomPipeline:
         obj = self
 
         class ReplaceConstant(tvm.relay.ExprMutator):
-            def visit_const(self, c):
+            def visit_constant(self, c):
                 return relay.multiply(obj.multiplier, c)
         return ReplaceConstant().visit(func)
 
 f = example()
 mod = tvm.IRModule.from_expr(f)
-custom_pass = CustomPipeline(multiplier=relay.const(3, "float"))
+custom_pass = CustomPipeline(multiplier=relay.const(3, "float32"))
 assert custom_pass.info.name == "CustomPipeline"
 mod3 = custom_pass(mod)
 print(mod3)

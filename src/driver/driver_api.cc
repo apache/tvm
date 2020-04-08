@@ -214,7 +214,7 @@ IRModule lower(te::Schedule sch,
   f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
 
   if (config->restricted_func) {
-    f = WithAttr(std::move(f), "tir.no_alias", Integer(1));
+    f = WithAttr(std::move(f), "tir.noalias", Integer(1));
   }
   auto mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
   return tir::transform::MakePackedAPI(0)(mod);

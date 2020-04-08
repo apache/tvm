@@ -1626,6 +1626,26 @@ def test_forward_mobilenet_v2():
                                 rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# Mobilenet V3
+# ------------
+
+def test_forward_mobilenet_v3():
+    """Test the Mobilenet V3 TF Lite model."""
+    # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
+    if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
+        return
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_float.tgz",
+        "v3-large_224_1.0_float/v3-large_224_1.0_float.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+    data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm.testing.assert_allclose(np.squeeze(tvm_output[0]), np.squeeze(tflite_output[0]),
+                                rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # Inception
 # ---------
 
@@ -1707,6 +1727,35 @@ def test_forward_qnn_mobilenet_v2_net():
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/tflite_11_05_08/mobilenet_v2_1.0_224_quant.tgz",
         "mobilenet_v2_1.0_224_quant.tflite")
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    # Test image. Checking the labels because the requantize implementation is different between
+    # TFLite and Relay. This cause final output numbers to mismatch. So, testing accuracy via
+    # labels. Also, giving a real image, instead of random inputs.
+    data = get_real_image(224, 224)
+
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tflite_predictions = np.squeeze(tflite_output)
+    tflite_sorted_labels = tflite_predictions.argsort()[-3:][::-1]
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'input')
+    tvm_predictions = np.squeeze(tvm_output)
+    tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
+    tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
+
+#######################################################################
+# Mobilenet V3 Quantized
+# ----------------------
+
+def test_forward_qnn_mobilenet_v3_net():
+    """Test the Quantized TFLite Mobilenet V3 model."""
+    # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
+    if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
+        return
+
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_uint8.tgz",
+        "v3-large_224_1.0_uint8/v3-large_224_1.0_uint8.tflite")
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
@@ -1831,6 +1880,7 @@ if __name__ == '__main__':
     # End to End
     test_forward_mobilenet_v1()
     test_forward_mobilenet_v2()
+    test_forward_mobilenet_v3()
     test_forward_inception_v3_net()
     test_forward_inception_v4_net()
     test_forward_ssd_mobilenet_v1()
@@ -1840,3 +1890,4 @@ if __name__ == '__main__':
     test_forward_qnn_inception_v1_net()
     test_forward_qnn_mobilenet_v1_net()
     test_forward_qnn_mobilenet_v2_net()
+    test_forward_qnn_mobilenet_v3_net()

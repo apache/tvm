@@ -463,7 +463,12 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
       llvm::VectorType::get(value->getType(), lanes));
   llvm::Constant* zero = ConstInt32(0);
   value = builder_->CreateInsertElement(undef, value, zero);
+#if TVM_LLVM_VERSION >= 110
+  llvm::Constant* mask =
+      llvm::ConstantVector::getSplat(llvm::ElementCount(lanes, /*Scalable=*/false), zero);
+#else
   llvm::Constant* mask = llvm::ConstantVector::getSplat(lanes, zero);
+#endif
   return builder_->CreateShuffleVector(value, undef, mask);
 }
 
@@ -980,7 +985,12 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
     int alignment, native_bits;
     GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
     llvm::Value* ptr = CreateBufferPtr(t, buffer, index);
+#if TVM_LLVM_VERSION >= 110
+    llvm::LoadInst* load =
+        builder_->CreateAlignedLoad(ptr, llvm::Align(alignment), is_volatile);
+#else
     llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, alignment, is_volatile);
+#endif
     AddAliasInfo(load, op->buffer_var.get(), op->index, t);
     return load;
   } else {
@@ -996,7 +1006,12 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
             t.element_of(), buffer, MakeValue(ramp->base));
         ptr = builder_->CreatePointerCast(
             ptr, DTypeToLLVMType(t)->getPointerTo(addrspace));
+#if TVM_LLVM_VERSION >= 110
+        llvm::LoadInst* load = builder_->CreateAlignedLoad(
+            ptr, llvm::Align(alignment), is_volatile);
+#else
         llvm::LoadInst* load = builder_->CreateAlignedLoad(ptr, alignment, is_volatile);
+#endif
         AddAliasInfo(load, op->buffer_var.get(), op->index, t);
         return load;
       }
@@ -1007,8 +1022,13 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const LoadNode* op) {
   llvm::Value* ret = llvm::UndefValue::get(DTypeToLLVMType(t));
   auto f = [&](int i, llvm::Value* index) {
     llvm::Value* ptr = CreateBufferPtr(t.element_of(), buffer, index);
+#if TVM_LLVM_VERSION >= 110
+    llvm::LoadInst* load = builder_->CreateAlignedLoad(
+        ptr, llvm::Align(basic_align), is_volatile);
+#else
     llvm::LoadInst* load = builder_->CreateAlignedLoad(
         ptr, basic_align, is_volatile);
+#endif
     ret = builder_->CreateInsertElement(ret, load, ConstInt32(i));
     AddAliasInfo(load, op->buffer_var.get(), PrimExpr(), t);
   };
@@ -1077,7 +1097,12 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
     int alignment, native_bits;
     GetAlignment(t, op->buffer_var.get(), op->index, &alignment, &native_bits);
     llvm::Value* ptr = CreateBufferPtr(t, buffer, index);
+#if TVM_LLVM_VERSION >= 110
+    llvm::StoreInst* store =
+        builder_->CreateAlignedStore(value, ptr, llvm::Align(alignment), is_volatile);
+#else
     llvm::StoreInst* store = builder_->CreateAlignedStore(value, ptr, alignment, is_volatile);
+#endif
     AddAliasInfo(store, op->buffer_var.get(), op->index, op->value.dtype());
     return;
   } else {
@@ -1092,7 +1117,12 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
         llvm::Value* ptr = CreateBufferPtr(
             t.element_of(), buffer, MakeValue(ramp->base));
         ptr = builder_->CreatePointerCast(ptr, DTypeToLLVMType(t)->getPointerTo(addrspace));
+#if TVM_LLVM_VERSION >= 110
+        llvm::StoreInst* store =
+            builder_->CreateAlignedStore(value, ptr, llvm::Align(alignment), is_volatile);
+#else
         llvm::StoreInst* store = builder_->CreateAlignedStore(value, ptr, alignment, is_volatile);
+#endif
         AddAliasInfo(store, op->buffer_var.get(), op->index, op->value.dtype());
         return;
       }
@@ -1103,9 +1133,15 @@ void CodeGenLLVM::VisitStmt_(const StoreNode* op) {
   int basic_align = t.bits() / 8;
   auto f = [&](int i, llvm::Value* index) {
     llvm::Value* ptr = CreateBufferPtr(t.element_of(), buffer, index);
+#if TVM_LLVM_VERSION >= 110
+    llvm::StoreInst* store = builder_->CreateAlignedStore(
+        builder_->CreateExtractElement(value, i),
+        ptr, llvm::Align(basic_align), is_volatile);
+#else
     llvm::StoreInst* store = builder_->CreateAlignedStore(
         builder_->CreateExtractElement(value, i),
         ptr, basic_align, is_volatile);
+#endif
     AddAliasInfo(store, op->buffer_var.get(), PrimExpr(), op->value.dtype());
   };
   this->Scalarize(op->index, f);

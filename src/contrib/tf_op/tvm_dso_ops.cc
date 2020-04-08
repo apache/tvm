@@ -17,31 +17,15 @@
  * under the License.
  */
 
-/*!
- * \file src/runtime/crt/module.h
- * \brief Runtime container of the functions
- */
-#ifndef TVM_RUNTIME_CRT_MODULE_H_
-#define TVM_RUNTIME_CRT_MODULE_H_
+#include "tensorflow/core/framework/op.h"
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <string.h>
-
-struct TVMPackedFunc;
-
-/*!
- * \brief Module container of TVM.
- */
-typedef struct TVMModule {
-  /*!
-   * \brief Get packed function from current module by name.
-   *
-   * \param name The name of the function.
-   * \param pf The result function.
-   *
-   *  This function will return PackedFunc(nullptr) if function do not exist.
-   */
-  void (*GetFunction)(struct TVMModule * mod, const char * name, struct TVMPackedFunc * pf);
-} TVMModule;
-
-#endif  // TVM_RUNTIME_CRT_MODULE_H_
+REGISTER_OP("TvmDsoOp")
+    .Input("input_args: ListT")
+    .Attr("ListT: list({int8, int32, int64, float16, float32})")
+    .Input("dynamic_output_shape: int64")
+    .Output("output: output_dtype")
+    .Attr("lib_path: string")
+    .Attr("func_name: string")
+    .Attr("output_dtype: {int8, int32, int64, float16, float32} = DT_FLOAT")
+    .Attr("static_output_shape: list(int) >= 0 = []")
+    .Attr("has_static_output_shape: bool");

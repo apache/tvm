@@ -112,14 +112,12 @@ static inline void TVMPackedFunc_SetArgs(TVMPackedFunc * pf, const TVMArgs * arg
   memcpy(&(pf->args), args, sizeof(TVMArgs));
 }
 
-TVMPackedFunc g_fexecs[GRAPH_RUNTIME_MAX_NODES];
+TVMPackedFunc * g_fexecs = 0;
 uint32_t g_fexecs_count = 0;
-
-void TVMPackedFunc_SetupExecs();
 
 // Implement TVMModule::GetFunction
 // Put implementation in this file so we have seen the TVMPackedFunc
-static inline void TVMModule_GetFunction(const char * name, TVMPackedFunc * pf) {
+static inline void TVMModule_GetFunction(TVMModule * mod, const char * name, TVMPackedFunc * pf) {
   int idx;
   memset(pf, 0, sizeof(TVMPackedFunc));
   assert(strlen(name) <= sizeof(pf->name));
@@ -127,13 +125,13 @@ static inline void TVMModule_GetFunction(const char * name, TVMPackedFunc * pf) 
   pf->Call = TVMPackedFunc_Call;
   pf->SetArgs = TVMPackedFunc_SetArgs;
   pf->fexec = &TVMNoOperation;
-  for (idx = 0; idx < GRAPH_RUNTIME_MAX_NODES; idx++) {
+  for (idx = 0; idx < g_fexecs_count; idx++) {
     if (!strcmp(g_fexecs[idx].name, name)) {
       pf->fexec = g_fexecs[idx].fexec;
       break;
     }
   }
-  if (idx == GRAPH_RUNTIME_MAX_NODES) {
+  if (idx == g_fexecs_count) {
     fprintf(stderr, "function handle for %s not found\n", name);
   }
 }

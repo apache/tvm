@@ -18,6 +18,7 @@
  */
 
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/crt/memory.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,18 +30,12 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t nbytes, 
   void* ptr = 0;
   assert(nbytes > 0);
   unsigned int dtype_bytes = dtype_bits_hint / 8;
-#ifdef __ANDROID__
-  ptr = memalign(64, nbytes * dtype_bytes);
-#else
-  const int ret = posix_memalign(&ptr, 64, nbytes * dtype_bytes);
-  (void)ret;
-  assert(ret == 0);
-#endif
+  ptr = vmalloc(nbytes * dtype_bytes);
   return ptr;
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  free(ptr);
+  vfree(ptr);
   return 0;
 }
 
@@ -52,6 +47,7 @@ int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_ta
 }
 
 int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
+  g_fexecs = vrealloc(g_fexecs, sizeof(TVMPackedFunc) * (g_fexecs_count + 1));
   snprintf(g_fexecs[g_fexecs_count].name, sizeof(g_fexecs[g_fexecs_count].name), name);
   g_fexecs[g_fexecs_count].fexec = ptr;
   g_fexecs_count++;
