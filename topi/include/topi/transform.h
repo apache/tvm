@@ -1129,7 +1129,7 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
     auto maxLength = A->shape[axis];
     auto l = [&](const Array<Var>& input_indices) {
         //在这个轴进行累加，同时处理exclusive
-        tvm::Range range = tvm::Range{0, 1};
+        tvm::Range range = tvm::Range{0, 0};
 //        if(reverse) {
 //            PrimExpr begin;
 //            if(exclusive) {
@@ -1151,10 +1151,10 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
         Array<PrimExpr> indices;
         //axis轴放置k
         for(int i = 0; i < totalSize; ++i) {
-//            if(i == axis) {
-//                indices.push_back(k);
-//                continue;
-//            }
+            if(i == axis) {
+                indices.push_back(k);
+                continue;
+            }
             indices.push_back(input_indices[i]);
         }
         //处理累加部分
