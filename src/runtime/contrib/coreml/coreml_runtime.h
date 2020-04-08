@@ -101,7 +101,7 @@ class CoreMLRuntime : public ModuleNode {
   // CoreML model
   MLModel *model_;
   // CoreML model input dictionary
-  NSMutableDictionary<NSString *,id> *input_dict_;
+  NSMutableDictionary<NSString *, id> *input_dict_;
   // CoreML model output
   id<MLFeatureProvider> output_;
   // List of output names

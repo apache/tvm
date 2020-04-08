@@ -18,8 +18,6 @@
 import tvm._ffi
 from ..rpc import base as rpc_base
 
-import coremltools
-
 def create(compiled_model_path, output_names, ctx):
     """Create a runtime executor module given a coreml model and context.
     Parameters
