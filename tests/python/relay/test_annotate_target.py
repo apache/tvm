@@ -219,7 +219,53 @@ def test_multiple_ends():
     assert tvm.ir.structural_equal(expected, result)
 
 
+def test_composite_function():
+    def before():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+
+        # add_relu function
+        in_1 = relay.var('in_1', shape=(10, 10))
+        in_2 = relay.var('in_2', shape=(10, 10))
+        add_node = relay.add(in_1, in_2)
+        relu_node = relay.nn.relu(add_node)
+        add_relu = relay.Function([in_1, in_2], relu_node)
+        add_relu = add_relu.with_attr("Composite", tvm.tir.StringImm("test.add_relu"))
+
+        # merged function
+        r = relay.Call(add_relu, [a, b])
+        f = relay.Function([a, b], r)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    def after():
+        a = relay.var('a', shape=(10, 10))
+        b = relay.var('b', shape=(10, 10))
+
+        # add_relu function
+        in_1 = relay.var('in_1', shape=(10, 10))
+        in_2 = relay.var('in_2', shape=(10, 10))
+        add_node = relay.add(in_1, in_2)
+        relu_node = relay.nn.relu(add_node)
+        add_relu = relay.Function([in_1, in_2], relu_node)
+        add_relu = add_relu.with_attr("Composite", tvm.tir.StringImm("test.add_relu"))
+
+        # merged function
+        cb_1 = relay.annotation.compiler_begin(a, "test")
+        cb_2 = relay.annotation.compiler_begin(b, "test")
+        r = relay.Call(add_relu, [cb_1, cb_2])
+        ce_1 = relay.annotation.compiler_end(r, "test")
+        f = relay.Function([a, b], ce_1)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    result = transform.AnnotateTarget("test")(before())
+    expected = transform.InferType()(after())
+    assert tvm.ir.structural_equal(expected, result)
+
+
 if __name__ == "__main__":
     test_multiple_ends()
     test_extern_dnnl()
     test_extern_dnnl_mobilenet()
+    test_composite_function()

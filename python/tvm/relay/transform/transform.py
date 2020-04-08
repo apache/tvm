@@ -378,9 +378,12 @@ def MergeComposite(pattern_table):
     Parameters
     ----------
     pattern_table : list(tuple)
-        A list of (pattern_name, pattern) tuples.
+        A list of (pattern_name, pattern, check) tuples.
         The order of the patterns in the list will determine the order
         of priority in which they are matched.
+        'check' is a function to check whether an extracted pattern matches.
+        It can be implemented by pattern writer but if not specified it will
+        always return True.
 
     Returns
     -------
@@ -390,11 +393,19 @@ def MergeComposite(pattern_table):
     """
     pattern_names = []
     patterns = []
-    for pattern_name, pattern in pattern_table:
+    checks = []
+    for tup in pattern_table:
+        if len(tup) == 2:
+            pattern_name, pattern = tup
+            check = lambda extract: True
+        elif len(tup) == 3:
+            pattern_name, pattern, check = tup
+
         pattern_names.append(pattern_name)
         patterns.append(pattern)
+        checks.append(check)
 
-    return _ffi_api.MergeComposite(pattern_names, patterns)
+    return _ffi_api.MergeComposite(pattern_names, patterns, *checks)
 
 
 def MergeCompilerRegions():

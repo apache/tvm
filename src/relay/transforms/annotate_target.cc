@@ -49,10 +49,24 @@ class AnnotateTargetWrapper : public ExprMutator {
     if (expr->IsInstance<CallNode>()) {
       Call call = Downcast<Call>(expr);
       auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + target_);
-      Op op = Downcast<Op>(call->op);
-      CHECK(op.defined());
-      if (fannotate.count(op)) {
-        return fannotate[op](call->attrs, call->args);
+      if (call->op->IsInstance<OpNode>()) {
+        Op op = Downcast<Op>(call->op);
+        CHECK(op.defined());
+        if (fannotate.count(op)) {
+          return fannotate[op](call->attrs, call->args);
+        }
+      } else if (call->op->IsInstance<FunctionNode>()) {
+        // handle composite functions
+        Function func = Downcast<Function>(call->op);
+        CHECK(func.defined());
+        auto comp_name = func->GetAttr<tir::StringImm>(attr::kComposite);
+        if (comp_name.defined()) {
+          size_t i = comp_name->value.find('.');
+          if (i != std::string::npos) {
+            std::string target = comp_name->value.substr(0, i);
+            if (target == target_) return true;
+          }
+        }
       }
     }
     if (expr->IsInstance<TupleGetItemNode>()) {
@@ -77,7 +91,6 @@ class AnnotateTargetWrapper : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* cn) {
-    // TODO(@zhiics, @comaniac) Handle composite functions.
     auto new_e = ExprMutator::VisitExpr_(cn);
 
     Call call = Downcast<Call>(new_e);
@@ -130,13 +143,22 @@ class AnnotateTargetWrapper : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const FunctionNode* op) {
-    auto new_e = ExprMutator::VisitExpr_(op);
+  Expr VisitExpr_(const FunctionNode* fn) {
+    Function func;
+    Expr new_body;
+    // don't step into composite functions
+    if (fn->GetAttr<tir::StringImm>(attr::kComposite).defined()) {
+      func = GetRef<Function>(fn);
+      new_body = func->body;
+    } else {
+      auto new_e = ExprMutator::VisitExpr_(fn);
+      func = Downcast<Function>(new_e);
+      new_body = InsertEnd(func->body);
+    }
 
-    auto func = Downcast<Function>(new_e);
     return Function(
       func->params,
-      InsertEnd(func->body),
+      new_body,
       func->ret_type,
       func->type_params,
       func->attrs);
