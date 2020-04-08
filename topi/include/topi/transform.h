@@ -1154,7 +1154,7 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
         reduce_axes.push_back(k);
         Array<PrimExpr> indices;
         //axis轴放置k
-        for(unsigned i = 0; i < totalSize; ++i) {
+        for(int i = 0; i < totalSize; ++i) {
             if(i == axis) {
                 indices.push_back(k);
                 continue;
@@ -1162,7 +1162,7 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
             indices.push_back(input_indices[i]);
         }
         //处理累加部分
-        return tvm::sum(A(input_indices), {k});
+        return tvm::sum(A(input_indices), reduce_axes);
     };
     return tvm::te::compute(A->shape, l, name, tag);
 }
