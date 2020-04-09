@@ -1128,40 +1128,39 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
     }
     auto maxLength = A->shape[axis];
     auto l = [&](const Array<Var>& input_indices) {
-        Array<tir::IterVar> reduce_axes;
-        tir::IterVar k = [&]() {
-            //在这个轴进行累加，同时处理exclusive
-            tvm::Range range;
-            if(reverse) {
-                PrimExpr begin;
-                if(exclusive) {
-                    begin = input_indices[axis] + 1;
-                } else {
-                    begin = input_indices[axis];
-                }
-                range = tvm::Range{begin, maxLength};
+        //在这个轴进行累加，同时处理exclusive
+        tvm::Range range;
+        if(reverse) {
+            PrimExpr begin;
+            if(exclusive) {
+                begin = input_indices[axis] + 1;
             } else {
-                PrimExpr end;
-                if(exclusive) {
-                    end = input_indices[axis];
-                } else {
-                    end = input_indices[axis] + 1;
-                }
-                range = tvm::Range{0, end};
+                begin = input_indices[axis];
             }
-            return reduce_axis(range, "k" + std::to_string(random()));
-        }();
-        reduce_axes.push_back(k);
+            range = tvm::Range{begin, maxLength};
+        } else {
+            PrimExpr end;
+            if(exclusive) {
+                end = input_indices[axis] - 1;
+            } else {
+                end = input_indices[axis];
+            }
+            range = tvm::Range{0, end};
+        }
+        auto k = tvm::te::reduce_axis(range, "k" + std::to_string(random()));
         Array<PrimExpr> indices;
         //axis轴放置k
         for(int i = 0; i < totalSize; ++i) {
+            if(i == axis) {
+                indices.push_back(k);
+                continue;
+            }
             indices.push_back(input_indices[i]);
         }
-        indices.Set(axis, k);
         //处理累加部分
-        return sum(A(input_indices), reduce_axes);
+        return tvm::sum(A(indices), {k});
     };
-    return compute(A->shape, l, name, tag);
+    return tvm::te::compute(A->shape, l, name, tag);
 }
 
 /*!
