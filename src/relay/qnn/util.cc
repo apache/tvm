@@ -131,7 +131,7 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   tensor =
       RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
 
-  // The fixed point multiplication keeps the value in int32 range. Casting back to int32.
+  // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
   return Cast(tensor, DataType::Int(32));
 }
 

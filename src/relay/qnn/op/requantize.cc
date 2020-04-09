@@ -132,7 +132,6 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
-
   auto tensor = Cast(input_tensor, DataType::Int(32));
   // 1) Subtract the input_zero_point
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
@@ -175,6 +174,12 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
   auto shifted_int32_t = scaled_int32_t;
   if (!IsEqualScalar(output_zero_point, zero_scalar)) {
     shifted_int32_t = Add(Cast(output_zero_point, DataType::Int(32)), scaled_int32_t);
+  }
+
+  // 4) Clip to the out_dtype min/max. Skip clipping if out_dtype is Int32. The fixed point	
+  // multiplication keeps the value in int32 range.	
+  if (out_dtype == DataType::Int(32)) {	
+    return shifted_int32_t;
   }
 
   auto q_min = GetQmin(out_dtype);
