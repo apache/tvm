@@ -1375,7 +1375,35 @@ def test_forward_cumsum():
 
 
 #######################################################################
-# Gather, GatherV2, GatherNd
+# GatherNd
+# --------------------------
+def _gather_nd(in_shape, indices):
+    """test operator GatherNd"""
+    np_indices = np.asarray(indices, dtype='int32')
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        np_data = np.random.uniform(size=in_shape).astype("float32")
+        in_data = tf.placeholder(tf.float32, in_shape, name="in_data")
+        in_indices = tf.placeholder(tf.float32, np_indices.shape, name="in_indices")
+        out = tf.gather_nd(in_data, indices)
+        print(out)
+        compare_tf_with_tvm([np_data, np_indices], ['in_data:0', 'in_indices:0'], out.name)
+
+
+def test_forward_gather_nd():
+    _gather_nd((2, 3), [[0, 0], [1, 1]])
+    _gather_nd((2, 3), [[1], [0]])
+    _gather_nd((2, 3, 4), [[1]])
+    _gather_nd((4, 3, 2), [[0, 1], [1, 0]])
+    _gather_nd((2, 4), [[[0, 0]], [[0, 1]]])
+    _gather_nd((4, 2), [[[1]], [[0]]])
+    _gather_nd((2, 4, 2), [[[1]], [[0]]])
+    _gather_nd((2, 2, 3), [[[0, 1], [1, 0]], [[0, 0], [1, 1]]])
+    _gather_nd((2, 3, 3), [[[0, 0, 1], [1, 0, 1]], [[0, 1, 1], [1, 1, 0]]])
+
+
+#######################################################################
+# Gather, GatherV2
 # --------------------------
 
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
@@ -1413,16 +1441,6 @@ def test_forward_gather():
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 'int32')
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 'int32')
     _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 'float32')
-
-
-def test_forward_gather_nd():
-    """test operator GatherNd"""
-    np_data = np.random.uniform(1, 100, size=(2, 2)).astype(np.float32)
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 2), name="in_data")
-        tf.gather_nd(in_data, indices=[[1, 0], [0, 1]], name="gather_nd")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'gather_nd:0')
 
 
 #######################################################################
@@ -3266,7 +3284,7 @@ if __name__ == '__main__':
     # test_forward_pad()
     # test_forward_unpack()
     # test_forward_gather()
-    # test_forward_gather_nd()
+    test_forward_gather_nd()
     # test_forward_stridedslice()
     # test_forward_split()
     # test_forward_unstack()
@@ -3375,4 +3393,4 @@ if __name__ == '__main__':
     #
     # # Sharing params case using Mean ops
     # test_sharing_node()
-    test_forward_cumsum()
+    # test_forward_cumsum()

@@ -55,6 +55,7 @@ List of operators
    topi.split
    topi.take
    topi.gather_nd
+   topi.cumsum
    topi.full
    topi.full_like
    topi.nn.relu
