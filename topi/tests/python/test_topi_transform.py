@@ -418,15 +418,16 @@ def verify_cumsum(src_shape, axis=0, exclusive=False, reverse=False):
             s = topi.testing.get_injective_schedule(device)(out_tensor)
 
         func = tvm.build(s, [A, out_tensor], device, name="take")
-        shape_size = 1
-        for i in range(len(src_shape)):
-            shape_size = shape_size * src_shape[i]
-        data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
+        data_npy = np.random.uniform(size=src_shape).astype(A.dtype)
+        if axis < 0:
+            np_axis = len(src_shape) + axis
+        else:
+            np_axis = axis
+        out_npy = np.cumsum(data_npy, np_axis)
         data_nd = tvm.nd.array(data_npy, ctx)
-        out_nd = tvm.nd.empty(src_shape, ctx=ctx, dtype=src_dtype)
-        out = np.cumsum(data_nd, axis)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(src_dtype), ctx)
         func(data_nd, out_nd)
-        tvm.testing.assert_allclose(out_nd.asnumpy(), out)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -764,8 +765,10 @@ def test_take():
 
 def test_cumsum():
     verify_cumsum((4,))
+    verify_cumsum((4,), axis=-1)
     verify_cumsum((2, 3), axis=0)
     verify_cumsum((2, 3), axis=1)
+    verify_cumsum((2, 3), axis=-1)
     verify_cumsum((2, 3, 4), axis=1)
     verify_cumsum((2, 3, 4), axis=2)
     verify_cumsum((2, 3, 4), axis=0)
@@ -966,28 +969,28 @@ def test_unravel_index():
 
 
 if __name__ == "__main__":
-    test_strided_slice()
-    test_concatenate()
-    test_stack()
-    test_transpose()
-    test_expand_dims()
-    test_reshape()
-    test_where()
-    test_squeeze()
-    test_split()
-    test_flip()
-    test_expand_like()
-    test_take()
-    test_gather_nd()
-    test_arange()
-    test_layout_transform()
-    test_repeat()
-    test_tile()
-    test_shape()
-    test_sequence_mask()
-    test_ndarray_size()
-    test_where_fusion()
-    test_one_hot()
-    test_unravel_index()
+    # test_strided_slice()
+    # test_concatenate()
+    # test_stack()
+    # test_transpose()
+    # test_expand_dims()
+    # test_reshape()
+    # test_where()
+    # test_squeeze()
+    # test_split()
+    # test_flip()
+    # test_expand_like()
+    # test_take()
+    # test_gather_nd()
+    # test_arange()
+    # test_layout_transform()
+    # test_repeat()
+    # test_tile()
+    # test_shape()
+    # test_sequence_mask()
+    # test_ndarray_size()
+    # test_where_fusion()
+    # test_one_hot()
+    # test_unravel_index()
     test_cumsum()
 

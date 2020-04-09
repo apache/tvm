@@ -1668,6 +1668,14 @@ def _add_n():
         return  _res
     return _impl
 
+def _cumsum():
+    """Cumsum"""
+    def _impl(inputs, attr, params, mod):
+        axis = _get_num_param(params, inputs[1])
+        return AttrCvt(op_name="cumsum",
+                       ignores=['name', 'Tidx'],
+                       extras={'axis': int(axis)})([inputs[0]], attr)
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1713,7 +1721,7 @@ _convert_map = {
     'Conv3D'                            : _conv3d('conv'),
     'Conv2DBackpropInput'               : _conv('conv_transpose'),
     'CropAndResize'                     : _crop_and_resize(),
-    'Cumsum'                            : AttrCvt('cumsum'),
+    'Cumsum'                            : _cumsum(),
     'DecodeJpeg'                        : _decode_image(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'DepthToSpace'                      : _depth_to_space(),
