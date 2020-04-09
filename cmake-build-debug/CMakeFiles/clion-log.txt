@@ -1,0 +1,14 @@
+/Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /Users/adobay/Documents/code/tvm/tvm
+Build in Debug mode
+-- Build with RPC support...
+-- Build with Graph runtime support...
+-- VTA build with VTA_HW_PATH=/Users/adobay/Documents/code/tvm/tvm/3rdparty/vta-hw
+/usr/bin/python: can't open file '/Users/adobay/Documents/code/tvm/tvm/3rdparty/vta-hw/config/vta_config.py': [Errno 2] No such file or directory
+-- Build VTA runtime with target: 
+/usr/bin/python: can't open file '/Users/adobay/Documents/code/tvm/tvm/3rdparty/vta-hw/config/vta_config.py': [Errno 2] No such file or directory
+-- Build with contrib.hybriddump
+-- Build with c++14
+-- Build with thread support...
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /Users/adobay/Documents/code/tvm/tvm/cmake-build-debug

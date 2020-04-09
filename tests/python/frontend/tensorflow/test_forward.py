@@ -23,12 +23,10 @@ This article is a test script to test tensorflow operator with Relay.
 from __future__ import print_function
 import numpy as np
 import pytest
-# try:
-#     import tensorflow.compat.v1 as tf
-# except ImportError:
-#     import tensorflow as tf
-import tensorflow as tf
-tf.compat.v1 = tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
@@ -1375,35 +1373,7 @@ def test_forward_cumsum():
 
 
 #######################################################################
-# GatherNd
-# --------------------------
-def _gather_nd(in_shape, indices):
-    """test operator GatherNd"""
-    np_indices = np.asarray(indices, dtype='int32')
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        np_data = np.random.uniform(size=in_shape).astype("float32")
-        in_data = tf.placeholder(tf.float32, in_shape, name="in_data")
-        in_indices = tf.placeholder(tf.float32, np_indices.shape, name="in_indices")
-        out = tf.gather_nd(in_data, indices)
-        print(out)
-        compare_tf_with_tvm([np_data, np_indices], ['in_data:0', 'in_indices:0'], out.name)
-
-
-def test_forward_gather_nd():
-    _gather_nd((2, 3), [[0, 0], [1, 1]])
-    _gather_nd((2, 3), [[1], [0]])
-    _gather_nd((2, 3, 4), [[1]])
-    _gather_nd((4, 3, 2), [[0, 1], [1, 0]])
-    _gather_nd((2, 4), [[[0, 0]], [[0, 1]]])
-    _gather_nd((4, 2), [[[1]], [[0]]])
-    _gather_nd((2, 4, 2), [[[1]], [[0]]])
-    _gather_nd((2, 2, 3), [[[0, 1], [1, 0]], [[0, 0], [1, 1]]])
-    _gather_nd((2, 3, 3), [[[0, 0, 1], [1, 0, 1]], [[0, 1, 1], [1, 1, 0]]])
-
-
-#######################################################################
-# Gather, GatherV2
+# Gather, GatherV2, GatherNd
 # --------------------------
 
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
@@ -1441,6 +1411,16 @@ def test_forward_gather():
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 0, 'int32')
     _test_gather((3, 3, 3), (1, 1, 2), [[[1, 0]]], 2, 'int32')
     _test_gather((4, 3, 5, 6), (1, 4), [[2, 1, 0, 0]], 0, 'float32')
+
+
+def test_forward_gather_nd():
+    """test operator GatherNd"""
+    np_data = np.random.uniform(1, 100, size=(2, 2)).astype(np.float32)
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(tf.float32, (2, 2), name="in_data")
+        tf.gather_nd(in_data, indices=[[1, 0], [0, 1]], name="gather_nd")
+        compare_tf_with_tvm([np_data], ['in_data:0'], 'gather_nd:0')
 
 
 #######################################################################
@@ -3268,129 +3248,129 @@ def test_forward_isfinite():
 # ----
 if __name__ == '__main__':
     # Transforms
-    # test_forward_slice()
-    # test_forward_transpose()
-    # test_forward_reshape()
-    # test_forward_depthtospace()
-    # test_forward_spacetodepth()
-    # test_forward_squeeze()
-    # test_forward_pack()
-    # test_forward_size()
-    # test_forward_broadcast_to()
-    # test_forward_fill()
-    # test_forward_crop()
-    # test_forward_resize()
-    # test_forward_crop_and_resize()
-    # test_forward_pad()
-    # test_forward_unpack()
-    # test_forward_gather()
+    test_forward_slice()
+    test_forward_transpose()
+    test_forward_reshape()
+    test_forward_depthtospace()
+    test_forward_spacetodepth()
+    test_forward_squeeze()
+    test_forward_pack()
+    test_forward_size()
+    test_forward_broadcast_to()
+    test_forward_fill()
+    test_forward_crop()
+    test_forward_resize()
+    test_forward_crop_and_resize()
+    test_forward_pad()
+    test_forward_unpack()
+    test_forward_gather()
     test_forward_gather_nd()
-    # test_forward_stridedslice()
-    # test_forward_split()
-    # test_forward_unstack()
-    # test_forward_tile()
-    # test_forward_top_k_v2()
-    # test_forward_clip_by_value()
-    # test_forward_maximum()
-    # test_forward_minimum()
-    # test_forward_range()
-    # test_forward_right_shift()
-    # test_forward_left_shift()
-    # test_forward_truncatemod()
-    # test_forward_one_hot()
-    # test_forward_atan()
-    # test_forward_atan2()
-    #
-    # # Activations
-    # test_forward_sigmoid()
-    # test_forward_relu()
-    # test_forward_leaky_relu()
-    # test_forward_elu()
-    # test_forward_selu()
-    # test_forward_tanh()
-    #
-    # # Tensor
-    # test_forward_round()
-    # test_forward_reverse_v2()
-    # test_forward_pow_exp()
-    # test_forward_sign()
-    # test_forward_log()
-    # test_forward_log1p()
-    # test_forward_tan()
-    # test_forward_cos()
-    # test_forward_sin()
-    # test_forward_negative()
-    # test_forward_divide()
-    # test_forward_abs()
-    # test_forward_softplus()
-    # test_forward_sqrt()
-    # test_forward_rsqrt()
-    # test_forward_expand_dims()
-    # test_forward_square()
-    # test_forward_softmax()
-    # test_forward_log_softmax()
-    # test_forward_bias_add()
-    # test_forward_zeros_like()
-    # test_forward_erf()
-    # test_forward_squared_difference()
-    # test_forward_add_n()
-    # test_forward_floormod()
-    # test_forward_isfinite()
-    # test_forward_isinf()
-    # test_forward_unravel_index()
-    #
-    # # Reductions
-    # test_forward_argminmax()
-    # test_forward_reduce()
-    # test_forward_mean()
-    # test_forward_reduce_prod()
-    # test_forward_reduce_all()
-    # test_forward_reduce_any()
-    # test_forward_reduce_min()
-    #
-    # # General
-    # test_forward_multi_input()
-    # test_forward_multi_output()
-    # test_forward_variable()
-    # test_placeholder()
-    #
-    # # NN
-    # test_forward_convolution()
-    # test_forward_pooling()
-    # test_forward_concat_v2()
-    # test_forward_lrn()
-    # test_forward_l2_normalize()
-    # test_forward_space_to_batch_nd()
-    # test_forward_batch_to_space_nd()
-    # test_forward_dilation()
-    #
-    # # End to End
-    # test_forward_inception_v3()
-    # test_forward_inception_v1()
-    # test_forward_mobilenet()
-    # test_forward_resnetv2()
-    # test_forward_placeholder()
-    # test_forward_ptb()
-    #
-    # # RNN
-    # if package_version.parse(tf.VERSION) < package_version.parse('2.0.0'):
-    #     #in 2.0, tf.contrib.rnn.LSTMBlockCell is removed
-    #     test_forward_lstm()
-    #
-    # # Elementwise
-    # test_forward_ceil()
-    # test_forward_floor()
-    #
-    # # Relational ops
-    # test_forward_rel_ops()
-    # test_forward_logical()
-    # test_forward_where()
-    # test_forward_matmul()
-    # test_forward_batch_matmul()
-    #
-    # # Internal misc. ops
-    # test_read_variable_op()
-    #
-    # # Sharing params case using Mean ops
-    # test_sharing_node()
-    # test_forward_cumsum()
+    test_forward_stridedslice()
+    test_forward_split()
+    test_forward_unstack()
+    test_forward_tile()
+    test_forward_top_k_v2()
+    test_forward_clip_by_value()
+    test_forward_maximum()
+    test_forward_minimum()
+    test_forward_range()
+    test_forward_right_shift()
+    test_forward_left_shift()
+    test_forward_truncatemod()
+    test_forward_one_hot()
+    test_forward_atan()
+    test_forward_atan2()
+
+    # Activations
+    test_forward_sigmoid()
+    test_forward_relu()
+    test_forward_leaky_relu()
+    test_forward_elu()
+    test_forward_selu()
+    test_forward_tanh()
+
+    # Tensor
+    test_forward_round()
+    test_forward_reverse_v2()
+    test_forward_pow_exp()
+    test_forward_sign()
+    test_forward_log()
+    test_forward_log1p()
+    test_forward_tan()
+    test_forward_cos()
+    test_forward_sin()
+    test_forward_negative()
+    test_forward_divide()
+    test_forward_abs()
+    test_forward_softplus()
+    test_forward_sqrt()
+    test_forward_rsqrt()
+    test_forward_expand_dims()
+    test_forward_square()
+    test_forward_softmax()
+    test_forward_log_softmax()
+    test_forward_bias_add()
+    test_forward_zeros_like()
+    test_forward_erf()
+    test_forward_squared_difference()
+    test_forward_add_n()
+    test_forward_floormod()
+    test_forward_isfinite()
+    test_forward_isinf()
+    test_forward_unravel_index()
+
+    # Reductions
+    test_forward_argminmax()
+    test_forward_reduce()
+    test_forward_mean()
+    test_forward_reduce_prod()
+    test_forward_reduce_all()
+    test_forward_reduce_any()
+    test_forward_reduce_min()
+
+    # General
+    test_forward_multi_input()
+    test_forward_multi_output()
+    test_forward_variable()
+    test_placeholder()
+
+    # NN
+    test_forward_convolution()
+    test_forward_pooling()
+    test_forward_concat_v2()
+    test_forward_lrn()
+    test_forward_l2_normalize()
+    test_forward_space_to_batch_nd()
+    test_forward_batch_to_space_nd()
+    test_forward_dilation()
+
+    # End to End
+    test_forward_inception_v3()
+    test_forward_inception_v1()
+    test_forward_mobilenet()
+    test_forward_resnetv2()
+    test_forward_placeholder()
+    test_forward_ptb()
+
+    # RNN
+    if package_version.parse(tf.VERSION) < package_version.parse('2.0.0'):
+        #in 2.0, tf.contrib.rnn.LSTMBlockCell is removed
+        test_forward_lstm()
+
+    # Elementwise
+    test_forward_ceil()
+    test_forward_floor()
+
+    # Relational ops
+    test_forward_rel_ops()
+    test_forward_logical()
+    test_forward_where()
+    test_forward_matmul()
+    test_forward_batch_matmul()
+
+    # Internal misc. ops
+    test_read_variable_op()
+
+    # Sharing params case using Mean ops
+    test_sharing_node()
+    test_forward_cumsum()
