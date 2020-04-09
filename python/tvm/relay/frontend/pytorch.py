@@ -43,6 +43,7 @@ from . import qnn_torch
 __all__ = ["from_pytorch"]
 
 
+# List ADT utilities
 def _infer_type_with_prelude(val, prelude):
     mod = prelude.mod
     func = Function([], val)
@@ -72,6 +73,30 @@ def _convert_to_tensor_array(adt_lst, prelude):
     tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
 
     return prelude.map(tensor_create, adt_lst)
+
+
+def _should_construct_dynamic_list(list_construct_node):
+    # if this list is element-accessed or modified at runtime, generate List ADT
+    uses = _get_uses(list_construct_node)
+
+    for loop_use in filter(lambda use: use.user.kind() == "prim::Loop", uses):
+        block_input_index = loop_use.offset - 1
+        block = list(loop_use.user.blocks())[0]
+        list_loop_var = list(block.inputs())[block_input_index]
+        uses += _get_uses(list_loop_var.node())
+
+    op_names = set(use.user.kind() for use in uses)
+    list_ops = set(["aten::add_", "aten::__getitem__", "aten::stack"])
+    intersect = list_ops.intersection(op_names)
+
+    if len(intersect) > 0 and intersect != set(["aten::add_"]):
+        return True
+
+    output_type = _get_node_type(list_construct_node)
+    if intersect == set(["aten::add_"]) and output_type == "ListType":
+        return True
+
+    return False
 
 
 # operator implementation
@@ -165,7 +190,7 @@ def _slice():
         else:
             end = data.shape
 
-        begin = [0]*len(end)
+        begin = [0] * len(end)
         dim = int(inputs[1])
         begin[dim] = int(inputs[2])
 
@@ -406,7 +431,7 @@ def _maxpool_2d():
         ceil_mode = int(inputs[5])
 
         if dilation != (1, 1):
-            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation), )
+            msg = "MaxPool2d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool2d(data, pool_size, strides, padding, "NCHW", ceil_mode)
@@ -423,7 +448,7 @@ def _maxpool_1d():
         ceil_mode = int(inputs[5])
 
         if dilation != (1,):
-            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation), )
+            msg = "MaxPool1d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool1d(data, pool_size, strides, padding, "NCW", ceil_mode)
@@ -439,7 +464,7 @@ def _maxpool_3d():
         dilation = _infer_shape(inputs[4])
         ceil_mode = int(inputs[5])
         if dilation != (1, 1, 1):
-            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation), )
+            msg = "MaxPool3d with dilation %s is not implemented" % (str(dilation))
             raise NotImplementedError(msg)
 
         return _op.nn.max_pool3d(data,
@@ -1125,22 +1150,17 @@ def _list_getitem(prelude):
 
 
 def _add_(prelude):
-    """
-    add_ is overloaded for list concat, like below
-    %17 : Tensor[] = prim::ListConstruct(%out.1)
-    %outputs.3 : Tensor[] = aten::add_(%outputs.6, %17)
-    """
+    # add_ is overloaded for tensor add and list concat
     def _impl(inputs, input_types):
-        return prelude.concat(inputs[0], inputs[1])
-        # TODO: could inputs[0], and inputs[1] be tensors?
-        # return _elemwise("add")(inputs, input_types)
+        if input_types[0] == "ListType":
+            return prelude.concat(inputs[0], inputs[1])
+        return _elemwise("add")(inputs, input_types)
     return _impl
 
 
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
-        # TODO: check inputs[0] is List[TensorType]
-        # assert type_equal(inputs[0], prelude.l(TensorType))
+        # TODO: check inputs[0] is a ADT List[TensorType]
         tensor_array = _convert_to_tensor_array(inputs[0], prelude)
         shape = get_tensor_array_shape(tensor_array, "float32", prelude)
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
@@ -1231,7 +1251,7 @@ def _wrap_const(c):
     return c
 
 # Operator mappings
-def get_convert_map(prelude):
+def _get_convert_map(prelude):
     convert_map = {
         "aten::device"                          : _none(),
         "aten::add"                             : _elemwise("add"),
@@ -1459,7 +1479,7 @@ def _get_input_types(op_node):
                 input_list_types.append(in_ty.scalarType().lower())
 
         elif input_node_kind == 'ListType':
-            input_list_types.append(str(in_ty.getElementType()).lower())
+            input_list_types.append("ListType")
         elif input_node_kind in ['IntType', 'FloatType', 'BoolType',
                                  'StringType', 'OptionalType']:
             input_list_types.append(str(in_ty).lower())
@@ -1534,10 +1554,9 @@ def _get_relay_input_vars(graph, input_shapes, prelude):
     expected graph inputs - to allow translation
     """
     def get_relay_ty(ishape):
-        if _is_int_seq(ishape):
+        if _is_int_seq(ishape) or len(ishape) == 0:
             return TensorType(ishape)
         elif isinstance(ishape, tuple):
-            # ishapele of ishapele
             return TupleType([get_relay_ty(elem) for elem in ishape])
         elif isinstance(ishape, list):
             assert len(ishape) > 0
@@ -1566,8 +1585,8 @@ def _unpack_tuple(tup):
         return unpack(tup, len(tup.fields))
     elif isinstance(tup.type_annotation, TupleType):
         return unpack(tup, len(tup.type_annotation.fields))
-    else:
-        assert False
+    # shouldn't happen
+    assert False
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -1606,29 +1625,6 @@ def get_attr_chains(root_getattr_node):
         return len(next_attrs) == 0
 
     return get_use_chains(root_getattr_node, terminate)
-
-
-def is_list_dynamic(list_construct_node):
-    uses = _get_uses(list_construct_node)
-
-    for loop_use in filter(lambda use: use.user.kind() == "prim::Loop", uses):
-        block_input_index = loop_use.offset - 1
-        block = list(loop_use.user.blocks())[0]
-        list_loop_var = list(block.inputs())[block_input_index]
-        uses += _get_uses(list_loop_var.node())
-
-    op_names = set(use.user.kind() for use in uses)
-    list_ops = set(["aten::add_", "aten::__getitem__", "aten::stack"])
-    intersect = list_ops.intersection(op_names)
-
-    if len(intersect) > 0 and intersect != set(["aten::add_"]):
-        return True
-
-    output_type = _get_node_type(list_construct_node)
-    if intersect == set(["aten::add_"]) and output_type == "ListType":
-        return True
-
-    return False
 
 
 def convert_params(graph, state_dict):
@@ -1738,13 +1734,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
         return block_outputs
 
     def get_var(name, val):
-        if isinstance(val, _expr.Constant):
-            return _expr.var(name, shape=val.data.shape, dtype=val.data.dtype)
-        if isinstance(val, _expr.Var):
-            return _expr.var(name, type_annotation=val.type_annotation)
-
         checked_type = _infer_type_with_prelude(val, prelude)
-
         return _expr.var(name, type_annotation=checked_type)
 
     if is_while_loop:
@@ -1754,7 +1744,6 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
         if isinstance(init_cond, _expr.Constant):
             init_cond = _op.cast(init_cond, "bool")
         init_loop_iter_val = init_cond
-
     else:
         loop_iter_dtype = "int32"
         # always count from 0
@@ -1784,7 +1773,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
             outputs[node_name] = _get_constant(op_node)
         elif operator == "prim::ListConstruct" and _is_int_seq(inputs):
             outputs[node_name] = _expr.var(node_name, shape=inputs)
-        elif operator == "prim::ListConstruct" and is_list_dynamic(op_node):
+        elif operator == "prim::ListConstruct" and _should_construct_dynamic_list(op_node):
             outputs[node_name] = _convert_to_list_adt(inputs, prelude)
         elif operator == "prim::ListConstruct":
             # This assumes that no more elements will be appended to this list
@@ -1794,7 +1783,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
             outputs[node_name] = _expr.Tuple(inputs)
         elif operator in ["prim::ListUnpack", "prim::TupleUnpack"]:
             assert len(inputs) == 1
-            if isinstance(inputs[0], list):
+            if isinstance(inputs[0], (list, _expr.TupleWrapper)):
                 unpacked = inputs[0]
             else:
                 unpacked = _unpack_tuple(inputs[0])
@@ -1864,7 +1853,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
     mod = tvm.IRModule()
     prelude = Prelude(mod)
 
-    convert_map = get_convert_map(prelude)
+    convert_map = _get_convert_map(prelude)
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
@@ -1896,9 +1885,6 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     ret = convert_operators(_get_operator_nodes(graph.nodes()),
                             outputs, ret_name, convert_map, prelude)
-
-    if isinstance(ret[0], list):
-        ret[0] = _expr.Tuple(ret[0])
 
     mod["main"] = tvm.relay.Function(_analysis.free_vars(ret[0]), ret[0])
 
