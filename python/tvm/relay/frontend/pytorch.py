@@ -1376,6 +1376,22 @@ def _get_op_inputs(op_node, outputs):
     return [outputs[name] for name in _get_input_names(op_node)]
 
 
+def _get_node_type(node):
+    assert node.outputsSize() == 1
+    return node.output().type().kind()
+
+
+def _get_uses(node):
+    uses = []
+    for output in node.outputs():
+        uses += output.uses()
+    return uses
+
+
+def _get_users(node):
+    return [use.user for use in _get_uses(node)]
+
+
 def _report_missing_conversion(op_names, convert_map):
     """ Check if all ops in an input graph are supported by TVM """
     known_ops = ["prim::Constant", "prim::GetAttr",
@@ -1568,9 +1584,7 @@ def get_use_chains(root_node, terminate=lambda _: False):
         return itertools.chain.from_iterable(lists)
 
     def inner(current, accum):
-        users = []
-        for output in current.outputs():
-            users += [use.user for use in output.uses()]
+        users = _get_users(current)
 
         if not users or terminate(users):
             return [accum]
@@ -1600,6 +1614,25 @@ def get_attr_chains(root_getattr_node):
 
 
 def is_list_dynamic(list_construct_node):
+    uses = _get_uses(list_construct_node)
+
+    for loop_use in filter(lambda use: use.user.kind() == "prim::Loop", uses):
+        block_input_index = loop_use.offset - 1
+        block = list(loop_use.user.blocks())[0]
+        list_loop_var = list(block.inputs())[block_input_index]
+        uses += _get_uses(list_loop_var.node())
+
+    op_names = set(use.user.kind() for use in uses)
+    list_ops = set(["aten::add_", "aten::__getitem__", "aten::stack"])
+    intersect = list_ops.intersection(op_names)
+
+    if len(intersect) > 0 and intersect != set(["aten::add_"]):
+        print("list op", list_construct_node)
+        return True
+    if intersect == set(["aten::add_"]) and _get_node_type(list_construct_node) == "ListType":
+        print("add_ found and it is list", list_construct_node)
+        return True
+
     return False
 
 
@@ -1760,6 +1793,7 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
         elif operator == "prim::ListConstruct" and is_list_dynamic(op_node):
             outputs[node_name] = _convert_to_list_adt(inputs, prelude)
         elif operator == "prim::ListConstruct":
+            print(op_node)
             assert len(inputs) > 0, "An empty static list found"
             # This assumes that no more elements will be appended to this list
             # In this case, we keep the Python list
