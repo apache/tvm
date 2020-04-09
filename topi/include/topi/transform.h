@@ -1106,14 +1106,42 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
 }
 
 /**
- * 计算cumsum
- * @param A             输入Tensor
- * @param B             沿哪个轴
- * @param exclusive     第一行是否直接为0
- * @param reverse       是否倒序
- * @param name
- * @param tag
- * @return
+ * Compute the cumulative sum of the tensor `A` along `axis`.
+ *
+ *  By default, this operation performs an inclusive cumsum, which means that the first
+ *  element of the input is identical to the first element of the output:
+ *
+ *  ```python
+ *  cumsum([a, b, c])  # [a, a + b, a + b + c]
+ *  ```
+ *
+ *  By setting the `exclusive` kwarg to `True`, an exclusive cumsum is performed
+ *  instead:
+ *
+ *  ```python
+ *  cumsum([a, b, c], exclusive=True)  # [0, a, a + b]
+ *  ```
+ *
+ *  By setting the `reverse` kwarg to `True`, the cumsum is performed in the
+ *  opposite direction:
+ *
+ *  ```python
+ *  cumsum([a, b, c], reverse=True)  # [a + b + c, b + c, c]
+ *  ```
+ *
+ *  The `reverse` and `exclusive` kwargs can also be combined:
+ *
+ *  ```python
+ *  cumsum([a, b, c], exclusive=True, reverse=True)  # [b + c, c, 0]
+ *  ```
+ *
+ * @param A             Input tensor
+ * @param axis          Must be in the range `[-rank(x), rank(x))`
+ * @param exclusive     Perform exclusive cumsum
+ * @param reverse       Performed in the opposite direction
+ * @param name          The name of the operation
+ * @param tag           The tag to mark the operation
+ * @return              A Tensor whose op member is the cumsum operation
  */
 inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
                               int axis,
@@ -1122,13 +1150,11 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
                               std::string name = "T_cumsum",
                               std::string tag = kCumsum) {
     int totalSize = static_cast<int>(A->shape.size());
-    //兼容axis指定为负数的场景
     if(axis < 0) {
-        axis = totalSize - axis;
+        axis = totalSize + axis;
     }
     auto maxLength = A->shape[axis];
     auto l = [&](const Array<Var>& input_indices) {
-        //在这个轴进行累加，同时处理exclusive
         tvm::Range range;
         if(reverse) {
             PrimExpr begin;
@@ -1149,7 +1175,6 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
         }
         auto k = tvm::te::reduce_axis(range, "k" + std::to_string(random()));
         Array<PrimExpr> indices;
-        //axis轴放置k
         for(int i = 0; i < totalSize; ++i) {
             if(i == axis) {
                 indices.push_back(k);
@@ -1157,7 +1182,6 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
             }
             indices.push_back(input_indices[i]);
         }
-        //处理累加部分
         return tvm::sum(A(indices), {k});
     };
     return tvm::te::compute(A->shape, l, name, tag);

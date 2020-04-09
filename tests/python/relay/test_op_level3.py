@@ -665,19 +665,21 @@ def test_reverse():
 
 
 def test_cumsum():
-    print('in...')
     def verify_cumsum(xshape, axis=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         z = relay.cumsum(x, axis=axis, exclusive=False, reverse=False)
 
-
         func = relay.Function([x], z)
-
 
         x_data = np.random.uniform(size=xshape).astype("float32")
         print(x_data)
-        ref_res = np.cumsum(x_data, axis)
-        print(ref_res)
+
+        if axis < 0:
+            np_axis = len(xshape) + axis
+        else:
+            np_axis = axis
+        ref_res = np.cumsum(x_data, np_axis)
+
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
@@ -687,6 +689,8 @@ def test_cumsum():
     verify_cumsum((2, 2, 2), 1)
     verify_cumsum((3, 2, 2), 2)
     verify_cumsum((3, 2), 1)
+    verify_cumsum((3, 2), -1)
+    verify_cumsum((3, 2, 2), -2)
 
 
 def test_gather_nd():

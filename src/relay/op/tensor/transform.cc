@@ -2523,7 +2523,35 @@ TVM_REGISTER_GLOBAL("relay.op._make.cumsum")
 .set_body_typed(MakeCumsum);
 
 RELAY_REGISTER_OP("cumsum")
-.describe("cumsum for tensorflow")
+.describe(R"code(Compute the cumulative sum of the tensor `A` along `axis`.
+
+  By default, this op performs an inclusive cumsum, which means that the first
+  element of the input is identical to the first element of the output:
+
+  ```python
+  cumsum([a, b, c])  # [a, a + b, a + b + c]
+  ```
+
+  By setting the `exclusive` kwarg to `True`, an exclusive cumsum is performed
+  instead:
+
+  ```python
+  cumsum([a, b, c], exclusive=True)  # [0, a, a + b]
+  ```
+
+  By setting the `reverse` kwarg to `True`, the cumsum is performed in the
+  opposite direction:
+
+  ```python
+  cumsum([a, b, c], reverse=True)  # [a + b + c, b + c, c]
+  ```
+
+  The `reverse` and `exclusive` kwargs can also be combined:
+
+  ```python
+  cumsum([a, b, c], exclusive=True, reverse=True)  # [b + c, c, 0]
+  ```
+)code" TVM_ADD_FILELINE)
 .set_attrs_type<CumsumAttrs>()
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
