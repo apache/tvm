@@ -208,48 +208,48 @@ def _schedule_add(outs):
     te.schedule.AutoInlineInjective(s)
     # s[output].fuse(s[output].op.axis)
 
-    ewise_inputs = []
-    ewise_ops = []
-    const_ops = []
-
-    def _traverse(op):
-        if topi.tag.is_broadcast(op.tag):
-            if not op.same_as(output.op):
-                if not op.axis:
-                    const_ops.append(op)
-                elif not is_cast_op(op):
-                    ewise_ops.append(op)
-
-            for tensor in op.input_tensors:
-                if isinstance(tensor.op, tvm.te.PlaceholderOp):
-                    ewise_inputs.append((op, tensor))
-                elif is_cast_op(tensor.op) and not op.same_as(output.op):
-                    ewise_inputs.append((op, tensor))
-                else:
-                    _traverse(tensor.op)
-        else:
-            for tensor in op.input_tensors:
-                if (not isinstance(tensor.op, tvm.te.PlaceholderOp)) \
-                        and (not is_cast_op(tensor.op)):
-                    _traverse(tensor.op)
-
-    op = output.op
-    _traverse(op)
-    x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
-
-    x_co_max = topi.util.get_const_int(x_bo.dom.extent)
-    x_i_max = topi.util.get_const_int(x_i.dom.extent)
-    x_j_max = topi.util.get_const_int(x_j.dom.extent)
-
-    # TODO(zhanghao): auto-tune
-    x_co0, x_co1 = s[output].split(x_co, factor=1)
-    x_i0, x_i1 = s[output].split(x_i, factor=min(28, x_i_max))
-    x_j0, x_j1 = s[output].split(x_j, factor=min(14, x_j_max))
-    s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
-    store_pt = x_j0
-
     # only put the int-related ops to vta
     if "int" in output.dtype:
+        ewise_inputs = []
+        ewise_ops = []
+        const_ops = []
+
+        def _traverse(op):
+            if topi.tag.is_broadcast(op.tag):
+                if not op.same_as(output.op):
+                    if not op.axis:
+                        const_ops.append(op)
+                    elif not is_cast_op(op):
+                        ewise_ops.append(op)
+
+                for tensor in op.input_tensors:
+                    if isinstance(tensor.op, tvm.te.PlaceholderOp):
+                        ewise_inputs.append((op, tensor))
+                    elif is_cast_op(tensor.op) and not op.same_as(output.op):
+                        ewise_inputs.append((op, tensor))
+                    else:
+                        _traverse(tensor.op)
+            else:
+                for tensor in op.input_tensors:
+                    if (not isinstance(tensor.op, tvm.te.PlaceholderOp)) \
+                            and (not is_cast_op(tensor.op)):
+                        _traverse(tensor.op)
+
+        op = output.op
+        _traverse(op)
+        x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
+
+        x_co_max = topi.util.get_const_int(x_bo.dom.extent)
+        x_i_max = topi.util.get_const_int(x_i.dom.extent)
+        x_j_max = topi.util.get_const_int(x_j.dom.extent)
+
+        # TODO(zhanghao): auto-tune
+        x_co0, x_co1 = s[output].split(x_co, factor=1)
+        x_i0, x_i1 = s[output].split(x_i, factor=min(28, x_i_max))
+        x_j0, x_j1 = s[output].split(x_j, factor=min(14, x_j_max))
+        s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
+        store_pt = x_j0
+
         env = get_env()
         for eo in ewise_ops:
             eprint("add ewise_ops ", eo)
