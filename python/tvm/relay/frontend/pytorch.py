@@ -1125,20 +1125,15 @@ def _list_getitem(prelude):
 
 
 def _add_(prelude):
-    def concat_list(lhs, rhs_static):
-        # TODO: check lhs is an ADT list
-        rhs = _convert_to_list_adt(rhs_static, prelude)
-        return prelude.concat(lhs, rhs)
-
+    """
+    add_ is overloaded for list concat, like below
+    %17 : Tensor[] = prim::ListConstruct(%out.1)
+    %outputs.3 : Tensor[] = aten::add_(%outputs.6, %17)
+    """
     def _impl(inputs, input_types):
-        if isinstance(inputs[1], list):
-            # list concat op
-            # inputs[0] is ADT list (the number of elem changes at runtime)
-            # inputs[1] is python list (static list)
-            if len(inputs[1]) == 0:
-                return inputs[0]
-            return concat_list(inputs[0], inputs[1])
-        return _elemwise("add")(inputs, input_types)
+        return prelude.concat(inputs[0], inputs[1])
+        # TODO: could inputs[0], and inputs[1] be tensors?
+        # return _elemwise("add")(inputs, input_types)
     return _impl
 
 
@@ -1627,10 +1622,10 @@ def is_list_dynamic(list_construct_node):
     intersect = list_ops.intersection(op_names)
 
     if len(intersect) > 0 and intersect != set(["aten::add_"]):
-        print("list op", list_construct_node)
         return True
-    if intersect == set(["aten::add_"]) and _get_node_type(list_construct_node) == "ListType":
-        print("add_ found and it is list", list_construct_node)
+
+    output_type = _get_node_type(list_construct_node)
+    if intersect == set(["aten::add_"]) and output_type == "ListType":
         return True
 
     return False
@@ -1749,7 +1744,6 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
             return _expr.var(name, type_annotation=val.type_annotation)
 
         checked_type = _infer_type_with_prelude(val, prelude)
-        print("checked type:", checked_type)
 
         return _expr.var(name, type_annotation=checked_type)
 
@@ -1793,8 +1787,6 @@ def convert_operators(operators, outputs, ret_names, convert_map, prelude):
         elif operator == "prim::ListConstruct" and is_list_dynamic(op_node):
             outputs[node_name] = _convert_to_list_adt(inputs, prelude)
         elif operator == "prim::ListConstruct":
-            print(op_node)
-            assert len(inputs) > 0, "An empty static list found"
             # This assumes that no more elements will be appended to this list
             # In this case, we keep the Python list
             outputs[node_name] = inputs
@@ -1876,8 +1868,6 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     graph = script_module.graph.copy()
     _run_jit_passes(graph)
-
-    print(graph)
 
     if custom_convert_map:
         convert_map.update(custom_convert_map)
