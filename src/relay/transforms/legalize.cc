@@ -35,14 +35,14 @@ namespace legalize {
 
 // Call registered FTVMLegalize of an op
 // Returns the legalized expression
-class Legalizer : public ExprMutator {
+class Legalizer : public ExprRewriter {
  public:
   explicit Legalizer(const std::string& legalize_map_attr_name)
       : legalize_map_attr_name_{legalize_map_attr_name} {}
 
-  Expr VisitExpr_(const CallNode* call_node) {
+  Expr Rewrite_(const CallNode* call_node, const Expr& post) override {
     // Get the new_call node without any changes to current call node.
-    Expr new_e = ExprMutator::VisitExpr_(call_node);
+    Expr new_e = post;
     Call new_call = Downcast<Call>(new_e);
 
     // Check if the string is registered in the OpRegistry.
@@ -90,7 +90,8 @@ class Legalizer : public ExprMutator {
 };
 
 Expr Legalize(const Expr& expr, const std::string& legalize_map_attr_name) {
-  return Legalizer(legalize_map_attr_name).Mutate(expr);
+  auto rewriter = Legalizer(legalize_map_attr_name);
+  return PostOrderRewrite(expr, &rewriter);
 }
 
 }  // namespace legalize
