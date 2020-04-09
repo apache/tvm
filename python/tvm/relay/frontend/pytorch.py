@@ -57,6 +57,33 @@ def _elemwise(name):
         return get_relay_op(name)(data0, data1)
     return _impl
 
+def _abs():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.abs(data)
+    return _impl
+
+def _arange():
+    def _impl(inputs, input_types):
+        if len(inputs) == 5:
+            dtype = "float" if "float" in input_types[0:1] else _convert_dtype_value(inputs[1])
+            start = _create_typed_const(0, dtype)
+            stop = _create_typed_const(inputs[0], dtype)
+            step = _create_typed_const(1, dtype)
+        elif len(inputs) == 7:
+            dtype = "float" if "float" in input_types[0:3] else _convert_dtype_value(inputs[3])
+            start = _create_typed_const(inputs[0], dtype)
+            stop = _create_typed_const(inputs[1], dtype)
+            step = _create_typed_const(inputs[2], dtype)
+        else:
+            msg = "Unknown number of arguments (%d) to parse." % (len(inputs))
+            raise AssertionError(msg)
+        return _op.transform.arange(start=start,
+                                    stop=stop,
+                                    step=step,
+                                    dtype=_convert_data_type(dtype))
+    return _impl
+
 def _squeeze():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -694,6 +721,13 @@ def _sigmoid():
         return _op.tensor.sigmoid(data)
     return _impl
 
+def _softplus():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        beta = _expr.const(float(inputs[1]))
+        return _op.log(_op.exp(inputs[0] * beta) + _expr.const(1.)) / beta
+    return _impl
+
 def _avg_pool2d():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1006,6 +1040,26 @@ def _Float():
     return _impl
 
 # Helper functions for operator implementation
+def _convert_dtype_value(val):
+    if val == 7:
+        return "torch.float64"
+    elif val == 6:
+        return "torch.float32"
+    elif val == 5:
+        return "torch.float16"
+    elif val in [None, 4]: #Default is torch.int64
+        return "torch.int64"
+    elif val == 3:
+        return "torch.int32"
+    elif val == 2:
+        return "torch.int16"
+    elif val == 1:
+        return "torch.int8"
+    elif val == 0:
+        return "torch.uint8"
+    else:
+        raise NotImplementedError("input_value {} is not handled yet" % (val))
+    return "torch.float32"
 
 def _convert_data_type(input_type):
     if input_type in ["double", "torch.float64"]:
@@ -1080,6 +1134,8 @@ _convert_map = {
     "aten::pow"                             : _elemwise("power"),
     "aten::div"                             : _elemwise("divide"),
     "aten::div_"                            : _elemwise("divide"),
+    "aten::abs"                             : _abs(),
+    "aten::arange"                          : _arange(),
     "aten::ones"                            : _ones(),
     "aten::zeros"                           : _zeros(),
     "aten::to"                              : _to(),
@@ -1125,6 +1181,7 @@ _convert_map = {
     "aten::clone"                           : _clone(),
     "aten::log_softmax"                     : _log_softmax(),
     "aten::sigmoid"                         : _sigmoid(),
+    "aten::softplus"                        : _softplus(),
     "aten::avg_pool2d"                      : _avg_pool2d(),
     "aten::avg_pool3d"                      : _avg_pool3d(),
     "aten::dropout"                         : _dropout(),
