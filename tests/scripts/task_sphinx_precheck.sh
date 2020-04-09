@@ -23,7 +23,11 @@ set -o pipefail
 
 cleanup()
 {
-  rm -rf /tmp/$$.*
+    # cat error log if non zero exit
+    if [ $? ]; then
+        cat /tmp/$$.log.txt
+    fi
+    rm -rf /tmp/$$.*
 }
 trap cleanup 0
 
@@ -31,6 +35,7 @@ trap cleanup 0
 rm -rf docs/tutorials
 rm -rf docs/vta/tutorials
 find . -type f -path "*.pyc" | xargs rm -f
+make cython3
 
 echo "PreCheck sphinx doc generation WARNINGS.."
 cd docs
