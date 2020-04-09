@@ -42,12 +42,11 @@ class Legalizer : public ExprRewriter {
 
   Expr Rewrite_(const CallNode* call_node, const Expr& post) override {
     // Get the new_call node without any changes to current call node.
-    Expr new_e = post;
-    Call new_call = Downcast<Call>(new_e);
+    Call new_call = Downcast<Call>(post);
 
     // Check if the string is registered in the OpRegistry.
     if (!Op::HasAttr(legalize_map_attr_name_)) {
-      return new_e;
+      return post;
     }
 
     // Collect the registered legalize function.
@@ -70,19 +69,18 @@ class Legalizer : public ExprRewriter {
         // Transform the op by calling the registered legalize function.
         Expr legalized_value = fop_legalize[op](call_node->attrs, call_args, types);
 
-        // Reassign new_e if the transformation succeeded.
+        // Return the new expr if the transformation succeeded.
         if (legalized_value.defined()) {
           // Check that the returned Expr from legalize is CallNode.
           const CallNode* legalized_call_node = legalized_value.as<CallNode>();
           CHECK(legalized_call_node)
               << "Can only replace the original operator with another call node";
-
-          new_e = legalized_value;
+          return legalized_value;
         }
       }
     }
 
-    return new_e;
+    return post;
   }
 
  private:
