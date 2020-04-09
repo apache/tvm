@@ -56,7 +56,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SourceNameNode)
 .set_creator(GetSourceNameNode)
-.set_global_key([](const Object* n) {
+.set_repr_bytes([](const Object* n) {
     return static_cast<const SourceNameNode*>(n)->name;
   });
 

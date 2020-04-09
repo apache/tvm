@@ -48,7 +48,21 @@ struct StringObjTrait {
   }
 };
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait);
+struct RefToObjectPtr : public ObjectRef {
+  static ObjectPtr<Object> Get(const ObjectRef& ref) {
+    return GetDataPtr<Object>(ref);
+  }
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
+.set_creator([](const std::string& bytes) {
+  return RefToObjectPtr::Get(runtime::String(bytes));
+})
+.set_repr_bytes([](const Object* n) -> std::string {
+  return GetRef<runtime::String>(
+      static_cast<const runtime::StringObj*>(n)).operator std::string();
+});
+
 
 struct ADTObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
