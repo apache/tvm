@@ -161,7 +161,7 @@ def test_extern_dnnl():
     test_annotate()
     test_run()
 
-
+@pytest.mark.skip(reason="fix constant node before opening this case")
 def test_extern_dnnl_mobilenet():
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
@@ -267,5 +267,5 @@ def test_composite_function():
 if __name__ == "__main__":
     test_multiple_ends()
     test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
+    #test_extern_dnnl_mobilenet()
     test_composite_function()
