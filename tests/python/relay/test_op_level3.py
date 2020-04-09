@@ -16,7 +16,6 @@
 # under the License.
 """ Support level3 operator test cases.
 """
-
 import numpy as np
 import pytest
 import tvm
@@ -668,18 +667,13 @@ def test_cumsum():
     def verify_cumsum(xshape, axis=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
         z = relay.cumsum(x, axis=axis, exclusive=False, reverse=False)
-
         func = relay.Function([x], z)
-
         x_data = np.random.uniform(size=xshape).astype("float32")
-        print(x_data)
-
         if axis < 0:
             np_axis = len(xshape) + axis
         else:
             np_axis = axis
         ref_res = np.cumsum(x_data, np_axis)
-
         for target, ctx in ctx_list():
             for kind in ["graph", "debug"]:
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
