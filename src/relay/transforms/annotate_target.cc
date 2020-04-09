@@ -145,6 +145,9 @@ class AnnotateTargetWrapper : public ExprMutator {
       Op op = Downcast<Op>(cn->op);
       CHECK(op.defined());
       for (const auto& target : this->targets_) {
+        if (!Op::HasAttr("target." + std::string(target))) {
+          continue;
+        }
         auto fannotate = Op::GetAttr<FTVMAnnotateTarget>("target." + std::string(target));
         if (fannotate.count(op) && fannotate[op](cn->attrs, cn->args)) {
           supported_targets.push_back(target);

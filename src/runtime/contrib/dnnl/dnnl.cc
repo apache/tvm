@@ -169,11 +169,9 @@ extern "C" void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_,
   read_from_dnnl_memory(out, dst_memory);
 }
 
-extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, float* variance,
-                        float* out, float* new_mean, float* new_variance, int p_N_, int p_C_,
+extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean,
+                        float* variance, float* out, int p_N_, int p_C_,
                         int p_H_, int p_W_, int p_E_) {
-  // FIXME(@comaniac): BN has 3 outputs: out, new_mean and new_variance, but we do not update
-  // the rest two because no one cares about them for now. Should update it in the future.
   using tag = memory::format_tag;
   using dt = memory::data_type;
 
