@@ -140,10 +140,10 @@ class RewriteAnnotation : public ExprMutator {
     }
   }
 
-  Expr VisitExp_(const TupleNode* op) {
+  Expr VisitExpr_(const TupleNode* op) {
     Array<Expr> fields;
     bool annotated = false;
-    for (const auto& field : fields) {
+    for (const auto& field : op->fields) {
       annotated |= NeedDeviceCopy(field.operator->(), op);
       fields.push_back(GetDeviceCopyExpr(field, op));
     }
