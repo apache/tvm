@@ -197,7 +197,7 @@ class AnnotatedRegionSetNode : public Object {
    *
    * \return The new region.
    */
-  AnnotatedRegion MakeRegion(std::string target);
+  AnnotatedRegion MakeRegion(const std::string& target);
 
   std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> regions_;
   /*! \brief The next region ID to assign. */

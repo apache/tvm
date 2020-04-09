@@ -79,7 +79,7 @@ void AnnotatedRegionSetNode::AddToRegion(AnnotatedRegion dest, const Expr& expr)
   }
 }
 
-AnnotatedRegion AnnotatedRegionSetNode::MakeRegion(std::string target) {
+AnnotatedRegion AnnotatedRegionSetNode::MakeRegion(const std::string& target) {
   auto ret = regions_.emplace(AnnotatedRegion());
   (*ret.first)->id_ = region_id_++;
   (*ret.first)->target_ = target;
