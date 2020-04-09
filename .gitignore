@@ -232,5 +232,3 @@ conda/pkg
 # antlr files
 *.tokens
 *.interp
-
-cmake-build-debug
