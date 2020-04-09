@@ -272,7 +272,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     }
 
     Array<Pass> pass_seqs;
-    Array<runtime::String> entry_functions{runtime::String("main")};
+    Array<runtime::String> entry_functions{"main"};
     pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
 
     // Run all dialect legalization passes.

@@ -25,9 +25,7 @@ import numpy as np
 
 def check_json_roundtrip(node):
     json_str = tvm.ir.save_json(node)
-    print(node)
     back = tvm.ir.load_json(json_str)
-    print(back)
     assert tvm.ir.structural_equal(back, node, map_free_vars=True)
 
 
@@ -99,11 +97,13 @@ def test_function():
     type_params = tvm.runtime.convert([])
     fn = relay.Function(params, body, ret_type, type_params)
     fn = fn.with_attr("test_attribute", "value")
+    fn = fn.with_attr("test_attribute1", "value1")
     assert fn.params == params
     assert fn.body == body
     assert fn.type_params == type_params
     assert fn.span == None
     assert fn.attrs["test_attribute"] == "value"
+    assert fn.attrs["test_attribute1"] == "value1"
     str(fn)
     check_json_roundtrip(fn)
 

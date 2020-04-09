@@ -226,7 +226,7 @@ Pass AnnotateTarget(const std::string& target) {
         return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, target));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc",
-                                      {runtime::String("InferType")});
+                                      {"InferType"});
   return transform::Sequential({func_pass, InferType()}, "AnnotateTarget");
 }
 

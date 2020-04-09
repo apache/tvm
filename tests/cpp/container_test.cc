@@ -261,7 +261,7 @@ TEST(String, empty) {
   using namespace std;
   String s{"hello"};
   CHECK_EQ(s.empty(), false);
-  s = "";
+  s = std::string("");
   CHECK_EQ(s.empty(), true);
 }
 
