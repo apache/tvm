@@ -21,6 +21,8 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 
@@ -71,8 +73,8 @@ int main(int argc, char **argv) {
   input.ndim = 2;
   DLDataType dtype = {kDLFloat, 32, 1};
   input.dtype = dtype;
-  int64_t shape [2] = {10, 5};
-  input.shape = &shape;
+  int64_t shape[2] = {10, 5};
+  input.shape = shape;
   input.strides = NULL;
   input.byte_offset = 0;
 
@@ -90,15 +92,15 @@ int main(int argc, char **argv) {
   output.ndim = 2;
   DLDataType out_dtype = {kDLFloat, 32, 1};
   output.dtype = out_dtype;
-  int64_t out_shape [2] = {10, 5};
-  output.shape = &out_shape;
+  int64_t out_shape[2] = {10, 5};
+  output.shape = out_shape;
   output.strides = NULL;
   output.byte_offset = 0;
-  
+
   tvm_runtime_get_output(handle, 0, &output);
   gettimeofday(&t4, 0);
 
-  for (auto i = 0; i < 10 * 5; ++i) {
+  for (int i = 0; i < 10 * 5; ++i) {
     assert(fabs(output_storage[i] - result_storage[i]) < 1e-5f);
     if (fabs(output_storage[i] - result_storage[i]) >= 1e-5f) {
       printf("got %f, expected %f\n", output_storage[i], result_storage[i]);
@@ -118,6 +120,6 @@ int main(int argc, char **argv) {
 
   free(json_data);
   free(params_data);
-  
+
   return 0;
 }
