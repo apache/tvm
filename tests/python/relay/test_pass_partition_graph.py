@@ -451,6 +451,7 @@ def test_extern_dnnl_mobilenet():
         batch_size=1, dtype='float32')
 
     op_list = ["nn.conv2d", "nn.dense", "nn.relu", "add"]
+    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
     mod = WhiteListAnnotator(op_list, "dnnl")(mod)
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
