@@ -156,6 +156,7 @@ Supported Ops
 - FusedBatchNormV2
 - Gather
 - GatherNd
+- Cumsum
 - GatherV2
 - Greater
 - GreaterEqual

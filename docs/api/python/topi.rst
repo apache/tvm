@@ -159,6 +159,7 @@ topi
 .. autofunction:: topi.split
 .. autofunction:: topi.take
 .. autofunction:: topi.gather_nd
+.. autofunction:: topi.cumsum
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
 .. autofunction:: topi.all

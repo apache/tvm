@@ -119,6 +119,7 @@ This level enables additional math and transform operators.
    tvm.relay.ones
    tvm.relay.ones_like
    tvm.relay.gather_nd
+   tvm.relay.cumsum
    tvm.relay.full
    tvm.relay.full_like
    tvm.relay.cast
