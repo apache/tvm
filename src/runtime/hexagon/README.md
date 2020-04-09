@@ -25,6 +25,8 @@ The TVM runtime that contains Hexagon runtime is the one executing on host.  In 
 
 The prerequisite is to have Hexagon SDK installed, preferably version 3.5.0 or later. The Hexagon SDK can be downloaded from https://developer.qualcomm.com/software/hexagon-dsp-sdk.
 
+It is also recommended to use as recent version of LLVM as possible, version 7.0.0 being the minimum (based on community feedback).
+
 ### Compiling TVM runtime for x86
 
 This will use Hexagon simulator, which is provided in the Hexagon SDK.
