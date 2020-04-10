@@ -740,8 +740,8 @@ def reverse_reshape(data, newshape):
         newshape = [newshape]
     return _make._contrib_reverse_reshape(data, list(newshape))
 
-def cumsum(data, axis, exclusive, reverse):
-    return _make.cumsum(data, axis, exclusive, reverse)
+def cumsum(data, axis, exclusive, need_reverse):
+    return _make.cumsum(data, axis, exclusive, need_reverse)
 
 
 def gather_nd(data, indices):
