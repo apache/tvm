@@ -1474,12 +1474,12 @@ class CommandQueue {
   void CheckInsnOverFlow() {
     // At each API call, we can at most commit:
     // one pending store, one pending load, and one uop
-    if ((insn_queue_.count() + 4) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
+    if ((insn_queue_.count() + 5) * sizeof(VTAGenericInsn) >= VTA_MAX_XFER) {
       this->AutoSync();
     }
   }
   // Auto sync when instruction overflow
-  void AutoSync() { this->Synchronize(1 << 31); }
+  void AutoSync() { this->Synchronize(1 << 31, false); }
 
   // Internal debug flag
   int debug_flag_{0};
