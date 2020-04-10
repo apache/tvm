@@ -37,6 +37,13 @@ IntConstraints::IntConstraints(Array<Var> variables,
                                Map<Var, Range> ranges,
                                Array<PrimExpr> relations) {
   ObjectPtr<IntConstraintsNode> node = make_object<IntConstraintsNode>();
+  if (!variables.defined()) {
+    variables = Array<Var>();
+  }
+  if (!ranges.defined()) {
+    ranges = Map<Var, Range>();
+  }
+  CHECK(relations.defined());
   for (const auto& var : variables) {
     CHECK(var.dtype().is_int() || var.dtype().is_uint())
       << "Variables in IntConstraints must be integers";

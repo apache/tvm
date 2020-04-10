@@ -46,6 +46,8 @@ class IntConstraintsNode : public Object {
   // e.g., \alpha, \beta, must be integers
   Array<Var> variables;
   // e.g., 1 <= \alpha <= N, etc.
+  // it is absolutely ok to include ranges for parameters
+  // (variables that are not in this->variables) in this map
   Map<Var, Range> ranges;
   // linear equalities or inequalities
   // e.g., A \alpha = \beta or A \alpha <= \beta
@@ -57,6 +59,20 @@ class IntConstraintsNode : public Object {
     v->Visit("relations", &relations);
   }
 
+  bool SEqualReduce(const IntConstraintsNode* other, SEqualReducer equal) const {
+    return
+        equal(variables, other->variables) &&
+        equal(ranges, other->ranges) &&
+        equal(relations, other->relations);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(variables);
+    hash_reduce(ranges);
+    hash_reduce(relations);
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntConstraints";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsNode, Object);
 };
@@ -109,6 +125,22 @@ class IntConstraintsTransformNode : public Object {
     v->Visit("dst_to_src", &dst_to_src);
   }
 
+  bool SEqualReduce(const IntConstraintsTransformNode* other, SEqualReducer equal) const {
+    return
+        equal(src, other->src) &&
+        equal(dst, other->dst) &&
+        equal(src_to_dst, other->src_to_dst) &&
+        equal(dst_to_src, other->dst_to_src);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(src);
+    hash_reduce(dst);
+    hash_reduce(src_to_dst);
+    hash_reduce(dst_to_src);
+  }
+
+  static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntConstraintsTransform";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsTransformNode, Object);
 };

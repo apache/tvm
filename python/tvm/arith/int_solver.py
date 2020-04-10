@@ -71,16 +71,16 @@ class IntConstraintsTransform(Object):
             _ffi_api.IntConstraintsTransform, src, dst, src_to_dst, dst_to_src)
 
 
-def solve_linear_equations(equations, variables, ranges):
+def solve_linear_equations(equations, variables=None, ranges=None):
     """Solve linear equations.
 
     Parameters
     ----------
     equations: List[tvm.ir.PrimExpr] or IntConstraints
         The equations of the variables
-    variables : List[tvm.tir.Var]
+    variables : Optional[List[tvm.tir.Var]]
         The variables in the system.
-    ranges    : Map[tvm.tir.Var, tvm.ir.Range]
+    ranges    : Optional[Map[tvm.tir.Var, tvm.ir.Range]]
         The ranges of the variables.
 
     Returns

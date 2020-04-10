@@ -411,7 +411,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
         // have problems with dividing by negative numbers
         PrimExpr a = te::make_const(Uy[j].dtype(), -S[j][j]);
         solution_for_V_inv_x.push_back(
-            tir::Simplify(floordiv(-Uy[j], a), system_to_solve->ranges));
+            analyzer_problem.Simplify(floordiv(-Uy[j], a)));
       }
     }
   }

@@ -94,11 +94,10 @@ def check_solution(solution, vranges={}):
                    solution.dst_to_src, solution.src_to_dst)
 
 
-def test_solution_consistency(capsys):
+def test_solution_consistency():
     seed = random.randrange(sys.maxsize)
-    with capsys.disabled():
-        print("\nThis test is intentionally non-deterministic, "
-              "if it fails please report it in github issue together with this seed {}\n".format(seed))
+    print("\nThis test is intentionally non-deterministic, "
+          "if it fails please report it in github issue together with this seed {}\n".format(seed))
     random.seed(seed)
 
     def _check(num_vars, num_formulas, coef=(-5, 5), bounds=(-20, 20)):
@@ -155,14 +154,28 @@ def test_solution_consistency(capsys):
         _check(num_vars=10, num_formulas=3, coef=(0, 1), bounds=(0, 4))
 
 
+def test_empty_var_to_solve():
+    x, y = te.var("x"), te.var("y")
+    equations = [
+        tvm.tir.EQ(x + y, 20),
+        tvm.tir.EQ(x - y, 10),
+    ]
+    solution = arith.solve_linear_equations(equations)
+    assert len(solution.src_to_dst) == 0
+    assert len(solution.dst_to_src) == 0
+    assert len(solution.src.variables) == 0
+    assert len(solution.src.ranges) == 0
+    assert ir.structural_equal(solution.src.relations, equations)
+    assert ir.structural_equal(solution.src, solution.dst)
+
+
 def test_unique_solution():
     x, y = te.var("x"), te.var("y")
-    ranges = {}
 
     solution = arith.solve_linear_equations([
         tvm.tir.EQ(x + y, 20),
         tvm.tir.EQ(x - y, 10),
-    ], [x, y], ranges)
+    ], [x, y])
     assert list(solution.dst.variables) == []
     assert ir.structural_equal(solution.src_to_dst[x], 15)
     assert ir.structural_equal(solution.src_to_dst[y], 5)
