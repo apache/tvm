@@ -120,10 +120,10 @@ class IRTransformer final :
 Stmt IRTransform(Stmt ir_node,
                  const runtime::PackedFunc& f_preorder,
                  const runtime::PackedFunc& f_postorder,
-                 const Array<PrimExpr>& only_enable) {
+                 const Array<runtime::String>& only_enable) {
   std::unordered_set<uint32_t> only_type_index;
-  for (PrimExpr s : only_enable) {
-    only_type_index.insert(Object::TypeKey2Index(s.as<StringImmNode>()->value.c_str()));
+  for (auto s : only_enable) {
+    only_type_index.insert(Object::TypeKey2Index(s.c_str()));
   }
   IRTransformer transform(f_preorder, f_postorder, only_type_index);
   return transform(std::move(ir_node));

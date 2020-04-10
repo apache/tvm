@@ -90,7 +90,7 @@ runtime::Module BuildSPIRV(IRModule mod) {
     CHECK(calling_conv.defined() &&
           calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 

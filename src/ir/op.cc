@@ -24,6 +24,7 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
@@ -140,10 +141,9 @@ void OpRegistry::UpdateAttr(const std::string& key,
 // Frontend APIs
 TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
 .set_body_typed([]() {
-    Array<tvm::PrimExpr> ret;
-    for (const std::string& name :
-             dmlc::Registry<OpRegistry>::ListAllNames()) {
-      ret.push_back(tvm::PrimExpr(name));
+    Array<runtime::String> ret;
+    for (const std::string& name : dmlc::Registry<OpRegistry>::ListAllNames()) {
+      ret.push_back(name);
     }
     return ret;
   });
