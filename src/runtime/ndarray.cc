@@ -208,6 +208,10 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   // fill up content.
   data->manager_ctx = tensor;
   data->dl_tensor = tensor->dl_tensor;
+  // update shape_
+  data->shape_.resize(data->dl_tensor.ndim);
+  data->shape_.assign(data->dl_tensor.shape, data->dl_tensor.shape + data->dl_tensor.ndim);
+  data->dl_tensor.shape = data->shape_.data();
   return NDArray(GetObjectPtr<Object>(data));
 }
 
