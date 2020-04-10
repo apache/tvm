@@ -145,14 +145,14 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
   return func->GetAttr<Integer>(attr::kSkipOptimization, 0)->value != 0 ||
-    (func->GetAttr<tir::StringImm>(attr::kCompiler).defined());
+    (func->GetAttr<String>(attr::kCompiler).defined());
 }
 
 Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
+    const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return FunctionPass(pass_func, pass_info);
 }

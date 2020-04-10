@@ -70,8 +70,7 @@ Pass FastMath() {
     [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(FastMath(f));
   };
-  return CreateFunctionPass(pass_func, 4, "FastMath",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 4, "FastMath", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FastMath")

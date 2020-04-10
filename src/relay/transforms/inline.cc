@@ -131,7 +131,7 @@ class Inliner : ExprMutator {
                          fn->attrs);
     // Inline the function body to the caller if this function uses default
     // compiler, i.e. no external codegen is needed.
-    if (!func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (!func->GetAttr<String>(attr::kCompiler).defined()) {
       CHECK_EQ(func->params.size(), args.size())
           << "Mismatch found in the number of parameters and call args";
       // Bind the parameters with call args.

@@ -63,7 +63,6 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
       static_cast<const runtime::StringObj*>(n)).operator std::string();
 });
 
-
 struct ADTObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 

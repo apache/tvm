@@ -47,7 +47,8 @@ class DeviceTypeBinder: public StmtExprMutator {
         var_ = nullptr;
         std::ostringstream os;
         os << "device_type need to be " << device_type_;
-        return AssertStmtNode::make(op->value == value, os.str(), body);
+        return AssertStmtNode::make(op->value == value, tvm::tir::StringImmNode::make(os.str()),
+                                    body);
       }
     }
     return StmtExprMutator::VisitStmt_(op);

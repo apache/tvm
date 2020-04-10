@@ -59,11 +59,12 @@ class AnnotateTargetWrapper : public ExprMutator {
         // handle composite functions
         Function func = Downcast<Function>(call->op);
         CHECK(func.defined());
-        auto comp_name = func->GetAttr<tir::StringImm>(attr::kComposite);
+        auto comp_name = func->GetAttr<String>(attr::kComposite);
         if (comp_name.defined()) {
-          size_t i = comp_name->value.find('.');
+          std::string comp_name_str = comp_name;
+          size_t i = comp_name_str.find('.');
           if (i != std::string::npos) {
-            std::string target = comp_name->value.substr(0, i);
+            std::string target = comp_name_str.substr(0, i);
             if (target == target_) return true;
           }
         }
@@ -147,7 +148,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     Function func;
     Expr new_body;
     // don't step into composite functions
-    if (fn->GetAttr<tir::StringImm>(attr::kComposite).defined()) {
+    if (fn->GetAttr<String>(attr::kComposite).defined()) {
       func = GetRef<Function>(fn);
       new_body = func->body;
     } else {
@@ -225,7 +226,7 @@ Pass AnnotateTarget(const std::string& target) {
         return Downcast<Function>(relay::annotate_target::AnnotateTarget(f, target));
       };
   auto func_pass = CreateFunctionPass(pass_func, 0, "AnnotateTargetFunc",
-                                      {tir::StringImmNode::make("InferType")});
+                                      {"InferType"});
   return transform::Sequential({func_pass, InferType()}, "AnnotateTarget");
 }
 

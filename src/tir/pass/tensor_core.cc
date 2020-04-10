@@ -860,7 +860,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
         auto it = matrix_abc_.find(simplify_name(node->name));
         CHECK(it != matrix_abc_.end())
               << "Cannot find matrix info for " << node->name;
-        auto matrix_abc = "wmma." + it->second;
+        auto matrix_abc = tvm::tir::StringImmNode::make("wmma." + it->second);
         Stmt body = this->VisitStmt(op->body);
         return AttrStmtNode::make(op->node,
                               op->attr_key,

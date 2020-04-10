@@ -70,7 +70,7 @@ class CSourceModuleCodegenBase {
    */
   std::string GetExtSymbol(const Function& func) const {
     const auto name_node =
-        func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+        func->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(name_node.defined()) << "Fail to retrieve external symbol.";
     return std::string(name_node);
   }

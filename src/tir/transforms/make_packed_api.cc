@@ -41,12 +41,13 @@ namespace tvm {
 namespace tir {
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
+  return AssertStmtNode::make(lhs == rhs, tvm::tir::StringImmNode::make(msg),
+                              EvaluateNode::make(0));
 }
 
 PrimFunc MakePackedAPI(PrimFunc&& func,
                        int num_unpacked_args) {
-  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
   std::string name_hint = global_symbol;
@@ -140,17 +141,19 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
             AssertStmtNode::make(tcode == kTVMOpaqueHandle ||
                                  tcode == kTVMNDArrayHandle ||
                                  tcode == kTVMDLTensorHandle ||
-                                 tcode == kTVMNullptr, msg.str(), nop));
+                                 tcode == kTVMNullptr,
+                                 tvm::tir::StringImmNode::make(msg.str()), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be int";
-        seq_check.emplace_back(AssertStmtNode::make(tcode == kDLInt, msg.str(), nop));
+        seq_check.emplace_back(
+            AssertStmtNode::make(tcode == kDLInt, tvm::tir::StringImmNode::make(msg.str()), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be float";
         seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kDLFloat, msg.str(), nop));
+            AssertStmtNode::make(tcode == kDLFloat, tvm::tir::StringImmNode::make(msg.str()), nop));
       }
     } else {
       args.push_back(v_arg);

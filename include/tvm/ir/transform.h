@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/support/with.h>
+#include <tvm/runtime/container.h>
 #include <tvm/node/container.h>
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
@@ -95,9 +96,9 @@ class PassContextNode : public Object {
   int fallback_device{static_cast<int>(kDLCPU)};
 
   /*! \brief The list of required passes. */
-  Array<PrimExpr> required_pass;
+  Array<runtime::String> required_pass;
   /*! \brief The list of disabled passes. */
-  Array<PrimExpr> disabled_pass;
+  Array<runtime::String> disabled_pass;
 
   TraceFunc trace_func;
 
@@ -197,7 +198,7 @@ class PassInfoNode : public Object {
   std::string name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  Array<PrimExpr> required;
+  Array<runtime::String> required;
 
   PassInfoNode() = default;
 
@@ -226,7 +227,7 @@ class PassInfo : public ObjectRef {
    */
   TVM_DLL PassInfo(int opt_level,
                    std::string name,
-                   Array<PrimExpr> required);
+                   Array<runtime::String> required);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -346,7 +347,7 @@ Pass CreateModulePass(
     const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const Array<PrimExpr>& required);
+    const Array<runtime::String>& required);
 
 }  // namespace transform
 }  // namespace tvm

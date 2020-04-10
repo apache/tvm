@@ -326,7 +326,7 @@ class StmtExprMutator :
  *          won't do further recursion.
  * \param postorder The function called after recursive mutation.
  *          The recursive mutation result is passed to postorder for further mutation.
- * \param only_enable List of StringImm.
+ * \param only_enable List of runtime::String.
  *          If it is empty, all IRNode will call preorder/postorder
  *          If it is not empty, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
@@ -334,7 +334,7 @@ class StmtExprMutator :
 TVM_DLL Stmt IRTransform(Stmt node,
                          const runtime::PackedFunc& preorder,
                          const runtime::PackedFunc& postorder,
-                         const Array<PrimExpr>& only_enable = {});
+                         const Array<runtime::String>& only_enable = {});
 
 /*!
  * \brief recursively visit the ir in post DFS order node, apply fvisit

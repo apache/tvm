@@ -475,7 +475,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     Target target;
 
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
     } else {
       // Next generate the invoke instruction.
@@ -493,7 +493,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto cfunc = engine_->Lower(key);
 
     auto op_index = -1;
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
@@ -873,7 +873,7 @@ void VMCompiler::Lower(IRModule mod,
 
 IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
-  Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
+  Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
