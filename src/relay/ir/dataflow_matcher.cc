@@ -129,8 +129,7 @@ Array<DFPattern> reverse(const Array<DFPattern> args) {
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& expr) {
-  auto watermark = matched_nodes_.size();
-
+  // utilities
   auto get_op_node = [](const CallPatternNode* op) -> const tvm::OpNode* {
     if (op) {
       if (auto* expr_pattern = op->op.as<ExprPatternNode>()) {
@@ -139,11 +138,32 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     }
     return nullptr;
   };
+  auto is_pattern_op = [&get_op_node](const CallPatternNode* op, std::string op_type) {
+    if (const auto* op_node = get_op_node(op)) {
+      if (op_node->name == op_type) {
+        return true;
+      }
+    }
+    return false;
+  };
 
+  auto is_expr_op = [](const Expr& expr, std::string op_type) {
+    if (const auto* call_node = expr.as<CallNode>()) {
+      if (const auto* op_node = call_node->op.as<OpNode>()) {
+        if (op_node->name == op_type) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  // logic
+  auto watermark = matched_nodes_.size();
   if (const auto* call_node = expr.as<CallNode>()) {
     auto matches_op = VisitDFPattern(op->op, call_node->op);
     if (matches_op) {
       auto watermark2 = matched_nodes_.size();
+
       auto match_args = [this, &watermark2](const Array<DFPattern> pattern_args, const Array<Expr> expr_args) {
         bool matches = true;
         size_t i = 0;
@@ -161,10 +181,12 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
         return matches;
       };
 
+      // Standard case
       if (match_args(op->args, call_node->args)) {
         return true;
       }
-      if (auto* op_node = get_op_node(op)) {
+      // Commutative Matching
+      if (const OpNode* op_node = get_op_node(op)) {
         if ((op_node->name == "add") || (op_node->name == "multiply")) {
           if (match_args(reverse(op->args), call_node->args)) {
             return true;
@@ -173,111 +195,47 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       }
     } else {
       ClearMap(watermark);
-      // TODO(mbrookhart): This is nasty. Find a cleaner way to do this
-      if (const OpNode* op_node = get_op_node(op)) {
-        if (op_node->name == "divide") {
-          if (auto* arg_node = op->args[0].as<CallPatternNode>()) {
-            if (const OpNode* arg_op = get_op_node(arg_node)) {
-              if (arg_op->name == "multiply") {
-                auto associate_div_mul = [this, &op, &arg_node, &expr, &watermark]() {
-                  auto div1 = CallPatternNode::make(op->op, {arg_node->args[1], op->args[1]},
-                                                    op->attrs, op->type_args);
-                  auto mul1 = CallPatternNode::make(arg_node->op, {arg_node->args[0], div1},
-                                                    arg_node->attrs, arg_node->type_args);
-                  auto div2 = CallPatternNode::make(op->op, {arg_node->args[0], op->args[1]},
-                                                    op->attrs, op->type_args);
-                  auto mul2 = CallPatternNode::make(arg_node->op, {arg_node->args[1], div2},
-                                                    arg_node->attrs, arg_node->type_args);
-                  auto out = VisitDFPattern(mul1, expr);
-                  if (!out) {
+      // associate divide/multiply
+      if (is_pattern_op(op, "divide")) {
+        if (const auto* arg_node = op->args[0].as<CallPatternNode>()) {
+          if (is_pattern_op(arg_node, "multiply")) {
+            if (is_expr_op(expr, "multiply")) {
+              if (is_expr_op(call_node->args[0], "divide") ||
+                  is_expr_op(call_node->args[1], "divide")) {
+                bool out = false;
+                for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
+                  auto div = CallPatternNode::make(op->op, {arg_node->args[arg_id], op->args[1]},
+                                                   op->attrs, op->type_args);
+                  auto mul =
+                      CallPatternNode::make(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div},
+                                            arg_node->attrs, arg_node->type_args);
+                  out = VisitDFPattern(mul, expr);
+                  if (out) {
+                    return out;
+                  } else {
                     ClearMap(watermark);
-                    out = VisitDFPattern(mul2, expr);
-                  }
-                  return  out;
-                };
-
-                if (const OpNode* expr_op_node = call_node->op.as<OpNode>()) {
-                  if (expr_op_node->name == "multiply") {
-                    if (auto* input_call_node = call_node->args[0].as<CallNode>()) {
-                      if (const OpNode* input_op_node = input_call_node->op.as<OpNode>()) {
-                        if (input_op_node->name == "divide") {
-                          return associate_div_mul();
-                        }
-                      }
-                    }
-                    if (auto* input_call_node = call_node->args[1].as<CallNode>()) {
-                      if (const OpNode* input_op_node = input_call_node->op.as<OpNode>()) {
-                        if (input_op_node->name == "divide") {
-                          return associate_div_mul();
-                        }
-                      }
-                    }
                   }
                 }
+                return out;
               }
             }
           }
-        } else if (op_node->name == "multiply") {
-          if (auto* arg_node = op->args[0].as<CallPatternNode>()) {
-            if (const OpNode* arg_op = get_op_node(arg_node)) {
-              if (arg_op->name == "divide") {
-                auto associate_mul_div = [this, &op, &arg_node, &expr]() {
-                  auto mul1 = CallPatternNode::make(op->op, {arg_node->args[0], op->args[1]},
-                                                    op->attrs, op->type_args);
-                  auto div1 = CallPatternNode::make(arg_node->op, {mul1, arg_node->args[1]},
-                                                    arg_node->attrs, arg_node->type_args);
-                  return VisitDFPattern(div1, expr);
-                };
-
-                if (const OpNode* expr_op_node = call_node->op.as<OpNode>()) {
-                  if (expr_op_node->name == "divide") {
-                    if (auto* input_call_node = call_node->args[0].as<CallNode>()) {
-                      if (const OpNode* input_op_node = input_call_node->op.as<OpNode>()) {
-                        if (input_op_node->name == "multiply") {
-                          return associate_mul_div();
-                        }
-                      }
-                    }
-                    if (auto* input_call_node = call_node->args[1].as<CallNode>()) {
-                      if (const OpNode* input_op_node = input_call_node->op.as<OpNode>()) {
-                        if (input_op_node->name == "multiply") {
-                          return associate_mul_div();
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          if (auto* arg_node = op->args[1].as<CallPatternNode>()) {
-            if (const OpNode* arg_op = get_op_node(arg_node)) {
-              if (arg_op->name == "divide") {
-                auto associate_mul_div = [this, &op, &arg_node, &expr]() {
-                  auto mul1 = CallPatternNode::make(op->op, {arg_node->args[0], op->args[0]},
-                                                    op->attrs, op->type_args);
-                  auto div1 = CallPatternNode::make(arg_node->op, {mul1, arg_node->args[1]},
-                                                    arg_node->attrs, arg_node->type_args);
-                  return VisitDFPattern(div1, expr);
-                };
-
-                if (const OpNode* expr_op_node = call_node->op.as<OpNode>()) {
-                  if (expr_op_node->name == "divide") {
-                    if (auto* input_call_node = call_node->args[0].as<CallNode>()) {
-                      if (const OpNode* input_op_node = input_call_node->op.as<OpNode>()) {
-                        if (input_op_node->name == "multiply") {
-                          return associate_mul_div();
-                        }
-                      }
-                    }
-                    if (auto* input_call_node = call_node->args[1].as<CallNode>()) {
-                      if (const OpNode* input_op_node = input_call_node->op.as<OpNode>()) {
-                        if (input_op_node->name == "multiply") {
-                          return associate_mul_div();
-                        }
-                      }
-                    }
-                  }
+        }
+      }
+      if (is_pattern_op(op, "multiply")) {
+        // associate multiply/divide
+        for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
+          if (auto* arg_node = op->args[arg_id].as<CallPatternNode>()) {
+            if (is_pattern_op(arg_node, "divide")) {
+              if (is_expr_op(expr, "divide")) {
+                if (is_expr_op(call_node->args[0], "multiply") ||
+                    is_expr_op(call_node->args[1], "multiply")) {
+                  auto mul =
+                      CallPatternNode::make(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
+                                            op->attrs, op->type_args);
+                  auto div = CallPatternNode::make(arg_node->op, {mul, arg_node->args[1]},
+                                                   arg_node->attrs, arg_node->type_args);
+                  return VisitDFPattern(div, expr);
                 }
               }
             }

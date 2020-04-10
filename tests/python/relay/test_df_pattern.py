@@ -379,14 +379,13 @@ def test_fuse_batchnorm_commutation():
     out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
-    # associate multiply/divide
-    BN = (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) * gamma + beta
+    # associate divide/multiply
+    BN = (gamma * (x - mean)) /relay.op.sqrt(var + relay.const(1e-5))  + beta
     out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
-    # associate divide/multiply
-    BN_pattern = wildcard() * ((wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard())) + wildcard()
-    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+    # associate multiply/divide
+    BN = gamma * ((x - mean)/relay.op.sqrt(var + relay.const(1e-5))) + beta
     out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
@@ -412,5 +411,5 @@ if __name__ == "__main__":
     #test_no_fuse_batchnorm()
     #test_fuse_double_batchnorm()
     #test_partial_fuse_double_batchnorm()
-    #test_fuse_batchnorm_commutation()
-    test_match_dominator()
+    test_fuse_batchnorm_commutation()
+    #test_match_dominator()
