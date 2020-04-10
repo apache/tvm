@@ -137,7 +137,7 @@ Target CreateTarget(const std::string& target_name,
   } else if (target_name == "hybrid") {
     t->device_type = kDLCPU;
   } else if (target_name == "hexagon") {
-    t->keys_array.push_back(tir::StringImmNode::make("hexagon"));
+    t->keys_array.push_back(runtime::String("hexagon"));
     t->device_type = kDLHexagon;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
