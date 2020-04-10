@@ -21,6 +21,8 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 
@@ -71,8 +73,8 @@ int main(int argc, char **argv) {
   input.ndim = 2;
   DLDataType dtype = {kDLFloat, 32, 1};
   input.dtype = dtype;
-  int64_t shape [2] = {10, 5};
-  input.shape = &shape;
+  int64_t shape[2] = {10, 5};
+  input.shape = shape;
   input.strides = NULL;
   input.byte_offset = 0;
 
@@ -90,15 +92,15 @@ int main(int argc, char **argv) {
   output.ndim = 2;
   DLDataType out_dtype = {kDLFloat, 32, 1};
   output.dtype = out_dtype;
-  int64_t out_shape [2] = {10, 5};
-  output.shape = &out_shape;
+  int64_t out_shape[2] = {10, 5};
+  output.shape = out_shape;
   output.strides = NULL;
   output.byte_offset = 0;
-  
+
   tvm_runtime_get_output(handle, 0, &output);
   gettimeofday(&t4, 0);
 
-  for (auto i = 0; i < 10 * 5; ++i) {
+  for (int i = 0; i < 10 * 5; ++i) {
     assert(fabs(output_storage[i] - result_storage[i]) < 1e-5f);
     if (fabs(output_storage[i] - result_storage[i]) >= 1e-5f) {
       printf("got %f, expected %f\n", output_storage[i], result_storage[i]);
@@ -110,14 +112,14 @@ int main(int argc, char **argv) {
 
   printf("timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
          "%.2f ms (get_output), %.2f ms (destroy)\n",
-         (t1.tv_sec-t0.tv_sec)*1000000 + (t1.tv_usec-t0.tv_usec)/1000.f,
-         (t2.tv_sec-t1.tv_sec)*1000000 + (t2.tv_usec-t1.tv_usec)/1000.f,
-         (t3.tv_sec-t2.tv_sec)*1000000 + (t3.tv_usec-t2.tv_usec)/1000.f,
-         (t4.tv_sec-t3.tv_sec)*1000000 + (t4.tv_usec-t3.tv_usec)/1000.f,
-         (t5.tv_sec-t4.tv_sec)*1000000 + (t5.tv_usec-t4.tv_usec)/1000.f);
+         (t1.tv_sec-t0.tv_sec)*1000 + (t1.tv_usec-t0.tv_usec)/1000.f,
+         (t2.tv_sec-t1.tv_sec)*1000 + (t2.tv_usec-t1.tv_usec)/1000.f,
+         (t3.tv_sec-t2.tv_sec)*1000 + (t3.tv_usec-t2.tv_usec)/1000.f,
+         (t4.tv_sec-t3.tv_sec)*1000 + (t4.tv_usec-t3.tv_usec)/1000.f,
+         (t5.tv_sec-t4.tv_sec)*1000 + (t5.tv_usec-t4.tv_usec)/1000.f);
 
   free(json_data);
   free(params_data);
-  
+
   return 0;
 }
