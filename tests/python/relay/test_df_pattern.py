@@ -22,7 +22,8 @@ import numpy as np
 # NB: 1 corresponds to the C++ enum that specicfies this
 # we loose the type safety due to the Python/C++ calling
 # convention.
-K_ELEMWISE = 1
+K_ELEMWISE = 0
+K_BROADCAST = 1
 
 ## NODE TESTS
 def test_expr_pattern():
@@ -155,7 +156,7 @@ def test_no_match_type():
     assert not ty_pat.match(x)
 
 def test_match_attr():
-    op = is_op('add').has_attr("TOpPattern", K_ELEMWISE)
+    op = is_op('add').has_attr("TOpPattern", K_BROADCAST)
     op_pat = op(wildcard(), wildcard())
     x = relay.var('x')
     y = relay.var('y')
@@ -230,9 +231,9 @@ def test_match_fake_diamond():
 def test_match_dominator():
     # Pattern
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_elemwise = wildcard().has_attr("TOpPattern", K_ELEMWISE)
+    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
-    diamond = dominates(is_conv2d, is_elemwise, reduction)
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
 
     # Expr
     inp = relay.var('input')

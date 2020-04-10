@@ -289,17 +289,35 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   return false;
 }
 bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
-  //auto watermark = matched_nodes_.size();
+  auto watermark = matched_nodes_.size();
   if (VisitDFPattern(op->child, expr)) {
-    auto graph = CreateIndexedGraph(expr);
-    std::vector<Expr> dominated;
-    for (auto node : graph.topological_order_) {
-      if (node->dominator_parent_ && node->dominator_parent_->ref_ == expr) {
-        dominated.push_back(node->ref_);
-        std::cout << node->ref_ << std::endl;
+    bool matches = true;
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> dominated_exprs;
+    auto child_graph = CreateIndexedGraph(op->child);
+    for (auto node : child_graph.topological_order_) {
+      if (node->ref_.as<WildcardPatternNode>()) {
+        continue;
+      }
+      if (node->dominator_parent_ && node->dominator_parent_->ref_ == op->child) {
+        dominated_exprs.insert(memo_[node->ref_]);
       }
     }
-    return false;
+    ClearMap(watermark);
+    auto expr_graph = CreateIndexedGraph(expr);
+    for (auto node : expr_graph.topological_order_) {
+      if (node->dominator_parent_ && node->dominator_parent_->ref_ == expr) {
+        if (dominated_exprs.count(node->ref_) == 0) {
+          bool node_matches = VisitDFPattern(op->parent, node->ref_);
+          ClearMap(watermark);
+          matches = node_matches || VisitDFPattern(op->path, node->ref_);
+          ClearMap(watermark);
+          if (!matches) {
+            return false;
+          }
+        }
+      }
+    }
+    return matches;
   }
   return false;
 }
