@@ -1610,12 +1610,11 @@ def _get_free_vars_from_block(block):
     free_vars = set()
 
     for node in block.nodes():
-        inp_names = _get_input_names(node)
-        list_diff = [name for name in inp_names if name not in bound_names]
-        free_vars.update(list_diff)
+        new_vars = [n for n in node.inputs() if n.debugName() not in bound_names]
+        free_vars.update(new_vars)
         bound_names += _get_output_names(node)
 
-    return list(free_vars)
+    return free_vars
 
 
 def get_use_chains(root_node, terminate=lambda _: False):
@@ -1734,38 +1733,6 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     is_while_loop = (isinstance(max_loop_count, _expr.Constant) and
                      _get_constant(loop_node.inputsAt(0).node()) == sys.maxsize)
 
-    body_block = list(loop_node.blocks())[0]
-    block_input_names = _get_input_names(body_block)
-
-    def cond(*current_vals):
-        i = current_vals[0]
-
-        if is_while_loop:
-            return _op.equal(i, _expr.const(True, 'bool'))
-
-        return _op.less(i, max_loop_count)
-
-    def body(*current_vals):
-        # Update loop variables using the prev iteration outputs
-        assert len(current_vals) == len(block_input_names)
-        for (i, iname) in enumerate(block_input_names):
-            outputs[iname] = current_vals[i]
-
-        block_outputs = convert_block(body_block, outputs, convert_map, prelude)
-
-        if not is_while_loop:
-            # iter var increment implicit in torch, so do it manually
-            # for while loop, block_outputs[0] is already a boolean,
-            # the result of termination check
-            incr = _expr.const(1, dtype="int32")
-            block_outputs[0] = current_vals[0] + incr
-
-        return block_outputs
-
-    def get_var(name, val):
-        checked_type = _infer_type_with_prelude(val, prelude)
-        return _expr.var(name, type_annotation=checked_type)
-
     if is_while_loop:
         loop_iter_dtype = "bool"
         # while loop with non input dependent condition such as while i < 10:
@@ -1778,22 +1745,75 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
         # always count from 0
         init_loop_iter_val = _expr.const(0, dtype="int32")
 
+    body_block = list(loop_node.blocks())[0]
+    block_input_names = _get_input_names(body_block)
+    num_block_inputs = len(block_input_names)
     name_val_pairs = list(zip(block_input_names,
                               [init_loop_iter_val] + init_vals))
     outputs.update(name_val_pairs)
+
+    def get_var(name, val):
+        checked_type = _infer_type_with_prelude(val, prelude)
+        return _expr.var(name, type_annotation=checked_type)
 
     loop_iter_var = _expr.var(block_input_names[0], shape=(),
                               dtype=loop_iter_dtype)
     loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
 
-    # add free variable
+    # add free variables to loop variables
     free_vars = _get_free_vars_from_block(body_block)
     additional_vars = [var for var in free_vars
-                       if var in outputs and
-                       not isinstance(outputs[var], (_expr.Constant, int, float))]
+                       if var.debugName() in outputs and
+                       not isinstance(outputs[var.debugName()], (_expr.Constant, int, float))]
+    prev_outputs = {}
+    for var in additional_vars:
+        name = var.debugName()
+        prev_output = outputs[name]
+        new_loop_var = get_var(name, prev_output)
+        prev_outputs[name] = prev_output
+        outputs[name] = new_loop_var
+        loop_vars.append(new_loop_var)
+        init_vals.append(prev_output)
+
+    def cond(*current_vals):
+        i = current_vals[0]
+
+        if is_while_loop:
+            return _op.equal(i, _expr.const(True, 'bool'))
+
+        return _op.less(i, max_loop_count)
+
+    def body(*current_vals):
+        # Update loop variables using the prev iteration outputs
+        assert len(current_vals) == num_block_inputs + len(additional_vars)
+
+        for i in range(len(current_vals)):
+            if i < num_block_inputs:
+                outputs[block_input_names[i]] = current_vals[i]
+            else:
+                outputs[additional_vars[i-num_block_inputs].debugName()] = current_vals[i]
+
+        block_outputs = convert_block(body_block, outputs, convert_map, prelude)
+
+        for var in additional_vars:
+            block_outputs.append(outputs[var.debugName()])
+
+        if not is_while_loop:
+            # iter var increment implicit in torch, so do it manually
+            # for while loop, block_outputs[0] is already a boolean,
+            # the result of termination check
+            incr = _expr.const(1, dtype="int32")
+            block_outputs[0] = current_vals[0] + incr
+
+        return block_outputs
 
     loop = while_loop(cond, [loop_iter_var] + loop_vars, body)
     loop_val = loop(init_loop_iter_val, *init_vals)
+
+    # restore original output values for free vars
+    for var in additional_vars:
+        name = var.debugName()
+        outputs[name] = prev_outputs[name]
 
     # The first element is a loop counter or boolean condition, ignore it
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
@@ -1908,7 +1928,6 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
-    print(graph)
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
