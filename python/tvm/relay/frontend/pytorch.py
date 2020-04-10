@@ -753,22 +753,29 @@ def _dense():
             return dense_out
     return _impl
 
+
 def _size(prelude):
+    def _impl_dynamic(inp, axis):
+        shape_dynamic = _op.shape_of(inp)
+        if axis is not None:
+            return _op.take(shape_dynamic, _expr.const(axis), 0)
+        return shape_dynamic
+
     def _impl(inputs, input_types):
         shape = _infer_shape(inputs[0], prelude.mod)
-
-        if any(map(lambda s: isinstance(s, tvm.tir.expr.Any), shape)):
-            shape_dynamic = _op.shape_of(inputs[0])
-            if len(inputs) > 1:
-                axis = int(inputs[1])
-                return _op.take(shape_dynamic, _expr.const(axis), 0)
-            return shape_dynamic
-
+        axis = None
         if len(inputs) > 1:
             axis = int(inputs[1])
+
+        if any(map(lambda s: isinstance(s, tvm.tir.expr.Any), shape)):
+            if axis is None or isinstance(shape[axis], tvm.tir.expr.Any):
+                return _impl_dynamic(inputs[0], axis)
+
+        if axis is not None:
             return shape[axis]
         return shape
     return _impl
+
 
 def _numtotensor():
     def _impl(inputs, input_types):
