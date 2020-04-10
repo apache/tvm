@@ -77,6 +77,23 @@ def _convert_to_tensor_array(adt_lst, prelude):
 
 def _should_construct_dynamic_list(list_construct_node):
     # if this list is element-accessed or modified at runtime, generate List ADT
+
+    def is_used_by_list_add(uses):
+        for use in uses:
+            op_name = use.user.kind()
+            if op_name == "prim::Loop":
+                continue
+            output_type = _get_node_type(use.user)
+            if op_name in ["aten::add", "aten::add_"] and output_type == "ListType":
+                return True
+        return False
+
+    def inplace_add_to_add(op_name):
+        if op_name == "aten::add_":
+            return "aten::add"
+        else:
+            return op_name
+
     uses = _get_uses(list_construct_node)
 
     for loop_use in filter(lambda use: use.user.kind() == "prim::Loop", uses):
@@ -85,15 +102,15 @@ def _should_construct_dynamic_list(list_construct_node):
         list_loop_var = list(block.inputs())[block_input_index]
         uses += _get_uses(list_loop_var.node())
 
-    op_names = set(use.user.kind() for use in uses)
-    list_ops = set(["aten::add_", "aten::__getitem__", "aten::stack"])
+    op_names = map(inplace_add_to_add, set(use.user.kind() for use in uses))
+
+    list_ops = set(["aten::add", "aten::__getitem__", "aten::stack"])
     intersect = list_ops.intersection(op_names)
 
-    if len(intersect) > 0 and intersect != set(["aten::add_"]):
+    if len(intersect) > 0 and intersect != set(["aten::add"]):
         return True
 
-    output_type = _get_node_type(list_construct_node)
-    if intersect == set(["aten::add_"]) and output_type == "ListType":
+    if is_used_by_list_add(uses):
         return True
 
     return False
@@ -163,10 +180,27 @@ def _unsqueeze():
         return _op.transform.expand_dims(data, int(axis), 1)
     return _impl
 
-def _concatenate():
+
+def _concatenate(prelude):
+    def tensor_array_concat(lst, axis):
+        # assert axis == 0
+        tensor_array = _convert_to_tensor_array(lst, prelude)
+        shape = get_tensor_array_shape(tensor_array, "float32", prelude)
+        print("tensor array concat shape:", shape)
+        concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
+        concatenated = concat(tensor_array)
+
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
+        static_tensor_array_ops.define_tensor_get_data(shape)
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+        return get_tensor(concatenated)
+
     def _impl(inputs, input_types):
         data = inputs[0]
         axis = inputs[1]
+
+        if input_types[0] == "ListType":
+            return tensor_array_concat(data, axis)
 
         if isinstance(data, _expr.Expr):
             data = [data]
@@ -678,13 +712,13 @@ def _layer_norm():
                                  scale=True)
     return _impl
 
-def _transpose():
+def _transpose(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
 
         import torch
         if isinstance(data, _expr.Expr):
-            ndims = len(_infer_shape(data))
+            ndims = len(_infer_shape(data, prelude.mod))
         elif isinstance(data, list):
             ndims = data
         elif isinstance(data, (torch.Tensor, np.ndarray)):
@@ -1164,7 +1198,13 @@ def _list_getitem(prelude):
     return _impl
 
 
-def _add_(prelude):
+def _list_len(prelude):
+    def _impl(inputs, input_types):
+        return prelude.length(inputs[0])
+    return _impl
+
+
+def _add(prelude):
     # add_ is overloaded for tensor add and list concat
     def _impl(inputs, input_types):
         if input_types[0] == "ListType":
@@ -1269,7 +1309,6 @@ def _wrap_const(c):
 def _get_convert_map(prelude):
     convert_map = {
         "aten::device"                          : _none(),
-        "aten::add"                             : _elemwise("add"),
         "aten::sub"                             : _elemwise("subtract"),
         "aten::sub_"                            : _elemwise("subtract"),
         "aten::max"                             : _elemwise("maximum"),
@@ -1289,7 +1328,7 @@ def _get_convert_map(prelude):
         "aten::to"                              : _to(),
         "aten::squeeze"                         : _squeeze(),
         "aten::unsqueeze"                       : _unsqueeze(),
-        "aten::cat"                             : _concatenate(),
+        "aten::cat"                             : _concatenate(prelude),
         "aten::slice"                           : _slice(),
         "aten::split"                           : _split(),
         "aten::split_with_sizes"                : _split_with_sizes(),
@@ -1319,9 +1358,9 @@ def _get_convert_map(prelude):
         "aten::batch_norm"                      : _batch_norm(),
         "aten::instance_norm"                   : _instance_norm(),
         "aten::layer_norm"                      : _layer_norm(),
-        "aten::transpose"                       : _transpose(),
-        "aten::transpose_"                      : _transpose(),
-        "aten::t"                               : _transpose(),
+        "aten::transpose"                       : _transpose(prelude),
+        "aten::transpose_"                      : _transpose(prelude),
+        "aten::t"                               : _transpose(prelude),
         "aten::flatten"                         : _flatten(),
         "aten::addmm"                           : _dense(),
         "aten::size"                            : _size(prelude),
@@ -1344,7 +1383,7 @@ def _get_convert_map(prelude):
         "aten::Int"                             : _int(),
         "prim::NumToTensor"                     : _numtotensor(),
         "aten::constant_pad_nd"                 : _pad(),
-        "aten::permute"                         : _transpose(),
+        "aten::permute"                         : _transpose(prelude),
         "aten::sum"                             : _reduce("sum"),
         "aten::prod"                            : _reduce("prod"),
         "aten::sqrt"                            : _sqrt(),
@@ -1366,9 +1405,11 @@ def _get_convert_map(prelude):
         "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d(),
         "aten::mm"                              : _matmul(),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
-        "aten::add_"                            : _add_(prelude),
+        "aten::add"                             : _add(prelude),
+        "aten::add_"                            : _add(prelude),
         "aten::stack"                           : _tensor_array_stack(prelude),
         "aten::__getitem__"                     : _list_getitem(prelude),
+        "aten::len"                             : _list_len(prelude),
     }
     return convert_map
 
@@ -1923,6 +1964,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
+    print(graph)
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
