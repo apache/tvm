@@ -548,7 +548,7 @@ class TVMArgValue : public TVMPODValue_ {
  *
  *  We can only construct a movable argument once from a single argument position.
  *  If the argument is passed as RValue reference, the result will be moved.
- *  We should only construct a MovableArg from a argument once,
+ *  We should only construct a MovableArg from an argument once,
  *  as the result will can moved.
  *
  * \note For internal development purpose only.
@@ -903,7 +903,7 @@ class TVMRetValue : public TVMPODValue_ {
 template<typename TObjectRef>
 struct PackedFuncValueConverter {
   /*!
-   * \brief Convert an TObjectRef from an argument value.
+   * \brief Convert a TObjectRef from an argument value.
    * \param val The argument value.
    * \return the converted result.
    */
@@ -911,7 +911,7 @@ struct PackedFuncValueConverter {
     return val.AsObjectRef<TObjectRef>();
   }
   /*!
-   * \brief Convert an TObjectRef from an argument value.
+   * \brief Convert a TObjectRef from a return value.
    * \param val The argument value.
    * \return the converted result.
    */
