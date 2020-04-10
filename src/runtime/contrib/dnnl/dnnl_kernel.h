@@ -44,8 +44,8 @@ extern "C" TVM_DLL void dnnl_dense(float* data, float* weight, float* out, int p
 extern "C" TVM_DLL void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_, int p_W_);
 
 extern "C" TVM_DLL void dnnl_bn(float* data, float* gamma, float* beta, float* mean,
-                                float* variance, float* out, float* new_mean, float* new_variance,
-                                int p_n_, int p_c_, int p_h_, int p_w_, int p_e_);
+                                float* variance, float* out, int p_n_, int p_c_, int p_h_, int p_w_,
+                                int p_e_);
 
 extern "C" TVM_DLL void dnnl_add(float* data, float* weight, float* out, int p_n_, int p_c_,
                                  int p_h_, int p_w_);
