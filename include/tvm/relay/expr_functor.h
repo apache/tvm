@@ -330,7 +330,7 @@ class MixedModeMutator : public ::tvm::relay::ExprMutator {
  *
  *  ExprRewriter provides a Rewrite interface for modifying graphs in Post-DFS order.
  *
- *  The expectation is that ExprRewriter objects will be passed to PostOrderRewrite, which will
+ * The expectation is that ExprRewriter objects will be passed to PostOrderRewrite, which will
  * non-recursively unroll the graph and call Rewriting on inputs. It will then pass the original
  * node, called `pre`, and a node recreated with any alterned inputs, called `post`, to the
  * ExprRewriter. The ExprRewriter can then use the information in those two nodes to do more complex
@@ -408,7 +408,7 @@ class ExprRewriter {
 
 /*! \brief Non-recursive DFS Graph Traversal for Custom Rewriting Passes
  *
- *  PostOrderRewrite does a non-recursive traversal of the graph in Post-DFS order and calls the
+ * PostOrderRewrite does a non-recursive traversal of the graph in Post-DFS order and calls the
  * ExprRewriter's Rewrite functions on nodes once their inputs are rewritten. At each rewrite call,
  * PostOrderRewrite provides the original node and the node with altered inputs for use by the
  * ExprRewriter.
