@@ -247,6 +247,43 @@ def test_match_dominator():
     # Check
     assert diamond.match(out)
 
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    reduction = is_op('add')(wildcard(), wildcard())
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Expr
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    relu = relay.op.tanh(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    assert diamond.match(out)
+
+def test_not_match_dominator():
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    reduction = is_op('add')(wildcard(), wildcard())
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Expr
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relu + relu
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    assert not diamond.match(out)
+
 def test_rewrite():
     x = relay.var('x')
     y = relay.var('y')
@@ -388,6 +425,85 @@ def test_fuse_batchnorm_commutation():
     BN = gamma * ((x - mean)/relay.op.sqrt(var + relay.const(1e-5))) + beta
     out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
+
+def algebraic_simplify(expr):
+    pattern_callbacks = []
+
+    def elwise_zero_callback(pre, post):
+        if (tvm.ir.structural_equal(post.args[0], relay.const(0)) | 
+            tvm.ir.structural_equal(post.args[0], relay.const(0.0))):
+            return post.args[1]
+        else:
+            return post.args[0]
+
+    def elwise_one_callback(pre, post):
+        if (tvm.ir.structural_equal(post.args[0], relay.const(1)) | 
+            tvm.ir.structural_equal(post.args[0], relay.const(1.0))):
+            return post.args[1]
+        else:
+            return post.args[0]
+
+    def return_zero_callback(pre, post):
+        if (tvm.ir.structural_equal(post.args[0], relay.const(0)) | 
+            tvm.ir.structural_equal(post.args[0], relay.const(0.0))):
+            return post.args[0]
+        else:
+            return post.args[1]
+
+    zero = (ExprPattern(relay.const(0)) | ExprPattern(relay.const(0.0)))
+    one = (ExprPattern(relay.const(1)) | ExprPattern(relay.const(1.0)))
+    add_pattern = wildcard() + zero
+    pattern_callbacks.append(DFPatternCallback(add_pattern, elwise_zero_callback))
+
+    sub_pattern = wildcard() - zero
+    pattern_callbacks.append(DFPatternCallback(sub_pattern, elwise_zero_callback))
+
+    mul_pattern = wildcard() * one
+    pattern_callbacks.append(DFPatternCallback(mul_pattern, elwise_one_callback))
+    
+    mul_zero_pattern = wildcard() * zero
+    pattern_callbacks.append(DFPatternCallback(mul_zero_pattern, return_zero_callback))
+
+    div_pattern = wildcard() / one
+    pattern_callbacks.append(DFPatternCallback(div_pattern, elwise_one_callback))
+
+    zero_div_pattern = zero / wildcard()
+    pattern_callbacks.append(DFPatternCallback(zero_div_pattern, return_zero_callback))
+
+    return rewrite(pattern_callbacks, expr);
+
+def test_algebraic_simplify():
+    x = relay.Var('x')
+    y = relay.Var('y')  
+
+    print(x + relay.const(0))
+    
+    one = relay.const(1)
+    zero = relay.const(0)
+    onef = relay.const(1.0)
+    zerof = relay.const(0.0)
+
+    assert algebraic_simplify(x + zero) == x
+    assert algebraic_simplify(x + zerof) == x
+    assert algebraic_simplify(zero + x) == x
+    assert algebraic_simplify(zerof + x) == x
+    
+    assert algebraic_simplify(x - zero) == x
+    assert algebraic_simplify(x - zerof) == x
+    
+    assert algebraic_simplify(x * one) == x
+    assert algebraic_simplify(x * onef) == x
+    assert algebraic_simplify(one * x) == x
+    assert algebraic_simplify(onef * x) == x
+    assert algebraic_simplify(x * zero) == zero
+    assert algebraic_simplify(x * zerof) == zerof
+    
+    assert algebraic_simplify(x / one) == x
+    assert algebraic_simplify(x / onef) == x
+    assert algebraic_simplify(zero / x) == zero
+    assert algebraic_simplify(zerof / x) == zerof
+
+    assert tvm.ir.structural_equal(algebraic_simplify((x + zero * y) / one + (y * one) - zero / x), x + y)
 
 if __name__ == "__main__":
     #test_match_op()

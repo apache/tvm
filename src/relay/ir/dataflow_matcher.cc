@@ -280,7 +280,7 @@ bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Exp
   return false;
 }
 bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) {
-  return op->expr == expr;
+  return StructuralEqual()(op->expr, expr);
 }
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
