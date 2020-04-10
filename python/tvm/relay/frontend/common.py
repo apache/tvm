@@ -487,7 +487,7 @@ def infer_shape(inputs, mod=None):
     checked_type = out_type.checked_type
     if hasattr(checked_type, 'shape'):
         # Regular operator that outputs tensors
-        return get_const_tuple(checked_type.shape)
+        return get_const_tuple(out_type.checked_type.shape)
     # The return type is not a tensor, for example List
     return checked_type
 

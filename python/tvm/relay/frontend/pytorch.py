@@ -753,9 +753,17 @@ def _dense():
             return dense_out
     return _impl
 
-def _size():
+def _size(prelude):
     def _impl(inputs, input_types):
-        shape = _infer_shape(inputs[0])
+        shape = _infer_shape(inputs[0], prelude.mod)
+
+        if any(map(lambda s: isinstance(s, tvm.tir.expr.Any), shape)):
+            shape_dynamic = _op.shape_of(inputs[0])
+            if len(inputs) > 1:
+                axis = int(inputs[1])
+                return _op.take(shape_dynamic, _expr.const(axis), 0)
+            return shape_dynamic
+
         if len(inputs) > 1:
             axis = int(inputs[1])
             return shape[axis]
@@ -922,7 +930,7 @@ def _mean():
 
     return _impl
 
-def _chunk():
+def _chunk(prelude):
     def _impl(inputs, input_types):
         data = inputs[0]
 
@@ -930,7 +938,7 @@ def _chunk():
         axis = int(inputs[2])
 
         if isinstance(data, _expr.Expr):
-            inferred_shape = _infer_shape(data)
+            inferred_shape = _infer_shape(data, prelude.mod)
 
         shape = []
         for infer in inferred_shape:
@@ -1246,7 +1254,7 @@ def _convert_elemwise_input(data, input_type):
         return data
 
 def _wrap_const(c):
-    if not isinstance(c, _expr.Expr) and not isinstance(c, list):
+    if not isinstance(c, _expr.Expr) and not isinstance(c, (list, tvm.tir.expr.Any)):
         return _expr.const(c)
     return c
 
@@ -1309,7 +1317,7 @@ def _get_convert_map(prelude):
         "aten::t"                               : _transpose(),
         "aten::flatten"                         : _flatten(),
         "aten::addmm"                           : _dense(),
-        "aten::size"                            : _size(),
+        "aten::size"                            : _size(prelude),
         "aten::view"                            : _view(),
         "aten::reshape"                         : _reshape(),
         "aten::clone"                           : _clone(),
@@ -1323,7 +1331,7 @@ def _get_convert_map(prelude):
         "aten::feature_dropout"                 : _dropout(),
         "aten::alpha_dropout"                   : _dropout(),
         "aten::mean"                            : _mean(),
-        "aten::chunk"                           : _chunk(),
+        "aten::chunk"                           : _chunk(prelude),
         "aten::matmul"                          : _matmul(),
         "aten::expand"                          : _expand(),
         "aten::Int"                             : _int(),
