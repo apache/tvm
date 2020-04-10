@@ -32,6 +32,7 @@ rm -rf docs/vta/tutorials
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
+make cython3
 
 cd docs
 PYTHONPATH=`pwd`/../python make html
