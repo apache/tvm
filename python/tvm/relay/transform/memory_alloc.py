@@ -18,28 +18,101 @@
 """
 A pass for manifesting explicit memory allocations.
 """
+from __future__ import annotations
+import attr
 import numpy as np
 from ..expr_functor import ExprMutator, ExprVisitor
+from ..function import Function
 from ..scope_builder import ScopeBuilder
 from . import transform
 from .. import op
 from ... import DataType, register_func
 from .. import ty, expr
 from ..backend import compile_engine
-
+from ..._ffi.runtime_ctypes import TVMContext
+from typing import Optional
+from collections import defaultdict
 
 def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
 
+def iterative_let(let, each_binding, kont):
+    bindings = []
+    while isinstance(let, expr.Let):
+        lhs = let.var
+        rhs = let.value
+        bindings.append(each_binding(lhs, rhs))
+        let = let.body
+
+    return kont(bindings, let)
+
+
+@attr.s(auto_attribs=True)
+class DeviceDomain:
+    domain: Optional[TVMContext]
+
+    def join(self, other: DeviceDomain) -> DeviceDomain:
+        if self.domain is None and other.domain is None:
+            return self
+        elif self.domain is None:
+            return other
+        elif other.domain is None:
+            return self
+        else:
+            raise Exception("all expressions must have a singular device")
+
+def bottom():
+    return DeviceDomain(None)
+
+def device_type(ctx):
+    return DeviceDomain(ctx)
+
 class ContextAnalysis(ExprVisitor):
     """Compute on which device each sub-expression will execute."""
     def __init__(self):
-        self.context_map = {}
+        super().__init__()
+        self.expr_to_device = defaultdict(bottom)
+        self.device_uf = {}
 
-    def visit(self, expr):
-        import pdb; pdb.set_trace()
-        pass
+    def lookup(self, device):
+        return device
+
+    def unify(self, device_one, device_two):
+        return device_one
+
+    def device_for(self, expr):
+        return self.lookup(self.expr_to_device[expr])
+
+    def visit_let(self, let):
+        def _each_binding(lhs, rhs):
+            if isinstance(rhs, expr.Call) and rhs.op == op.op.get("device_copy"):
+                (input_tensor,) = rhs.args
+                src_device = self.unify(self.device_for(input_tensor), device_type(rhs.attrs.src_dev_type))
+                # Not sure about this line.
+                dst_device = self.unify(self.device_for(rhs), device_type(rhs.attrs.dst_dev_type))
+            elif isinstance(rhs, expr.Call) and isinstance(rhs.op, Function):
+                device = bottom()
+                for arg in rhs.args:
+                    self.visit(arg)
+                    device = self.unify(device, self.device_for(arg))
+
+                for param in rhs.op.params:
+                    self.visit(param)
+                    device = self.unify(device, self.device_for(param))
+
+                self.visit(rhs.op.body)
+                body_device = self.device_for(rhs.op.body)
+                self.expr_to_device[rhs] = body_device
+                self.expr_to_device[lhs] = body_device
+            else:
+                self.visit(rhs)
+                self.expr_to_device[lhs] = self.device_for(rhs)
+
+        def _no_op(bindings, body):
+            self.visit(body)
+
+        return iterative_let(let, _each_binding, _no_op)
 
 # TODO(@jroesch): port to c++ and unify with existing code
 class LinearizeRetType:
@@ -285,13 +358,18 @@ class ManifestAlloc:
     """The explicit pass wrapper around ManifestAlloc."""
     def __init__(self, target_host):
         self.target_host = target_host
+        self.default_device = 0 # kCPU
 
     def transform_function(self, func, mod, _):
         # TODO(@jroesch): Is there a way to do one shot initilization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")
+        ca = ContextAnalysis()
+        ca.visit(func)
+        import pdb; pdb.set_trace()
         ea = ManifestAllocPass(self.target_host)
         func = ea.visit(func)
+        import pdb; pdb.set_trace()
         return func
 
 

@@ -363,13 +363,17 @@ def run_fusible_network(dev, tgt):
             res = mod.get_output(0).asnumpy()
             tvm.testing.assert_allclose(res, ref_res, rtol=1e-5, atol=1e-5)
 
+    def _trace(module, metadata, _):
+        if metadata.name == 'ManifestAlloc':
+            pass # import pdb; pdb.set_trace()
+
     def test_vm_runtime(target, device, func, fallback_device=None,
                         expected_index=None):
         params = {"x": x_data, "y": y_data}
         config = {"opt_level": 2}
         if fallback_device:
             config["fallback_device"] = fallback_device
-        with relay.build_config(**config):
+        with relay.build_config(trace=_trace, **config):
             mod = tvm.IRModule()
             mod["main"] = func
             exe = relay.vm.compile(mod, target)

@@ -351,7 +351,10 @@ Expr ToTupleType(const Type& t, const Array<Expr>& exprs) {
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
-.set_body_typed(FlattenTupleType);
+.set_body_typed([](Type type) {
+  auto types = FlattenTupleType(type);
+  return Array<Type>(types.begin(), types.end());
+});
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType")
 .set_body_typed(FromTupleType);
@@ -369,8 +372,8 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(func_type != nullptr);
 
   auto tuple = TupleType(func_type->arg_types);
-  auto in_types = FlattenType(tuple);
-  auto out_types = FlattenType(func_type->ret_type);
+  auto in_types = FlattenTupleType(tuple);
+  auto out_types = FlattenTupleType(func_type->ret_type);
 
   Array<Type> shape_func_ins, shape_func_outs;
   for (size_t i = 0; i < in_types.size(); i++) {

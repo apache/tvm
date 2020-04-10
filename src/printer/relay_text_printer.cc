@@ -880,17 +880,17 @@ std::vector<Doc> RelayTextPrinter::PrintCallAttrs(
   std::vector<Doc> docs;
   if (!attrs.defined()) return docs;
   const auto* op_node = op.as<OpNode>();
-  if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
-    // fallback
-    Doc doc;
-    doc << meta_.GetMetaNode(attrs);
-    docs.push_back(doc);
-    return docs;
-  } else {
+  // if (op_node && (attrs->type_index() != op_node->attrs_type_index)) {
+  //   // fallback
+  //   Doc doc;
+  //   doc << meta_.GetMetaNode(attrs);
+  //   docs.push_back(doc);
+  //   return docs;
+  // } else {
     AttrPrinter printer(&docs, this);
     const_cast<BaseAttrsNode*>(attrs.operator->())->VisitNonDefaultAttrs(&printer);
     return docs;
-  }
+  // }
 }
 
 std::vector<Doc> RelayTextPrinter::PrintFuncAttrs(const Attrs& attrs) {
