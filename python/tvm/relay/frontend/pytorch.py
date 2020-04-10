@@ -1610,8 +1610,9 @@ def _get_free_vars_from_block(block):
     free_vars = set()
 
     for node in block.nodes():
-        new_vars = [n for n in node.inputs() if n.debugName() not in bound_names]
-        free_vars.update(new_vars)
+        inp_names = _get_input_names(node)
+        list_diff = [name for name in inp_names if name not in bound_names]
+        free_vars.update(list_diff)
         bound_names += _get_output_names(node)
 
     return free_vars
@@ -1761,13 +1762,11 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
 
     # add free variables to loop variables
-    free_vars = _get_free_vars_from_block(body_block)
-    additional_vars = [var for var in free_vars
-                       if var.debugName() in outputs and
-                       not isinstance(outputs[var.debugName()], (_expr.Constant, int, float))]
+    free_vars = [var for var in _get_free_vars_from_block(body_block)
+                 if var in outputs and not isinstance(outputs[var], (_expr.Constant, int, float))]
+
     prev_outputs = {}
-    for var in additional_vars:
-        name = var.debugName()
+    for name in free_vars:
         prev_output = outputs[name]
         new_loop_var = get_var(name, prev_output)
         prev_outputs[name] = prev_output
@@ -1785,18 +1784,16 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
 
     def body(*current_vals):
         # Update loop variables using the prev iteration outputs
-        assert len(current_vals) == num_block_inputs + len(additional_vars)
+        assert len(current_vals) == num_block_inputs + len(free_vars)
 
         for i in range(len(current_vals)):
             if i < num_block_inputs:
                 outputs[block_input_names[i]] = current_vals[i]
             else:
-                outputs[additional_vars[i-num_block_inputs].debugName()] = current_vals[i]
+                outputs[free_vars[i-num_block_inputs]] = current_vals[i]
 
         block_outputs = convert_block(body_block, outputs, convert_map, prelude)
-
-        for var in additional_vars:
-            block_outputs.append(outputs[var.debugName()])
+        block_outputs += [outputs[name] for name in free_vars]
 
         if not is_while_loop:
             # iter var increment implicit in torch, so do it manually
@@ -1811,9 +1808,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     loop_val = loop(init_loop_iter_val, *init_vals)
 
     # restore original output values for free vars
-    for var in additional_vars:
-        name = var.debugName()
-        outputs[name] = prev_outputs[name]
+    outputs.update(prev_outputs)
 
     # The first element is a loop counter or boolean condition, ignore it
     return [_expr.TupleGetItem(loop_val, i+1) for i in range(num_loop_var)]
