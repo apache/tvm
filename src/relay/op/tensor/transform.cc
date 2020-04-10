@@ -2479,11 +2479,11 @@ TVM_REGISTER_NODE_TYPE(CumsumAttrs);
 Expr MakeCumsum(Expr data,
                 int axis,
                 bool exclusive,
-                bool need_reverse) {
+                bool reverse) {
     auto attrs = make_object<CumsumAttrs>();
     attrs->axis = axis;
     attrs->exclusive = exclusive;
-    attrs->need_reverse = need_reverse;
+    attrs->reverse = reverse;
     static const Op& op = Op::Get("cumsum");
     return Call(op, {data}, Attrs(attrs), {});
 }
@@ -2516,7 +2516,7 @@ Array<te::Tensor> CumsumCompute(const Attrs& attrs,
                                   const Type& out_type) {
     const CumsumAttrs *param = attrs.as<CumsumAttrs>();
     CHECK(param != nullptr);
-    return { topi::cumsum(inputs[0], param->axis, param->exclusive, param->need_reverse) };
+    return { topi::cumsum(inputs[0], param->axis, param->exclusive, param->reverse) };
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.cumsum")
@@ -2539,17 +2539,17 @@ RELAY_REGISTER_OP("cumsum")
   cumsum([a, b, c], exclusive=True)  # [0, a, a + b]
   ```
 
-  By setting the `need_reverse` kwarg to `True`, the cumsum is performed in the
+  By setting the `reverse` kwarg to `True`, the cumsum is performed in the
   opposite direction:
 
   ```python
-  cumsum([a, b, c], need_reverse=True)  # [a + b + c, b + c, c]
+  cumsum([a, b, c], reverse=True)  # [a + b + c, b + c, c]
   ```
 
-  The `need_reverse` and `exclusive` kwargs can also be combined:
+  The `reverse` and `exclusive` kwargs can also be combined:
 
   ```python
-  cumsum([a, b, c], exclusive=True, need_reverse=True)  # [b + c, c, 0]
+  cumsum([a, b, c], exclusive=True, reverse=True)  # [b + c, c, 0]
   ```
 )code" TVM_ADD_FILELINE)
 .set_attrs_type<CumsumAttrs>()

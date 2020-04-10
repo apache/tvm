@@ -45,7 +45,7 @@ struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
 struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
     int axis;
     bool exclusive;
-    bool need_reverse;
+    bool reverse;
 
     TVM_DECLARE_ATTRS(CumsumAttrs, "relay.attrs.CumsumAttrs") {
         TVM_ATTR_FIELD(axis)
@@ -53,8 +53,8 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
         TVM_ATTR_FIELD(exclusive)
                 .describe("By setting the `exclusive` kwarg to `True`, "
                           "an exclusive cumsum is performed instead");
-        TVM_ATTR_FIELD(need_reverse)
-                .describe("By setting the `need_reverse` kwarg to `True`, "
+        TVM_ATTR_FIELD(reverse)
+                .describe("By setting the `reverse` kwarg to `True`, "
                           "the cumsum is performed in the opposite direction");
     }
 };
