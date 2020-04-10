@@ -53,12 +53,19 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   }
 
   void VisitExpr_(const TupleGetItemNode* op) final {
-    // Do nothing
+    VisitExpr(op->tuple);
+    CHECK(out_.size() > static_cast<size_t>(op->index));
+
+    // Only keep the item we want for the child node.
+    // FIXME(@comaniac): The other items should still be requried for the primary outputs.
+    auto item = out_[op->index];
+    out_.clear();
+    out_.push_back(item);
   }
 
   void VisitExpr_(const CallNode* call) final {
     std::ostringstream decl_stream;
-    std::ostringstream buf_stream;
+
     // Args: ID
     std::vector<std::string> args;
 
@@ -96,20 +103,45 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
       }
     }
 
-    // Analyze the output buffer
-    auto type_node = call->checked_type().as<TensorTypeNode>();
-    CHECK(type_node);
-    const auto& dtype = GetDtypeString(type_node);
-    std::string out = "buf_" + std::to_string(buf_idx_++);
-    auto out_shape = GetShape(call->checked_type());
-    int out_size = 1;
-    for (size_t i = 0; i < out_shape.size(); ++i) {
-      out_size *= out_shape[i];
+    // Analyze the output buffers
+    std::vector<Type> out_types;
+    if (call->checked_type()->IsInstance<TupleTypeNode>()) {
+      auto type_node = call->checked_type().as<TupleTypeNode>();
+      for (auto field : type_node->fields) {
+        CHECK(field->IsInstance<TensorTypeNode>());
+        out_types.push_back(field);
+      }
+    } else if (call->checked_type()->IsInstance<TensorTypeNode>()) {
+      CHECK(call->checked_type()->IsInstance<TensorTypeNode>());
+      out_types.push_back(call->checked_type());
+    } else {
+      LOG(FATAL) << "Unrecognized type node: " << AsText(call->checked_type(), false);
     }
-    this->PrintIndents();
-    buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
-    buf_decl_.push_back(buf_stream.str());
-    decl_stream << ", " << out;
+
+    out_.clear();
+    for (auto out_type : out_types) {
+      const auto& dtype = GetDtypeString(out_type.as<TensorTypeNode>());
+
+      std::string out = "buf_" + std::to_string(buf_idx_++);
+      auto out_shape = GetShape(out_type);
+      int out_size = 1;
+      for (size_t i = 0; i < out_shape.size(); ++i) {
+        out_size *= out_shape[i];
+      }
+      this->PrintIndents();
+      std::ostringstream buf_stream;
+      buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
+      buf_decl_.push_back(buf_stream.str());
+      decl_stream << ", " << out;
+
+      // Update output buffer
+      Output output;
+      output.name = out;
+      output.dtype = dtype;
+      output.need_copy = true;
+      output.size = out_size;
+      out_.push_back(output);
+    }
 
     // Attach attribute arguments
     for (size_t i = 0; i < args.size(); ++i) {
@@ -117,15 +149,6 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     }
     decl_stream << ");";
     ext_func_body.push_back(decl_stream.str());
-
-    // Update output buffer
-    out_.clear();
-    Output output;
-    output.name = out;
-    output.dtype = dtype;
-    output.need_copy = true;
-    output.size = out_size;
-    out_.push_back(output);
   }
 
   std::string JIT(void) {
