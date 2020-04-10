@@ -208,3 +208,6 @@ set(USE_THRUST OFF)
 # Whether to build the TensorFlow TVMDSOOp module
 set(USE_TF_TVMDSOOP OFF)
 
+# Whether to use hexagon device
+set(USE_HEXAGON_DEVICE OFF)
+set(USE_HEXAGON_SDK /path/to/sdk)
