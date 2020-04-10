@@ -30,11 +30,10 @@ import tensorflow as tf
 from tensorflow.core.framework import graph_pb2
 from tvm.contrib.download import download_testdata
 
-# try:
-#     tf_compat_v1 = tf.compat.v1
-# except ImportError:
-#     tf_compat_v1 = tf
-tf_compat_v1 = tf
+try:
+    tf_compat_v1 = tf.compat.v1
+except ImportError:
+    tf_compat_v1 = tf
 
 ######################################################################
 # Some helper functions
