@@ -154,6 +154,34 @@ def _select():
         return _op.transform.take(data, index, axis=dim)
     return _impl
 
+def _reciprocal():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _expr.const(1.0) / data
+    return _impl
+
+def _repeat():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        reps = _get_dims(inputs[1])
+        return _op.transform.tile(data, reps=reps)
+    return _impl
+
+def _repeat_interleave():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        if isinstance(inputs[1], int):
+            repeats = inputs[1]
+            axis = inputs[2]
+        else:
+            msg = "Only repeat with one value as repeat is currently supported."
+            raise AssertionError(msg)
+        if axis is None: # Flatten the data if no axis is given from torch
+            data = _op.transform.reshape(data, [-1])
+            axis = 0
+        return _op.transform.repeat(data, repeats=repeats, axis=axis)
+    return _impl
+
 def _ones():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -675,6 +703,16 @@ def _view():
         return _op.transform.reshape(data, new_shape)
     return _impl
 
+def _reshape():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        if isinstance(inputs[1], list):
+            new_shape = inputs[1]
+        else:
+            new_shape = _infer_shape(inputs[1])
+        return _op.transform.reshape(data, new_shape)
+    return _impl
+
 def _clone():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1082,6 +1120,9 @@ _convert_map = {
     "aten::div_"                            : _elemwise("divide"),
     "aten::ones"                            : _ones(),
     "aten::zeros"                           : _zeros(),
+    "aten::reciprocal"                      : _reciprocal(),
+    "aten::repeat"                          : _repeat(),
+    "aten::repeat_interleave"               : _repeat_interleave(),
     "aten::to"                              : _to(),
     "aten::squeeze"                         : _squeeze(),
     "aten::unsqueeze"                       : _unsqueeze(),
@@ -1122,6 +1163,7 @@ _convert_map = {
     "aten::addmm"                           : _dense(),
     "aten::size"                            : _size(),
     "aten::view"                            : _view(),
+    "aten::reshape"                         : _reshape(),
     "aten::clone"                           : _clone(),
     "aten::log_softmax"                     : _log_softmax(),
     "aten::sigmoid"                         : _sigmoid(),
