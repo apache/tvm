@@ -293,6 +293,61 @@ def test_forward_multiply():
     verify_model(Multiply3().float().eval(), input_data=input_data)
     verify_model(Multiply4().float().eval(), input_data=input_data)
 
+def test_forward_reciprocal():
+    torch.set_grad_enabled(False)
+    input_shape = [2, 1, 10, 1, 10]
+    class Reciprocal1(Module):
+        def forward(self, *args):
+            return args[0].reciprocal()
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Reciprocal1().float().eval(), input_data=input_data)
+
+def test_forward_repeat():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+    class Repeat1(Module):
+        def forward(self, *args):
+            return args[0].repeat(1, 1)
+
+    class Repeat2(Module):
+        def forward(self, *args):
+            return args[0].repeat(4, 2)
+
+    class Repeat3(Module):
+        def forward(self, *args):
+            return args[0].repeat(4, 2, 1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Repeat1().float().eval(), input_data=input_data)
+    verify_model(Repeat2().float().eval(), input_data=input_data)
+    verify_model(Repeat3().float().eval(), input_data=input_data)
+
+def test_forward_repeat_interleave():
+    torch.set_grad_enabled(False)
+    input_shape = [2, 2, 3]
+    class RepeatInterleave1(Module):
+        def forward(self, *args):
+            return args[0].repeat_interleave(2)
+
+    class RepeatInterleave2(Module):
+        def forward(self, *args):
+            return args[0].repeat_interleave(3, dim=0)
+
+    class RepeatInterleave3(Module):
+        def forward(self, *args):
+            return args[0].repeat_interleave(2, dim=1)
+
+    class RepeatInterleave4(Module):
+        def forward(self, *args):
+            return args[0].repeat_interleave(4, dim=2)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(RepeatInterleave1().float().eval(), input_data=input_data)
+    verify_model(RepeatInterleave2().float().eval(), input_data=input_data)
+    verify_model(RepeatInterleave3().float().eval(), input_data=input_data)
+    verify_model(RepeatInterleave4().float().eval(), input_data=input_data)
+
 def test_forward_unsqueeze():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
@@ -599,6 +654,22 @@ def test_forward_layernorm():
                     (torch.nn.LayerNorm(10), inp_3d)]:
         init_weight(ln.eval())
         verify_model(ln.eval(), input_data=inp)
+
+def test_forward_reshape():
+    torch.set_grad_enabled(False)
+    input_shape = [2, 1, 10, 1, 10]
+    new_shape = [2, 1, 10, 10]
+    class Reshape1(Module):
+        def forward(self, *args):
+            return args[0].reshape(new_shape)
+
+    class Reshape2(Module):
+        def forward(self, *args):
+            return args[0].reshape([-1])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Reshape1().float().eval(), input_data=input_data)
+    verify_model(Reshape2().float().eval(), input_data=input_data)
 
 def test_forward_transpose():
     torch.set_grad_enabled(False)
@@ -1151,6 +1222,10 @@ if __name__ == "__main__":
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_reshape()
+    test_forward_reciprocal()
+    test_forward_repeat()
+    test_forward_repeat_interleave()
     test_forward_squeeze()
     test_forward_unsqueeze()
     test_forward_concatenate()
