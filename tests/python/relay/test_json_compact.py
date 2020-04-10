@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import relay
 from tvm import te
 import json
 
@@ -108,6 +109,22 @@ def test_global_var():
     assert isinstance(tvar, tvm.ir.GlobalVar)
 
 
+def test_op():
+    nodes = [
+        {"type_key": ""},
+        {"type_key": "relay.Op",
+         "global_key": "nn.conv2d"}
+    ]
+    data = {
+        "root" : 1,
+        "nodes": nodes,
+        "attrs": {"tvm_version": "0.6.0"},
+        "b64ndarrays": [],
+    }
+    op = tvm.ir.load_json(json.dumps(data))
+    assert op == relay.op.get("nn.conv2d")
+
+
 def test_tir_var():
     nodes = [
         {"type_key": ""},
@@ -132,6 +149,7 @@ def test_tir_var():
 
 
 if __name__ == "__main__":
+    test_op()
     test_type_var()
     test_incomplete_type()
     test_func_tuple_type()
