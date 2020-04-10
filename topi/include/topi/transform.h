@@ -1150,15 +1150,15 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
                               std::string name = "T_cumsum",
                               std::string tag = kCumsum) {
     int totalSize = static_cast<int>(A->shape.size());
-    if(axis < 0) {
+    if (axis < 0) {
         axis = totalSize + axis;
     }
     auto maxLength = A->shape[axis];
     auto l = [&](const Array<Var>& input_indices) {
         tvm::Range range;
-        if(reverse) {
+        if (reverse) {
             PrimExpr begin;
-            if(exclusive) {
+            if (exclusive) {
                 begin = input_indices[axis] + 1;
             } else {
                 begin = input_indices[axis];
@@ -1166,7 +1166,7 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
             range = tvm::Range{begin, maxLength};
         } else {
             PrimExpr end;
-            if(exclusive) {
+            if (exclusive) {
                 end = input_indices[axis];
             } else {
                 end = input_indices[axis] + 1;
@@ -1175,8 +1175,8 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
         }
         auto k = tvm::te::reduce_axis(range);
         Array<PrimExpr> indices;
-        for(int i = 0; i < totalSize; ++i) {
-            if(i == axis) {
+        for (int i = 0; i < totalSize; ++i) {
+            if (i == axis) {
                 indices.push_back(k);
                 continue;
             }
