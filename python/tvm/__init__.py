@@ -30,7 +30,7 @@ from ._ffi import register_object, register_func, register_extension, get_global
 # tvm.runtime
 from .runtime.object import Object
 from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
+from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev, hexagon
 from .runtime import ndarray as nd
 
 # tvm.error

@@ -177,6 +177,10 @@ TVM_DLL Target stackvm(const std::vector<std::string>& options =
 /*! \return A target for external device */
 TVM_DLL Target ext_dev(const std::vector<std::string>& options =
                        std::vector<std::string>());
+
+/*! \return A target for hexagon */
+TVM_DLL Target hexagon(const std::vector<std::string>& options =
+                       std::vector<std::string>());
 }  // namespace target
 
 /*!

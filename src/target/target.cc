@@ -48,8 +48,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 /*!
 * \brief Construct a Target node from the given name and options.
 * \param target_name The major target name. Should be one of
-* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hybrid", "llvm", "metal",
-*  "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
+* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
+*  "metal", "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
 * \param options Additional options appended to the target
 * \return The constructed Target
 */
@@ -136,6 +136,9 @@ Target CreateTarget(const std::string& target_name,
     t->device_type = kDLExtDev;
   } else if (target_name == "hybrid") {
     t->device_type = kDLCPU;
+  } else if (target_name == "hexagon") {
+    t->keys_array.push_back(tir::StringImmNode::make("hexagon"));
+    t->device_type = kDLHexagon;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
@@ -335,6 +338,10 @@ Target stackvm(const std::vector<std::string>& options) {
 
 Target ext_dev(const std::vector<std::string>& options) {
   return CreateTarget("ext_dev", options);
+}
+
+Target hexagon(const std::vector<std::string>& options) {
+  return CreateTarget("hexagon", options);
 }
 }  // namespace target
 
