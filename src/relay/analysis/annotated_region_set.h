@@ -32,6 +32,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/ir/error.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/runtime/container.h>
 #include <tvm/relay/transform.h>
 
 #include <string>
@@ -49,33 +50,39 @@ class AnnotatedRegionSet;
 class AnnotatedRegionNode : public Object {
  public:
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("id", &id);
-    Array<Expr> nodes_array(nodes.begin(), nodes.end());
+    v->Visit("id", &id_);
+    v->Visit("target", &target_);
+    Array<Expr> nodes_array(nodes_.begin(), nodes_.end());
     v->Visit("nodes", &nodes_array);
-    Array<Expr> args_array(ins.begin(), ins.end());
+    Array<Expr> args_array(ins_.begin(), ins_.end());
     v->Visit("args", &args_array);
-    Array<Expr> rets_array(outs.begin(), outs.end());
+    Array<Expr> rets_array(outs_.begin(), outs_.end());
     v->Visit("rets", &rets_array);
   }
 
   /*! \brief Get the region ID. */
   int GetID() const {
-    return id;
+    return id_;
+  }
+
+  /*! \brief Get the region target. */
+  std::string GetTarget() const {
+    return target_;
   }
 
   /*! \brief Get the region's inputs. */
   std::list<Expr> GetInputs() const {
-    return ins;
+    return ins_;
   }
 
   /*! \brief Get the region's outputs. */
   std::list<Expr> GetOutputs() const {
-    return outs;
+    return outs_;
   }
 
   /*! \brief Get the region's nodes. */
   std::unordered_set<Expr, ObjectHash, ObjectEqual> GetNodes() const {
-    return nodes;
+    return nodes_;
   }
 
   static constexpr const char* _type_key = "relay.AnnotatedRegion";
@@ -83,13 +90,15 @@ class AnnotatedRegionNode : public Object {
 
  protected:
   /*! \brief The region ID. */
-  int id{-1};
+  int id_{-1};
+  /*! \brief The target for this region. */
+  std::string target_ = "default";
   /*! \brief The inputs to this region. */
-  std::list<Expr> ins;
+  std::list<Expr> ins_;
   /*! \brief The outputs of this region */
-  std::list<Expr> outs;
+  std::list<Expr> outs_;
   /*! \brief Nodes in this region. */
-  std::unordered_set<Expr, ObjectHash, ObjectEqual> nodes;
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> nodes_;
 
   friend class AnnotatedRegionSet;
   friend class AnnotatedRegionSetNode;
@@ -184,11 +193,11 @@ class AnnotatedRegionSetNode : public Object {
   void AddToRegion(AnnotatedRegion dest, const Expr& expr);
 
   /*!
-   * \brief Make a new region.
+   * \brief Make a new region for a target.
    *
    * \return The new region.
    */
-  AnnotatedRegion MakeRegion();
+  AnnotatedRegion MakeRegion(const std::string& target);
 
   std::unordered_set<AnnotatedRegion, ObjectHash, ObjectEqual> regions_;
   /*! \brief The next region ID to assign. */

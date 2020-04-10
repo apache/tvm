@@ -587,14 +587,14 @@ def PartitionGraph():
 
 
 
-def AnnotateTarget(target):
+def AnnotateTarget(targets):
     """Annotate ops in an experession with a provied compiler/target and then
     use it for codegen.
 
     Parameters
     ----------
-    target : String
-        The target compiler used for codegen.
+    targets : str or List[str]
+        The list of target compilers used for codegen.
 
     Returns
     -------
@@ -602,7 +602,9 @@ def AnnotateTarget(target):
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
-    return _ffi_api.AnnotateTarget(target)
+    if isinstance(targets, str):
+        targets = [targets]
+    return _ffi_api.AnnotateTarget([tvm.runtime.container.String(t) for t in targets])
 
 
 def Inline():
