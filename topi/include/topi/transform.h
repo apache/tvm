@@ -1173,7 +1173,7 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
             }
             range = tvm::Range{0, end};
         }
-        auto k = tvm::te::reduce_axis(range, "k" + std::to_string(random()));
+        auto k = tvm::te::reduce_axis(range);
         Array<PrimExpr> indices;
         for(int i = 0; i < totalSize; ++i) {
             if(i == axis) {
