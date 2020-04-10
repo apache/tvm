@@ -67,7 +67,7 @@ struct TVMOpParam {
  */
 class TVM_DLL GraphRuntime : public ModuleNode {
   struct OpArgs {
-    std::vector<DLTensor> args;
+    std::vector<DLTensor*> args;
     std::vector<TVMValue> arg_values;
     std::vector<int> arg_tcodes;
     std::vector<int64_t> shape_data;
@@ -384,7 +384,7 @@ class TVM_DLL GraphRuntime : public ModuleNode {
    * \return The created executor.
    */
   std::pair<std::function<void()>, std::shared_ptr<OpArgs> > CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor>& args,
+      const TVMOpParam& attrs, const std::vector<DLTensor*>& args,
       size_t num_inputs);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const {

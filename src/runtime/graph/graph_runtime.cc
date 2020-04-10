@@ -147,11 +147,8 @@ void GraphRuntime::SetOutput(int index, DLTensor* data_out) {
   for (auto i = 0; i < data_out->ndim; ++i) {
     CHECK_EQ(old_t->shape[i], data_out->shape[i]);
   }
-  old_t = data_out;
-  // Update the data pointer for each argument of each op
-  for (DLTensor* t : input_dltensors_[eid]) {
-    t->data = data_out->data;
-  }
+
+  const_cast<DLTensor*>(old_t)->data = data_out->data;
 }
 /*!
  * \brief Get the number of outputs
@@ -351,14 +348,14 @@ void GraphRuntime::SetupOpExecs() {
   for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
-    std::vector<DLTensor> args;
+    std::vector<DLTensor*> args;
     for (const auto& e : inode.inputs) {
       uint32_t eid = this->entry_id(e);
-      args.push_back(*(data_entry_[eid].operator->()));
+      args.push_back(const_cast<DLTensor*>(data_entry_[eid].operator->()));
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
-      args.push_back(*(data_entry_[eid].operator->()));
+      args.push_back(const_cast<DLTensor*>(data_entry_[eid].operator->()));
     }
     CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
@@ -379,7 +376,7 @@ void GraphRuntime::SetupOpExecs() {
 
 std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRuntime::CreateTVMOp(
     const TVMOpParam& param,
-    const std::vector<DLTensor>& args,
+    const std::vector<DLTensor*>& args,
     size_t num_inputs) {
   std::shared_ptr<GraphRuntime::OpArgs> arg_ptr = std::make_shared<GraphRuntime::OpArgs>();
   // setup address.
@@ -389,7 +386,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   }
   for (size_t i = 0; i < arg_ptr->args.size(); ++i) {
     TVMValue v;
-    DLTensor* t = &arg_ptr->args[i];
+    DLTensor* t = arg_ptr->args[i];
     v.v_handle = t;
     arg_ptr->arg_values.push_back(v);
     arg_ptr->arg_tcodes.push_back(kTVMDLTensorHandle);
