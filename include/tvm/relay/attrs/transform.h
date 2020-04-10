@@ -51,9 +51,11 @@ struct CumsumAttrs : public tvm::AttrsNode<CumsumAttrs> {
         TVM_ATTR_FIELD(axis)
                 .describe("Cumsum axis, must be in the range `[-rank(x), rank(x))`");
         TVM_ATTR_FIELD(exclusive)
-                .describe("By setting the `exclusive` kwarg to `True`, an exclusive cumsum is performed instead");
+                .describe("By setting the `exclusive` kwarg to `True`, "
+                          "an exclusive cumsum is performed instead");
         TVM_ATTR_FIELD(reverse)
-                .describe("By setting the `reverse` kwarg to `True`, the cumsum is performed in the opposite direction");
+                .describe("By setting the `reverse` kwarg to `True`, "
+                          "the cumsum is performed in the opposite direction");
     }
 };
 
