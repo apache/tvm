@@ -197,8 +197,8 @@ extern "C" void dnnl_relu(float* data, float* out, int p_N_, int p_C_, int p_H_,
   read_from_dnnl_memory(out, dst_memory);
 }
 
-extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean,
-                        float* variance, float* out, int p_N_, int p_C_,
+extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, float* variance,
+                        float* out, float* new_mean, float* new_variance, int p_N_, int p_C_,
                         int p_H_, int p_W_, int p_E_) {
   using tag = memory::format_tag;
   using dt = memory::data_type;
