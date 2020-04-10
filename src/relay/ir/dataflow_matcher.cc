@@ -54,37 +54,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   std::vector<DFPattern> matched_nodes_;
 };
 
-class DominatorMatcher : public DFPatternMatcher {
- public:
-  DominatorMatcher(const DominatorPatternNode* dominator) : dominator_(dominator) {}
-  bool Dominates(const Expr& expr) {
-    found_child = DFPatternMatcher::VisitDFPattern(dominator_->child, expr);
-    if (found_child) {
-      return false;
-    }
-    return false;
-  }
-
-  const std::unordered_map<DFPattern, Expr, ObjectHash, ObjectEqual>& GetMemo() { return memo_; }
-  const std::vector<DFPattern> GetMatched() { return matched_nodes_; }
- protected:
-  bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override {
-    std::cout << "visiting " << pattern << "\n\t -> " << expr << std::endl;
-    if (DFPatternMatcher::VisitDFPattern(pattern, expr)) {
-      return true;
-    } else if (found_child) {
-      if (DFPatternMatcher::VisitDFPattern(dominator_->parent, expr)) {
-        return true;
-      } else {
-        return DFPatternMatcher::VisitDFPattern(dominator_->path, expr);
-      }
-    }
-    return false;
-  }
-  const DominatorPatternNode* dominator_;
-  bool found_child = false;
-};
-
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   memo_.clear();
   matched_nodes_.clear();
@@ -320,15 +289,17 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   return false;
 }
 bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
-  DominatorMatcher visitor(op);
-  if (visitor.Dominates(expr)) {
-    const auto new_memo = visitor.GetMemo();
-    const auto new_matched = visitor.GetMatched();
-    for (const auto &pattern : new_matched) {
-      matched_nodes_.push_back(pattern);
-      memo_[pattern] = new_memo.at(pattern);
+  //auto watermark = matched_nodes_.size();
+  if (VisitDFPattern(op->child, expr)) {
+    auto graph = CreateIndexedGraph(expr);
+    std::vector<Expr> dominated;
+    for (auto node : graph.topological_order_) {
+      if (node->dominator_parent_ && node->dominator_parent_->ref_ == expr) {
+        dominated.push_back(node->ref_);
+        std::cout << node->ref_ << std::endl;
+      }
     }
-    return true;
+    return false;
   }
   return false;
 }

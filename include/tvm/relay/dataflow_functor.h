@@ -106,6 +106,7 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(AltPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(AttrPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(CallPatternNode);
+    RELAY_DFPATTERN_FUNCTOR_DISPATCH(DominatorPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(ExprPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(TupleGetItemPatternNode);
     RELAY_DFPATTERN_FUNCTOR_DISPATCH(TuplePatternNode);
@@ -217,6 +218,9 @@ class IndexedGraph {
     return lhs;
   }
 };
+
+IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr);
+IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 
 }  // namespace relay
 }  // namespace tvm
