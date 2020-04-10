@@ -207,9 +207,12 @@ class Partitioner : public ExprMutator {
 
       if (region_function_calls.find(region) != region_function_calls.end()) {
         // This section is executed only if there are multiple outputs in the
-        // region Thus, the function is always created and at the end there
+        // region or the same output is being accessed multiple times.
+        // Thus, the function is always created and at the end there
         // would be a tuple node Therefore, we insert a tuple get item node.
-
+        if (region->GetOutputs().size() == 1) {
+          return region_function_calls[region];
+        }
         // Use the already created tuple node
         auto sg_call = region_function_calls[region];
         int index = GetRetIdx(region, GetRef<Call>(call));
@@ -462,7 +465,7 @@ class Partitioner : public ExprMutator {
   int GetRetIdx(AnnotatedRegion sg, const Expr& arg) {
     int idx = 0;
     for (auto arg_ : sg->GetOutputs()) {
-      if (arg == arg_) {
+      if (Downcast<Call>(arg)->args[0] == Downcast<Call>(arg_)->args[0]) {
         return idx;
       }
       idx++;

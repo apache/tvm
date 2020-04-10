@@ -131,7 +131,13 @@ class AnnotatedRegionSet::Creator : public ExprVisitor {
         CHECK_EQ(region->GetTarget(), target);
       }
       region->nodes_.insert(GetRef<Call>(call));
-      region->outs_.push_back(GetRef<Call>(call));
+      if (!std::any_of(region->outs_.begin(), region->outs_.end(),
+                       [call](Expr& out) {
+                         return Downcast<Call>(out)->args[0] ==
+                                GetRef<Call>(call)->args[0];
+                       })) {
+        region->outs_.push_back(GetRef<Call>(call));
+      }
     }
     ExprVisitor::VisitExpr_(call);
   }
