@@ -98,17 +98,17 @@ class ReflectionVTable {
   typedef void (*FSHashReduce)(const Object* self, SHashReducer hash_reduce);
   /*!
    * \brief creator function.
-   * \param global_key Key that identifies a global single object.
-   *        If this is not empty then FGlobalKey must be defined for the object.
+   * \param repr_bytes Repr bytes to create the object.
+   *        If this is not empty then FReprBytes must be defined for the object.
    * \return The created function.
    */
-  typedef ObjectPtr<Object> (*FCreate)(const std::string& global_key);
+  typedef ObjectPtr<Object> (*FCreate)(const std::string& repr_bytes);
   /*!
-   * \brief Global key function, only needed by global objects.
+   * \brief Function to get a byte representation that can be used to recover the object.
    * \param node The node pointer.
-   * \return node The global key to the node.
+   * \return bytes The bytes that can be used to recover the object.
    */
-  typedef std::string (*FGlobalKey)(const Object* self);
+  typedef std::string (*FReprBytes)(const Object* self);
   /*!
    * \brief Dispatch the VisitAttrs function.
    * \param self The pointer to the object.
@@ -116,11 +116,13 @@ class ReflectionVTable {
    */
   inline void VisitAttrs(Object* self, AttrVisitor* visitor) const;
   /*!
-   * \brief Get global key of the object, if any.
+   * \brief Get repr bytes if any.
    * \param self The pointer to the object.
-   * \return the global key if object has one, otherwise return empty string.
+   * \param repr_bytes The output repr bytes, can be null, in which case the function
+   *                   simply queries if the ReprBytes function exists for the type.
+   * \return Whether repr bytes exists
    */
-  inline std::string GetGlobalKey(Object* self) const;
+  inline bool GetReprBytes(const Object* self, std::string* repr_bytes) const;
   /*!
    * \brief Dispatch the SEqualReduce function.
    * \param self The pointer to the object.
@@ -141,10 +143,10 @@ class ReflectionVTable {
    *        by type_key and global key.
    *
    * \param type_key The type key of the object.
-   * \param global_key A global key that can be used to uniquely identify the object if any.
+   * \param repr_bytes Bytes representation of the object if any.
    */
   TVM_DLL ObjectPtr<Object> CreateInitObject(const std::string& type_key,
-                                             const std::string& global_key = "") const;
+                                             const std::string& repr_bytes = "") const;
   /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.
@@ -176,8 +178,8 @@ class ReflectionVTable {
   std::vector<FSHashReduce> fshash_reduce_;
   /*! \brief Creation function. */
   std::vector<FCreate> fcreate_;
-  /*! \brief Global key function. */
-  std::vector<FGlobalKey> fglobal_key_;
+  /*! \brief ReprBytes function. */
+  std::vector<FReprBytes> frepr_bytes_;
 };
 
 /*! \brief Registry of a reflection table. */
@@ -196,13 +198,13 @@ class ReflectionVTable::Registry {
     return *this;
   }
   /*!
-   * \brief Set global_key function.
-   * \param f The creator function.
+   * \brief Set bytes repr function.
+   * \param f The ReprBytes function.
    * \return rference to self.
    */
-  Registry& set_global_key(FGlobalKey f) {  // NOLINT(*)
-    CHECK_LT(type_index_, parent_->fglobal_key_.size());
-    parent_->fglobal_key_[type_index_] = f;
+  Registry& set_repr_bytes(FReprBytes f) {  // NOLINT(*)
+    CHECK_LT(type_index_, parent_->frepr_bytes_.size());
+    parent_->frepr_bytes_[type_index_] = f;
     return *this;
   }
 
@@ -365,7 +367,7 @@ ReflectionVTable::Register() {
   if (tindex >= fvisit_attrs_.size()) {
     fvisit_attrs_.resize(tindex + 1, nullptr);
     fcreate_.resize(tindex + 1, nullptr);
-    fglobal_key_.resize(tindex + 1, nullptr);
+    frepr_bytes_.resize(tindex + 1, nullptr);
     fsequal_reduce_.resize(tindex + 1, nullptr);
     fshash_reduce_.resize(tindex + 1, nullptr);
   }
@@ -392,12 +394,16 @@ VisitAttrs(Object* self, AttrVisitor* visitor) const {
   fvisit_attrs_[tindex](self, visitor);
 }
 
-inline std::string ReflectionVTable::GetGlobalKey(Object* self) const {
+inline bool ReflectionVTable::GetReprBytes(const Object* self,
+                                           std::string* repr_bytes) const {
   uint32_t tindex = self->type_index();
-  if (tindex < fglobal_key_.size() && fglobal_key_[tindex] != nullptr) {
-    return fglobal_key_[tindex](self);
+  if (tindex < frepr_bytes_.size() && frepr_bytes_[tindex] != nullptr) {
+    if (repr_bytes != nullptr) {
+      *repr_bytes = frepr_bytes_[tindex](self);
+    }
+    return true;
   } else {
-    return std::string();
+    return false;
   }
 }
 
