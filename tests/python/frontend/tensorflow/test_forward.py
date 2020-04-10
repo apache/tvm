@@ -1029,28 +1029,6 @@ def test_forward_argminmax():
         _test_argx(tf.argmax, data=data, axis=axis)
         _test_argx(tf.argmin, data=data, axis=axis)
 
-#######################################################################
-# Reduce
-# ------
-
-
-def _test_reduce(func, data, **kwargs):
-    """ One iteration of a reduce operation"""
-
-    with tf.Graph().as_default():
-        inp = array_ops.placeholder(
-            shape=data.shape, dtype=data.dtype, name="c0")
-        func(inp, name="reducex0", **kwargs)
-
-        compare_tf_with_tvm(data, 'c0:0', 'reducex0:0')
-
-
-def test_forward_reduce():
-    data = np.random.uniform(size=(8, 4, 9)).astype('float32')
-    _test_reduce(tf.reduce_sum, data=data)
-    _test_reduce(tf.reduce_sum, data=data, axis=0)
-    _test_reduce(tf.reduce_sum, data=data, axis=(0, 1))
-
 
 #######################################################################
 # Variable
@@ -2845,55 +2823,42 @@ def test_forward_size():
     check_size((10,))
 
 #######################################################################
-# All, Any, Max, Min
-# ------------------
+# All, Any, Max, Min, Prod, variance, std, logsumexp, euclidean_norm
+# ------------------------------------------------------------------
 
-def test_forward_reduce_all():
-    """Test the All operator."""
-    np_data = np.random.choice([True, False], size=(5, 7, 11))
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
-        tf.reduce_all(in_data, name="all")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'all:0')
-
-def test_forward_reduce_any():
-    """Test the Any operator."""
-    np_data = np.random.choice([True, False], size=(5, 7, 11))
-    tf.reset_default_graph()
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.bool, (5, 7, 11), name="in_data")
-        tf.reduce_any(in_data, name="any")
-        compare_tf_with_tvm([np_data], ['in_data:0'], 'any:0')
-
-def test_forward_reduce_max():
-    def check_max(ishape, axis, keepdims, dtype):
+def test_forward_reduce():
+    def _check_op(tf_op, ishape, axis, keepdims, dtype="float32"):
         tf.reset_default_graph()
-        np_data = np.random.uniform(size=ishape).astype(dtype)
+        if dtype == "bool":
+            np_data = np.random.choice([True, False], size=ishape)
+        else:
+            np_data = np.random.uniform(size=ishape).astype(dtype)
+        if tf_op == tf.math.reduce_prod:
+            axis = 1
+            np_data = np_data.reshape(1, -1)
         with tf.Graph().as_default():
             in_data = tf.placeholder(dtype, name="in_data")
-            tf.math.reduce_max(in_data, axis=axis,
-                               keepdims=keepdims, name="reduce_max")
-            compare_tf_with_tvm([np_data], ['in_data:0'], 'reduce_max:0')
+            reduce_op = tf_op(in_data, axis=axis,
+                               keepdims=keepdims, name="reduce_std")
+            compare_tf_with_tvm([np_data], ['in_data:0'], reduce_op.name)
 
-    check_max((10, 8, 16, 32), axis=(-1), keepdims=True, dtype="int32")
-    check_max((10, 8, 16, 32), axis=(2, 3), keepdims=True, dtype="float32")
-    check_max((10, 8, 16, 32), axis=(1, 2), keepdims=True, dtype='float32')
+    def _test_math_op(op, dtypes=["int32", "float32"]):
+        for dtype in dtypes:
+            _check_op(op, (3, 10), axis=(-1), keepdims=False, dtype=dtype)
+            _check_op(op, (8, 16, 32), axis=(-1), keepdims=False, dtype=dtype)
+            _check_op(op, (1, 8, 8, 3), axis=(2, 3), keepdims=True, dtype=dtype)
+            _check_op(op, (2, 3, 10, 10), axis=(1, 2), keepdims=True, dtype=dtype)
 
-
-def test_forward_reduce_min():
-    def check_min(ishape, axis, keepdims, dtype):
-        tf.reset_default_graph()
-        np_data = np.random.uniform(size=ishape).astype(dtype)
-        with tf.Graph().as_default():
-            in_data = tf.placeholder(dtype, name="in_data")
-            tf.math.reduce_min(in_data, axis=axis,
-                               keepdims=keepdims, name="reduce_max")
-            compare_tf_with_tvm([np_data], ['in_data:0'], 'reduce_max:0')
-
-    check_min((10, 8, 16, 32), axis=(-1), keepdims=True, dtype="int32")
-    check_min((10, 8, 16, 32), axis=(2, 3), keepdims=True, dtype="float32")
-    check_min((10, 8, 16, 32), axis=(1, 2), keepdims=True, dtype='float32')
+    _test_math_op(tf.math.reduce_all, dtypes=["bool"])
+    _test_math_op(tf.math.reduce_any, dtypes=["bool"])
+    _test_math_op(tf.math.reduce_max)
+    _test_math_op(tf.math.reduce_min)
+    _test_math_op(tf.math.reduce_prod)
+    _test_math_op(tf.math.reduce_variance)
+    _test_math_op(tf.math.reduce_std, dtypes=["float32"])
+    _test_math_op(tf.math.reduce_logsumexp, dtypes=["float32"])
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+        _test_math_op(tf.math.reduce_euclidean_norm)
 
 #######################################################################
 # Relational operators
@@ -2940,26 +2905,6 @@ def test_forward_expand_dims():
     _test_forward_expand_dims(np.array([[1], [2]]), 0)
     _test_forward_expand_dims(np.array([[1], [2]]), 1)
     _test_forward_expand_dims(np.array([[1], [2]]), -1)
-
-
-#######################################################################
-# Prod
-# ----
-def _test_forward_reduce_prod(shape, axis, keepdims):
-    inp_array1 = np.random.uniform(-5, 5, size=shape).astype(np.float32)
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array1.shape, dtype=inp_array1.dtype)
-        out = tf.math.reduce_prod(in1, axis, keepdims)
-        compare_tf_with_tvm(inp_array1, in1.name, out.name)
-
-
-def test_forward_reduce_prod():
-    _test_forward_reduce_prod((5,), 0, False)
-    _test_forward_reduce_prod((5, 5), 0, False)
-    _test_forward_reduce_prod((5, 5), 1, False)
-    _test_forward_reduce_prod((5,), 0, True)
-    _test_forward_reduce_prod((5, 5), 0, True)
-    _test_forward_reduce_prod((5, 5), 1, True)
 
 
 #######################################################################
@@ -3295,10 +3240,6 @@ if __name__ == '__main__':
     test_forward_argminmax()
     test_forward_reduce()
     test_forward_mean()
-    test_forward_reduce_prod()
-    test_forward_reduce_all()
-    test_forward_reduce_any()
-    test_forward_reduce_min()
 
     # General
     test_forward_multi_input()
