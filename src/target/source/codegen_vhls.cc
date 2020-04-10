@@ -164,8 +164,7 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
-    runtime::String func_name(global_symbol);
-    kernel_info.push_back(Array<runtime::String>({func_name, runtime::String(code)}));
+    kernel_info.push_back({global_symbol, code});
   }
 
   std::string xclbin;

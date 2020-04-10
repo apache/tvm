@@ -142,9 +142,8 @@ void OpRegistry::UpdateAttr(const std::string& key,
 TVM_REGISTER_GLOBAL("relay.op._ListOpNames")
 .set_body_typed([]() {
     Array<runtime::String> ret;
-    for (const std::string& name :
-             dmlc::Registry<OpRegistry>::ListAllNames()) {
-      ret.push_back(runtime::String(name));
+    for (const std::string& name : dmlc::Registry<OpRegistry>::ListAllNames()) {
+      ret.push_back(name);
     }
     return ret;
   });

@@ -635,7 +635,7 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         Array<runtime::String> ret;
         for (const auto &kv : this->output_.params) {
-          ret.push_back(runtime::String(kv.first));
+          ret.push_back(kv.first);
         }
         *rv = ret;
       });

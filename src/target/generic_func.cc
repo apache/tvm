@@ -156,7 +156,7 @@ TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc")
 
   std::vector<std::string> tags_vector;
   for (auto& tag : tags) {
-    tags_vector.push_back(std::string(tag));
+    tags_vector.push_back(tag);
   }
 
   generic_func

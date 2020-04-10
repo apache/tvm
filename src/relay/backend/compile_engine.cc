@@ -620,7 +620,7 @@ class CompileEngineImpl : public CompileEngineNode {
       if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
         auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
-        std::string code_gen_name = code_gen.operator std::string();
+        std::string code_gen_name = code_gen;
         if (ext_mods.find(code_gen_name) == ext_mods.end()) {
           ext_mods[code_gen_name] = IRModule({}, {});
         }
