@@ -124,7 +124,7 @@ Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
+    const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return PrimFuncPass(pass_func, pass_info);
 }

@@ -19,7 +19,7 @@
 from numbers import Number, Integral
 from tvm._ffi.base import string_types
 
-from . import _ffi_node_api
+from . import _ffi_node_api, _ffi_api
 from .object import ObjectBase, _set_class_object_generic
 from .ndarray import NDArrayBase
 from .packed_func import PackedFuncBase, convert_to_tvm_func
@@ -56,7 +56,7 @@ def convert_to_object(value):
     if isinstance(value, Number):
         return const(value)
     if isinstance(value, string_types):
-        return _ffi_node_api.String(value)
+        return _ffi_api.String(value)
     if isinstance(value, (list, tuple)):
         value = [convert_to_object(x) for x in value]
         return _ffi_node_api.Array(*value)

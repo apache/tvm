@@ -272,7 +272,7 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModuleNode* device_mod) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   CHECK(target.defined())
       << "SplitHostDevice: Require the target attribute";
-  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
 
