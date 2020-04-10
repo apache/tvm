@@ -1365,11 +1365,11 @@ def test_forward_gather():
 
 def test_forward_gather_nd():
     """test operator GatherNd"""
-    np_data = np.random.uniform(1, 100, size=(2, 2)).astype(np.float32)
+    np_data = np.random.uniform(1, 100, size=(2, 2, 2)).astype(np.float32)
     tf.reset_default_graph()
     with tf.Graph().as_default():
-        in_data = tf.placeholder(tf.float32, (2, 2), name="in_data")
-        tf.gather_nd(in_data, indices=[[1, 0], [0, 1]], name="gather_nd")
+        in_data = tf.placeholder(tf.float32, (2, 2, 2), name="in_data")
+        tf.gather_nd(in_data, indices=[[1, 0, 0], [0, 0, 0]], name="gather_nd")
         compare_tf_with_tvm([np_data], ['in_data:0'], 'gather_nd:0')
 
 
