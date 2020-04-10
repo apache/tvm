@@ -165,9 +165,11 @@ class CodegenCBase {
   /*!
    * \brief Emit the code for external runtime.
    *
+   * \param out The outputs.
+   *
    * \return The code string.
    */
-  virtual std::string JIT() = 0;
+  virtual std::string JIT(const std::vector<Output>& out) = 0;
 
   /*!
    * \brief A common interface that is used by various external runtime to
