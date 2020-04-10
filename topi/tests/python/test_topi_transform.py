@@ -403,10 +403,10 @@ def verify_strided_set(in_shape, v_shape, begin, end, strides=None):
         check_device(device)
 
 
-def verify_cumsum(src_shape, axis=0, exclusive=False, reverse=False):
+def verify_cumsum(src_shape, axis=0, exclusive=False, need_reverse=False):
     src_dtype = "float32"
     A = te.placeholder(shape=src_shape, dtype=src_dtype, name="A")
-    out_tensor = topi.cumsum(A, axis, exclusive, reverse)
+    out_tensor = topi.cumsum(A, axis, exclusive, need_reverse)
 
     def check_device(device):
         ctx = tvm.context(device, 0)

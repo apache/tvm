@@ -666,7 +666,7 @@ def test_reverse():
 def test_cumsum():
     def verify_cumsum(xshape, axis=0):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
-        z = relay.cumsum(x, axis=axis, exclusive=False, reverse=False)
+        z = relay.cumsum(x, axis=axis, exclusive=False, need_reverse=False)
         func = relay.Function([x], z)
         x_data = np.random.uniform(size=xshape).astype("float32")
         if axis < 0:

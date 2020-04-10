@@ -1325,13 +1325,13 @@ def test_forward_truncatemod():
 #######################################################################
 # Cumsum
 # --------------------------
-def _cumsum(in_shape, axis=0, exclusive=False, reverse=False):
+def _cumsum(in_shape, axis=0, exclusive=False, need_reverse=False):
     """test operator GatherNd"""
     tf.reset_default_graph()
     with tf.Graph().as_default():
         np_data = np.random.uniform(size=in_shape).astype("float32")
         in_data = tf.placeholder(tf.float32, in_shape, name="in_data")
-        tf.cumsum(in_data, axis=axis, exclusive=False, reverse=False, name="cumsum")
+        tf.cumsum(in_data, axis=axis, exclusive=exclusive, need_reverse=need_reverse, name="cumsum")
         compare_tf_with_tvm([np_data], ['in_data:0'], 'cumsum:0')
 
 

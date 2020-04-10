@@ -1122,23 +1122,23 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
  *  cumsum([a, b, c], exclusive=True)  # [0, a, a + b]
  *  ```
  *
- *  By setting the `reverse` kwarg to `True`, the cumsum is performed in the
+ *  By setting the `need_reverse` kwarg to `True`, the cumsum is performed in the
  *  opposite direction:
  *
  *  ```python
- *  cumsum([a, b, c], reverse=True)  # [a + b + c, b + c, c]
+ *  cumsum([a, b, c], need_reverse=True)  # [a + b + c, b + c, c]
  *  ```
  *
- *  The `reverse` and `exclusive` kwargs can also be combined:
+ *  The `need_reverse` and `exclusive` kwargs can also be combined:
  *
  *  ```python
- *  cumsum([a, b, c], exclusive=True, reverse=True)  # [b + c, c, 0]
+ *  cumsum([a, b, c], exclusive=True, need_reverse=True)  # [b + c, c, 0]
  *  ```
  *
  * @param A             Input tensor
  * @param axis          Must be in the range `[-rank(x), rank(x))`
  * @param exclusive     Perform exclusive cumsum
- * @param reverse       Performed in the opposite direction
+ * @param need_reverse  Performed in the opposite direction
  * @param name          The name of the operation
  * @param tag           The tag to mark the operation
  * @return              A Tensor whose op member is the cumsum operation
@@ -1146,7 +1146,7 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
 inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
                               int axis,
                               bool exclusive = false,
-                              bool reverse = false,
+                              bool need_reverse = false,
                               std::string name = "T_cumsum",
                               std::string tag = kCumsum) {
     int totalSize = static_cast<int>(A->shape.size());
@@ -1156,7 +1156,7 @@ inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
     auto maxLength = A->shape[axis];
     auto l = [&](const Array<Var>& input_indices) {
         tvm::Range range;
-        if (reverse) {
+        if (need_reverse) {
             PrimExpr begin;
             if (exclusive) {
                 begin = input_indices[axis] + 1;
