@@ -1127,9 +1127,11 @@ def _gather():
 def _gather_nd():
     """GatherNd"""
     def _impl(inputs, attr, params, mod):
+        indices_dims = len(_infer_shape(inputs[1], mod))
+        indices = _op.transpose(inputs[1], axes=[-1] + list(range(indices_dims-1)))
         return AttrCvt(op_name="gather_nd",
                        ignores=['Tindices', 'Tparams',\
-                                'Taxis', '_class'])(inputs, attr)
+                                'Taxis', '_class'])([inputs[0], indices], attr)
     return _impl
 
 def _stridedSlice():
