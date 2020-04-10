@@ -58,6 +58,11 @@ void Analyzer::Bind(const Var& var, const Range& range) {
   // skip rewrite simplify
 }
 
+void Analyzer::Bind(const Map<Var, Range>& variables) {
+  for (const auto& iter : variables) {
+    this->Bind(iter.first, iter.second);
+  }
+}
 
 void ConstraintContext::EnterWithScope() {
   CHECK(exit_ == nullptr);

@@ -424,6 +424,12 @@ class Analyzer {
    */
   void Bind(const Var& var, const Range& range);
   /*!
+   * \brief Bind all the vars in the Map
+   *
+   * \param variables The {variable -> range} map.
+   */
+  void Bind(const Map<Var, Range>& variables);
+  /*!
    * \brief Whether can we prove expr >= val.
 
    *  Non-negative proof is very useful in integer analysis
