@@ -1604,6 +1604,20 @@ def _unpack_tuple(tup):
     assert False
 
 
+def _get_free_vars_from_block(block):
+    block_inp_names = _get_input_names(block)
+    bound_names = block_inp_names
+    free_vars = set()
+
+    for node in block.nodes():
+        inp_names = _get_input_names(node)
+        list_diff = [name for name in inp_names if name not in bound_names]
+        free_vars.update(list_diff)
+        bound_names += _get_output_names(node)
+
+    return list(free_vars)
+
+
 def get_use_chains(root_node, terminate=lambda _: False):
     """
     Track a chain of users of this node forward, returning a list of chains
@@ -1771,6 +1785,13 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     loop_iter_var = _expr.var(block_input_names[0], shape=(),
                               dtype=loop_iter_dtype)
     loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
+
+    # add free variable
+    free_vars = _get_free_vars_from_block(body_block)
+    additional_vars = [var for var in free_vars
+                       if var in outputs and
+                       not isinstance(outputs[var], (_expr.Constant, int, float))]
+
     loop = while_loop(cond, [loop_iter_var] + loop_vars, body)
     loop_val = loop(init_loop_iter_val, *init_vals)
 
@@ -1887,6 +1908,7 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
+    print(graph)
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
