@@ -223,7 +223,7 @@ ObjectPtr<Object> CreateOp(const std::string& name) {
 
 TVM_REGISTER_NODE_TYPE(OpNode)
 .set_creator(CreateOp)
-.set_global_key([](const Object* n) {
+.set_repr_bytes([](const Object* n) {
     return static_cast<const OpNode*>(n)->name;
   });
 

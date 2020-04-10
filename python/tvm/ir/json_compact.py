@@ -79,8 +79,16 @@ def create_updater_06_to_07():
             return item
         return _convert
 
+    def _update_global_key(item, _):
+        item["repr_str"] = item["global_key"]
+        del item["global_key"]
+        return item
+
     node_map = {
         # Base IR
+        "SourceName": _update_global_key,
+        "EnvFunc": _update_global_key,
+        "relay.Op": _update_global_key,
         "relay.TypeVar": _ftype_var,
         "relay.GlobalTypeVar": _ftype_var,
         "relay.Type": _rename("Type"),
