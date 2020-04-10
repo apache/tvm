@@ -159,9 +159,9 @@ class MergeCompositeWrapper : public ExprMutator {
     if (call->op->IsInstance<FunctionNode>()) {
       Function func = Downcast<Function>(call->op);
       CHECK(func.defined());
-      const auto name_node = func->GetAttr<tir::StringImm>(attr::kComposite);
+      auto name_node = func->GetAttr<String>(attr::kComposite);
       // don't step into existing composite functions
-      if (name_node.defined() && name_node->value != "") {
+      if (name_node.defined() && name_node != "") {
         tvm::Array<tvm::relay::Expr> new_args;
         for (const auto& arg : call->args) {
           auto new_e = this->Mutate(arg);
@@ -185,7 +185,7 @@ class MergeCompositeWrapper : public ExprMutator {
       auto free_vars = FreeVars(extract);
       // make the composite function
       auto f = Function(free_vars, extract, call->checked_type_, {}, DictAttrs());
-      f = WithAttr(std::move(f), attr::kComposite, tir::StringImmNode::make(pattern_name_));
+      f = WithAttr(std::move(f), attr::kComposite, runtime::String(pattern_name_));
       // find the expressions associated with the free vars using the args_map
       // this tells us which expressions should be given as inputs to the composite function
       Array<Expr> args;
@@ -207,16 +207,14 @@ class MergeCompositeWrapper : public ExprMutator {
   PackedFunc check_;
 };
 
-Expr MergeComposite(const Expr& expr, const Array<tir::StringImm>& pattern_names,
+Expr MergeComposite(const Expr& expr, const Array<runtime::String>& pattern_names,
                     const Array<Expr>& patterns, const std::vector<PackedFunc>& checks) {
   CHECK_EQ(pattern_names.size(), patterns.size());
   Expr merged_expr = expr;
   // merge the patterns one-by-one in order
   for (size_t i = 0; i < patterns.size(); i++) {
-    std::string pattern_name = pattern_names[i]->value;
-    Expr pattern = patterns[i];
-    PackedFunc check = checks[i];
-    merged_expr = MergeCompositeWrapper(pattern_name, pattern, check).Mutate(merged_expr);
+    merged_expr =
+        MergeCompositeWrapper(pattern_names[i], patterns[i], checks[i]).Mutate(merged_expr);
   }
   return merged_expr;
 }
@@ -225,7 +223,7 @@ Expr MergeComposite(const Expr& expr, const Array<tir::StringImm>& pattern_names
 
 namespace transform {
 
-Pass MergeComposite(const tvm::Array<tir::StringImm>& pattern_names,
+Pass MergeComposite(const tvm::Array<runtime::String>& pattern_names,
                     const tvm::Array<Expr>& patterns, const std::vector<PackedFunc>& checks) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
@@ -236,8 +234,9 @@ Pass MergeComposite(const tvm::Array<tir::StringImm>& pattern_names,
   return func_pass;
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.MergeComposite").set_body([](TVMArgs args, TVMRetValue* rv) {
-  tvm::Array<tir::StringImm> pattern_names = args[0];
+TVM_REGISTER_GLOBAL("relay._transform.MergeComposite")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  tvm::Array<runtime::String> pattern_names = args[0];
   tvm::Array<Expr> patterns = args[1];
   std::vector<PackedFunc> checks;
   for (int i = 2; i < args.size(); i++) {

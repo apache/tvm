@@ -107,11 +107,12 @@ class PrimExpr : public BaseExpr {
    * \param value The value to be constructed.
    */
   TVM_DLL PrimExpr(float value);  // NOLINT(*)
+
   /*!
-   * \brief construct from string.
-   * \param str The value to be constructed.
+   * \brief construct from runtime String.
+   * \param value The value to be constructed.
    */
-  TVM_DLL PrimExpr(std::string str);  // NOLINT(*)
+  TVM_DLL PrimExpr(runtime::String value);  // NOLINT(*)
 
   /*! \return the data type of this expression. */
   DataType dtype() const {

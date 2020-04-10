@@ -22,6 +22,7 @@
 #include <dmlc/thread_local.h>
 
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
 #include <tvm/node/node.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/target/target.h>
@@ -150,12 +151,12 @@ TVM_REGISTER_GLOBAL("target.GenericFuncRegisterFunc")
   GenericFunc generic_func = args[0];
   // Intentionally copy and not de-allocate it, to avoid free pyobject during shutdown
   PackedFunc* func = new PackedFunc(args[1].operator PackedFunc());
-  Array<PrimExpr> tags = args[2];
+  Array<runtime::String> tags = args[2];
   bool allow_override = args[3];
 
   std::vector<std::string> tags_vector;
   for (auto& tag : tags) {
-    tags_vector.push_back(tag.as<tvm::tir::StringImmNode>()->value);
+    tags_vector.push_back(tag);
   }
 
   generic_func

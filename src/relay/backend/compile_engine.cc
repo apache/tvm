@@ -617,17 +617,18 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (src_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
-        auto code_gen = src_func->GetAttr<tir::StringImm>(attr::kCompiler);
+      if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
+        auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
-        if (ext_mods.find(code_gen->value) == ext_mods.end()) {
-          ext_mods[code_gen->value] = IRModule({}, {});
+        std::string code_gen_name = code_gen;
+        if (ext_mods.find(code_gen_name) == ext_mods.end()) {
+          ext_mods[code_gen_name] = IRModule({}, {});
         }
-        auto symbol_name = src_func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
         auto gv = GlobalVar(std::string(symbol_name));
-        ext_mods[code_gen->value]->Add(gv, src_func);
+        ext_mods[code_gen_name]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
     }
@@ -691,10 +692,10 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (key->source_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
-          key->source_func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+          key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       CHECK(name_node.defined())
           << "External function has not been attached a name yet.";
       cache_node->func_name = std::string(name_node);

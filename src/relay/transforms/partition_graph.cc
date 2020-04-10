@@ -245,7 +245,7 @@ class Partitioner : public ExprMutator {
         global_region_func =
             WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
         global_region_func = WithAttr(std::move(global_region_func), attr::kCompiler,
-                                      tvm::tir::StringImmNode::make(target));
+                                      tvm::runtime::String(target));
         global_region_func =
             WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
 

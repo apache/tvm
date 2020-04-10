@@ -419,7 +419,7 @@ class GraphRuntimeCodegen
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
     // Handle external function
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
       CCacheKey key = (*pf0)(func, target);
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
@@ -482,7 +482,7 @@ class GraphRuntimeCodegen
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    CHECK(op->GetAttr<tir::StringImm>(attr::kCompiler).defined())
+    CHECK(op->GetAttr<String>(attr::kCompiler).defined())
         << "Only functions supported by custom codegen";
     return {};
   }
@@ -633,10 +633,9 @@ class GraphRuntimeCodegenModule : public runtime::ModuleNode {
       });
     } else if (name == "list_params_name") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Array<tvm::PrimExpr> ret;
+        Array<runtime::String> ret;
         for (const auto &kv : this->output_.params) {
-          tvm::PrimExpr name = tir::StringImmNode::make(kv.first);
-          ret.push_back(name);
+          ret.push_back(kv.first);
         }
         *rv = ret;
       });

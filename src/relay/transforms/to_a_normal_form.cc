@@ -299,7 +299,7 @@ IRModule ToANormalForm(const IRModule& m) {
   for (const auto& it : funcs) {
     CHECK_EQ(FreeVars(it.second).size(), 0);
     if (const auto* n = it.second.as<FunctionNode>()) {
-      if (n->GetAttr<tir::StringImm>(attr::kCompiler).defined()) continue;
+      if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
     }
     Expr ret =
       TransformF([&](const Expr& e) {

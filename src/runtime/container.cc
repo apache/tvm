@@ -32,14 +32,14 @@ namespace runtime {
 
 using namespace vm;
 
-TVM_REGISTER_GLOBAL("runtime.container._GetADTTag")
+TVM_REGISTER_GLOBAL("runtime.GetADTTag")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
   *rv = static_cast<int64_t>(adt.tag());
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._GetADTSize")
+TVM_REGISTER_GLOBAL("runtime.GetADTSize")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   const auto& adt = Downcast<ADT>(obj);
@@ -47,7 +47,7 @@ TVM_REGISTER_GLOBAL("runtime.container._GetADTSize")
 });
 
 
-TVM_REGISTER_GLOBAL("runtime.container._GetADTFields")
+TVM_REGISTER_GLOBAL("runtime.GetADTFields")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   ObjectRef obj = args[0];
   int idx = args[1];
@@ -56,7 +56,7 @@ TVM_REGISTER_GLOBAL("runtime.container._GetADTFields")
   *rv = adt[idx];
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._Tuple")
+TVM_REGISTER_GLOBAL("runtime.Tuple")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   std::vector<ObjectRef> fields;
   for (auto i = 0; i < args.size(); ++i) {
@@ -65,7 +65,7 @@ TVM_REGISTER_GLOBAL("runtime.container._Tuple")
   *rv = ADT::Tuple(fields);
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._ADT")
+TVM_REGISTER_GLOBAL("runtime.ADT")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   int itag = args[0];
   size_t tag = static_cast<size_t>(itag);
@@ -76,9 +76,29 @@ TVM_REGISTER_GLOBAL("runtime.container._ADT")
   *rv = ADT(tag, fields);
 });
 
-TVM_REGISTER_GLOBAL("runtime.container._String")
+TVM_REGISTER_GLOBAL("runtime.String")
 .set_body_typed([](std::string str) {
   return String(std::move(str));
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetStringSize")
+.set_body_typed([](String str) {
+  return static_cast<int64_t>(str.size());
+});
+
+TVM_REGISTER_GLOBAL("runtime.GetStdString")
+.set_body_typed([](String str) {
+  return std::string(str);
+});
+
+TVM_REGISTER_GLOBAL("runtime.CompareString")
+.set_body_typed([](String lhs, String rhs) {
+  return lhs.compare(rhs);
+});
+
+TVM_REGISTER_GLOBAL("runtime.StringHash")
+.set_body_typed([](String str) {
+  return static_cast<int64_t>(std::hash<String>()(str));
 });
 
 TVM_REGISTER_OBJECT_TYPE(ADTObj);

@@ -74,8 +74,7 @@ Pass CanonicalizeOps() {
     [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(CanonicalizeOps(f));
   };
-  return CreateFunctionPass(pass_func, 3, "CanonicalizeOps",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 3, "CanonicalizeOps", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CanonicalizeOps")

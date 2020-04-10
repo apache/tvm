@@ -156,7 +156,7 @@ void CodeGenOpenGL::AddFunction(const PrimFunc& f) {
     arg_kinds.push_back(kind);
   }
 
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenOpenGL: Expect PrimFunc to have the global_symbol attribute";
 

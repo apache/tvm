@@ -56,7 +56,7 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   GetUniqueName("_");
 
   // add to alloc buffer type.
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 

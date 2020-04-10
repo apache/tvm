@@ -134,7 +134,7 @@ def test_recursive_func():
     func = relay.Function([i],
                           sb.get(),
                           ret_type=relay.TensorType([], 'int32'))
-    func = func.with_attr("Compiler", tvm.tir.StringImm("a"))
+    func = func.with_attr("Compiler", "a")
     mod[sum_up] = func
     iarg = relay.var('i', shape=[], dtype='int32')
     mod["main"] = relay.Function([iarg], sum_up(iarg))

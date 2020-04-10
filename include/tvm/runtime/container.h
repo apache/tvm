@@ -360,7 +360,15 @@ class String : public ObjectRef {
    * \note If user passes const reference, it will trigger copy. If it's rvalue,
    * it will be moved into other.
    */
-  explicit String(std::string other);
+  String(std::string other);  // NOLINT(*)
+
+  /*!
+   * \brief Construct a new String object
+   *
+   * \param other a char array.
+   */
+  String(const char* other)  // NOLINT(*)
+      : String(std::string(other)) {}
 
   /*!
    * \brief Change the value the reference object points to.

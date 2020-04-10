@@ -24,6 +24,7 @@ registers the standard task.
 import numpy as np
 
 from tvm import target as _target
+from tvm import runtime
 from tvm.ir import container
 from tvm.tir import expr
 from tvm.te import tensor, placeholder
@@ -55,6 +56,8 @@ def serialize_args(args):
             return x
         if isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
             return x.value
+        if isinstance(x, runtime.container.String):
+            return str(x)
         if x is None:
             return None
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'

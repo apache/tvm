@@ -190,7 +190,7 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
-        if (n->GetAttr<tir::StringImm>(attr::kCompiler).defined()) continue;
+        if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
         func = Function(func->params,
                         VisitExpr(func->body),

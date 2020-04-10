@@ -40,8 +40,8 @@ PrimExpr::PrimExpr(int32_t value)
 PrimExpr::PrimExpr(float value)
     : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
-PrimExpr::PrimExpr(std::string str)
-    : PrimExpr(tir::StringImmNode::make(str)) {}
+PrimExpr::PrimExpr(runtime::String value)
+    : PrimExpr(tir::StringImmNode::make(value)) {}
 
 PrimExpr PrimExpr::FromObject_(ObjectPtr<Object> ptr) {
   using runtime::ObjectTypeChecker;
@@ -50,6 +50,9 @@ PrimExpr PrimExpr::FromObject_(ObjectPtr<Object> ptr) {
   }
   if (ptr->IsInstance<te::TensorNode>()) {
     return te::Tensor(ptr)();
+  }
+  if (ptr->IsInstance<runtime::StringObj>()) {
+    return tir::StringImmNode::make(runtime::String(ptr));
   }
   CHECK(ObjectTypeChecker<PrimExpr>::Check(ptr.get()))
       << "Expect type " << ObjectTypeChecker<PrimExpr>::TypeName()
