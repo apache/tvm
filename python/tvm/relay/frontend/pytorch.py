@@ -68,6 +68,7 @@ def _convert_to_tensor_array(adt_lst, prelude):
         return prelude.nil()
 
     shape = _infer_type_with_prelude(prelude.hd(adt_lst), prelude).shape
+    print("register shape:", shape)
     static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
     static_tensor_array_ops.register()
     tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
@@ -187,7 +188,7 @@ def _concatenate(prelude):
         tensor_array = _convert_to_tensor_array(lst, prelude)
         shape = get_tensor_array_shape(tensor_array, "float32", prelude)
         print("tensor array concat shape:", shape)
-        concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
+        concat = prelude.get_var_static('tensor_array_concat_last', "float32", shape)
         concatenated = concat(tensor_array)
 
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
