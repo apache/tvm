@@ -251,12 +251,12 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
     CHECK(pattern_name.defined()) << "Only functions with composite attribute supported";
 
-    if (pattern_name->value == "dnnl.conv2d_bias_relu") {
+    if (pattern_name == "dnnl.conv2d_bias_relu") {
       const auto* conv_call =
           GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
       return GenerateBody(conv_call, "dnnl_fused_conv2d_bias_relu", GetArgumentNames(caller),
                           Conv2d(conv_call));
-    } else if (pattern_name->value == "dnnl.conv2d_relu") {
+    } else if (pattern_name == "dnnl.conv2d_relu") {
       const auto* conv_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
       return GenerateBody(conv_call, "dnnl_fused_conv2d_relu", GetArgumentNames(caller),
                           Conv2d(conv_call));

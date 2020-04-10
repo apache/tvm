@@ -30,6 +30,7 @@ from tvm.contrib import util
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.build_module import bind_params_by_name
 
 
 # Leverage the pass manager to write a simple white list based annotator
@@ -454,7 +455,7 @@ def test_extern_dnnl_mobilenet():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
-    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    mod["main"] = bind_params_by_name(mod["main"], params)
     mod = transform.AnnotateTarget(["dnnl"])(mod)
     mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
@@ -661,7 +662,7 @@ def test_constant_propagation():
     add = x + y
     log = relay.log(add)
     f = relay.Function([x, y], log)
-    f = relay.build_module.bind_params_by_name(f, {"x": tvm.nd.array(ones)})
+    f = bind_params_by_name(f, {"x": tvm.nd.array(ones)})
     mod = tvm.IRModule()
     mod["main"] = f
     mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
