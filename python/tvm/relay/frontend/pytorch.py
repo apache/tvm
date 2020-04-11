@@ -1799,7 +1799,6 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
 
     def get_var(name, val):
         if val is not None:
-            print(val)
             checked_type = _infer_type_with_prelude(val, prelude)
             return _expr.var(name, type_annotation=checked_type)
         return _expr.var(name)

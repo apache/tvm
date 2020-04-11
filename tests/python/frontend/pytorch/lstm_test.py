@@ -190,7 +190,7 @@ def bidir_lstm(input_size, hidden_size):
 def stacked_bidir_lstm(input_size, hidden_size, num_layers):
     return StackedBidirLSTM(num_layers, BidirLSTMLayer,
                             first_layer_args=[LayerNormLSTMCell, input_size, hidden_size],
-                            other_layer_args=[LayerNormLSTMCell, hidden_size * 2, hidden_size])
+                            other_layer_args=[LayerNormLSTMCell, hidden_size, hidden_size])
 
 
 def vmobj_to_list(o, dtype="float32"):
@@ -272,36 +272,33 @@ def custom_lstm_test():
     input_size = 3
     hidden_size = 4
     num_layers = 3
+    state_tensor_shape = (batch, hidden_size)
 
     inp = torch.randn(seq_len, batch, input_size)
 
     input_shapes = [(input_name, (seq_len, batch, input_size)),
-                    (states_name, ((batch, hidden_size), (batch, hidden_size)))]
+                    (states_name, (state_tensor_shape, state_tensor_shape))]
 
     input_shapes_stacked = [(input_name, (seq_len, batch, input_size)),
-                            (states_name, [((batch, hidden_size), (batch, hidden_size)),
-                                           ((batch, hidden_size), (batch, hidden_size))])]
+                            (states_name, [(state_tensor_shape, state_tensor_shape),
+                                           (state_tensor_shape, state_tensor_shape)])]
 
     input_shapes_stacked_bidir = [(input_name, (seq_len, batch, input_size)),
-                                  (states_name, [((batch, hidden_size), (batch, hidden_size)),
-                                                 ((batch, hidden_size), (batch, hidden_size))])]
+                                  (states_name, [[(state_tensor_shape,
+                                                   state_tensor_shape)
+                                                  for _ in range(2)]
+                                                 for _ in range(num_layers)])]
 
-    input_shapes_stacked_bidir= [(input_name, (seq_len, batch, input_size)),
-                                 (states_name, [[((batch, hidden_size),
-                                                  (batch, hidden_size))
-                                                 for _ in range(2)]
-                                                for _ in range(num_layers)])]
-
-    states = [(torch.randn(batch, hidden_size),
-               torch.randn(batch, hidden_size))
+    states = [(torch.randn(state_tensor_shape),
+               torch.randn(state_tensor_shape))
               for _ in range(num_layers)]
 
-    bidir_states = [(torch.randn(batch, hidden_size),
-                     torch.randn(batch, hidden_size))
+    bidir_states = [(torch.randn(state_tensor_shape),
+                     torch.randn(state_tensor_shape))
                     for _ in range(2)]
 
-    stacked_bidir_states = [[(torch.randn(batch, hidden_size),
-                             torch.randn(batch, hidden_size))
+    stacked_bidir_states = [[(torch.randn(state_tensor_shape),
+                              torch.randn(state_tensor_shape))
                              for _ in range(2)]
                             for _ in range(num_layers)]
 
@@ -309,14 +306,13 @@ def custom_lstm_test():
       (lstm(input_size, hidden_size).eval(), states[0], input_shapes),
       (stacked_lstm(input_size, hidden_size, num_layers).eval(), states, input_shapes_stacked),
       (bidir_lstm(input_size, hidden_size).eval(), bidir_states, input_shapes_stacked),
-      # (stacked_bidir_lstm(input_size, hidden_size, num_layers).eval(),
-      #  stacked_bidir_states, input_shapes_stacked_bidir)
+      (stacked_bidir_lstm(input_size, hidden_size, num_layers).eval(),
+       stacked_bidir_states, input_shapes_stacked_bidir)
     ]
 
     for (raw_model, states, input_shapes) in models:
         script_module = torch.jit.script(raw_model)
         mod, params = from_pytorch(script_module, input_shapes)
-        # print(mod["main"])
 
         with torch.no_grad():
             pt_result = raw_model(inp.clone(), states)
@@ -331,8 +327,8 @@ def custom_lstm_test():
             states_np = [tuple(st.numpy() for st in states[i])
                          for i in range(len(states))]
         elif isinstance(states, list) and isinstance(states[0], list):
-            states_np = [[tuple(st.numpy() for st in states[i])
-                         for i in range(len(states[layer]))]
+            states_np = [[tuple(st.numpy() for st in states)
+                         for states in states[layer]]
                          for layer in range(num_layers)]
         else:
             assert False
@@ -343,6 +339,3 @@ def custom_lstm_test():
             params[states_name] = states_np
 
         run_and_compare(mod, params, pt_result)
-
-
-custom_lstm_test()
