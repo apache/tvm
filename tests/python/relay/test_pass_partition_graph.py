@@ -27,11 +27,10 @@ from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
 from tvm.contrib import util
-from tvm.relay import transform
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
-from tvm.runtime import container
+from tvm.relay.build_module import bind_params_by_name
 
 
 # Leverage the pass manager to write a simple white list based annotator
@@ -456,7 +455,7 @@ def test_extern_dnnl_mobilenet():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
-    mod["main"] = relay.build_module.bind_params_by_name(mod["main"], params)
+    mod["main"] = bind_params_by_name(mod["main"], params)
     mod = transform.AnnotateTarget(["dnnl"])(mod)
     mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
@@ -663,7 +662,7 @@ def test_constant_propagation():
     add = x + y
     log = relay.log(add)
     f = relay.Function([x, y], log)
-    f = relay.build_module.bind_params_by_name(f, {"x": tvm.nd.array(ones)})
+    f = bind_params_by_name(f, {"x": tvm.nd.array(ones)})
     mod = tvm.IRModule()
     mod["main"] = f
     mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
@@ -852,6 +851,128 @@ def test_mixed_single_multiple_outputs():
     partitioned = transform.PartitionGraph()(mod)
     assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
+
+def test_dnnl_fuse():
+    def make_pattern(with_bias=True):
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("weight")
+        bias = relay.var("bias")
+        conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
+                               channels=8, padding=(1, 1))
+        if with_bias:
+            conv_out = relay.add(conv, bias)
+        else:
+            conv_out = conv
+        return relay.nn.relu(conv_out)
+
+    conv2d_bias_relu_pat = ("dnnl.conv2d_bias_relu", make_pattern(with_bias=True))
+    conv2d_relu_pat = ("dnnl.conv2d_relu", make_pattern(with_bias=False))
+    dnnl_patterns = [conv2d_bias_relu_pat, conv2d_relu_pat]
+
+    def get_blocks(prefix, data, in_channel, out_channel,
+                   include_bn=True, include_sigmoid=False):
+        weight = relay.var(prefix + "weight")
+        bn_gamma = relay.var(prefix + "bn_gamma")
+        bn_beta = relay.var(prefix + "bn_beta")
+        bn_mmean = relay.var(prefix + "bn_mean")
+        bn_mvar = relay.var(prefix + "bn_var")
+
+        layer = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
+                                channels=out_channel, padding=(1, 1))
+        if include_bn:
+            bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta,
+                                            bn_mmean, bn_mvar)
+            layer = bn_output[0]
+        if include_sigmoid:
+            # dummy layer to prevent pattern detection
+            layer = relay.sigmoid(layer)
+        layer = relay.nn.relu(layer)
+        return layer
+
+    def get_net(include_bn=True, include_sigmoid=False):
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        block1 = get_blocks("block1_", data, 3, 8, include_bn, include_sigmoid)
+        # The second block is always conv + relu, to make it more interesting
+        block2 = get_blocks("block2_", block1, 8, 8, False, include_sigmoid)
+        return relay.Function(relay.analysis.free_vars(block2), block2)
+
+    def get_partitoned_mod(mod, params, pattern_table):
+        # This is required for constant folding
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+        remove_bn_pass = transform.Sequential([
+            transform.InferType(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.FoldScaleAxis(),
+        ])
+        composite_partition = transform.Sequential([
+            remove_bn_pass,
+            transform.MergeComposite(pattern_table),
+            transform.AnnotateTarget("dnnl"),
+            transform.PartitionGraph()
+        ])
+
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            return composite_partition(mod)
+
+    def test_detect_pattern(pattern_table, include_bn, include_sigmoid,
+                            num_expected_partition):
+        net = get_net(include_bn, include_sigmoid)
+        mod, params = tvm.relay.testing.create_workload(net)
+        mod = get_partitoned_mod(mod, params, pattern_table)
+        assert(len(mod.functions) - 1 == num_expected_partition)  # -1 for main
+
+    def test_partition():
+        # conv + bn + relu, conv + relu -> fused conv_bias_relu, conv, and relu
+        test_detect_pattern([conv2d_bias_relu_pat], True, False, 3)
+        # conv + bn + relu, conv + relu -> conv, bias, relu, and fused conv_relu
+        test_detect_pattern([conv2d_relu_pat], True, False, 4)
+        # conv + bn + relu, conv + relu -> fused conv_bias_relu, and fused conv_relu
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, False, 2)
+        # conv + relu, conv + relu -> two fused conv_relu
+        test_detect_pattern([conv2d_relu_pat], False, False, 2)
+        # conv + relu, conv + relu -> no fusion, 4 partition each with a single op
+        test_detect_pattern([conv2d_bias_relu_pat], False, False, 4)
+        # conv + bn + sigmoid + relu, conv + sigmoid + relu -> no fusion
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, True, 5)
+
+    def test_partition_mobilenet():
+        mod, params = relay.testing.mobilenet.get_workload()
+        mod = get_partitoned_mod(mod, params, dnnl_patterns)
+        # 27 fused conv + bn + relu and one dense
+        assert(len(mod.functions) - 1 == 28)  # -1 for main
+
+    def test_exec(mod, params, ref_mod, ref_params, out_shape):
+        ishape = (1, 3, 224, 224)
+        i_data = np.random.randn(*ishape).astype(np.float32)
+        ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
+        ref_res = ref_ex.evaluate()(i_data, **ref_params)
+        compile_engine.get().clear()
+
+        mod = get_partitoned_mod(mod, params, dnnl_patterns)
+
+        check_result(mod, {"data": i_data},
+                     out_shape, ref_res.asnumpy(), tol=1e-5, params=params)
+
+    test_partition()
+    test_partition_mobilenet()
+
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    net = get_net()
+    mod, params = tvm.relay.testing.create_workload(net)
+    ref_mod, ref_params = tvm.relay.testing.create_workload(net)
+    test_exec(mod, params, ref_mod, ref_params, (1, 8, 224, 224))
+
+    # exec test on mobilenet is not possible due to manually inlined constants
+    # mod, params = relay.testing.mobilenet.get_workload()
+    # ref_mod, ref_params = relay.testing.mobilenet.get_workload()
+    # test_exec(mod, params, ref_mod, ref_params, (1, 1000))
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
@@ -865,3 +986,4 @@ if __name__ == "__main__":
     test_constant_propagation()
     test_multiple_outputs()
     test_mixed_single_multiple_outputs()
+    test_dnnl_fuse()
