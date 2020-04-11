@@ -34,9 +34,8 @@ namespace relay {
 
 #define RELAY_UNARY_COMPUTE(FTOPI)                      \
   [] (const Attrs& attrs,                               \
-      const Array<te::Tensor>& inputs,                      \
-      const Type& out_type,                             \
-      const Target& target) -> Array<te::Tensor> {          \
+      const Array<te::Tensor>& inputs,                  \
+      const Type& out_type) -> Array<te::Tensor> {      \
     return {FTOPI(inputs[0])};                          \
   }                                                     \
 
@@ -50,6 +49,17 @@ RELAY_REGISTER_UNARY_OP("log")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::log));
+
+
+RELAY_REGISTER_UNARY_OP("tan")
+.describe(R"code(Returns the tan of input array, computed element-wise.
+
+.. math::
+   Y = tan(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::tan));
 
 
 RELAY_REGISTER_UNARY_OP("cos")
@@ -96,6 +106,17 @@ RELAY_REGISTER_UNARY_OP("exp")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::exp));
 
 
+RELAY_REGISTER_UNARY_OP("fast_exp")
+.describe(R"code(Returns the fast_exp input array, computed element-wise.
+
+.. math::
+   \fast_exp(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_exp));
+
+
 RELAY_REGISTER_UNARY_OP("erf")
 .describe(R"code(Returns the error function value for input array, computed element-wise.
 
@@ -105,6 +126,17 @@ RELAY_REGISTER_UNARY_OP("erf")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::erf));
+
+
+RELAY_REGISTER_UNARY_OP("fast_erf")
+.describe(R"code(Returns the error function value for input array, computed element-wise.
+
+.. math::
+   \fast_erf(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_erf));
 
 
 RELAY_REGISTER_UNARY_OP("sqrt")
@@ -163,7 +195,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.clip")
     attrs->a_min = a_min;
     attrs->a_max = a_max;
     static const Op& op = Op::Get("clip");
-  return CallNode::make(op, {a}, Attrs(attrs), {});
+  return Call(op, {a}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("clip")
@@ -251,6 +283,17 @@ RELAY_REGISTER_UNARY_OP("tanh")
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::tanh));
 
 
+RELAY_REGISTER_UNARY_OP("fast_tanh")
+.describe(R"code(Returns the fast_tanh of input array, computed element-wise.
+
+.. math::
+   Y = sinh(X) / cosh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::fast_tanh));
+
+
 RELAY_REGISTER_UNARY_OP("negative")
 .describe(R"code(Returns the numeric negative of input array, computed element-wise.
 
@@ -302,9 +345,8 @@ bool ShapeOfRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> ShapeOfCompute(const Attrs& attrs,
-                             const Array<te::Tensor>& inputs,
-                             const Type& out_type,
-                             const Target& target) {
+                                 const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
@@ -316,7 +358,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.shape_of")
   auto attrs = make_object<ShapeOfAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("shape_of");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("shape_of")
@@ -353,24 +395,23 @@ bool NdarraySizeRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> NdarraySizeCompute(const Attrs& attrs,
-                          const Array<te::Tensor>& inputs,
-                          const Type& out_type,
-                          const Target& target) {
+                                     const Array<te::Tensor>& inputs,
+                                     const Type& out_type) {
   CHECK_EQ(inputs.size(), 1);
   const auto* param = attrs.as<NdarraySizeAttrs>();
   CHECK(param != nullptr);
   return Array<te::Tensor>{topi::ndarray_size(inputs[0], param->dtype)};
 }
 
-TVM_REGISTER_GLOBAL("relay.op.contrib._make.ndarray_size")
+TVM_REGISTER_GLOBAL("relay.op._make.ndarray_size")
 .set_body_typed([](Expr data, DataType dtype) {
   auto attrs = make_object<NdarraySizeAttrs>();
   attrs->dtype = dtype;
-  static const Op& op = Op::Get("contrib.ndarray_size");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  static const Op& op = Op::Get("ndarray_size");
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
-RELAY_REGISTER_OP("contrib.ndarray_size")
+RELAY_REGISTER_OP("ndarray_size")
 .describe(R"code(Returns a tensor representing the number of elements of input tensor.
 
 )code" TVM_ADD_FILELINE)
@@ -384,6 +425,24 @@ RELAY_REGISTER_OP("contrib.ndarray_size")
 ElemwiseArbitraryLayout)
 .set_support_level(10)
 .set_attr<FTVMCompute>("FTVMCompute", NdarraySizeCompute);
+
+RELAY_REGISTER_UNARY_OP("isfinite")
+.describe(R"code(Returns the finiteness of input, computed element-wise.
+.. math::
+   isfinite(x)
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("IdentityCompRel", IdentityCompRel)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::isfinite));
+
+RELAY_REGISTER_UNARY_OP("isinf")
+.describe(R"code(Returns the infiniteness of input, computed element-wise.
+.. math::
+   isfinite(x)
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("IdentityCompRel", IdentityCompRel)
+.set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::isinf));
 
 }  // namespace relay
 }  // namespace tvm

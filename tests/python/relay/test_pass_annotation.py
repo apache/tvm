@@ -27,7 +27,7 @@ from tvm.relay import transform
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
@@ -64,7 +64,7 @@ def test_redundant_annotation():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def test_annotate_expr():
@@ -91,7 +91,7 @@ def test_annotate_expr():
 
     annotated_expr = annotated()
     expected_expr = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_expr, expected_expr)
+    assert tvm.ir.structural_equal(annotated_expr, expected_expr)
 
 
 def test_annotate_all():
@@ -120,7 +120,7 @@ def test_annotate_all():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def test_annotate_none():
@@ -146,13 +146,13 @@ def test_annotate_none():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def check_annotated_graph(annotated_func, expected_func):
     annotated_func = run_opt_pass(annotated_func, transform.InferType())
     expected_func = run_opt_pass(expected_func, transform.InferType())
-    assert relay.analysis.alpha_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 def test_conv_network():
@@ -596,7 +596,7 @@ def test_tuple_get_item():
 
     annotated_func = annotated()
     expected_func = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(annotated_func, expected_func)
+    assert tvm.ir.structural_equal(annotated_func, expected_func)
 
 
 if __name__ == "__main__":

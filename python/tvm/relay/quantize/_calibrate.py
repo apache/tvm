@@ -20,12 +20,13 @@ import logging
 import multiprocessing as mp
 import numpy as np
 import tvm
+import tvm.driver
+from tvm.ir import IRModule
 
 from . import _quantize
 from . import quantize
 from .. import op as _op
 from .. import expr as _expr
-from .. import module as _module
 from .. import analysis as _analysis
 from .. import transform as _transform
 from .. import build_module as _build_module
@@ -37,8 +38,8 @@ def _get_profile_runtime(mod):
     func = mod['main']
     func = _quantize.CreateStatsCollector(func)
 
-    if tvm.target.current_target():
-        target = tvm.target.current_target()
+    if tvm.target.Target.current():
+        target = tvm.target.Target.current()
         ctx = tvm.context(target.target_name)
     else:
         target = 'llvm'
@@ -141,7 +142,7 @@ def _set_params(mod, input_scale_func, weight_scale_func):
     func = mod['main']
     _analysis.post_order_visit(func, visit_func)
     func = _expr.bind(func, const_params)
-    return _module.Module.from_expr(func)
+    return IRModule.from_expr(func)
 
 
 # weight scale functions

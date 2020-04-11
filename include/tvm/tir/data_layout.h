@@ -335,9 +335,6 @@ class BijectiveLayoutNode : public Object {
 
   static constexpr const char* _type_key = "BijectiveLayout";
   TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);
-
-  TVM_DLL static BijectiveLayout make(const Layout& src_layout,
-                                      const Layout& dst_layout);
 };
 
 /*! \brief Bijective function mapping for data layout transformation.
@@ -349,6 +346,12 @@ class BijectiveLayout : public ObjectRef {
  public:
   BijectiveLayout() = default;
   explicit BijectiveLayout(ObjectPtr<Object> n) : ObjectRef(n) {}
+  /*!
+   * \brief The constructor
+   * \param src_layout The source layout
+   * \param dst_layout The destination layout
+   */
+  TVM_DLL BijectiveLayout(Layout src_layout, Layout dst_layout);
 
   // Given the source shape, infer the destination shape.
   TVM_DLL Array<PrimExpr> ForwardShape(const Array<PrimExpr>& shape) const;

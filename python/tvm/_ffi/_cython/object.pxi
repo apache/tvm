@@ -64,10 +64,7 @@ cdef class ObjectBase:
 
     property handle:
         def __get__(self):
-            if self.chandle == NULL:
-                return None
-            else:
-                return ctypes_handle(self.chandle)
+            return ctypes_handle(self.chandle)
 
         def __set__(self, value):
             self._set_handle(value)

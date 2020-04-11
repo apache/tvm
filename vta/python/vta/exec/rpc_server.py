@@ -30,8 +30,7 @@ from tvm import rpc
 from tvm.contrib import cc
 from vta import program_bitstream
 
-from ..environment import get_env
-from ..pkg_config import PkgConfig
+from ..environment import get_env, pkg_config
 from ..libinfo import find_libvta
 
 
@@ -67,11 +66,15 @@ def server_start():
     @tvm.register_func("tvm.contrib.vta.init", override=True)
     def program_fpga(file_name):
         # pylint: disable=import-outside-toplevel
-        from pynq import xlnk
-        # Reset xilinx driver
-        xlnk.Xlnk().xlnk_reset()
-        path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
         env = get_env()
+        if env.TARGET == "pynq":
+            from pynq import xlnk
+            # Reset xilinx driver
+            xlnk.Xlnk().xlnk_reset()
+        elif env.TARGET == "de10nano":
+            # Load the de10nano program function.
+            load_vta_dll()
+        path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
         program_bitstream.bitstream_program(env.TARGET, path)
         logging.info("Program FPGA with %s ", file_name)
 
@@ -90,12 +93,14 @@ def server_start():
         cfg_json : str
             JSON string used for configurations.
         """
-        if runtime_dll:
-            raise RuntimeError("Can only reconfig in the beginning of session...")
         env = get_env()
+        if runtime_dll:
+            if env.TARGET == "de10nano":
+                print("Please reconfigure the runtime AFTER programming a bitstream.")
+            raise RuntimeError("Can only reconfig in the beginning of session...")
         cfg = json.loads(cfg_json)
         cfg["TARGET"] = env.TARGET
-        pkg = PkgConfig(cfg, proj_root)
+        pkg = pkg_config(cfg)
         # check if the configuration is already the same
         if os.path.isfile(cfg_path):
             old_cfg = json.loads(open(cfg_path, "r").read())

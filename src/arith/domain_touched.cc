@@ -68,7 +68,7 @@ class FuncTouchedDomain final : public StmtExprVisitor {
 
   /* TODO: Thread extent unitest not generated.*/
   void VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
+    if (op->attr_key == tir::attr::thread_extent) {
       const IterVarNode* thread_axis = op->node.as<IterVarNode>();
       CHECK(thread_axis);
       const VarNode* var = thread_axis->var.get();
@@ -118,6 +118,9 @@ Domain DomainTouched(Stmt stmt,
                      bool consider_provides) {
   return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
 }
+
+TVM_REGISTER_GLOBAL("arith.DomainTouched")
+.set_body_typed(DomainTouched);
 
 }  // namespace arith
 }  // namespace tvm

@@ -21,6 +21,7 @@ import os
 import numpy as np
 import tvm
 
+
 GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
 CHROME_TRACE_FILE_NAME = "_tvmdbg_execution_trace.json"
 

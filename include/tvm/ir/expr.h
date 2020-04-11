@@ -32,6 +32,7 @@
 #include <string>
 #include <algorithm>
 #include <limits>
+#include <type_traits>
 
 namespace tvm {
 
@@ -42,6 +43,8 @@ namespace tvm {
 class BaseExprNode : public Object {
  public:
   static constexpr const char* _type_key = "Expr";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
 
@@ -104,11 +107,12 @@ class PrimExpr : public BaseExpr {
    * \param value The value to be constructed.
    */
   TVM_DLL PrimExpr(float value);  // NOLINT(*)
+
   /*!
-   * \brief construct from string.
-   * \param str The value to be constructed.
+   * \brief construct from runtime String.
+   * \param value The value to be constructed.
    */
-  TVM_DLL PrimExpr(std::string str);  // NOLINT(*)
+  TVM_DLL PrimExpr(runtime::String value);  // NOLINT(*)
 
   /*! \return the data type of this expression. */
   DataType dtype() const {
@@ -119,7 +123,7 @@ class PrimExpr : public BaseExpr {
 
  private:
   // Internal function for conversion.
-  friend class runtime::TVMPODValue_;
+  friend struct runtime::PackedFuncValueConverter<PrimExpr>;
   TVM_DLL static PrimExpr FromObject_(ObjectPtr<Object> ptr);
 };
 
@@ -149,7 +153,7 @@ class RelayExprNode : public BaseExprNode {
   /*!
    * \return The checked_type
    */
-  const Type& checked_type() const;
+  inline const Type& checked_type() const;
   /*!
    * \brief Check if the inferred(checked) type of the Expr
    *  is backed by a TTypeNode and return it.
@@ -178,7 +182,7 @@ class RelayExpr : public BaseExpr {
 
 class GlobalVar;
 /*!
- * \brief Global variable that leaves in the top-level module.
+ * \brief Global variable that lives in the top-level module.
  *
  * A GlobalVar only refers to function definitions.
  * This is used to enable recursive calls between function.
@@ -196,7 +200,19 @@ class GlobalVarNode : public RelayExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  static constexpr const char* _type_key = "relay.GlobalVar";
+  bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
+    // name matters for global var.
+    return
+        equal(name_hint, other->name_hint) &&
+        equal.FreeVarEqualImpl(this, other);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(name_hint);
+    hash_reduce.FreeVarHashImpl(this);
+  }
+
+  static constexpr const char* _type_key = "GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelayExprNode);
 };
 
@@ -209,30 +225,6 @@ class GlobalVar : public RelayExpr {
   TVM_DLL explicit GlobalVar(std::string name_hint);
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
-};
-
-/*!
- * \brief Base node of all functions.
- *
- * We support several variants of functions throughout the stack.
- * All of the functions shares the same type system(via checked_type)
- * to support cross variant calls.
- *
- * \sa BaseFunc
- */
-class BaseFuncNode : public RelayExprNode {
- public:
-  static constexpr const char* _type_key = "BaseFunc";
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);
-};
-
-/*!
- * \brief Managed reference to BaseFuncNode.
- * \sa BaseFuncNode
- */
-class BaseFunc : public RelayExpr {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
 };
 
 // PrimExprs that are useful as runtime containers.
@@ -249,6 +241,15 @@ class IntImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "IntImm";
@@ -284,6 +285,15 @@ class FloatImmNode : public PrimExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
     v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
+    return equal(dtype, other->dtype) && equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dtype);
+    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "FloatImm";
@@ -332,6 +342,17 @@ class Integer : public IntImm {
    */
   Integer(IntImm other) : IntImm(std::move(other)) {}  // NOLINT(*)
   /*!
+   * \brief Constructor from enum
+   * \tparam Enum The enum type.
+   * \param value The enum value.
+   */
+  template<typename ENum,
+           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
+  explicit Integer(ENum value) : Integer(static_cast<int>(value)) {
+    static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
+                  "declare enum to be enum int to use visitor");
+  }
+  /*!
    * \brief Assign an expression to integer.
    * \param other another expression.
    */
@@ -365,7 +386,18 @@ class RangeNode : public Object {
     v->Visit("extent", &extent);
   }
 
+  bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
+    return equal(min, other->min) && equal(extent, other->extent);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(min);
+    hash_reduce(extent);
+  }
+
   static constexpr const char* _type_key = "Range";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 
@@ -419,22 +451,24 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
-// Additional implementattion overloads for PackedFunc.
-inline TVMPODValue_::operator tvm::PrimExpr() const {
-  if (type_code_ == kTVMNullptr) return PrimExpr();
-  if (type_code_ == kDLInt) {
-    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
-    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
-    return PrimExpr(static_cast<int>(value_.v_int64));
+template<>
+struct PackedFuncValueConverter<PrimExpr> {
+  // common rule for both RetValue and ArgValue.
+  static PrimExpr From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return PrimExpr(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kDLInt) {
+      return PrimExpr(val.operator int());
+    }
+    if (val.type_code() == kDLFloat) {
+      return PrimExpr(static_cast<float>(val.operator double()));
+    }
+    TVM_CHECK_TYPE_CODE(val.type_code(), kTVMObjectHandle);
+    Object* ptr = val.ptr<Object>();
+    return PrimExpr::FromObject_(GetObjectPtr<Object>(ptr));
   }
-  if (type_code_ == kDLFloat) {
-    return PrimExpr(static_cast<float>(value_.v_float64));
-  }
-
-  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
-  Object* ptr = static_cast<Object*>(value_.v_handle);
-  return PrimExpr::FromObject_(ObjectPtr<Object>(ptr));
-}
+};
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

@@ -46,6 +46,8 @@
 
 #include <dmlc/common.h>
 #include <tvm/ir/expr.h>
+#include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <unordered_map>
@@ -118,7 +120,10 @@ class AttrFieldInfoNode : public Object {
     v->Visit("type_info", &type_info);
     v->Visit("description", &description);
   }
+
   static constexpr const char* _type_key = "AttrFieldInfo";
+  static constexpr bool _type_has_method_sequal_reduce = false;
+  static constexpr bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
 };
 
@@ -126,90 +131,6 @@ class AttrFieldInfoNode : public Object {
 class AttrFieldInfo : public ObjectRef {
  public:
   TVM_DEFINE_OBJECT_REF_METHODS(AttrFieldInfo, ObjectRef, AttrFieldInfoNode);
-};
-
-class AttrsHashHandler;
-class AttrsEqualHandler;
-/*!
- * \brief Content-aware Equality comparator for attrs.
- *
- * This comparator will recursively deep compare the following Attributes.
- *
- * - IntImm, UIntImm, FloatImm, StringImm
- * - Any subclass of BaseAttrsNode
- * - Array of Attributes.
- * - Map from string to Attributes.
- */
-class AttrsEqual {
- public:
-  bool operator()(const double& lhs, const double& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const int64_t& lhs, const int64_t& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const uint64_t& lhs, const uint64_t& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const int& lhs, const int& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const bool& lhs, const bool& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const std::string& lhs, const std::string& rhs) const {
-    return lhs == rhs;
-  }
-  bool operator()(const DataType& lhs, const DataType& rhs) const {
-    return lhs == rhs;
-  }
-  // node comparator
-  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
-
- protected:
-  friend class AttrsEqualHandler;
-  /*! \brief internal handle. */
-  AttrsEqualHandler* handler_{nullptr};
-};
-
-/*!
- * \brief Content-aware hash function.
- *
- * This hash functor will recursively hash the content of the Attributes.
- * It is guaranteed that if AttrsEqual(a, b) == true, then AttrsHash(a) == AttrsHash(b);
- */
-class AttrsHash {
- public:
-  size_t operator()(const double& value) const {
-    return std::hash<double>()(value);
-  }
-  size_t operator()(const int64_t& value) const {
-    return std::hash<int64_t>()(value);
-  }
-  size_t operator()(const uint64_t& value) const {
-    return std::hash<uint64_t>()(value);
-  }
-  size_t operator()(const int& value) const {
-    return std::hash<int>()(value);
-  }
-  size_t operator()(const bool& value) const {
-    return std::hash<bool>()(value);
-  }
-  size_t operator()(const std::string& value) const {
-    return std::hash<std::string>()(value);
-  }
-  size_t operator()(const DataType& value) const {
-    return std::hash<int>()(
-        static_cast<int>(value.code()) |
-        (static_cast<int>(value.bits()) << 8) |
-        (static_cast<int>(value.lanes()) << 16));
-  }
-  TVM_DLL size_t operator()(const ObjectRef& value) const;
-
- private:
-  friend class AttrsHashHandler;
-  /*! \brief internal handle. */
-  AttrsHashHandler* handler_{nullptr};
 };
 
 /*!
@@ -258,45 +179,20 @@ class BaseAttrsNode : public Object {
    * \note This function throws when the required field is not present.
    */
   TVM_DLL virtual void InitByPackedArgs(const TVMArgs& kwargs, bool allow_unknown = false) = 0;
-  /*!
-   * \brief Whether this attribute's content equals to another node.
-   * \param other The pointer to another node.
-   * \param equal The equal comparator
-   * \return The comparison result.
-   */
-  TVM_DLL virtual bool ContentEqual(
-      const Object* other, AttrsEqual equal) const = 0;
-  /*!
-   * \brief Content aware hash.
-   * \param hasher The hasher to run the hash.
-   * \return the hash result.
-   */
-  TVM_DLL virtual size_t ContentHash(AttrsHash hasher) const = 0;
 
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const char* _type_key = "Attrs";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
 
-/*! \brief Base attribute container for all attributes */
+/*!
+ * \brief Managed reference to BaseAttrsNode.
+ * \sa AttrsNode, BaseAttrsNode
+ */
 class Attrs : public ObjectRef {
  public:
-  // normal constructor
-  Attrs() {}
-  // construct from shared ptr.
-  explicit Attrs(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  /*! \return The attribute node */
-  const BaseAttrsNode* operator->() const {
-    return ptr();
-  }
-  /*! \brief specify container node */
-  using ContainerType = BaseAttrsNode;
-
- private:
-  /*! \return the internal attribute node */
-  const BaseAttrsNode* ptr() const {
-    return static_cast<const BaseAttrsNode*>(get());
-  }
+  TVM_DEFINE_OBJECT_REF_METHODS(Attrs, ObjectRef, BaseAttrsNode);
 };
 
 /*!
@@ -309,24 +205,42 @@ class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
   Map<std::string, ObjectRef> dict;
-  /*!
-   * \brief Consruct a Attrs backed by DictAttrsNode.
-   * \param dict The attributes.
-   * \return The dict attributes.
-   */
-  TVM_DLL static Attrs make(Map<std::string, ObjectRef> dict);
+
+  bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
+    return equal(dict, other->dict);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(dict);
+  }
+
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
-  bool ContentEqual(const Object* other, AttrsEqual equal) const final;
-  size_t ContentHash(AttrsHash hasher) const final;
   // type info
   static constexpr const char* _type_key = "DictAttrs";
   TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
 };
 
+/*!
+ * \brief Managed reference to DictAttrsNode
+ * \sa DictAttrsNode.
+ */
+class DictAttrs : public Attrs {
+ public:
+  /*!
+   * \brief Consruct a Attrs backed by DictAttrsNode.
+   * \param dict The attributes.
+   * \return The dict attributes.
+   */
+  TVM_DLL explicit DictAttrs(Map<std::string, ObjectRef> dict);
+
+
+  TVM_DEFINE_OBJECT_REF_METHODS(DictAttrs, Attrs, DictAttrsNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
+};
 
 // Namespace containing detail implementations
 namespace detail {
@@ -369,12 +283,11 @@ class AttrNormalVisitor {
   AttrVisitor* visitor_;
 };
 
-// Wrapper for normal visitor.
-class AttrsEqualVisitor {
+class AttrsSEqualVisitor {
  public:
   bool result_{true};
   // constructor
-  AttrsEqualVisitor(const Object* lhs, const Object* rhs, const AttrsEqual& equal)
+  AttrsSEqualVisitor(const Object* lhs, const Object* rhs, const SEqualReducer& equal)
       : lhs_(lhs), rhs_(rhs), equal_(equal) {
   }
   template<typename T>
@@ -394,24 +307,22 @@ class AttrsEqualVisitor {
  private:
   const Object* lhs_;
   const Object* rhs_;
-  const AttrsEqual& equal_;
+  const SEqualReducer& equal_;
 };
 
-class AttrsHashVisitor {
+class AttrsSHashVisitor {
  public:
-  explicit AttrsHashVisitor(const AttrsHash& hasher)
-      : hasher_(hasher) {}
-
-  size_t result_{0};
+  explicit AttrsSHashVisitor(const SHashReducer& hash_reducer)
+      : hash_reducer_(hash_reducer) {}
 
   template<typename T>
   AttrNopEntry operator()(const char* key, T* value) {
-    result_ = dmlc::HashCombine(result_, hasher_(*value));
+    hash_reducer_(*value);
     return AttrNopEntry();
   }
 
  private:
-  const AttrsHash& hasher_;
+  const SHashReducer& hash_reducer_;
 };
 
 // helper entry that does initialization, set default.
@@ -701,7 +612,7 @@ struct AttrTriggerNonDefaultEntry {
     return *this;
   }
   TSelf& set_default(const T& value) {
-    if (AttrsEqual()(value, *data_)) {
+    if (tvm::StructuralEqual()(value, *data_)) {
       trigger_ = false;
     }
     return *this;
@@ -813,27 +724,22 @@ class AttrsNode : public BaseAttrsNode {
     }
   }
 
+  bool SEqualReduce(const DerivedType* other, SEqualReducer equal) const {
+    DerivedType* pself = self();
+    ::tvm::detail::AttrsSEqualVisitor visitor(pself, other, equal);
+    self()->__VisitAttrs__(visitor);
+    return visitor.result_;
+  }
+
+  void SHashReduce(SHashReducer hash_reducer) const {
+    ::tvm::detail::AttrsSHashVisitor visitor(hash_reducer);
+    self()->__VisitAttrs__(visitor);
+  }
+
   Array<AttrFieldInfo> ListFieldInfo() const final {
     ::tvm::detail::AttrDocVisitor visitor;
     self()->__VisitAttrs__(visitor);
     return visitor.fields_;
-  }
-
-  bool ContentEqual(const Object* other, AttrsEqual equal) const final {
-    DerivedType* pself = self();
-    if (pself == other) return true;
-    if (other == nullptr) return false;
-    if (pself->type_index() != other->type_index()) return false;
-    ::tvm::detail::AttrsEqualVisitor visitor(pself, other, equal);
-    self()->__VisitAttrs__(visitor);
-    return visitor.result_;
-  }
-
-  size_t ContentHash(AttrsHash hasher) const final {
-    ::tvm::detail::AttrsHashVisitor visitor(hasher);
-    visitor.result_ = this->GetTypeKeyHash();
-    self()->__VisitAttrs__(visitor);
-    return visitor.result_;
   }
 
  private:

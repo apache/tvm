@@ -16,18 +16,29 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 import keras
 
-# prevent Keras from using up all gpu memory
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
+
 from tensorflow import keras as tf_keras
-from keras.backend.tensorflow_backend import set_session
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.5
-set_session(tf.Session(config=config))
+from packaging import version as package_version
+# prevent Keras from using up all gpu memory
+if tf.executing_eagerly():
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+else:
+    from keras.backend.tensorflow_backend import set_session
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.5
+    set_session(tf.Session(config=config))
 
 
 def pytest_generate_tests(metafunc):
@@ -52,20 +63,27 @@ using_classic_keras = ("keras", {"keras": keras})
 using_tensorflow_keras = ("tf_keras", {"keras": tf_keras})
 
 
-def verify_keras_frontend(keras_model, need_transpose=True):
+def verify_keras_frontend(keras_model, need_transpose=True, layout='NCHW'):
     # Keras frontend currently supports tensorflow backend only.
     assert(keras.backend.backend() == 'tensorflow')
 
+    if layout != 'NCHW':
+        need_transpose = False
+
     in_shapes = []
     for layer in keras_model._input_layers:
-        in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
+        if tf.executing_eagerly():
+            in_shapes.append(tuple(dim if dim is not None else 1 for dim in layer.input.shape))
+        else:
+            in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
+
 
     def get_keras_output(xs, dtype='float32'):
         return keras_model.predict(xs)
 
     def get_tvm_output(xs, target, ctx, dtype='float32'):
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
-        mod, params = relay.frontend.from_keras(keras_model, shape_dict)
+        mod, params = relay.frontend.from_keras(keras_model, shape_dict, layout=layout)
         with relay.transform.build_config(opt_level=2):
             graph, lib, params = relay.build(mod,
                                              target,
@@ -350,36 +368,102 @@ class TestKeras:
                     keras.layers.SimpleRNN(units=16, return_state=False,
                         activation='tanh'),
                     keras.layers.GRU(units=16, return_state=False,
-                        recurrent_activation='sigmoid', activation='tanh')]
+                        recurrent_activation='sigmoid', activation='tanh', reset_after=False)]
         for rnn_func in rnn_funcs:
             x = rnn_func(data)
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model, need_transpose=False)
 
 
-    def test_forward_vgg16(self, keras):
+    def test_forward_vgg16(self, keras, layout='NCHW'):
         keras_model = keras.applications.VGG16(include_top=True, weights='imagenet',
             input_shape=(224, 224, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
 
-    def test_forward_xception(self, keras):
+    def test_forward_xception(self, keras, layout='NCHW'):
         keras_model = keras.applications.Xception(include_top=True, weights='imagenet',
             input_shape=(299, 299, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
 
-    def test_forward_resnet50(self, keras):
+    def test_forward_resnet50(self, keras, layout='NCHW'):
         keras_model = keras.applications.ResNet50(include_top=True, weights='imagenet',
             input_shape=(224, 224, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
 
-    def test_forward_mobilenet(self, keras):
+    def test_forward_mobilenet(self, keras, layout='NCHW'):
         keras_model = keras.applications.MobileNet(include_top=True, weights='imagenet',
             input_shape=(224, 224, 3), classes=1000)
-        verify_keras_frontend(keras_model)
+        verify_keras_frontend(keras_model, layout=layout)
 
+    def test_forward_conv3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        conv_funcs = [keras.layers.Conv3D(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          strides=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3D(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          dilation_rate=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3D(filters=1,
+                                          kernel_size=(3, 3, 3),
+                                          padding='valid',
+                                          use_bias=False),
+                      keras.layers.Conv3D(filters=10,
+                                          kernel_size=(2, 2, 2),
+                                          padding='valid'),
+                    ]
+        for conv_func in conv_funcs:
+            x = conv_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
+    def test_forward_pool3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 1))
+        pool_funcs = [# maxpool
+                      keras.layers.MaxPooling3D(pool_size=(2, 2, 2),
+                                                strides=(1, 1, 1),
+                                                padding='same'),
+                      keras.layers.MaxPooling3D(pool_size=(3, 3, 3),
+                                                strides=(2, 2, 2),
+                                                padding='valid'),
+                      # avgpool
+                      keras.layers.AveragePooling3D(pool_size=(3, 3, 3),
+                                                    strides=(2, 2, 2),
+                                                    padding='same'),
+                      keras.layers.AveragePooling3D(pool_size=(2, 2, 2),
+                                                    strides=(1, 1, 1),
+                                                    padding='valid'),
+                     ]
+        for pool_func in pool_funcs:
+            x = pool_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
+    def test_forward_upsample3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        x = keras.layers.UpSampling3D(size=(2, 3, 4))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, layout='NDHWC')
+
+    def test_forward_zero_padding3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        pad_funcs = [# Integer
+                     keras.layers.ZeroPadding3D(padding=2),
+                     # tuple of 3 ints
+                     keras.layers.ZeroPadding3D(padding=(1, 2, 3)),
+                     # tuple of 3 tuples of 2 ints
+                     keras.layers.ZeroPadding3D(padding=((1,1), (2,2), (2,2))),
+                     # tuple of 3 tuples of 2 ints different values
+                     keras.layers.ZeroPadding3D(padding=((1,2), (2,3), (3,2))),
+                    ]
+        for pad_func in pad_funcs:
+            x = pad_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
 
 if __name__ == '__main__':
     for k in [keras, tf_keras]:
@@ -402,6 +486,14 @@ if __name__ == '__main__':
         sut.test_forward_reuse_layers(keras=k)
         sut.test_forward_rnn(keras=k)
         sut.test_forward_vgg16(keras=k)
+        sut.test_forward_vgg16(keras=k, layout='NHWC')
         sut.test_forward_xception(keras=k)
         sut.test_forward_resnet50(keras=k)
+        sut.test_forward_resnet50(keras=k, layout='NHWC')
         sut.test_forward_mobilenet(keras=k)
+        sut.test_forward_mobilenet(keras=k, layout='NHWC')
+        sut.test_forward_conv3d(keras=k)
+        sut.test_forward_pool3d(keras=k)
+        sut.test_forward_upsample3d(keras=k)
+        sut.test_forward_zero_padding3d(keras=k)
+

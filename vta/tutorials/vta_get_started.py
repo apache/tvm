@@ -36,6 +36,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import tvm
+from tvm import te
 import vta
 import numpy as np
 
@@ -70,12 +71,12 @@ from tvm.contrib import util
 from vta.testing import simulator
 
 # We read the Pynq RPC host IP address and port number from the OS environment
-host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
-port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
+host = os.environ.get("VTA_RPC_HOST", "192.168.2.99")
+port = int(os.environ.get("VTA_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
 # to match the VTA configuration specified by the vta_config.json file.
-if env.TARGET == "pynq":
+if env.TARGET == "pynq" or env.TARGET == "de10nano":
 
     # Make sure that TVM was compiled with RPC=1
     assert tvm.runtime.enabled("rpc")
@@ -137,9 +138,9 @@ m = 64
 # Batch factor o - total 1 x 1 = 1
 o = 1
 # A placeholder tensor in tiled data format
-A = tvm.placeholder((o, m, env.BATCH, env.BLOCK_OUT), name="A", dtype=env.acc_dtype)
+A = te.placeholder((o, m, env.BATCH, env.BLOCK_OUT), name="A", dtype=env.acc_dtype)
 # B placeholder tensor in tiled data format
-B = tvm.placeholder((o, m, env.BATCH, env.BLOCK_OUT), name="B", dtype=env.acc_dtype)
+B = te.placeholder((o, m, env.BATCH, env.BLOCK_OUT), name="B", dtype=env.acc_dtype)
 
 ######################################################################
 # Copy Buffers
@@ -158,9 +159,9 @@ B = tvm.placeholder((o, m, env.BATCH, env.BLOCK_OUT), name="B", dtype=env.acc_dt
 # This can later be interpreted by the compiler as a cached read operation.
 
 # A copy buffer
-A_buf = tvm.compute((o, m, env.BATCH, env.BLOCK_OUT), lambda *i: A(*i), "A_buf")
+A_buf = te.compute((o, m, env.BATCH, env.BLOCK_OUT), lambda *i: A(*i), "A_buf")
 # B copy buffer
-B_buf = tvm.compute((o, m, env.BATCH, env.BLOCK_OUT), lambda *i: B(*i), "B_buf")
+B_buf = te.compute((o, m, env.BATCH, env.BLOCK_OUT), lambda *i: B(*i), "B_buf")
 
 ######################################################################
 # Vector Addition
@@ -174,7 +175,7 @@ B_buf = tvm.compute((o, m, env.BATCH, env.BLOCK_OUT), lambda *i: B(*i), "B_buf")
 # the computation should be done.
 
 # Describe the in-VTA vector addition
-C_buf = tvm.compute(
+C_buf = te.compute(
     (o, m, env.BATCH, env.BLOCK_OUT),
     lambda *i: A_buf(*i).astype(env.acc_dtype) + B_buf(*i).astype(env.acc_dtype),
     name="C_buf")
@@ -199,7 +200,7 @@ C_buf = tvm.compute(
 # input activation data format.
 
 # Cast to output type, and send to main memory
-C = tvm.compute(
+C = te.compute(
     (o, m, env.BATCH, env.BLOCK_OUT),
     lambda *i: C_buf(*i).astype(env.inp_dtype),
     name="C")
@@ -231,7 +232,7 @@ C = tvm.compute(
 # :code:`C` in the following way:
 
 # Let's take a look at the generated schedule
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 

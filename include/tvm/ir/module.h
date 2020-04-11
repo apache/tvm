@@ -26,6 +26,7 @@
 
 #include <tvm/ir/type.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/adt.h>
 
 #include <string>
@@ -60,6 +61,10 @@ class IRModuleNode : public Object {
     v->Visit("global_var_map_", &global_var_map_);
     v->Visit("global_type_var_map_", &global_type_var_map_);
   }
+
+  TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
+
+  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const;
 
   /*!
    * \brief Add a function to the global environment.
@@ -162,6 +167,14 @@ class IRModuleNode : public Object {
   TVM_DLL Array<GlobalTypeVar> GetGlobalTypeVars() const;
 
   /*!
+   * \brief Find constructor of ADT using name
+   * \param adt name of the ADT the constructor belongs to
+   * \param cons name of the constructor
+   * \returns Constructor of ADT, error if not found
+   */
+  TVM_DLL Constructor GetConstructor(const std::string& adt, const std::string& cons) const;
+
+  /*!
    * \brief Look up a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
@@ -225,7 +238,9 @@ class IRModuleNode : public Object {
    */
   TVM_DLL std::unordered_set<std::string> Imports() const;
 
-  static constexpr const char* _type_key = "relay.Module";
+  static constexpr const char* _type_key = "IRModule";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
 
  private:
@@ -282,6 +297,15 @@ class IRModule : public ObjectRef {
     CHECK(ptr != nullptr);
     return static_cast<IRModuleNode*>(ptr);
   }
+
+  /*!
+   * \brief Construct an empty module.
+   *
+   * \returns The constructed module
+   */
+  static IRModule Empty() {
+    return IRModule(Map<GlobalVar, BaseFunc>());
+  }
   /*!
    * \brief Construct a module from a standalone expression.
    *
@@ -306,6 +330,11 @@ class IRModule : public ObjectRef {
    * \return A Relay module.
    */
   TVM_DLL static IRModule FromText(const std::string& text, const std::string& source_path);
+
+  /*! \brief Declare the container type. */
+  using ContainerType = IRModuleNode;
+  // allow copy on write.
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };
 
 /*!

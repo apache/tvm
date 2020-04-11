@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -40,7 +41,7 @@ def test_same_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -71,7 +72,7 @@ def test_different_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -102,7 +103,7 @@ def test_few_same_io_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 
@@ -133,7 +134,7 @@ def test_same_i_qnn_params():
                                  axis=axis)
 
     func = relay.Function([x, y], z)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     mod = relay.qnn.transform.CanonicalizeOps()(mod)
     func = mod["main"]
 

@@ -18,6 +18,7 @@
 """Utility functions for bitserial operators"""
 import numpy as np
 import tvm
+from tvm import te
 from topi.transform import concatenate
 from ..util import get_const_int
 
@@ -52,7 +53,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
         pack_axis += 1
 
     def _bitpack(*indices):
-        packed_data = [tvm.const(0, pack_type)] * bits
+        packed_data = [tvm.tir.const(0, pack_type)] * bits
         for k in range(data_width):
             # Translate indices for packed data back to original
             idx = [0] * n
@@ -68,7 +69,8 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
 
             element = data(*idx)
             for b in range(bits):
-                extracted_bit = ((element & tvm.const(masks[b], "int32")) >> b).astype(pack_type)
+                extracted_bit = (
+                    (element & tvm.tir.const(masks[b], "int32")) >> b).astype(pack_type)
                 packed_data[b] = (packed_data[b] | extracted_bit)
                 if k < data_width - 1:
                     packed_data[b] = packed_data[b] << 1
@@ -77,7 +79,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
                 return tuple(packed_data)
         return tuple(packed_data)
 
-    output_tuple = tvm.compute(bitserial_oshape, _bitpack, name=name, tag='bitpack')
+    output_tuple = te.compute(bitserial_oshape, _bitpack, name=name, tag='bitpack')
 
     if bits > 1:
         return concatenate(output_tuple, axis=bit_axis)

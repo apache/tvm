@@ -36,22 +36,23 @@ from __future__ import absolute_import, print_function
 
 import os
 import tvm
+from tvm import te
 import vta
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util
 from vta.testing import simulator
 
-# Load VTA parameters from the vta/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # We read the Pynq RPC host IP address and port number from the OS environment
-host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
-port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
+host = os.environ.get("VTA_RPC_HOST", "192.168.2.99")
+port = int(os.environ.get("VTA_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
 # to match the VTA configuration specified by the vta_config.json file.
-if env.TARGET == "pynq":
+if env.TARGET == "pynq" or env.TARGET == "de10nano":
 
     # Make sure that TVM was compiled with RPC=1
     assert tvm.runtime.enabled("rpc")
@@ -167,13 +168,13 @@ n = 16
 # Batch factor o (we use single batch inference)
 o = 1
 # A placeholder tensor in tiled data format
-A = tvm.placeholder((o, n, env.BATCH, env.BLOCK_IN), name="A", dtype=env.inp_dtype)
+A = te.placeholder((o, n, env.BATCH, env.BLOCK_IN), name="A", dtype=env.inp_dtype)
 # B placeholder tensor in tiled data format
-B = tvm.placeholder((m, n, env.BLOCK_OUT, env.BLOCK_IN), name="B", dtype=env.wgt_dtype)
+B = te.placeholder((m, n, env.BLOCK_OUT, env.BLOCK_IN), name="B", dtype=env.wgt_dtype)
 # A copy buffer
-A_buf = tvm.compute((o, n, env.BATCH, env.BLOCK_IN), lambda *i: A(*i), "A_buf")
+A_buf = te.compute((o, n, env.BATCH, env.BLOCK_IN), lambda *i: A(*i), "A_buf")
 # B copy buffer
-B_buf = tvm.compute((m, n, env.BLOCK_OUT, env.BLOCK_IN), lambda *i: B(*i), "B_buf")
+B_buf = te.compute((m, n, env.BLOCK_OUT, env.BLOCK_IN), lambda *i: B(*i), "B_buf")
 
 ######################################################################
 # Matrix Multiplication
@@ -186,8 +187,8 @@ B_buf = tvm.compute((m, n, env.BLOCK_OUT, env.BLOCK_IN), lambda *i: B(*i), "B_bu
 # In order to implement matrix multiplication, the lambda function needs to
 # include a reduction formula over the input channel dimension axes.
 # To create a reduction formula, we can declare a reduction axis using
-# :code:`tvm.reduce_axis`, which takes in the range of reductions.
-# :code:`tvm.sum` takes in the expression to be reduced as well as
+# :code:`te.reduce_axis`, which takes in the range of reductions.
+# :code:`te.sum` takes in the expression to be reduced as well as
 # the reduction axes to compute the sum of value over all k in the declared
 # ranges.
 #
@@ -198,14 +199,14 @@ B_buf = tvm.compute((m, n, env.BLOCK_OUT, env.BLOCK_IN), lambda *i: B(*i), "B_bu
 # the computation should be done.
 
 # Outer input feature reduction axis
-ko = tvm.reduce_axis((0, n), name="ko")
+ko = te.reduce_axis((0, n), name="ko")
 # Inner input feature reduction axis
-ki = tvm.reduce_axis((0, env.BLOCK_IN), name="ki")
+ki = te.reduce_axis((0, env.BLOCK_IN), name="ki")
 # Describe the in-VTA matrix multiplication
-C_buf = tvm.compute(
+C_buf = te.compute(
     (o, m, env.BATCH, env.BLOCK_OUT),
     lambda bo, co, bi, ci:
-        tvm.sum(A_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
+        te.sum(A_buf[bo, ko, bi, ki].astype(env.acc_dtype) *
                 B_buf[co, ko, ci, ki].astype(env.acc_dtype),
                 axis=[ko, ki]),
     name="C_buf")
@@ -234,7 +235,7 @@ C_buf = tvm.compute(
 # input activation data format.
 
 # Cast to output type, and send to main memory
-C = tvm.compute(
+C = te.compute(
     (o, m, env.BATCH, env.BLOCK_OUT),
     lambda *i: C_buf(*i).astype(env.inp_dtype),
     name="C")
@@ -265,7 +266,7 @@ C = tvm.compute(
 # :code:`C` in the following way:
 
 # Let's take a look at the generated schedule
-s = tvm.create_schedule(C.op)
+s = te.create_schedule(C.op)
 print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################

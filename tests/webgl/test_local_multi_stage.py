@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 
 def test_local_multi_stage():
@@ -23,12 +24,12 @@ def test_local_multi_stage():
     if not tvm.runtime.enabled("llvm"):
         return
 
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A', dtype="int32")
-    B = tvm.compute((n,), lambda i: A[i] + 1, name="B")
-    C = tvm.compute((n,), lambda i: B[i] * 2, name="C")
+    n = te.var("n")
+    A = te.placeholder((n,), name='A', dtype="int32")
+    B = te.compute((n,), lambda i: A[i] + 1, name="B")
+    C = te.compute((n,), lambda i: B[i] * 2, name="C")
 
-    s = tvm.create_schedule(C.op)
+    s = te.create_schedule(C.op)
     s[B].opengl()
     s[C].opengl()
 

@@ -18,6 +18,7 @@
 tvm.autotvm
 -----------
 .. automodule:: tvm.autotvm
+.. automodule:: tvm.autotvm.apply_history_best
 
 tvm.autotvm.measure
 ~~~~~~~~~~~~~~~~~~~

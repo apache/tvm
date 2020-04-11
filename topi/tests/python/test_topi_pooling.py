@@ -18,10 +18,30 @@
 import math
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from topi.util import get_const_tuple
 from common import get_all_backend
+
+_pool_schedule = {
+    "generic": topi.generic.schedule_pool,
+    "cpu": topi.x86.schedule_pool,
+    "gpu": topi.cuda.schedule_pool,
+    "hls": topi.hls.schedule_pool,
+}
+
+_adaptive_pool_schedule = {
+    "generic": topi.generic.schedule_adaptive_pool,
+    "cpu": topi.x86.schedule_adaptive_pool,
+    "gpu": topi.cuda.schedule_adaptive_pool,
+    "hls": topi.hls.schedule_adaptive_pool,
+}
+
+_pool_grad_schedule = {
+    "generic": topi.generic.schedule_pool_grad,
+    "gpu": topi.cuda.schedule_pool_grad,
+}
 
 def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
     iw = ih
@@ -29,7 +49,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
     sw = sh
     pt, pl, pb, pr = padding
     layout = "NCHW"
-    A = tvm.placeholder((n, ic, ih, iw), name='A')
+    A = te.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                      pool_type=pool_type, ceil_mode=ceil_mode,
                      layout="NCHW", count_include_pad=count_include_pad)
@@ -74,7 +94,8 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_pool(B, layout)
+            s_func = topi.testing.dispatch(device, _pool_schedule)
+            s = s_func(B, layout)
 
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
@@ -92,7 +113,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
     sw = sh
     pt, pl, pb, pr = padding
     layout = "NCHW"
-    A = tvm.placeholder((n, ic, ih, iw), name='A')
+    A = te.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                      pool_type=pool_type, ceil_mode=ceil_mode,
                      layout="NCHW", count_include_pad=count_include_pad)
@@ -106,7 +127,7 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
     else:
         assert bshape[2] == int(math.floor(float(ashape[2] - kh + pt + pb) / sh) + 1)
         assert bshape[3] == int(math.floor(float(ashape[3] - kw + pl + pr) / sw) + 1)
-    OutGrad = tvm.placeholder(bshape, name='OutGrad')
+    OutGrad = te.placeholder(bshape, name='OutGrad')
     PoolGrad = topi.nn.pool_grad(OutGrad, A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                                  pool_type=pool_type, ceil_mode=ceil_mode,
                                  layout="NCHW", count_include_pad=count_include_pad)
@@ -129,7 +150,8 @@ def verify_pool_grad(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_inc
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_pool_grad(PoolGrad)
+            s_func = topi.testing.dispatch(device, _pool_grad_schedule)
+            s = s_func(PoolGrad)
 
         a = tvm.nd.array(a_np, ctx)
         out_grad = tvm.nd.array(out_grad_np, ctx)
@@ -181,7 +203,7 @@ def test_pool_grad():
 def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
 
     assert layout in ["NCHW", "NHWC"]
-    A = tvm.placeholder((n, c, h, w), name='A')
+    A = te.placeholder((n, c, h, w), name='A')
     B = topi.nn.global_pool(A, pool_type=pool_type, layout=layout)
     B = topi.nn.relu(B)
 
@@ -201,7 +223,8 @@ def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_adaptive_pool(B)
+            s_func = topi.testing.dispatch(device, _adaptive_pool_schedule)
+            s = s_func(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -221,33 +244,19 @@ def test_global_pool():
     verify_global_pool(1, 1024, 7, 7, 'max', 'NHWC')
     verify_global_pool(4, 1024, 7, 7, 'max', 'NHWC')
 
+
 def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
-    def start_index(index, odim, idim):
-        return int(np.floor(index * idim / odim))
-
-    def end_index(index, odim, idim):
-        return int(np.ceil((index + 1) * idim / odim))
-
     np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
-    n, c, h, w = dshape
-    oh, ow = out_size
-    oshape = (n, c) + out_size
-    np_out = np.zeros(oshape).astype(dtype)
-    np_op = np.mean if pool_type == "avg" else np.max
-    for i in range(n):
-        for j in range(c):
-            for k in range(oh):
-                k_start = start_index(k, oh, h)
-                k_end = end_index(k, oh, h)
-                k_sl = slice(k_start, k_end)
-                for l in range(ow):
-                    l_start = start_index(l, ow, w)
-                    l_end = end_index(l, ow, w)
-                    l_sl = slice(l_start, l_end)
-                    np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
+    np_out = topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
+    oshape = np_out.shape
 
-    data = tvm.placeholder(dshape, name="data", dtype=dtype)
-    out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
+    data = te.placeholder(dshape, name="data", dtype=dtype)
+    if len(out_size) == 2:
+        out = topi.nn.adaptive_pool(data, out_size, pool_type, layout)
+    else:
+        assert len(out_size) == 3
+        out = topi.nn.adaptive_pool3d(data, out_size, pool_type, layout)
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -255,7 +264,8 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_adaptive_pool(out)
+            s_func = topi.testing.dispatch(device, _adaptive_pool_schedule)
+            s = s_func(out)
         a = tvm.nd.array(np_data, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
         f = tvm.build(s, [data, out], device)
@@ -265,11 +275,23 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
     for device in get_all_backend():
         check_device(device)
 
+
 def test_adaptive_pool():
     verify_adaptive_pool((1, 3, 224, 224), (1, 1), "max")
     verify_adaptive_pool((1, 3, 224, 224), (1, 1), "avg")
     verify_adaptive_pool((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg")
+    verify_adaptive_pool((1, 224, 224, 3), (1, 1), "max", layout="NHWC")
+    verify_adaptive_pool((1, 5, 46, 97), (4, 96), "avg", layout="NHWC")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "max", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 64, 32, 32), (7, 8, 9), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 64, 32, 32), (8, 16, 16), "avg", layout="NCDHW")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NDHWC")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 2, 2), "max", layout="NDHWC")
+    verify_adaptive_pool((1, 16, 32, 32, 32), (2, 4, 4), "max", layout="NDHWC")
+
 
 def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
                   ceil_mode, count_include_pad=True, layout='NCDHW'):
@@ -279,7 +301,7 @@ def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
     input_shape = (n, ic, id, ih, iw)
     kernel = [kd, kh, kw]
     stride = [sd, sh, sw]
-    A = tvm.placeholder(input_shape, name='A')
+    A = te.placeholder(input_shape, name='A')
     B = topi.nn.pool3d(A, kernel=kernel, stride=stride, padding=padding,
                        pool_type=pool_type, ceil_mode=ceil_mode,
                        layout=layout, count_include_pad=count_include_pad)
@@ -298,7 +320,8 @@ def verify_pool3d(n, ic, ih, kh, sh, padding, pool_type,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_pool(B, layout)
+            s_func = topi.testing.dispatch(device, _pool_schedule)
+            s = s_func(B, layout)
 
         a = tvm.nd.array(input_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
@@ -331,7 +354,7 @@ def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
     input_shape = (n, ic, iw)
     kernel = [kw]
     stride = [sw]
-    A = tvm.placeholder(input_shape, name='A')
+    A = te.placeholder(input_shape, name='A')
     B = topi.nn.pool1d(A, kernel=kernel, stride=stride, padding=padding,
                        pool_type=pool_type, ceil_mode=ceil_mode,
                        layout=layout, count_include_pad=count_include_pad)
@@ -350,7 +373,8 @@ def verify_pool1d(n, ic, iw, kw, sw, padding, pool_type,
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_pool(B, layout)
+            s_func = topi.testing.dispatch(device, _pool_schedule)
+            s = s_func(B, layout)
 
         a = tvm.nd.array(input_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)

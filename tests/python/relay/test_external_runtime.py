@@ -21,6 +21,7 @@ import sys
 import numpy as np
 
 import tvm
+from tvm import te
 import tvm.runtime._ffi_api
 from tvm import relay
 from tvm.contrib import util
@@ -306,8 +307,8 @@ def get_synthetic_lib():
     gcc_input3 = relay.var('gcc_input3', shape=(10, 10))
     subgraph0 = relay.Function([gcc_input0, gcc_input1, gcc_input2,
                                 gcc_input3], relay.copy(gcc_input0))
-    subgraph0 = subgraph0.set_attribute(
-        "Primitive", tvm.expr.IntImm("int32", 1))
+    subgraph0 = subgraph0.with_attr(
+        "Primitive", tvm.tir.IntImm("int32", 1))
 
     # Call subgraph0
     subgraph0_ret = relay.Call(subgraph0, [x, w0, w1, w2])
@@ -319,8 +320,8 @@ def get_synthetic_lib():
     gcc_input7 = relay.var('gcc_input7', shape=(10, 10))
     subgraph1 = relay.Function([gcc_input4, gcc_input5, gcc_input6,
                                 gcc_input7], relay.copy(gcc_input4))
-    subgraph1 = subgraph1.set_attribute(
-        "Primitive", tvm.expr.IntImm("int32", 1))
+    subgraph1 = subgraph1.with_attr(
+        "Primitive", tvm.tir.IntImm("int32", 1))
 
     # Call subgraph1
     subgraph1_ret = relay.Call(subgraph1, [x, w3, w4, w5])
@@ -330,7 +331,7 @@ def get_synthetic_lib():
     sub2 = relay.subtract(add2, w7)
     ret = relay.concatenate((subgraph0_ret, subgraph1_ret, sub2), 0)
     func = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], ret)
-    mod = relay.Module.from_expr(func)
+    mod = tvm.IRModule.from_expr(func)
     _, lib, _ = relay.build(mod, "llvm")
     return lib
 

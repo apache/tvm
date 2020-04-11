@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
-from tvm.relay.analysis import graph_equal, assert_graph_equal
-from tvm.relay.analysis import alpha_equal, assert_alpha_equal
 import pytest
 from numpy import isclose
 from typing import Union
@@ -68,8 +67,15 @@ type List[A] {
 }
 """
 
+def assert_graph_equal(lhs, rhs):
+    tvm.ir.assert_structural_equal(lhs, rhs, map_free_vars=True)
+
+def graph_equal(lhs, rhs):
+    return tvm.ir.structural_equal(lhs, rhs, map_free_vars=True)
+
+
 def roundtrip(expr):
-    x = relay.fromtext(str(expr))
+    x = relay.fromtext(expr.astext())
     assert_graph_equal(x, expr)
 
 
@@ -84,6 +90,12 @@ def parses_as(code, expr):
     parsed = parse_text(code)
     result = graph_equal(parsed, expr)
     return result
+
+
+def assert_parses_as(code, expr):
+    parsed = parse_text(code)
+    assert_graph_equal(parsed, expr)
+
 
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
@@ -101,7 +113,7 @@ UNIT = relay.Tuple([])
 
 
 def test_comments():
-    assert parses_as(
+    assert_parses_as(
         """
         // This is a line comment!
         ()
@@ -109,7 +121,7 @@ def test_comments():
         UNIT
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         /* This is a block comment!
             This is still a block comment!
@@ -119,7 +131,7 @@ def test_comments():
         UNIT
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         /* This is a block comment!
            /*Block comment is recursive!*/
@@ -171,7 +183,7 @@ def test_negative():
 
 def test_bin_op():
     for bin_op in BINARY_OPS.keys():
-        assert parses_as(
+        assert_parses_as(
             "1 {} 1".format(bin_op),
             BINARY_OPS.get(bin_op)(relay.const(1), relay.const(1))
         )
@@ -212,7 +224,7 @@ def test_vars():
 
 
 def test_let():
-    assert parses_as(
+    assert_parses_as(
         "let %x = 1; ()",
         relay.Let(
             X,
@@ -221,7 +233,7 @@ def test_let():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         let %x = 1;
         let %y = 2;
@@ -240,7 +252,7 @@ def test_let():
 
 
 def test_seq():
-    assert parses_as(
+    assert_parses_as(
         "();; ()",
         relay.Let(
             _,
@@ -248,7 +260,7 @@ def test_seq():
             UNIT)
     )
 
-    assert parses_as(
+    assert_parses_as(
         "let %_ = 1; ()",
         relay.Let(
             X,
@@ -260,13 +272,9 @@ def test_seq():
 
 def test_graph():
     code = "%0 = (); %1 = 1; (%0, %0, %1)"
-    assert parses_as(
+    assert_parses_as(
         code,
         relay.Tuple([UNIT, UNIT, relay.const(1)])
-    )
-    assert not parses_as(
-        code,
-        relay.Tuple([relay.Tuple([]), relay.Tuple([]), relay.const(1)])
     )
 
 
@@ -286,18 +294,18 @@ def test_let_op():
 
 
 def test_tuple():
-    assert parses_as("()", relay.Tuple([]))
+    assert_parses_as("()", relay.Tuple([]))
 
-    assert parses_as("(0,)", relay.Tuple([relay.const(0)]))
+    assert_parses_as("(0,)", relay.Tuple([relay.const(0)]))
 
-    assert parses_as("(0, 1)", relay.Tuple([relay.const(0), relay.const(1)]))
+    assert_parses_as("(0, 1)", relay.Tuple([relay.const(0), relay.const(1)]))
 
-    assert parses_as("(0, 1, 2)", relay.Tuple([relay.const(0), relay.const(1), relay.const(2)]))
+    assert_parses_as("(0, 1, 2)", relay.Tuple([relay.const(0), relay.const(1), relay.const(2)]))
 
 
 def test_func():
     # 0 args
-    assert parses_as(
+    assert_parses_as(
         "fn () { 0 }",
         relay.Function(
             [],
@@ -308,7 +316,7 @@ def test_func():
     )
 
     # 1 arg
-    assert parses_as(
+    assert_parses_as(
         "fn (%x) { %x }",
         relay.Function(
             [X],
@@ -319,7 +327,7 @@ def test_func():
     )
 
     # 2 args
-    assert parses_as(
+    assert_parses_as(
         "fn (%x, %y) { %x + %y }",
         relay.Function(
             [X, Y],
@@ -330,7 +338,7 @@ def test_func():
     )
 
     # annotations
-    assert parses_as(
+    assert_parses_as(
         "fn (%x: int32) -> int32 { %x }",
         relay.Function(
             [X_ANNO],
@@ -341,9 +349,9 @@ def test_func():
     )
 
     # attributes
-    assert parses_as(
+    assert_parses_as(
         "fn (n=5) { () }",
-        relay.Function([], UNIT, None, None, tvm.make.node("DictAttrs", n=relay.const(5)))
+        relay.Function([], UNIT, None, None, tvm.ir.make_node("DictAttrs", n=relay.const(5)))
     )
 
 
@@ -355,7 +363,7 @@ def test_defn():
             %x
         }
         """)
-    assert isinstance(id_defn, relay.Module)
+    assert isinstance(id_defn, tvm.IRModule)
 
 
 def test_recursive_call():
@@ -365,11 +373,11 @@ def test_recursive_call():
             @id(%x)
         }
         """)
-    assert isinstance(id_defn, relay.Module)
+    assert isinstance(id_defn, tvm.IRModule)
 
 
 def test_ifelse():
-    assert parses_as(
+    assert_parses_as(
         """
         if (True) {
             0
@@ -402,7 +410,7 @@ def test_ifelse_scope():
 def test_call():
     # select right function to call: simple ident case
     id_func = relay.Var("id")
-    assert parses_as(
+    assert_parses_as(
         """
         let %id = fn (%x) { %x };
         10 * %id(10)
@@ -416,7 +424,7 @@ def test_call():
 
     # 0 args
     constant = relay.Var("constant")
-    assert parses_as(
+    assert_parses_as(
         """
         let %constant = fn () { 0 };
         %constant()
@@ -430,7 +438,7 @@ def test_call():
 
     # 1 arg
     id_var = relay.Var("id")
-    assert parses_as(
+    assert_parses_as(
         """
         let %id = fn (%x) { %x };
         %id(1)
@@ -444,7 +452,7 @@ def test_call():
 
     # 2 args
     multiply = relay.Var("multiply")
-    assert parses_as(
+    assert_parses_as(
         """
         let %multiply = fn (%x, %y) { %x * %y };
         %multiply(0, 0)
@@ -462,7 +470,7 @@ def test_call():
     )
 
     # anonymous function
-    assert parses_as(
+    assert_parses_as(
         """
         (fn (%x) { %x })(0)
         """,
@@ -482,7 +490,7 @@ def test_call():
     # TODO(@jmp): re-enable after sequence parsing improvements
     # curried function
     # curried_mult = relay.Var("curried_mult")
-    # assert parses_as(
+    # assert_parses_as(
     #     """
     #     let %curried_mult =
     #         fn (%x) {
@@ -515,7 +523,7 @@ def test_call():
     # )
 
     # op
-    assert parses_as(
+    assert_parses_as(
         "abs(1)",
         relay.Call(relay.op.get("abs"), [relay.const(1)], None, None)
     )
@@ -524,7 +532,7 @@ def test_call():
 
 
 def test_incomplete_type():
-    assert parses_as(
+    assert_parses_as(
         "let %_ : _ = (); ()",
         relay.Let(
             _,
@@ -540,7 +548,7 @@ def test_builtin_types():
 
 
 def test_tensor_type():
-    assert parses_as(
+    assert_parses_as(
         "let %_ : Tensor[(), float32] = (); ()",
         relay.Let(
             relay.Var("_", relay.TensorType((), "float32")),
@@ -549,7 +557,7 @@ def test_tensor_type():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         "let %_ : Tensor[(1), float32] = (); ()",
         relay.Let(
             relay.Var("_", relay.TensorType((1,), "float32")),
@@ -558,7 +566,7 @@ def test_tensor_type():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         "let %_ : Tensor[(1, 1), float32] = (); ()",
         relay.Let(
             relay.Var("_", relay.TensorType((1, 1), "float32")),
@@ -569,7 +577,7 @@ def test_tensor_type():
 
 
 def test_function_type():
-    assert parses_as(
+    assert_parses_as(
         """
         let %_: fn () -> int32 = fn () -> int32 { 0 }; ()
         """,
@@ -580,7 +588,7 @@ def test_function_type():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         let %_: fn (int32) -> int32 = fn (%x: int32) -> int32 { 0 }; ()
         """,
@@ -591,7 +599,7 @@ def test_function_type():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         let %_: fn (int32, int32) -> int32 = fn (%x: int32, %y: int32) -> int32 { 0 }; ()
         """,
@@ -604,7 +612,7 @@ def test_function_type():
 
 
 def test_tuple_type():
-    assert parses_as(
+    assert_parses_as(
         """
         let %_: () = (); ()
         """,
@@ -615,7 +623,7 @@ def test_tuple_type():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         let %_: (int32,) = (0,); ()
         """,
@@ -626,7 +634,7 @@ def test_tuple_type():
         )
     )
 
-    assert parses_as(
+    assert_parses_as(
         """
         let %_: (int32, int32) = (0, 1); ()
         """,
@@ -639,7 +647,7 @@ def test_tuple_type():
 
 
 def test_adt_defn():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     glob_typ_var = relay.GlobalTypeVar("Ayy")
     prog = relay.TypeData(
@@ -647,7 +655,7 @@ def test_adt_defn():
             [],
             [relay.Constructor("Nil", [], glob_typ_var)])
     mod[glob_typ_var] = prog
-    assert parses_as(
+    assert_parses_as(
         """
         type Ayy { Nil }
         """,
@@ -656,12 +664,12 @@ def test_adt_defn():
 
 
 def test_empty_adt_defn():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     glob_typ_var = relay.GlobalTypeVar("Ayy")
     prog = relay.TypeData(glob_typ_var, [], [])
     mod[glob_typ_var] = prog
-    assert parses_as(
+    assert_parses_as(
         """
         type Ayy { }
         """,
@@ -670,7 +678,7 @@ def test_empty_adt_defn():
 
 
 def test_multiple_cons_defn():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
@@ -682,7 +690,7 @@ def test_multiple_cons_defn():
                 relay.Constructor("Nil", [], list_var),
             ])
     mod[list_var] = prog
-    assert parses_as(LIST_DEFN, mod)
+    assert_parses_as(LIST_DEFN, mod)
 
 
 def test_multiple_type_param_defn():
@@ -696,9 +704,9 @@ def test_multiple_type_param_defn():
                 relay.Constructor("Left", [typ_var_a], glob_typ_var),
                 relay.Constructor("Right", [typ_var_b], glob_typ_var),
             ])
-    mod = relay.Module()
+    mod = tvm.IRModule()
     mod[glob_typ_var] = prog
-    assert parses_as(
+    assert_parses_as(
         """
         type Either[A, B] {
           Left(A),
@@ -713,7 +721,7 @@ def test_match():
     # pair each match keyword with whether it specifies a complete match or not
     match_keywords = [("match", True), ("match?", False)]
     for (match_keyword, is_complete) in match_keywords:
-        mod = relay.Module()
+        mod = tvm.IRModule()
 
         list_var = relay.GlobalTypeVar("List")
         typ_var = relay.TypeVar("A")
@@ -754,7 +762,7 @@ def test_match():
         )
         mod[length_var] = length_func
 
-        assert parses_as(
+        assert_parses_as(
             """
             %s
 
@@ -773,7 +781,7 @@ def test_match():
 
 
 def test_adt_cons_expr():
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     list_var = relay.GlobalTypeVar("List")
     typ_var = relay.TypeVar("A")
@@ -795,7 +803,7 @@ def test_adt_cons_expr():
     )
     mod[make_singleton_var] = make_singleton_func
 
-    assert parses_as(
+    assert_parses_as(
         """
         %s
 
@@ -853,22 +861,25 @@ def test_duplicate_global_var():
 
 def test_extern_adt_defn():
     # TODO(weberlo): update this test once extern is implemented
-    mod = relay.Module()
+    mod = tvm.IRModule()
 
     extern_var = relay.GlobalTypeVar("T")
     typ_var = relay.TypeVar("A")
     extern_def = relay.TypeData(extern_var, [typ_var], [])
     mod[extern_var] = extern_def
 
-    assert parses_as(
+    assert_parses_as(
         """
         extern type T[A]
         """,
         mod
     )
-
+def test_import_grad():
+    mod = tvm.IRModule()
+    mod.import_from_std("gradient.rly")
 
 if __name__ == "__main__":
+    test_graph()
     test_comments()
     test_int_literal()
     test_float_literal()
@@ -879,7 +890,6 @@ if __name__ == "__main__":
     test_op_assoc()
     test_let()
     test_seq()
-    test_graph()
     test_tuple()
     test_func()
     test_defn()
@@ -902,3 +912,4 @@ if __name__ == "__main__":
     test_duplicate_adt_cons_defn()
     test_duplicate_global_var()
     test_extern_adt_defn()
+    test_import_grad()

@@ -26,9 +26,10 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/codegen.h>
-#include <tvm/tir/lowered_func.h>
+#include <tvm/runtime/container.h>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -62,8 +63,9 @@ class CodeGenC :
   /*!
    * \brief Add the function to the generated module.
    * \param f The function to be compiled.
+   * \param whether to append return 0 in the end.
    */
-  void AddFunction(LoweredFunc f);
+  void AddFunction(const PrimFunc& f);
   /*!
    * \brief Finalize the compilation and return the code.
    * \return The code.
@@ -93,15 +95,25 @@ class CodeGenC :
   }
   // The following parts are overloadable print operations.
   /*!
+   * \brief Print the function header before the argument list
+   *
+   *  Example: stream << "void";
+   */
+  virtual void PrintFuncPrefix(); // NOLINT(*)
+  /*!
+   * \brief Print the final return at the end the function.
+   */
+  virtual void PrintFinalReturn(); // NOLINT(*)
+  /*!
    * \brief Insert statement before function body.
    * \param f The function to be compiled.
    */
-  virtual void PreFunctionBody(LoweredFunc f) {}
+  virtual void PreFunctionBody(const PrimFunc& f) {}
   /*!
    * \brief Initialize codegen state for generating f.
    * \param f The function to be compiled.
    */
-  virtual void InitFuncState(LoweredFunc f);
+  virtual void InitFuncState(const PrimFunc& f);
   // expression
   void VisitExpr_(const VarNode* op, std::ostream& os) override;  // NOLINT(*)
   void VisitExpr_(const LoadNode* op, std::ostream& os) override;  // NOLINT(*)
@@ -149,6 +161,12 @@ class CodeGenC :
    */
   virtual void PrintType(DataType t, std::ostream& os); // NOLINT(*)
   /*!
+   * Print Type represetnation of type type.
+   * \param type The type representation.
+   * \param os The stream to print the ctype into
+   */
+  virtual void PrintType(const Type& type, std::ostream& os); // NOLINT(*)
+  /*!
    * \brief Print expr representing the thread tag
    * \param IterVar iv The thread index to be binded;
    */
@@ -178,9 +196,36 @@ class CodeGenC :
   // Print reference to struct location
   std::string GetStructRef(
       DataType t, const PrimExpr& buffer, const PrimExpr& index, int kind);
-  // print reference to a buffer as type t in index.
+  // Print reference to a buffer as type t in index.
   virtual std::string GetBufferRef(
       DataType t, const VarNode* buffer, PrimExpr index);
+
+  /*!
+   * \brief Handle volatile loads.
+   *
+   * This is to workaround a bug in CUDA cuda_fp16.h. Volatile accesses
+   * to shared memory are required for reductions. However, __half class
+   * does not implement volatile member functions. CUDA codegen will cast
+   * away volatile qualifier from CUDA __half types.
+   */
+  virtual void HandleVolatileLoads(const std::string& value, const LoadNode* op,
+                                   std::ostream& os) {
+    // By default, do nothing but print the loaded value.
+    os << value;
+  }
+
+  /*!
+   * \brief Check if scope is part of type in the target language.
+   *
+   * **NOTE** In OpenCL, __local is part of type, so "__local int *"
+   * is legal. This is not the case for CUDA, where "__shared__"
+   * or "__constant__" is not part of type but a storage class (like
+   * C/C++ static).
+   */
+  virtual bool IsScopePartOfType() const {
+    return true;
+  }
+
   /*!
    * \brief If buffer is allocated as type t.
    * \param buf_var The buffer variable.
@@ -196,14 +241,43 @@ class CodeGenC :
   // override
   void PrintSSAAssign(
       const std::string& target, const std::string& src, DataType t) final;
+  /*! \brief reserves common C keywords */
+  void ReserveKeywordsAsUnique();
+
+  /*! \brief Check if buf_var is volatile or not. */
+  bool IsVolatile(const VarNode *buf_var) const {
+    return volatile_buf_.count(buf_var) != 0;
+  }
+
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
   /*! \brief the storage scope of allocation */
   std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const VarNode*, DataType> handle_data_type_;
-  /*! \brief reserves common C keywords */
-  void ReserveKeywordsAsUnique();
+
+  /*!
+   * \brief A RAII utility class for emitting code in a scoped region.
+   */
+  class EnterScopeRAII {
+    // The codegen context.
+    CodeGenC* cg;
+
+    // The new scope level.
+    int scope;
+
+   public:
+    explicit EnterScopeRAII(CodeGenC* cg) : cg(cg) {
+      cg->PrintIndent();
+      cg->stream << "{\n";
+      scope = cg->BeginScope();
+    }
+    ~EnterScopeRAII() {
+      cg->EndScope(scope);
+      cg->PrintIndent();
+      cg->stream << "}\n";
+    }
+  };
 
  private:
   /*! \brief whether to print in SSA form */

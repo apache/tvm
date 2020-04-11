@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import TypeFunctor, TypeMutator, TypeVisitor
-from tvm.relay.analysis import assert_graph_equal
 from tvm.relay.ty import (TypeVar, IncompleteType, TensorType, FuncType,
                  TupleType, TypeRelation, RefType, GlobalTypeVar, TypeCall)
 from tvm.relay.adt import TypeData
@@ -33,7 +33,8 @@ def check_visit(typ):
     ev = TypeVisitor()
     ev.visit(typ)
 
-    assert_graph_equal(TypeMutator().visit(typ), typ)
+    tvm.ir.assert_structural_equal(TypeMutator().visit(typ), typ,
+                                   map_free_vars=True)
 
 
 def test_type_var():
@@ -53,7 +54,7 @@ def test_tensor_type():
 
 def test_func_type():
     tv = TypeVar('tv')
-    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
+    tt = relay.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
     ft = FuncType([tt], tt, type_params=[tv])
     check_visit(ft)
 
@@ -64,8 +65,8 @@ def test_tuple_type():
 
 
 def test_type_relation():
-    func = tvm.get_env_func('tvm.relay.type_relation.Broadcast')
-    attrs = tvm.make.node('attrs.TestAttrs', name='attr', padding=(3,4))
+    func = tvm.ir.EnvFunc.get('tvm.relay.type_relation.Broadcast')
+    attrs = tvm.ir.make_node('attrs.TestAttrs', name='attr', padding=(3,4))
     tp = TypeVar('tp')
     tf = FuncType([], TupleType([]), [], [])
     tt = TensorType([1, 2, 3], 'float32')

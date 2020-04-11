@@ -35,7 +35,7 @@ void CodeGenC::Init(bool output_ssa) {
   print_ssa_form_ = output_ssa;
 }
 
-void CodeGenC::InitFuncState(LoweredFunc f) {
+void CodeGenC::InitFuncState(const PrimFunc& f) {
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   CodeGenSourceBase::ClearFuncState();
@@ -72,39 +72,46 @@ void CodeGenC::ReserveKeywordsAsUnique() {
   GetUniqueName("return");
 }
 
-void CodeGenC::AddFunction(LoweredFunc f) {
+void CodeGenC::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // reserve keywords
   ReserveKeywordsAsUnique();
-  // add to alloc buffer type.
-  for (const auto & kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.dtype());
-  }
 
-  this->stream << "void " << f->name << "(";
-  for (size_t i = 0; i < f->args.size(); ++i) {
-    Var v = f->args[i];
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+  bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
+
+  this->PrintFuncPrefix();
+  this->stream << " " << static_cast<std::string>(global_symbol) << "(";
+
+  for (size_t i = 0; i < f->params.size(); ++i) {
+    tir::Var v = f->params[i];
     std::string vid = AllocVarID(v.get());
     if (i != 0) stream << ", ";
     if (v.dtype().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end())
+      if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
-      stream << ' ';
-
-      if (handle_data_type_.count(v.get())) {
-        PrintType(handle_data_type_.at(v.get()), stream);
-      } else {
-        stream << "void";
+        stream << ' ';
       }
-      stream << "*";
 
-      if (f->is_restricted && restrict_keyword_.length() != 0) {
+      PrintType(GetType(v), stream);
+      // Register handle data type
+      // TODO(tvm-team): consider simply keep type info in the
+      // type annotation(via a normalizing rewriting).
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
+          RegisterHandleType(v.get(), prim->dtype);
+        }
+      }
+
+      if (no_alias && restrict_keyword_.length() != 0) {
         stream << ' ' << restrict_keyword_;
       }
     } else {
-      PrintType(v.dtype(), stream);
+      PrintType(GetType(v), stream);
     }
     stream << ' ' << vid;
   }
@@ -112,9 +119,17 @@ void CodeGenC::AddFunction(LoweredFunc f) {
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
+  this->PrintFinalReturn();
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
+}
+
+void CodeGenC::PrintFuncPrefix() {
+  stream << "void";
+}
+
+void CodeGenC::PrintFinalReturn() {
 }
 
 std::string CodeGenC::Finish() {
@@ -153,14 +168,15 @@ std::string CodeGenC::GetBufferRef(
   if (alloc_storage_scope_.count(buffer)) {
     scope = alloc_storage_scope_.at(buffer);
   }
-  bool is_vol = volatile_buf_.count(buffer) != 0;
+  bool is_vol = IsVolatile(buffer);
   if (t.lanes() == 1) {
     if (!HandleTypeMatch(buffer, t) || is_vol) {
       os << "((";
       if (is_vol) {
         os << "volatile ";
       }
-      if (scope.length() != 0) {
+      // Scope may not be part of type.
+      if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
       os << ' ';
@@ -169,8 +185,13 @@ std::string CodeGenC::GetBufferRef(
     } else {
       os << vid;
     }
-    os << '[';
+    os << "[(";
     PrintExpr(index, os);
+    os << ")";
+    if (t.bits() == 4 ||
+        (t.bits() == 1 && t.is_int())) {
+      os << " / " << (32 / t.bits());
+    }
     os << ']';
   } else {
     // Buffer declared as vector type.
@@ -189,7 +210,7 @@ std::string CodeGenC::GetBufferRef(
     if (is_vol) {
       os << "volatile ";
     }
-    if (scope.length() != 0) {
+    if (!scope.empty() && IsScopePartOfType()) {
       PrintStorageScope(scope, os);
     }
     os << ' ';
@@ -197,15 +218,20 @@ std::string CodeGenC::GetBufferRef(
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
       os << '(';
-      if (scope.length() != 0) {
+      if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
       os << ' ';
       PrintType(t.element_of(), os);
       os << "*)";
     }
-    os << vid << " + ";
+    os << vid << " + (";
     PrintExpr(index, os);
+    os << ")";
+    if (t.bits() == 4 ||
+        (t.bits() == 1 && t.is_int())) {
+      os << " / " << (32 / t.bits());
+    }
     os << "))[0]";
   }
   return os.str();
@@ -263,7 +289,6 @@ std::string CodeGenC::GetStructRef(
     return os.str();
   }
 }
-
 
 bool CodeGenC::HandleTypeMatch(const VarNode* buf_var, DataType t) const {
   auto it = handle_data_type_.find(buf_var);
@@ -356,6 +381,20 @@ void CodeGenC::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     }
   }
   LOG(FATAL) << "Cannot convert type " << t << " to C type";
+}
+
+
+void CodeGenC::PrintType(const Type& type, std::ostream& os) { // NOLINT(*)
+  if (auto* ptr = type.as<PrimTypeNode>()) {
+    return PrintType(ptr->dtype, os);
+  } else if (auto* ptr = type.as<PointerTypeNode>()) {
+    PrintType(ptr->element_type, os);
+    os << '*';
+  } else if (IsVoidType(type)) {
+    os << "void";
+  } else {
+    LOG(FATAL) << "Type " << type << " does not have a corresponding C Type";
+  }
 }
 
 
@@ -620,14 +659,14 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   // delcare type.
   if (op->dtype.lanes() == 1) {
     std::string ref = GetBufferRef(op->dtype, op->buffer_var.get(), op->index);
-    os << ref;
+    HandleVolatileLoads(ref, op, os);
   } else {
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
     PrimExpr base;
     if (GetRamp1Base(op->index, op->dtype.lanes(), &base)) {
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base);
-      os << ref;
+      HandleVolatileLoads(ref, op, os);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed

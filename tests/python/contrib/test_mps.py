@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm.contrib import mps
 
@@ -25,19 +26,19 @@ def test_matmul():
     n = 1024
     l = 128
     m = 256
-    A = tvm.placeholder((n, l), name='A')
-    B = tvm.placeholder((l, m), name='B')
+    A = te.placeholder((n, l), name='A')
+    B = te.placeholder((l, m), name='B')
     C = mps.matmul(A, B)
-    D = tvm.compute(
+    D = te.compute(
         C.shape,
         lambda *i: C(*i) + 1.
     )
-    s = tvm.create_schedule(D.op)
+    s = te.create_schedule(D.op)
     yo, xo = D.op.axis
-    block_y = tvm.thread_axis("blockIdx.y")
-    block_x = tvm.thread_axis("blockIdx.x")
-    thread_y = tvm.thread_axis("threadIdx.y")
-    thread_x = tvm.thread_axis("threadIdx.x")
+    block_y = te.thread_axis("blockIdx.y")
+    block_x = te.thread_axis("blockIdx.x")
+    thread_y = te.thread_axis("threadIdx.y")
+    thread_x = te.thread_axis("threadIdx.x")
     by, ty = s[D].split(yo, factor=16)
     bx, tx = s[D].split(xo, factor=16)
     s[D].bind(by, block_y)
@@ -73,10 +74,10 @@ def test_conv2d():
     kh = 3
     kw = 3
     stride = 2
-    A = tvm.placeholder((n, h, w, ci), name="x")
-    B = tvm.placeholder((co, kh, kw, ci), name="w")
+    A = te.placeholder((n, h, w, ci), name="x")
+    B = te.placeholder((co, kh, kw, ci), name="w")
     C = mps.conv2d(A, B, 'SAME', 2)
-    s1 = tvm.create_schedule(C.op)
+    s1 = te.create_schedule(C.op)
 
     def verify(A, B, C, target="llvm"):
         if not tvm.get_global_func("tvm.contrib.mps.conv2d", True):

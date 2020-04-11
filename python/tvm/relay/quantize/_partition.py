@@ -16,12 +16,9 @@
 # under the License.
 #pylint: disable=unused-argument,inconsistent-return-statements
 """Internal module for registering attribute for annotation."""
-from __future__ import absolute_import
-
-from ... import target as _target
+import tvm
 from .. import expr as _expr
 from .. import analysis as _analysis
-from ..base import register_relay_node
 from ..op import op as _reg
 from . import _quantize
 from .quantize import _forward_op
@@ -32,7 +29,7 @@ def register_partition_function(op_name, frewrite=None, level=10):
     return _register(frewrite) if frewrite is not None else _register
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.QPartitionExpr")
 class QPartitionExpr(_expr.TempExpr):
     def __init__(self, expr):
         self.__init_handle_by_constructor__(
@@ -133,7 +130,7 @@ def add_partition_generic(ref_call, new_args, ctx):
 @register_partition_function("add")
 def add_partition_function(ref_call, new_args, ctx):
     """Rewrite function for ewise add for partition"""
-    target = _target.current_target()
+    target = tvm.target.Target.current()
     if target and 'cuda' in target.keys:
         #TODO(wuwei/ziheng) cuda specific rules
         return add_partition_generic(ref_call, new_args, ctx)

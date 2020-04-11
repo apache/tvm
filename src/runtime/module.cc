@@ -26,9 +26,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <unordered_set>
 #include <cstring>
-#ifndef _LIBCPP_SGX_CONFIG
 #include "file_util.h"
-#endif
 
 namespace tvm {
 namespace runtime {
@@ -77,7 +75,6 @@ PackedFunc ModuleNode::GetFunction(const std::string& name, bool query_imports) 
 
 Module Module::LoadFromFile(const std::string& file_name,
                             const std::string& format) {
-#ifndef _LIBCPP_SGX_CONFIG
   std::string fmt = GetFileFormat(file_name, format);
   CHECK(fmt.length() != 0)
       << "Cannot deduce format of file " << file_name;
@@ -91,9 +88,6 @@ Module Module::LoadFromFile(const std::string& file_name,
       << load_f_name << ") is not presented.";
   Module m = (*f)(file_name, format);
   return m;
-#else
-  LOG(FATAL) << "SGX does not support LoadFromFile";
-#endif
 }
 
 void ModuleNode::SaveToFile(const std::string& file_name,
@@ -145,7 +139,7 @@ bool RuntimeEnabled(const std::string& target) {
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
   } else if (target == "stackvm") {
-    f_name = "codegen.build_stackvm";
+    f_name = "target.build.stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
   } else if (target == "micro_dev") {

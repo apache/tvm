@@ -51,16 +51,65 @@ void Update(std::unordered_map<IterVar, Range>* p_state,
   }
 }
 
+/*!
+ * \param Upward propagating whether an IterVar derives at least one leaf IterVar that binds to
+ * a thread.
+ *
+ * \param stage The stage to operate on.
+ * \param p_state The propagation result of each IterVar.
+ */
+void PassUpThreadBinding(const Stage& stage, std::unordered_map<IterVar, bool>* p_state) {
+  auto bound_to_thread = [&stage](const IterVar& iv) {
+    bool bound = false;
+    auto it = stage->iter_var_attrs.find(iv);
+    if (it != stage->iter_var_attrs.end()) {
+      bound = (*it).second->bind_thread.defined();
+    }
+    return bound;
+  };
+
+  auto& state = *p_state;
+  // Fill p_state with leaf itervars
+  for (const IterVar& iv : stage->leaf_iter_vars) {
+    state[iv] = bound_to_thread(iv);
+  }
+  // Traverse the graph bottom-up to propagate thread binding information
+  for (size_t i = stage->relations.size(); i != 0; --i) {
+    IterVarRelation rel = stage->relations[i - 1];
+    if (const SplitNode* s = rel.as<SplitNode>()) {
+      state[s->parent] = state[s->inner] || state[s->outer];
+    } else if (const FuseNode* s = rel.as<FuseNode>()) {
+      state[s->inner] = state[s->fused];
+      state[s->outer] = state[s->fused];
+    } else if (const RebaseNode* s = rel.as<RebaseNode>()) {
+      state[s->parent] = state[s->rebased];
+    } else if (rel.as<SingletonNode>()) {
+    } else {
+      LOG(FATAL) << "unknown relation type";
+    }
+  }
+}
+
 void PassDownDomain(const Stage& stage,
                     std::unordered_map<IterVar, Range>* p_state,
                     arith::Analyzer* actx,
                     bool allow_missing) {
-  auto ceil_div = [actx](PrimExpr a, PrimExpr b) {
+  auto ceil_div = [actx](const PrimExpr& a, const PrimExpr& b) {
     if (actx->CanProve(indexmod(a, b) == 0)) {
       return actx->Simplify(indexdiv(a, b));
     }
     return actx->Simplify(indexdiv(a + (b - 1), b));
   };
+
+  auto minimum_or_later  = [actx](const PrimExpr& a, const PrimExpr& b) {
+    if (actx->CanProve(a < b)) {
+      return actx->Simplify(a);
+    }
+    return actx->Simplify(b);
+  };
+
+  std::unordered_map<IterVar, bool> dominating_thread;
+  PassUpThreadBinding(stage, &dominating_thread);
 
   auto& state = *p_state;
   // forwar iteration on relations
@@ -72,14 +121,35 @@ void PassDownDomain(const Stage& stage,
       }
       CHECK(!state.count(r->inner));
       const Range& range_parent = state.at(r->parent);
+      // Tighten iv's extent to min(parent_extent, factor_or_nparts), only if all of the
+      // following conditions are met:
+      // 1. No leaf IterVar derived from iv binds to any thread.  People may use split
+      // to force an IterVar extent to match the number of allocated threads to fuse stages
+      // that require different number of threads.  We don't want to change these extents.
+      // 2. allow_missing is false, i.e. that PassDownDomain is called by the final InferBound,
+      // rather than by an early compiler phase, such as rfactor().  We don't want to tighten an
+      // IterVar in an early phase allowing missing IterVars, because it may bind to a thread later.
+      // 3. range_parent's extent is not 0.  At lest one Topi test has a case where a tensor has one
+      // zero-sized dimension.  Split creates iv with a positive extent to avoid zero-extent
+      // IterVar.  We don't touch it.
+      auto resolve_min_extent_for_split = [&](const IterVar& iv, const PrimExpr& factor_or_nparts) {
+        return dominating_thread[iv] || allow_missing || is_zero(range_parent->extent)
+                   ? factor_or_nparts
+                   : minimum_or_later(range_parent->extent, factor_or_nparts);
+      };
       if (r->factor.defined()) {
         Update(p_state, r->inner,
-               Range::make_by_min_extent(0, r->factor), actx);
+               Range::make_by_min_extent(
+                   0, resolve_min_extent_for_split(r->inner, r->factor)),
+               actx);
         Update(p_state, r->outer,
                Range::make_by_min_extent(
                    0, ceil_div(range_parent->extent, r->factor)), actx);
       } else {
-        Update(p_state, r->outer, Range::make_by_min_extent(0, r->nparts), actx);
+        Update(p_state, r->outer,
+               Range::make_by_min_extent(
+                   0, resolve_min_extent_for_split(r->outer, r->nparts)),
+               actx);
         Update(p_state, r->inner,
                Range::make_by_min_extent(
                    0, ceil_div(range_parent->extent, r->nparts)), actx);
@@ -355,9 +425,9 @@ void PassUpBitMaskOr(const Stage& stage,
         continue;
       }
       int res = 0;
-      if (!state.count(s->parent)) res |= state[s->parent];
-      if (!state.count(s->inner)) res |= state[s->inner];
-      if (!state.count(s->outer)) res |= state[s->outer];
+      if (state.count(s->parent)) res |= state[s->parent];
+      if (state.count(s->inner)) res |= state[s->inner];
+      if (state.count(s->outer)) res |= state[s->outer];
       state[s->parent] = res;
     } else if (const FuseNode* s = rel.as<FuseNode>()) {
       if (!state.count(s->fused)) {
@@ -486,6 +556,14 @@ void PassUpBoundCheck(const Stage& s,
   }
 }
 
+bool IsRangeSame(const Range input_1, const Range input_2) {
+  arith::Analyzer analyzer;
+  if (input_1.same_as(input_2)) return true;
+
+  return (analyzer.CanProve(input_1->min == input_2->min)
+        && analyzer.CanProve(input_1->extent == input_2->extent));
+}
+
 std::vector<PrimExpr> MakeBoundCheck(
     const Stage& stage,
     const Map<IterVar, Range>& dom_map,
@@ -523,7 +601,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     if (skip_iter.count(iv) || iv->iter_type == kOpaque) continue;
     Range dom = dom_map.at(iv);
     CHECK(iv->dom.defined());
-    if (!skip_ivar_domain && !iv->dom.same_as(dom)) {
+    if (!skip_ivar_domain && !IsRangeSame(iv->dom, dom)) {
       PrimExpr value = value_map.at(iv) - iv->dom->min;
       IntSet s = EvalSet(value, iset_dmap);
       PrimExpr vmin = s.min();

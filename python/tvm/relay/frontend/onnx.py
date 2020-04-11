@@ -17,14 +17,14 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
 # pylint: disable=import-outside-toplevel
 """ONNX: Open Neural Network Exchange frontend for Relay."""
-from __future__ import absolute_import as _abs
-
 import numpy as np
 import tvm
+from tvm.ir import IRModule
+
 from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
-from .. import module as _module
+from .. import function as _function
 from .. import op as _op
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -92,16 +92,18 @@ def get_numpy(tensor_proto):
     return to_array(tensor_proto)
 
 
-def dimension_picker(prefix, surfix=''):
+def dimension_picker(prefix, suffix=''):
     """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
         if len(kernel) == 1:
-            return prefix + '1d' + surfix
+            return prefix + '1d' + suffix
         if len(kernel) == 2:
-            return prefix + '2d' + surfix
-        msg = 'Only 1D and 2D kernels are supported for operator {}.'
-        op_name = prefix + '1d/2d'
+            return prefix + '2d' + suffix
+        if len(kernel) == 3:
+            return prefix + '3d' + suffix
+        msg = 'Only 1D, 2D, and 3D kernels are supported for operator {}.'
+        op_name = prefix + '1d/2d/3d'
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
@@ -135,8 +137,10 @@ def onnx_default_layout(dims):
         return 'NCW'
     if dims == 2:
         return 'NCHW'
+    if dims == 3:
+        return 'NCDHW'
 
-    msg = "Only 1d and 2d layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported"
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
@@ -149,18 +153,20 @@ def onnx_storage_order2layout(storage_order, dims=2):
         return 'NCW' if storage_order == 0 else 'NWC'
     if dims == 2:
         return 'NCHW' if storage_order == 0 else 'NHWC'
+    if dims == 3:
+        return 'NCDHW' if storage_order == 0 else 'NDHWC'
 
-    msg = "Only 1d and 2d layouts are currently supported"
+    msg = "Only 1D, 2D and 3D layouts are currently supported"
     raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
 
 def dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) == 2 or len(attrs['kernel_shape']) == 1:
+        if len(attrs['kernel_shape']) in [1, 2, 3]:
             return True
         return False
 
-    return _dim_check, "Only 1d and 2d kernel supported."
+    return _dim_check, "Only 1d, 2d and 3d kernel supported."
 
 
 class OnnxOpConverter(object):
@@ -342,6 +348,14 @@ class Conv(OnnxOpConverter):
                 msg = 'Value {} in attribute "auto_pad" of operator Conv is invalid.'
                 raise tvm.error.OpAttributeInvalid(msg.format(attr['auto_pad']))
             attr.pop('auto_pad')
+        elif len(attr['kernel_shape']) == 2:
+            sym_pad = True
+            padding = attr['pads']
+            for i in range(0, len(padding), 2):
+                sym_pad = sym_pad and padding[i] == padding[i + 1]
+
+            if sym_pad:
+                attr['pads'] = padding[0::2]
 
         out = AttrCvt(
             op_name=dimension_picker('conv'),
@@ -505,7 +519,7 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
             attr.pop('mode', None)
@@ -528,7 +542,7 @@ class Pad(OnnxOpConverter):
         for i in range(dims):
             pad_width.append((pads[i], pads[i+dims]))
         attr['pad_width'] = pad_width
-        pad_mode = attr.get('mode', 'constant').decode('utf-8')
+        pad_mode = attr.get('mode', b'constant').decode('utf-8')
         if pad_mode in ['constant', 'edge', 'reflect']:
             attr['pad_mode'] = pad_mode
             attr.pop('mode', None)
@@ -620,7 +634,7 @@ class DepthToSpace(OnnxOpConverter):
     def _impl_v11(cls, inputs, attr, params):
 
         block_size = int(attr['blocksize'])
-        mode = attr.get("mode", "DCR")
+        mode = attr.get('mode', b'DCR').decode('utf-8')
         return _op.nn.depth_to_space(inputs[0], block_size, mode=mode)
 
 
@@ -770,19 +784,31 @@ class Upsample(OnnxOpConverter):
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
             scales = params[inputs[1].name_hint].asnumpy()
             inputs = inputs[:1]
-        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0
+        assert scales[0] == 1.0 and scales[1] == 1.0
+        input_shape = infer_shape(inputs[0])
+        dims = len(input_shape)
         mode = attr.get('mode')
         if mode == b'nearest':
             method = "nearest_neighbor"
         elif mode == b'linear':
-            method = "bilinear"
+            method = "trilinear" if dims == 5 else "bilinear"
         else:
             raise tvm.error.OpAttributeInvalid(
                 'Value {} in attribute "mode" of operator Upsample is not valid.'.format(mode))
-        attr = {'scale_h': scales[-2], 'scale_w': scales[-1], 'method': method,
-                'layout': 'NCHW', 'align_corners': True}
-        return AttrCvt('upsampling')(inputs, attr)
-
+        attr = {'scale_h': scales[-2],
+                'scale_w': scales[-1],
+                'method': method}
+        if dims == 5:
+            assert len(scales) == 5
+            attr['scale_d'] = scales[-3]
+            attr['layout'] = 'NCDHW'
+            op_name = 'upsampling3d'
+        else:
+            assert len(scales) == 4
+            attr['layout'] = 'NCHW'
+            attr['align_corners'] = True
+            op_name = 'upsampling'
+        return AttrCvt(op_name)(inputs, attr)
 
 class Shape(OnnxOpConverter):
     """ Operator converter for Shape.
@@ -1396,6 +1422,56 @@ class LSTM(OnnxOpConverter):
         return _expr.TupleWrapper(_expr.Tuple((output, H_t, C_t)), 3)
 
 
+class Resize(OnnxOpConverter):
+    """Operator converter for Resize
+    """
+    @classmethod
+    def _impl_v11(cls, inputs, attr, params):
+        mode = attr.get('mode')
+        if mode == b'nearest':
+            method = "nearest_neighbor"
+        elif mode == b'linear':
+            method = "bilinear"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Value {} in attribute "mode" of operator Resize is not valid.'.format(mode))
+
+        in_size = np.array(infer_shape(inputs[0]))
+        scale = infer_value_simulated(inputs[2], params).asnumpy()
+        if len(inputs) == 4:
+            assert len(scale) == 0, "One of scale or size should be passed, not both."
+            size = infer_value_simulated(inputs[3], params).asnumpy().astype(np.int32)
+        else:
+            assert len(scale) != 0, "One of scale or size should be passed."
+            size = (in_size * scale).astype(np.int32)
+
+        coord_trans = attr.get('coordinate_transformation_mode')
+        if coord_trans in [b'pytorch_half_pixel', b'half_pixel']:
+            coord_trans = "half_pixel"
+        elif coord_trans == b'align_corners':
+            coord_trans = "align_corners"
+        elif coord_trans == b'asymmetric' or method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        else:
+            raise tvm.error.OpAttributeInvalid(
+                'Unsupported coordinate_transformation_mode: {}'.format(coord_trans))
+        layout = "NCHW"  # ONNX assumes NCHW layout
+        out_size = (size[2], size[3])
+        return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
+
+
+class NonZero(OnnxOpConverter):
+    """Operator converter for NonZero
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        if len(inputs) > 1:
+            raise ValueError("Expect 1 input only")
+
+        output = AttrCvt(op_name='argwhere')(inputs, attr, params)
+        return _op.transpose(output, axes=(1, 0))
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1524,6 +1600,8 @@ def _get_convert_map(opset):
         'Erf': Erf.get_converter(opset),
         'Where': Where.get_converter(opset),
         'Or': Or.get_converter(opset),
+        'Resize': Resize.get_converter(opset),
+        'NonZero': NonZero.get_converter(opset),
     }
 
 
@@ -1568,7 +1646,7 @@ class GraphProto(object):
 
         Returns
         -------
-        mod : tvm.relay.Module
+        mod : tvm.IRModule
             The returned relay module
 
         params : dict
@@ -1660,8 +1738,8 @@ class GraphProto(object):
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        func = _expr.Function(analysis.free_vars(outputs), outputs)
-        return _module.Module.from_expr(func), self._params
+        func = _function.Function(analysis.free_vars(outputs), outputs)
+        return IRModule.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
         """Parse ValueProto or raw str."""
@@ -1726,7 +1804,7 @@ class GraphProto(object):
         ----------
         op_name : str
             Operator name, such as Convolution, FullyConnected
-        inputs : list of tvm.relay.expr.Function
+        inputs : list of tvm.relay.function.Function
             List of inputs.
         attrs : dict
             Dict of operator attributes
@@ -1735,7 +1813,7 @@ class GraphProto(object):
 
         Returns
         -------
-        sym : tvm.relay.expr.Function
+        sym : tvm.relay.function.Function
             Converted relay function
         """
         convert_map = _get_convert_map(opset)
@@ -1789,7 +1867,7 @@ def from_onnx(model,
 
     Returns
     -------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The relay module for compilation
 
     params : dict of str to tvm.nd.NDArray

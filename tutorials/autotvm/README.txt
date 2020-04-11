@@ -1,3 +1,4 @@
-Auto tuning
--------------
+.. _tutorials-autotvm-sec:
 
+Auto tuning
+-----------

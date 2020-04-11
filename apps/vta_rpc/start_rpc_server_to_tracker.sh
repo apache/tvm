@@ -18,7 +18,7 @@
 PROJROOT="$( cd "$( dirname '${BASH_SOURCE[0]}' )/../../" && pwd )"
 
 # Derive target specified by vta_config.json
-VTA_CONFIG=${PROJROOT}/vta/config/vta_config.py
+VTA_CONFIG=${VTA_HW_PATH}/config/vta_config.py
 TARGET=$(python ${VTA_CONFIG} --target)
 
 export PYTHONPATH=${PYTHONPATH}:${PROJROOT}/python:${PROJROOT}/vta/python

@@ -47,6 +47,21 @@ def log(data):
     """
     return _make.log(data)
 
+def tan(data):
+    """Compute elementwise tan of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.tan(data)
+
 def cos(data):
     """Compute elementwise cos of data.
 
@@ -847,6 +862,7 @@ def clip(a, a_min, a_max):
     Examples
     --------
     .. code:: python
+
       x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
       relay.clip(x, 1., 4.)
       # [1, 1, 4, 3, 4, 2]
@@ -973,3 +989,54 @@ def shape_of(data, dtype="int32"):
         The shape tensor.
     """
     return _make.shape_of(data, dtype)
+
+
+def ndarray_size(data, dtype="int32"):
+    """Get number of elements of input tensor.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input tensor.
+
+    dtype : str, optional
+        The target data type.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The number of elements of input tensor.
+    """
+    return _make.ndarray_size(data, dtype)
+
+
+def isfinite(data):
+    """Compute element-wise finiteness of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.isfinite(data)
+
+
+def isinf(data):
+    """Compute element-wise infiniteness of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.isinf(data)

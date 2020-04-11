@@ -40,7 +40,7 @@
 #include <vector>
 #include "../utils.h"
 #include "../../backend/compile_engine.h"
-#include "../../pass/pass_util.h"
+#include "../../transforms/pass_util.h"
 #include "../../op/op_common.h"
 #include "compiler.h"
 
@@ -51,7 +51,6 @@ namespace transform {
 
 Pass LambdaLift();
 Pass InlinePrimitives();
-Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
 
 Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
@@ -227,6 +226,7 @@ std::vector<int64_t> ToAllocTensorShape32(NDArray shape) {
   return raw_shape;
 }
 
+
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
   VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
@@ -367,7 +367,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     this->Emit(Instruction::If(test_register, target_register, 0, 0));
     this->VisitExpr(if_node->true_branch);
 
-    size_t true_register = last_register_;
+    // It saves the result of If-Else expression.
+    auto merge_register = NewRegister();
+    Emit(Instruction::Move(last_register_, merge_register));
     Emit(Instruction::Goto(0));
 
     // Finally store how many instructions there are in the
@@ -379,7 +381,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     size_t false_register = last_register_;
 
     // In else-branch, override the then-branch register
-    Emit(Instruction::Move(false_register, true_register));
+    Emit(Instruction::Move(false_register, merge_register));
     // Compute the total number of instructions
     // after generating false.
     auto after_false = this->instructions_.size();
@@ -398,20 +400,23 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // Patch the Goto.
     this->instructions_[after_true - 1].pc_offset = (after_false - after_true) + 1;
 
-    this->last_register_ = true_register;
+    this->last_register_ = merge_register;
   }
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    auto key = CCacheKeyNode::make(func, target_host_);
+    CCacheKey key(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
     int op_index = -1;
-    if (context_->seen_funcs.count(cfunc->funcs[0]) == 0) {
+    // pick the only function inside the context
+    CHECK_EQ(cfunc->funcs->functions.size(), 1);
+    auto pfunc = Downcast<tir::PrimFunc>((*cfunc->funcs->functions.begin()).second);
+    if (context_->seen_funcs.count(pfunc) == 0) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
+      context_->seen_funcs[pfunc] = op_index;
     } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
+      op_index = context_->seen_funcs[pfunc];
     }
 
     // Prepare input and output registers
@@ -441,7 +446,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK(func->IsPrimitive())
+    CHECK_NE(func->GetAttr<Integer>(attr::kPrimitive, 0)->value, 0)
       << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
@@ -470,7 +475,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     Target target;
 
-    if (!func->UseDefaultCompiler()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
     } else {
       // Next generate the invoke instruction.
@@ -484,22 +489,23 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
 
-    auto key = CCacheKeyNode::make(func, target);
+    CCacheKey key(func, target);
     auto cfunc = engine_->Lower(key);
 
     auto op_index = -1;
-    if (!func->UseDefaultCompiler()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
       // TODO(jroesch): support lowered funcs for multiple targets
-      CHECK_EQ(cfunc->funcs.size(), 1);
-      if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+      CHECK_EQ(cfunc->funcs->functions.size(), 1);
+      auto pfunc = Downcast<tir::PrimFunc>((*cfunc->funcs->functions.begin()).second);
+      if (context_->seen_funcs.find(pfunc) == context_->seen_funcs.end()) {
         op_index = context_->cached_funcs.size();
         context_->cached_funcs.push_back(cfunc);
-        context_->seen_funcs[cfunc->funcs[0]] = op_index;
+        context_->seen_funcs[pfunc] = op_index;
       } else {
-        op_index = context_->seen_funcs[cfunc->funcs[0]];
+        op_index = context_->seen_funcs[pfunc];
       }
     }
 
@@ -637,6 +643,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       // emit invoke closure here.
       VisitExpr(GetRef<Var>(var_node));
       Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
+    } else if (auto inner_call_node = op.as<CallNode>()) {
+      VisitExpr(GetRef<Call>(inner_call_node));
+      Emit(Instruction::InvokeClosure(last_register_, args_registers, NewRegister()));
     } else {
       // Finally if there are any other cases this is a bug.
       LOG(FATAL) << "internal error: unreachable code,"
@@ -646,7 +655,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const FunctionNode* func_node) {
-    if (!func_node->IsPrimitive()) {
+    if (!func_node->HasNonzeroAttr(attr::kPrimitive)) {
       LOG(FATAL) << "local functions should have been removed by lambda lifting:" << std::endl
                  << "Program: " << AsText(GetRef<Function>(func_node), false) << std::endl
                  << "AST: " << GetRef<Function>(func_node);
@@ -776,7 +785,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<std::string, Constant> ret;
       for (const auto& kv : params_) {
-        ret.Set(kv.first, ConstantNode::make(kv.second));
+        ret.Set(kv.first, Constant(kv.second));
       }
       *rv = ret;
     });
@@ -858,17 +867,13 @@ void VMCompiler::Lower(IRModule mod,
   // update primitive function map
   size_t primitive_index = 0;
   for (const auto& cfunc : context_.cached_funcs) {
-    if (cfunc->target->str() == "ext_dev") {
-      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
-    } else {
-      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
-    }
+    exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
   }
 }
 
 IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
-  Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
+  Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -925,6 +930,14 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::FoldConstant());
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
+
+  // Inline the functions that are lifted to the module scope. We perform this
+  // pass after all other optimization passes but before the memory allocation
+  // pass. This is because memory allocation pass will insert `invoke_tvm_op`
+  // and we use these ops to invoke the symbols in the module generated by
+  // external codegen.
+  pass_seqs.push_back(transform::Inline());
+
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
 
@@ -950,8 +963,6 @@ void VMCompiler::PopulateGlobalMap() {
 }
 
 void VMCompiler::Codegen() {
-  using tir::LoweredFunc;
-
   if (!context_.module.defined()) {
     LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
     return;
@@ -960,15 +971,21 @@ void VMCompiler::Codegen() {
   if (cached_funcs.size() == 0) {
     return;
   }
-  std::unordered_map<std::string, Array<LoweredFunc>> funcs;
+  std::unordered_map<std::string, IRModule> funcs;
+
   for (auto& cfunc : cached_funcs) {
     std::string target_str = cfunc->target->str();
+    // NOTE: because module, is mutable, we need to make an
+    // explicit copy of the IRModule.
+    IRModule mod = cfunc->funcs;
+    mod.CopyOnWrite();
+
     if (target_str == "ext_dev") {
       continue;
     } else if (funcs.count(target_str) == 0) {
-      funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
+      funcs.emplace(target_str, mod);
     } else {
-      funcs[target_str].push_back(cfunc->funcs[0]);
+      funcs[target_str]->Update(mod);
     }
   }
 

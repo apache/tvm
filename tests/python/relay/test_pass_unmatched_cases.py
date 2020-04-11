@@ -16,9 +16,11 @@
 # under the License.
 
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay.prelude import Prelude
 from tvm.relay.analysis import unmatched_cases
+import pytest
 
 def test_empty_match_block():
     # empty match block will not match anything, so it should return a wildcard pattern
@@ -47,7 +49,7 @@ def test_trivial_matches():
 
 
 def test_single_constructor_adt():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box = relay.GlobalTypeVar('box')
     a = relay.TypeVar('a')
     box_ctor = relay.Constructor('box', [a], box)
@@ -76,7 +78,7 @@ def test_single_constructor_adt():
 
 
 def test_too_specific_match():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -117,7 +119,7 @@ def test_too_specific_match():
 
 
 def test_multiple_constructor_clauses():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -147,7 +149,7 @@ def test_multiple_constructor_clauses():
 
 
 def test_missing_in_the_middle():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
 
     v = relay.Var('v')
@@ -185,7 +187,7 @@ def test_missing_in_the_middle():
 
 
 def test_mixed_adt_constructors():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     box = relay.GlobalTypeVar('box')
     a = relay.TypeVar('a')
     box_ctor = relay.Constructor('box', [a], box)
@@ -273,3 +275,27 @@ def test_tuple_match():
     clause = relay.Clause(relay.PatternTuple([relay.PatternVar(a), relay.PatternVar(b)]), a + b)
     x = relay.Match(relay.Tuple([relay.const(1), relay.const(1)]), [clause])
     assert len(unmatched_cases(x)) == 0
+
+
+def test_inf_loop_case():
+    code = """
+v0.0.4
+type Arith[A] {
+    Zero,
+    Const(A),
+    Plus(Arith[A], Arith[A])
+}
+
+def @shallow_opt[A](%a: Arith[A]) -> Arith[A] {
+    match (%a) {
+        Plus(Zero, %r) => %r,
+        Plus(%l, Zero) => %l,
+        _ => %a
+    }
+}
+"""
+    relay.fromtext(code)
+    # fromtext parse the module, then checked it (which include strictness checking).
+
+if __name__ == "__main__":
+    pytest.main([__file__])

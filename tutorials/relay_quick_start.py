@@ -18,7 +18,7 @@
 .. _tutorial-relay-quick-start:
 
 Quick Start Tutorial for Compiling Deep Learning Models
-======================================================
+=======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_, `Truman Tian <https://github.com/SiNZeRo>`_
 
 This example shows how to build a neural network with Relay python frontend and
@@ -33,7 +33,6 @@ Notice that you need to build TVM with cuda and llvm enabled.
 #
 # .. image:: https://github.com/dmlc/web-data/raw/master/tvm/tutorial/tvm_support_list.png
 #      :align: center
-#      :scale: 100%
 #
 # In this tutorial, we'll choose cuda and llvm as target backends.
 # To begin with, let's import Relay and TVM.
@@ -43,11 +42,12 @@ import numpy as np
 from tvm import relay
 from tvm.relay import testing
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 
 ######################################################################
 # Define Neural Network in Relay
-# -----------------------------
+# ------------------------------
 # First, let's define a neural network with relay python frontend.
 # For simplicity, we'll use pre-defined resnet-18 network in Relay.
 # Parameters are initialized with Xavier initializer.
@@ -56,7 +56,7 @@ from tvm.contrib import graph_runtime
 #
 # In this tutorial, we assume we will do inference on our device
 # and the batch size is set to be 1. Input images are RGB color
-# images of size 224 * 224. We can call the :any:`tvm.relay.expr.astext()`
+# images of size 224 * 224. We can call the :any:`tvm.relay.TupleWrapper.astext()`
 # to show the network structure.
 
 batch_size = 1
@@ -79,14 +79,14 @@ print(mod.astext(show_meta_data=False))
 # Currently this value can be 0 to 3. The optimization passes include
 # operator fusion, pre-computation, layout transformation and so on.
 #
-# :any:`relay.build_module.build` returns three components: the execution graph in
+# :py:func:`relay.build` returns three components: the execution graph in
 # json format, the TVM module library of compiled functions specifically
 # for this graph on the target hardware, and the parameter blobs of
 # the model. During the compilation, Relay does the graph-level
 # optimization while TVM does the tensor-level optimization, resulting
 # in an optimized runtime module for model serving.
 #
-# We'll first compile for Nvidia GPU. Behind the scene, `relay.build_module.build`
+# We'll first compile for Nvidia GPU. Behind the scene, :py:func:`relay.build`
 # first does a number of graph-level optimizations, e.g. pruning, fusing, etc.,
 # then registers the operators (i.e. the nodes of the optimized graphs) to
 # TVM implementations to generate a `tvm.module`.
@@ -97,8 +97,7 @@ print(mod.astext(show_meta_data=False))
 opt_level = 3
 target = tvm.target.cuda()
 with relay.build_config(opt_level=opt_level):
-    graph, lib, params = relay.build_module.build(
-        mod, target, params=params)
+    graph, lib, params = relay.build(mod, target, params=params)
 
 #####################################################################
 # Run the generate library

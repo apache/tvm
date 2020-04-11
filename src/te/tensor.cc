@@ -20,6 +20,7 @@
 /*!
  * \file tensor.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/tensor.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor_intrin.h>
@@ -146,6 +147,34 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
+
+TVM_REGISTER_GLOBAL("te.Tensor")
+.set_body_typed(TensorNode::make);
+
+TVM_REGISTER_GLOBAL("te.TensorIntrin")
+.set_body_typed(TensorIntrinNode::make);
+
+TVM_REGISTER_GLOBAL("te.TensorIntrinCall")
+.set_body_typed(TensorIntrinCallNode::make);
+
+TVM_REGISTER_GLOBAL("te.TensorEqual")
+.set_body_method(&Tensor::operator==);
+
+TVM_REGISTER_GLOBAL("te.TensorHash")
+.set_body_typed([](Tensor tensor) -> int64_t {
+    return static_cast<int64_t>(std::hash<Tensor>()(tensor));
+  });
+
+TVM_REGISTER_GLOBAL("te.OpGetOutput")
+.set_body_typed([](Operation op, int64_t output) {
+  return op.output(static_cast<size_t>(output));
+});
+
+TVM_REGISTER_GLOBAL("te.OpNumOutputs")
+.set_body_method<Operation>(&OperationNode::num_outputs);
+
+TVM_REGISTER_GLOBAL("te.OpInputTensors")
+.set_body_method<Operation>(&OperationNode::InputTensors);
 
 }  // namespace te
 }  // namespace tvm

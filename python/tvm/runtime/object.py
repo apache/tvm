@@ -19,6 +19,7 @@
 import ctypes
 
 from tvm._ffi.base import _FFI_MODE, _RUNTIME_ONLY, check_call, _LIB, c_str
+from tvm._ffi.runtime_ctypes import ObjectRValueRef
 from . import _ffi_api, _ffi_node_api
 
 try:
@@ -84,6 +85,36 @@ class Object(ObjectBase):
             other.handle = None
         else:
             self.handle = None
+
+    def _move(self):
+        """Create an RValue reference to the object and mark the object as moved.
+
+        This is a advanced developer API that can be useful when passing an
+        unique reference to an Object that you no longer needed to a function.
+
+        A unique reference can trigger copy on write optimization that avoids
+        copy when we transform an object.
+
+        Note
+        ----
+        All the reference of the object becomes invalid after it is moved.
+        Be very careful when using this feature.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+           x = tvm.tir.Var("x", "int32")
+           x0 = x
+           some_packed_func(x._move())
+           # both x0 and x will points to None after the function call.
+
+        Returns
+        -------
+        rvalue : The rvalue reference.
+        """
+        return ObjectRValueRef(self)
 
 
 _set_class_object(Object)

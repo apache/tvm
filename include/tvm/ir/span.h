@@ -44,7 +44,11 @@ class SourceNameNode : public Object {
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
-  static constexpr const char* _type_key = "relay.SourceName";
+  bool SEqualReduce(const SourceNameNode* other, SEqualReducer equal) const {
+    return equal(name, other->name);
+  }
+
+  static constexpr const char* _type_key = "SourceName";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
 
@@ -87,9 +91,16 @@ class SpanNode : public Object {
     v->Visit("col_offset", &col_offset);
   }
 
+  bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
+    return
+        equal(source, other->source) &&
+        equal(lineno, other->lineno) &&
+        equal(col_offset, other->col_offset);
+  }
+
   TVM_DLL static Span make(SourceName source, int lineno, int col_offset);
 
-  static constexpr const char* _type_key = "relay.Span";
+  static constexpr const char* _type_key = "Span";
   TVM_DECLARE_FINAL_OBJECT_INFO(SpanNode, Object);
 };
 

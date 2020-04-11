@@ -38,6 +38,8 @@ namespace tir {
 class StmtNode : public Object {
  public:
   static constexpr const char* _type_key = "Stmt";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
 };
 
@@ -63,6 +65,19 @@ class LetStmtNode : public StmtNode {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
+  }
+
+  bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
+    return
+        equal.DefEqual(var, other->var) &&
+        equal(value, other->value) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(var);
+    hash_reduce(value);
+    hash_reduce(body);
   }
 
   TVM_DLL static Stmt make(Var var, PrimExpr value, Stmt body);
@@ -99,6 +114,21 @@ class AttrStmtNode : public StmtNode {
     v->Visit("body", &body);
   }
 
+  bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
+    return
+        equal(node, other->node) &&
+        equal(attr_key, other->attr_key) &&
+        equal(value, other->value) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(node);
+    hash_reduce(attr_key);
+    hash_reduce(value);
+    hash_reduce(body);
+  }
+
   TVM_DLL static Stmt make(ObjectRef node,
                            std::string type_key,
                            PrimExpr value,
@@ -129,6 +159,19 @@ class AssertStmtNode : public StmtNode {
     v->Visit("body", &body);
   }
 
+  bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
+    return
+        equal(condition, other->condition) &&
+        equal(message, other->message) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(condition);
+    hash_reduce(message);
+    hash_reduce(body);
+  }
+
   TVM_DLL static Stmt make(PrimExpr condition, PrimExpr message, Stmt body);
 
   static constexpr const char* _type_key = "AssertStmt";
@@ -150,6 +193,19 @@ class ProducerConsumerNode : public StmtNode {
     v->Visit("func", &func);
     v->Visit("is_producer", &is_producer);
     v->Visit("body", &body);
+  }
+
+  bool SEqualReduce(const ProducerConsumerNode* other, SEqualReducer equal) const {
+    return
+        equal(func, other->func) &&
+        equal(is_producer, other->is_producer) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(func);
+    hash_reduce(is_producer);
+    hash_reduce(body);
   }
 
   TVM_DLL static Stmt make(FunctionRef func, bool is_producer, Stmt body);
@@ -194,6 +250,21 @@ class StoreNode : public StmtNode {
     v->Visit("predicate", &predicate);
   }
 
+  bool SEqualReduce(const StoreNode* other, SEqualReducer equal) const {
+    return
+        equal(buffer_var, other->buffer_var) &&
+        equal(value, other->value) &&
+        equal(index, other->index) &&
+        equal(predicate, other->predicate);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer_var);
+    hash_reduce(value);
+    hash_reduce(index);
+    hash_reduce(predicate);
+  }
+
   TVM_DLL static Stmt make(Var buffer_var,
                            PrimExpr value,
                            PrimExpr index,
@@ -201,6 +272,57 @@ class StoreNode : public StmtNode {
 
   static constexpr const char* _type_key = "Store";
   TVM_DECLARE_FINAL_OBJECT_INFO(StoreNode, StmtNode);
+};
+
+/*!
+ * \brief Store value to the high dimension buffer.
+ *
+ * \code
+ *
+ *  buffer[i, j] = value;
+ *
+ * \endcode
+ * \sa BufferLoad
+ */
+class BufferStore;
+class BufferStoreNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Buffer buffer;
+  /*! \brief The value to be stored. */
+  PrimExpr value;
+  /*! \brief The indices location to be stored. */
+  Array<PrimExpr> indices;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("value", &value);
+    v->Visit("indices", &indices);
+  }
+
+  bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
+    return
+        equal(buffer, other->buffer) &&
+        equal(value, other->value) &&
+        equal(indices, other->indices);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(value);
+    hash_reduce(indices);
+  }
+
+  static constexpr const char* _type_key = "BufferStore";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
+};
+
+class BufferStore : public Stmt {
+ public:
+  TVM_DLL explicit BufferStore(Buffer buffer,
+                               PrimExpr value,
+                               Array<PrimExpr> indices);
+  TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
 };
 
 /*!
@@ -222,6 +344,21 @@ class ProvideNode : public StmtNode {
     v->Visit("value_index", &value_index);
     v->Visit("value", &value);
     v->Visit("args", &args);
+  }
+
+  bool SEqualReduce(const ProvideNode* other, SEqualReducer equal) const {
+    return
+        equal(func, other->func) &&
+        equal(value_index, other->value_index) &&
+        equal(value, other->value) &&
+        equal(args, other->args);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(func);
+    hash_reduce(value_index);
+    hash_reduce(value);
+    hash_reduce(args);
   }
 
   TVM_DLL static Stmt make(FunctionRef func,
@@ -261,6 +398,23 @@ class AllocateNode : public StmtNode {
     v->Visit("body", &body);
   }
 
+  bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
+    return
+        equal.DefEqual(buffer_var, other->buffer_var) &&
+        equal(dtype, other->dtype) &&
+        equal(extents, other->extents) &&
+        equal(condition, other->condition) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(buffer_var);
+    hash_reduce(dtype);
+    hash_reduce(extents);
+    hash_reduce(condition);
+    hash_reduce(body);
+  }
+
   TVM_DLL static Stmt make(Var buffer_var,
                            DataType dtype,
                            Array<PrimExpr> extents,
@@ -298,6 +452,15 @@ class FreeNode : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
+  }
+
+  bool SEqualReduce(const FreeNode* other, SEqualReducer equal) const {
+    return
+        equal(buffer_var, other->buffer_var);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer_var);
   }
 
   TVM_DLL static Stmt make(Var buffer_var);
@@ -341,6 +504,25 @@ class RealizeNode : public StmtNode {
                            PrimExpr condition,
                            Stmt body);
 
+  bool SEqualReduce(const RealizeNode* other, SEqualReducer equal) const {
+    return
+        equal(func, other->func) &&
+        equal(value_index, other->value_index) &&
+        equal(dtype, other->dtype) &&
+        equal(bounds, other->bounds) &&
+        equal(condition, other->condition) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(func);
+    hash_reduce(value_index);
+    hash_reduce(dtype);
+    hash_reduce(bounds);
+    hash_reduce(condition);
+    hash_reduce(body);
+  }
+
   static constexpr const char* _type_key = "Realize";
   TVM_DECLARE_FINAL_OBJECT_INFO(RealizeNode, StmtNode);
 };
@@ -367,6 +549,14 @@ class SeqStmtNode : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("seq", &seq);
+  }
+
+  bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
+    return equal(seq, other->seq);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(seq);
   }
 
   static constexpr const char* _type_key = "SeqStmt";
@@ -472,6 +662,19 @@ class IfThenElseNode : public StmtNode {
     v->Visit("else_case", &else_case);
   }
 
+  bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
+    return
+        equal(condition, other->condition) &&
+        equal(then_case, other->then_case) &&
+        equal(else_case, other->else_case);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(condition);
+    hash_reduce(then_case);
+    hash_reduce(else_case);
+  }
+
   TVM_DLL static Stmt make(PrimExpr condition, Stmt then_case, Stmt else_case = Stmt());
 
   static constexpr const char* _type_key = "IfThenElse";
@@ -491,6 +694,14 @@ class EvaluateNode : public StmtNode {
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("value", &value);
+  }
+
+  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
+    return equal(value, other->value);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(value);
   }
 
   TVM_DLL static Stmt make(PrimExpr v);
@@ -562,6 +773,26 @@ class ForNode : public StmtNode {
     v->Visit("body", &body);
   }
 
+  bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
+    return
+        equal.DefEqual(loop_var, other->loop_var) &&
+        equal(min, other->min) &&
+        equal(extent, other->extent) &&
+        equal(for_type, other->for_type) &&
+        equal(device_api, other->device_api) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(loop_var);
+    hash_reduce(min);
+    hash_reduce(extent);
+    hash_reduce(for_type);
+    hash_reduce(device_api);
+    hash_reduce(body);
+  }
+
+
   static constexpr const char* _type_key = "For";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForNode, StmtNode);
 };
@@ -585,6 +816,21 @@ class PrefetchNode : public StmtNode {
     v->Visit("value_index", &value_index);
     v->Visit("dtype", &dtype);
     v->Visit("bounds", &bounds);
+  }
+
+  bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
+    return
+        equal(func, other->func) &&
+        equal(value_index, other->value_index) &&
+        equal(dtype, other->dtype) &&
+        equal(bounds, other->bounds);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(func);
+    hash_reduce(value_index);
+    hash_reduce(dtype);
+    hash_reduce(bounds);
   }
 
   TVM_DLL static Stmt make(FunctionRef func,

@@ -18,17 +18,29 @@
 import os
 import numpy as np
 import tvm
+from tvm import te
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 
+
+_conv2d_nhwc_implement = {
+    "llvm": (topi.nn.conv2d_nhwc, topi.generic.schedule_conv2d_nhwc),
+    "cuda": (topi.cuda.conv2d_nhwc, topi.cuda.schedule_conv2d_nhwc),
+    "cpu": (topi.nn.conv2d_nhwc, topi.x86.schedule_conv2d_nhwc),
+    "arm_cpu": (topi.arm_cpu.conv2d_nhwc_spatial_pack,
+                topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack),
+    "hls": (topi.nn.conv2d_nhwc, topi.hls.schedule_conv2d_nhwc)
+}
+
+
 def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
-    W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
+    A = te.placeholder((batch, in_height, in_width, in_channel), name='A')
+    W = te.placeholder((kernel, kernel, in_channel, num_filter), name='W')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -49,9 +61,9 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            B = topi.nn.conv2d(A, W, (stride, stride), padding,
-                               (dilation, dilation), layout='NHWC', out_dtype=dtype)
-            s = topi.generic.schedule_conv2d_nhwc([B])
+            fcompute, fschedule = topi.testing.dispatch(device, _conv2d_nhwc_implement)
+            B = fcompute(A, W, stride, padding, dilation, dtype)
+            s = fschedule([B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)

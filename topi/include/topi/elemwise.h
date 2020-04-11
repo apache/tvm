@@ -27,6 +27,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
 #include <topi/tags.h>
+#include <algorithm>
 #include <string>
 #include "broadcast.h"
 
@@ -55,11 +56,15 @@ TOPI_DECLARE_UNARY_OP(round);
 TOPI_DECLARE_UNARY_OP(trunc);
 TOPI_DECLARE_UNARY_OP(abs);
 TOPI_DECLARE_UNARY_OP(cos);
+TOPI_DECLARE_UNARY_OP(tan);
 TOPI_DECLARE_UNARY_OP(sin);
 TOPI_DECLARE_UNARY_OP(atan);
 TOPI_DECLARE_UNARY_OP(isnan);
+TOPI_DECLARE_UNARY_OP(tanh);
+TOPI_DECLARE_UNARY_OP(isfinite);
+TOPI_DECLARE_UNARY_OP(isinf);
 
-/*
+/*!
  * \brief Fast_tanh_float implementation from Eigen
  * https://github.com/eigenteam/eigen-git-mirror/blob/master/Eigen/src/Core/MathFunctionsImpl.h#L26
  */
@@ -113,9 +118,9 @@ inline Tensor fast_tanh_float(const Tensor& in,
 *
 * \return A Tensor whose op member is tanh
 */
-inline Tensor tanh(const Tensor& x,
-                   std::string name = "T_tanh",
-                   std::string tag = kElementWise) {
+inline Tensor fast_tanh(const Tensor& x,
+                        std::string name = "T_fast_tanh",
+                        std::string tag = kElementWise) {
   if (x->dtype == DataType::Float(32)) {
     // invoke fast_tanh_float implementation
     return fast_tanh_float(x, name, tag);
@@ -375,6 +380,156 @@ inline Tensor full_like(const Tensor& x,
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);
+}
+
+/*!
+ * \brief Fast exponential function implementation
+ *
+ * \param _x The input tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is exponent operation
+ *
+ * \note Function computes:
+ * log2(e^x) = x * log2(e) * log2(2) =>
+ * log2(e^x) = log2(2^(x*log2(e))) =>
+ * e^x = 2^(x*log2(e))
+ * Splitting power x*log2(e) into integer and fractional parts:
+ * e^(n+f) = e^n * e^f
+ * n = floor(x*log2(e) + 1/2)
+ * f = x - n * ln(2)
+ * exp(x) = 2^n * exp(y)
+ * Approximation for fractional part:
+ * y = exp(f) = 1 + 2 * P(x**2)/(Q(x**2) - P(x**2))
+ */
+inline Tensor fast_exp_float32(const Tensor& _x,
+                               std::string name,
+                               std::string tag) {
+  auto x_hi = make_const(DataType::Float(32), 88.3762626647950f);
+  auto x_lo = make_const(DataType::Float(32), -88.3762626647949f);
+  auto log2e = make_const(DataType::Float(32), 1.44269504088896341f);
+  auto ln2 = make_const(DataType::Float(32), 0.6931471805599453f);
+  PrimExpr p[6] = {make_const(DataType::Float(32), 1.9875691500E-4f),
+                   make_const(DataType::Float(32), 1.3981999507E-3f),
+                   make_const(DataType::Float(32), 8.3334519073E-3f),
+                   make_const(DataType::Float(32), 4.1665795894E-2f),
+                   make_const(DataType::Float(32), 1.6666665459E-1f),
+                   make_const(DataType::Float(32), 5.0000001201E-1f)};
+  auto one = make_const(DataType::Float(32), 1.0f);
+  auto one_half = make_const(DataType::Float(32), 0.5f);
+  auto b = make_const(DataType::Float(32), 127.0f);
+
+  return compute(_x->shape,
+                 [&](const Array<Var>& i) {
+                   // clamp x
+                   auto x = ::tvm::max(::tvm::min(_x(i), x_hi), x_lo);
+                   // integer part
+                   auto n = ::tvm::floor(x * log2e + one_half);
+                   // fractional part
+                   auto f = x - n * ln2;
+                   auto y = (((((p[0] * f + p[1]) * f + p[2]) * f + p[3])* f+ p[4]) * f
+                             + p[5]) * f * f + f + one;
+                   // Return 2^m * exp(r).
+                   auto ef = tvm::reinterpret(DataType::Float(32),
+                                              ::tvm::cast(DataType::Int(32), n + b) << 23);
+                   return ::tvm::max(ef * y, _x(i)); // NOLINT(*)
+                 },
+                 name, tag);
+}
+
+
+/*!
+ * \brief Fast exponential function implementation
+ *
+ * \param x The input tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is exponent operation
+ *
+ */
+inline Tensor fast_exp(const Tensor& x,
+                  std::string name = "T_fast_exp",
+                  std::string tag = kElementWise) {
+  if (x->dtype == DataType::Float(32)) {
+    auto ret = fast_exp_float32(x, name, tag);
+    return ret;
+  } else {
+    return compute(x->shape, [&](const Array<Var>& i) {
+        return ::tvm::exp(x(i));
+      }, name, tag);
+  }
+}
+
+/*!
+ * \brief Fast_tanh_float implementation from Eigen
+ * https://github.com/eigenteam/eigen-git-mirror/blob/master/unsupported/Eigen/src/SpecialFunctions/SpecialFunctionsImpl.h#L290
+ */
+inline Tensor fast_erf_float32(const Tensor& data,
+                               std::string name,
+                               std::string tag) {
+  auto plus_4 = make_const(DataType::Float(32), 4.f);
+  auto minus_4 = make_const(DataType::Float(32), -4.f);
+
+  // The monomial coefficients of the numerator polynomial (odd).
+  auto alpha_1 = make_const(DataType::Float(32), -1.60960333262415e-02f);
+  auto alpha_3 = make_const(DataType::Float(32), -2.95459980854025e-03f);
+  auto alpha_5 = make_const(DataType::Float(32), -7.34990630326855e-04f);
+  auto alpha_7 = make_const(DataType::Float(32), -5.69250639462346e-05f);
+  auto alpha_9 = make_const(DataType::Float(32), -2.10102402082508e-06f);
+  auto alpha_11 = make_const(DataType::Float(32), 2.77068142495902e-08f);
+  auto alpha_13 = make_const(DataType::Float(32), -2.72614225801306e-10f);
+
+  // The monomial coefficients of the denominator polynomial (even).
+  auto beta_0 = make_const(DataType::Float(32), -1.42647390514189e-02f);
+  auto beta_2 = make_const(DataType::Float(32), -7.37332916720468e-03f);
+  auto beta_4 = make_const(DataType::Float(32), -1.68282697438203e-03f);
+  auto beta_6 = make_const(DataType::Float(32), -2.13374055278905e-04f);
+  auto beta_8 = make_const(DataType::Float(32), -1.45660718464996e-05f);
+
+  return compute(data->shape, [&](const Array<Var> &i) {
+    // clamp x
+    auto x = tvm::max(tvm::min(data(i), plus_4), minus_4);
+    auto x2 = x * x;
+
+    // Evaluate the numerator polynomial p.
+    auto p = x2 * alpha_13 + alpha_11;
+    p = x2 * p + alpha_9;
+    p = x2 * p + alpha_7;
+    p = x2 * p + alpha_5;
+    p = x2 * p + alpha_3;
+    p = x2 * p + alpha_1;
+    p = x * p;
+
+    // Evaluate the denominator polynomial p.
+    auto q = x2 * beta_8 + beta_6;
+    q = x2 * q + beta_4;
+    q = x2 * q + beta_2;
+    q = x2 * q + beta_0;
+
+    return p / q;
+  }, name, tag);
+}
+
+/*!
+ * \brief Fast erf implementation
+ *
+ * \param x The input tensor
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is erf operation
+ */
+inline Tensor fast_erf(const Tensor& x,
+                       std::string name = "T_fast_erf",
+                       std::string tag = kElementWise) {
+  if (x->dtype == DataType::Float(32)) {
+    auto ret = fast_erf_float32(x, name, tag);
+    return ret;
+  } else {
+    return topi::erf(x);
+  }
 }
 
 }  // namespace topi

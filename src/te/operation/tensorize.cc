@@ -24,6 +24,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/runtime/registry.h>
 
 #include "op_util.h"
@@ -330,6 +331,7 @@ void VerifyTensorizeBody(
     const std::unordered_map<IterVar, Range>& out_dom,
     const std::unordered_map<Tensor, Array<Range> >& in_region,
     const TensorIntrin& intrin) {
+  StructuralEqual expr_equal;
   Map<Var, Range> compute_intrin_iter_space;
   Array<PrimExpr> body = MatchTensorizeBody(self, stage, dom_map, out_dom, in_region, intrin,
                                         &compute_intrin_iter_space);
@@ -349,7 +351,7 @@ void VerifyTensorizeBody(
           << " provided=" << lhs.dtype()
           << ", intrin=" << rhs.dtype();
     }
-    CHECK(Equal(lhs, rhs))
+    CHECK(expr_equal(lhs, rhs))
         << "Failed to match the compute with TensorIntrin "
         << intrin->name << "'s declaration "
         << " provided= " << lhs

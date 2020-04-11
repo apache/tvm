@@ -30,7 +30,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <topi/elemwise.h>
 
-#include "../../pass/infer_layout_util.h"
+#include "../../transforms/infer_layout_util.h"
 #include "../type_relations.h"
 
 namespace tvm {
@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.on_device")
   auto attrs = make_object<OnDeviceAttrs>();
   attrs->device_type = device_type;
   static const Op& op = Op::Get("on_device");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("on_device")
@@ -59,7 +59,7 @@ RELAY_REGISTER_OP("on_device")
 
 Expr StopFusion(Expr data) {
   static const Op& op = Op::Get("annotation.stop_fusion");
-  return CallNode::make(op, {data}, Attrs{}, {});
+  return Call(op, {data}, Attrs{}, {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.stop_fusion")
@@ -79,7 +79,7 @@ TVM_ADD_FILELINE)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -90,7 +90,7 @@ Expr CastHint(Expr data, DataType dtype) {
   auto attrs = make_object<CastHintAttrs>();
   attrs->dtype = dtype;
   static const Op& op = Op::Get("annotation.cast_hint");
-  return CallNode::make(op, {data}, Attrs{attrs}, {});
+  return Call(op, {data}, Attrs{attrs}, {});
 }
 
 RELAY_REGISTER_OP("annotation.cast_hint")
@@ -105,7 +105,7 @@ TVM_ADD_FILELINE)
 .set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -123,7 +123,7 @@ Mark the start of bitpacking.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -140,14 +140,14 @@ Mark the end of bitpacking.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
 TVM_REGISTER_GLOBAL("relay.op.annotation._make.checkpoint")
 .set_body_typed([](Expr data) {
   static const Op& op = Op::Get("annotation.checkpoint");
-  return CallNode::make(op, {data}, Attrs{}, {});
+  return Call(op, {data}, Attrs{}, {});
 });
 
 RELAY_REGISTER_OP("annotation.checkpoint")
@@ -163,13 +163,15 @@ Mark a checkpoint for checkpointing memory optimization.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          Array<te::Tensor> outputs;
                          for (size_t i = 0; i < inputs.size(); ++i) {
                            outputs.push_back(topi::identity(inputs[i]));
                          }
                          return outputs;
                        });
+
+TVM_REGISTER_NODE_TYPE(CompilerAttrs);
 
 RELAY_REGISTER_OP("annotation.compiler_begin")
 .describe(R"code(
@@ -184,7 +186,7 @@ Beginning of a region that is handled by a given compiler.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -193,7 +195,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_begin")
   auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
   static const Op& op = Op::Get("annotation.compiler_begin");
-  return CallNode::make(op, {expr}, Attrs(attrs), {});
+  return Call(op, {expr}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("annotation.compiler_end")
@@ -209,7 +211,7 @@ End of a region that is handled by a given compiler.
                                ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute",
                        [](const Attrs& attrs, const Array<te::Tensor>& inputs,
-                          const Type& out_dtype, const Target& target) -> Array<te::Tensor> {
+                          const Type& out_dtype) -> Array<te::Tensor> {
                          return {topi::identity(inputs[0])};
                        });
 
@@ -218,7 +220,7 @@ TVM_REGISTER_GLOBAL("relay.op.annotation._make.compiler_end")
   auto attrs = make_object<CompilerAttrs>();
   attrs->compiler = compiler;
   static const Op& op = Op::Get("annotation.compiler_end");
-  return CallNode::make(op, {expr}, Attrs(attrs), {});
+  return Call(op, {expr}, Attrs(attrs), {});
 });
 
 }  // namespace relay

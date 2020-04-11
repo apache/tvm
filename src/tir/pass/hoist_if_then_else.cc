@@ -159,8 +159,7 @@ Stmt update_for(const Stmt& parent_for_stmt, const Stmt& new_if_stmt) {
       }
     });
 
-  return IRTransform(parent_for_stmt, nullptr, replace_target_for,
-                     {PrimExpr("For")});
+  return IRTransform(parent_for_stmt, nullptr, replace_target_for, {"For"});
 }
 
 // Remove IfThenElse node from a For node.
@@ -186,11 +185,9 @@ std::pair<Stmt, Stmt> RemoveIf(const Stmt& for_stmt, const Stmt& if_stmt) {
       }
     });
 
-  then_for = IRTransform(for_stmt, nullptr, replace_then_case,
-                         {PrimExpr("IfThenElse")});
+  then_for = IRTransform(for_stmt, nullptr, replace_then_case, {"IfThenElse"});
   if (if_stmt.as<IfThenElseNode>()->else_case.defined()) {
-    else_for = IRTransform(for_stmt, nullptr, replace_else_case,
-                           {PrimExpr("IfThenElse")});
+    else_for = IRTransform(for_stmt, nullptr, replace_else_case, {"IfThenElse"});
   }
 
   return std::make_pair(then_for, else_for);
@@ -411,7 +408,7 @@ Stmt IfThenElseHoist::PostOrderMutate(const Stmt& stmt) {
         *ret = new_for;
       }
     });
-  return IRTransform(stmt, nullptr, replace_top_for, {PrimExpr("For")});
+  return IRTransform(stmt, nullptr, replace_top_for, {runtime::String("For")});
 }
 
 Stmt HoistIfThenElse(Stmt stmt) {

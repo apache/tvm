@@ -21,7 +21,7 @@
 # Execute command within a docker container
 #
 # Usage: build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                    <COMMAND>
+#                [--net=host] [--cache-from <IMAGE_NAME>] <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
@@ -29,6 +29,9 @@
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
+#
+# IMAGE_NAME: An image to be as a source for cached layers when building the
+#             Docker image requested.
 #
 # COMMAND: Command to be executed in the docker container
 #
@@ -60,6 +63,13 @@ if [[ "$1" == "--net=host" ]]; then
     shift 1
 fi
 
+if [[ "$1" == "--cache-from" ]]; then
+    shift 1
+    cached_image="$1"
+    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
+    shift 1
+fi
+
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
     echo "Invalid Dockerfile path: \"${DOCKERFILE_PATH}\""
     exit 1
@@ -79,7 +89,7 @@ if [ "$#" -lt 1 ] || [ ! -e "${SCRIPT_DIR}/Dockerfile.${CONTAINER_TYPE}" ]; then
 fi
 
 # Use nvidia-docker if the container is GPU.
-if [[ "${DOCKER_IMAGE_NAME}" == *"gpu"* ]]; then
+if [[ "${CONTAINER_TYPE}" == *"gpu"* ]]; then
     if ! type "nvidia-docker" 1> /dev/null 2> /dev/null
     then
         DOCKER_BINARY="docker"
@@ -126,7 +136,9 @@ echo ""
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 docker build -t ${DOCKER_IMG_NAME} \
-    -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}"
+    -f "${DOCKERFILE_PATH}" \
+    ${CI_DOCKER_BUILD_EXTRA_PARAMS[@]} \
+    "${DOCKER_CONTEXT_PATH}"
 
 # Check docker build status
 if [[ $? != "0" ]]; then

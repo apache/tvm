@@ -96,13 +96,14 @@ and the Firefly-RK3399 for an OpenCL example.
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import rpc
 from tvm.contrib import util
 
-n = tvm.convert(1024)
-A = tvm.placeholder((n,), name='A')
-B = tvm.compute((n,), lambda i: A[i] + 1.0, name='B')
-s = tvm.create_schedule(B.op)
+n = tvm.runtime.convert(1024)
+A = te.placeholder((n,), name='A')
+B = te.compute((n,), lambda i: A[i] + 1.0, name='B')
+s = te.create_schedule(B.op)
 
 ######################################################################
 # Then we cross compile the kernel.
@@ -228,10 +229,10 @@ def run_opencl():
     opencl_device_port = 9090
 
     # create schedule for the above "add one" compute declaration
-    s = tvm.create_schedule(B.op)
+    s = te.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=32)
-    s[B].bind(xo, tvm.thread_axis("blockIdx.x"))
-    s[B].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[B].bind(xo, te.thread_axis("blockIdx.x"))
+    s[B].bind(xi, te.thread_axis("threadIdx.x"))
     func = tvm.build(s, [A, B], "opencl", target_host=target_host)
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)

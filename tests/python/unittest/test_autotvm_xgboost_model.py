@@ -19,6 +19,7 @@ import time
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import autotvm
 from tvm.autotvm import MeasureInput, MeasureResult
 from tvm.autotvm.tuner.xgboost_cost_model import XGBoostCostModel

@@ -25,6 +25,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/ir/module.h>
 #include <tvm/target/codegen.h>
 #include <mutex>
 #include "llvm_common.h"
@@ -66,16 +67,23 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     } else if (name == "_get_target_triple") {
       std::string target_triple = tm_->getTargetTriple().str();
       return PackedFunc([target_triple](TVMArgs args, TVMRetValue *rv) {
-        * rv = target_triple;
+        *rv = target_triple;
       });
     }
     if (ee_ == nullptr) LazyInitJIT();
-    std::lock_guard<std::mutex> lock(mutex_);
-    const std::string& fname = (name == runtime::symbol::tvm_module_main ?
-                                entry_func_ : name);
 
-    TVMBackendPackedCFunc faddr =
-        reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(fname));
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    TVMBackendPackedCFunc faddr;
+    if (name == runtime::symbol::tvm_module_main) {
+      const char* entry_name = reinterpret_cast<const char*>(
+          GetGlobalAddr(runtime::symbol::tvm_module_main));
+      CHECK(entry_name != nullptr)
+          << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
+      faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(entry_name));
+    } else {
+      faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name));
+    }
     if (faddr == nullptr) return PackedFunc();
     return WrapPackedFunc(faddr, sptr_to_self);
   }
@@ -192,21 +200,40 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     return "";
   }
 
-  void Init(const Array<LoweredFunc>& funcs, std::string target) {
+  void Init(const IRModule& mod, std::string target) {
     InitializeLLVM();
     tm_ = GetLLVMTargetMachine(target);
     bool system_lib = (target.find("-system-lib") != std::string::npos);
-    CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
     std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
-    entry_func_ = funcs[0]->name;
-    cg->Init(funcs[0]->name, tm_.get(), ctx_.get(), system_lib, system_lib);
-    for (LoweredFunc f :  funcs) {
+
+    std::vector<PrimFunc> funcs;
+    std::string entry_func;
+    for (auto kv :  mod->functions) {
+      CHECK(kv.second->IsInstance<PrimFuncNode>())
+          << "Can only lower IR Module with PrimFuncs";
+      auto f = Downcast<PrimFunc>(kv.second);
+      if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
+        auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        CHECK(global_symbol.defined());
+        entry_func = global_symbol;
+      }
+      funcs.push_back(f);
+    }
+    CHECK_NE(funcs.size(), 0U);
+    // TODO(tqchen): remove the entry function behavior as it does not
+    // makes sense when we start to use multiple modules.
+    cg->Init("TVMMod", tm_.get(), ctx_.get(), system_lib, system_lib);
+
+    for (const auto& f : funcs) {
       cg->AddFunction(f);
     }
-    cg->AddMainFunction(funcs[0]->name);
-    module_ = cg->Finish();
 
+    if (entry_func.length() != 0) {
+      cg->AddMainFunction(entry_func);
+    }
+
+    module_ = cg->Finish();
     module_->addModuleFlag(llvm::Module::Warning, "tvm_target", llvm::MDString::get(*ctx_, target));
     module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                            llvm::DEBUG_METADATA_VERSION);
@@ -231,7 +258,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     llvm::SMDiagnostic err;
     module_ = std::move(module);
     if (module_ == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load module: " << msg;
     }
     std::string target_;
@@ -239,7 +266,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     if (mtarget != nullptr) {
       llvm::MDString* pstr = llvm::dyn_cast<llvm::MDString>(mtarget);
       CHECK(pstr != nullptr);
-      target_ = pstr->getString();
+      target_ = pstr->getString().str();
     } else {
       std::ostringstream os;
       os << "llvm -target " << module_->getTargetTriple();
@@ -254,7 +281,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     llvm::SMDiagnostic err;
     auto module = llvm::parseIRFile(file_name, err, *ctx);
     if (module == nullptr) {
-      std::string msg = err.getMessage();
+      std::string msg = std::string(err.getMessage());
       LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
                  << "line " << err.getLineNo() << ":" << msg;
     }
@@ -296,11 +323,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << layout.getStringRepresentation() << ")";
     ee_ = builder.create(tm.release());
     CHECK(ee_ != nullptr)
-        << "Failed to initialize git engine for " << mptr_->getTargetTriple();
+        << "Failed to initialize jit engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
-    // setup context address.
-    entry_func_ =
-        reinterpret_cast<const char*>(GetGlobalAddr(runtime::symbol::tvm_module_main));
+
     if (void** ctx_addr = reinterpret_cast<void**>(
             GetGlobalAddr(runtime::symbol::tvm_module_ctx))) {
       *ctx_addr = this;
@@ -310,7 +335,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       });
   }
   // Get global address from execution engine.
-  uint64_t GetGlobalAddr(const std::string& name) {
+  uint64_t GetGlobalAddr(const std::string& name) const {
     // first verifies if GV exists.
     if (mptr_->getGlobalVariable(name) != nullptr) {
       return ee_->getGlobalValueAddress(name);
@@ -318,7 +343,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       return 0;
     }
   }
-  uint64_t GetFunctionAddr(const std::string& name) {
+  uint64_t GetFunctionAddr(const std::string& name) const {
     // first verifies if GV exists.
     if (mptr_->getFunction(name) != nullptr) {
       return ee_->getFunctionAddress(name);
@@ -329,8 +354,6 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   // The target configuration string
   std::string target_;
-  // Name of entry function.
-  std::string entry_func_;
   // JIT lock
   std::mutex mutex_;
   // execution engine
@@ -349,21 +372,44 @@ unsigned LookupLLVMIntrinsic(const std::string& name) {
   return llvm::Function::lookupIntrinsicID(name);
 }
 
-TVM_REGISTER_GLOBAL("codegen.llvm_lookup_intrinsic_id")
+
+TVM_REGISTER_GLOBAL("target.build.llvm")
+.set_body_typed([](IRModule mod, std::string target) {
+  auto n = make_object<LLVMModuleNode>();
+  n->Init(mod, target);
+  return runtime::Module(n);
+});
+
+
+TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  auto n = make_object<LLVMModuleNode>();
+  auto target = args[0].operator std::string();
+  auto module_name = args[1].operator std::string();
+
+  // Generate a LLVM module from an input target string
+  InitializeLLVM();
+  auto tm = GetLLVMTargetMachine(target);
+  auto ctx = std::make_shared<llvm::LLVMContext>();
+  std::unique_ptr<llvm::Module> module(new llvm::Module(module_name, *ctx));
+
+  // Use a default data layout and target triple
+  auto triple = tm->getTargetTriple();
+  module->setTargetTriple(triple.str());
+  module->setDataLayout(tm->createDataLayout());
+
+  n->Init(std::move(module), ctx);
+
+  *rv = runtime::Module(n);
+});
+
+TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
   });
 
-TVM_REGISTER_GLOBAL("codegen.build_llvm")
+TVM_REGISTER_GLOBAL("target.llvm_version_major")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    auto n = make_object<LLVMModuleNode>();
-    n->Init(args[0].operator Array<LoweredFunc>(), args[1].operator std::string());
-    *rv = runtime::Module(n);
-  });
-
-TVM_REGISTER_GLOBAL("codegen.llvm_version_major")
-.set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::ostringstream os;
     int major = TVM_LLVM_VERSION / 10;
     *rv = major;
   });

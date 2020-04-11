@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test eliminate common subexpr pass"""
+import tvm
+from tvm import te
+
 from tvm import relay
 from tvm.relay.op import register_alter_op_layout
 from tvm.relay import transform, analysis
@@ -22,7 +25,7 @@ from tvm.relay import transform, analysis
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -49,7 +52,7 @@ def test_simple():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr())
-    assert analysis.alpha_equal(z, expected())
+    assert tvm.ir.structural_equal(z, expected())
 
 
 def test_callback():
@@ -79,7 +82,7 @@ def test_callback():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr(fskip))
-    assert analysis.alpha_equal(z, expected())
+    assert tvm.ir.structural_equal(z, expected())
 
 
 if __name__ == "__main__":

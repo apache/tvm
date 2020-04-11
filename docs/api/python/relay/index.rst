@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Relay API
+tvm.relay
 =========
 
 This document contains the Python API for the Relay frontend, optimizer, and
@@ -27,17 +27,22 @@ compiler stack.
 .. toctree::
    :maxdepth: 2
 
+   analysis
    backend
-   base
-   build_module
-   expr
    frontend
    image
-   analysis
    transform
-   module
    nn
    op
-   scope_builder
-   ty
    vision
+   testing
+
+.. automodule:: tvm.relay
+    :members:
+    :imported-members:
+    :exclude-members: RelayExpr, Pass, PassInfo, function_pass, PassContext,
+      ModulePass, FunctionPass, Sequential, module_pass, Type, TypeKind,
+      TypeVar, GlobalTypeVar, TypeConstraint, FuncType, TupleType, IncompleteType,
+      TypeCall, TypeRelation, TensorType, RelayRefType, GlobalVar, SourceName,
+      Span, Var, Op, Constructor
+    :autosummary:

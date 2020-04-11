@@ -24,42 +24,41 @@ import traceback
 # tvm._ffi
 from ._ffi.base import TVMError, __version__
 from ._ffi.runtime_ctypes import TypeCode, DataType
-from ._ffi.registry import register_object, register_func, register_extension
+from ._ffi import register_object, register_func, register_extension, get_global_func
 
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
 from .runtime.ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
-from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev
+from .runtime.ndarray import vpi, rocm, opengl, ext_dev, micro_dev, hexagon
 from .runtime import ndarray as nd
 
-# others
-from . import tensor
-from . import arith
-from . import expr
-from . import stmt
-from . import make
-from . import ir_pass
-from . import codegen
-from . import container
-from . import schedule
-
-from . import attrs
-from . import ir_builder
-from . import target
-from . import generic
-from . import hybrid
-from . import testing
+# tvm.error
 from . import error
-from . import datatype
 
+# tvm.ir
+from .ir import IRModule
+from .ir import transform
+from .ir import container
+from . import ir
 
-from .api import *
-from .intrin import *
-from .tensor_intrin import decl_tensor_intrin
-from .schedule import create_schedule
-from .build_module import build, lower, build_config
-from .tag import tag_scope
+# tvm.tir
+from . import tir
+
+# tvm.target
+from . import target
+
+# tvm.te
+from . import te
+
+# tvm.testing
+from . import testing
+
+# tvm.driver
+from .driver import build, lower
+
+# others
+from . import arith
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

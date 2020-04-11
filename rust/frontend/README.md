@@ -109,7 +109,7 @@ and the model correctly predicts the input image as **tiger cat**.
 
 ## Installations
 
-Please follow TVM [installations](https://docs.tvm.ai/install/index.html), `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
+Please follow TVM [installations](https://tvm.apache.org/docs/install/index.html), `export TVM_HOME=/path/to/tvm` and add `libtvm_runtime` to your `LD_LIBRARY_PATH`.
 
 *Note:* To run the end-to-end examples and tests, `tvm` and `topi` need to be added to your `PYTHONPATH` or it's automatic via an Anaconda environment when it is installed individually.
 
@@ -122,17 +122,18 @@ One can use the following Python snippet to generate `add_gpu.so` which add two 
 ```python
 import os
 import tvm
+from tvm import te
 from tvm.contrib import cc
 
 def test_add(target_dir):
     if not tvm.runtime.enabled("cuda"):
         print("skip {__file__} because cuda is not enabled...".format(__file__=__file__))
         return
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = tvm.create_schedule(C.op)
+    n = te.var("n")
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
     bx, tx = s[C].split(C.op.axis[0], factor=64)
     s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))

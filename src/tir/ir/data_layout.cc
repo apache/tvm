@@ -21,6 +21,7 @@
  * \file src/lang/data_layout.cc
  * \brief Data Layout expression.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/ir_pass.h>
 #include <cctype>
@@ -349,20 +350,18 @@ Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) con
                         self->src_layout->axes, self->backward_rule);
 }
 
-BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
-                                          const Layout& dst_layout) {
+BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
   auto n = make_object<BijectiveLayoutNode>();
 
-  n->src_layout = src_layout;
-  n->dst_layout = dst_layout;
+  n->src_layout = std::move(src_layout);
+  n->dst_layout = std::move(dst_layout);
 
-  if (!GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
-    // not convertible
-    return BijectiveLayout();
+  // To be consistent with previous behavior, a nullptr layout is created
+  // when argument is invalid.
+  if (GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
+    CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
+    data_ = std::move(n);
   }
-  CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
-
-  return BijectiveLayout(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -371,5 +370,46 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->stream << "BijectiveLayout(" << b->src_layout.name()
               << "->" << b->dst_layout.name() << ")";
   });
+
+TVM_REGISTER_GLOBAL("tir.Layout")
+.set_body_typed(LayoutNode::make);
+
+TVM_REGISTER_GLOBAL("tir.LayoutIndexOf")
+.set_body_typed([](Layout layout, std::string axis) -> int {
+  return layout.IndexOf(LayoutAxis::make(axis));
+});
+
+TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
+.set_body_typed([](Layout layout, std::string axis) -> int {
+  return layout.FactorOf(LayoutAxis::make(axis));
+});
+
+TVM_REGISTER_GLOBAL("tir.LayoutNdim")
+.set_body_typed([](Layout layout) -> int {
+  return layout.ndim();
+});
+
+TVM_REGISTER_GLOBAL("tir.LayoutGetItem")
+.set_body_typed([](Layout layout, int idx) -> std::string {
+  const LayoutAxis& axis = layout[idx];
+  return axis.name();
+});
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayout")
+.set_body_typed([](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
+  return BijectiveLayout(src_layout, dst_layout);
+});
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
+.set_body_method(&BijectiveLayout::ForwardIndex);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardIndex")
+.set_body_method(&BijectiveLayout::BackwardIndex);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardShape")
+.set_body_method(&BijectiveLayout::ForwardShape);
+
+TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardShape")
+.set_body_method(&BijectiveLayout::BackwardShape);
 }  // namespace tir
 }  // namespace tvm

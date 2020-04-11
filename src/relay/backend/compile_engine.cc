@@ -26,6 +26,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
 #include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -47,16 +48,24 @@
 namespace tvm {
 namespace relay {
 
+TVM_REGISTER_NODE_TYPE(LoweredOutputNode);
 TVM_REGISTER_NODE_TYPE(CachedFuncNode);
 TVM_REGISTER_NODE_TYPE(CCacheKeyNode);
 TVM_REGISTER_NODE_TYPE(CCacheValueNode);
 TVM_REGISTER_OBJECT_TYPE(CompileEngineNode);
 
-CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
+LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+  auto n = make_object<LoweredOutputNode>();
+  n->outputs = std::move(outputs);
+  n->implementation = std::move(impl);
+  data_ = std::move(n);
+}
+
+CCacheKey::CCacheKey(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
-  return CCacheKey(n);
+  data_ = std::move(n);
 }
 
 struct IsDynamicVisitor : public TypeVisitor {
@@ -78,7 +87,7 @@ bool IsDynamic(const Type& ty) {
 }
 
 // TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay._make.IsDynamic")
+TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
 .set_body_typed(IsDynamic);
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
@@ -108,9 +117,7 @@ class ScheduleGetter :
   explicit ScheduleGetter(Target target)
       : target_(target), device_copy_op_(Op::Get("device_copy")) {}
 
-  std::pair<te::Schedule, CachedFunc> Create(const Function& prim_func) {
-    static auto fschedule =
-        Op::GetAttr<FTVMSchedule>("FTVMSchedule");
+  CachedFunc Create(const Function& prim_func) {
     auto cache_node = make_object<CachedFuncNode>();
     cache_node->target = target_;
     for (Var param : prim_func->params) {
@@ -147,7 +154,6 @@ class ScheduleGetter :
     }
     cache_node->func_name = candidate_name;
 
-    CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
     // Fusion over tupled results may leave identity relationships
     // between inputs and outputs, and those should not be scheduled.
@@ -161,15 +167,16 @@ class ScheduleGetter :
     te::Schedule schedule;
     // No need to register schedule for device copy op.
     if (master_attrs_.as<DeviceCopyAttrs>() == nullptr) {
-      schedule =
-          fschedule[master_op_](master_attrs_, tensor_outs, target_);
+      CHECK(master_implementation_.defined());
+      schedule = master_implementation_.Schedule(master_attrs_, tensor_outs, target_);
       for (const auto& scalar : scalars_) {
         if (schedule->Contain(scalar)) {
           schedule[scalar].compute_inline();
         }
       }
     }
-    return std::make_pair(schedule, cfunc);
+    cache_node->schedule = std::move(schedule);
+    return CachedFunc(cache_node);
   }
 
   Array<te::Tensor> VisitExpr(const Expr& expr) {
@@ -208,16 +215,16 @@ class ScheduleGetter :
           LOG(FATAL) << "not handled";
           return tvm::PrimExpr();
         }
-      }, "compile_engine_const", topi::kBroadcast);
+    }, "compile_engine_const", topi::kBroadcast);
     scalars_.push_back(value->op);
     return {value};
   }
 
   Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
-    static auto fcompute =
-        Op::GetAttr<FTVMCompute>("FTVMCompute");
     static auto fpattern =
         Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto flower_call = tvm::runtime::Registry::Get("relay.backend.lower_call");
+    CHECK(flower_call) << "relay.backend.lower_call is not registered.";
 
     Array<te::Tensor> inputs;
     int count_tuple = 0;
@@ -231,51 +238,37 @@ class ScheduleGetter :
     }
     if (count_tuple) {
       CHECK_EQ(call_node->args.size(), 1U)
-          << "Only allow function with a single tuple input";
-    }
-
-    // Prepare the call_node->checked_type(). For the call node inputs, we ensure that the shape is
-    // Int32. Following code ensures the same for the output as well.
-    // TODO(@icemelon): Support recursive tuple
-    Type call_node_type = call_node->checked_type();
-    if (const auto* tt = call_node->checked_type().as<TensorTypeNode>()) {
-      call_node_type = TensorType(GetShape(tt->shape), tt->dtype);
-    } else if (const auto* tuple_t = call_node->checked_type().as<TupleTypeNode>()) {
-      std::vector<Type> new_fields;
-      for (auto field : tuple_t->fields) {
-        if (const auto* tt = field.as<TensorTypeNode>()) {
-          new_fields.push_back(TensorType(GetShape(tt->shape), tt->dtype));
-        } else {
-          new_fields.push_back(field);
-        }
-      }
-      call_node_type = TupleType(new_fields);
+        << "Only allow function with a single tuple input";
     }
 
     CHECK(call_node->op.as<OpNode>())
-        << "Primitive function only allows call into primitive ops";
+      << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
+
     Array<te::Tensor> outputs;
+    OpImplementation impl;
     // Skip fcompute for device copy operators as it is not registered.
     if (op == device_copy_op_) {
       const auto* copy_input = inputs[0].operator->();
       outputs.push_back(te::TensorNode::make(copy_input->shape, copy_input->dtype,
                                          te::Operation(), 0));
     } else {
-      outputs = fcompute[op](call_node->attrs, inputs,
-                             call_node_type, target_);
+      LoweredOutput lowered_out = (*flower_call)(GetRef<Call>(call_node), inputs, target_);
+      outputs = lowered_out->outputs;
+      impl = lowered_out->implementation;
     }
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
       CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
-          << "Two complicated op in a primitive function "
-          << " master=" << master_op_ << " current=" << op;
+        << "Two complicated op in a primitive function "
+        << " master=" << master_op_ << " current=" << op;
     }
     if (op_pattern >= master_op_pattern_) {
       master_op_ = op;
       master_attrs_ = call_node->attrs;
       master_op_pattern_ = op_pattern;
+      master_implementation_ = impl;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type =
@@ -332,6 +325,7 @@ class ScheduleGetter :
   Op master_op_;
   Attrs master_attrs_;
   int master_op_pattern_{0};
+  OpImplementation master_implementation_;
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> memo_;
   Array<te::Operation> scalars_;
@@ -623,18 +617,18 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (!src_func->UseDefaultCompiler()) {
-        auto compiler = FunctionGetAttr(src_func, attr::kCompiler);
-        const tvm::tir::StringImmNode* code_gen = compiler.as<tvm::tir::StringImmNode>();
-        CHECK(code_gen) << "No external codegen is set";
-        if (ext_mods.find(code_gen->value) == ext_mods.end()) {
-          ext_mods[code_gen->value] = IRModule({}, {});
+      if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
+        auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
+        CHECK(code_gen.defined()) << "No external codegen is set";
+        std::string code_gen_name = code_gen;
+        if (ext_mods.find(code_gen_name) == ext_mods.end()) {
+          ext_mods[code_gen_name] = IRModule({}, {});
         }
-        auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
-        const tvm::tir::StringImmNode* symbol_name = ext_symbol.as<tvm::tir::StringImmNode>();
-        CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
-        auto gv = GlobalVar(symbol_name->value);
-        ext_mods[code_gen->value]->Add(gv, src_func);
+        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+        CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
+                                     << AsText(src_func, false);
+        auto gv = GlobalVar(std::string(symbol_name));
+        ext_mods[code_gen_name]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
     }
@@ -677,8 +671,7 @@ class CompileEngineImpl : public CompileEngineNode {
    * \return Pair of schedule and cache.
    *  The funcs field in cache is not yet populated.
    */
-  std::pair<te::Schedule, CachedFunc> CreateSchedule(
-      const Function& source_func, const Target& target) {
+  CachedFunc CreateSchedule(const Function& source_func, const Target& target) {
     return ScheduleGetter(target).Create(source_func);
   }
 
@@ -699,12 +692,13 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (!key->source_func->UseDefaultCompiler()) {
+    if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
-          FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::tir::StringImmNode>();
-      CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
-      cache_node->func_name = name_node->value;
+          key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+      CHECK(name_node.defined())
+          << "External function has not been attached a name yet.";
+      cache_node->func_name = std::string(name_node);
       cache_node->target = tvm::target::ext_dev();
       value->cached_func = CachedFunc(cache_node);
       return value;
@@ -713,9 +707,9 @@ class CompileEngineImpl : public CompileEngineNode {
     With<Target> target_scope(key->target);
 
     CHECK(!value->cached_func.defined());
-    auto spair = CreateSchedule(key->source_func, key->target);
+    auto cfunc = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_object<CachedFuncNode>(
-        *(spair.second.operator->()));
+        *(cfunc.operator->()));
 
     // Skip lowering for device copy node.
     const Expr body = (key->source_func)->body;
@@ -735,11 +729,12 @@ class CompileEngineImpl : public CompileEngineNode {
     // lower the function
     if (const auto* f = runtime::Registry::Get("relay.backend.lower")) {
       cache_node->funcs = (*f)(
-          spair.first, all_args, cache_node->func_name, key->source_func);
+          cfunc->schedule, all_args, cache_node->func_name, key->source_func);
     } else {
       tvm::BuildConfig bcfg = BuildConfig::Create();
       std::unordered_map<te::Tensor, tir::Buffer> binds;
-      cache_node->funcs = tvm::lower(spair.first, all_args, cache_node->func_name, binds, bcfg);
+      cache_node->funcs = tvm::lower(cfunc->schedule, all_args, cache_node->func_name,
+                                     binds, bcfg);
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -820,8 +815,15 @@ const CompileEngine& CompileEngine::Global() {
   return *inst;
 }
 
+TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
+.set_body_typed([](tvm::Array<te::Tensor> outputs, OpImplementation impl) {
+  return LoweredOutput(outputs, impl);
+});
+
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-.set_body_typed(CCacheKeyNode::make);
+.set_body_typed([](Function source_func, Target target) {
+  return CCacheKey(source_func, target);
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
 .set_body_typed([]() {

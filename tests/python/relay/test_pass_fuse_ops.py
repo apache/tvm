@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.testing import run_opt_pass
@@ -35,6 +36,7 @@ def test_fuse_simple():
         z = relay.exp(y)
         w = relay.squeeze(z)
         f1 = relay.Function([x], w)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         x = relay.var("x", shape=(10, 20))
         y = relay.Call(f1, [x])
         return relay.Function([x], y)
@@ -43,7 +45,7 @@ def test_fuse_simple():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_conv2d_fuse():
@@ -76,6 +78,8 @@ def test_conv2d_fuse():
         x = relay.var("p0", shape=dshape)
         y = relay.add(x, relay.const(1, "float32"))
         f0 = relay.Function([x], y)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+
         # segment 1
         x = relay.var("p0", shape=dshape)
         w = relay.var("p1")
@@ -86,6 +90,8 @@ def test_conv2d_fuse():
         y1 = relay.add(relay.const(1, "float32"), y)
         y = relay.add(y, y1)
         f1 = relay.Function([x, w], y)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+
         # segment 2
         x = relay.var("p0", shape=dshape)
         w = relay.var("p1")
@@ -94,6 +100,8 @@ def test_conv2d_fuse():
                              padding=(1,1),
                              channels=16)
         f2 = relay.Function([x, w], z2)
+        f2 = f2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+
         # segment 3
         x = relay.var("p0", shape=dshape)
         w = relay.var("p1")
@@ -104,6 +112,8 @@ def test_conv2d_fuse():
                              channels=16)
         z3 = relay.add(z3, offset)
         f3 = relay.Function([x, w, offset], z3)
+        f3 = f3.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+
         # compose
         x = relay.var("x", shape=dshape)
         y = relay.Call(f0, [x])
@@ -117,7 +127,7 @@ def test_conv2d_fuse():
     z = before(dshape)
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_concatenate():
@@ -135,6 +145,7 @@ def test_concatenate():
         x = relay.var("x", shape=dshape)
         pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
         f0 = relay.Function([x], pooled)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
         p1 = relay.var("p1", shape=dshape)
@@ -142,6 +153,7 @@ def test_concatenate():
         concat = relay.concatenate((upsampled, p1), axis=1)
         out = relay.add(concat, relay.const(1, "float32"))
         f1 = relay.Function([p0, p1], out)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         x = relay.var("x", shape=dshape)
         y = relay.Call(f0, [x])
@@ -155,7 +167,7 @@ def test_concatenate():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_tuple_root():
@@ -172,10 +184,12 @@ def test_tuple_root():
         x = relay.var("x", shape=dshape)
         pooled = relay.nn.max_pool2d(x, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
         f0 = relay.Function([x], pooled)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p0 = relay.var("p0", shape=(dshape[0], dshape[1], dshape[2]//2, dshape[3]//2))
         upsampled = relay.nn.upsampling(p0, scale_h=2, scale_w=2, layout="NCHW")
         f1 = relay.Function([p0], upsampled)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         x = relay.var("x", shape=dshape)
         y = relay.Call(f0, [x])
@@ -190,7 +204,7 @@ def test_tuple_root():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_stop_fusion():
@@ -205,10 +219,12 @@ def test_stop_fusion():
         x = relay.var("p0", shape=dshape)
         y = relay.add(x, relay.const(1, "float32"))
         f1 = relay.Function([x], y)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         x = relay.var("p01", shape=dshape)
         y = relay.exp(x)
         f2 = relay.Function([x], y)
+        f2 = f2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         x = relay.var("x", shape=dshape)
         y = relay.Call(f1, [x])
@@ -219,7 +235,7 @@ def test_stop_fusion():
     z = before(dshape)
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_fuse_myia_regression():
@@ -242,6 +258,7 @@ def test_fuse_myia_regression():
         p2 = relay.var('p2', shape=dshape, dtype=dtype)
         fused_gt = relay.Function([p1, p2],
             relay.op.greater(p1, p2))
+        fused_gt = fused_gt.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         with sb.if_scope(fused_gt(x, y)):
             sb.ret(relay.Function([], x))
         with sb.else_scope():
@@ -254,7 +271,7 @@ def test_fuse_myia_regression():
     f = before(dshape, dtype)
     zz = run_opt_pass(f, transform.FuseOps())
     after = run_opt_pass(expected(dshape, dtype), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_fuse_tuple_get_elemwise():
@@ -271,11 +288,13 @@ def test_fuse_tuple_get_elemwise():
         p1 = relay.var("p1", shape=(3 * dim, dim))
         matmul = relay.nn.dense(p0, p1)
         f0 = relay.Function([p0, p1], matmul)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p01 = relay.var("p01", shape=(1, 3 * dim))
         splitted = relay.split(p01, indices_or_sections=3, axis=1)
         out = relay.sigmoid(splitted[0]) + relay.tanh(splitted[1]) * relay.exp(splitted[2])
         f1 = relay.Function([p01], out)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         X = relay.var("X", shape=(1, dim))
         W = relay.var("W", shape=(3 * dim, dim))
@@ -290,7 +309,7 @@ def test_fuse_tuple_get_elemwise():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dim), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_tuple_get_root():
@@ -306,11 +325,13 @@ def test_tuple_get_root():
         splitted = relay.split(p0, indices_or_sections=3, axis=1)
         out = splitted[0]
         f0 = relay.Function([p0], out)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p01 = relay.var("p01", shape=(1, dim))
         p1 = relay.var("p1", shape=(dim, dim))
         out = relay.nn.dense(p01, p1)
         f1 = relay.Function([p01, p1], out)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         X = relay.var("X", shape=(1, 3 * dim))
         W = relay.var("W", shape=(dim, dim))
@@ -325,7 +346,7 @@ def test_tuple_get_root():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(dim), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 fuse0 = relay.transform.FuseOps(fuse_opt_level=0)
@@ -346,18 +367,19 @@ def test_tuple_intermediate():
 
     def expected(p0):
         f0 = before(p0)
+        f1 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         x = relay.var("x", shape=dshape)
-        y = relay.Call(f0, [x])
+        y = relay.Call(f1, [x])
         return relay.Function([x], y)
 
     dshape = (1, 16, 64, 64)
     x = relay.var("x", shape=dshape)
     orig = before(x)
-    fuse0(relay.Module.from_expr(orig))
-    m = fuse2(relay.Module.from_expr(orig))
+    fuse0(tvm.IRModule.from_expr(orig))
+    m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(x), transform.InferType())
-    assert relay.analysis.alpha_equal(m["main"], after)
+    assert tvm.ir.structural_equal(m["main"], after)
 
 
 def test_tuple_consecutive():
@@ -388,15 +410,18 @@ def test_tuple_consecutive():
         p0 = relay.var("p0", shape=dshape)
         concat = gen_consecutive_tuple(p0)
         f0 = relay.Function([p0], concat)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p01 = relay.var("p01", shape=(1, dshape[1]*9, dshape[2], dshape[3]))
         pooled = relay.nn.max_pool2d(p01, pool_size=(2, 2), strides=(2, 2), padding=(0, 0))
         out = relay.add(pooled, relay.const(1, "float32"))
         f1 = relay.Function([p01], out)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p02 = relay.var("p02", shape=(1, dshape[1]*9, dshape[2]//2, dshape[3]//2))
         out = relay.add(p02, relay.const(1, "float32"))
         f2 = relay.Function([p02], out)
+        f2 = f2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         x = relay.var("x", shape=dshape)
         y = relay.Call(f0, [x])
@@ -408,11 +433,11 @@ def test_tuple_consecutive():
     dshape = (1, 16, 64, 64)
     x = relay.var("x", shape=dshape)
     orig = before(x)
-    fuse0(relay.Module.from_expr(orig))
-    m = fuse2(relay.Module.from_expr(orig))
+    fuse0(tvm.IRModule.from_expr(orig))
+    m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(m["main"], after)
+    assert tvm.ir.structural_equal(m["main"], after)
 
 
 def test_inception_like():
@@ -438,30 +463,36 @@ def test_inception_like():
         p0 = relay.var("p0", shape=dshape)
         c = conv(p0)
         f0 = relay.Function(relay.analysis.free_vars(c), c)
+        f0 = f0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p01 = relay.var("p01", shape=dshape)
         c = conv(p01)
         f1 = relay.Function(relay.analysis.free_vars(c), c)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p02 = relay.var("p02", shape=dshape)
         p12 = relay.var("p12", shape=dshape)
         concat1 = relay.concatenate((p02, p12), axis=1)
         f_concat1 = relay.Function([p02, p12], concat1)
+        f_concat1 = f_concat1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         dshape2 = (dshape[0], dshape[1]*2, dshape[2], dshape[3])
 
         p03 = relay.var("p03", shape=dshape2)
         c = conv(p03)
         f2 = relay.Function(relay.analysis.free_vars(c), c)
+        f2 = f2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p04 = relay.var("p04", shape=dshape2)
         c = conv(p04)
         f3 = relay.Function(relay.analysis.free_vars(c), c)
+        f3 = f3.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         p05 = relay.var("p05", shape=dshape)
         p15 = relay.var("p15", shape=dshape)
         concat2 = relay.concatenate((p05, p15), axis=1)
         f_concat2 = relay.Function([p05, p15], concat2)
+        f_concat2 = f_concat2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
 
         x = relay.var("x", shape=dshape)
         c1 = relay.Call(f0, [x, relay.var("w1")])
@@ -475,11 +506,11 @@ def test_inception_like():
 
     dshape = (1, 16, 64, 64)
     orig = before(dshape)
-    fuse0(relay.Module.from_expr(orig))
-    m = fuse2(relay.Module.from_expr(orig))
+    fuse0(tvm.IRModule.from_expr(orig))
+    m = fuse2(tvm.IRModule.from_expr(orig))
     relay.build(m, 'llvm')
     after = run_opt_pass(expected(dshape), transform.InferType())
-    assert relay.analysis.alpha_equal(m["main"], after)
+    assert tvm.ir.structural_equal(m["main"], after)
 
 
 def test_fuse_parallel_injective():
@@ -499,6 +530,7 @@ def test_fuse_parallel_injective():
         u = relay.transpose(y, axes=[0, 1])
         w = relay.left_shift(z, u)
         f1 = relay.Function([x], w)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         x = relay.var("x", shape=(10, 20))
         y = relay.Call(f1, [x])
         return relay.Function([x], y)
@@ -509,7 +541,7 @@ def test_fuse_parallel_injective():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     assert not relay.analysis.free_vars(zz)
     after = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 
 def test_immutable():
@@ -519,7 +551,7 @@ def test_immutable():
         y = relay.add(x, relay.const(1, "float32"))
         z = relay.exp(y)
         w = relay.squeeze(z)
-        mod = relay.module.Module()
+        mod = tvm.IRModule()
         mod["main"] = relay.Function([x], w)
         return mod
 
@@ -529,16 +561,17 @@ def test_immutable():
         z = relay.exp(y)
         w = relay.squeeze(z)
         f1 = relay.Function([x], w)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         x = relay.var("x", shape=(10, 20))
         y = relay.Call(f1, [x])
-        mod = relay.module.Module()
+        mod = tvm.IRModule()
         mod["main"] = relay.Function([x], y)
         return mod
 
     mod = before()
     new_mod = transform.FuseOps(fuse_opt_level=2)(mod)
-    assert relay.analysis.alpha_equal(mod, before())
-    assert relay.analysis.alpha_equal(new_mod, expected())
+    assert tvm.ir.structural_equal(mod, before())
+    assert tvm.ir.structural_equal(new_mod, expected())
 
 
 def test_split():
@@ -548,7 +581,7 @@ def test_split():
     a = relay.TupleGetItem(y, 0)
     b = relay.TupleGetItem(y, 1)
     c = relay.TupleGetItem(y, 2)
-    mod = relay.module.Module()
+    mod = tvm.IRModule()
     mod["main"] = relay.Function([x], a + relay.RefRead(relay.RefCreate(b)) + c)
     mod = transform.FuseOps()(mod)
 
@@ -570,6 +603,7 @@ def test_fuse_max():
         for i in range(max_fused_ops):
             y = relay.exp(y)
         f1 = relay.Function([x], y)
+        f1 = f1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         x = relay.var("x", shape=(10, 20))
         z = relay.Call(f1, [x])
         xx = relay.var("pp", shape=(10, 20))
@@ -577,6 +611,7 @@ def test_fuse_max():
         for i in range(n-max_fused_ops):
             yy = relay.exp(yy)
         f2 = relay.Function([xx], yy)
+        f2 = f2.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         zz = relay.Call(f2, [z])
         return relay.Function([x], zz)
 
@@ -584,7 +619,7 @@ def test_fuse_max():
     zz = run_opt_pass(z, transform.FuseOps(fuse_opt_level=2))
     zz = run_opt_pass(z, transform.FuseOps())
     after = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, after)
+    assert tvm.ir.structural_equal(zz, after)
 
 if __name__ == "__main__":
     test_fuse_simple()

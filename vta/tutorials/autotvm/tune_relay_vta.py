@@ -60,6 +60,7 @@ from PIL import Image
 
 import topi
 import tvm
+from tvm import te
 from tvm import rpc, autotvm, relay
 from tvm.contrib import graph_runtime, util, download
 from tvm.autotvm.measure.measure_methods import request_remote
@@ -140,7 +141,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Now we can register our devices to the tracker. The first step is to
 # build the TVM runtime for the Pynq devices.
 #
-# Follow `this section <https://docs.tvm.ai/vta/install.html#pynq-side-rpc-server-build-deployment>`_
+# Follow :ref:`vta-index`
 # to build the TVM runtime on the device. Then register the device to the tracker with:
 #
 # .. code-block:: bash
@@ -180,7 +181,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 tracker_host = os.environ.get("TVM_TRACKER_HOST", '0.0.0.0')
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
-# Load VTA parameters from the vta/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
@@ -295,36 +296,35 @@ def tune_tasks(tasks,
 
 
 def register_vta_tuning_tasks():
-    from tvm.autotvm.task.topi_integration import TaskExtractEnv, deserialize_args
+    from tvm.autotvm.task import TaskExtractEnv
 
-    @tvm.tag_scope(tag=topi.tag.ELEMWISE)
+    @tvm.te.tag_scope(tag=topi.tag.ELEMWISE)
     def my_clip(x, a_min, a_max):
         """Unlike topi's current clip, put min and max into two stages."""
-        const_min = tvm.const(a_min, x.dtype)
-        const_max = tvm.const(a_max, x.dtype)
-        x = tvm.compute(x.shape, lambda *i: tvm.min(x(*i), const_max), name="clipA")
-        x = tvm.compute(x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
+        const_min = tvm.tir.const(a_min, x.dtype)
+        const_max = tvm.tir.const(a_max, x.dtype)
+        x = te.compute(x.shape, lambda *i: tvm.te.min(x(*i), const_max), name="clipA")
+        x = te.compute(x.shape, lambda *i: tvm.te.max(x(*i), const_min), name="clipB")
         return x
 
     # init autotvm env to register VTA operator
     TaskExtractEnv()
 
-    @autotvm.task.register("topi_nn_conv2d", override=True)
+    @autotvm.template("conv2d_packed.vta")
     def _topi_nn_conv2d(*args, **kwargs):
         assert not kwargs, "Do not support kwargs in template function call"
-        args = deserialize_args(args)
         A, W = args[:2]
 
         with tvm.target.vta():
-            res = topi.nn.conv2d(*args, **kwargs)
+            res = vta.top.conv2d_packed(*args, **kwargs)
             res = topi.right_shift(res, 8)
             res = my_clip(res, 0, 127)
             res = topi.cast(res, "int8")
 
-        if tvm.target.current_target().device_name == 'vta':
-            s = topi.generic.schedule_conv2d_nchw([res])
+        if tvm.target.Target.current().device_name == 'vta':
+            s = vta.top.schedule_conv2d_packed([res])
         else:
-            s = tvm.create_schedule([res.op])
+            s = te.create_schedule([res.op])
         return s, [A, W, res]
 
 
@@ -353,12 +353,15 @@ def tune_and_evaluate(tuning_opt):
     # Perform task extraction on Relay program
     print("Extract tasks...")
     relay_prog, params = compile_network(env, target, network, start_pack, stop_pack)
-    mod = relay.Module.from_expr(relay_prog)
+    mod = tvm.IRModule.from_expr(relay_prog)
     tasks = autotvm.task.extract_from_program(mod,
                                               params=params,
-                                              ops=(tvm.relay.op.nn.conv2d, ),
+                                              ops=(relay.op.get("nn.conv2d"),),
                                               target=target,
                                               target_host=env.target_host)
+
+    # filter out non-packed conv2d task
+    tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
 
     # We should have extracted 10 convolution tasks
     assert len(tasks) == 10

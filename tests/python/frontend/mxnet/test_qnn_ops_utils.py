@@ -16,6 +16,7 @@
 # under the License.
 
 import tvm
+from tvm import te
 import numpy as np
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -34,7 +35,7 @@ def test_mkldnn_dequantize():
                                                     max_range=max_range,
                                                     in_dtype=in_dtype)
         mod = relay.Function(relay.analysis.free_vars(dequantized_output), dequantized_output)
-        mod = relay.Module.from_expr(mod)
+        mod = tvm.IRModule.from_expr(mod)
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
@@ -90,7 +91,7 @@ def test_mkldnn_quantize():
                                                   max_range=max_range,
                                                   out_dtype=out_dtype)
         mod = relay.Function(relay.analysis.free_vars(quantized_output), quantized_output)
-        mod = relay.Module.from_expr(mod)
+        mod = tvm.IRModule.from_expr(mod)
         with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(mod, "llvm", params=None)
             rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))

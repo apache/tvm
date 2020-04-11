@@ -20,24 +20,26 @@ from __future__ import absolute_import
 
 import numpy as np
 
-from tvm import container
+import tvm._ffi
+from tvm.runtime import container, Object
+from tvm.ir import IRModule
+
 from . import _backend
 from .. import _make, analysis, transform
-from .. import module
 from ... import nd
-from ..base import Object, register_relay_node
-from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, Function, const
+from ..expr import Tuple, RefCreate, Call, Constant, GlobalVar, const
+from ..function import Function
 from ..scope_builder import ScopeBuilder
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.ConstructorValue")
 class ConstructorValue(Object):
     def __init__(self, tag, fields, constructor):
         self.__init_handle_by_constructor__(
             _make.ConstructorValue, tag, fields, constructor)
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.RefValue")
 class RefValue(Object):
     def __init__(self, value):
         self.__init_handle_by_constructor__(
@@ -186,10 +188,10 @@ class Interpreter(Executor):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : tvm.IRModule
         The module to support the execution.
 
-    ctx : tvm.TVMContext
+    ctx : tvmContext
         The runtime context to run the code on.
 
     target : tvm.Target
@@ -205,7 +207,7 @@ class Interpreter(Executor):
 
         Returns
         -------
-        opt_mod : tvm.relay.Module
+        opt_mod : tvm.IRModule
             The optimized module.
         """
         seq = transform.Sequential([transform.SimplifyInference(),
@@ -239,7 +241,7 @@ class Interpreter(Executor):
                 if self.mod:
                     self.mod["main"] = func
                 else:
-                    self.mod = module.Module.from_expr(func)
+                    self.mod = IRModule.from_expr(func)
 
             mod = self.optimize()
             opt_expr = Call(mod["main"], relay_args)

@@ -27,7 +27,7 @@
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/qnn/attrs.h>
 #include "../../op/nn/nn.h"
-#include "../../pass/pattern_util.h"
+#include "../../transforms/pattern_util.h"
 #include "../util.h"
 
 namespace tvm {
@@ -55,7 +55,7 @@ bool QnnDenseRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(IsScalarType(types[2], DataType::Int(32)));    // input_zero_point
   CHECK(IsScalarType(types[3], DataType::Int(32)));    // kernel_zero_point
   CHECK(IsScalarType(types[4], DataType::Float(32)));  // input_scale
-  CHECK(IsScalarType(types[5], DataType::Float(32)));  // kernel_scale
+  AssignType(types[5], DataType::Float(32), param->units, reporter);
 
   CHECK(param->out_dtype.bits() > 0) << "Output dtype bits should be greater than 0.";
 
@@ -72,7 +72,7 @@ Expr MakeQuantizedDense(Expr data, Expr weight, Expr input_zero_point, Expr kern
   attrs->units = std::move(units);
   attrs->out_dtype = out_dtype;
   static const Op& op = Op::Get("qnn.dense");
-  return CallNode::make(
+  return Call(
       op, {data, weight, input_zero_point, kernel_zero_point, input_scale, kernel_scale},
       Attrs(attrs), {});
 }

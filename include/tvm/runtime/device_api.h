@@ -47,10 +47,10 @@ enum DeviceAttrKind : int {
 };
 
 /*! \brief Number of bytes each allocation must align to */
-constexpr int kAllocAlignment = 64;
+constexpr int kAllocAlignment = 128;
 
 /*! \brief Number of bytes each allocation must align to in temporary allocation */
-constexpr int kTempAllocaAlignment = 64;
+constexpr int kTempAllocaAlignment = 128;
 
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
@@ -207,6 +207,7 @@ inline const char* DeviceName(int type) {
   switch (type) {
     case kDLCPU: return "cpu";
     case kDLGPU: return "gpu";
+    case kDLCPUPinned: return "cpu_pinned";
     case kDLOpenCL: return "opencl";
     case kDLSDAccel: return "sdaccel";
     case kDLAOCL: return "aocl";
@@ -217,11 +218,11 @@ inline const char* DeviceName(int type) {
     case kOpenGL: return "opengl";
     case kDLExtDev: return "ext_dev";
     case kDLMicroDev: return "micro_dev";
+    case kDLHexagon: return "hexagon";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
 }
 
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
   int device_type = static_cast<int>(ctx.device_type);
   if (device_type > kRPCSessMask) {
@@ -231,8 +232,6 @@ inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
   os << runtime::DeviceName(device_type) << "(" << ctx.device_id << ")";
   return os;
 }
-
-#endif
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_DEVICE_API_H_

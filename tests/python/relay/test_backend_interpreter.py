@@ -16,9 +16,11 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 import tvm.testing
 from tvm import nd
-from tvm import relay, container
+from tvm import relay
+from tvm.runtime import container
 from tvm.relay.backend.interpreter import RefValue, ConstructorValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
@@ -92,7 +94,7 @@ def test_subtract():
 
 
 def test_simple_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     sb = ScopeBuilder()
@@ -109,7 +111,7 @@ def test_simple_loop():
 
 
 def test_loop():
-    mod = relay.module.Module({})
+    mod = tvm.IRModule({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
@@ -128,7 +130,7 @@ def test_loop():
 
 
 def test_ref():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     three_with_ref = relay.GlobalVar('three_with_ref')
     i = relay.Var('i')
     iv = relay.Var('iv')
@@ -167,7 +169,7 @@ def test_kwargs_params():
 
 
 def test_function_taking_adt_ref_tuple():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     prelude = relay.prelude.Prelude(mod)
     intrp = create_executor("debug", mod)
 
@@ -211,7 +213,7 @@ def test_tuple_passing():
         relay.ty.TensorType((), 'int64')]))
 
     fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
-    mod = relay.Module({})
+    mod = tvm.IRModule({})
     gv = relay.GlobalVar('main')
     mod[gv] = fn
     mod = relay.transform.InferType()(mod)

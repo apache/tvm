@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/tensor_type.cc
+ * \file src/ir/tensor_type.cc
  * \brief The type system AST nodes of Relay.
  */
 #include <tvm/runtime/registry.h>
@@ -55,7 +55,7 @@ PrimExpr TensorTypeNode::Size() const {
 
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
-TVM_REGISTER_GLOBAL("relay._make.TensorType")
+TVM_REGISTER_GLOBAL("ir.TensorType")
 .set_body_typed([](Array<PrimExpr> shape, DataType dtype) {
   return TensorType(shape, dtype);
 });

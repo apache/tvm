@@ -33,11 +33,11 @@ Software Emulation
 ~~~~~~~~~~~~~~~~~~
 
 Both software emulation and compilation are supported. To define a function,
-you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
+you need to use ``tvm.te.hybrid.script`` decorator to indicate this is a hybrid function:
 
 .. code-block:: python
 
-    @tvm.hybrid.script
+    @tvm.te.hybrid.script
     def outer_product(a, b, c):
         c = output_tensor((100, 99), 'float32')
         for i in range(a.shape[0]):
@@ -64,8 +64,8 @@ The current parse interface looks like:
 
 .. code-block:: python
 
-   a = tvm.placeholder((100, ), name='a')
-   b = tvm.placeholder((99, ), name='b')
+   a = tvm.te.placeholder((100, ), name='a')
+   b = tvm.te.placeholder((99, ), name='b')
    parser = tvm.hybrid.parse(outer_product, [a, b]) # return the parser of this function
 
 
@@ -74,8 +74,8 @@ or ``tvm.container.Array``, to this function, it returns a op node:
 
 .. code-block:: python
 
-   a = tvm.placeholder((100, ), name='a')
-   b = tvm.placeholder((99, ), name='b')
+   a = tvm.te.placeholder((100, ), name='a')
+   b = tvm.te.placeholder((99, ), name='b')
    c = outer_product(a, b, c) # return the output tensor(s) of the operator
 
 You can use any methods that can be applied on a TVM ``OpNode``, like create_schedule, although
@@ -85,12 +85,12 @@ to LLVM module.
 Tuning
 ~~~~~~
 
-Follow up the example above, you can use some tvm like interfaces to tune the code: 
+Follow up the example above, you can use some tvm like interfaces to tune the code:
 
 .. code-block:: python
 
    i, j = c.op.axis
-   sch = tvm.create_schedule(op)
+   sch = te.create_schedule(op)
    jo, ji = sch.split(j, 4)
    sch.vectorize(ji)
 
@@ -101,7 +101,7 @@ loop manipulation (``split`` and ``fuse``), and ``reorder``.
 
         This is a preliminary function, so users should be in charge of the correctness
         of the functionality after tuning. Specifically, users should be careful when
-        fusing and reorderding imperfect loops. 
+        fusing and reorderding imperfect loops.
 
 Loops
 ~~~~~
@@ -119,7 +119,7 @@ Users can access containers by either constants or constants loops annotated.
 
 .. code-block:: python
 
-   @tvm.hybrid.script
+   @tvm.te.hybrid.script
    def foo(a, b): # b is a tvm.container.Array
        c = output_tensor(a.shape, a.dtype)
        for i in const_range(len(a)): # because you have b access, i should be explicitly annotated as const_range

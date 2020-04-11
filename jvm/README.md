@@ -30,7 +30,7 @@ This folder contains the Java interface for TVM runtime. It brings TVM runtime t
 
 - JDK 1.6+. Oracle JDK and OpenJDK are well tested.
 - Maven 3 for build.
-- LLVM (TVM4J need LLVM support. Please refer to [build-the-shared-library](https://docs.tvm.ai/install/from_source.html#build-the-shared-library) for how to enable LLVM support.)
+- LLVM (TVM4J need LLVM support. Please refer to [build-the-shared-library](https://tvm.apache.org/docs/install/from_source.html#build-the-shared-library) for how to enable LLVM support.)
 
 ### Modules
 
@@ -45,7 +45,7 @@ TVM4J contains three modules:
 
 ### Build
 
-First please refer to [Installation Guide](http://docs.tvm.ai/install/) and build runtime shared library from the C++ codes (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX).
+First please refer to [Installation Guide](https://tvm.apache.org/docs/install/) and build runtime shared library from the C++ codes (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX).
 
 Then you can compile tvm4j by
 
@@ -96,14 +96,15 @@ There's nothing special for this part. The following Python snippet generate add
 ```python
 import os
 import tvm
+from tvm import te
 from tvm.contrib import cc, util
 
 def test_add(target_dir):
-    n = tvm.var("n")
-    A = tvm.placeholder((n,), name='A')
-    B = tvm.placeholder((n,), name='B')
-    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = tvm.create_schedule(C.op)
+    n = te.var("n")
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
+    s = te.create_schedule(C.op)
     fadd = tvm.build(s, [A, B, C], "llvm", target_host="llvm", name="myadd")
 
     fadd.save(os.path.join(target_dir, "add_cpu.o"))

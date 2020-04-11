@@ -120,10 +120,10 @@ class IRTransformer final :
 Stmt IRTransform(Stmt ir_node,
                  const runtime::PackedFunc& f_preorder,
                  const runtime::PackedFunc& f_postorder,
-                 const Array<PrimExpr>& only_enable) {
+                 const Array<runtime::String>& only_enable) {
   std::unordered_set<uint32_t> only_type_index;
-  for (PrimExpr s : only_enable) {
-    only_type_index.insert(Object::TypeKey2Index(s.as<StringImmNode>()->value.c_str()));
+  for (auto s : only_enable) {
+    only_type_index.insert(Object::TypeKey2Index(s.c_str()));
   }
   IRTransformer transform(f_preorder, f_postorder, only_type_index);
   return transform(std::move(ir_node));
@@ -158,6 +158,10 @@ void StmtVisitor::VisitStmt_(const StoreNode* op) {
   this->VisitExpr(op->value);
   this->VisitExpr(op->index);
   this->VisitExpr(op->predicate);
+}
+
+void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
+  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
 
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
@@ -339,6 +343,17 @@ Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
     n->value = std::move(value);
     n->index = std::move(index);
     n->predicate = std::move(predicate);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
+  Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
+  if (indices.same_as(op->indices)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->indices = std::move(indices);
     return Stmt(n);
   }
 }

@@ -36,7 +36,7 @@ contrib.graph_runtime or any other TVM runtime compatible systems.
 from tvm.runtime.ndarray import empty
 from tvm.relay import _build_module
 from tvm import target as _target
-from tvm import expr as _expr
+from tvm.tir import expr as _expr
 
 class GraphRuntimeCodegen(object):
     """The compiler from Relay to the TVM runtime system."""
@@ -48,7 +48,7 @@ class GraphRuntimeCodegen(object):
         self._get_graph_json = self._mod["get_graph_json"]
         self._list_params_name = self._mod["list_params_name"]
         self._get_param_by_name = self._mod["get_param_by_name"]
-        self._get_lowered_funcs = self._mod["get_lowered_funcs"]
+        self._get_irmodule = self._mod["get_irmodule"]
         self._setup(mod, target)
 
     def _setup(self, mod, target):
@@ -74,18 +74,17 @@ class GraphRuntimeCodegen(object):
         -------
         graph_json : str
             The graph json that can be consumed by runtime.
-        lowered_funcs : List[tvm.LoweredFunc] or Dict[str, List[tvm.LoweredFunc]]
+        mod : IRModule or Dict[str, IRModule]
             The lowered functions.
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
         self._codegen(func)
         graph_json = self._get_graph_json()
-        lowered_func = self._get_lowered_funcs()
+        lowered_func = self._get_irmodule()
         param_names = self._list_params_name()
         params = {}
-        for name in param_names:
-            key = name.value
+        for key in param_names:
             arr = self._get_param_by_name(key)
             param = empty(arr.shape, dtype=arr.dtype, ctx=arr.ctx)
             arr.copyto(param)

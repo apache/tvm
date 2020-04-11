@@ -18,6 +18,7 @@ import numpy as np
 import operator
 
 import tvm
+from tvm import te
 from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 from tvm import relay
@@ -106,6 +107,14 @@ def test_forward_resnet():
         mx_sym = model_zoo.mx_resnet(18)
         verify_mxnet_frontend_impl(mx_sym)
 
+def test_forward_leaky_relu():
+    data = mx.sym.var('data')
+    data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
+    mx_sym = mx.sym.LeakyReLU(data)
+    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
+    mx_sym = mx.sym.LeakyReLU(data, act_type='leaky')
+    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
+
 def test_forward_elu():
     data = mx.sym.var('data')
     data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
@@ -116,7 +125,7 @@ def test_forward_rrelu():
     data = mx.sym.var('data')
     data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
     mx_sym = mx.sym.LeakyReLU(data, act_type='rrelu', lower_bound=0.3, upper_bound=0.7)
-    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
+    verify_mxnet_frontend_impl(mx_sym[0], (1, 3, 100, 100), (1, 6, 100, 100))
 
 def test_forward_prelu():
     data = mx.sym.var('data')
@@ -198,6 +207,12 @@ def test_forward_zeros():
 def test_forward_ones_like():
     data = mx.sym.var('data')
     mx_sym = mx.sym.ones_like(data, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_make_loss():
+    data = mx.sym.var('data')
+    ones = mx.sym.ones(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.make_loss((data-ones)**2/2, dtype='float32')
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
 
 def test_forward_zeros_like():
@@ -852,17 +867,22 @@ def test_forward_slice():
 
 
 def test_forward_convolution():
-    def verify(data_shape, kernel_size, stride, pad, num_filter):
-        weight_shape=(num_filter, data_shape[1],) + kernel_size
+    def verify(data_shape, kernel_size, stride, pad, num_filter, is_depthwise=False):
+        if is_depthwise:
+            groups = data_shape[1]
+            weight_shape=(data_shape[1], num_filter // groups,) + kernel_size
+        else:
+            groups = 1
+            weight_shape=(num_filter, data_shape[1],) + kernel_size
         x = np.random.uniform(size=data_shape).astype("float32")
         weight = np.random.uniform(size=weight_shape).astype("float32")
         bias = np.random.uniform(size=num_filter).astype("float32")
         ref_res = mx.nd.Convolution(data=mx.nd.array(x), weight=mx.nd.array(weight),
                                     bias=mx.nd.array(bias), kernel=kernel_size, stride=stride,
-                                    pad=pad, num_filter=num_filter)
+                                    pad=pad, num_filter=num_filter, num_group=groups)
         mx_sym = mx.sym.Convolution(mx.sym.var("x"), mx.sym.var("weight"), mx.sym.var("bias"),
                                     kernel=kernel_size, stride=stride,
-                                    pad=pad, num_filter=num_filter)
+                                    pad=pad, num_filter=num_filter, num_group=groups)
         shape_dict = {"x": x.shape, "weight": weight.shape, "bias": bias.shape}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
         for target, ctx in ctx_list():
@@ -879,6 +899,8 @@ def test_forward_convolution():
     verify(data_shape=(20, 1, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
     verify(data_shape=(20, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=2)
+    verify(data_shape=(1, 8, 32, 32), kernel_size=(3, 3), stride=(1, 1), pad=(1, 1), num_filter=8,
+           is_depthwise=True)
 
 def test_forward_deconvolution():
     def verify(data_shape, kernel_size, stride, pad, num_filter):
@@ -935,10 +957,37 @@ def test_forward_cond():
     verify(np.asarray([4.0], 'float32'), np.asarray([3.0],'float32'))
 
 
+def test_forward_unravel_index():
+    def verify(x, shape, dtype):
+        a_np = np.array(x).astype(dtype)
+        mx_sym = _mx_symbol(mx.sym, 'unravel_index', [mx.sym.var('a'), shape])
+        ref_res = _mx_symbol(mx.nd, 'unravel_index', [mx.nd.array(a_np), shape])
+        shapes = {'a': a_np.shape}
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "vm", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(a_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+
+    for dtype in ["int32", "int64"]:
+        verify([0, 1, 2, 3], [2, 2], dtype)
+        verify([144, 13, 45], [6, 7, 10, 2], dtype)
+        verify([456], [6, 7, 10, 2], dtype)
+
+    # In below example, 5 is out of bound for array of size 4.
+    # MXNet implementation provides different result than TVM
+    # TVM implementation is inline with Tensorflow
+    # Ideally error should be thrown just like Numpy
+    # verify([0, 1, 2, 5], [2, 2], dtype)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
     test_forward_resnet()
+    test_forward_leaky_relu()
     test_forward_elu()
     test_forward_rrelu()
     test_forward_prelu()
@@ -989,3 +1038,5 @@ if __name__ == '__main__':
     test_forward_convolution()
     test_forward_deconvolution()
     test_forward_cond()
+    test_forward_make_loss()
+    test_forward_unravel_index()

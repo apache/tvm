@@ -14,18 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 
 
 def run_combine_parallel(expr, min_num_branches=3):
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = transform.CombineParallelDense(min_num_branches)(mod)
     return mod["main"]
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     return mod["main"]
 
@@ -73,7 +75,7 @@ def test_combine_parallel_dense():
                          transform.CombineParallelDense(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3, w4)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4)
     check(100, 200, 300)
@@ -125,7 +127,7 @@ def test_combine_parallel_dense_biasadd():
                          transform.CombineParallelDense(min_num_branches=2))
         y_expected = expected(x, w1, w2, b1, b2, is_2d_bias)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, False)
     check(100, 200, 300, False)
@@ -182,7 +184,7 @@ def test_combine_parallel_dense_biasadd_scale_reshape():
                          transform.CombineParallelDense(min_num_branches=2))
         y_expected = expected(x, w1, w2, b1, b2, scale1, scale2, newshape)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert relay.analysis.alpha_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check(3, 5, 4, 0.5, 0.25, (1, 1, 15))
     check(100, 200, 300, 0.5, 0.25, (1, 1, 200))

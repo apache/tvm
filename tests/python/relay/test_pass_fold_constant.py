@@ -16,6 +16,7 @@
 # under the License.
 import numpy as np
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 from tvm.relay.build_module import bind_params_by_name
@@ -25,7 +26,7 @@ from tvm.relay.testing import run_infer_type, create_workload
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
 
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -54,11 +55,11 @@ def test_fold_const():
         raise RuntimeError()
 
     # the fold constant should work on any context.
-    with tvm.build_config(add_lower_pass=[(0, fail)]):
+    with tvm.target.build_config(add_lower_pass=[(0, fail)]):
         with tvm.target.create("cuda"):
             zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.alpha_equal(zz, zexpected)
+    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_let():
@@ -83,7 +84,7 @@ def test_fold_let():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(zz, zexpected)
+    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_tuple():
@@ -105,7 +106,7 @@ def test_fold_tuple():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(zz, zexpected)
+    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_concat():
@@ -124,7 +125,7 @@ def test_fold_concat():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(zz, zexpected)
+    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_shape_of():
@@ -145,7 +146,7 @@ def test_fold_shape_of():
     for dtype in ["int32", "float32"]:
         zz = run_opt_pass(before(dtype), transform.FoldConstant())
         zexpected = run_opt_pass(expected(dtype), transform.InferType())
-        assert relay.analysis.graph_equal(zz, zexpected)
+        assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_full():
@@ -160,7 +161,7 @@ def test_fold_full():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert relay.analysis.graph_equal(zz, zexpected)
+    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_fold_batch_norm():
@@ -201,7 +202,7 @@ def test_fold_batch_norm():
         mod = remove_bn_pass(mod)
 
     expect = run_infer_type(expected())
-    assert relay.analysis.graph_equal(mod["main"], expect)
+    assert tvm.ir.structural_equal(mod["main"], expect)
 
 
 if __name__ == "__main__":

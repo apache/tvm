@@ -17,61 +17,24 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
-from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 
 from .pad import pad
 from .util import get_pad_tuple3d
-from ..util import simplify
-
-
-@tvm.target.generic_func
-def conv3d(input, filter, strides, padding, dilation, layout='NCDHW', out_dtype=None):
-    """Conv3D operator.
-
-    Parameters
-    ----------
-    input : tvm.Tensor
-        5-D with shape [batch, in_depth, in_channel, in_height, in_width]
-
-    filter : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
-
-    strides : int or a list/tuple of three ints
-        stride size, or [stride_depth, stride_height, stride_width]
-
-    padding : int or a list/tuple of three ints
-        padding size, or [pad_depth, pad_height, pad_width]
-
-    dilation: int or a list/tuple of three ints
-        dilation size, or [dilation_depth, dilation_height, dilation_width]
-
-    layout : str
-        layout of data
-
-    Returns
-    -------
-    output : tvm.Tensor
-        5-D with shape [batch, out_depth, out_channel, out_height, out_width]
-    """
-    # search platform specific declaration first
-    # default declaration
-    if layout == 'NCDHW':
-        return conv3d_ncdhw(input, filter, strides, padding, dilation, out_dtype)
-    elif layout == 'NDHWC':
-        return conv3d_ndhwc(input, filter, strides, padding, dilation, out_dtype)
-    raise ValueError("not support this layout {} yet".format(layout))
+from ..util import simplify, get_const_tuple
+from .winograd_util import winograd_transform_matrices
 
 
 def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
-    """Convolution operator in NCDHW layout.
+    """Conv3D operator in NCDHW layout.
 
     Parameters
     ----------
-    Input : tvm.Tensor
+    Input : tvm.te.Tensor
         5-D with shape [batch, in_channel, in_depth, in_height, in_width]
 
-    Filter : tvm.Tensor
+    Filter : tvm.te.Tensor
         5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
 
     stride : int or a list/tuple of three ints
@@ -85,7 +48,7 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
 
     Returns
     -------
-    Output : tvm.Tensor
+    Output : tvm.te.Tensor
         5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
     if out_dtype is None:
@@ -118,14 +81,14 @@ def conv3d_ncdhw(Input, Filter, stride, padding, dilation, out_dtype=None):
     pad_before = [0, 0, pad_front, pad_top, pad_left]
     pad_after = [0, 0, pad_back, pad_down, pad_right]
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    rz = tvm.reduce_axis((0, kernel_d), name='rz')
-    ry = tvm.reduce_axis((0, kernel_h), name='ry')
-    rx = tvm.reduce_axis((0, kernel_w), name='rx')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    rz = te.reduce_axis((0, kernel_d), name='rz')
+    ry = te.reduce_axis((0, kernel_h), name='ry')
+    rx = te.reduce_axis((0, kernel_w), name='rx')
 
-    return tvm.compute(
+    return te.compute(
         (batch, out_channel, out_depth, out_height, out_width),
-        lambda nn, ff, zz, yy, xx: tvm.sum(
+        lambda nn, ff, zz, yy, xx: te.sum(
             temp[nn, rc, zz * stride_d + rz * dilation_d, yy * stride_h + ry * dilation_h,
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, rz, ry, rx].astype(out_dtype),
@@ -137,14 +100,14 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
 
     Parameters
     ----------
-    Input : tvm.Tensor
-        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+    Input : tvm.te.Tensor
+        5-D with shape [batch, in_depth, in_height, in_width, in_channel]
 
-    Filter : tvm.Tensor
-        5-D with shape [num_filter, in_channel, filter_depth, filter_height, filter_width]
+    Filter : tvm.te.Tensor
+        5-D with shape [filter_depth, filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of three ints
-        Stride size, or [strid_depth, stride_height, stride_width]
+        Stride size, or [stride_depth, stride_height, stride_width]
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
@@ -154,8 +117,8 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
 
     Returns
     -------
-    Output : tvm.Tensor
-        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
+    Output : tvm.te.Tensor
+        5-D with shape [batch, out_depth, out_height, out_width, out_channel]
     """
     assert isinstance(stride, int) or len(stride) == 3
     assert isinstance(dilation, int) or len(dilation) == 3
@@ -186,15 +149,86 @@ def conv3d_ndhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     pad_before = [0, pad_front, pad_top, pad_left, 0]
     pad_after = [0, pad_back, pad_down, pad_right, 0]
     PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
-    rd = tvm.reduce_axis((0, kernel_d), name='rd')
-    rh = tvm.reduce_axis((0, kernel_h), name='rh')
-    rw = tvm.reduce_axis((0, kernel_w), name='rw')
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
-    Output = tvm.compute(
+    rd = te.reduce_axis((0, kernel_d), name='rd')
+    rh = te.reduce_axis((0, kernel_h), name='rh')
+    rw = te.reduce_axis((0, kernel_w), name='rw')
+    rc = te.reduce_axis((0, in_channel), name='rc')
+    Output = te.compute(
         (batch, out_depth, out_height, out_width, out_channel),
-        lambda nn, dd, hh, ww, cc: tvm.sum(
+        lambda nn, dd, hh, ww, cc: te.sum(
             PaddedInput[nn, dd * stride_d + rd * dilation_d, hh * stride_h + rh * dilation_h,
                         ww * stride_w + rw * dilation_w, rc].astype(out_dtype) *
             Filter[rd, rh, rw, rc, cc].astype(out_dtype), axis=[rd, rh, rw, rc]),
         name="Conv3dOutput", tag="conv3d_ndhwc")
     return Output
+
+
+def conv3d_winograd_weight_transform(kernel, tile_size):
+    """Weight transformation for 3D winograd
+
+    Parameters
+    ----------
+    kernel: Tensor
+        The raw kernel tensor with layout "NCDHW".
+    tile_size: int
+        Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    output : tvm.te.Tensor
+        5-D with shape [alpha, alpha, alpha, CO, CI]
+    """
+    CO, CI, KD, KH, KW = get_const_tuple(kernel.shape)
+
+    depth_transform = 2 < KD < 8 and KD == KH
+
+    if depth_transform:
+        assert KD == KH == KW, "Only support NxNxN kernel"
+    else:
+        assert KH == KW, "Only supports DxNxN kernel"
+
+    r = tile_size + KH - 1
+
+    r_kh = te.reduce_axis((0, KH), name='r_kh')
+    r_kw = te.reduce_axis((0, KW), name='r_kw')
+    _, _, G = winograd_transform_matrices(tile_size, KH, kernel.dtype)
+    if depth_transform:
+        shape = (r, r, r, CO, CI)
+        r_kd = te.reduce_axis((0, KD), name='r_kd')
+        return te.compute(
+            shape,
+            lambda omg, eps, nu, co, ci: te.sum(
+                kernel[co][ci][r_kd][r_kh][r_kw] * G[omg][r_kd] * G[eps][r_kh] * G[nu][r_kw],
+                axis=[r_kd, r_kh, r_kw]),
+            name='transform_weight')
+    else:
+        shape = (r, r, KD, CO, CI)
+        return te.compute(
+            shape,
+            lambda eps, nu, d, co, ci: te.sum(
+                kernel[co][ci][d][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
+            name='transform_weight')
+
+
+
+@tvm.target.generic_func
+def conv3d_alter_layout(attrs, inputs, tinfos, out_type):
+    """Change Conv3D layout.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    out_type: type
+        The output type
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level.
+    """
+    # not to change by default
+    return None

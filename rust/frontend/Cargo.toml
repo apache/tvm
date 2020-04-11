@@ -28,16 +28,12 @@ categories = ["api-bindings", "science"]
 authors = ["TVM Contributors"]
 edition = "2018"
 
-[lib]
-name = "tvm_frontend"
-crate-type = ["dylib"]
-
 [dependencies]
-failure = "0.1.5"
-lazy_static = "1.1.0"
-ndarray = "0.12.1"
+failure = "0.1"
+lazy_static = "1.1"
+ndarray = "0.12"
 num-traits = "0.2"
-tvm-common = { version = "0.1.0", path = "../common/", features = ["bindings"] }
+tvm-common = { version = "0.1", path = "../common/", features = ["bindings"] }
 
 [features]
 blas = ["ndarray/blas"]

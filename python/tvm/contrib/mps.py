@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """External function interface to MPS libraries."""
-from __future__ import absolute_import as _abs
-from .. import api as _api
-from .. import intrin as _intrin
+import tvm
+from tvm import te
+
 
 # pylint: disable=C0103,W0612
 
@@ -48,9 +48,9 @@ def matmul(lhs, rhs, transa=False, transb=False):
         m = b
     if transb:
         n = c
-    return _api.extern(
+    return te.extern(
         (m, n), [lhs, rhs],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.mps.matmul", ins[0], ins[1], outs[0], transa, transb),
         name="C")
 
@@ -80,8 +80,8 @@ def conv2d(data, weight, pad='SAME', stride=1):
     ho = hi // stride
     wo = wi // stride
 
-    return _api.extern(
+    return te.extern(
         (n, ho, wo, co), [data, weight],
-        lambda ins, outs: _intrin.call_packed(
+        lambda ins, outs: tvm.tir.call_packed(
             "tvm.contrib.mps.conv2d", ins[0], ins[1], outs[0], padding, stride),
         name="C")

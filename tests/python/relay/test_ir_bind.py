@@ -16,6 +16,7 @@
 # under the License.
 """ test bind function."""
 import tvm
+from tvm import te
 from tvm import relay
 
 
@@ -28,11 +29,11 @@ def test_bind_params():
     fexpected =relay.Function(
         [y],
         relay.add(relay.const(1, "float32"),  y))
-    assert relay.analysis.alpha_equal(fbinded, fexpected)
+    assert tvm.ir.structural_equal(fbinded, fexpected)
 
     zbinded = relay.bind(z, {y: x})
     zexpected = relay.add(x, x)
-    assert relay.analysis.alpha_equal(zbinded, zexpected)
+    assert tvm.ir.structural_equal(zbinded, zexpected)
 
 
 if __name__ == "__main__":

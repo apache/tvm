@@ -29,6 +29,7 @@
 #include "op_util.h"
 #include "../schedule/message_passing.h"
 #include "../../arith/compute_expr.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace te {
@@ -162,13 +163,19 @@ MakeLoopNest(const Stage& stage,
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
-        value_map[iv] = var;
+        runtime::ThreadScope ts = runtime::ThreadScope::make(bind_iv->thread_tag);
+        if (stage->scope == "" || stage->scope == "warp" ||
+            static_cast<int>(runtime::StorageScope::make(stage->scope).rank) <= ts.rank) {
+          value_map[iv] = var;
+        } else {
+          value_map[iv] = dom->min;
+        }
       }
     }
     // annotate the extent of the IterVar
     if (!new_loop_var) {
       nest[i + 1].emplace_back(
-          AttrStmtNode::make(iv, attr::loop_scope, iv->var, no_op));
+          AttrStmtNode::make(iv, tir::attr::loop_scope, iv->var, no_op));
     }
   }
   // message passing to get offset of root iter vars.

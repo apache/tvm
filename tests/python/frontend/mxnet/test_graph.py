@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 import mxnet as mx
+
+import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import transform
 import model_zoo
@@ -22,7 +25,7 @@ import model_zoo
 def compare_graph(lhs_mod, rhs_mod):
     lhs_mod = transform.InferType()(lhs_mod)
     rhs_mod = transform.InferType()(rhs_mod)
-    assert relay.analysis.alpha_equal(lhs_mod["main"], rhs_mod["main"])
+    assert tvm.ir.structural_equal(lhs_mod["main"], rhs_mod["main"])
 
 def test_mlp():
     shape = {"data": (1, 1, 28, 28)}
@@ -99,7 +102,7 @@ def test_multi_outputs():
         z = F.split(x, **kwargs)
         z = F.subtract(F.add(z[0], z[2]), y)
         func = relay.Function(relay.analysis.free_vars(z), z)
-        return relay.Module.from_expr(func)
+        return tvm.IRModule.from_expr(func)
 
     mx_sym = mx_compose(mx, num_outputs=3, axis=1)
     mod, _ = relay.frontend.from_mxnet(

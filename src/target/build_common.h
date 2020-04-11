@@ -26,28 +26,39 @@
 
 #include <tvm/target/codegen.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
+#include <tvm/ir/module.h>
+#include <tvm/tir/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/lowered_func.h>
 #include <unordered_map>
 #include <string>
 #include "../runtime/meta_data.h"
 
 namespace tvm {
 namespace codegen {
-// Extract function information from device function.
+
 inline std::unordered_map<std::string, runtime::FunctionInfo>
-ExtractFuncInfo(const Array<tir::LoweredFunc>& funcs) {
+ExtractFuncInfo(const IRModule& mod) {
   std::unordered_map<std::string, runtime::FunctionInfo> fmap;
-  for (tir::LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<tir::PrimFuncNode>())
+        << "Can only lower IR Module with PrimFuncs";
+    auto f = Downcast<tir::PrimFunc>(kv.second);
+
     runtime::FunctionInfo info;
-    for (size_t i = 0; i < f->args.size(); ++i) {
-      info.arg_types.push_back(f->args[i].dtype());
+    for (size_t i = 0; i < f->params.size(); ++i) {
+      info.arg_types.push_back(f->params[i].dtype());
     }
-    for (size_t i = 0; i < f->thread_axis.size(); ++i) {
-      info.thread_axis_tags.push_back(f->thread_axis[i]->thread_tag);
+    auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis);
+    if (thread_axis.defined()) {
+      for (size_t i = 0; i < thread_axis.size(); ++i) {
+        info.thread_axis_tags.push_back(thread_axis[i]->thread_tag);
+      }
     }
-    fmap[f->name] = info;
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
+    fmap[static_cast<std::string>(global_symbol)] = info;
   }
   return fmap;
 }

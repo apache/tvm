@@ -15,16 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 """Configurable VTA Hareware Environment scope."""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, exec-used
 from __future__ import absolute_import as _abs
 
 import os
 import json
 import copy
 import tvm
+from tvm import te
 from . import intrin
-from .pkg_config import PkgConfig
 
+def get_vta_hw_path():
+    """Get the VTA HW path."""
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    vta_hw_default = os.path.abspath(os.path.join(curr_path, "../../../3rdparty/vta-hw"))
+    VTA_HW_PATH = os.getenv('VTA_HW_PATH', vta_hw_default)
+    return os.path.abspath(VTA_HW_PATH)
+
+def pkg_config(cfg):
+    """Returns PkgConfig pkg config object."""
+    pkg_config_py = os.path.join(get_vta_hw_path(), "config/pkg_config.py")
+    libpkg = {"__file__": pkg_config_py}
+    exec(compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg)
+    PkgConfig = libpkg["PkgConfig"]
+    return PkgConfig(cfg)
 
 class DevContext(object):
     """Internal development context
@@ -61,12 +75,12 @@ class DevContext(object):
     QID_COMPUTE = 2
 
     def __init__(self, env):
-        self.vta_axis = tvm.thread_axis("vta")
-        self.vta_push_uop = tvm.make.StringImm("VTAPushGEMMOp")
-        ctx = tvm.call_extern("handle", "VTATLSCommandHandle")
-        self.command_handle = tvm.make.Call(
+        self.vta_axis = te.thread_axis("vta")
+        self.vta_push_uop = tvm.tir.StringImm("VTAPushGEMMOp")
+        ctx = tvm.tir.call_extern("handle", "VTATLSCommandHandle")
+        self.command_handle = tvm.tir.Call(
             "handle", "tvm_thread_context", [ctx],
-            tvm.expr.Call.Intrinsic, None, 0)
+            tvm.tir.Call.Intrinsic, None, 0)
         self.DEBUG_NO_SYNC = False
         env._dev_ctx = self
         self.gemm = intrin.gemm(env, env.mock_mode)
@@ -114,7 +128,7 @@ class Environment(object):
     # initialization function
     def __init__(self, cfg):
         # Produce the derived parameters and update dict
-        self.pkg = self.pkg_config(cfg)
+        self.pkg = pkg_config(cfg)
         self.__dict__.update(self.pkg.cfg_dict)
         # data type width
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
@@ -170,12 +184,6 @@ class Environment(object):
 
     def __exit__(self, ptype, value, trace):
         Environment.current = self._last_env
-
-    def pkg_config(self, cfg):
-        """PkgConfig instance"""
-        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-        proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
-        return PkgConfig(cfg, proj_root)
 
     @property
     def cfg_dict(self):
@@ -256,42 +264,43 @@ def get_env():
 @tvm.register_func("tvm.info.mem.%s" % Environment.inp_scope)
 def mem_info_inp_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.INP_ELEM_BITS,
-                         max_simd_bits=spec.INP_ELEM_BITS,
-                         max_num_bits=spec.INP_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.INP_ELEM_BITS,
+                            max_simd_bits=spec.INP_ELEM_BITS,
+                            max_num_bits=spec.INP_BUFF_SIZE * 8,
+                            head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.wgt_scope)
 def mem_info_wgt_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.WGT_ELEM_BITS,
-                         max_simd_bits=spec.WGT_ELEM_BITS,
-                         max_num_bits=spec.WGT_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.WGT_ELEM_BITS,
+                            max_simd_bits=spec.WGT_ELEM_BITS,
+                            max_num_bits=spec.WGT_BUFF_SIZE * 8,
+                            head_address=None)
 
 @tvm.register_func("tvm.info.mem.%s" % Environment.acc_scope)
 def mem_info_acc_buffer():
     spec = get_env()
-    return tvm.make.node("MemoryInfo",
-                         unit_bits=spec.ACC_ELEM_BITS,
-                         max_simd_bits=spec.ACC_ELEM_BITS,
-                         max_num_bits=spec.ACC_BUFF_SIZE * 8,
-                         head_address=None)
+    return tvm.ir.make_node("MemoryInfo",
+                            unit_bits=spec.ACC_ELEM_BITS,
+                            max_simd_bits=spec.ACC_ELEM_BITS,
+                            max_num_bits=spec.ACC_BUFF_SIZE * 8,
+                            head_address=None)
 
 # TVM related registration
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_sync")
 def coproc_sync(op):
     _ = op
-    return tvm.call_extern(
+    return tvm.tir.call_extern(
         "int32", "VTASynchronize",
-        get_env().dev.command_handle, 1<<31)
+        get_env().dev.command_handle,
+        tvm.runtime.const(1<<31, dtype="uint32"))
 
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_push")
 def coproc_dep_push(op):
-    return tvm.call_extern(
+    return tvm.tir.call_extern(
         "int32", "VTADepPush",
         get_env().dev.command_handle,
         op.args[0], op.args[1])
@@ -299,7 +308,7 @@ def coproc_dep_push(op):
 
 @tvm.register_func("tvm.intrin.rule.default.vta.coproc_dep_pop")
 def coproc_dep_pop(op):
-    return tvm.call_extern(
+    return tvm.tir.call_extern(
         "int32", "VTADepPop",
         get_env().dev.command_handle,
         op.args[0], op.args[1])
@@ -307,17 +316,10 @@ def coproc_dep_pop(op):
 
 def _init_env():
     """Initialize the default global env"""
-    curr_path = os.path.dirname(
-        os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
-    path_list = [
-        os.path.join(proj_root, "vta/config/vta_config.json")
-    ]
-    path_list = [p for p in path_list if os.path.exists(p)]
-    if not path_list:
-        raise RuntimeError(
-            "Error: vta_config.json not found.")
-    cfg = json.load(open(path_list[0]))
+    config_path = os.path.join(get_vta_hw_path(), "config/vta_config.json")
+    if not os.path.exists(config_path):
+        raise RuntimeError("Cannot find config in %s" % str(config_path))
+    cfg = json.load(open(config_path))
     return Environment(cfg)
 
 Environment.current = _init_env()

@@ -35,10 +35,14 @@
 #define TVM_NODE_NODE_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
+#include <tvm/node/container.h>
+#include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 
 #include <string>
 #include <vector>
@@ -59,6 +63,7 @@ using runtime::make_object;
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
+using runtime::String;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

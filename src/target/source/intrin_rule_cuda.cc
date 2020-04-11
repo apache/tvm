@@ -29,14 +29,12 @@ namespace intrin {
 // Add float suffix to the intrinsics, CUDA fast math.
 struct CUDAMath {
   std::string operator()(DataType t, std::string name) const {
-    if (t.lanes() == 1) {
-      if (t.is_float()) {
-        switch (t.bits()) {
-          case 64: return name;
-          case 32: return name + 'f';
-          case 16: return 'h' + name;
-          default: return "";
-        }
+    if (t.is_float()) {
+      switch (t.bits()) {
+        case 64: return name;
+        case 32: return name + 'f';
+        case 16: return 'h' + name;
+        default: return "";
       }
     }
     return "";
@@ -45,7 +43,7 @@ struct CUDAMath {
 
 struct CUDAFastMath : public CUDAMath {
   std::string operator()(DataType t, std::string name) const {
-    if (t.lanes() == 1 && t.is_float() && t.bits() == 32) {
+    if (t.is_float() && t.bits() == 32) {
       return "__" + name + 'f';
     } else {
       return CUDAMath::operator()(t, name);
@@ -54,9 +52,25 @@ struct CUDAFastMath : public CUDAMath {
   }
 };
 
+struct CUDAFastMathTan : public CUDAMath {
+  std::string operator()(DataType t, std::string name) const {
+    if (t.is_float()) {
+        switch (t.bits()) {
+          case 64: return name;
+          // `__tanf` seems to produce some values too deviant from numpy tan version.
+          // So, let's use just `tanf` instead.
+          case 32: return name + 'f';
+          case 16: LOG(FATAL) << "cuda tan unsupported for float16";
+          default: return "";
+        }
+    }
+    return "";
+  }
+};
+
 struct CUDAPopcount {
   std::string operator()(DataType t, std::string name) const {
-    if (t.lanes() == 1 && t.is_uint()) {
+    if (t.is_uint()) {
       switch (t.bits()) {
         case 32: return "__popc";
         case 64: return "__popcll";
@@ -91,17 +105,38 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp2")
+.set_body(DispatchExtern<CUDAMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.exp10")
+.set_body(DispatchExtern<CUDAFastMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.erf")
 .set_body(DispatchExtern<CUDAMath>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log2")
+.set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.log10")
+.set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tan")
+.set_body(DispatchExtern<CUDAFastMathTan>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cos")
 .set_body(DispatchExtern<CUDAFastMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.cosh")
+.set_body(DispatchExtern<CUDAMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sin")
 .set_body(DispatchExtern<CUDAFastMath>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.sinh")
+.set_body(DispatchExtern<CUDAMath>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.atan")
 .set_body(DispatchExtern<CUDAMath>);

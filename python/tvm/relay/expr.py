@@ -14,41 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
+# pylint: disable=no-else-return, invalid-name, unused-import
 """The expression nodes of Relay."""
 from __future__ import absolute_import
 from numbers import Number as _Number
 
 import numpy as _np
+import tvm._ffi
 from tvm._ffi import base as _base
-from tvm.runtime import NDArray, convert, ndarray as _nd
+from tvm.runtime import NDArray, ndarray as _nd
+from tvm.ir import RelayExpr, GlobalVar
 
-from .base import RelayNode, register_relay_node
-from . import _make
-from . import _expr
+from .base import RelayNode
+from . import _ffi_api
 from . import ty as _ty
 
+# alias relay expr as Expr.
+Expr = RelayExpr
 
 # will be registered afterwards
 _op_make = None
 
-class Expr(RelayNode):
-    """The base type for all Relay expressions."""
-    @property
-    def checked_type(self):
-        """Get the checked type of tvm.relay.Expr.
-
-        Returns
-        -------
-        checked_type : tvm.relay.Type
-            The checked type.
-        """
-        ret = self._checked_type_
-        if ret is None:
-            raise ValueError("The type checker has not populated"
-                             " the checked_type for this node")
-        return ret
-
+class ExprWithOp(RelayExpr):
+    """Basetype of all relay expressions that defines op overloading."""
     def astype(self, dtype):
         """Cast the content type of the current data to dtype.
 
@@ -66,7 +54,7 @@ class Expr(RelayNode):
         result : tvm.relay.Expr
             The result expression.
         """
-        return _make.cast(self, dtype)
+        return _ffi_api.cast(self, dtype)
 
     def __neg__(self):
         return _op_make.negative(self)
@@ -172,8 +160,8 @@ class Expr(RelayNode):
         """
         return Call(self, args)
 
-@register_relay_node
-class Constant(Expr):
+@tvm._ffi.register_object("relay.Constant")
+class Constant(ExprWithOp):
     """A constant expression in Relay.
 
     Parameters
@@ -182,11 +170,11 @@ class Constant(Expr):
         The data content of the constant expression.
     """
     def __init__(self, data):
-        self.__init_handle_by_constructor__(_make.Constant, data)
+        self.__init_handle_by_constructor__(_ffi_api.Constant, data)
 
 
-@register_relay_node
-class Tuple(Expr):
+@tvm._ffi.register_object("relay.Tuple")
+class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
 
     Parameters
@@ -195,7 +183,7 @@ class Tuple(Expr):
         The fields in the tuple.
     """
     def __init__(self, fields):
-        self.__init_handle_by_constructor__(_make.Tuple, fields)
+        self.__init_handle_by_constructor__(_ffi_api.Tuple, fields)
 
     def __getitem__(self, index):
         if index >= len(self):
@@ -209,8 +197,8 @@ class Tuple(Expr):
         raise TypeError("astype cannot be used on tuple")
 
 
-@register_relay_node
-class Var(Expr):
+@tvm._ffi.register_object("relay.Var")
+class Var(ExprWithOp):
     """A local variable in Relay.
 
     Local variable can be used to declare input
@@ -228,7 +216,7 @@ class Var(Expr):
     """
     def __init__(self, name_hint, type_annotation=None):
         self.__init_handle_by_constructor__(
-            _make.Var, name_hint, type_annotation)
+            _ffi_api.Var, name_hint, type_annotation)
 
     @property
     def name_hint(self):
@@ -237,90 +225,8 @@ class Var(Expr):
         return name
 
 
-@register_relay_node
-class GlobalVar(Expr):
-    """A global variable in Tvm.Relay.
-
-    GlobalVar is used to refer to the global functions
-    stored in the module.
-
-    Parameters
-    ----------
-    name_hint: str
-        The name of the variable.
-    """
-    def __init__(self, name_hint):
-        self.__init_handle_by_constructor__(_make.GlobalVar, name_hint)
-
-    def __call__(self, *args):
-        """Invoke the gobal function.
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            Arguments.
-        """
-        return Call(self, args, None, None)
-
-
-@register_relay_node
-class Function(Expr):
-    """A function declaration expression.
-
-    Parameters
-    ----------
-    params: List[tvm.relay.Var]
-        List of input parameters to the function.
-
-    body: tvm.relay.Expr
-        The body of the function.
-
-    ret_type: Optional[tvm.relay.Type]
-        The return type annotation of the function.
-
-    type_params: Optional[List[tvm.relay.TypeParam]]
-        The additional type parameters, this is only
-        used in advanced usecase of template functions.
-    """
-    def __init__(self,
-                 params,
-                 body,
-                 ret_type=None,
-                 type_params=None,
-                 attrs=None):
-        if type_params is None:
-            type_params = convert([])
-
-        self.__init_handle_by_constructor__(
-            _make.Function, params, body, ret_type, type_params, attrs)
-
-    def __call__(self, *args):
-        """Invoke the global function.
-
-        Parameters
-        ----------
-        args: List[relay.Expr]
-            Arguments.
-        """
-        return Call(self, args, None, None)
-
-    def get_params(self):
-        return _expr.FunctionGetParams(self)
-
-    def set_params(self, params):
-        for key in params:
-            value = params[key]
-            if isinstance(value, NDArray):
-                params[key] = Constant(value)
-
-        return _expr.FunctionSetParams(self, params)
-
-    def set_attribute(self, name, ref):
-        return _expr.FunctionSetAttr(self, name, ref)
-
-
-@register_relay_node
-class Call(Expr):
+@tvm._ffi.register_object("relay.Call")
+class Call(ExprWithOp):
     """Function call node in Relay.
 
     Call node corresponds the operator application node
@@ -345,11 +251,11 @@ class Call(Expr):
         if not type_args:
             type_args = []
         self.__init_handle_by_constructor__(
-            _make.Call, op, args, attrs, type_args)
+            _ffi_api.Call, op, args, attrs, type_args)
 
 
-@register_relay_node
-class Let(Expr):
+@tvm._ffi.register_object("relay.Let")
+class Let(ExprWithOp):
     """Let variable binding expression.
 
     Parameters
@@ -365,11 +271,11 @@ class Let(Expr):
     """
     def __init__(self, variable, value, body):
         self.__init_handle_by_constructor__(
-            _make.Let, variable, value, body)
+            _ffi_api.Let, variable, value, body)
 
 
-@register_relay_node
-class If(Expr):
+@tvm._ffi.register_object("relay.If")
+class If(ExprWithOp):
     """A conditional expression in Relay.
 
     Parameters
@@ -385,11 +291,11 @@ class If(Expr):
     """
     def __init__(self, cond, true_branch, false_branch):
         self.__init_handle_by_constructor__(
-            _make.If, cond, true_branch, false_branch)
+            _ffi_api.If, cond, true_branch, false_branch)
 
 
-@register_relay_node
-class TupleGetItem(Expr):
+@tvm._ffi.register_object("relay.TupleGetItem")
+class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
 
     Parameters
@@ -402,11 +308,11 @@ class TupleGetItem(Expr):
     """
     def __init__(self, tuple_value, index):
         self.__init_handle_by_constructor__(
-            _make.TupleGetItem, tuple_value, index)
+            _ffi_api.TupleGetItem, tuple_value, index)
 
 
-@register_relay_node
-class RefCreate(Expr):
+@tvm._ffi.register_object("relay.RefCreate")
+class RefCreate(ExprWithOp):
     """Create a new reference from initial value.
     Parameters
     ----------
@@ -414,11 +320,11 @@ class RefCreate(Expr):
        The initial value.
     """
     def __init__(self, value):
-        self.__init_handle_by_constructor__(_make.RefCreate, value)
+        self.__init_handle_by_constructor__(_ffi_api.RefCreate, value)
 
 
-@register_relay_node
-class RefRead(Expr):
+@tvm._ffi.register_object("relay.RefRead")
+class RefRead(ExprWithOp):
     """Get the value inside the reference.
     Parameters
     ----------
@@ -426,11 +332,11 @@ class RefRead(Expr):
          The reference.
     """
     def __init__(self, ref):
-        self.__init_handle_by_constructor__(_make.RefRead, ref)
+        self.__init_handle_by_constructor__(_ffi_api.RefRead, ref)
 
 
-@register_relay_node
-class RefWrite(Expr):
+@tvm._ffi.register_object("relay.RefWrite")
+class RefWrite(ExprWithOp):
     """
     Update the value inside the reference.
     The whole expression will evaluate to an empty tuple.
@@ -442,10 +348,10 @@ class RefWrite(Expr):
         The new value.
     """
     def __init__(self, ref, value):
-        self.__init_handle_by_constructor__(_make.RefWrite, ref, value)
+        self.__init_handle_by_constructor__(_ffi_api.RefWrite, ref, value)
 
 
-class TempExpr(Expr):
+class TempExpr(ExprWithOp):
     """Baseclass of all TempExpr.
 
     TempExprs are pass specific expression that can be
@@ -459,7 +365,7 @@ class TempExpr(Expr):
         -------
         The corresponding normal expression.
         """
-        return _expr.TempExprRealize(self)
+        return _ffi_api.TempExprRealize(self)
 
 
 class TupleWrapper(object):
@@ -619,4 +525,4 @@ def bind(expr, binds):
     result : tvm.relay.Expr
         The expression or function after binding.
     """
-    return _expr.Bind(expr, binds)
+    return _ffi_api.Bind(expr, binds)

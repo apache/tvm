@@ -17,15 +17,9 @@
  * under the License.
  */
 
-#![feature(panic_info_message)]
-#![allow(unused_imports)]
-
 use std::panic;
 
-#[macro_use]
-extern crate tvm_frontend as tvm;
-
-use tvm::{errors::Error, *};
+use tvm_frontend::{errors::Error, *};
 
 fn main() {
     register_global_func! {
@@ -44,9 +38,9 @@ fn main() {
 
     println!("expected error message is:");
     panic::set_hook(Box::new(|panic_info| {
-        if let Some(msg) = panic_info.message() {
-            println!("{:?}", msg);
-        }
+        // if let Some(msg) = panic_info.message() {
+        //     println!("{:?}", msg);
+        // }
         if let Some(location) = panic_info.location() {
             println!(
                 "panic occurred in file '{}' at line {}",

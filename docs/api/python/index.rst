@@ -21,26 +21,18 @@ Python API
 .. toctree::
    :maxdepth: 2
 
-   tvm
    runtime
    ndarray
-   intrin
-   tensor
-   schedule
-   target
-   build
-   module
    error
-   container
-   function
+   ir
+   target
+   tir
+   te
+   driver
    autotvm
-   graph_runtime
    rpc
-   bridge
    contrib
-   ffi
-   dev
-   topi
-   vta/index
-   hybrid
+   graph_runtime
    relay/index
+   vta/index
+   topi

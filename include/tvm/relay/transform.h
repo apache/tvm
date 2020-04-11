@@ -24,9 +24,11 @@
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
+#include <tvm/runtime/container.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op.h>
 
@@ -58,7 +60,7 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
                                 Function(Function, IRModule, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
-                                const tvm::Array<tvm::PrimExpr>& required);
+                                const tvm::Array<runtime::String>& required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -75,6 +77,20 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
  * \return the pass.
  */
 TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
+
+/*!
+* \brief Convert all expressions of TensorType into GradCell,
+* an algebraic data type defined in gradient.rly.
+*
+* This will delay or decrease memory usage. All calls to
+* ones, ones_like, zeros, zeros_like will not immediately instantiate a tensor in memory,
+* rather only instantiate if needed. It also defines + and * operation
+* between GradCell types which can increase performance when using
+* zero-filled or one-filled tensors, which is the case in reverse mode ad.
+*
+* \return the pass
+*/
+TVM_DLL Pass LazyGradientInit();
 
 /*!
  * \brief Fold constant expressions.
@@ -162,6 +178,13 @@ TVM_DLL Pass PartialEval();
  * \return The Pass.
  */
 TVM_DLL Pass SimplifyInference();
+
+/*!
+ * \brief Replaces non linear activation functions with their fast but approximate counterparts.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass FastMath();
 
 /*!
  * \brief Infer the type of an expression.
@@ -316,6 +339,24 @@ TVM_DLL Pass PrintIR(bool show_meta_data = true);
  * \return The pass.
  */
 TVM_DLL Pass PartitionGraph();
+
+/*!
+ * \brief Inline the global functions marked as `inline` in a given Relay
+ * IRModule.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass Inline();
+
+/*!
+ * \brief Remove the unused functions in the Relay IRModule.
+ *
+ * \param entry_functions The entry functions used to search the functions that
+ *        are being used.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
 }  // namespace transform
 

@@ -65,7 +65,7 @@ fn main() {
     let input = NDArray::from_rust_ndarray(
         &arr,
         TVMContext::cpu(0),
-        TVMType::from_str("float32").unwrap(),
+        DLDataType::from_str("float32").unwrap(),
     )
     .unwrap();
     println!(
@@ -117,7 +117,7 @@ fn main() {
     let output = NDArray::empty(
         output_shape,
         TVMContext::cpu(0),
-        TVMType::from_str("float32").unwrap(),
+        DLDataType::from_str("float32").unwrap(),
     );
     // get the `get_output` function from runtime module
     let ref get_output_fn = graph_runtime_module

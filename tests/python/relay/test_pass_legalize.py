@@ -17,6 +17,7 @@
 """Test legalize pass"""
 import numpy as np
 import tvm
+from tvm import te
 
 from tvm import relay
 from tvm.contrib import graph_runtime
@@ -26,7 +27,7 @@ from tvm.relay.testing.temp_op_attr import TempOpAttr
 
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     seq = transform.Sequential(passes)
     with transform.PassContext(opt_level=3):
         mod = seq(mod)
@@ -67,7 +68,7 @@ def test_legalize():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 def test_legalize_none():
     """Test doing nothing by returning 'None' """
@@ -88,7 +89,7 @@ def test_legalize_none():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(before(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
     assert(called[0])
 
 def test_legalize_multiple_ops():
@@ -133,7 +134,7 @@ def test_legalize_multiple_ops():
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 def test_legalize_multi_input():
@@ -169,7 +170,7 @@ def test_legalize_multi_input():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert analysis.alpha_equal(a, b), "Actual = \n" + str(a)
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
 if __name__ == "__main__":

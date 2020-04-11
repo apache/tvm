@@ -18,6 +18,7 @@
 
 import numpy as np
 import tvm
+from tvm import te
 from tvm import autotvm
 import topi
 import topi.testing
@@ -36,9 +37,9 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     in_height = in_width = in_size
 
-    A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-    bias = tvm.placeholder((num_filter, 1, 1), name='bias')
+    A = te.placeholder((batch, in_channel, in_height, in_width), name='A')
+    W = te.placeholder((num_filter, in_channel, kernel, kernel), name='W')
+    bias = te.placeholder((num_filter, 1, 1), name='bias')
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
@@ -66,18 +67,27 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
+
+        if "cudnn" in device:
+            fcompute, fschedule = topi.cuda.conv2d_cudnn, topi.cuda.schedule_conv2d_cudnn
+        else:
+            fcompute, fschedule = topi.testing.get_conv2d_nchw_implement(device)
+
         with tvm.target.create(device):
-            C = topi.nn.conv2d(A, W, (stride, stride), padding,
-                               (dilation, dilation), layout='NCHW', out_dtype=dtype)
+            if "cudnn" in device:
+                C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), "NCHW", dtype)
+            else:
+                C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
                 C = topi.nn.relu(C)
-            s = topi.generic.schedule_conv2d_nchw([C])
+            s = fschedule([C])
 
         a = tvm.nd.array(a_np, ctx)
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(b_np, ctx)
+
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
             func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding_sum, dilation))

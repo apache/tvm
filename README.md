@@ -17,13 +17,13 @@
 
 <img src=https://raw.githubusercontent.com/apache/incubator-tvm-site/master/images/logo/tvm-logo-small.png width=128/> Open Deep Learning Compiler Stack
 ==============================================
-[Documentation](https://docs.tvm.ai) |
+[Documentation](https://tvm.apache.org/docs) |
 [Contributors](CONTRIBUTORS.md) |
 [Community](https://tvm.apache.org/community) |
 [Release Notes](NEWS.md)
 
 [![Build Status](https://ci.tvm.ai/buildStatus/icon?job=tvm/master)](https://ci.tvm.ai/job/tvm/job/master/)
-[![Azure Pipeline](https://dev.azure.com/tvmai/tvm/_apis/build/status/windows_mac_build?branchName=master)](https://dev.azure.com/tvmai/tvm/_build/latest?definitionId=2&branchName=master)
+[![WinMacBuild](https://github.com/apache/incubator-tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/incubator-tvm/actions?query=workflow%3AWinMacBuild)
 
 Apache TVM (incubating) is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
@@ -36,12 +36,12 @@ License
 Contribute to TVM
 -----------------
 TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
-Checkout the [Contributor Guide](https://docs.tvm.ai/contribute/)
+Checkout the [Contributor Guide](https://tvm.apache.org/docs/contribute/)
 
 Acknowledgement
 ---------------
 We learned a lot from the following projects when building TVM.
-- [Halide](https://github.com/halide/Halide): TVM uses [HalideIR](https://github.com/dmlc/HalideIR) as data structure for
-  arithmetic simplification and low level lowering. We also learned and adapted some part of lowering pipeline from Halide.
+- [Halide](https://github.com/halide/Halide): Part of TVM's TIR and arithmetic simplification module
+  originates from Halide. We also learned and adapted some part of lowering pipeline from Halide.
 - [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
 - [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.

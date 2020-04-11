@@ -21,6 +21,7 @@
  * \brief External computation rule.
  * \file extern_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
@@ -85,6 +86,10 @@ Operation ExternOpNode::make(std::string name,
   n->body = std::move(body);
   return Operation(n);
 }
+
+TVM_REGISTER_GLOBAL("te.ExternOp")
+.set_body_typed(ExternOpNode::make);
+
 
 Array<Tensor> ExternOpNode::InputTensors() const {
   return inputs;
@@ -160,7 +165,8 @@ Stmt ExternOpNode::BuildProvide(
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = AttrStmtNode::make(make_zero(DataType::Int(32)), attr::extern_scope, 0, this->body);
+  Stmt ret = AttrStmtNode::make(
+      make_zero(DataType::Int(32)), tir::attr::extern_scope, 0, this->body);
   auto f_push_bind = [&ret](Buffer buffer, Tensor tensor) {
     Array<ObjectRef> bind_spec;
     Array<PrimExpr> tuple;
@@ -171,7 +177,7 @@ Stmt ExternOpNode::BuildProvide(
       tuple.push_back(buffer->shape[k]);
     }
     ret = AttrStmtNode::make(
-        bind_spec, attr::buffer_bind_scope,
+        bind_spec, tir::attr::buffer_bind_scope,
         CallNode::make(DataType::Handle(), intrinsic::tvm_tuple, tuple, CallNode::Intrinsic), ret);
   };
   for (size_t i = output_placeholders.size(); i != 0; --i) {

@@ -14,16 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, too-many-locals, too-many-statements
+# pylint: disable=invalid-name, too-many-locals, too-many-statements, unused-argument
 """Schedule for conv2d_hwcn with auto fusion"""
 import tvm
+from tvm import te
 from tvm import autotvm
+
 from tvm.autotvm.task.space import SplitEntity
 
-from .. import generic, tag
+from .. import nn, tag
+
+@autotvm.register_topi_compute("conv2d_hwcn.cuda")
+def conv2d_hwcn(cfg, data, kernel, strides, padding, dilation, out_dtype='float32'):
+    """Compute conv2d with HWCN layout on CUDA"""
+    return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv2d_hwcn, ["cuda", "gpu"], ["direct"])
+@autotvm.register_topi_schedule("conv2d_hwcn.cuda")
 def schedule_conv2d_hwcn(cfg, outs):
     """Schedule for conv2d_hwcn and any element-wise operations.
 
@@ -38,8 +45,8 @@ def schedule_conv2d_hwcn(cfg, outs):
     s: Schedule
         The computation schedule for conv2d_hwcn.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    sch = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    sch = te.create_schedule([x.op for x in outs])
     def schedule(Apad, W, B):
         """Schedule conv2d_hwcn"""
         sch[Apad].compute_inline()
@@ -87,13 +94,13 @@ def schedule_conv2d_hwcn(cfg, outs):
         bx, txz, tx, ni = cfg['tile_ni'].apply(sch, Out, ni)
         sch[Out].reorder(bz, by, bx, tyz, txz, ty, tx, fi, ni)
 
-        sch[Out].bind(bz, tvm.thread_axis('blockIdx.z'))
-        sch[Out].bind(by, tvm.thread_axis('blockIdx.y'))
-        sch[Out].bind(bx, tvm.thread_axis('blockIdx.x'))
-        sch[Out].bind(tyz, tvm.thread_axis('vthread'))
-        sch[Out].bind(txz, tvm.thread_axis('vthread'))
-        sch[Out].bind(ty, tvm.thread_axis('threadIdx.y'))
-        sch[Out].bind(tx, tvm.thread_axis('threadIdx.x'))
+        sch[Out].bind(bz, te.thread_axis('blockIdx.z'))
+        sch[Out].bind(by, te.thread_axis('blockIdx.y'))
+        sch[Out].bind(bx, te.thread_axis('blockIdx.x'))
+        sch[Out].bind(tyz, te.thread_axis('vthread'))
+        sch[Out].bind(txz, te.thread_axis('vthread'))
+        sch[Out].bind(ty, te.thread_axis('threadIdx.y'))
+        sch[Out].bind(tx, te.thread_axis('threadIdx.x'))
 
         # Schedule BL local write
         sch[BL].compute_at(sch[Out], tx)
@@ -115,8 +122,8 @@ def schedule_conv2d_hwcn(cfg, outs):
         tx, ni = sch[AA].split(ni, nparts=cfg['tile_ni'].size[2])
         _, ni = sch[AA].split(ni, factor=4)
         sch[AA].reorder(ty, tx, yi, xi, ci, ni)
-        sch[AA].bind(ty, tvm.thread_axis('threadIdx.y'))
-        sch[AA].bind(tx, tvm.thread_axis('threadIdx.x'))
+        sch[AA].bind(ty, te.thread_axis('threadIdx.y'))
+        sch[AA].bind(tx, te.thread_axis('threadIdx.x'))
         sch[AA].vectorize(ni)
         # Schedule for W's shared memory load
         yi, xi, ci, fi = sch[WW].op.axis
@@ -124,8 +131,8 @@ def schedule_conv2d_hwcn(cfg, outs):
         tx, fi = sch[WW].split(fi, nparts=cfg['tile_ni'].size[2])
         _, fi = sch[WW].split(fi, factor=4)
         sch[WW].reorder(ty, tx, yi, xi, ci, fi)
-        sch[WW].bind(ty, tvm.thread_axis('threadIdx.y'))
-        sch[WW].bind(tx, tvm.thread_axis('threadIdx.x'))
+        sch[WW].bind(ty, te.thread_axis('threadIdx.y'))
+        sch[WW].bind(tx, te.thread_axis('threadIdx.x'))
         sch[WW].vectorize(fi)
 
     scheduled_ops = []
@@ -136,12 +143,12 @@ def schedule_conv2d_hwcn(cfg, outs):
             if operator not in sch.outputs:
                 sch[operator].compute_inline()
             for tensor in operator.input_tensors:
-                if isinstance(tensor.op, tvm.tensor.ComputeOp) and tensor.op not in scheduled_ops:
+                if isinstance(tensor.op, te.tensor.ComputeOp) and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         elif operator.tag == 'conv2d_hwcn':
             Apad = operator.input_tensors[0]
             W = operator.input_tensors[1]
-            if isinstance(W.op, tvm.tensor.ComputeOp) and 'dilate' in W.op.tag:
+            if isinstance(W.op, tvm.te.ComputeOp) and 'dilate' in W.op.tag:
                 sch[W].compute_inline()
             B = operator.output(0)
             schedule(Apad, W, B)

@@ -17,10 +17,9 @@
 # pylint: disable=invalid-name, no-member
 """Generic search operators"""
 from __future__ import absolute_import as _abs
-import tvm
-from .vision import _default_schedule
+from .default import default_schedule as _default_schedule
 
-@tvm.target.generic_func
+
 def schedule_argwhere(outs):
     """Schedule for argwhere operator.
 

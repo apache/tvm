@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util, tflite_runtime
@@ -28,7 +29,7 @@ def skipped_test_tflite_runtime():
         root = tf.Module()
         root.const = tf.constant([1., 2.], tf.float32)
         root.f = tf.function(lambda x: root.const * x)
-        
+
         input_signature = tf.TensorSpec(shape=[2,  ], dtype=tf.float32)
         concrete_func = root.f.get_concrete_function(input_signature)
         converter = tf.lite.TFLiteConverter.from_concrete_functions([concrete_func])
@@ -48,13 +49,13 @@ def skipped_test_tflite_runtime():
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
-        
+
         input_shape = input_details[0]['shape']
         tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.float32)
         interpreter.set_tensor(input_details[0]['index'], tflite_input)
         interpreter.invoke()
         tflite_output = interpreter.get_tensor(output_details[0]['index'])
-        
+
         # inference via tvm tflite runtime
         with open(tflite_model_path, 'rb') as model_fin:
             runtime = tflite_runtime.create(model_fin.read(), tvm.cpu(0))
@@ -76,7 +77,7 @@ def skipped_test_tflite_runtime():
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
-        
+
         input_shape = input_details[0]['shape']
         tflite_input = np.array(np.random.random_sample(input_shape), dtype=np.float32)
         interpreter.set_tensor(input_details[0]['index'], tflite_input)

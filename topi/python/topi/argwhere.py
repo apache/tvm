@@ -16,8 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, too-many-arguments, too-many-nested-blocks
 """Argwhere operator"""
-import tvm
-from tvm import hybrid
+from tvm.te import hybrid
 
 @hybrid.script
 def hybrid_argwhere_1d(output_shape, condition):
@@ -25,12 +24,12 @@ def hybrid_argwhere_1d(output_shape, condition):
 
     Parameters
     ----------
-    condition : tvm.Tensor
+    condition : tvm.te.Tensor
         1-D tensor with boolean values.
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Indices of non-zero elements.
     """
     a = output_tensor(output_shape, "int32")
@@ -48,12 +47,12 @@ def hybrid_argwhere_2d(output_shape, condition):
 
     Parameters
     ----------
-    condition : tvm.Tensor
+    condition : tvm.te.Tensor
         2-D tensor with boolean values.
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Indices of non-zero elements.
     """
     a = output_tensor(output_shape, "int32")
@@ -74,12 +73,12 @@ def hybrid_argwhere_3d(output_shape, condition):
 
     Parameters
     ----------
-    condition : tvm.Tensor
+    condition : tvm.te.Tensor
         3-D tensor with boolean values.
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Indices of non-zero elements.
     """
     a = output_tensor(output_shape, "int32")
@@ -103,12 +102,12 @@ def hybrid_argwhere_4d(output_shape, condition):
 
     Parameters
     ----------
-    condition : tvm.Tensor
+    condition : tvm.te.Tensor
         4-D tensor with boolean values.
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Indices of non-zero elements.
     """
     a = output_tensor(output_shape, "int32")
@@ -135,12 +134,12 @@ def hybrid_argwhere_5d(output_shape, condition):
 
     Parameters
     ----------
-    condition : tvm.Tensor
+    condition : tvm.te.Tensor
         5-D tensor with boolean values.
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Indices of non-zero elements.
     """
     a = output_tensor(output_shape, "int32")
@@ -164,18 +163,17 @@ def hybrid_argwhere_5d(output_shape, condition):
                             valid_index += 1
     return a
 
-@tvm.target.generic_func
 def argwhere(output_shape, condition):
     """Find the indices of elements of a tensor that are non-zero.
 
     Parameters
     ----------
-    condition : tvm.Tensor
+    condition : tvm.te.Tensor
         Tensor with boolean values.
 
     Returns
     -------
-    out : tvm.Tensor
+    out : tvm.te.Tensor
         Indices of non-zero elements.
     """
     if len(condition.shape) == 1:

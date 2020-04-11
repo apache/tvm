@@ -17,13 +17,13 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.analysis import alpha_equal, detect_feature
+from tvm.relay.analysis import detect_feature
 from tvm.relay.transform import to_cps, un_cps
-from tvm.relay.feature import Feature
+from tvm.relay.analysis import Feature
 from tvm.relay.prelude import Prelude
 from tvm.relay.testing import add_nat_definitions, make_nat_expr, rand, run_infer_type, run_opt_pass
 from tvm.relay import create_executor
-from tvm.relay import Function, transform
+from tvm.relay import transform
 
 
 def test_id():
@@ -42,7 +42,7 @@ def test_double():
 
 # make sure cps work for recursion.
 def test_recursion():
-    mod = relay.Module()
+    mod = tvm.IRModule()
     p = Prelude(mod)
     add_nat_definitions(p)
     shape = (10, 10)

@@ -32,7 +32,7 @@ use tvm_common::ffi;
 
 use crate::{errors, function::Function};
 
-const ENTRY_FUNC: &'static str = "__tvm_main__";
+const ENTRY_FUNC: &str = "__tvm_main__";
 
 /// Wrapper around TVM module handle which contains an entry function.
 /// The entry function can be applied to an imported module through [`entry_func`].
@@ -72,7 +72,7 @@ impl Module {
         ensure!(
             !fhandle.is_null(),
             errors::NullHandleError {
-                name: format!("{}", name.into_string()?)
+                name: name.into_string()?.to_string()
             }
         );
         Ok(Function::new(fhandle))
@@ -88,7 +88,7 @@ impl Module {
         let ext = CString::new(
             path.as_ref()
                 .extension()
-                .unwrap_or(std::ffi::OsStr::new(""))
+                .unwrap_or_else(|| std::ffi::OsStr::new(""))
                 .to_str()
                 .ok_or_else(|| {
                     format_err!("Bad module load path: `{}`.", path.as_ref().display())

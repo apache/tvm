@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 from tvm import relay
 from tvm.relay import Function, transform
-from tvm.relay.analysis import alpha_equal, graph_equal, free_vars, assert_alpha_equal
+from tvm.relay.analysis import free_vars
 from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.testing import inception_v3
 
@@ -25,7 +26,7 @@ import pytest
 
 class env:
     def __init__(self):
-        self.shape = tvm.convert([1, 2, 3])
+        self.shape = tvm.runtime.convert([1, 2, 3])
         self.tt = relay.TensorType(self.shape, "float32")
         self.int32 = relay.TensorType([], "int32")
         self.float32 = relay.TensorType([], "float32")
@@ -47,7 +48,7 @@ e = env()
 
 def run_opt_pass(expr, opt_pass):
     assert isinstance(opt_pass, transform.Pass)
-    mod = relay.Module.from_expr(expr)
+    mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body
@@ -56,25 +57,25 @@ def run_opt_pass(expr, opt_pass):
 def test_let():
     orig = relay.Let(e.x, e.y, e.z)
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(orig), orig), Function([e.z], e.z))
+    assert tvm.ir.structural_equal(Function(free_vars(orig), orig), Function([e.z], e.z))
 
 
 def test_used_let():
     orig = relay.Let(e.c, e.one, e.c + e.c)
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
     expected = relay.Let(e.c, e.one, e.c + e.c)
-    assert alpha_equal(Function([e.c], orig), Function([e.c], expected))
+    assert tvm.ir.structural_equal(Function([], orig), Function([], expected))
 
 def test_inline():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c))
     orig = run_opt_pass(orig, transform.DeadCodeElimination(True))
-    assert_alpha_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
+    tvm.ir.assert_structural_equal(Function(free_vars(orig), orig), Function([e.d], e.d))
 
 
 def test_chain_unused_let():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.e))
     orig = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
+    assert tvm.ir.structural_equal(Function(free_vars(orig), orig), Function([e.e], e.e))
 
 
 def use_f(func):
@@ -104,19 +105,19 @@ def test_recursion():
     orig = use_f(lambda f: relay.Call(f, [relay.const(2), relay.const(10000.0)]))
     dced = run_opt_pass(orig, transform.DeadCodeElimination())
     orig = run_opt_pass(orig, transform.InferType())
-    assert_alpha_equal(dced, orig)
+    tvm.ir.assert_structural_equal(dced, orig)
 
 def test_recursion_dead():
     x = relay.Let(e.a, e.one, e.three)
     dced_f = lambda f: x
     dced = run_opt_pass(use_f(dced_f), transform.DeadCodeElimination())
-    assert alpha_equal(dced, e.three)
+    assert tvm.ir.structural_equal(dced, e.three)
 
 
 def test_op_let():
     dced = run_opt_pass(add(relay.Let(e.a, e.one, e.three), e.two),
                         transform.DeadCodeElimination())
-    assert alpha_equal(dced, add(e.three, e.two))
+    assert tvm.ir.structural_equal(dced, add(e.three, e.two))
 
 
 def test_tuple_get_item():
@@ -125,10 +126,10 @@ def test_tuple_get_item():
     a = relay.Var('a')
     g = relay.TupleGetItem(t, 0)
     dced = run_opt_pass(g, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
+    assert tvm.ir.structural_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
     orig = relay.TupleGetItem(relay.Let(a, e.one, t), 0)
     dced = run_opt_pass(orig, transform.DeadCodeElimination())
-    assert alpha_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
+    assert tvm.ir.structural_equal(Function(free_vars(dced), dced), Function(free_vars(g), g))
 
 
 @pytest.mark.timeout(timeout=10, method="thread")

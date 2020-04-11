@@ -20,6 +20,7 @@
 /*!
  * \file tvm/arith/const_int_bound.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr_functor.h>
 #include <algorithm>
@@ -40,6 +41,13 @@ ConstIntBound::ConstIntBound(
   node->max_value = max_value;
   data_ = std::move(node);
 }
+
+ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
+  return ConstIntBound(min_value, max_value);
+}
+
+TVM_REGISTER_GLOBAL("arith.ConstIntBound")
+.set_body_typed(MakeConstIntBound);
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {
@@ -130,14 +138,36 @@ class ConstIntBoundAnalyzer::Impl :
 
   Entry VisitExpr(const PrimExpr& expr) final {
     Entry res = ExprFunctor::VisitExpr(expr);
+    tir::ExprDeepEqual equal;
     // a linear search over additional info
     // assume we won't have a lot of conditions
     for (const BoundInfo& info : additional_info_) {
-      if (tir::Equal(expr, info.expr)) {
+      if (equal(expr, info.expr)) {
         res = Intersect(res, info.bound);
       }
     }
+    if (bound_) {
+      const PrimExprNode* op = expr.as<PrimExprNode>();
+      auto val = bound_->find(op);
+      if (val != bound_->end()) {
+        CHECK(val->second->min_value == res.min_value &&
+              val->second->max_value == res.max_value)
+          << "Detected bound for " << expr
+          << "conflicts with memorization";
+      }
+      (*bound_)[op] = ConstIntBound(res.min_value, res.max_value);
+    }
     return res;
+  }
+
+  Entry VisitExpr_(const RampNode* op) final {
+    // op = {base + i * stride | 0 <= i < lanes}
+    // Entry(op) = Union(Entry(base + i * stride) | 0 <= i < lanes)
+    // Note that `base + i * stride` is linear w.r.t. `i`
+    // Entry(op) = Union(Entry(base + i * stride) | i = 0, i = lanes-1)
+    Entry a = VisitExpr(op->base);
+    Entry b = VisitExpr(op->base + (op->lanes - 1) * op->stride);
+    return Union(a, b);
   }
 
   Entry VisitExpr_(const CastNode* op) final {
@@ -331,10 +361,13 @@ class ConstIntBoundAnalyzer::Impl :
   }
 
  private:
+  friend class ConstIntBoundAnalyzer;
   // internal variable map
   std::unordered_map<Var, Entry, ObjectHash, ObjectEqual> var_map_;
   // additional bound info
   std::vector<BoundInfo> additional_info_;
+  // look up table for memorization
+  std::unordered_map<const PrimExprNode*, ConstIntBound>* bound_{nullptr};
   // constants: the limit value means umlimited
   // NOTE: kNegInf/kPosInf are used to represent infinity.
   static const constexpr int64_t kNegInf = ConstIntBound::kNegInf;
@@ -524,6 +557,14 @@ class ConstIntBoundAnalyzer::Impl :
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) {
   Entry ret = impl_->VisitExpr(expr);
+  return ConstIntBound(ret.min_value, ret.max_value);
+}
+
+ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr,
+  std::unordered_map<const PrimExprNode*, ConstIntBound>* bound) {
+  impl_->bound_ = bound;
+  Entry ret = impl_->VisitExpr(expr);
+  impl_->bound_ = nullptr;
   return ConstIntBound(ret.min_value, ret.max_value);
 }
 

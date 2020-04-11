@@ -32,7 +32,7 @@ import math
 from collections import namedtuple, OrderedDict
 import numpy as np
 
-from tvm import schedule, thread_axis
+from tvm.te import schedule, thread_axis
 from tvm.autotvm.util import get_const_int
 
 Axis = namedtuple('Axis', ['space', 'index'])
@@ -54,13 +54,13 @@ class TransformSpace(object):
     """Base class for transform space
     TransformSpace is the node in the computation graph of axes
 
-    Note
-    ----
-    We can regard our schedule code as a transformation graph of axes.
-    Starting from raw axes in the definition of tvm.compute, we can transform these axes
-    by some operators. The operator includes 'split', 'reorder' and 'annotate'.
-    Each operator has some tunable parameters (e.g. the split factor).
-    Then the tuning process is just to find good parameters of these op.
+    .. note::
+
+        We can regard our schedule code as a transformation graph of axes.
+        Starting from raw axes in the definition of te.compute, we can transform these axes
+        by some operators. The operator includes 'split', 'reorder' and 'annotate'.
+        Each operator has some tunable parameters (e.g. the split factor).
+        Then the tuning process is just to find good parameters of these op.
 
     So the all the combinations of the parameters of these op forms our search space.
 
@@ -106,10 +106,11 @@ class VirtualAxis(TransformSpace):
 
     Parameters
     ----------
-    var: int or tvm.schedule.IterVar
+    var: int or tvm.te.schedule.IterVar
         If is int, return a virtual axis whose length is the provided argument.
         If is IterVar, return a virtual axis whose length is extracted from
-                       the IterVar's extent domain.
+        the IterVar's extent domain.
+
     name: str
     """
     name_ct = 0
@@ -253,9 +254,9 @@ class SplitEntity(object):
     Parameters
     ----------
     size: Array of int
-        the size of every axis after split
+        the size of every axis after split.
         e.g. an axis of extent 128, we split it into 3 axes, a possible
-             size is [4, 4, 8] (4x4x8 = 128)
+        size is [4, 4, 8] (4x4x8 = 128).
     """
     def __init__(self, size):
         self.size = size
@@ -265,11 +266,11 @@ class SplitEntity(object):
 
         Parameters
         ----------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        op: tvm.tensor.Operation
+        op: tvm.te.Operation
             The stage to be applied
-        axis: tvm.schedule.IterVar
+        axis: tvm.te.schedule.IterVar
             axis to split
 
         Returns
@@ -389,11 +390,11 @@ class ReorderEntity(object):
 
         Parameters
         ----------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        op: tvm.tensor.Operation
+        op: tvm.te.Operation
             The stage to be applied
-        axis: tvm.schedule.IterVar
+        axis: tvm.te.schedule.IterVar
             axis to split
 
         Returns
@@ -512,11 +513,11 @@ class AnnotateEntity(object):
 
         Parameters
         ----------
-        sch: tvm.schedule.Schedule
+        sch: tvm.te.schedule.Schedule
             The tvm schedule
-        op: tvm.tensor.Operation
+        op: tvm.te.Operation
             The stage to be applied
-        axes: Array of tvm.schedule.IterVar
+        axes: Array of tvm.te.schedule.IterVar
             axis to split
         axis_lens: Array of int, optional
             the length of axes
@@ -531,7 +532,7 @@ class AnnotateEntity(object):
 
         Returns
         -------
-        axes : list of tvm.schedule.IterVar
+        axes : list of tvm.te.schedule.IterVar
             The transformed axes
         """
         if source is not None:  # special case : attach cache_read/cache_write
@@ -612,9 +613,9 @@ class ConfigSpace(object):
         self._entity_map = OrderedDict()  # name -> entity
         self._constraints = []
         self.errors = []
-        self.template_key = None
         self.code_hash = None
         self.flop = 0
+        self.cost = None
         self.is_fallback = False
 
     @staticmethod
@@ -623,10 +624,10 @@ class ConfigSpace(object):
 
         Parameters
         ----------
-        var: int or tvm.schedule.IterVar
+        var: int or tvm.te.schedule.IterVar
             If is int, return an axis whose length is the provided argument.
             If is IterVar, return an axis whose length is extracted from the
-                           IterVar's extent domain.
+            IterVar's extent domain.
         """
         return VirtualAxis(var)
 
@@ -639,7 +640,7 @@ class ConfigSpace(object):
         ----------
         name: str
             name to index the entity of this space
-        axis: tvm.schedule.IterVar
+        axis: tvm.te.schedule.IterVar
             axis to split
         policy: str
             name of policy.
@@ -647,18 +648,19 @@ class ConfigSpace(object):
             If is 'power2', the tuner will try power-of-two factors less or equal to the length.
             If is 'verbose', the tuner will try all candidates in above two policies.
             If is 'candidate', try given candidates.
-        kwargs: dict
+        **kwargs:
             extra arguments for policy
-            max_factor: int
-                the maximum split factor.
-            filter: function(int) -> bool
-                see examples below for how to use filter.
-            num_outputs: int
-                the total number of axis after split.
-            no_tail: bool
-                should we only include divisible numbers as split factors.
-            candidate: list
-                (policy=candidate) manual candidate list.
+
+            ``max_factor``:
+                the maximum split factor (`int`).
+            ``filter``:
+                see examples below for how to use filter (`Callable[[int], bool]`).
+            ``num_outputs``:
+                the total number of axis after split (`int`).
+            ``no_tail``:
+                should we only include divisible numbers as split factors (`bool`).
+            `candidate``:
+                (policy=candidate) manual candidate list (`List`).
 
         Examples
         --------
@@ -668,6 +670,7 @@ class ConfigSpace(object):
         >>> # use a filter that only accepts the split scheme whose inner most tile is less then 4
         >>> cfg.define_split('tile_y', y, policy='factors', filter=lambda x: x.size[-1] <= 4)
         """
+
         axes = [axis]
         return self._add_new_transform(SplitSpace, name, axes, policy, **kwargs)
 
@@ -678,7 +681,7 @@ class ConfigSpace(object):
         ----------
         name: str
             name to index the entity of this space
-        axes: Array of tvm.schedule.IterVar
+        axes: Array of tvm.te.schedule.IterVar
             axes to reorder
         policy: str
             name of policy
@@ -699,7 +702,7 @@ class ConfigSpace(object):
         ----------
         name: str
             name to index the entity of this space
-        axes: Array of tvm.schedule.IterVar
+        axes: Array of tvm.te.schedule.IterVar
             axes to annotate
         policy: str
             name of policy
@@ -749,8 +752,11 @@ class ConfigSpace(object):
 
     def valid(self):
         """Check whether the config meets all the constraints
-        Note: This check should be called after instantiation of task,
-              because the ConfigEntity/ConfigSpace collects errors during instantiation
+
+        .. note::
+
+            This check should be called after instantiation of task,
+            because the ConfigEntity/ConfigSpace collects errors during instantiation
 
         Returns
         -------
@@ -790,7 +796,7 @@ class ConfigSpace(object):
         for name, space in self.space_map.items():
             entities[name] = space[t % len(space)]
             t //= len(space)
-        ret = ConfigEntity(index, self.code_hash, self.template_key, entities, self._constraints)
+        ret = ConfigEntity(index, self.code_hash, entities, self._constraints)
         return ret
 
     def __iter__(self):
@@ -830,17 +836,14 @@ class ConfigEntity(ConfigSpace):
         index of this config in space
     code_hash: str
         hash of schedule code
-    template_key : str
-        The specific template key
     entity_map: dict
         map name to transform entity
     constraints : list
         List of constraints
     """
-    def __init__(self, index, code_hash, template_key, entity_map, constraints):
+    def __init__(self, index, code_hash, entity_map, constraints):
         super(ConfigEntity, self).__init__()
         self.index = index
-        self.template_key = template_key
         self._collect = False
         self._entity_map = entity_map
         self._space_map = None
@@ -890,9 +893,8 @@ class ConfigEntity(ConfigSpace):
             a json serializable dictionary
         """
         ret = {}
-        ret['i'] = int(self.index)
-        ret['t'] = self.template_key
-        ret['c'] = self.code_hash
+        ret['index'] = int(self.index)
+        ret['code_hash'] = self.code_hash
         entity_map = []
         for k, v in self._entity_map.items():
             if isinstance(v, SplitEntity):
@@ -905,7 +907,7 @@ class ConfigEntity(ConfigSpace):
                 entity_map.append((k, 'ot', v.val))
             else:
                 raise RuntimeError("Invalid entity instance: " + v)
-        ret['e'] = entity_map
+        ret['entity'] = entity_map
         return ret
 
     @staticmethod
@@ -924,13 +926,12 @@ class ConfigEntity(ConfigSpace):
             The corresponding config object
 
         """
-        index = json_dict["i"]
-        code_hash = json_dict["c"]
-        template_key = json_dict["t"]
+        index = json_dict["index"]
+        code_hash = json_dict["code_hash"]
         constraints = []
         entity_map = OrderedDict()
 
-        for item in json_dict["e"]:
+        for item in json_dict["entity"]:
             key, knob_type, knob_args = item
             if knob_type == 'sp':
                 entity = SplitEntity(knob_args)
@@ -944,11 +945,10 @@ class ConfigEntity(ConfigSpace):
                 raise RuntimeError("Invalid config knob type: " + knob_type)
             entity_map[str(key)] = entity
 
-        return ConfigEntity(index, code_hash, template_key, entity_map, constraints)
+        return ConfigEntity(index, code_hash, entity_map, constraints)
 
     def __repr__(self):
-        return "%s,%s,%s,%d" % (str(self._entity_map)[12:-1], self.template_key,
-                                self.code_hash, self.index)
+        return "%s,%s,%d" % (str(self._entity_map)[12:-1], self.code_hash, self.index)
 
 
 class FallbackConfigEntity(ConfigSpace):
@@ -1062,4 +1062,4 @@ class FallbackConfigEntity(ConfigSpace):
         self._entity_map[name] = entity
 
     def __repr__(self):
-        return "%s,%s,%s" % (str(self._entity_map)[12:-1], self.template_key, self.code_hash)
+        return "%s,%s" % (str(self._entity_map)[12:-1], self.code_hash)

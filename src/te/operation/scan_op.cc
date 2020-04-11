@@ -21,6 +21,7 @@
  * \brief Scan Operator.
  * \file scan_op.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
@@ -119,6 +120,10 @@ Operation ScanOpNode::make(std::string name,
   n->inputs = std::move(inputs);
   return Operation(n);
 }
+
+TVM_REGISTER_GLOBAL("te.ScanOp")
+.set_body_typed(ScanOpNode::make);
+
 
 Array<Tensor> scan(Array<Tensor> init,
                    Array<Tensor> update,
@@ -282,10 +287,10 @@ Stmt ScanOpNode::BuildProvide(
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
   Stmt provide = AttrStmtNode::make(
-      stage->op, attr::scan_update_scope, this->scan_axis->var,
+      stage->op, tir::attr::scan_update_scope, this->scan_axis->var,
       EvaluateNode::make(0));
   Stmt init = AttrStmtNode::make(
-      stage->op, attr::scan_init_scope, 0,
+      stage->op, tir::attr::scan_init_scope, 0,
       EvaluateNode::make(0));
   size_t begin_scan = 0;
   for (size_t  i = 0; i < stage->leaf_iter_vars.size(); ++i) {

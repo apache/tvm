@@ -21,29 +21,30 @@ import logging
 import time
 
 import tvm
+from tvm import te
 
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
-@autotvm.template
+@autotvm.template("testing/conv2d_no_batching")
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     """An example template for testing"""
     assert N == 1, "Only consider batch_size = 1 in this template"
 
-    data = tvm.placeholder((N, CI, H, W), name='data')
-    kernel = tvm.placeholder((CO, CI, KH, KW), name='kernel')
+    data = te.placeholder((N, CI, H, W), name='data')
+    kernel = te.placeholder((CO, CI, KH, KW), name='kernel')
 
-    rc = tvm.reduce_axis((0, CI), name='rc')
-    ry = tvm.reduce_axis((0, KH), name='ry')
-    rx = tvm.reduce_axis((0, KW), name='rx')
+    rc = te.reduce_axis((0, CI), name='rc')
+    ry = te.reduce_axis((0, KH), name='ry')
+    rx = te.reduce_axis((0, KW), name='rx')
 
-    conv = tvm.compute(
+    conv = te.compute(
         (N, CO, H - KH + 1, W - KW + 1),
-        lambda nn, ff, yy, xx: tvm.sum(
+        lambda nn, ff, yy, xx: te.sum(
             data[nn, rc, yy + ry, xx + rx] * kernel[ff, rc, ry, rx],
             axis=[rc, ry, rx]), tag="conv2d_nchw")
 
-    s = tvm.create_schedule([conv.op])
+    s = te.create_schedule([conv.op])
 
     output = conv
     OL = s.cache_write(conv, 'local')
@@ -65,15 +66,15 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
     kernel_scope = n  # this is the scope to attach global config inside this kernel
 
-    s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(by, tvm.thread_axis("blockIdx.y"))
-    s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
-    s[output].bind(vf, tvm.thread_axis("vthread"))
-    s[output].bind(vy, tvm.thread_axis("vthread"))
-    s[output].bind(vx, tvm.thread_axis("vthread"))
-    s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
-    s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+    s[output].bind(bf, te.thread_axis("blockIdx.z"))
+    s[output].bind(by, te.thread_axis("blockIdx.y"))
+    s[output].bind(bx, te.thread_axis("blockIdx.x"))
+    s[output].bind(vf, te.thread_axis("vthread"))
+    s[output].bind(vy, te.thread_axis("vthread"))
+    s[output].bind(vx, te.thread_axis("vthread"))
+    s[output].bind(tf, te.thread_axis("threadIdx.z"))
+    s[output].bind(ty, te.thread_axis("threadIdx.y"))
+    s[output].bind(tx, te.thread_axis("threadIdx.x"))
     s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
     s[OL].compute_at(s[output], tx)
 
@@ -100,9 +101,9 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
         tz, fused = s[load].split(fused, nparts=cfg["tile_f"].size[2])
         ty, fused = s[load].split(fused, nparts=cfg["tile_y"].size[2])
         tx, fused = s[load].split(fused, nparts=cfg["tile_x"].size[2])
-        s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
-        s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
-        s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[load].bind(tz, te.thread_axis("threadIdx.z"))
+        s[load].bind(ty, te.thread_axis("threadIdx.y"))
+        s[load].bind(tx, te.thread_axis("threadIdx.x"))
 
     # tune unroll
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
@@ -114,7 +115,7 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
 
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
     """return a sample task for testing"""
-    task = autotvm.task.create(conv2d_no_batching,
+    task = autotvm.task.create("testing/conv2d_no_batching",
                                args=(1, 7, 7, 512, 512, 3, 3),
                                target=target, target_host=target_host)
     return task, target

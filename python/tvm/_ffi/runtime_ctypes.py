@@ -20,7 +20,6 @@ import ctypes
 import json
 import numpy as np
 from .base import _LIB, check_call
-from .. import _api_internal
 
 tvm_shape_index_t = ctypes.c_int64
 
@@ -40,6 +39,7 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
     NDARRAY_HANDLE = 13
+    OBJECT_RVALUE_REF_ARG = 14
     EXT_BEGIN = 15
 
 
@@ -47,6 +47,7 @@ class TVMByteArray(ctypes.Structure):
     """Temp data structure for byte array."""
     _fields_ = [("data", ctypes.POINTER(ctypes.c_byte)),
                 ("size", ctypes.c_size_t)]
+
 
 class DataType(ctypes.Structure):
     """TVM datatype structure"""
@@ -89,11 +90,13 @@ class DataType(ctypes.Structure):
             bits = 64
             head = ""
         elif head.startswith("custom"):
+            # pylint: disable=import-outside-toplevel
+            import tvm.runtime._ffi_api
             low, high = head.find('['), head.find(']')
             if not low or not high or low >= high:
                 raise ValueError("Badly formatted custom type string %s" % type_str)
             type_name = head[low + 1:high]
-            self.type_code = _api_internal._datatype_get_type_code(type_name)
+            self.type_code = tvm.runtime._ffi_api._datatype_get_type_code(type_name)
             head = head[high+1:]
         else:
             raise ValueError("Do not know how to handle type %s" % type_str)
@@ -102,13 +105,15 @@ class DataType(ctypes.Structure):
 
 
     def __repr__(self):
+        # pylint: disable=import-outside-toplevel
         if self.bits == 1 and self.lanes == 1:
             return "bool"
         if self.type_code in DataType.CODE2STR:
             type_name = DataType.CODE2STR[self.type_code]
         else:
+            import tvm.runtime._ffi_api
             type_name = "custom[%s]" % \
-                        _api_internal._datatype_get_type_name(self.type_code)
+                        tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
         x = "%s%d" % (type_name, self.bits)
         if self.lanes != 1:
             x += "x%d" % self.lanes
@@ -141,6 +146,7 @@ class TVMContext(ctypes.Structure):
         11: 'opengl',
         12: 'ext_dev',
         13: 'micro_dev',
+        14: 'hexagon',
     }
     STR2MASK = {
         'llvm': 1,
@@ -162,34 +168,42 @@ class TVMContext(ctypes.Structure):
         'opengl': 11,
         'ext_dev': 12,
         'micro_dev': 13,
+        'hexagon': 14,
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()
         self.device_type = device_type
         self.device_id = device_id
 
+    def _GetDeviceAttr(self, device_type, device_id, attr_id):
+        """Internal helper function to invoke runtime.GetDeviceAttr"""
+        # pylint: disable=import-outside-toplevel
+        import tvm.runtime._ffi_api
+        return tvm.runtime._ffi_api.GetDeviceAttr(
+            device_type, device_id, attr_id)
+
     @property
     def exist(self):
         """Whether this device exist."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 0) != 0
 
     @property
     def max_threads_per_block(self):
         """Maximum number of threads on each block."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 1)
 
     @property
     def warp_size(self):
         """Number of threads that executes in concurrent."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 2)
 
     @property
     def max_shared_memory_per_block(self):
         """Total amount of shared memory per block in bytes."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 3)
 
     @property
@@ -203,25 +217,25 @@ class TVMContext(ctypes.Structure):
         version : str
             The version string in `major.minor` format.
         """
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 4)
 
     @property
     def device_name(self):
         """Return the string name of device."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 5)
 
     @property
     def max_clock_rate(self):
         """Return the max clock frequency of device."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 6)
 
     @property
     def multi_processor_count(self):
         """Return the number of compute units of device."""
-        return _api_internal._GetDeviceAttr(
+        return self._GetDeviceAttr(
             self.device_type, self.device_id, 7)
 
     @property
@@ -233,7 +247,7 @@ class TVMContext(ctypes.Structure):
         dims: List of int
             The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
         """
-        return json.loads(_api_internal._GetDeviceAttr(
+        return json.loads(self._GetDeviceAttr(
             self.device_type, self.device_id, 8))
 
     def sync(self):
@@ -267,5 +281,19 @@ class TVMArray(ctypes.Structure):
                 ("shape", ctypes.POINTER(tvm_shape_index_t)),
                 ("strides", ctypes.POINTER(tvm_shape_index_t)),
                 ("byte_offset", ctypes.c_uint64)]
+
+
+class ObjectRValueRef:
+    """Represent an RValue ref to an object that can be moved.
+
+    Parameters
+    ----------
+    obj : tvm.runtime.Object
+        The object that this value refers to
+    """
+    __slots__ = ["obj"]
+    def __init__(self, obj):
+        self.obj = obj
+
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)

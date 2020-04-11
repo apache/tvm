@@ -175,7 +175,7 @@ Instruction& Instruction::operator=(const Instruction& instr) {
       this->result = instr.result;
       return *this;
     case Opcode::AllocTensor:
-      this->alloc_tensor.storage = this->alloc_tensor.storage;
+      this->alloc_tensor.storage = instr.alloc_tensor.storage;
       this->alloc_tensor.ndim = instr.alloc_tensor.ndim;
       this->alloc_tensor.shape = Duplicate<int64_t>(instr.alloc_tensor.shape,
                                                     instr.alloc_tensor.ndim);
@@ -1057,7 +1057,7 @@ runtime::Module CreateVirtualMachine(const Executable* exec) {
   return runtime::Module(vm);
 }
 
-TVM_REGISTER_GLOBAL("relay._vm._VirtualMachine")
+TVM_REGISTER_GLOBAL("runtime._VirtualMachine")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Module mod = args[0];
   const auto* exec = dynamic_cast<Executable*>(mod.operator->());

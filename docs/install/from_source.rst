@@ -25,7 +25,12 @@ scratch on various systems. It consists of two steps:
 1. First build the shared library from the C++ codes (`libtvm.so` for linux, `libtvm.dylib` for macOS and `libtvm.dll` for windows).
 2. Setup for the language packages (e.g. Python Package).
 
-To get started, clone TVM repo from github. It is important to clone the submodules along, with ``--recursive`` option.
+To get started, download tvm source code from the `Download Page <https://tvm.apache.org/download>`_.
+
+Developers: Get Source from Github
+----------------------------------
+You can also choose to clone the source repo from github.
+It is important to clone the submodules along, with ``--recursive`` option.
 
 .. code:: bash
 
@@ -58,7 +63,7 @@ Our goal is to build the shared libraries:
 
 The minimal building requirements are
 
-- A recent c++ compiler supporting C++ 11 (g++-4.8 or higher)
+- A recent c++ compiler supporting C++ 14 (g++-5 or higher)
 - CMake 3.5 or higher
 - We highly recommend to build with LLVM to enable all the features.
 - If you want to use CUDA, CUDA toolkit version >= 8.0 is required. If you are upgrading from an older version, make sure you purge the older version and reboot after installation.

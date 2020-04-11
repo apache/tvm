@@ -23,9 +23,9 @@ import numpy as np
 import topi
 
 import tvm
+from tvm import te
 from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
-from tvm.autotvm.task.topi_integration import deserialize_args, serialize_args
 from tvm.autotvm.record import encode, load_from_file
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 
@@ -34,19 +34,18 @@ from .utils import is_boundary_node, get_in_nodes, get_out_nodes, has_multiple_i
     bind_inputs, expr2graph
 from ._base import INVALID_LAYOUT_TIME
 
+from ._base import OPT_OUT_OP
 
-# Setup topi_op_name -> layout function
-# NOTE: To add more ops, change the following dictionary.
-OP2LAYOUT = {
-    "topi_nn_conv2d": topi.nn.conv2d_infer_layout,
-    "topi_nn_depthwise_conv2d_nchw": topi.nn.depthwise_conv2d_infer_layout,
-}
+def get_infer_layout(task_name):
+    if task_name.startswith("conv2d"):
+        return topi.nn.conv2d_infer_layout
+    if task_name.startswith("depthwise_conv2d"):
+        return topi.nn.depthwise_conv2d_infer_layout
+    raise ValueError("Cannot find infer layout for task %s" % task_name)
 
-
-@autotvm.template
+@autotvm.template("layout_transform")
 def layout_transform(*args):
     """Autotvm layout transform template."""
-    args = deserialize_args(args)
     cfg = get_config()
     cfg.add_flop(-1)
     data = args[0]
@@ -70,7 +69,7 @@ class BaseGraphTuner(object):
         target_op in the input graph and layout transformation benchmark need to be
         executed before initialization.
 
-        graph : tvm.relay.Expr.Function
+        graph : tvm.relay.function.Function
             Input graph
 
         input_shapes : dict of str to tuple.
@@ -82,7 +81,7 @@ class BaseGraphTuner(object):
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
 
-        target_ops : List of str
+        target_ops : List of relay.op.Op
             Target tuning operators.
 
         target : str or tvm.target
@@ -104,7 +103,7 @@ class BaseGraphTuner(object):
         self._layout_transform_perf_records = {}
         self._layout_transform_interlayer_cost = {}
         self._input_shapes = input_shapes
-        self._target_ops = [op.__name__ for op in target_ops]
+        self._target_ops = target_ops
 
         self._name = name
         self._max_sch_num = max_sch_num
@@ -141,10 +140,10 @@ class BaseGraphTuner(object):
             self._logger.propagate = False
 
         # Generate workload and schedule dictionaries.
-        if isinstance(graph, relay.Module):
+        if isinstance(graph, tvm.IRModule):
             graph = graph["main"]
 
-        if isinstance(graph, relay.expr.Function):
+        if isinstance(graph, relay.function.Function):
             node_dict = {}
             graph = bind_inputs(graph, input_shapes, dtype)
             expr2graph(graph, self._target_ops, node_dict, self._node_list)
@@ -155,6 +154,7 @@ class BaseGraphTuner(object):
         self._in_nodes_dict = get_in_nodes(self._node_list, self._target_ops, input_shapes.keys())
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
         self._fetch_cfg()
+        self._opt_out_op = OPT_OUT_OP
 
         # Setup infer_layout for elemwise-like nodes
         # Note: graph tuner currently only supports tuning of single input and single output
@@ -164,7 +164,7 @@ class BaseGraphTuner(object):
         # elemwise-like node, and use infer_layout function from input op to generate layouts.
         input_names = self._input_shapes.keys()
         for idx in sorted(self._in_nodes_dict.keys()):
-            if has_multiple_inputs(self._node_list, idx, input_names):
+            if has_multiple_inputs(self._node_list, idx, input_names, self._opt_out_op):
                 node_entry = self._node_list[idx]
                 node_entry["topi_op"] = []
                 node_entry["workloads"] = []
@@ -179,7 +179,7 @@ class BaseGraphTuner(object):
                         dtype = first_tensor[-1]
                         new_shape = tuple([val.value for val in node_entry["types"][0].shape])
                         actual_workload = (input_workload[0],) + \
-                                          ((new_shape + (dtype,)),) + input_workload[2:]
+                                          (("TENSOR", new_shape, dtype),) + input_workload[2:]
                         node_entry["workloads"].append(actual_workload)
                         if "record_candidates" not in node_entry:
                             node_entry["record_candidates"] = input_node["record_candidates"]
@@ -212,7 +212,7 @@ class BaseGraphTuner(object):
                 node_entry["record_candidates"] = cache_dict[workload]
                 continue
             record_candidates = []
-            infer_layout_func = OP2LAYOUT[node_entry["topi_op"][0]]
+            infer_layout_func = get_infer_layout(node_entry["topi_op"][0])
             layout_tracking_dict = {}
             for record in cfg_dict[workload]:
                 in_measure, out_measure = record
@@ -248,7 +248,7 @@ class BaseGraphTuner(object):
             node_entry = self._node_list[key]
             target_input_idx = -1
             target_input_pos = -1
-            if has_multiple_inputs(self._node_list, key, input_names):
+            if has_multiple_inputs(self._node_list, key, input_names, self._opt_out_op):
                 for i, item in enumerate(val):
                     node = self._node_list[item]
                     if not is_boundary_node(node, input_names):
@@ -264,7 +264,7 @@ class BaseGraphTuner(object):
 
                 if node_entry["op"] in self._target_ops:
                     o_idx = key
-                    o_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][0]]
+                    o_infer_layout_func = get_infer_layout(node_entry["topi_op"][0])
                     o_wkl = node_entry["workloads"][0]
                     i_topi_op = in_node_entry["topi_op"][0]
                     i_wkl = in_node_entry["workloads"][0]
@@ -273,14 +273,14 @@ class BaseGraphTuner(object):
                         pivot += 1
                         i_topi_op = in_node_entry["topi_op"][pivot]
                         i_wkl = in_node_entry["workloads"][pivot]
-                    i_infer_layout_func = OP2LAYOUT[i_topi_op]
+                    i_infer_layout_func = get_infer_layout(i_topi_op)
                 else:
                     o_idx = target_input_idx
                     if i <= target_input_pos:
                         continue
-                    o_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][0]]
+                    o_infer_layout_func = get_infer_layout(node_entry["topi_op"][0])
                     o_wkl = node_entry["workloads"][target_input_pos]
-                    i_infer_layout_func = OP2LAYOUT[node_entry["topi_op"][i]]
+                    i_infer_layout_func = get_infer_layout(node_entry["topi_op"][i])
                     i_wkl = node_entry["workloads"][i]
 
                 if (i_idx, o_idx) in pair_tracker:
@@ -304,8 +304,8 @@ class BaseGraphTuner(object):
                             _, out_layout = o_input_info[0]
                         else:
                             _, out_layout = o_output_info[0]
-                        data_placeholder = tvm.placeholder(in_shape, name="data",
-                                                           dtype=self._dtype)
+                        data_placeholder = te.placeholder(in_shape, name="data",
+                                                          dtype=self._dtype)
                         args = [data_placeholder, in_layout, out_layout]
                         callback(i_idx, o_idx, m, n, args)
 
@@ -314,9 +314,8 @@ class BaseGraphTuner(object):
                                 to_sch_idx, args):
         """Create dictionary containing matrix format of layout transformation
         between nodes."""
-        sargs = serialize_args(args)
         in_layout, out_layout = args[1], args[2]
-        ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(sargs)
+        ltf_workload = autotvm.task.args_to_workload(args, 'layout_transform')
         idx_pair_key = (from_node_idx, to_node_idx)
 
         if in_layout == out_layout:
@@ -449,9 +448,8 @@ class BaseGraphTuner(object):
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
             data, in_layout, out_layout = args
-            args = serialize_args(args)
-            ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
-            if ltf_workload in  self._layout_transform_perf_records:
+            ltf_workload = autotvm.task.args_to_workload(args, 'layout_transform')
+            if ltf_workload in self._layout_transform_perf_records:
                 continue
 
             if infer_layout:
@@ -478,9 +476,8 @@ class BaseGraphTuner(object):
                 continue
 
             records = []
-            task = autotvm.task.create(layout_transform, args=args, target=self._target,
+            task = autotvm.task.create("layout_transform", args=args, target=self._target,
                                        target_host=target_host)
-            task.workload = ltf_workload
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[_log_to_list(records)])

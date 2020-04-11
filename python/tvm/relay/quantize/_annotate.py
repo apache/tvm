@@ -24,14 +24,13 @@ from .. import expr as _expr
 from .. import analysis as _analysis
 from .. import op as _op
 from ..op import op as _reg
-from ..base import register_relay_node
 from . import _quantize
 from .quantize import QAnnotateKind, current_qconfig, quantize_context
 from .quantize import _forward_op
 
 
 @_reg.register_compute("relay.op.annotation.simulated_quantize")
-def simulated_quantize_compute(attrs, inputs, out_type, target):
+def simulated_quantize_compute(attrs, inputs, out_type):
     """Compiler for simulated_quantize."""
     assert len(inputs) == 4
     assert attrs.sign
@@ -52,14 +51,13 @@ def simulated_quantize_compute(attrs, inputs, out_type, target):
     return [rdata]
 
 
-_reg.register_schedule("relay.op.annotation.simulated_quantize",
-                       _reg.schedule_injective)
+_reg.register_injective_schedule("relay.op.annotation.simulated_quantize")
 _reg.register_pattern("relay.op.annotation.simulated_quantize",
                       _reg.OpPattern.ELEMWISE)
-_reg.register_schedule("annotation.cast_hint", _reg.schedule_injective)
+_reg.register_injective_schedule("annotation.cast_hint")
 
 
-@register_relay_node
+@tvm._ffi.register_object("relay.QAnnotateExpr")
 class QAnnotateExpr(_expr.TempExpr):
     """A special kind of Expr for Annotating.
 

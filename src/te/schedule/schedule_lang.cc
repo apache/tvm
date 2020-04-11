@@ -20,8 +20,11 @@
 /*!
  * \file schedule_lang.cc
  */
+#include <dmlc/thread_local.h>
+#include <tvm/runtime/registry.h>
 #include <tvm/te/schedule.h>
 #include <tvm/te/operation.h>
+#include <stack>
 #include <unordered_set>
 #include "graph.h"
 
@@ -260,10 +263,10 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
     std::swap(outer, inner);
     std::swap(pos_inner, pos_outer);
   }
-  self->relations.push_back(FuseNode::make(outer, inner, fused));
-  all_vars->data.push_back(fused);
   CHECK_EQ(pos_inner, pos_outer + 1)
       << "Can only fuse iterations that are consecutive between each other";
+  self->relations.push_back(FuseNode::make(outer, inner, fused));
+  all_vars->data.push_back(fused);
   leaf_vars->data.erase(leaf_vars->data.begin() + pos_outer,
                         leaf_vars->data.begin() + pos_inner + 1);
   leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,
@@ -786,6 +789,53 @@ IterVarRelation SingletonNode::make(IterVar iter) {
   return IterVarRelation(n);
 }
 
+SpecializedCondition::SpecializedCondition(Array<PrimExpr> conditions) {
+  ObjectPtr<SpecializedConditionNode> n = make_object<SpecializedConditionNode>();
+  n->clauses = std::move(conditions);
+  data_ = std::move(n);
+}
+
+/*! \brief Entry to hold the SpecializedCondition context stack. */
+struct TVMSpecializationThreadLocalEntry {
+  /*! \brief The current specialized condition */
+  std::stack<SpecializedCondition> condition_stack;
+};
+
+/*! \brief Thread local store to hold the Target context stack. */
+typedef dmlc::ThreadLocalStore<TVMSpecializationThreadLocalEntry> TVMSpecializationThreadLocalStore;
+
+void SpecializedCondition::EnterWithScope() {
+  TVMSpecializationThreadLocalEntry *entry = TVMSpecializationThreadLocalStore::Get();
+  entry->condition_stack.push(*this);
+}
+
+void SpecializedCondition::ExitWithScope() {
+  TVMSpecializationThreadLocalEntry *entry = TVMSpecializationThreadLocalStore::Get();
+  CHECK(!entry->condition_stack.empty());
+  CHECK(entry->condition_stack.top().same_as(*this));
+  entry->condition_stack.pop();
+}
+
+SpecializedCondition SpecializedCondition::Current() {
+  TVMSpecializationThreadLocalEntry *entry = TVMSpecializationThreadLocalStore::Get();
+  SpecializedCondition cond;
+  if (entry->condition_stack.size() > 0) {
+    cond = entry->condition_stack.top();
+  }
+  return cond;
+}
+
+class SpecializedCondition::Internal {
+ public:
+  static void EnterScope(SpecializedCondition cond) {
+    cond.EnterWithScope();
+  }
+
+  static void ExitScope(SpecializedCondition cond) {
+    cond.ExitWithScope();
+  }
+};
+
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(IterVarAttrNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
@@ -793,6 +843,7 @@ TVM_REGISTER_NODE_TYPE(FuseNode);
 TVM_REGISTER_NODE_TYPE(RebaseNode);
 TVM_REGISTER_NODE_TYPE(SingletonNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
+TVM_REGISTER_NODE_TYPE(SpecializedConditionNode);
 
 // Printer
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -847,6 +898,142 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<ScheduleNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const ScheduleNode*>(node.get());
     p->stream << "schedule(" << op << ")";
+})
+.set_dispatch<SpecializedConditionNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const SpecializedConditionNode*>(node.get());
+    p->stream << "specialized_condition(";
+    p->Print(op->clauses);
+    p->stream << ')';
+});
+
+
+TVM_REGISTER_GLOBAL("te.CreateSchedule")
+.set_body_typed(create_schedule);
+
+TVM_REGISTER_GLOBAL("te.StageSetScope")
+.set_body_method(&Stage::set_scope);
+
+TVM_REGISTER_GLOBAL("te.StageBind")
+.set_body_method(&Stage::bind);
+
+TVM_REGISTER_GLOBAL("te.StageSplitByFactor")
+.set_body_typed([](Stage stage, IterVar parent, PrimExpr factor) {
+  IterVar outer, inner;
+  stage.split(parent, factor, &outer, &inner);
+  return Array<IterVar>({outer, inner});
+});
+
+TVM_REGISTER_GLOBAL("te.StageSplitByNParts")
+.set_body_typed([](Stage stage, IterVar parent, PrimExpr nparts) {
+  IterVar outer, inner;
+  stage.split_by_nparts(parent, nparts, &outer, &inner);
+  return Array<IterVar>({outer, inner});
+});
+
+TVM_REGISTER_GLOBAL("te.StageFuse")
+.set_body_typed([](Stage stage, Array<IterVar> axes) {
+    IterVar fused;
+    stage.fuse(axes, &fused);
+    return fused;
   });
+
+TVM_REGISTER_GLOBAL("te.StageComputeAt")
+.set_body_method(&Stage::compute_at);
+
+TVM_REGISTER_GLOBAL("te.StageComputeInline")
+.set_body_method(&Stage::compute_inline);
+
+TVM_REGISTER_GLOBAL("te.StageComputeRoot")
+.set_body_method(&Stage::compute_root);
+
+TVM_REGISTER_GLOBAL("te.StageReorder")
+.set_body_method(&Stage::reorder);
+
+TVM_REGISTER_GLOBAL("te.StageTile")
+.set_body_typed([](
+  Stage stage,
+  IterVar x_parent, IterVar y_parent,
+  PrimExpr x_factor, PrimExpr y_factor
+) {
+    IterVar x_outer, y_outer, x_inner, y_inner;
+    stage.tile(x_parent, y_parent,
+               x_factor, y_factor,
+               &x_outer, &y_outer,
+               &x_inner, &y_inner);
+    return Array<IterVar>({x_outer, y_outer, x_inner, y_inner});
+  });
+
+TVM_REGISTER_GLOBAL("te.StageEnvThreads")
+.set_body_method(&Stage::env_threads);
+
+TVM_REGISTER_GLOBAL("te.StageSetStorePredicate")
+.set_body_method(&Stage::set_store_predicate);
+
+TVM_REGISTER_GLOBAL("te.StageUnroll")
+.set_body_method(&Stage::unroll);
+
+TVM_REGISTER_GLOBAL("te.StageVectorize")
+.set_body_method(&Stage::vectorize);
+
+TVM_REGISTER_GLOBAL("te.StageTensorize")
+.set_body_method(&Stage::tensorize);
+
+TVM_REGISTER_GLOBAL("te.StageParallel")
+.set_body_method(&Stage::parallel);
+
+TVM_REGISTER_GLOBAL("te.StagePragma")
+.set_body_method(&Stage::pragma);
+
+TVM_REGISTER_GLOBAL("te.StagePrefetch")
+.set_body_method(&Stage::prefetch);
+
+TVM_REGISTER_GLOBAL("te.StageStorageAlign")
+.set_body_method(&Stage::storage_align);
+
+TVM_REGISTER_GLOBAL("te.StageDoubleBuffer")
+.set_body_method(&Stage::double_buffer);
+
+TVM_REGISTER_GLOBAL("te.StageOpenGL")
+.set_body_method(&Stage::opengl);
+
+TVM_REGISTER_GLOBAL("te.ScheduleNormalize")
+.set_body_method(&Schedule::normalize);
+
+TVM_REGISTER_GLOBAL("te.ScheduleCreateGroup")
+.set_body_method(&Schedule::create_group);
+
+TVM_REGISTER_GLOBAL("te.ScheduleCacheRead")
+.set_body_method(&Schedule::cache_read);
+
+TVM_REGISTER_GLOBAL("te.ScheduleCacheWrite")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    if (args[1].IsObjectRef<Tensor>()) {
+      *ret = args[0].operator Schedule()
+          .cache_write(args[1].operator Tensor(), args[2]);
+    } else {
+      *ret = args[0].operator Schedule()
+          .cache_write(args[1].operator Array<Tensor>(), args[2]);
+    }
+  });
+
+TVM_REGISTER_GLOBAL("te.ScheduleRFactor")
+.set_body_method(&Schedule::rfactor);
+
+TVM_REGISTER_GLOBAL("te.CreateSpecializedCondition")
+.set_body_typed([](Array<PrimExpr> condition) {
+    return SpecializedCondition(condition);
+});
+
+TVM_REGISTER_GLOBAL("te.GetCurrentSpecialization")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = SpecializedCondition::Current();
+});
+
+TVM_REGISTER_GLOBAL("te.EnterSpecializationScope")
+.set_body_typed(SpecializedCondition::Internal::EnterScope);
+
+TVM_REGISTER_GLOBAL("te.ExitSpecializationScope")
+.set_body_typed(SpecializedCondition::Internal::ExitScope);
+
 }  // namespace te
 }  // namespace tvm

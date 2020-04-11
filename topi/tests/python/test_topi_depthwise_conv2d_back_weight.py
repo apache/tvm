@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+from tvm import te
 import topi
 import topi.testing
 import numpy as np
@@ -40,8 +41,8 @@ def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multipl
     fshape = [filter_h, filter_w, in_channel, channel_multiplier]
 
     # placeholder
-    Out_grad = tvm.placeholder(oshape, name='Out_grad')
-    Input = tvm.placeholder((batch, in_h, in_w, in_channel), name='In_grad')
+    Out_grad = te.placeholder(oshape, name='Out_grad')
+    Input = te.placeholder((batch, in_h, in_w, in_channel), name='In_grad')
     # declare
     Weight_grad = topi.nn.depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape,
         stride=[stride_h, stride_w], padding=[padding_h, padding_w])

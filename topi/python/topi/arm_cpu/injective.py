@@ -17,10 +17,9 @@
 # pylint: disable=invalid-name, unused-variable
 """Schedule for pooling operators"""
 import tvm
-from .. import generic
+from tvm import te
 from ..util import is_empty_shape
 
-@generic.schedule_injective_from_existing.register(["arm_cpu"])
 def schedule_injective_from_existing(sch, out):
     """Schedule for injective op from existing schedule.
 
@@ -46,7 +45,6 @@ def schedule_injective_from_existing(sch, out):
         sch[out].parallel(sch[out].op.axis[0])
     return sch
 
-@generic.schedule_injective.register(["arm_cpu"])
 def schedule_injective(outs):
     """ARM CPU schedule for injective op.
 
@@ -61,27 +59,26 @@ def schedule_injective(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     x = outs[0]
     if list(s[x].op.axis):
         # do not vectorize for broadcast
         (io, ii) = s[x].split(list(s[x].op.axis)[-1], 8)
         s[x].vectorize(ii)
-    tvm.schedule.AutoInlineInjective(s)
+    tvm.te.schedule.AutoInlineInjective(s)
 
     if not is_empty_shape(x.shape):
         schedule_injective_from_existing(s, x)
     return s
 
-@generic.schedule_concatenate.register(["arm_cpu"])
 def schedule_concatenate(outs):
     """Schedule for concatenate op.
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of reduce in the format
+          The computation graph description of concatenate in the format
           of an array of tensors.
 
     Returns
@@ -89,10 +86,10 @@ def schedule_concatenate(outs):
     sch: Schedule
         The computation schedule for the op.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     x = outs[0]
-    tvm.schedule.AutoInlineInjective(s)
+    tvm.te.schedule.AutoInlineInjective(s)
     if len(s[x].op.axis) >= 4:
         fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
         s[x].parallel(fused)

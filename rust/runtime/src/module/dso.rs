@@ -35,8 +35,8 @@ use crate::{
 
 use super::Module;
 
-const TVM_MAIN: &'static [u8] = b"__tvm_main__";
-const TVM_MODULE_CTX: &'static [u8] = b"__tvm_module_ctx";
+const TVM_MAIN: &[u8] = b"__tvm_main__";
+const TVM_MODULE_CTX: &[u8] = b"__tvm_module_ctx";
 
 /// A module backed by a Dynamic Shared Object (dylib).
 pub struct DsoModule<'a> {
@@ -64,22 +64,26 @@ impl<'a> DsoModule<'a> {
 
         init_context_func!(
             lib,
-            (TVMAPISetLastError, extern "C" fn(*const i8)),
+            (TVMAPISetLastError, unsafe extern "C" fn(*const i8)),
             (
                 TVMBackendAllocWorkspace,
-                extern "C" fn(c_int, c_int, u64, c_int, c_int) -> *mut c_void
+                unsafe extern "C" fn(c_int, c_int, u64, c_int, c_int) -> *mut c_void
             ),
             (
                 TVMBackendFreeWorkspace,
-                extern "C" fn(c_int, c_int, *mut c_void) -> c_int
+                unsafe extern "C" fn(c_int, c_int, *mut c_void) -> c_int
             ),
             (
                 TVMBackendParallelLaunch,
-                extern "C" fn(crate::threading::FTVMParallelLambda, *const c_void, usize) -> c_int
+                unsafe extern "C" fn(
+                    crate::threading::FTVMParallelLambda,
+                    *const c_void,
+                    usize,
+                ) -> c_int
             ),
             (
                 TVMBackendParallelBarrier,
-                extern "C" fn(usize, *const tvm_common::ffi::TVMParallelGroupEnv)
+                unsafe extern "C" fn(usize, *const tvm_common::ffi::TVMParallelGroupEnv)
             ),
         );
 
@@ -129,7 +133,7 @@ impl<'a> Module for DsoModule<'a> {
             &*Box::leak(super::wrap_backend_packed_func(name.to_string(), *func)),
         );
 
-        self.packed_funcs.borrow().get(name).map(|f| *f)
+        self.packed_funcs.borrow().get(name).copied()
     }
 }
 

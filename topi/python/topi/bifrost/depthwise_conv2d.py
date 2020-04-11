@@ -20,12 +20,11 @@
 
 from __future__ import absolute_import as _abs
 import tvm
+from tvm import te
 
-from .. import generic
 from .. import util
 from .. import tag
 
-@generic.schedule_depthwise_conv2d_nchw.register(["bifrost"])
 def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 
@@ -40,8 +39,8 @@ def schedule_depthwise_conv2d_nchw(outs):
     s: Schedule
         The computation schedule for depthwise_conv2d nchw.
     """
-    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
-    s = tvm.create_schedule([x.op for x in outs])
+    outs = [outs] if isinstance(outs, te.tensor.Tensor) else outs
+    s = te.create_schedule([x.op for x in outs])
     def _schedule(pad_data, kernel, conv):
         raw_data = s[pad_data].op.input_tensors[0]
 
@@ -57,12 +56,12 @@ def schedule_depthwise_conv2d_nchw(outs):
             zo, zi = s[tensor].split(z, z_factor)
             yo, yi = s[tensor].split(y, y_factor)
             xo, xi = s[tensor].split(x, x_factor)
-            s[tensor].bind(zo, tvm.thread_axis("blockIdx.z"))
-            s[tensor].bind(zi, tvm.thread_axis("threadIdx.z"))
-            s[tensor].bind(yo, tvm.thread_axis("blockIdx.y"))
-            s[tensor].bind(yi, tvm.thread_axis("threadIdx.y"))
-            s[tensor].bind(xo, tvm.thread_axis("blockIdx.x"))
-            s[tensor].bind(xi, tvm.thread_axis("threadIdx.x"))
+            s[tensor].bind(zo, te.thread_axis("blockIdx.z"))
+            s[tensor].bind(zi, te.thread_axis("threadIdx.z"))
+            s[tensor].bind(yo, te.thread_axis("blockIdx.y"))
+            s[tensor].bind(yi, te.thread_axis("threadIdx.y"))
+            s[tensor].bind(xo, te.thread_axis("blockIdx.x"))
+            s[tensor].bind(xi, te.thread_axis("threadIdx.x"))
             return zo, zi, yo, yi, xo, xi
 
         # set tunable parameters
@@ -117,7 +116,7 @@ def schedule_depthwise_conv2d_nchw(outs):
         if op.tag == 'depthwise_conv2d_nchw':
             pad_data = op.input_tensors[0]
             kernel = op.input_tensors[1]
-            if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+            if isinstance(kernel.op, tvm.te.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
             conv = op.output(0)
             _schedule(pad_data, kernel, conv)

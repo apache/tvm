@@ -19,6 +19,7 @@ import os
 import numpy as np
 
 import tvm
+from tvm import te
 from tvm import relay
 import tvm.relay.transform as _transform
 
@@ -46,7 +47,8 @@ def test_eta_expand_global_var():
             }
         }
     """)
-    relay.analysis.assert_graph_equal(mod['main'], expected['main'])
+    tvm.ir.assert_structural_equal(mod['main'], expected['main'],
+                                   map_free_vars=True)
 
 
 def test_eta_expand_constructor():
@@ -75,7 +77,8 @@ def test_eta_expand_constructor():
             }
         }
     """)
-    relay.analysis.assert_graph_equal(mod['main'], expected['main'])
+    tvm.ir.assert_structural_equal(mod['main'], expected['main'],
+                                   map_free_vars=True)
 
 
 if __name__ == '__main__':

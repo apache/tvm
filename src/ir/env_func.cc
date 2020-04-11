@@ -50,10 +50,10 @@ EnvFunc EnvFunc::Get(const std::string& name) {
   return EnvFunc(CreateEnvNode(name));
 }
 
-TVM_REGISTER_GLOBAL("_EnvFuncGet")
+TVM_REGISTER_GLOBAL("ir.EnvFuncGet")
 .set_body_typed(EnvFunc::Get);
 
-TVM_REGISTER_GLOBAL("_EnvFuncCall")
+TVM_REGISTER_GLOBAL("ir.EnvFuncCall")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     EnvFunc env = args[0];
     CHECK_GE(args.size(), 1);
@@ -62,14 +62,14 @@ TVM_REGISTER_GLOBAL("_EnvFuncCall")
                                  args.size() - 1), rv);
   });
 
-TVM_REGISTER_GLOBAL("_EnvFuncGetPackedFunc")
+TVM_REGISTER_GLOBAL("ir.EnvFuncGetPackedFunc")
 .set_body_typed([](const EnvFunc&n) {
     return n->func;
   });
 
 TVM_REGISTER_NODE_TYPE(EnvFuncNode)
 .set_creator(CreateEnvNode)
-.set_global_key([](const Object* n) -> std::string {
+.set_repr_bytes([](const Object* n) -> std::string {
     return static_cast<const EnvFuncNode*>(n)->name;
   });
 

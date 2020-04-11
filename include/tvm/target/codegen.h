@@ -25,8 +25,8 @@
 #define TVM_TARGET_CODEGEN_H_
 
 #include <tvm/runtime/packed_func.h>
+#include <tvm/ir/module.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/lowered_func.h>
 #include <tvm/target/target.h>
 
 #include <string>
@@ -42,14 +42,12 @@ using runtime::TVMRetValue;
 
 /*!
  * \brief Build a module from array of lowered function.
- * \param funcs The functions to be built.
+ * \param mod The Module to be built
  * \param target The target to be built.
- * \return The builded module.
- *
- * \note Calls global API function  "_codegen_build_" + target
+ * \return The result runtime::Module.
  */
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target);
+runtime::Module Build(IRModule mod, const Target& target);
+
 /*!
  * \brief Pack imported device library to a C file.
  *  Compile the C file and link with the host library

@@ -19,7 +19,8 @@
 name = "callback"
 version = "0.0.0"
 authors = ["TVM Contributors"]
+edition = "2018"
 
 [dependencies]
-ndarray = "0.12.1"
+ndarray = "0.12"
 tvm-frontend = { path = "../../" }

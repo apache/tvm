@@ -57,7 +57,7 @@ Expr MakeROIAlign(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spa
   attrs->sample_ratio = sample_ratio;
   attrs->layout = layout;
   static const Op& op = Op::Get("vision.roi_align");
-  return CallNode::make(op, {data, rois}, Attrs(attrs), {});
+  return Call(op, {data, rois}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vision._make.roi_align")
@@ -107,7 +107,7 @@ Expr MakeROIPool(Expr data, Expr rois, Array<IndexExpr> pooled_size, double spat
   attrs->spatial_scale = spatial_scale;
   attrs->layout = layout;
   static const Op& op = Op::Get("vision.roi_pool");
-  return CallNode::make(op, {data, rois}, Attrs(attrs), {});
+  return Call(op, {data, rois}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vision._make.roi_pool")
@@ -173,7 +173,7 @@ Expr MakeProposal(Expr cls_prob, Expr bbox_pred, Expr im_info, Array<IndexExpr> 
   attrs->rpn_min_size = rpn_min_size;
   attrs->iou_loss = iou_loss;
   static const Op& op = Op::Get("vision.proposal");
-  return CallNode::make(op, {cls_prob, bbox_pred, im_info}, Attrs(attrs), {});
+  return Call(op, {cls_prob, bbox_pred, im_info}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vision._make.proposal")

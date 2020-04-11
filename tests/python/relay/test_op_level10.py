@@ -18,6 +18,7 @@
 """
 import numpy as np
 import tvm
+from tvm import te
 import topi.testing
 from tvm import relay
 from tvm.relay import transform
@@ -55,7 +56,7 @@ def test_checkpoint_alpha_equal():
     with transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(relay.Module.from_expr(df))
+        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -98,7 +99,7 @@ def test_checkpoint_alpha_equal():
         """
     )
 
-    relay.analysis.assert_alpha_equal(df, df_parsed)
+    tvm.ir.assert_structural_equal(df, df_parsed)
 
 def test_checkpoint_alpha_equal_tuple():
     xs = [relay.var("x{}".format(i), relay.TensorType((1,), "float32")) for i in range(4)]
@@ -111,7 +112,7 @@ def test_checkpoint_alpha_equal_tuple():
     with transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(relay.Module.from_expr(df))
+        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -145,7 +146,7 @@ def test_checkpoint_alpha_equal_tuple():
         """
     )
 
-    relay.analysis.assert_alpha_equal(df, df_parsed)
+    tvm.ir.assert_structural_equal(df, df_parsed)
 
 def test_collapse_sum_like():
     shape = (3, 4, 5, 6)
@@ -250,7 +251,7 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 def test_slice_like():
-    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     verify_slice_like(data=(d1, d2, d3), slice_like=(1, 2, 3), axes=None, output=(1, 2, 3))
     verify_slice_like(data=(1, 2, 3), slice_like=(d1, d2, d3), axes=None, output=(d1, d2, d3))
     verify_slice_like(data=(d2, d3, d4), slice_like=(d1, d2, d3), axes=(1,2), output=(d2, d2, d3))
@@ -304,7 +305,7 @@ def verify_batch_matmul(x_shape, y_shape, out_shape, dtype="float32"):
             tvm.testing.assert_allclose(z.asnumpy(), z_np, rtol=1e-5)
 
 def test_batch_matmul():
-    b, m, n, k = tvm.size_var("b"), tvm.size_var("m"), tvm.size_var("n"), tvm.size_var("k")
+    b, m, n, k = te.size_var("b"), te.size_var("m"), te.size_var("n"), te.size_var("k")
     x = relay.var("x", relay.TensorType((b, m, k), "float32"))
     y = relay.var("y", relay.TensorType((b, n, k), "float32"))
     z = relay.nn.batch_matmul(x, y)
@@ -334,7 +335,7 @@ def test_shape_of():
 def test_ndarray_size():
     def verify_ndarray_size(shape):
         x = relay.var("x", shape=shape)
-        func = relay.Function([x], relay.op.contrib.ndarray_size(x))
+        func = relay.Function([x], relay.op.ndarray_size(x))
         func = run_infer_type(func)
 
         x_data = np.random.uniform(size=shape).astype("float32")
@@ -348,46 +349,43 @@ def test_ndarray_size():
     verify_ndarray_size((2, 3, 5))
     verify_ndarray_size((2, 3, 5, 7))
 
-def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
-    def start_index(index, odim, idim):
-        return int(np.floor(index * idim / odim))
 
-    def end_index(index, odim, idim):
-        return int(np.ceil((index + 1) * idim / odim))
-
-    np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
-    n, c, h, w = dshape
-    oh, ow = out_size
-    oshape = (n, c) + out_size
-    np_out = np.zeros(oshape).astype(dtype)
-    np_op = np.mean if pool_type == "avg" else np.max
-    for i in range(n):
-        for j in range(c):
-            for k in range(oh):
-                k_start = start_index(k, oh, h)
-                k_end = end_index(k, oh, h)
-                k_sl = slice(k_start, k_end)
-                for l in range(ow):
-                    l_start = start_index(l, ow, w)
-                    l_end = end_index(l, ow, w)
-                    l_sl = slice(l_start, l_end)
-                    np_out[i, j, k, l] = np_op(np_data[i, j, k_sl, l_sl])
-
-    opfunc = relay.contrib.adaptive_avg_pool2d if pool_type == "avg" else relay.contrib.adaptive_max_pool2d
-    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+def verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc):
+    x = relay.var("x", relay.TensorType(dshape, "float32"))
     y = opfunc(x, out_size, layout)
     func = relay.Function([x], y)
+
+    np_data = np.random.uniform(low=0, high=255, size=dshape).astype(dtype)
+    np_out = topi.testing.adaptive_pool(np_data, out_size, pool_type, layout)
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         relay_out = intrp1.evaluate(func)(np_data)
         tvm.testing.assert_allclose(relay_out.asnumpy(), np_out, rtol=1e-5, atol=1e-5)
 
-def test_adaptive_pool2d():
+
+def verify_adaptive_pool2d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+    opfunc = relay.nn.adaptive_avg_pool2d if pool_type == "avg" else relay.nn.adaptive_max_pool2d
+    verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
+
+
+def verify_adaptive_pool3d(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
+    opfunc = relay.nn.adaptive_avg_pool3d if pool_type == "avg" else relay.nn.adaptive_max_pool3d
+    verify_adaptive_pool(dshape, out_size, pool_type, layout, dtype, opfunc)
+
+
+def test_adaptive_pool():
     verify_adaptive_pool2d((1, 9, 224, 224), (1, 1), "max")
     verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg")
     verify_adaptive_pool2d((1, 14, 56, 78), (34, 13), "max")
     verify_adaptive_pool2d((1, 5, 46, 97), (4, 96), "avg")
+    verify_adaptive_pool2d((1, 224, 224, 3), (1, 1), "max", layout="NHWC")
+    verify_adaptive_pool2d((1, 3, 224, 224), (2, 3), "avg", layout="NHWC")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "max", layout="NCDHW")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NCDHW")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (1, 1, 1), "avg", layout="NDHWC")
+    verify_adaptive_pool3d((1, 16, 32, 32, 32), (2, 4, 4), "max", layout="NDHWC")
+
 
 def test_sequence_mask():
     def _verify(data_shape, mask_value, axis, dtype, itype):
@@ -424,7 +422,7 @@ def test_one_hot():
             else:
                 oshape.append(indices_shape[indices_index])
                 indices_index += 1
-        
+
         return oshape
 
     def _verify(indices_shape, depth, on_value, off_value, axis, dtype):
@@ -443,7 +441,7 @@ def test_one_hot():
                 intrp = relay.create_executor(kind, ctx=ctx, target=target)
                 out_relay = intrp.evaluate(func)(indices_np)
                 tvm.testing.assert_allclose(out_relay.asnumpy(), out_np)
-    
+
     _verify((3,), 3, 1, 0, -1, "int32")
     _verify((3,), 3, 1.0, 0.0, -1, "float32")
     _verify((2, 2), 5, 2, -2, 0, "int32")
@@ -452,7 +450,7 @@ def test_one_hot():
     _verify((3, 2, 4, 5), 6, 1.0, 0.0, 0, "float32")
 
 if __name__ == "__main__":
-    test_adaptive_pool2d()
+    test_adaptive_pool()
     test_collapse_sum_like()
     test_broadcast_to_like()
     test_slice_like()
@@ -462,4 +460,3 @@ if __name__ == "__main__":
     test_sequence_mask()
     test_ndarray_size()
     test_one_hot()
-

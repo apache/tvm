@@ -17,33 +17,21 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
-import topi
-
+from tvm.runtime import convert
+from tvm.te.hybrid import script
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
-from ...api import convert
-from ...hybrid import script
 
-
-def _schedule_reduce(_, outs, target):
-    """Generic schedule for reduce"""
-    with target:
-        return topi.generic.schedule_reduce(outs)
-
-
-_reg.register_schedule("argmax", _schedule_reduce)
-_reg.register_schedule("argmin", _schedule_reduce)
-_reg.register_schedule("sum", _schedule_reduce)
-_reg.register_schedule("all", _schedule_reduce)
-_reg.register_schedule("any", _schedule_reduce)
-_reg.register_schedule("max", _schedule_reduce)
-_reg.register_schedule("min", _schedule_reduce)
-_reg.register_schedule("prod", _schedule_reduce)
-_reg.register_schedule("mean", _schedule_reduce)
-_reg.register_schedule("variance", _schedule_reduce)
-_reg.register_schedule("nn.cross_entropy", _schedule_reduce)
-_reg.register_schedule("nn.cross_entropy_with_logits", _schedule_reduce)
-
+_reg.register_reduce_schedule("argmax")
+_reg.register_reduce_schedule("argmin")
+_reg.register_reduce_schedule("sum")
+_reg.register_reduce_schedule("all")
+_reg.register_reduce_schedule("any")
+_reg.register_reduce_schedule("max")
+_reg.register_reduce_schedule("min")
+_reg.register_reduce_schedule("prod")
+_reg.register_reduce_schedule("mean")
+_reg.register_reduce_schedule("variance")
 
 def _create_axis_record(attrs, inputs):
     axes = attrs.axis if attrs.axis is None else list(get_const_tuple(attrs.axis))

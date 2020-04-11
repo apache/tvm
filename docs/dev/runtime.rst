@@ -1,19 +1,19 @@
-.. Licensed to the Apache Software Foundation (ASF) under one
-.. or more contributor license agreements.  See the NOTICE file
-.. distributed with this work for additional information
-.. regarding copyright ownership.  The ASF licenses this file
-.. to you under the Apache License, Version 2.0 (the
-.. "License"); you may not use this file except in compliance
-.. with the License.  You may obtain a copy of the License at
-..
-..   http://www.apache.org/licenses/LICENSE-2.0
-..
-.. Unless required by applicable law or agreed to in writing,
-.. software distributed under the License is distributed on an
-.. "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-.. KIND, either express or implied.  See the License for the
-.. specific language governing permissions and limitations
-.. under the License.
+..  Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+..    http://www.apache.org/licenses/LICENSE-2.0
+
+..  Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
 
 .. _tvm-runtime-system:
 
@@ -23,7 +23,7 @@ TVM Runtime System
 TVM supports multiple programming languages for the compiler stack development and deployment.
 In this note, we explain the key elements of the TVM runtime.
 
-.. image:: http://www.tvm.ai/images/release/tvm_flexible.png
+.. image:: https://tvm.apache.org/images/release/tvm_flexible.png
 
 We need to satisfy quite a few interesting requirements:
 
@@ -36,6 +36,8 @@ We need to satisfy quite a few interesting requirements:
 
 We want to be able to define a function from any language and call from another.
 We also want the runtime core to be minimal to deploy to embedded devices.
+
+.. _tvm-runtime-system-packed-func:
 
 PackedFunc
 ----------
@@ -172,18 +174,17 @@ Remote Deployment
 The PackedFunc and Module system also makes it easy to ship the function into remote devices directly.
 Under the hood, we have an RPCModule that serializes the arguments to do the data movement and launches the computation on the remote.
 
-.. image:: http://www.tvm.ai/images/release/tvm_rpc.png
+.. image:: https://tvm.apache.org/images/release/tvm_rpc.png
 
 The RPC server itself is minimum and can be bundled into the runtime. We can start a minimum TVM
 RPC server on iPhone/android/raspberry pi or even the browser. The cross compilation on server and shipping of the module for testing can be done in the same script. Checkout
-`Cross compilation and RPC tutorial`_ for more details.
+:ref:`tutorial-cross-compilation-and-rpc` for more details.
 
-.. _Cross compilation and RPC tutorial: https://docs.tvm.ai/tutorials/cross_compilation_and_rpc.html#sphx-glr-tutorials-cross-compilation-and-rpc-py
 
 This instant feedback gives us a lot of advantages. For example, to test the correctness of generated code on iPhone, we no longer have to write test-cases in swift/objective-c from scratch -- We can use RPC to execute on iPhone, copy the result back and do verification on the host via numpy. We can also do the profiling using the same script.
 
 TVM Object and Compiler Stack
----------------------------
+-----------------------------
 
 As we mentioned earlier, we build compiler stack API on top of the PackedFunc runtime system.
 We faced a constant changing of the compiler API for the need of research. We need a new language object or IR node whenever we want to test out new primitives.
@@ -258,9 +259,11 @@ It also allows us to get members of an object easily in front-end language.
 For example, in the following code, we accessed the op field of the TensorNode.
 
 .. code:: python
-    import tvm
 
-    x = tvm.placeholder((3,4), name="x")
+    import tvm
+    from tvm import te
+
+    x = te.placeholder((3,4), name="x")
     # access the op field of TensorNode
     print(x.op.name)
 

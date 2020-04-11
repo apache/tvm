@@ -14,15 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=broad-except
 """Common utilities"""
 from __future__ import absolute_import as _abs
 import logging
 import numpy as np
 
 import tvm
+from tvm.ir import IRModule
 from topi.util import get_const_tuple
+
 from .. import expr as _expr
-from .. import module as _module
+from .. import function as _function
 from .. import transform as _transform
 from .. import op as _op
 from .. import analysis
@@ -453,22 +456,20 @@ def get_name(node):
 
 def infer_type(node, mod=None):
     """A method to infer the type of an intermediate node in the relay graph."""
-    new_mod = _module.Module.from_expr(node)
-    if mod is not None:
-        new_mod.update(mod)
-    new_mod = _transform.InferType()(new_mod)
-    entry = new_mod["main"]
-    return entry if isinstance(node, _expr.Function) else entry.body
+    if isinstance(mod, IRModule):
+        mod["main"] = _function.Function([], node)
+        mod = _transform.InferType()(mod)
+        entry = mod["main"]
+        ret = entry.body
+    else:
+        new_mod = IRModule.from_expr(node)
+        if mod is not None:
+            new_mod.update(mod)
+            new_mod = _transform.InferType()(new_mod)
+        entry = new_mod["main"]
+        ret = entry if isinstance(node, _function.Function) else entry.body
 
-def infer_shape(inputs, mod=None):
-    """A method to get the output type of an intermediate node in the graph."""
-    out_type = infer_type(inputs, mod=mod)
-    checked_type = out_type.checked_type
-    if hasattr(checked_type, 'shape'):
-        # Regular operator that outputs tensors
-        return get_const_tuple(out_type.checked_type.shape)
-    # The return type is not a tensor, for example List
-    return checked_type
+    return ret
 
 def infer_channels(inputs, transpose=False):
     """A hack for getting 'channels' or 'units' since caffe2 does not provide
@@ -480,24 +481,48 @@ def infer_channels(inputs, transpose=False):
     return channels
 
 
-def infer_value(input_val, params):
+def infer_shape(inputs, mod=None):
+    """A method to get the output type of an intermediate node in the graph."""
+    out_type = infer_type(inputs, mod=mod)
+    checked_type = out_type.checked_type
+    if hasattr(checked_type, 'shape'):
+        # Regular operator that outputs tensors
+        return get_const_tuple(checked_type.shape)
+    # The return type is not a tensor, for example List
+    return checked_type
+
+
+def infer_value(input_val, params, mod=None):
     """A hack for getting the value of an expression by evaluating a
     portion of the relay graph. This is often needed for functions that
     whose output shape depends on the value of a tensor.
     """
-    # pylint: disable=import-outside-toplevel
-    from tvm.contrib import graph_runtime
-    # Check that all free variables have associated parameters.
-    assert all(var.name_hint in params.keys() for var in analysis.free_vars(
-        input_val)), "All inputs to infer must be available in params."
-    func = _expr.Function(analysis.free_vars(input_val), input_val)
-    with tvm.relay.build_config(opt_level=0):
-        graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
-    ctx = tvm.cpu(0)
-    m = graph_runtime.create(graph, lib, ctx)
-    m.set_input(**params)
-    m.run()
-    return m.get_output(0)
+    try:
+        # TODO(kevinthesun): Use VM for all cases.
+        # pylint: disable=import-outside-toplevel
+        from tvm.contrib import graph_runtime
+        # Check that all free variables have associated parameters.
+        assert all(var.name_hint in params.keys() for var in analysis.free_vars(
+            input_val)), "All inputs to infer must be available in params."
+        func = _function.Function(analysis.free_vars(input_val), input_val)
+        with tvm.relay.build_config(opt_level=0):
+            graph, lib, params = tvm.relay.build(func, target="llvm", params=params)
+        ctx = tvm.cpu(0)
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input(**params)
+        m.run()
+        return m.get_output(0)
+    except Exception:
+        if isinstance(mod, IRModule):
+            mod["main"] = _function.Function(analysis.free_vars(input_val), input_val)
+        else:
+            mod = IRModule.from_expr(input_val)
+        exc = tvm.relay.create_executor("debug", mod=mod, ctx=tvm.cpu(), target="llvm")
+        inputs = []
+        for param in mod['main'].params:
+            inputs.append(tvm.nd.array(params[param.name_hint]))
+        result = exc.evaluate()(*inputs)
+        return result
 
 
 def infer_value_simulated(input_val, params):

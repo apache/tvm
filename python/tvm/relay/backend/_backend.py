@@ -16,9 +16,7 @@
 # under the License.
 """The interface of expr function exposed from C++."""
 import tvm._ffi
-
-from ... import build_module as _build
-from ... import container as _container
+import tvm.driver
 
 
 @tvm._ffi.register_func("relay.backend.lower")
@@ -27,10 +25,10 @@ def lower(sch, inputs, func_name, source_func):
 
     Parameters
     ----------
-    sch : tvm.Schedule
+    sch : tvm.te.Schedule
         The schedule.
 
-    inputs : List[tvm.Tensor]
+    inputs : List[tvm.te.Tensor]
         The inputs to the function.
 
     func_name : str
@@ -41,14 +39,14 @@ def lower(sch, inputs, func_name, source_func):
 
     Returns
     -------
-    lowered_funcs : List[tvm.LoweredFunc]
+    mod : tvm.IRModule
         The result of lowering.
     """
     # pylint: disable=broad-except, import-outside-toplevel
     import traceback
 
     try:
-        f = _build.lower(sch, inputs, name=func_name)
+        f = tvm.driver.lower(sch, inputs, name=func_name)
         # logging.debug("lower function %s", func_name)
         # logging.debug("%s", _build.lower(sch, inputs, simple_mode=True))
     except Exception:
@@ -57,20 +55,17 @@ def lower(sch, inputs, func_name, source_func):
         msg += "-----------------------------\n"
         msg += source_func.astext()
         raise RuntimeError(msg)
-    return f if isinstance(
-        f, (_container.Array, tuple, list)) else [f]
+    return f
 
 
 @tvm._ffi.register_func("relay.backend.build")
-def build(funcs, target, target_host=None):
+def build(mod, target, target_host=None):
     """Backend build function.
 
     Parameters
     ----------
-    funcs : List[tvm.LoweredFunc] or Dict[str, List[tvm.LoweredFunc]]
-        A list of lowered functions or dictionary mapping from targets to
-        lowered functions.
-
+    mod : tvm.IRModule or Dict[str, tvm.IRModule]
+        Input module
 
     target : tvm.Target
         The target to run the code on.
@@ -85,7 +80,7 @@ def build(funcs, target, target_host=None):
     """
     if target_host == "":
         target_host = None
-    return _build.build(funcs, target=target, target_host=target_host)
+    return tvm.driver.build(mod, target=target, target_host=target_host)
 
 
 @tvm._ffi.register_func("relay._tensor_value_repr")

@@ -36,9 +36,8 @@ namespace relay {
 TVM_REGISTER_NODE_TYPE(DebugAttrs);
 
 Array<te::Tensor> DebugCompute(const Attrs& attrs,
-                           const Array<te::Tensor>& inputs,
-                           const Type& out_type,
-                           const Target& target) {
+                               const Array<te::Tensor>& inputs,
+                               const Type& out_type) {
   return Array<te::Tensor>{ topi::identity(inputs[0]) };
 }
 
@@ -62,7 +61,7 @@ Expr MakeDebug(Expr expr, std::string name) {
     dattrs->debug_func = EnvFunc();
   }
   static const Op& op = Op::Get("debug");
-  return CallNode::make(op, {expr}, Attrs(dattrs), {});
+  return Call(op, {expr}, Attrs(dattrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op._make.debug")
