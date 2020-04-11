@@ -62,6 +62,7 @@
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace transform {
@@ -251,8 +252,8 @@ class PassNode : public Object {
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod) const {
-    return this->operator()(mod, PassContext::Current());
+  IRModule operator()(IRModule mod) const {
+    return this->operator()(std::move(mod), PassContext::Current());
   }
 
   /*!
@@ -263,7 +264,7 @@ class PassNode : public Object {
    *
    * \return The transformed module.
    */
-  virtual IRModule operator()(const IRModule& mod,
+  virtual IRModule operator()(IRModule mod,
                               const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(AttrVisitor* v) {}
@@ -277,14 +278,22 @@ class Pass : public ObjectRef {
   /*!
    * \brief Transform mod using the default PassContext in the current scope.
    *
+   * \code
+   *
+   * // If you do no longer need the input module
+   * // it is recommended to use std::move to move your input module.
+   * mod = pass(std::move(mod));
+   *
+   * \endcode
+   *
    * \param mod The module that an optimization pass runs on.
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod) const {
+  IRModule operator()(IRModule mod) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
-    return node->operator()(mod);
+    return node->operator()(std::move(mod));
   }
   /*!
    * \brief Transform mod using a functor under a given pass context.
@@ -294,11 +303,11 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod,
+  IRModule operator()(IRModule mod,
                       const PassContext& pass_ctx) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
-    return node->operator()(mod, pass_ctx);
+    return node->operator()(std::move(mod), pass_ctx);
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);

@@ -221,8 +221,13 @@ def CombineContextCall():
     return _ffi_api.CombineContextCall()
 
 
-def NarrowDataType():
+def NarrowDataType(target_bits):
     """Narrow down PrimExpr datatype in stmt to target_bits.
+
+    Parameters
+    ----------
+    target_bits : int
+        The target bit configuration.
 
     Returns
     -------
@@ -233,4 +238,4 @@ def NarrowDataType():
     ----
     Run this pass after StorageFlatten.
     """
-    return _ffi_api.NarrowDataType()
+    return _ffi_api.NarrowDataType(target_bits)

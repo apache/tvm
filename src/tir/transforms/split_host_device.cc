@@ -291,22 +291,17 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModuleNode* device_mod) {
 namespace transform {
 
 Pass SplitHostDevice() {
-  auto pass_func = [](IRModule m, PassContext ctx) {
-    IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc> > updates;
+  auto pass_func = [](IRModule mod, PassContext ctx) {
+    IRModuleNode* mod_ptr = mod.CopyOnWrite();
+    auto* func_dict = mod_ptr->functions.CopyOnWrite();
 
-    for (const auto& kv : mptr->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        PrimFunc func = GetRef<PrimFunc>(n);
-        auto updated_func = SplitHostDevice(std::move(func), mptr);
-        updates.push_back({kv.first, updated_func});
+    for (auto& kv : func_dict->data) {
+      if (kv.second->IsInstance<PrimFuncNode>()) {
+        kv.second = SplitHostDevice(Downcast<PrimFunc>(
+            std::move(kv.second)), mod_ptr);
       }
     }
-
-    for (const auto& pair : updates) {
-      mptr->Add(pair.first, pair.second, true);
-    }
-    return m;
+    return mod;
   };
 
   return tvm::transform::CreateModulePass(

@@ -68,7 +68,7 @@ class FunctionPassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -113,7 +113,7 @@ FunctionPass::FunctionPass(
 }
 
 // Perform Module -> Module optimizations at the Function level.
-IRModule FunctionPassNode::operator()(const IRModule& mod,
+IRModule FunctionPassNode::operator()(IRModule mod,
                                       const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
@@ -122,25 +122,35 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
              << " with opt level: "
              << pass_info->opt_level;
   pass_ctx.Trace(mod, pass_info, true);
+
   // Execute the pass function and return a new module.
-  IRModule updated_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports());
-  std::vector<std::pair<GlobalVar, Function> > updates;
-  for (const auto& it : updated_mod->functions) {
-    // only picks up relay::Function
-    if (auto* n = it.second.as<FunctionNode>()) {
-      Function func = GetRef<Function>(n);
-      auto updated_func = SkipFunction(func)
-                          ? func
-                          : pass_func(func, updated_mod, pass_ctx);
-      updates.push_back({it.first, updated_func});
+  std::vector<ObjectRef> deleted_list;
+
+  IRModuleNode* mod_ptr = mod.CopyOnWrite();
+  auto* func_dict = mod_ptr->functions.CopyOnWrite();
+  // directly loop over the underlying dict
+  for (auto& kv : func_dict->data) {
+    // only picks up tir::PrimFunc
+    if (kv.second->IsInstance<FunctionNode>()) {
+      Function func = Downcast<Function>(std::move(kv.second));
+      if (SkipFunction(func)) {
+        kv.second = func;
+      } else {
+        // move out the function so that it is the only copy.
+        kv.second = pass_func(std::move(func), mod, pass_ctx);
+      }
+      if (!kv.second.defined()) {
+        deleted_list.push_back(kv.first);
+      }
     }
   }
 
-  for (const auto& pair : updates) {
-    updated_mod->Add(pair.first, pair.second, true);
+  // automatic removal of None
+  for (const auto& gv : deleted_list) {
+    func_dict->data.erase(gv);
   }
-  pass_ctx.Trace(updated_mod, pass_info, false);
-  return updated_mod;
+  pass_ctx.Trace(mod, pass_info, false);
+  return mod;
 }
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
