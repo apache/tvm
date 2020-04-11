@@ -124,7 +124,7 @@ class PrimExpr : public BaseExpr {
  private:
   // Internal function for conversion.
   friend struct runtime::PackedFuncValueConverter<PrimExpr>;
-  TVM_DLL static PrimExpr FromObject_(ObjectPtr<Object> ptr);
+  TVM_DLL static PrimExpr FromObject_(ObjectRef ref);
 };
 
 /*!
@@ -464,9 +464,8 @@ struct PackedFuncValueConverter<PrimExpr> {
     if (val.type_code() == kDLFloat) {
       return PrimExpr(static_cast<float>(val.operator double()));
     }
-    TVM_CHECK_TYPE_CODE(val.type_code(), kTVMObjectHandle);
-    Object* ptr = val.ptr<Object>();
-    return PrimExpr::FromObject_(GetObjectPtr<Object>(ptr));
+
+    return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());
   }
 };
 }  // namespace runtime

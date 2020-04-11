@@ -24,7 +24,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
-#include <cstring>
+#include "../support/str_escape.h"
 
 namespace tvm {
 
@@ -62,6 +62,13 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
   return GetRef<runtime::String>(
       static_cast<const runtime::StringObj*>(n)).operator std::string();
 });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<runtime::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
+  auto* op = static_cast<const runtime::StringObj*>(node.get());
+  p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
+});
+
 
 struct ADTObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;

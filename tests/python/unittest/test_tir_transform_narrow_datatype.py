@@ -20,9 +20,9 @@ from tvm.tir import const
 
 
 def lower_stmt(params, stmt, target_bits):
-    func = tvm.tir.PrimFunc(params, stmt).with_attr(
-        "target_bits", target_bits)
-    func = tvm.tir.transform.NarrowDataType()(tvm.IRModule.from_expr(func))["main"]
+    func = tvm.tir.PrimFunc(params, stmt)
+    func = tvm.tir.transform.NarrowDataType(target_bits)(
+        tvm.IRModule.from_expr(func))["main"]
     stmt = func.body
     return stmt
 

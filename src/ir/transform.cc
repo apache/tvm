@@ -126,7 +126,7 @@ class ModulePassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -205,7 +205,7 @@ class SequentialNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   static constexpr const char* _type_key = "transform.Sequential";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
@@ -231,19 +231,20 @@ ModulePass::ModulePass(
 }
 
 // Module -> Module optimizations.
-IRModule ModulePassNode::operator()(const IRModule& mod,
+IRModule ModulePassNode::operator()(IRModule mod,
                                     const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   DLOG(INFO) << "Executing module pass : "
              << pass_info->name
              << " with opt level: "
              << pass_info->opt_level;
+
   CHECK(mod.defined());
   pass_ctx.Trace(mod, pass_info, true);
-  IRModule updated_mod = pass_func(mod, pass_ctx);
-  CHECK(updated_mod.defined());
-  pass_ctx.Trace(updated_mod, pass_info, false);
-  return updated_mod;
+  mod = pass_func(std::move(mod), pass_ctx);
+  CHECK(mod.defined());
+  pass_ctx.Trace(mod, pass_info, false);
+  return mod;
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
@@ -314,18 +315,17 @@ Pass GetPass(const std::string& pass_name) {
 // TODO(zhiics): we currenlty only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
-IRModule SequentialNode::operator()(const IRModule& module,
+IRModule SequentialNode::operator()(IRModule mod,
                                     const PassContext& pass_ctx) const {
-  IRModule mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
     if (!PassEnabled(pass_info))  continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
-      mod = GetPass(it)(mod, pass_ctx);
+      mod = GetPass(it)(std::move(mod), pass_ctx);
     }
-    mod = pass(mod, pass_ctx);
+    mod = pass(std::move(mod), pass_ctx);
   }
   return mod;
 }
@@ -375,11 +375,8 @@ TVM_REGISTER_GLOBAL("transform.MakeModulePass")
 });
 
 TVM_REGISTER_GLOBAL("transform.RunPass")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Pass pass = args[0];
-  IRModule mod = args[1];
-  ObjectRef ref = args[1];
-  *ret = pass(mod);
+.set_body_typed([](Pass pass, IRModule mod) {
+  return pass(std::move(mod));
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

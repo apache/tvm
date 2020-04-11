@@ -38,7 +38,7 @@ def Apply(ftransform):
     # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return ftransform(func)
-    return _fpass.prim_func_pass(_transform, opt_level=0)
+    return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")
 
 
 def Filter(fcond):
@@ -57,7 +57,7 @@ def Filter(fcond):
     # pylint: disable=unused-argument
     def _transform(func, mod, ctx):
         return func if fcond(func) else None
-    return _fpass.prim_func_pass(_transform, opt_level=0)
+    return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")
 
 
 def LowerCustomDatatypes():
@@ -221,8 +221,13 @@ def CombineContextCall():
     return _ffi_api.CombineContextCall()
 
 
-def NarrowDataType():
+def NarrowDataType(target_bits):
     """Narrow down PrimExpr datatype in stmt to target_bits.
+
+    Parameters
+    ----------
+    target_bits : int
+        The target bit configuration.
 
     Returns
     -------
@@ -233,4 +238,4 @@ def NarrowDataType():
     ----
     Run this pass after StorageFlatten.
     """
-    return _ffi_api.NarrowDataType()
+    return _ffi_api.NarrowDataType(target_bits)
