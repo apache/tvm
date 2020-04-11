@@ -187,10 +187,9 @@ def _unsqueeze():
 
 def _concatenate(prelude):
     def tensor_array_concat(lst, axis):
-        # TODO for axis == 0 case
-        assert axis == -1
+        assert axis == 0, "Tensor array concat supported only for axis 0"
         shape = _infer_type_with_prelude(prelude.hd(lst), prelude).shape
-        concat_shape = tuple(shape[:-1]) + (Any(),)
+        concat_shape = (Any(), ) + tuple(shape)
 
         tensor_array = _map_tensor_array_constructor(lst, prelude, concat_shape)
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
@@ -1970,7 +1969,6 @@ def from_pytorch(script_module, input_shapes, custom_convert_map=None):
 
     outputs.update(param_vars)
     ret_name = _get_input_names(graph.return_node())
-    print(graph)
 
     # For quantized models
     if "aten::quantize_per_tensor" in op_names:
