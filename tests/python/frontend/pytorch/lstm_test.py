@@ -211,19 +211,13 @@ def assert_equal(tvm_result, torch_result):
         for tvm_res, pt_res in zip(tvm_result, torch_result):
             assert_equal(tvm_res, pt_res)
     elif isinstance(torch_result, torch.Tensor):
-        print(np.max(np.abs(tvm_result.asnumpy() - torch_result.numpy())))
         tvm.testing.assert_allclose(tvm_result.asnumpy(), torch_result.numpy(),
                                     rtol=1e-5, atol=1e-5)
-    else:
-        tvm_res = np.asscalar(tvm_result.asnumpy())
-        print(abs(torch_result - tvm_res))
-        assert torch_result == tvm_res
 
 
 def run_and_compare(mod, params, pt_result):
     executor = relay.create_executor("vm", mod=mod, ctx=tvm.cpu(0), target="llvm")
     evaluator = executor.evaluate()
-
     exec_res = evaluator(**params)
 
     def flatten(nested):

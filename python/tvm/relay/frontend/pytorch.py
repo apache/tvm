@@ -83,8 +83,6 @@ def _should_construct_dynamic_list(list_construct_node):
     def is_used_by_list_add(uses):
         for use in uses:
             op_name = use.user.kind()
-            if op_name == "prim::Loop":
-                continue
             output_type = _get_node_type(use.user)
             if op_name in ["aten::add", "aten::add_"] and output_type == "ListType":
                 return True
@@ -112,7 +110,7 @@ def _should_construct_dynamic_list(list_construct_node):
     if len(intersect) > 0 and intersect != set(["aten::add"]):
         return True
 
-    if is_used_by_list_add(uses):
+    if is_used_by_list_add(filter(lambda use: use.user.kind() != "prim::Loop", uses)):
         return True
 
     return False
@@ -187,7 +185,7 @@ def _concatenate(prelude):
     def tensor_array_concat(lst, axis):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         shape = _infer_type_with_prelude(prelude.hd(lst), prelude).shape
-        concat_shape = (Any(), ) + tuple(shape[1:])
+        concat_shape = (Any(),) + tuple(shape[1:])
 
         tensor_array = _map_tensor_array_constructor(lst, prelude, shape)
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
@@ -1218,7 +1216,6 @@ def _add(prelude):
 
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
-        # TODO: check inputs[0] is a ADT List[TensorType]
         tensor_array = _convert_to_tensor_array(inputs[0], prelude)
         shape = get_tensor_array_shape(tensor_array, "float32", prelude)
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
@@ -1304,7 +1301,7 @@ def _convert_elemwise_input(data, input_type):
         return data
 
 def _wrap_const(c):
-    if not isinstance(c, _expr.Expr) and not isinstance(c, (list, tvm.tir.expr.Any)):
+    if not isinstance(c, (_expr.Expr, list, tvm.tir.expr.Any)):
         return _expr.const(c)
     return c
 
@@ -1798,7 +1795,7 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     outputs.update(name_val_pairs)
 
     def get_var(name, val):
-        if val is not None:
+        if val:
             checked_type = _infer_type_with_prelude(val, prelude)
             return _expr.var(name, type_annotation=checked_type)
         return _expr.var(name)
