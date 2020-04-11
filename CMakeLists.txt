@@ -71,7 +71,6 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
-
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
@@ -442,6 +441,9 @@ endif(INSTALL_DEV)
 
 # More target definitions
 if(MSVC)
+  if(USE_CPP_RPC STREQUAL "ON")
+    set_property(TARGET tvm_rpc PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  endif()
   set_property(TARGET tvm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   set_property(TARGET tvm_topi PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
