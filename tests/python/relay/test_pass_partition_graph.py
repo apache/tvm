@@ -945,10 +945,9 @@ def test_dnnl_fuse():
     ref_mod, ref_params = tvm.relay.testing.create_workload(net)
     test_exec(mod, params, ref_mod, ref_params, (1, 8, 224, 224))
 
-    # exec test on mobilenet is not possible due to manually inlined constants
-    # mod, params = relay.testing.mobilenet.get_workload()
-    # ref_mod, ref_params = relay.testing.mobilenet.get_workload()
-    # test_exec(mod, params, ref_mod, ref_params, (1, 1000))
+    mod, params = relay.testing.mobilenet.get_workload()
+    ref_mod, ref_params = relay.testing.mobilenet.get_workload()
+    test_exec(mod, params, ref_mod, ref_params, (1, 1000))
 
 
 def test_multiple_use_of_an_output():
@@ -1044,11 +1043,11 @@ if __name__ == "__main__":
     test_extern_ccompiler_default_ops()
     test_extern_ccompiler()
     test_extern_dnnl()
-    # TODO(@comaniac, @zhiics): Fix constant node and re-open this case.
-    #test_extern_dnnl_mobilenet()
+    test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()
     test_constant_propagation()
     test_multiple_outputs()
     test_mixed_single_multiple_outputs()
     test_dnnl_fuse()
+    test_multiple_use_of_an_output()

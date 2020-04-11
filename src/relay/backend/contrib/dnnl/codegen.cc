@@ -209,7 +209,6 @@ class CodegenDNNL : public relay::ExprFunctor<std::vector<Output>(const Expr&)>,
     }
 
     buf_decl_.insert(buf_decl_.end(), ret.buffers.begin(), ret.buffers.end());
-    std::vector<Output> out = ret.outputs;
     ext_func_body.push_back(ret.decl);
     return ret.outputs;
   }
