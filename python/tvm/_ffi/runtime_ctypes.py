@@ -39,6 +39,7 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
     NDARRAY_HANDLE = 13
+    OBJECT_RVALUE_REF_ARG = 14
     EXT_BEGIN = 15
 
 
@@ -280,5 +281,19 @@ class TVMArray(ctypes.Structure):
                 ("shape", ctypes.POINTER(tvm_shape_index_t)),
                 ("strides", ctypes.POINTER(tvm_shape_index_t)),
                 ("byte_offset", ctypes.c_uint64)]
+
+
+class ObjectRValueRef:
+    """Represent an RValue ref to an object that can be moved.
+
+    Parameters
+    ----------
+    obj : tvm.runtime.Object
+        The object that this value refers to
+    """
+    __slots__ = ["obj"]
+    def __init__(self, obj):
+        self.obj = obj
+
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)

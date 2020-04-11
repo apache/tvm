@@ -261,7 +261,7 @@ unsafe extern "C" fn tvm_callback(
             || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
             || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
         {
-            check_call!(ffi::TVMCbArgToReturn(&mut value as *mut _, tcode));
+            check_call!(ffi::TVMCbArgToReturn(&mut value as *mut _, &mut tcode as *mut _));
         }
         local_args.push(TVMArgValue::from_tvm_value(value, tcode as u32));
     }

@@ -123,7 +123,7 @@ class PrimExpr : public BaseExpr {
 
  private:
   // Internal function for conversion.
-  friend class runtime::TVMPODValue_;
+  friend struct runtime::PackedFuncValueConverter<PrimExpr>;
   TVM_DLL static PrimExpr FromObject_(ObjectPtr<Object> ptr);
 };
 
@@ -451,22 +451,24 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
-// Additional implementattion overloads for PackedFunc.
-inline TVMPODValue_::operator tvm::PrimExpr() const {
-  if (type_code_ == kTVMNullptr) return PrimExpr();
-  if (type_code_ == kDLInt) {
-    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
-    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
-    return PrimExpr(static_cast<int>(value_.v_int64));
+template<>
+struct PackedFuncValueConverter<PrimExpr> {
+  // common rule for both RetValue and ArgValue.
+  static PrimExpr From(const TVMPODValue_& val) {
+    if (val.type_code() == kTVMNullptr) {
+      return PrimExpr(ObjectPtr<Object>(nullptr));
+    }
+    if (val.type_code() == kDLInt) {
+      return PrimExpr(val.operator int());
+    }
+    if (val.type_code() == kDLFloat) {
+      return PrimExpr(static_cast<float>(val.operator double()));
+    }
+    TVM_CHECK_TYPE_CODE(val.type_code(), kTVMObjectHandle);
+    Object* ptr = val.ptr<Object>();
+    return PrimExpr::FromObject_(GetObjectPtr<Object>(ptr));
   }
-  if (type_code_ == kDLFloat) {
-    return PrimExpr(static_cast<float>(value_.v_float64));
-  }
-
-  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
-  Object* ptr = static_cast<Object*>(value_.v_handle);
-  return PrimExpr::FromObject_(ObjectPtr<Object>(ptr));
-}
+};
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_IR_EXPR_H_

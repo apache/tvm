@@ -104,6 +104,7 @@ typedef enum {
   kTVMStr = 11U,
   kTVMBytes = 12U,
   kTVMNDArrayHandle = 13U,
+  kTVMObjectRValueRefArg = 14U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
@@ -290,7 +291,7 @@ TVM_DLL int TVMCFuncSetReturn(TVMRetValueHandle ret,
  *
  * \return 0 when success, -1 when failure happens.
  */
-TVM_DLL int TVMCbArgToReturn(TVMValue* value, int code);
+TVM_DLL int TVMCbArgToReturn(TVMValue* value, int* code);
 
 /*!
  * \brief C type of packed function.

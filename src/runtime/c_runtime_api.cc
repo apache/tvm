@@ -577,13 +577,11 @@ int TVMStreamStreamSynchronize(int device_type,
   API_END();
 }
 
-int TVMCbArgToReturn(TVMValue* value, int code) {
+int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_BEGIN();
   tvm::runtime::TVMRetValue rv;
-  rv = tvm::runtime::TVMArgValue(*value, code);
-  int tcode;
-  rv.MoveToCHost(value, &tcode);
-  CHECK_EQ(tcode, code);
+  rv = tvm::runtime::TVMMovableArgValue_(*value, *code);
+  rv.MoveToCHost(value, code);
   API_END();
 }
 
