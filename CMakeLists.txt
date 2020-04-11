@@ -72,7 +72,7 @@ tvm_option(USE_RANDOM "Build with random support" OFF)
 tvm_option(USE_MICRO_STANDALONE_RUNTIME "Build with micro.standalone_runtime support" OFF)
 tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 
-tvm_option(USE_CXX_RPC "Build CXX RPC" OFF)
+tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 
@@ -314,13 +314,9 @@ endif()
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
-if(WIN32)
-  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
-
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
-if(USE_CXX_RPC STREQUAL "ON")
+if(USE_CPP_RPC STREQUAL "ON")
   add_subdirectory("apps/cpp_rpc")
 endif()
 
