@@ -375,6 +375,54 @@ def test_forward_squeeze():
     verify_model(Squeeze1().float().eval(), input_data=input_data)
     verify_model(Squeeze2().float().eval(), input_data=input_data)
 
+def test_forward_arange():
+    torch.set_grad_enabled(False)
+
+    class Arange1(Module):
+        def forward(self, *args):
+            return torch.arange(5)
+    class Arange2(Module):
+        def forward(self, *args):
+            return torch.arange(2.5)
+    class Arange3(Module):
+        def forward(self, *args):
+            return torch.arange(1, 4)
+    class Arange4(Module):
+        def forward(self, *args):
+            return torch.arange(1, 2.5, 0.5)
+    class Arange5(Module):
+        def forward(self, *args):
+            return torch.arange(1, 2, 1, dtype=torch.int32)
+    class Arange6(Module):
+        def forward(self, *args):
+            return torch.arange(start=1, end=6, step=2)
+    class Arange7(Module):
+        def forward(self, *args):
+            return torch.arange(1, 4, dtype=torch.float32)
+    class Arange8(Module):
+        def forward(self, *args):
+            return torch.arange(1, 2, 1, dtype=torch.int16)
+
+    verify_model(Arange1().float().eval())
+    verify_model(Arange2().float().eval())
+    verify_model(Arange3().float().eval())
+    verify_model(Arange4().float().eval())
+    verify_model(Arange5().float().eval())
+    verify_model(Arange6().float().eval())
+    verify_model(Arange7().float().eval())
+    verify_model(Arange8().float().eval())
+
+def test_forward_abs():
+    torch.set_grad_enabled(False)
+    input_shape = [2, 1, 10, 1, 10]
+
+    class Abs1(Module):
+        def forward(self, *args):
+            return args[0].abs()
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Abs1().float().eval(), input_data=input_data)
+
 def test_forward_concatenate():
     torch.set_grad_enabled(False)
     input_shape = [1, 3, 10, 10]
@@ -444,6 +492,20 @@ def test_forward_selu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.SELU().eval(), input_data=input_data)
+
+def test_forward_softplus():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.Softplus().eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=1.5, threshold=20).eval(), input_data=input_data)
+    verify_model(torch.nn.Softplus(beta=5, threshold=10).eval(), input_data=input_data)
+
+def test_forward_softsign():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.Softsign().eval(), input_data=input_data)
 
 def test_forward_log_sigmoid():
     torch.set_grad_enabled(False)
@@ -1254,6 +1316,8 @@ if __name__ == "__main__":
     test_forward_view()
     test_forward_select()
     test_forward_clone()
+    test_forward_softplus()
+    test_forward_softsign()
     test_forward_logsoftmax()
     test_forward_sigmoid()
     test_forward_dense()
@@ -1264,6 +1328,8 @@ if __name__ == "__main__":
     test_forward_mean()
     test_forward_expand()
     test_forward_pow()
+    test_forward_abs()
+    test_forward_arange()
     test_forward_chunk()
     test_forward_split()
     test_upsample()
