@@ -26,6 +26,7 @@
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/container.h>
 
 #include <type_traits>
 #include <vector>

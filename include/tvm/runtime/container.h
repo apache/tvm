@@ -27,6 +27,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <initializer_list>
@@ -589,6 +590,25 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
     return 0;
   }
 }
+
+template<>
+struct PackedFuncValueConverter<::tvm::runtime::String> {
+  static String From(const TVMArgValue& val) {
+    if (val.IsObjectRef<tvm::runtime::String>()) {
+      return val.AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(val.operator std::string());
+    }
+  }
+
+  static String From(const TVMRetValue& val) {
+    if (val.IsObjectRef<tvm::runtime::String>()) {
+      return val.AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(val.operator std::string());
+    }
+  }
+};
 
 }  // namespace runtime
 }  // namespace tvm

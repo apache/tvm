@@ -105,6 +105,7 @@ var tvm_runtime = tvm_runtime || {};
     var kTVMPackedFuncHandle = 10;
     var kTVMStr = 11;
     var kTVMBytes = 12;
+    var kTVMObjectRValueRefArg = 14;
     //-----------------------------------------
     // TVM CWrap library
     // ----------------------------------------
@@ -171,7 +172,7 @@ var tvm_runtime = tvm_runtime || {};
     ("TVMCbArgToReturn",
      "number",
      ["number", // TVMValue* value
-      "number"  // int code
+      "number"  // int* code
      ]);
 
     var TVMFuncCreateFromCFunc = Module.cwrap
@@ -496,12 +497,15 @@ var tvm_runtime = tvm_runtime || {};
       var args = [];
       for (var i = 0; i < nargs; ++i) {
         var vptr = arg_value + i * SIZEOF_TVMVALUE;
-        var tcode = Module.getValue(arg_tcode + i * SIZEOF_INT, "i32");
+        var tcodeptr = arg_tcode + i * SIZEOF_INT;
+        var tcode = Module.getValue(tcodeptr, "i32");
         if (tcode == kTVMObjectHandle ||
+            tcode == kTVMObjectRValueRefArg ||
             tcode == kTVMPackedFuncHandle ||
             tcode == kTVMModuleHandle) {
-          TVM_CALL(TVMCbArgToReturn(vptr, tcode));
+          TVM_CALL(TVMCbArgToReturn(vptr, tcodeptr));
         }
+        tcode = Module.getValue(tcodeptr, "i32");
         args.push(TVMRetValueToJS(vptr, tcode));
       }
       var rv = funcTable[handle].apply(null, args);
