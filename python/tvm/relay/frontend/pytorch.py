@@ -1041,25 +1041,20 @@ def _Float():
 
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
-    if val == 7:
-        return "torch.float64"
-    elif val == 6:
-        return "torch.float32"
-    elif val == 5:
-        return "torch.float16"
-    elif val in [None, 4]: #Default is torch.int64
-        return "torch.int64"
-    elif val == 3:
-        return "torch.int32"
-    elif val == 2:
-        return "torch.int16"
-    elif val == 1:
-        return "torch.int8"
-    elif val == 0:
-        return "torch.uint8"
+    convert_torch_dtype_map = {7:"torch.float64",
+                               6:"torch.float32",
+                               5:"torch.float16",
+                               4:"torch.int64",
+                               3:"torch.int32",
+                               2:"torch.int16",
+                               1:"torch.int8",
+                               0:"torch.unit8",
+                               None:"torch.int64"} # Default is torch.int64
+    if val in convert_torch_dtype_map:
+        return convert_torch_dtype_map[val]
     else:
-        raise NotImplementedError("input_value {} is not handled yet" % (val))
-    return "torch.float32"
+        msg = "Torch data type value %d is not handled yet." % (val)
+        raise NotImplementedError(msg)
 
 def _convert_data_type(input_type):
     if input_type in ["double", "torch.float64"]:
