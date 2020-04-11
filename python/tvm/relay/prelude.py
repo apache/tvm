@@ -213,7 +213,6 @@ class StaticTensorArrayOps(object):
         concat_var = self._create_global_var(concat_name)
         setattr(self.prelude, concat_name, concat_var)
         output_shape = list(self.shape[:-1]) + [Any(),]
-        print("Tensor concat output_shape:", output_shape)
         tensor_type_var, tensor_constructor = \
             self._get_adt_by_shape(output_shape)
 
@@ -423,7 +422,6 @@ class StaticTensorArrayOps(object):
             take_var = self.get_var('tensor_take')
             self.shape = origin_shape
 
-
         ta1 = Var("tensor_array", self.prelude.l(output_tensor_type_var()))
         value1 = Var('value1', value_type_var())
         offset1 = Var('offset1', scalar_type('int32'))
@@ -530,15 +528,12 @@ class StaticTensorArrayOps(object):
         setattr(self.prelude, concat_name, concat_var)
 
         output_shape = list(self.shape[:-1]) + [Any(),]
-        print("output shape", self.shape, output_shape)
         tensor_type_var, _ = self._get_adt_by_shape(output_shape)
 
         # Register tensor concatenate and get tensor_nil var for output shape
         origin_shape = self.shape
         self.shape = output_shape
-        self.define_tensor_concatenate()
-        print(self.prelude.mod)
-        print(self.shape)
+        self.define_tensor_concatenate_last()
         tensor_concat_var = self.get_var('tensor_concatenate_last')
         tensor_nil_var = self.get_var('tensor_nil')
         self.shape = origin_shape

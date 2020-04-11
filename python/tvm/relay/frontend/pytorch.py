@@ -63,17 +63,20 @@ def _convert_to_list_adt(py_lst, prelude):
     return adt_lst
 
 
-def _convert_to_tensor_array(adt_lst, prelude):
-    if prelude.length(adt_lst) == 0:
-        return prelude.nil()
-
-    shape = _infer_type_with_prelude(prelude.hd(adt_lst), prelude).shape
-    print("register shape:", shape)
+def _map_tensor_array_constructor(adt_lst, prelude, shape):
     static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
     static_tensor_array_ops.register()
     tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
 
     return prelude.map(tensor_create, adt_lst)
+
+
+def _convert_to_tensor_array(adt_lst, prelude):
+    if prelude.length(adt_lst) == 0:
+        return prelude.nil()
+
+    shape = _infer_type_with_prelude(prelude.hd(adt_lst), prelude).shape
+    return _map_tensor_array_constructor(adt_lst, prelude, shape)
 
 
 def _should_construct_dynamic_list(list_construct_node):
@@ -184,16 +187,18 @@ def _unsqueeze():
 
 def _concatenate(prelude):
     def tensor_array_concat(lst, axis):
-        # assert axis == 0
-        tensor_array = _convert_to_tensor_array(lst, prelude)
-        shape = get_tensor_array_shape(tensor_array, "float32", prelude)
-        print("tensor array concat shape:", shape)
-        concat = prelude.get_var_static('tensor_array_concat_last', "float32", shape)
-        concatenated = concat(tensor_array)
+        # TODO for axis == 0 case
+        assert axis == -1
+        shape = _infer_type_with_prelude(prelude.hd(lst), prelude).shape
+        concat_shape = tuple(shape[:-1]) + (Any(),)
 
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
-        static_tensor_array_ops.define_tensor_get_data(shape)
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
+        tensor_array = _map_tensor_array_constructor(lst, prelude, concat_shape)
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
+        static_tensor_array_ops.define_tensor_get_data(concat_shape)
+
+        concat = prelude.get_var_static('tensor_array_concat_last', "float32", concat_shape)
+        concatenated = concat(tensor_array)
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", concat_shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
