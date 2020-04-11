@@ -67,7 +67,6 @@ def _map_tensor_array_constructor(adt_lst, prelude, shape):
     static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
     static_tensor_array_ops.register()
     tensor_create = prelude.get_var_static('tensor_constructor', "float32", shape)
-
     return prelude.map(tensor_create, adt_lst)
 
 
@@ -81,7 +80,6 @@ def _convert_to_tensor_array(adt_lst, prelude):
 
 def _should_construct_dynamic_list(list_construct_node):
     # if this list is element-accessed or modified at runtime, generate List ADT
-
     def is_used_by_list_add(uses):
         for use in uses:
             op_name = use.user.kind()
@@ -189,13 +187,13 @@ def _concatenate(prelude):
     def tensor_array_concat(lst, axis):
         assert axis == 0, "Tensor array concat supported only for axis 0"
         shape = _infer_type_with_prelude(prelude.hd(lst), prelude).shape
-        concat_shape = (Any(), ) + tuple(shape)
+        concat_shape = (Any(), ) + tuple(shape[1:])
 
-        tensor_array = _map_tensor_array_constructor(lst, prelude, concat_shape)
+        tensor_array = _map_tensor_array_constructor(lst, prelude, shape)
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
         static_tensor_array_ops.define_tensor_get_data(concat_shape)
 
-        concat = prelude.get_var_static('tensor_array_concat_last', "float32", concat_shape)
+        concat = prelude.get_var_static('tensor_array_concat', "float32", concat_shape)
         concatenated = concat(tensor_array)
         get_tensor = prelude.get_var_static('tensor_get_data', "float32", concat_shape)
         return get_tensor(concatenated)
@@ -204,7 +202,7 @@ def _concatenate(prelude):
         data = inputs[0]
         axis = inputs[1]
 
-        if input_types[0] == "ListType":
+        if not isinstance(data, list):
             return tensor_array_concat(data, axis)
 
         if isinstance(data, _expr.Expr):
@@ -1800,16 +1798,26 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
     outputs.update(name_val_pairs)
 
     def get_var(name, val):
-        checked_type = _infer_type_with_prelude(val, prelude)
-        return _expr.var(name, type_annotation=checked_type)
+        if val is not None:
+            print(val)
+            checked_type = _infer_type_with_prelude(val, prelude)
+            return _expr.var(name, type_annotation=checked_type)
+        return _expr.var(name)
 
     loop_iter_var = _expr.var(block_input_names[0], shape=(),
                               dtype=loop_iter_dtype)
     loop_vars = [get_var(name, val) for name, val in name_val_pairs[1:]]
 
-    # add free variables to loop variables
+    # Add non constant free variables to loop variables to prevent code blow up
+    # Without this, if there are two for loops in a row, which often happens
+    # if the outer loop is unrolled, the computation corresponding to the first for loop
+    # is inlined inside loop body, turning O(N) + O(N) computation into O(N^2).
+    # This issue was found when converting from Stacked LSTM test. Torch does not add the output
+    # of the eariler loop into loop variables of the next loop.
+    # So the variable corresponding to the first loop output appears free in the second loop body.
     free_vars = [var for var in _get_free_vars_from_block(body_block)
-                 if var in outputs and not isinstance(outputs[var], (_expr.Constant, int, float))]
+                 if var in outputs and not isinstance(outputs[var], (_expr.Constant, int, float))
+                 and outputs[var]]
 
     prev_outputs = {}
     for name in free_vars:
@@ -1832,11 +1840,11 @@ def convert_loop(loop_node, outputs, convert_map, prelude):
         # Update loop variables using the prev iteration outputs
         assert len(current_vals) == num_block_inputs + len(free_vars)
 
-        for i in range(len(current_vals)):
+        for (i, val) in enumerate(current_vals):
             if i < num_block_inputs:
-                outputs[block_input_names[i]] = current_vals[i]
+                outputs[block_input_names[i]] = val
             else:
-                outputs[free_vars[i-num_block_inputs]] = current_vals[i]
+                outputs[free_vars[i-num_block_inputs]] = val
 
         block_outputs = convert_block(body_block, outputs, convert_map, prelude)
         block_outputs += [outputs[name] for name in free_vars]
