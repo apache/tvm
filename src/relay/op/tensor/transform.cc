@@ -2504,7 +2504,7 @@ bool CumsumRel(const Array<Type>& types,
     int axis = param->axis;
     const int ndim = static_cast<int>(data->shape.size());
     CHECK(-ndim <= axis && axis < ndim)
-        << "expand_dims only accepts `axis` in [-data.ndim, data.ndim)"
+        << "Cumsum only accepts `axis` in [-data.ndim, data.ndim)"
         << ", but got axis = " << axis
         << ", and data.ndim = " << ndim;
     reporter->Assign(types[1], types[0]);
