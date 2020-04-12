@@ -325,6 +325,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kTVMModuleHandle: return "ModuleHandle";
     case kTVMNDArrayHandle: return "NDArrayContainer";
     case kTVMObjectHandle: return "Object";
+    case kTVMObjectRValueRefArg: return "ObjectRValueRefArg";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }

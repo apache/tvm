@@ -1357,7 +1357,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
                 ptr->IsInstance<Module::ContainerType>())) {
       values_[i].v_handle = ptr;
       type_codes_[i] = kTVMModuleHandle;
-    } else if (std::is_rvalue_reference<T>::value) {
+    } else if (std::is_rvalue_reference<decltype(value)>::value) {
       values_[i].v_handle = const_cast<Object**>(&(value.data_.data_));
       type_codes_[i] = kTVMObjectRValueRefArg;
     } else {

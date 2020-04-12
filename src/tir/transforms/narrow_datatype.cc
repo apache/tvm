@@ -397,17 +397,14 @@ Stmt NarrowDataType(Stmt stmt, int target_bits) {
 
 namespace transform {
 
-Pass NarrowDataType() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+Pass NarrowDataType(int target_bits) {
+  auto pass_func = [target_bits](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    IntImm target_bits = f->GetAttr<IntImm>("target_bits");
-    CHECK(target_bits.defined())
-      << "NarrowDataType: Require the target_bits";
-    n->body = DataTypeRewriter(target_bits->value)(std::move(n->body));
+    n->body = DataTypeRewriter(target_bits)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(
-      pass_func, 0, "tir.LowerDeviceStorageAccessInfo", {});
+      pass_func, 0, "tir.NarrowDataType", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.NarrowDataType")

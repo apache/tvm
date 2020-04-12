@@ -42,12 +42,5 @@ inline Array<Integer> ArrayOrInt(TVMArgValue arg) {
     return arg;
   }
 }
-
-inline bool IsTensorType(TVMArgValue arg) {
-  return (arg.type_code() == kTVMObjectHandle &&
-          static_cast<Object*>(
-              arg.value().v_handle)->IsInstance<tvm::te::TensorNode>());
-}
-
 }  // namespace topi
 #endif  // TOPI_UTIL_H_

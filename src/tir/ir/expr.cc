@@ -28,6 +28,7 @@
 #include <memory>
 #include <limits>
 #include "../pass/ir_util.h"
+#include "../../support/str_escape.h"
 
 namespace tvm {
 namespace tir {
@@ -425,38 +426,8 @@ TVM_REGISTER_NODE_TYPE(BufferLoadNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<StringImmNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const StringImmNode*>(node.get());
-    auto& stream = p->stream;
-    stream << '"';
-    for (size_t i = 0; i < op->value.size(); ++i) {
-      unsigned char c = op->value[i];
-      if (c >= ' ' && c <= '~' && c != '\\' && c != '"') {
-        stream << c;
-      } else {
-        stream << '\\';
-        switch (c) {
-          case '"':
-            stream << '"';
-            break;
-          case '\\':
-            stream << '\\';
-            break;
-          case '\t':
-            stream << 't';
-            break;
-          case '\r':
-            stream << 'r';
-            break;
-          case '\n':
-            stream << 'n';
-            break;
-          default:
-            const char* hex_digits = "0123456789ABCDEF";
-            stream << 'x' << hex_digits[c >> 4] << hex_digits[c & 0xf];
-        }
-      }
-    }
-    stream << '"';
-  });
+    p->stream << '\"' << support::StrEscape(op->value) << '\"';
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<CastNode>([](const ObjectRef& node, ReprPrinter* p) {
