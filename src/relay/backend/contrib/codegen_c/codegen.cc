@@ -52,11 +52,11 @@ class CodegenC : public relay::ExprFunctor<std::vector<Output>(const Expr&)>,
     if (expr.as<ConstantNode>()) {
       output = VisitExpr_(expr.as<ConstantNode>());
     } else if (expr.as<VarNode>()) {
-     output = VisitExpr_(expr.as<VarNode>());
+      output = VisitExpr_(expr.as<VarNode>());
     } else if (expr.as<CallNode>()) {
-     output = VisitExpr_(expr.as<CallNode>());
+      output = VisitExpr_(expr.as<CallNode>());
     } else {
-     LOG(FATAL) << "DNNL codegen doesn't support: " << expr->GetTypeKey();
+      LOG(FATAL) << "C codegen doesn't support: " << expr->GetTypeKey();
     }
     visited_[expr] = output;
     return output;
