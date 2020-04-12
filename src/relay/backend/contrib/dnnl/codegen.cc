@@ -128,28 +128,21 @@ std::vector<std::string> Add(const CallNode* call) {
 
 // TODO(@zhiics, @comaniac): This is a basic implementation. We should implement
 // all utilities and make a base class for users to implement.
-class CodegenDNNL : public relay::ExprFunctor<std::vector<Output>(const Expr&)>,
+class CodegenDNNL : public ExprFunctor<std::vector<Output>(const Expr&)>,
                     public CodegenCBase {
  public:
   explicit CodegenDNNL(const std::string& id) { this->ext_func_id_ = id; }
 
   std::vector<Output> VisitExpr(const Expr& expr) final {
     if (visited_.count(expr)) return visited_.at(expr);
-
-    std::vector<Output> output;
-    if (expr.as<ConstantNode>()) {
-      output = VisitExpr_(expr.as<ConstantNode>());
-    } else if (expr.as<VarNode>()) {
-      output = VisitExpr_(expr.as<VarNode>());
-    } else if (expr.as<CallNode>()) {
-      output = VisitExpr_(expr.as<CallNode>());
-    } else if (expr.as<TupleGetItemNode>()) {
-      output = VisitExpr_(expr.as<TupleGetItemNode>());
-    } else {
-      LOG(FATAL) << "DNNL codegen doesn't support: " << expr->GetTypeKey();
-    }
+    std::vector<Output> output = ExprFunctor<std::vector<Output>(const Expr&)>::VisitExpr(expr);
     visited_[expr] = output;
     return output;
+  }
+
+  std::vector<Output> VisitExprDefault_(const Object* op) final {
+    LOG(FATAL) << "DNNL codegen doesn't support: " << op->GetTypeKey();
+    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) final {

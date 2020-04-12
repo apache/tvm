@@ -40,26 +40,22 @@ using namespace backend;
  * purpose. Only several binary options are covered. Users
  * may need to extend them to cover more operators.
  */
-class CodegenC : public relay::ExprFunctor<std::vector<Output>(const Expr&)>,
+class CodegenC : public ExprFunctor<std::vector<Output>(const Expr&)>,
                  public CodegenCBase {
  public:
   explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
 
   std::vector<Output> VisitExpr(const Expr& expr) final {
     if (visited_.count(expr)) return visited_.at(expr);
-
-    std::vector<Output> output;
-    if (expr.as<ConstantNode>()) {
-      output = VisitExpr_(expr.as<ConstantNode>());
-    } else if (expr.as<VarNode>()) {
-      output = VisitExpr_(expr.as<VarNode>());
-    } else if (expr.as<CallNode>()) {
-      output = VisitExpr_(expr.as<CallNode>());
-    } else {
-      LOG(FATAL) << "C codegen doesn't support: " << expr->GetTypeKey();
-    }
+    std::vector<Output> output =
+        ExprFunctor<std::vector<Output>(const Expr&)>::VisitExpr(expr);
     visited_[expr] = output;
     return output;
+  }
+
+  std::vector<Output> VisitExprDefault_(const Object* op) final {
+    LOG(FATAL) << "C codegen doesn't support: " << op->GetTypeKey();
+    return {};
   }
 
   std::vector<Output> VisitExpr_(const VarNode* node) final {
