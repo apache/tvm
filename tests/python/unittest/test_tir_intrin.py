@@ -62,6 +62,7 @@ def test_unary_intrin():
         (tvm.tir.log10, lambda x : np.log10(x)),
         (tvm.tir.sinh, lambda x : np.sinh(x)),
         (tvm.tir.cosh, lambda x : np.cosh(x)),
+        (tvm.tir.log1p, lambda x : np.log1p(x)),
     ]
     def run_test(tvm_intrin, np_func):
         m = te.var("m",)
@@ -79,10 +80,57 @@ def test_unary_intrin():
             b.asnumpy(), np_func(a.asnumpy()), atol=1e-5, rtol=1e-5)
     
     for func in test_funcs:
-        run_test(*func);
+        run_test(*func)
+
+
+def test_binary_intrin():
+    test_funcs = [
+        (tvm.tir.atan2, lambda x1, x2 : np.arctan2(x1, x2)),
+        (tvm.tir.nextafter, lambda x1, x2 : np.nextafter(x1, x2)),
+        (tvm.tir.copysign, lambda x1, x2 : np.copysign(x1, x2)),
+        (tvm.tir.hypot, lambda x1, x2 : np.hypot(x1, x2)),
+    ]
+    def run_test(tvm_intrin, np_func):
+        m = te.var("m",)
+        A = te.placeholder((m,), name='A')
+        B = te.placeholder((m,), name='B')
+        C = te.compute((m,), lambda *i: tvm_intrin(A(*i), B(*i)), name='C')
+        s = te.create_schedule(C.op)
+        f = tvm.build(s, [A, B, C], "llvm")
+        ctx = tvm.cpu(0)
+        n = 10
+        a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(B.dtype), ctx)
+        c = tvm.nd.array( \
+            np.random.uniform(size=n).astype(A.dtype), ctx)
+        f(a, b, c)
+        tvm.testing.assert_allclose(
+            c.asnumpy(), np_func(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5)
+
+    for func in test_funcs:
+        run_test(*func)
+
+
+def test_ldexp():
+    m = te.var("m",)
+    A = te.placeholder((m,), name='A')
+    B = te.placeholder((m,), name='B', dtype="int32")
+    C = te.compute((m,), lambda *i: tvm.tir.ldexp(A(*i), B(*i)), name='C')
+    s = te.create_schedule(C.op)
+    f = tvm.build(s, [A, B, C], "llvm")
+    ctx = tvm.cpu(0)
+    n = 10
+    a = tvm.nd.array(np.random.uniform(0, 1, size=n).astype(A.dtype), ctx)
+    b = tvm.nd.array(np.random.randint(0, 5, size=n).astype(B.dtype), ctx)
+    c = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+    f(a, b, c)
+    tvm.testing.assert_allclose(
+        c.asnumpy(), np.ldexp(a.asnumpy(), b.asnumpy()), atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
     test_nearbyint()
     test_unary_intrin()
     test_round_intrinsics_on_int()
+    test_binary_intrin()
+    test_ldexp()

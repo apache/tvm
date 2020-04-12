@@ -37,6 +37,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.erf")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log1p")
+.set_body(DispatchExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tanh")
 .set_body(DispatchExtern<FloatSuffix>);
 
@@ -50,6 +53,21 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sin")
 .set_body(DispatchExtern<FloatSuffix>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan2")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.hypot")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.nextafter")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.copysign")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.ldexp")
 .set_body(DispatchExtern<FloatSuffix>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sqrt")
