@@ -194,8 +194,10 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     }
 
     out_.clear();
-    buf_decl_.insert(buf_decl_.end(), ret.buffers.begin(), ret.buffers.end());
-    out_.insert(out_.end(), ret.outputs.begin(), ret.outputs.end());
+    for (size_t i = 0; i < ret.outputs.size(); ++i) {
+      buf_decl_.push_back(ret.buffers[i]);
+      out_.push_back(ret.outputs[i]);
+    }
     ext_func_body.push_back(ret.decl);
   }
 
