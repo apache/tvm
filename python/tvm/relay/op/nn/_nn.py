@@ -141,12 +141,11 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
     from tvm import relay
     data, weight = inputs
     new_attrs = dict(attrs)
+    new_attrs['data_layout'] = desired_layout
     if desired_layout == 'NCHW':
-        new_attrs['data_layout'] = desired_layout
         new_attrs['kernel_layout'] = 'OIHW'
         return relay.nn.conv2d(data, weight, **new_attrs)
     elif desired_layout == 'NHWC':
-        new_attrs['data_layout'] = desired_layout
         # Check for depthwise convolution.
         if is_depthwise_conv2d(data.shape, attrs['data_layout'], weight.shape,
                                attrs['kernel_layout'], attrs['groups']):
@@ -217,12 +216,11 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layout):
     from tvm import relay
     data, weight = inputs
     new_attrs = dict(attrs)
+    new_attrs['data_layout'] = desired_layout
     if desired_layout == 'NCDHW':
-        new_attrs['data_layout'] = desired_layout
         new_attrs['kernel_layout'] = 'OIDHW'
         return relay.nn.conv3d(data, weight, **new_attrs)
     elif desired_layout == "NDHWC":
-        new_attrs['data_layout'] = desired_layout
         new_attrs['kernel_layout'] = 'DHWIO'
         return relay.nn.conv3d(data, weight, **new_attrs)
     else:
