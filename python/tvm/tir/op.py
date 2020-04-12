@@ -577,7 +577,7 @@ def atan2(x1, x2):
     ----------
     x1 : PrimExpr
         Input argument.
- 
+
     x2 : PrimExpr
         Input argument.
 
