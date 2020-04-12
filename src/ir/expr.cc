@@ -40,9 +40,6 @@ PrimExpr::PrimExpr(int32_t value)
 PrimExpr::PrimExpr(float value)
     : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
-PrimExpr::PrimExpr(runtime::String value)
-    : PrimExpr(tir::StringImmNode::make(value)) {}
-
 PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   using runtime::ObjectTypeChecker;
   if (auto* ptr = ref.as<tir::IterVarNode>()) {
