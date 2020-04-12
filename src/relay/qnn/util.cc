@@ -80,6 +80,7 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
   DataType hp_dtype = DataType::Int(64);
+  tensor = Cast(tensor, hp_dtype);
 
   // 1) Calculating the integer multiplier and integer shift
   int32_t fixed_point_multiplier, shift;
@@ -130,7 +131,8 @@ Expr FixedPointMultiply(Expr tensor, double multiplier, const Array<IndexExpr>& 
   tensor =
       RightShift(tensor, MakeConstantScalar(hp_dtype, total_right_shift));
 
-  return tensor;
+  // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
+  return Cast(tensor, DataType::Int(32));
 }
 
 Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
@@ -145,6 +147,7 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   // Choose high precision datatype to be int64. This is for avoiding overflow
   // in multiplication of two int32 values.
   DataType hp_dtype = DataType::Int(64);
+  tensor = Cast(tensor, hp_dtype);
 
   // 1) Calculating the integer multiplier and integer shift. These are calculated per axis/per
   // channel.
@@ -218,7 +221,8 @@ Expr FixedPointMultiplyPerChannel(Expr tensor, std::vector<double> multipliers,
   auto exp_total_rshift_expr = ExpandBiasToMatchAxis(total_rshift_expr, n_dim, {channel_axis});
   tensor = RightShift(tensor, exp_total_rshift_expr);
 
-  return tensor;
+  // 6) The fixed point multiplication keeps the value in int32 range. Casting back to int32.
+  return Cast(tensor, DataType::Int(32));
 }
 
 }  // namespace qnn
