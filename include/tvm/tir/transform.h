@@ -197,11 +197,12 @@ TVM_DLL Pass CombineContextCall();
 /*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
  *
- * \note Run this pass after StorageFlatten.
+ * \param target_bits The target bits
  *
+ * \note Run this pass after storage flatten.
  * \return The pass.
  */
-TVM_DLL Pass NarrowDataType();
+TVM_DLL Pass NarrowDataType(int target_bits);
 
 }  // namespace transform
 }  // namespace tir

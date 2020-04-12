@@ -22,6 +22,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/expr.h>
 
 TEST(PackedFunc, Basic) {
@@ -274,6 +275,16 @@ TEST(TypedPackedFunc, RValue) {
   using namespace tvm;
   using namespace tvm::runtime;
   {
+
+    auto inspect = [](TVMArgs args, TVMRetValue* rv) {
+      for (int i = 0; i < args.size(); ++i) {
+        CHECK_EQ(args[0].type_code(), kTVMObjectRValueRefArg);
+      }
+    };
+    PackedFunc  finspect(inspect);
+    finspect(tir::Var("x"));
+  }
+  {
     auto f = [](tir::Var x, bool move) {
       if (move) {
         CHECK(x.unique());
@@ -287,9 +298,9 @@ TEST(TypedPackedFunc, RValue) {
 
     tir::Var var("x");
     CHECK(var.unique());
-    f(var, false);
+    tf(var, false);
     // move the result to the function.
-    tir::Var ret = f(std::move(var), true);
+    tir::Var ret = tf(std::move(var), true);
     CHECK(!var.defined());
   }
 
@@ -307,10 +318,10 @@ TEST(TypedPackedFunc, RValue) {
 
     tir::Var var("x");
     CHECK(var.unique());
-    f(var, false);
-    f(std::move(var), true);
+    tf(var, false);
+    tf(std::move(var), true);
     // auto conversion.
-    f(1, true);
+    tf(1, true);
   }
 }
 
