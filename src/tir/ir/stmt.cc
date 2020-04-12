@@ -58,7 +58,6 @@ Stmt AttrStmtNode::make(ObjectRef node,
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
 .set_body_typed(AttrStmtNode::make);
 
-
 Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
   CHECK(condition.defined());
   CHECK(message.dtype() == DataType::Int(32) ||
@@ -74,8 +73,14 @@ Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
 }
 
 TVM_REGISTER_GLOBAL("tir.AssertStmt")
-.set_body_typed(AssertStmtNode::make);
-
+.set_body_typed([](PrimExpr condition, ObjectRef message, Stmt body) {
+  if (const auto* str = message.as<StringObj>()) {
+    auto msg = StringImmNode::make(str->data);
+    return AssertStmtNode::make(condition, msg, body);
+  } else {
+    return AssertStmtNode::make(condition, Downcast<PrimExpr>(message), body);
+  }
+});
 
 Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
   CHECK(body.defined());
@@ -92,11 +97,11 @@ TVM_REGISTER_GLOBAL("tir.ProducerConsumer")
 
 
 Stmt ForNode::make(Var loop_var,
-               PrimExpr min,
-               PrimExpr extent,
-               ForType for_type,
-               DeviceAPI device_api,
-               Stmt body) {
+                   PrimExpr min,
+                   PrimExpr extent,
+                   ForType for_type,
+                   DeviceAPI device_api,
+                   Stmt body) {
   CHECK(min.defined());
   CHECK(extent.defined());
   CHECK(min.dtype().is_scalar());
@@ -119,11 +124,11 @@ TVM_REGISTER_GLOBAL("tir.For")
   Var loop_var, PrimExpr min, PrimExpr extent,
   int for_type, int device_api, Stmt body) {
   return ForNode::make(loop_var,
-                   min,
-                   extent,
-                   static_cast<ForType>(for_type),
-                   static_cast<DeviceAPI>(device_api),
-                   body);
+                       min,
+                       extent,
+                       static_cast<ForType>(for_type),
+                       static_cast<DeviceAPI>(device_api),
+                       body);
 });
 
 
@@ -176,12 +181,12 @@ TVM_REGISTER_GLOBAL("tir.Provide")
 
 
 Stmt AllocateNode::make(Var buffer_var,
-                    DataType dtype,
-                    Array<PrimExpr> extents,
-                    PrimExpr condition,
-                    Stmt body,
-                    PrimExpr new_expr,
-                    std::string free_function) {
+                        DataType dtype,
+                        Array<PrimExpr> extents,
+                        PrimExpr condition,
+                        Stmt body,
+                        PrimExpr new_expr,
+                        std::string free_function) {
     for (size_t i = 0; i < extents.size(); ++i) {
       CHECK(extents[i].defined());
       CHECK(extents[i].dtype().is_scalar());
