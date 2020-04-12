@@ -151,7 +151,7 @@ class Partitioner : public ExprMutator {
       Expr parent = call->args[0];
       auto input_expr = VisitExpr(parent);
 
-      // Backtrace the parent to find the LCA node that is not a begin/ end op
+      // Backtrace the parent to find the first ancestor node that is not a begin or end op
       while (const auto* parent_call = parent.as<CallNode>()) {
         if (parent_call->op == compiler_begin_op ||
             parent_call->op == compiler_end_op) {
