@@ -121,8 +121,20 @@ bool IRModuleNode::ContainGlobalTypeVar(const std::string& name) const {
 
 GlobalVar IRModuleNode::GetGlobalVar(const std::string& name) const {
   auto it = global_var_map_.find(name);
-  CHECK(it != global_var_map_.end())
-    << "Cannot find global var " << name << " in the Module";
+  if (it == global_var_map_.end()) {
+    std::ostringstream msg;
+    msg << "ValueError: Cannot find global var \"" << name << "\" in the Module\n"
+        << "candidates are: [";
+    int counter = 0;
+    for (auto kv : global_var_map_) {
+      if (counter++ != 0) {
+        msg << ", ";
+      }
+      msg << "\"" << kv.first << "\"";
+    }
+    msg << "]";
+    LOG(FATAL) << msg.str();
+  }
   return (*it).second;
 }
 
