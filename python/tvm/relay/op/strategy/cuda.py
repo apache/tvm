@@ -171,7 +171,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.cuda.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
-                name="dpethwise_nchw.cuda")
+                name="depthwise_conv2d_nchw.cuda")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(

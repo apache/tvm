@@ -35,7 +35,7 @@ _conv3d_ndhwc_tensorcore_implement = {
 
 def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride,
                         padding, dilation=1, add_bias=False, add_relu=False, devices='cuda'):
-    """Test the conv2d with tensorcore for nhwc layout"""
+    """Test the conv3d with tensorcore for ndhwc layout"""
     pad_front, pad_top, pad_left, pad_back, pad_bottom, pad_right = get_pad_tuple3d(
         padding, (kernel, kernel, kernel))
     padding_sum = pad_front + pad_top + pad_left + pad_back + pad_bottom + pad_right
@@ -53,7 +53,7 @@ def verify_conv3d_ndhwc(batch, in_channel, in_size, num_filter, kernel, stride,
     bias_shape = get_const_tuple(bias.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_conv2d_nhwc.verify_conv2d_nhwc")
+    @memoize("topi.tests.test_topi_conv3d_ndhwc.verify_conv3d_ndhwc")
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)

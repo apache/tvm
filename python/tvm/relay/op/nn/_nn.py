@@ -27,6 +27,7 @@ from .. import op as reg
 from .. import strategy
 from ..op import OpPattern
 from .._tensor import elemwise_shape_func
+from ..strategy.generic import is_depthwise_conv2d
 
 # relu
 reg.register_broadcast_schedule("nn.relu")
@@ -146,7 +147,12 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout):
         return relay.nn.conv2d(data, weight, **new_attrs)
     elif desired_layout == 'NHWC':
         new_attrs['data_layout'] = desired_layout
-        new_attrs['kernel_layout'] = 'HWIO'
+        # Check for depthwise convolution.
+        if is_depthwise_conv2d(data.shape, attrs['data_layout'], weight.shape,
+                               attrs['kernel_layout'], attrs['groups']):
+            new_attrs['kernel_layout'] = 'HWOI'
+        else:
+            new_attrs['kernel_layout'] = 'HWIO'
         return relay.nn.conv2d(data, weight, **new_attrs)
     else:
         assert "Layout %s is not yet supported." % (desired_layout)
