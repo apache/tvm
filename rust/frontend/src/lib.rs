@@ -53,10 +53,12 @@ pub use crate::{
     ndarray::NDArray,
     tvm_common::{
         errors as common_errors,
-        ffi::{self, TVMByteArray, DLDataType},
+        ffi::{self, DLDataType, TVMByteArray},
         packed_func::{TVMArgValue, TVMRetValue},
     },
 };
+
+pub type DataType = DLDataType;
 
 // Macro to check the return call to TVM runtime shared library.
 macro_rules! check_call {

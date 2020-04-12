@@ -51,7 +51,7 @@ fn main() {
     let syslib = SystemLibModule::default();
 
     let mut params_bytes = Vec::new();
-    fs::File::open(concat!(env!("OUT_DIR"), "/graph.params"))
+    fs::File::open(concat!(env!("OUT_DIR"), "/test_nn/graph.params"))
         .unwrap()
         .read_to_end(&mut params_bytes)
         .unwrap();
@@ -61,9 +61,10 @@ fn main() {
         .map(|(k, v)| (k, v.to_owned()))
         .collect::<HashMap<String, Tensor<'static>>>();
 
-    let graph =
-        Graph::try_from(&fs::read_to_string(concat!(env!("OUT_DIR"), "/graph.json")).unwrap())
-            .unwrap();
+    let graph = Graph::try_from(
+        &fs::read_to_string(concat!(env!("OUT_DIR"), "/test_nn/graph.json")).unwrap(),
+    )
+    .unwrap();
     let mut exec = GraphExecutor::new(graph, &syslib).unwrap();
 
     let x = Array::from_shape_vec(
@@ -73,11 +74,16 @@ fn main() {
             .collect::<Vec<f32>>(),
     )
     .unwrap();
-    let w = Array::try_from(params.get("dense0_weight").unwrap().to_owned())
+
+    let p0 = params.get("p0").unwrap().to_owned();
+    let p1 = params.get("p1").unwrap().to_owned();
+    println!("p0: {:?}", p0.shape());
+    println!("p1: {:?}", p1.shape());
+    let w = Array::try_from(p0)
         .unwrap()
-        .into_shape((IN_DIM * 2, IN_DIM))
+        .into_shape((BATCH_SIZE * 4, IN_DIM))
         .unwrap();
-    let b = Array::try_from(params.get("dense0_bias").unwrap().to_owned()).unwrap();
+    let b = Array::try_from(p1).unwrap();
     let dense = x.dot(&w.t()) + &b;
     let left = dense.slice(s![.., 0..IN_DIM]);
     let right = dense.slice(s![.., IN_DIM..]);
@@ -88,8 +94,8 @@ fn main() {
     exec.set_input("data", (&x).into());
 
     check_sum!(exec, data, x);
-    check_sum!(exec, dense0_weight, w);
-    check_sum!(exec, dense0_bias, b);
+    check_sum!(exec, p0, w);
+    check_sum!(exec, p1, b);
 
     exec.run();
 
