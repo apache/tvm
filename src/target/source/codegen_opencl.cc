@@ -249,8 +249,7 @@ runtime::Module BuildOpenCL(IRModule mod) {
         << "CodeGenOpenCL: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenCL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }

@@ -45,7 +45,7 @@ inline std::string GenerateName(const Function& func) {
 }
 
 bool IsClosure(const Function& func) {
-  return func->GetAttr<Integer>(attr::kClosure, 0)->value != 0;
+  return func->GetAttr<Integer>(attr::kClosure, 0) != 0;
 }
 
 Function MarkClosure(Function func) {

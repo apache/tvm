@@ -352,7 +352,7 @@ template<typename T>
 struct ObjectTypeChecker {
   static bool Check(const Object* ptr) {
     using ContainerType = typename T::ContainerType;
-    if (ptr == nullptr) return true;
+    if (ptr == nullptr) return T::_type_is_nullable;
     return ptr->IsInstance<ContainerType>();
   }
   static std::string TypeName() {
@@ -1400,7 +1400,11 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
       std::is_base_of<ObjectRef, TObjectRef>::value,
       "Conversion only works for ObjectRef");
   using ContainerType = typename TObjectRef::ContainerType;
-  if (type_code_ == kTVMNullptr) return TObjectRef(ObjectPtr<Object>(nullptr));
+  if (type_code_ == kTVMNullptr) {
+    CHECK(TObjectRef::_type_is_nullable)
+        << "Expect a not null value of " << ContainerType::_type_key;
+    return TObjectRef(ObjectPtr<Object>(nullptr));
+  }
   // NOTE: the following code can be optimized by constant folding.
   if (std::is_base_of<NDArray, TObjectRef>::value) {
     // Casting to a sub-class of NDArray

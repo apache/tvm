@@ -99,7 +99,7 @@ Pass BindDeviceType() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined())
         << "BindDeviceType: Require the target attribute";
-    n->body = DeviceTypeBinder(target->device_type)(std::move(n->body));
+    n->body = DeviceTypeBinder(target.value()->device_type)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BindDeviceType", {});
