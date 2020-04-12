@@ -135,7 +135,7 @@ class CodegenDNNL : public ExprFunctor<std::vector<Output>(const Expr&)>,
 
   std::vector<Output> VisitExpr(const Expr& expr) final {
     if (visited_.count(expr)) return visited_.at(expr);
-    std::vector<Output> output = ExprFunctor<std::vector<Output>(const Expr&)>::VisitExpr(expr);
+    std::vector<Output> output = ExprFunctor::VisitExpr(expr);
     visited_[expr] = output;
     return output;
   }
