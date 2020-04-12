@@ -19,10 +19,10 @@
 
 extern crate proc_macro;
 
+use quote::quote;
 use std::{fs::File, io::Read};
 use syn::parse::{Parse, ParseStream, Result};
-use syn::{LitStr};
-use quote::quote;
+use syn::LitStr;
 
 use std::path::PathBuf;
 
@@ -33,9 +33,7 @@ struct ImportModule {
 impl Parse for ImportModule {
     fn parse(input: ParseStream) -> Result<Self> {
         let importing_file: LitStr = input.parse()?;
-        Ok(ImportModule {
-            importing_file,
-        })
+        Ok(ImportModule { importing_file })
     }
 }
 
@@ -43,8 +41,8 @@ impl Parse for ImportModule {
 pub fn import_module(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let import_module_args = syn::parse_macro_input!(input as ImportModule);
 
-    let manifest = std::env::var("CARGO_MANIFEST_DIR")
-        .expect("variable should always be set by Cargo.");
+    let manifest =
+        std::env::var("CARGO_MANIFEST_DIR").expect("variable should always be set by Cargo.");
 
     let mut path = PathBuf::new();
     path.push(manifest);

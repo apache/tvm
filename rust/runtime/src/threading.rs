@@ -27,7 +27,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use crossbeam::channel::{Sender, Receiver, bounded};
+use crossbeam::channel::{bounded, Receiver, Sender};
 use tvm_common::ffi::TVMParallelGroupEnv;
 
 pub(crate) type FTVMParallelLambda =
@@ -138,8 +138,7 @@ impl ThreadPool {
         let mut tasks = job.tasks(self.num_workers + 1);
 
         for (i, task) in tasks.split_off(1).into_iter().enumerate() {
-            self.threads.queues[i].send(task)
-                .expect("should send");
+            self.threads.queues[i].send(task).expect("should send");
         }
 
         tasks.pop().unwrap().run();
