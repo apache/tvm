@@ -108,17 +108,6 @@ def _transpose(inputs, attrs):
     return _op.transpose(inputs[0], axes=axes)
 
 
-def _swap_axis(inputs, attrs):
-    assert len(inputs) == 1
-    dim1 = attrs.get_int('dim1')
-    dim2 = attrs.get_int('dim2')
-    shape = _infer_type(inputs[0]).checked_type.shape
-    axes = list(range(len(shape)))
-    axes[dim1] = dim2
-    axes[dim2] = dim1
-    return _op.transpose(inputs[0], axes=axes)
-
-
 def _upsampling(inputs, attrs):
     scale = attrs.get_int("scale")
     return _op.nn.upsampling(inputs[0], scale_h=scale, scale_w=scale)

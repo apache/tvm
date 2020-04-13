@@ -1043,3 +1043,4 @@ if __name__ == '__main__':
     test_forward_cond()
     test_forward_make_loss()
     test_forward_unravel_index()
+    test_forward_swap_axis()

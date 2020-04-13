@@ -37,7 +37,7 @@ from .common import infer_value as _infer_value
 from .common import get_name as _get_name
 from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
 from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
-from .nnvm_common import _clip, _transpose, _upsampling, _swap_axis
+from .nnvm_common import _clip, _transpose, _upsampling
 from .nnvm_common import _elemwise_sum, _reshape
 from .nnvm_common import _warn_not_used
 from .mxnet_qnn_op_utils import quantize_mxnet_min_max, \
@@ -125,6 +125,17 @@ def _mx_unravel_index(inputs, attrs):
     shape = attrs.get_int_tuple("shape")
     shape_expr = _expr.const(list(shape))
     return _op.unravel_index(inputs[0], shape_expr)
+
+
+def _mx_swap_axis(inputs, attrs):
+    assert len(inputs) == 1
+    dim1 = attrs.get_int('dim1')
+    dim2 = attrs.get_int('dim2')
+    shape = _infer_type(inputs[0]).checked_type.shape
+    axes = list(range(len(shape)))
+    axes[dim1] = dim2
+    axes[dim2] = dim1
+    return _op.transpose(inputs[0], axes=axes)
 
 
 def _mx_zeros(inputs, attrs):
@@ -1790,7 +1801,7 @@ _convert_map = {
     "Cast"          : _cast,
     "clip"          : _clip,
     "transpose"     : _transpose,
-    "SwapAxis"      : _swap_axis,
+    "SwapAxis"      : _mx_swap_axis,
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
     # MXNet specific implementations
