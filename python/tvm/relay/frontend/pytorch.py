@@ -1118,11 +1118,44 @@ def _sqrt():
         return _op.tensor.sqrt(data)
     return _impl
 
+
+def _rsqrt():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.tensor.rsqrt(data)
+    return _impl
+
+
+def _ceil():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.ceil(data)
+    return _impl
+
+
+def _clamp():
+    def _impl(inputs, input_types):
+        print(inputs, input_types)
+        data = inputs[0]
+        amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
+        amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
+        return _op.clip(data, amin, amax)
+    return _impl
+
+
 def _floor():
     def _impl(inputs, input_types):
         data = inputs[0]
         return _op.floor(data)
     return _impl
+
+
+def _round():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        return _op.round(data)
+    return _impl
+
 
 def _to():
     def _impl(inputs, input_types):
@@ -1229,6 +1262,18 @@ def _Float():
 def _mm():
     def _impl(inputs, input_types):
         return _op.nn.dense(inputs[0], inputs[1])
+    return _impl
+
+
+def _isfinite():
+    def _impl(inputs, input_types):
+        return _op.isfinite(inputs[0])
+    return _impl
+
+
+def _isnan():
+    def _impl(inputs, input_types):
+        return _op.isnan(inputs[0])
     return _impl
 
 
@@ -1429,7 +1474,11 @@ def _get_convert_map(prelude):
         "aten::std"                             : _std(),
         "aten::var"                             : _variance(),
         "aten::sqrt"                            : _sqrt(),
-        'aten::floor'                           : _floor(),
+        "aten::rsqrt"                           : _rsqrt(),
+        "aten::ceil"                            : _ceil(),
+        "aten::clamp"                           : _clamp(),
+        "aten::floor"                           : _floor(),
+        "aten::round"                           : _round(),
         "aten::detach"                          : _identity(),
         "aten::upsample_bilinear2d"             : _upsample("bilinear"),
         "aten::upsample_nearest2d"              : _upsample("nearest_neighbor"),
@@ -1439,6 +1488,9 @@ def _get_convert_map(prelude):
         "aten::le"                              : _elemwise("less_equal"),
         "aten::ge"                              : _elemwise("greater_equal"),
         "aten::ne"                              : _elemwise("not_equal"),
+        "aten::eq"                              : _elemwise("equal"),
+        "aten::isfinite"                        : _isfinite(),
+        "aten::isnan"                           : _isnan(),
         "aten::Bool"                            : _Bool(),
         "aten::Float"                           : _Float(),
         "aten::neg"                             : _neg(),

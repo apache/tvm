@@ -1010,6 +1010,22 @@ def ndarray_size(data, dtype="int32"):
     return _make.ndarray_size(data, dtype)
 
 
+def isnan(data):
+    """Check nan in input data element-wise.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.isnan(data)
+
+
 def isfinite(data):
     """Compute element-wise finiteness of data.
 
