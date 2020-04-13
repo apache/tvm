@@ -396,7 +396,7 @@ def test_quantized_imagenet():
         mean_abs_diff = np.mean(np.abs(tvm_result - pt_result))
         num_identical = np.sum(tvm_result == pt_result)
         pt_top3_labels = np.argsort(pt_result)[::-1][:3]
-        tvm_top3_labels = np.argsort(pt_result)[::-1][:3]
+        tvm_top3_labels = np.argsort(tvm_result)[::-1][:3]
 
         print("\nModel name: %s" % model_name)
         print("PyTorch top3 label:", pt_top3_labels)
