@@ -56,7 +56,7 @@ def test_region_set_creator_diamond():
         'test_target',
         [cb_1],
         [cb_1, O_1, ce_1, ce_2],
-        [ce_1, ce_2],
+        [ce_1],
     )
     check_region(
         region_set,
