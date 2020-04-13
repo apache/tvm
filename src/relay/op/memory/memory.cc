@@ -35,6 +35,7 @@
 namespace tvm {
 namespace relay {
 
+TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 
@@ -42,9 +43,11 @@ TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
-    .set_body_typed([](Expr size, Expr alignment, DataType dtype) {
-      auto attrs = make_object<AllocTensorAttrs>();
+    .set_body_typed([](Expr size, Expr alignment, DataType dtype, TVMContext ctx) {
+      auto attrs = make_object<AllocStorageAttrs>();
       attrs->dtype = dtype;
+      attrs->device_id = ctx.device_id;
+      attrs->device_type = ctx.device_type;
       static const Op& op = Op::Get("memory.alloc_storage");
       return Call(op, {size, alignment}, Attrs(attrs), {});
     });

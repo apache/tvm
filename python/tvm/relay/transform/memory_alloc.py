@@ -33,168 +33,11 @@ from ..._ffi.runtime_ctypes import TVMContext
 from ...import cpu
 from typing import Optional
 from collections import defaultdict
+from .context_analysis import ContextAnalysis, mk_analysis_annotator
 
 def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
-
-def iterative_let(let, each_binding, kont):
-    bindings = []
-    while isinstance(let, expr.Let):
-        lhs = let.var
-        rhs = let.value
-        bindings.append(each_binding(lhs, rhs))
-        let = let.body
-
-    return kont(bindings, let)
-
-
-@attr.s(auto_attribs=True, hash=False, eq=False)
-class DeviceDomain:
-    domain: Optional[TVMContext]
-
-    def join(self, other: DeviceDomain) -> DeviceDomain:
-        if self.domain is None and other.domain is None:
-            return self
-        elif self.domain is None:
-            return other
-        elif other.domain is None:
-            return self
-        elif (self.domain.device_type == other.domain.device_type and
-              self.domain.device_id == other.domain.device_id):
-            return self
-        else:
-            import pdb; pdb.set_trace()
-            raise Exception("all expressions must have a singular device")
-
-    def __hash__(self):
-        if self.domain is None:
-            return id(self)
-        else:
-            return hash((self.domain.device_type, self.domain.device_id))
-
-    def __eq__(self, other):
-        if self.domain is None and other.domain is None:
-            return id(self) == id(other)
-        else:
-            return self.domain == other.domain
-
-def bottom():
-    return DeviceDomain(None)
-
-def device_type(ctx):
-    return DeviceDomain(ctx)
-
-class ContextAnalysis(ExprVisitor):
-    """Compute on which device each sub-expression will execute."""
-    def __init__(self, default_device):
-        super().__init__()
-        self.expr_to_device = defaultdict(bottom)
-        self.device_uf = {}
-        self.default_device = default_device
-
-    def lookup(self, device):
-        while device in self.device_uf:
-            device = self.device_uf[device]
-        return device
-
-    def unify(self, device_one, device_two):
-        device_one = self.lookup(device_one)
-        device_two = self.lookup(device_two)
-        unified_device = device_one.join(device_two)
-        if not device_one == unified_device:
-            self.device_uf[device_one] = unified_device
-        if not device_two == unified_device:
-            self.device_uf[device_two] = unified_device
-        return unified_device
-
-    def unify_expr(self, expr1, expr2):
-        """Compute the device type of both expressions and unify them."""
-        return self.unify(self.device_for(expr1), self.device_for(expr2))
-
-    def device_for(self, expr):
-        return self.lookup(self.expr_to_device[expr])
-
-    def visit_let(self, let):
-        self.unify(self.device_for(let.var), self.device_for(let.value))
-        self.unify_expr(let, let.body)
-        super().visit_let(let)
-
-    def visit_function(self, func):
-        self.unify(self.device_for(func), self.device_for(func.body))
-        super().visit_function(func)
-
-    def visit_var(self, var):
-        self.device_for(var)
-
-    def device_copy(self, inp, output, src_dev_type, dst_dev_type):
-        src_dev_type = device_type(TVMContext(src_dev_type, 0))
-        self.unify(self.device_for(inp), src_dev_type)
-        dst_dev_type = device_type(TVMContext(dst_dev_type, 0))
-        self.unify(self.device_for(output), dst_dev_type)
-
-    def unify_call(self, func, inputs, outputs):
-        if func == op.op.get("memory.alloc_tensor"):
-            import pdb; pdb.set_trace()
-        device = bottom()
-        for arg in inputs:
-            device = self.unify(device, self.device_for(arg))
-
-        device = self.unify(device, self.device_for(func))
-
-        for out in outputs:
-            device = self.unify(device, self.device_for(out))
-
-        return device
-
-    def visit_call(self, call):
-        if call.op == op.op.get("device_copy"):
-            (input_tensor,) = call.args
-            self.device_copy(input_tensor, call, call.attrs.src_dev_type, call.attrs.dst_dev_type)
-        elif call.op == op.op.get("memory.invoke_tvm_op"):
-            if call.args[0].body.op == op.op.get("device_copy"):
-                input_tensor = call.args[1][0]
-                output_tensor = call.args[2][0]
-                self.device_copy(input_tensor, output_tensor, call.attrs.src_dev_type, call.attrs.dst_dev_type)
-            else:
-                self.unify_call(call.args[0], call.args[1].fields, call.args[2].fields)
-                super().visit_call(call)
-        elif isinstance(call.op, Function):
-            device = bottom()
-            for arg in call.args:
-                self.visit(arg)
-                device = self.unify(device, self.device_for(arg))
-
-            for param in call.op.params:
-                self.visit(param)
-                device = self.unify(device, self.device_for(param))
-
-            out_device = self.device_for(call.op)
-            self.unify(self.device_for(call), out_device)
-            super().visit_call(call)
-        else:
-            self.unify_call(call.op, call.args, [call])
-            super().visit_call(call)
-
-    def results(self):
-        results = {}
-        for exp in self.expr_to_device:
-            device = self.lookup(self.expr_to_device[exp])
-            if device.domain is None:
-                results[exp] = self.default_device
-            else:
-                results[exp] = device.domain
-
-        return results
-
-def mk_analysis_annotator(results):
-    def _annotator(exp):
-        if exp in results:
-            return f"<{results[exp]}>"
-        else:
-            return ""
-
-    return _annotator
 
 # TODO(@jroesch): port to c++ and unify with existing code
 class LinearizeRetType:
@@ -316,9 +159,8 @@ class ManifestAllocPass(ExprMutator):
         dtype = tensor_type.dtype
 
         # Just need to pass the context here !
-        print(ctx)
         sto = scope.let("storage_{0}".format(name_hint), self.alloc_storage(
-            size, alignment, dtype))
+            size, alignment, ctx, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
         return scope.let("tensor_{0}".format(name_hint), tensor)
@@ -410,8 +252,9 @@ class ManifestAllocPass(ExprMutator):
                     size = self.compute_storage_in_relay(
                         out_shape, out_type.dtype)
                     alignment = self.compute_alignment(out_type.dtype)
+                    context = tvm.cpu(0)
                     sto = scope.let("storage_{i}".format(i=i), self.alloc_storage(
-                        size, alignment, out_type.dtype))
+                        size, alignment, ctx, out_type.dtype))
                     storages.append(sto)
 
                 outs = []
@@ -456,9 +299,11 @@ class ManifestAlloc:
         # can we have def pass_init?
         mod.import_from_std("core.rly")
         ca = ContextAnalysis(cpu(0))
+        print("BEFORE ANALYSIS")
         print(func)
         ca.visit(func)
-        print(func.astext(annotate=mk_analysis_annotator(ca.results())))
+        print("AFTER ANALYSIS")
+        print(func.astext(show_meta_data=False, annotate=mk_analysis_annotator(ca.results())))
         ea = ManifestAllocPass(self.target_host, ca.results())
         func = ea.visit(func)
         return func

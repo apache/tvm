@@ -62,7 +62,7 @@ def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     """
     return _make.alloc_tensor(storage, shape, dtype, assert_shape)
 
-def alloc_storage(size, alignment, dtype_hint='float32'):
+def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
     """Allocate a piece of tensor storage.
 
     Parameters
@@ -79,7 +79,7 @@ def alloc_storage(size, alignment, dtype_hint='float32'):
     result : tvm.relay.Expr
         The alloc_storage expression.
     """
-    return _make.alloc_storage(size, alignment, dtype_hint)
+    return _make.alloc_storage(size, alignment, dtype_hint, ctx)
 
 def shape_func(func, inputs, outputs, dependent=False):
     """Invoke the shape function of the passed function.
