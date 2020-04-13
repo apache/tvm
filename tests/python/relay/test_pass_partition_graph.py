@@ -23,6 +23,7 @@ import pytest
 
 import tvm
 import tvm.relay.testing
+import tvm.relay.op as reg
 from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
@@ -1036,6 +1037,61 @@ def test_multiple_use_of_an_output():
     test_same_output_region()
     test_different_output_region()
 
+def test_duplicate_outputs():
+    target = "test_duplicate_outputs"
+
+    @reg.register("abs", "target." + target)
+    def abs(attrs, args): # pylint: disable=unused-variable
+        return True
+
+    def create_graph():
+        data = relay.var('data', shape=(10, 10))
+        x = relay.abs(data)
+        out_1 = relay.nn.relu(x)
+        out_2 = relay.tanh(x)
+        out_3 = relay.log(x)
+        out = relay.Tuple([out_1, out_2, out_3])
+        func = relay.Function([data], out)
+        return func
+
+    def expected():
+        mod = tvm.IRModule()
+
+        # function 0
+        f0_i0 = relay.var(target+"_0_i0", shape=(10, 10))
+        f0_o0 = relay.abs(f0_i0)
+        func0 = relay.Function([f0_i0], f0_o0)
+
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler", target)
+        func0 = func0.with_attr("global_symbol", target+"_0")
+        gv0 = relay.GlobalVar(target+"_0")
+        mod[gv0] = func0
+
+        # body
+        data = relay.var('data', shape=(10, 10))
+        function_out = gv0(data)
+        out_1 = relay.nn.relu(function_out)
+        out_2 = relay.tanh(function_out)
+        out_3 = relay.log(function_out)
+        out = relay.Tuple([out_1, out_2, out_3])
+        func = relay.Function([data], out)
+        mod["main"] = func
+        return mod
+
+    mod = tvm.IRModule()
+    mod["main"] = create_graph()
+
+    seq = transform.Sequential([
+        transform.AnnotateTarget(target),
+        transform.MergeCompilerRegions(),
+        transform.PartitionGraph(),
+    ])
+
+    ref_mod = expected()
+    partitioned = seq(mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 if __name__ == "__main__":
     test_multi_node_compiler()
@@ -1051,3 +1107,4 @@ if __name__ == "__main__":
     test_mixed_single_multiple_outputs()
     test_dnnl_fuse()
     test_multiple_use_of_an_output()
+    test_duplicate_outputs()
