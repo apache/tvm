@@ -24,7 +24,7 @@ import os
 
 proxy_host = os.environ.get("TVM_IOS_RPC_PROXY_HOST", "localhost")
 proxy_port = os.environ.get("TVM_IOS_RPC_PROXY_PORT", 9090)
-destination = os.environ["TVM_IOS_RPC_DESTINATION"]
+destination = os.environ.get("TVM_IOS_RPC_DESTINATION", "")
 key = "iphone"
 
 def skipped_test_coreml_runtime():
