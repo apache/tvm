@@ -127,13 +127,20 @@ class ContextAnalysis(ExprVisitor):
     def visit_var(self, var):
         self.device_for(var)
 
+    def device_copy(self, inp, output, src_dev_type, dst_dev_type):
+        src_dev_type = device_type(TVMContext(src_dev_type, 0))
+        self.unify(self.device_for(inp), src_dev_type)
+        dst_dev_type = device_type(TVMContext(dst_dev_type, 0))
+        self.unify(self.device_for(output), dst_dev_type)
+
     def visit_call(self, call):
         if call.op == op.op.get("device_copy"):
             (input_tensor,) = call.args
-            src_dev_type = device_type(TVMContext(call.attrs.src_dev_type, 0))
-            self.unify(self.device_for(input_tensor), src_dev_type)
-            dst_dev_type = device_type(TVMContext(call.attrs.dst_dev_type, 0))
-            self.unify(self.device_for(call), dst_dev_type)
+            self.device_copy(input_tensor, call, call.attrs.src_dev_type, call.attrs.dst_dev_type)
+        elif call.op == op.op.get("memory.invoke_tvm_op") and call.args[0].body.op == op.op.get("device_copy"):
+            input_tensor = call.args[1][0]
+            output_tensor = call.args[2][0]
+            self.device_copy(input_tensor, output_tensor, call.attrs.src_dev_type, call.attrs.dst_dev_type)
         elif isinstance(call.op, Function):
             device = bottom()
             for arg in call.args:
@@ -152,7 +159,7 @@ class ContextAnalysis(ExprVisitor):
             for arg in call.args:
                 self.visit(arg)
                 device = self.unify(device, self.device_for(arg))
-
+            print(call)
             device = self.unify(device, self.device_for(call.op))
             self.unify(device, self.device_for(call))
             super().visit_call(call)
@@ -374,7 +381,8 @@ class ManifestAllocPass(ExprMutator):
                 out_shapes = []
                 for i, out in enumerate(cfunc.outputs):
                     tt = ty.TensorType(out.shape, out.dtype)
-                    alloc = self.make_static_allocation(scope, tt, i)
+                    ctx = self.get_context(call)
+                    alloc = self.make_static_allocation(scope, tt, ctx, i)
                     alloc = scope.let("shape_func_out_{0}".format(i), alloc)
                     out_shapes.append(alloc)
 
@@ -412,8 +420,8 @@ class ManifestAllocPass(ExprMutator):
             else:
                 outs = []
                 for i, out_ty in enumerate(out_types):
-                    import pdb; pdb.set_trace()
-                    out = self.make_static_allocation(scope, out_ty, i)
+                    ctx = self.get_context(call)
+                    out = self.make_static_allocation(scope, out_ty, ctx, i)
                     outs.append(out)
 
                 output = expr.Tuple(outs)
@@ -436,6 +444,7 @@ class ManifestAlloc:
         # can we have def pass_init?
         mod.import_from_std("core.rly")
         ca = ContextAnalysis(cpu(0))
+        print(func)
         ca.visit(func)
         print(func.astext(annotate=mk_analysis_annotator(ca.results())))
         ea = ManifestAllocPass(self.target_host, ca.results())
