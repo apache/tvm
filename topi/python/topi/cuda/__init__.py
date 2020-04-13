@@ -46,4 +46,5 @@ from .nms import get_valid_counts, non_max_suppression
 from .rcnn import *
 from .sort import *
 from .conv2d_nhwc_tensorcore import *
+from .conv3d_ndhwc_tensorcore import *
 from .dense_tensorcore import *
