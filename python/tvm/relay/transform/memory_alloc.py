@@ -133,14 +133,32 @@ class ContextAnalysis(ExprVisitor):
         dst_dev_type = device_type(TVMContext(dst_dev_type, 0))
         self.unify(self.device_for(output), dst_dev_type)
 
+    def unify_call(self, func, inputs, outputs):
+        if func == op.op.get("memory.alloc_tensor"):
+            import pdb; pdb.set_trace()
+        device = bottom()
+        for arg in inputs:
+            device = self.unify(device, self.device_for(arg))
+
+        device = self.unify(device, self.device_for(func))
+
+        for out in outputs:
+            device = self.unify(device, self.device_for(out))
+
+        return device
+
     def visit_call(self, call):
         if call.op == op.op.get("device_copy"):
             (input_tensor,) = call.args
             self.device_copy(input_tensor, call, call.attrs.src_dev_type, call.attrs.dst_dev_type)
-        elif call.op == op.op.get("memory.invoke_tvm_op") and call.args[0].body.op == op.op.get("device_copy"):
-            input_tensor = call.args[1][0]
-            output_tensor = call.args[2][0]
-            self.device_copy(input_tensor, output_tensor, call.attrs.src_dev_type, call.attrs.dst_dev_type)
+        elif call.op == op.op.get("memory.invoke_tvm_op"):
+            if call.args[0].body.op == op.op.get("device_copy"):
+                input_tensor = call.args[1][0]
+                output_tensor = call.args[2][0]
+                self.device_copy(input_tensor, output_tensor, call.attrs.src_dev_type, call.attrs.dst_dev_type)
+            else:
+                self.unify_call(call.args[0], call.args[1].fields, call.args[2].fields)
+                super().visit_call(call)
         elif isinstance(call.op, Function):
             device = bottom()
             for arg in call.args:
@@ -155,13 +173,7 @@ class ContextAnalysis(ExprVisitor):
             self.unify(self.device_for(call), out_device)
             super().visit_call(call)
         else:
-            device = bottom()
-            for arg in call.args:
-                self.visit(arg)
-                device = self.unify(device, self.device_for(arg))
-            print(call)
-            device = self.unify(device, self.device_for(call.op))
-            self.unify(device, self.device_for(call))
+            self.unify_call(call.op, call.args, [call])
             super().visit_call(call)
 
     def results(self):
