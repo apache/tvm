@@ -936,13 +936,16 @@ def _reduce(name):
         data = inputs[0]
         axis = None
         keepdims = False
+
         if len(inputs) > 2: # default, torch have only data, axis=None, keepdims=False
             if isinstance(inputs[1], int):
                 axis = int(inputs[1])
             else:
                 axis = list(_infer_shape(inputs[1]))
             keepdims = bool(inputs[2])
+
         return get_relay_op(name)(data, axis=axis, keepdims=keepdims)
+
     return _impl
 
 def _std():
@@ -951,11 +954,14 @@ def _std():
         axis = list(_infer_shape(inputs[1]))
         keepdims = bool(inputs[3])
         unbiased = bool(inputs[2])
+
         if unbiased:
             msg = "Currently only supports standard-deviation calculated via the biased "\
                   "estimator. Pytorch's Bessel's correction is not supported."
             raise NotImplementedError(msg)
+
         return _op.reduce.std(data, axis=axis, keepdims=keepdims)
+
     return _impl
 
 def _variance():
@@ -964,11 +970,14 @@ def _variance():
         axis = list(_infer_shape(inputs[1]))
         keepdims = bool(inputs[3])
         unbiased = bool(inputs[2])
+
         if unbiased:
             msg = "Currently only supports standard-deviation calculated via the biased "\
                   "estimator. Pytorch's Bessel's correction is not supported."
             raise NotImplementedError(msg)
+
         return _op.reduce.variance(data, axis=axis, keepdims=keepdims)
+
     return _impl
 
 def _mean():
