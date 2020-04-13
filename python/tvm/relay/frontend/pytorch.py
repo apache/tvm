@@ -29,14 +29,13 @@ import tvm
 from .. import analysis as _analysis
 from .. import expr as _expr
 from .. import op as _op
-from ..function import Function
-from .. import transform
 from ..ty import TupleType, TensorType, Any
 from ..loops import while_loop
 from .common import get_relay_op
 from .common import infer_shape as _infer_shape
 from .common import infer_value as _infer_value
-from ..prelude import Prelude, StaticTensorArrayOps, get_tensor_array_shape
+from .common import infer_type as _infer_type
+from ..prelude import Prelude, StaticTensorArrayOps
 
 from . import qnn_torch
 
@@ -45,11 +44,8 @@ __all__ = ["from_pytorch"]
 
 # List ADT utilities
 def _infer_type_with_prelude(val, prelude):
-    mod = prelude.mod
-    func = Function([], val)
-    mod["main"] = func
-    mod = transform.InferType()(mod)
-    return mod["main"].body.checked_type
+    body = _infer_type(val, prelude.mod)
+    return body.checked_type
 
 
 def _convert_to_list_adt(py_lst, prelude):
@@ -74,8 +70,10 @@ def _convert_to_tensor_array(adt_lst, prelude):
     if prelude.length(adt_lst) == 0:
         return prelude.nil()
 
-    shape = _infer_type_with_prelude(prelude.hd(adt_lst), prelude).shape
-    return _map_tensor_array_constructor(adt_lst, prelude, shape)
+    checked_type = _infer_type_with_prelude(prelude.hd(adt_lst), prelude)
+    shape = checked_type.shape
+    tensor_array = _map_tensor_array_constructor(adt_lst, prelude, shape)
+    return tensor_array, tuple(shape)
 
 
 def _should_construct_dynamic_list(list_construct_node):
@@ -184,11 +182,9 @@ def _unsqueeze():
 def _concatenate(prelude):
     def tensor_array_concat(lst, axis):
         assert axis == 0, "Tensor array concat supported only for axis 0"
-        shape = _infer_type_with_prelude(prelude.hd(lst), prelude).shape
-        concat_shape = (Any(),) + tuple(shape[1:])
-
-        tensor_array = _map_tensor_array_constructor(lst, prelude, shape)
-        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", concat_shape)
+        tensor_array, shape = _convert_to_tensor_array(lst, prelude)
+        concat_shape = (Any(),) + shape[1:]
+        static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
         static_tensor_array_ops.define_tensor_get_data(concat_shape)
 
         concat = prelude.get_var_static('tensor_array_concat', "float32", concat_shape)
@@ -1216,8 +1212,7 @@ def _add(prelude):
 
 def _tensor_array_stack(prelude):
     def _impl(inputs, input_types):
-        tensor_array = _convert_to_tensor_array(inputs[0], prelude)
-        shape = get_tensor_array_shape(tensor_array, "float32", prelude)
+        tensor_array, shape = _convert_to_tensor_array(inputs[0], prelude)
         stack = prelude.get_var_static('tensor_array_stack', "float32", shape)
         stacked = stack(tensor_array)
 
