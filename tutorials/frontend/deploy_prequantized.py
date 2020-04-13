@@ -19,13 +19,13 @@ Deploy a Framework-prequantized Model with TVM
 ================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
-This is an a tutorial on loading models quantized by deep learning frameworks into TVM.
+This is a tutorial on loading models quantized by deep learning frameworks into TVM.
 Pre-quantized model import is one of the quantization support we have in TVM. More details on
 the quantization story in TVM can be found
 `here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
 
 Here, we demonstrate how to load and run models quantized by PyTorch, MXNet, and TFLite.
-Once loaded, we can run quantized models on any hardware TVM supports.
+Once loaded, we can run compiled, quantized models on any hardware TVM supports.
 """
 
 #################################################################################
@@ -153,7 +153,7 @@ with torch.no_grad():
 # You can print the output from the frontend to see how quantized models are
 # represented.
 #
-# You would see operators specfic to quantization such as
+# You would see operators specific to quantization such as
 # qnn.quantize, qnn.dequantize, qnn.requantize, and qnn.conv2d etc.
 input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
 input_shapes = [(input_name, (1, 3, 224, 224))]
