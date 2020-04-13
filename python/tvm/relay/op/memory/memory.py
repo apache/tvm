@@ -23,6 +23,9 @@ def invoke_tvm_op(func, inputs, outputs):
 
     Parameters
     ----------
+    func : tvm.relay.Expr
+        The input expr.
+
     inputs : tvm.relay.Expr
         A tuple of the inputs to pass to the TVM function.
 
@@ -59,7 +62,7 @@ def alloc_tensor(storage, shape, dtype='float32', assert_shape=None):
     """
     return _make.alloc_tensor(storage, shape, dtype, assert_shape)
 
-def alloc_storage(size, alignment, dtype_hint='float32'):
+def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
     """Allocate a piece of tensor storage.
 
     Parameters
@@ -76,7 +79,7 @@ def alloc_storage(size, alignment, dtype_hint='float32'):
     result : tvm.relay.Expr
         The alloc_storage expression.
     """
-    return _make.alloc_storage(size, alignment, dtype_hint)
+    return _make.alloc_storage(size, alignment, dtype_hint, ctx)
 
 def shape_func(func, inputs, outputs, dependent=False):
     """Invoke the shape function of the passed function.
@@ -96,3 +99,12 @@ def shape_func(func, inputs, outputs, dependent=False):
         The shape function expression.
     """
     return _make.shape_func(func, inputs, outputs, dependent)
+
+def flatten_tuple_type(ty):
+    return _make.FlattenTupleType(ty)
+
+def from_tuple_type(ty, expr):
+    return _make.FromTupleType(ty, expr)
+
+def to_tuple_type(ty, exprs):
+    return _make.ToTupleType(ty, exprs)
