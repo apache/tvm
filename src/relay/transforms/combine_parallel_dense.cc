@@ -54,7 +54,7 @@ class ParallelDenseCombiner : public ParallelOpBatchCombiner {
 
  protected:
   virtual bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
-    AttrsEqual eq;
+    StructuralEqual eq;
     const auto* attrs_a = a->attrs.as<DenseAttrs>();
     const auto* attrs_b = b->attrs.as<DenseAttrs>();
     CHECK(attrs_a);
@@ -80,8 +80,7 @@ Pass CombineParallelDense(uint64_t min_num_branches) {
     [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelDense(f, min_num_branches));
   };
-  return CreateFunctionPass(pass_func, 4, "CombineParallelDense",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 4, "CombineParallelDense", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelDense")

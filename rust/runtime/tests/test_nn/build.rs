@@ -25,16 +25,24 @@ use ar::Builder;
 
 fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
+    let out_dir = Path::new(&out_dir).join("test_nn");
 
-    let output = Command::new(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/src/build_test_graph.py"
-    ))
-    .arg(&out_dir)
-    .output()
-    .expect("Failed to execute command");
+    std::fs::create_dir_all(&out_dir).unwrap();
+
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let manifest_dir = Path::new(&manifest_dir);
+
+    let generator = manifest_dir.join("src").join("build_test_graph.py");
+
+    let graph_path = out_dir.join("graph.o");
+
+    let output = Command::new(&generator)
+        .arg(&out_dir)
+        .output()
+        .expect("Failed to execute command");
+
     assert!(
-        Path::new(&format!("{}/graph.o", out_dir)).exists(),
+        graph_path.exists(),
         "Could not build graph lib: {}",
         String::from_utf8(output.stderr)
             .unwrap()
@@ -44,10 +52,10 @@ fn main() {
             .unwrap_or("")
     );
 
-    let lib_file = format!("{}/libtestnn.a", out_dir);
+    let lib_file = out_dir.join("libtestnn.a");
     let file = File::create(&lib_file).unwrap();
     let mut builder = Builder::new(file);
-    builder.append_path(format!("{}/graph.o", out_dir)).unwrap();
+    builder.append_path(graph_path).unwrap();
 
     let status = Command::new("ranlib")
         .arg(&lib_file)
@@ -56,7 +64,7 @@ fn main() {
 
     assert!(status.success());
 
-
     println!("cargo:rustc-link-lib=static=testnn");
-    println!("cargo:rustc-link-search=native={}", out_dir);
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!("cargo:rerun-if-changed={}", generator.display());
 }

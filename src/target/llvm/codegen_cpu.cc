@@ -24,6 +24,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <memory>
 #include <unordered_map>
 #include "codegen_cpu.h"
@@ -125,7 +126,7 @@ void CodeGenCPU::Init(const std::string& module_name,
 void CodeGenCPU::AddFunction(const PrimFunc& f) {
   CodeGenLLVM::AddFunction(f);
   if (f_tvm_register_system_symbol_ != nullptr) {
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
     export_system_symbols_.emplace_back(
@@ -369,7 +370,11 @@ llvm::GlobalVariable* CodeGenCPU::InitContextPtr(
 
 llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
   CHECK(gv != nullptr);
+#if TVM_LLVM_VERSION >= 110
+  llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, llvm::Align(gv->getAlignment()));
+#else
   llvm::LoadInst* faddr = builder_->CreateAlignedLoad(gv, gv->getAlignment());
+#endif
   faddr->setMetadata(
       "tbaa",
       md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
@@ -641,7 +646,11 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
       *ctx_, "handle_init", function_);
   BasicBlock* end_block = BasicBlock::Create(
       *ctx_, "handle_init_end", function_);
+#if TVM_LLVM_VERSION >= 110
+  llvm::Value* handle = builder_->CreateAlignedLoad(hptr, llvm::Align(align));
+#else
   llvm::Value* handle = builder_->CreateAlignedLoad(hptr, align);
+#endif
   llvm::Value* handle_not_null =  builder_->CreateICmpNE(
       handle, llvm::Constant::getNullValue(t_tvm_func_handle_));
   builder_->CreateCondBr(
@@ -651,15 +660,24 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   llvm::Value* out = WithFunctionEntry([&]() {
       return builder_->CreateAlloca(t_tvm_func_handle_);
     });
+#if TVM_LLVM_VERSION >= 110
+  llvm::LoadInst* ctx = builder_->CreateAlignedLoad(
+      gv_mod_ctx_, llvm::Align(gv_mod_ctx_->getAlignment()));
+#else
   llvm::LoadInst* ctx = builder_->CreateAlignedLoad(
       gv_mod_ctx_, gv_mod_ctx_->getAlignment());
+#endif
   ctx->setMetadata(
       "tbaa",
       md_builder_->createTBAAStructTagNode(md_tbaa_ctx_ptr_, md_tbaa_ctx_ptr_, 0));
   llvm::Value* retcode = builder_->CreateCall(
       RuntimeTVMGetFuncFromEnv(), {ctx, GetConstString(fname), out});
   init_block = CheckCallSuccess(retcode);
+#if TVM_LLVM_VERSION >= 110
+  llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, llvm::Align(align));
+#else
   llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
+#endif
   // Store the handle
   builder_->CreateStore(loaded_handle, hptr);
   builder_->CreateBr(end_block);
@@ -696,10 +714,13 @@ CodeGenCPU::MakeCallPacked(const Array<PrimExpr> &args, llvm::Value **rvalue,
       RuntimeTVMFuncCall(), {handle, arg_value, arg_tcode, ConstInt32(nargs),
                              ret_value, *ret_tcode}));
   DataType r_api_type = tir::APIType(r_type);
-  *rvalue = builder_->CreateAlignedLoad(
-      builder_->CreatePointerCast(
-          ret_value, DTypeToLLVMType(r_api_type)->getPointerTo()),
-      8);
+  llvm::Value* load_ptr = builder_->CreatePointerCast(
+      ret_value, DTypeToLLVMType(r_api_type)->getPointerTo());
+#if TVM_LLVM_VERSION >= 110
+  *rvalue = builder_->CreateAlignedLoad(load_ptr, llvm::Align(8));
+#else
+  *rvalue = builder_->CreateAlignedLoad(load_ptr, 8);
+#endif
   *rvalue = CreateCast(r_api_type, r_type, *rvalue);
   return end_block;
 }
@@ -731,7 +752,11 @@ llvm::Value *CodeGenCPU::CreateCallTracePacked(const CallNode *op) {
   // traced value.
   BasicBlock *continue_block =
       BasicBlock::Create(*ctx_, "continue_block", function_);
+#if TVM_LLVM_VERSION >= 110
+  llvm::Value *ret_tcode_value = builder_->CreateAlignedLoad(ret_tcode, llvm::Align(8));
+#else
   llvm::Value *ret_tcode_value = builder_->CreateAlignedLoad(ret_tcode, 8);
+#endif
   // Check the ret_type_code and create cmp instruction.
   llvm::Value *cmp = builder_->CreateICmpNE(
       ret_tcode_value, llvm::ConstantInt::get(t_int_, kTVMNullptr));
@@ -943,7 +968,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
         PrimExpr end = MinNode::make((task_id + make_const(t, 1)) * step, op->extent);
         CreateSerialFor(MakeValue(begin),
                         MakeValue(end),
-                        ConstInt32(1),
+                        llvm::ConstantInt::getSigned(GetLLVMType(end), 1),
                         op->loop_var,
                         op->body);
       }

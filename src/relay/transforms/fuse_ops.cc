@@ -162,7 +162,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   // The output.
   IndexedForwardGraph graph_;
   // attribute equal comparator
-  AttrsEqual attr_equal_;
+  StructuralEqual attr_equal_;
   // Update the message stored at the node.
   void Update(const Expr& node,
               IndexedForwardGraph::Node* parent,
@@ -980,8 +980,7 @@ Pass FuseOps(int fuse_opt_level) {
     int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
     return Downcast<Function>(FuseOps(f, opt_level, m));
   };
-  return CreateFunctionPass(pass_func, 1, "FuseOps",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 1, "FuseOps", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.FuseOps")

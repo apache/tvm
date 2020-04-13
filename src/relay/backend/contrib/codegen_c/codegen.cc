@@ -19,18 +19,21 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
-#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 
 #include <fstream>
 #include <sstream>
 
+#include "../../utils.h"
 #include "codegen_c.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
+
+using namespace backend;
 
 /*!
  * \brief An example codegen that is only used for quick prototyping and testing

@@ -104,7 +104,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
                                      const Array<Integer>& lhs_axes,
                                      Expr* rhs_value = nullptr) {
   if (tlhs->shape.size() < trhs->shape.size()) return false;
-  AttrsEqual equal;
+  StructuralEqual equal;
   size_t base = tlhs->shape.size() - trhs->shape.size();
   size_t j = 0;
 
@@ -319,6 +319,11 @@ inline Expr Exp(Expr e) {
 
 inline Expr FastExp(Expr e) {
   static const Op& op = Op::Get("fast_exp");
+  return Call(op, {e});
+}
+
+inline Expr FastErf(Expr e) {
+  static const Op& op = Op::Get("fast_erf");
   return Call(op, {e});
 }
 

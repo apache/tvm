@@ -21,6 +21,8 @@
  * \file load_json.c
  * \brief Load graph from JSON file.
  */
+#include <tvm/runtime/crt/memory.h>
+
 #include "load_json.h"
 
 // the node entry structure in serialized format
@@ -74,10 +76,10 @@ void SeqPop(Seq * seq) {
 }
 
 Seq * SeqCreate(uint64_t len) {
-  Seq * seq = (Seq*)malloc(sizeof(Seq));  // NOLINT(*)
+  Seq * seq = (Seq*)vmalloc(sizeof(Seq));  // NOLINT(*)
   memset(seq, 0, sizeof(Seq));
   seq->allocated = len;
-  seq->data = (uint32_t*)malloc(sizeof(uint32_t)*len);  // NOLINT(*)
+  seq->data = (uint32_t*)vmalloc(sizeof(uint32_t)*len);  // NOLINT(*)
   seq->push_back = SeqPush;
   seq->back = SeqBack;
   seq->pop_back = SeqPop;
@@ -85,8 +87,8 @@ Seq * SeqCreate(uint64_t len) {
 }
 
 void SeqRelease(Seq ** seq) {
-  free((*seq)->data);
-  free(*seq);
+  vfree((*seq)->data);
+  vfree(*seq);
 }
 
 
@@ -156,11 +158,11 @@ int JSONReader_ReadString(JSONReader * reader, char * out_str) {
     if (ch == '\\') {
       char sch = reader->NextChar(reader);
       switch (sch) {
-      case 'r': snprintf(output, sizeof(output), "%s\r", output); break;
-      case 'n': snprintf(output, sizeof(output), "%s\n", output); break;
-      case '\\': snprintf(output, sizeof(output), "%s\\", output); break;
-      case 't': snprintf(output, sizeof(output), "%s\t", output); break;
-      case '\"': snprintf(output, sizeof(output), "%s\"", output); break;
+      case 'r': snprintf(output + strlen(output), sizeof(output), "\r"); break;
+      case 'n': snprintf(output + strlen(output), sizeof(output), "\n"); break;
+      case '\\': snprintf(output + strlen(output), sizeof(output), "\\"); break;
+      case 't': snprintf(output + strlen(output), sizeof(output), "\t"); break;
+      case '\"': snprintf(output + strlen(output), sizeof(output), "\""); break;
       default: fprintf(stderr, "unknown string escape %c\n", sch);
       }
     } else {
@@ -346,7 +348,7 @@ JSONReader JSONReader_Create(const char * is) {
   reader.BeginObject = JSONReader_BeginObject;
   reader.NextArrayItem = JSONReader_NextArrayItem;
   reader.NextObjectItem = JSONReader_NextObjectItem;
-  reader.is_ = (char*)malloc(strlen(is)+1);  // NOLINT(*)
+  reader.is_ = (char*)vmalloc(strlen(is)+1);  // NOLINT(*)
   memset(reader.is_, 0, strlen(is)+1);
   snprintf(reader.is_, strlen(is)+1, "%s", is);
   reader.isptr = reader.is_;
@@ -355,5 +357,5 @@ JSONReader JSONReader_Create(const char * is) {
 
 void JSONReader_Release(JSONReader * reader) {
   SeqRelease(&(reader->scope_counter_));
-  free(reader->is_);
+  vfree(reader->is_);
 }

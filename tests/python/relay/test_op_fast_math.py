@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+import scipy
+from scipy import special
 import tvm
 import tvm.relay as relay
 import topi
@@ -52,6 +54,7 @@ def test_fastmath():
                                     rtol=1e-5, atol=1e-5)
 
     test_apply(relay.exp, "fast_exp", np.exp, low=-88, high=88, step=0.01)
+    test_apply(relay.erf, "fast_erf", scipy.special.erf, low=-10, high=10, step=0.01)
     test_apply(relay.tanh, "fast_tanh", np.tanh, low=-10, high=10, step=0.01)
 
 

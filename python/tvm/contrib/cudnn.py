@@ -402,3 +402,27 @@ def conv_forward(x,
             ins[1],
             outs[0],
             conv_dtype), name="y")
+
+def softmax(x, axis=-1):
+    """Compute softmax using CuDNN
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        The input tensor
+
+    axis : int
+        The axis to compute the softmax
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+        The result tensor
+    """
+    return te.extern(
+        x.shape, [x],
+        lambda ins, outs: tvm.tir.call_packed(
+            "tvm.contrib.cudnn.softmax.forward",
+            ins[0],
+            outs[0],
+            axis), name="y")

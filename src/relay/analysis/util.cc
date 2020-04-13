@@ -330,7 +330,7 @@ TVM_REGISTER_GLOBAL("relay.analysis.all_type_vars")
  */
 std::unordered_map<const Object*, size_t>
 GetExprRefCount(const Expr& body) {
-  class ExprRefCounter : private ExprVisitor {
+  class ExprRefCounter : private MixedModeVisitor {
    public:
     std::unordered_map<const Object*, size_t>
     Get(const Expr& body) {

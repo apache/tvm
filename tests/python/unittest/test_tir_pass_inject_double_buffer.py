@@ -40,8 +40,9 @@ def test_double_buffer():
     stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
-    f = tvm.tir.ir_pass.MakeAPI(stmt, "db", [A.asobject(), C.asobject()], 2, True)
-    f = tvm.tir.ir_pass.ThreadSync(f, "shared")
+    mod = tvm.testing.MakeAPILegacy(stmt, "db", [A.asobject(), C.asobject()], 2, True)
+    f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
+
     count = [0]
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":

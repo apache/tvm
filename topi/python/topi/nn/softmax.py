@@ -77,7 +77,6 @@ def softmax(x, axis=-1):
     return te.compute(shape, lambda *indices: _normalize(exp, expsum, *indices),
                       name='T_softmax_norm', attrs={"axis" : axis})
 
-
 @tvm.te.tag_scope(tag='log_softmax_output')
 def log_softmax(x):
     """Perform log softmax activation on the data

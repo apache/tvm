@@ -20,11 +20,10 @@
 This file contains the set of passes for Relay, which exposes an interface for
 configuring the passes and scripting them in Python.
 """
-from tvm.ir import RelayExpr, IRModule
+from tvm.ir import IRModule
 
 from . import _ffi_api
 from .feature import Feature
-from ..ty import Type
 
 
 def post_order_visit(expr, fvisit):
@@ -312,29 +311,6 @@ def detect_feature(a, b=None):
     if isinstance(a, IRModule):
         a, b = b, a
     return {Feature(int(x)) for x in _ffi_api.detect_feature(a, b)}
-
-
-def structural_hash(value):
-    """Hash a Relay expression structurally.
-
-    Parameters
-    ----------
-    expr : Union[tvm.relay.Expr, tvm.relay.Type]
-      The expression to hash.
-
-    Returns
-    -------
-    result : int
-      The hash value
-    """
-    if isinstance(value, RelayExpr):
-        return int(_ffi_api._expr_hash(value))
-    elif isinstance(value, Type):
-        return int(_ffi_api._type_hash(value))
-    else:
-        msg = ("found value of type {0} expected" +
-               "relay.Expr or relay.Type").format(type(value))
-        raise TypeError(msg)
 
 
 def extract_fused_functions(mod):

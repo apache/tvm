@@ -765,7 +765,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 Message AddSubBackwardPrep(const Call& call, const Array<Message>& in_messages) {
   const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
   const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
-  AttrsEqual equal;
+  StructuralEqual equal;
   if (in_messages[0].defined() &&
       MatchBroadcastToLeftAxes(tlhs, trhs, in_messages[0]->axes)) {
     return in_messages[0];
@@ -795,7 +795,7 @@ Expr AddSubBackwardTransform(const Call& call,
   }
   Message lhs_message = transformer->GetMessage(call->args[0]);
   Message rhs_message = transformer->GetMessage(call->args[1]);
-  AttrsEqual equal;
+  StructuralEqual equal;
 
   if (lhs_message.defined() && rhs_message.defined()) {
     CHECK(equal(lhs_message->axes, rhs_message->axes));
@@ -960,8 +960,7 @@ Pass ForwardFoldScaleAxis() {
       return Downcast<Function>(
           relay::fold_scale_axis::ForwardFoldScaleAxis(f));
   };
-  return CreateFunctionPass(pass_func, 3, "ForwardFoldScaleAxis",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 3, "ForwardFoldScaleAxis", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.ForwardFoldScaleAxis")
@@ -973,8 +972,7 @@ Pass BackwardFoldScaleAxis() {
       return Downcast<Function>(
           relay::fold_scale_axis::BackwardFoldScaleAxis(f));
     };
-  return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 3, "BackwardFoldScaleAxis", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.BackwardFoldScaleAxis")

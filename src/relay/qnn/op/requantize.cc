@@ -132,36 +132,28 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
                      const Expr& input_zero_point, const Expr& output_scale,
                      const Expr& output_zero_point, const RequantizeAttrs* param,
                      const Array<IndexExpr>& input_shape, const DataType& out_dtype) {
-  DataType hp_dtype = DataType::Int(64);
-
-  auto tensor = Cast(input_tensor, hp_dtype);
+  auto tensor = Cast(input_tensor, DataType::Int(32));
   // 1) Subtract the input_zero_point
   auto zero_scalar = MakeConstantScalar(DataType::Int(32), 0);
   if (!IsEqualScalar(input_zero_point, zero_scalar)) {
-    tensor = Subtract(tensor, Cast(input_zero_point, hp_dtype));
+    tensor = Subtract(tensor, Cast(input_zero_point, DataType::Int(32)));
   }
-
-  // Check if multiplier is greater than 1.
-  bool is_multiplier_gt_one = false;
 
   // 2) If the input and output scales are same, we can skip the fixed point multiplication. Check
   // if the input scale is per-tensor or per-channel. If it is per-tensor, there is single scale for
   // the whole tensor. For per-channel (aka per-axis), there is a vector of scales for the input
   // tensor. Depending on the quantization type, the fixed point multiplication routing is called.
-  auto scaled_int64_t = tensor;
+  auto scaled_int32_t = tensor;
   float output_scale_float = GetScalarFromConstant<float>(output_scale);
   if (IsConstScalar(input_scale)) {
     // This is per-tensor quantization. Single scale.
     float input_scale_float = GetScalarFromConstant<float>(input_scale);
     double double_multiplier =
         static_cast<double>(input_scale_float) / static_cast<double>(output_scale_float);
-    if (double_multiplier > 1) {
-      is_multiplier_gt_one = true;
-    }
     // Skip if input and output scales are same.
     if (!IsEqualScalar(input_scale, output_scale)) {
-      scaled_int64_t =
-          FixedPointMultiply(scaled_int64_t, double_multiplier, input_shape, param->rounding);
+      scaled_int32_t =
+          FixedPointMultiply(scaled_int32_t, double_multiplier, input_shape, param->rounding);
     }
   } else {
     // This is per-channel (per=axis) quantization.
@@ -171,30 +163,28 @@ Expr RequantizeLower(const Expr& input_tensor, const Expr& input_scale,
       double multiplier =
           static_cast<double>(input_axis_scale) / static_cast<double>(output_scale_float);
       double_multipliers.push_back(multiplier);
-      if (multiplier > 1) {
-        is_multiplier_gt_one = true;
-      }
     }
     int axis = param->axis;
     axis = (axis == -1) ? input_shape.size() - 1 : axis;
-    scaled_int64_t = FixedPointMultiplyPerChannel(scaled_int64_t, double_multipliers, input_shape,
+    scaled_int32_t = FixedPointMultiplyPerChannel(scaled_int32_t, double_multipliers, input_shape,
                                                   axis, param->rounding);
   }
 
   // 3) Add the output zero point.
-  auto shifted_int64_t = scaled_int64_t;
+  auto shifted_int32_t = scaled_int32_t;
   if (!IsEqualScalar(output_zero_point, zero_scalar)) {
-    shifted_int64_t = Add(Cast(output_zero_point, hp_dtype), scaled_int64_t);
+    shifted_int32_t = Add(Cast(output_zero_point, DataType::Int(32)), scaled_int32_t);
   }
 
   // 4) Clip to the out_dtype min/max. Skip clipping if out_dtype is Int32. The fixed point
-  // multiplication keeps the value in int32 range if the requantize scale is less than 1.
-  if (out_dtype == DataType::Int(32) && !is_multiplier_gt_one) {
-    return Cast(shifted_int64_t, out_dtype);
+  // multiplication keeps the value in int32 range.
+  if (out_dtype == DataType::Int(32)) {
+    return shifted_int32_t;
   }
+
   auto q_min = GetQmin(out_dtype);
   auto q_max = GetQmax(out_dtype);
-  auto clipped_t = Clip(shifted_int64_t, q_min, q_max);
+  auto clipped_t = Clip(shifted_int32_t, q_min, q_max);
   return Cast(clipped_t, out_dtype);
 }
 

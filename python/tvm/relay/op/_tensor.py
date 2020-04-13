@@ -19,11 +19,11 @@
 import topi
 
 from tvm.runtime import convert
+from tvm.te.hybrid import script
 from topi.util import get_const_tuple
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
-from ...hybrid import script
 
 
 register_broadcast_schedule("log")
@@ -76,6 +76,7 @@ register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
 register_broadcast_schedule("fast_exp")
 register_broadcast_schedule("fast_tanh")
+register_broadcast_schedule("fast_erf")
 
 
 # zeros
@@ -222,3 +223,4 @@ register_shape_func("exp", False, elemwise_shape_func)
 register_shape_func("tan", False, elemwise_shape_func)
 register_shape_func("fast_exp", False, elemwise_shape_func)
 register_shape_func("fast_tanh", False, elemwise_shape_func)
+register_shape_func("fast_erf", False, elemwise_shape_func)

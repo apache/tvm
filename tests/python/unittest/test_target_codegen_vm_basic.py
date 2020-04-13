@@ -22,9 +22,21 @@ def run_jit(fapi, check):
     for target in ["llvm", "stackvm"]:
         if not tvm.runtime.enabled(target):
             continue
-        f = tvm.target.codegen.build_module(fapi, target)
+        f = tvm.driver.build(fapi, target=target)
         s = f.get_source()
         check(f)
+
+
+def MakeAPILegacy(stmt, name, args, num_unpacked_args, noalias):
+    """Legacy adapter to create a API"""
+    f = tvm.tir.PrimFunc(args, stmt).with_attr(
+        "global_symbol", tvm.runtime.String(name))
+    f = f.with_attr("tir.is_entry_func", True)
+    if noalias:
+        f = f.with_attr("tir.noalias", True)
+    mod = tvm.IRModule.from_expr(f)
+    return tvm.tir.transform.MakePackedAPI()(mod)
+
 
 def test_stack_vm_basic():
     a = tvm.nd.array(np.zeros(10, dtype='float32'))
@@ -36,9 +48,7 @@ def test_stack_vm_basic():
     n = te.size_var('n')
     Ab = tvm.tir.decl_buffer((n, ), "float32")
     stmt = tvm.tir.Evaluate(tvm.tir.call_packed("tvm_call_back_get_shape", Ab.shape[0]))
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "print_shape", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    fapi = tvm.tir.ir_pass.LowerIntrin(fapi, "stackvm")
+    fapi = tvm.testing.MakeAPILegacy(stmt, "print_shape", [Ab], 0, True)
     run_jit(fapi, lambda f: f(a))
 
 
@@ -59,8 +69,7 @@ def test_stack_vm_loop():
         ib.emit(tvm.tir.call_packed("tvm_stack_vm_print", i))
 
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.testing.MakeAPILegacy(stmt, "ramp", [Ab], 0, True)
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     def check(f):
         f(a)
@@ -82,8 +91,7 @@ def test_stack_vm_cond():
             A[i + 1] = A[i] + 2
 
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "test", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.testing.MakeAPILegacy(stmt, "test", [Ab], 0, True)
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)
@@ -102,8 +110,7 @@ def test_vm_parallel():
     with ib.for_range(0, n, "i", for_type="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
+    fapi = tvm.testing.MakeAPILegacy(stmt, "ramp", [Ab], 0, True)
     def check(f):
         a = tvm.nd.array(np.zeros(10, dtype=dtype))
         f(a)

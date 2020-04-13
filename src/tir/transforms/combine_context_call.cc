@@ -26,11 +26,13 @@
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
+#include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/registry.h>
 
 #include <tvm/tir/ir_pass.h>
 
-#include <map>
+#include <unordered_map>
 
 namespace tvm {
 namespace tir {
@@ -39,12 +41,6 @@ namespace tir {
 // These information are needed during codegen.
 class ContextCallCombiner final : public StmtExprMutator {
  public:
-  struct CompareExpr {
-    bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
-      return Compare(lhs, rhs) < 0;
-    }
-  };
-
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->is_intrinsic(intrinsic::tvm_thread_context)) {
       CHECK_EQ(op->args.size(), 1U);
@@ -73,7 +69,7 @@ class ContextCallCombiner final : public StmtExprMutator {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::coproc_uop_scope) {
       // Map of comparison expression to variable
-      std::map<PrimExpr, Var, CompareExpr> temp;
+      std::unordered_map<PrimExpr, Var, StructuralHash, StructuralEqual> temp;
       std::swap(temp, ctx_map_);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
@@ -86,7 +82,7 @@ class ContextCallCombiner final : public StmtExprMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->for_type == ForType::Parallel) {
       // Map of comparison expression to variable
-      std::map<PrimExpr, Var, CompareExpr> temp;
+      std::unordered_map<PrimExpr, Var, StructuralHash, StructuralEqual> temp;
       std::swap(temp, ctx_map_);
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       std::swap(temp, ctx_map_);
@@ -101,32 +97,28 @@ class ContextCallCombiner final : public StmtExprMutator {
   }
 
  private:
-  static Stmt BuildContext(const std::map<PrimExpr, Var, CompareExpr>& cmap,
-                           Stmt body) {
+  static Stmt BuildContext(
+      const std::unordered_map<PrimExpr, Var, StructuralHash, StructuralEqual>& cmap,
+      Stmt body) {
     for (const auto& kv : cmap) {
       body = LetStmtNode::make(kv.second, kv.first, body);
     }
     return body;
   }
   // Map of comparison expression to variable
-  std::map<PrimExpr, Var, CompareExpr> ctx_map_;
+  std::unordered_map<PrimExpr, Var, StructuralHash, StructuralEqual> ctx_map_;
 };
 
-LoweredFunc CombineContextCall(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = ContextCallCombiner().Combine(n->body);
-  return LoweredFunc(n);
-}
 
 namespace transform {
 
 Pass CombineContextCall() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ContextCallCombiner().Combine(n->body);
+    n->body = ContextCallCombiner().Combine(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "CombineContextCall", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.CombineContextCall", {});
 }
 
 TVM_REGISTER_GLOBAL("tir.transform.CombineContextCall")

@@ -25,6 +25,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target_info.h>
 #include <map>
@@ -311,7 +312,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     if (src_ == buf) {
       if (store_ == nullptr ||
           store_->value.dtype() != op->dtype ||
-          !tir::Equal(store_->index, op->index)) {
+          !tir::ExprDeepEqual()(store_->index, op->index)) {
         result_ = false; return;
       }
     }
@@ -992,29 +993,6 @@ class VectorAllocRewriter : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
-
-LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  VectorAllocRewriter rewriter;
-  n->body = rewriter(n->body);
-  for (Var arg : f->args) {
-    if (arg.dtype().is_handle()) {
-      const auto& tvec = rewriter.acc_map_[arg.get()];
-      if (tvec.size() == 1) {
-        PrimExpr dtype = make_const(tvec[0], 0);
-        n->handle_data_type.Set(arg, dtype);
-      } else {
-        // always set data type to be non vectorized so
-        // load/store can still work via scalarization
-        if (tvec.size() != 0 && !n->handle_data_type.count(arg)) {
-          PrimExpr dtype = make_const(tvec[0].with_lanes(1), 0);
-          n->handle_data_type.Set(arg, dtype);
-        }
-      }
-    }
-  }
-  return LoweredFunc(n);
-}
 
 PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   auto* n = f.CopyOnWrite();

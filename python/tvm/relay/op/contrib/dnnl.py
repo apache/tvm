@@ -56,17 +56,10 @@ def _register_external_op_helper(op_name, supported=True):
     return _func_wrapper
 
 
+_register_external_op_helper("nn.batch_norm")
 _register_external_op_helper("nn.conv2d")
 _register_external_op_helper("nn.dense")
 _register_external_op_helper("nn.relu")
 _register_external_op_helper("add")
 _register_external_op_helper("subtract")
 _register_external_op_helper("multiply")
-
-
-@reg.register("nn.batch_norm", "target.dnnl")
-def batch_norm(attrs, args):
-    """Check if the external DNNL codegen should be used.
-    FIXME(@zhiics, @comaniac): Turn off due to not support of multiple outputs.
-    """
-    return False

@@ -35,7 +35,8 @@ SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const
   uint32_t tindex = self->type_index();
   if (tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: SEqualReduce of " << self->GetTypeKey()
-        << " is not registered via TVM_REGISTER_NODE_TYPE";
+        << " is not registered via TVM_REGISTER_NODE_TYPE."
+        << " Did you forget to set _type_has_method_sequal_reduce=true?";
   }
   return fsequal_reduce_[tindex](self, other, equal);
 }
@@ -103,6 +104,7 @@ class RemapVarSEqualHandler :
 
   // Function that implements actual equality check.
   bool Equal(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
+    if (!lhs.defined() && !rhs.defined()) return true;
     task_stack_.clear();
     pending_tasks_.clear();
     equal_map_lhs_.clear();
@@ -223,7 +225,6 @@ class RemapVarSEqualHandler :
   // map from rhs to lhs
   std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> equal_map_rhs_;
 };
-
 
 TVM_REGISTER_GLOBAL("node.StructuralEqual")
 .set_body_typed([](const ObjectRef& lhs,

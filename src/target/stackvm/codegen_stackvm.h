@@ -26,7 +26,6 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/lowered_func.h>
 #include <tvm/target/codegen.h>
 #include <string>
 #include <vector>

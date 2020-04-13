@@ -115,6 +115,15 @@ class ConstIntBoundAnalyzer {
   ConstIntBound operator()(const PrimExpr& expr);
 
   /*!
+   * \brief analyze the expr with the intermediate memorized to avoid redundant computation
+   * \param expr The expression of interest.
+   * \param bound The lookup table to store the intermediate results
+   * \return the result of the analysis.
+   */
+  ConstIntBound operator()(const PrimExpr& expr,
+                           std::unordered_map<const PrimExprNode*, ConstIntBound>* bound);
+
+  /*!
    * \brief Update constant int bound information of var.
    *
    * \param var The variable of interest.
@@ -414,6 +423,12 @@ class Analyzer {
    * \param range The range we bind to.
    */
   void Bind(const Var& var, const Range& range);
+  /*!
+   * \brief Bind all the vars in the Map
+   *
+   * \param variables The {variable -> range} map.
+   */
+  void Bind(const Map<Var, Range>& variables);
   /*!
    * \brief Whether can we prove expr >= val.
 

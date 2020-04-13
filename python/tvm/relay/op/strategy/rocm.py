@@ -129,7 +129,7 @@ def dense_strategy_rocm(attrs, inputs, out_type, target):
         assert out_type.dtype == inputs[0].dtype, "Mixed precision not supported."
         strategy.add_implementation(
             wrap_compute_dense(topi.rocm.dense_rocblas),
-            wrap_topi_schedule(topi.rocm.dense_rocblas),
+            wrap_topi_schedule(topi.rocm.schedule_dense_rocblas),
             name="dense_rocblas.rocm",
             plevel=15)
     return strategy

@@ -69,7 +69,7 @@ TVM_REGISTER_GLOBAL("ir.EnvFuncGetPackedFunc")
 
 TVM_REGISTER_NODE_TYPE(EnvFuncNode)
 .set_creator(CreateEnvNode)
-.set_global_key([](const Object* n) -> std::string {
+.set_repr_bytes([](const Object* n) -> std::string {
     return static_cast<const EnvFuncNode*>(n)->name;
   });
 

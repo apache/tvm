@@ -31,7 +31,7 @@ from tvm.relay import testing
 def _get_model(dshape):
     data = relay.var('data', shape=dshape)
     fc = relay.nn.dense(data, relay.var("dense_weight"), units=dshape[-1]*2)
-    fc = relay.nn.bias_add(data, relay.var("dense_bias"))
+    fc = relay.nn.bias_add(fc, relay.var("dense_bias"))
     left, right = relay.split(fc, indices_or_sections=2, axis=1)
     one = relay.const(1, dtype="float32")
     return relay.Tuple([(left + one), (right - one), fc])

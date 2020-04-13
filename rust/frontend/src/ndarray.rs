@@ -29,11 +29,16 @@
 //! # Example
 //!
 //! ```
+//! # use tvm_frontend::{NDArray, TVMContext, DataType};
+//! # use ndarray::{Array, ArrayD};
+//! # use std::str::FromStr;
+//! use std::convert::TryFrom;
+//!
 //! let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
 //!     .unwrap()
 //!     .into_dyn(); // Rust's ndarray
-//! let nd = NDArray::from_rust_ndarray(&a, TVMContext::cpu(0), TVMType::from("float32")).unwrap();
-//! assert_eq!(nd.shape(), Some(&mut [2, 2]));
+//! let nd = NDArray::from_rust_ndarray(&a, TVMContext::cpu(0), DataType::from_str("float32").unwrap()).unwrap();
+//! assert_eq!(nd.shape(), Some(&mut [2, 2][..]));
 //! let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
 //! assert!(rnd.all_close(&a, 1e-8f32));
 //! ```
@@ -47,6 +52,9 @@ use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 use failure::Error;
 use num_traits::Num;
 use rust_ndarray::{Array, ArrayD};
+use std::convert::TryInto;
+use std::ffi::c_void;
+use tvm_common::ffi::DLTensor;
 use tvm_common::{ffi, TVMType};
 
 use crate::{errors, TVMByteArray, TVMContext};
@@ -55,31 +63,49 @@ use crate::{errors, TVMByteArray, TVMContext};
 ///
 /// Wrapper around TVM array handle.
 #[derive(Debug)]
-pub struct NDArray {
-    pub(crate) handle: ffi::TVMArrayHandle,
-    is_view: bool,
+pub enum NDArray {
+    Borrowed { handle: ffi::TVMArrayHandle },
+    Owned { handle: *mut c_void },
 }
 
 impl NDArray {
     pub(crate) fn new(handle: ffi::TVMArrayHandle) -> Self {
-        NDArray {
-            handle,
-            is_view: true,
+        NDArray::Borrowed { handle }
+    }
+
+    pub(crate) fn from_ndarray_handle(handle: *mut c_void) -> Self {
+        NDArray::Owned { handle }
+    }
+
+    pub fn as_dltensor(&self) -> &DLTensor {
+        unsafe {
+            match self {
+                NDArray::Borrowed { ref handle } => std::mem::transmute(*handle),
+                NDArray::Owned { ref handle } => std::mem::transmute(*handle),
+            }
         }
     }
 
-    /// Returns the underlying array handle.
-    pub fn handle(&self) -> ffi::TVMArrayHandle {
-        self.handle
+    pub(crate) fn as_raw_dltensor(&self) -> *mut DLTensor {
+        unsafe {
+            match self {
+                NDArray::Borrowed { ref handle } => std::mem::transmute(*handle),
+                NDArray::Owned { ref handle } => std::mem::transmute(*handle),
+            }
+        }
     }
 
     pub fn is_view(&self) -> bool {
-        self.is_view
+        if let &NDArray::Borrowed { .. } = self {
+            true
+        } else {
+            false
+        }
     }
 
     /// Returns the shape of the NDArray.
     pub fn shape(&self) -> Option<&mut [usize]> {
-        let arr = unsafe { *(self.handle) };
+        let arr = self.as_dltensor();
         if arr.shape.is_null() || arr.data.is_null() {
             return None;
         };
@@ -94,24 +120,28 @@ impl NDArray {
 
     /// Returns the context which the NDArray was defined.
     pub fn ctx(&self) -> TVMContext {
-        unsafe { (*self.handle).ctx.into() }
+        self.as_dltensor().ctx.into()
     }
 
     /// Returns the type of the entries of the NDArray.
     pub fn dtype(&self) -> TVMType {
-        unsafe { (*self.handle).dtype }
+        self.as_dltensor().dtype
     }
 
     /// Returns the number of dimensions of the NDArray.
     pub fn ndim(&self) -> usize {
-        unsafe { (*self.handle).ndim as usize }
+        self.as_dltensor()
+            .ndim
+            .try_into()
+            .expect("number of dimensions must always be positive")
     }
 
     /// Returns the strides of the underlying NDArray.
     pub fn strides(&self) -> Option<&[usize]> {
         unsafe {
             let sz = self.ndim() * mem::size_of::<usize>();
-            let slc = slice::from_raw_parts((*self.handle).strides as *const usize, sz);
+            let strides_ptr = self.as_dltensor().strides as *const usize;
+            let slc = slice::from_raw_parts(strides_ptr, sz);
             Some(slc)
         }
     }
@@ -141,7 +171,7 @@ impl NDArray {
     }
 
     pub fn byte_offset(&self) -> isize {
-        unsafe { (*self.handle).byte_offset as isize }
+        self.as_dltensor().byte_offset as isize
     }
 
     /// Flattens the NDArray to a `Vec` of the same type in cpu.
@@ -149,12 +179,14 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// let shape = &mut [4];
+    /// # use tvm_frontend::{TVMContext, DataType, NDArray};
+    /// # use std::str::FromStr;
+    /// let mut shape = [4];
     /// let mut data = vec![1i32, 2, 3, 4];
     /// let ctx = TVMContext::cpu(0);
-    /// let mut ndarray = empty(shape, ctx, TVMType::from("int32"));
+    /// let mut ndarray = NDArray::empty(&mut shape, ctx, DataType::from_str("int32").unwrap());
     /// ndarray.copy_from_buffer(&mut data);
-    /// assert_eq!(ndarray.shape(), Some(shape));
+    /// assert_eq!(ndarray.shape(), Some(&mut shape[..]));
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
     /// ```
     pub fn to_vec<T>(&self) -> Result<Vec<T>, Error> {
@@ -165,7 +197,7 @@ impl NDArray {
             self.dtype(),
         );
         let target = self.copy_to_ndarray(earr)?;
-        let arr = unsafe { *(target.handle) };
+        let arr = target.as_dltensor();
         let sz = self.size().ok_or(errors::MissingShapeError)?;
         let mut v: Vec<T> = Vec::with_capacity(sz * mem::size_of::<T>());
         unsafe {
@@ -187,10 +219,12 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
+    /// # use tvm_frontend::{TVMContext, DataType, NDArray};
+    /// # use std::str::FromStr;
     /// let shape = &mut [2];
-    /// let mut data = vec![1f32, 2];
-    /// let ctx = TVMContext::gpu(0);
-    /// let mut ndarray = empty(shape, ctx, TVMType::from("int32"));
+    /// let mut data = vec![1f32, 2.0];
+    /// let ctx = TVMContext::cpu(0);
+    /// let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
     /// ndarray.copy_from_buffer(&mut data);
     /// ```
     ///
@@ -198,7 +232,7 @@ impl NDArray {
     /// from TVM side. See `TVMArrayCopyFromBytes` in `include/tvm/runtime/c_runtime_api.h`.
     pub fn copy_from_buffer<T: Num32>(&mut self, data: &mut [T]) {
         check_call!(ffi::TVMArrayCopyFromBytes(
-            self.handle,
+            self.as_raw_dltensor(),
             data.as_ptr() as *mut _,
             data.len() * mem::size_of::<T>()
         ));
@@ -216,8 +250,8 @@ impl NDArray {
             );
         }
         check_call!(ffi::TVMArrayCopyFromTo(
-            self.handle,
-            target.handle,
+            self.as_raw_dltensor(),
+            target.as_raw_dltensor(),
             ptr::null_mut() as ffi::TVMStreamHandle
         ));
         Ok(target)
@@ -263,10 +297,7 @@ impl NDArray {
             ctx.device_id as c_int,
             &mut handle as *mut _,
         ));
-        NDArray {
-            handle,
-            is_view: false,
-        }
+        NDArray::Borrowed { handle: handle }
     }
 }
 
@@ -304,8 +335,8 @@ impl_from_ndarray_rustndarray!(f32, "float");
 
 impl Drop for NDArray {
     fn drop(&mut self) {
-        if !self.is_view {
-            check_call!(ffi::TVMArrayFree(self.handle));
+        if let &mut NDArray::Owned { .. } = self {
+            check_call!(ffi::TVMArrayFree(self.as_raw_dltensor()));
         }
     }
 }

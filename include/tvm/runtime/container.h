@@ -27,6 +27,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <initializer_list>
@@ -360,7 +361,15 @@ class String : public ObjectRef {
    * \note If user passes const reference, it will trigger copy. If it's rvalue,
    * it will be moved into other.
    */
-  explicit String(std::string other);
+  String(std::string other);  // NOLINT(*)
+
+  /*!
+   * \brief Construct a new String object
+   *
+   * \param other a char array.
+   */
+  String(const char* other)  // NOLINT(*)
+      : String(std::string(other)) {}
 
   /*!
    * \brief Change the value the reference object points to.
@@ -512,12 +521,12 @@ class String : public ObjectRef {
 #endif
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
-
- private:
   /*! \return the internal StringObj pointer */
   const StringObj* get() const { return operator->(); }
 
+  TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
+
+ private:
   /*!
    * \brief Compare two char sequence
    *
@@ -581,6 +590,25 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
     return 0;
   }
 }
+
+template<>
+struct PackedFuncValueConverter<::tvm::runtime::String> {
+  static String From(const TVMArgValue& val) {
+    if (val.IsObjectRef<tvm::runtime::String>()) {
+      return val.AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(val.operator std::string());
+    }
+  }
+
+  static String From(const TVMRetValue& val) {
+    if (val.IsObjectRef<tvm::runtime::String>()) {
+      return val.AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(val.operator std::string());
+    }
+  }
+};
 
 }  // namespace runtime
 }  // namespace tvm

@@ -23,7 +23,9 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/arith/analyzer.h>
+
 #include <tvm/tir/op.h>
 #include <tvm/arith/analyzer.h>
 #include "ir_mutator_with_analyzer.h"
@@ -83,7 +85,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
     op = stmt.as<StoreNode>();
     if (const LoadNode* load = op->value.as<LoadNode>()) {
       if (load->buffer_var.same_as(op->buffer_var) &&
-          Equal(load->index, op->index)) {
+          tir::ExprDeepEqual()(load->index, op->index)) {
         return EvaluateNode::make(0);
       }
     }

@@ -378,9 +378,12 @@ def MergeComposite(pattern_table):
     Parameters
     ----------
     pattern_table : list(tuple)
-        A list of (pattern_name, pattern) tuples.
+        A list of (pattern_name, pattern, check) tuples.
         The order of the patterns in the list will determine the order
         of priority in which they are matched.
+        'check' is a function to check whether an extracted pattern matches.
+        It can be implemented by pattern writer but if not specified it will
+        always return True.
 
     Returns
     -------
@@ -390,11 +393,30 @@ def MergeComposite(pattern_table):
     """
     pattern_names = []
     patterns = []
-    for pattern_name, pattern in pattern_table:
+    checks = []
+    for tup in pattern_table:
+        if len(tup) == 2:
+            pattern_name, pattern = tup
+            check = lambda extract: True
+        elif len(tup) == 3:
+            pattern_name, pattern, check = tup
+
         pattern_names.append(pattern_name)
         patterns.append(pattern)
+        checks.append(check)
 
-    return _ffi_api.MergeComposite(pattern_names, patterns)
+    return _ffi_api.MergeComposite(pattern_names, patterns, *checks)
+
+
+def MergeCompilerRegions():
+    """Merge together compiler regions.
+
+    Returns
+    -------
+    ret : tvm.relay.Pass
+        The registered pass that merges compiler regions.
+    """
+    return _ffi_api.MergeCompilerRegions()
 
 
 def RewriteAnnotatedOps(fallback_device):
@@ -565,14 +587,14 @@ def PartitionGraph():
 
 
 
-def AnnotateTarget(target):
+def AnnotateTarget(targets):
     """Annotate ops in an experession with a provied compiler/target and then
     use it for codegen.
 
     Parameters
     ----------
-    target : String
-        The target compiler used for codegen.
+    targets : str or List[str]
+        The list of target compilers used for codegen.
 
     Returns
     -------
@@ -580,7 +602,9 @@ def AnnotateTarget(target):
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
-    return _ffi_api.AnnotateTarget(target)
+    if isinstance(targets, str):
+        targets = [targets]
+    return _ffi_api.AnnotateTarget([tvm.runtime.container.String(t) for t in targets])
 
 
 def Inline():

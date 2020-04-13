@@ -101,11 +101,11 @@ TryCompare(const PrimExpr& x, int64_t val) {
 }
 
 void RewriteSimplifier::Impl::
-Update(const Var& var, const PrimExpr& info, bool override) {
-  if (!override) {
+Update(const Var& var, const PrimExpr& info, bool can_override) {
+  if (!can_override) {
     auto it = var_map_.find(var);
     if (it != var_map_.end()) {
-      CHECK(Equal(it->second, info))
+      CHECK(ExprDeepEqual()(it->second, info))
           << "Trying to update var \'" << var << "\'"
           << " with a different value: "
           << "original=" << it->second
@@ -1716,10 +1716,11 @@ VisitExpr_(const CallNode* op) {
       return op->args[0] & op->args[1];
     }
   }
+  ExprDeepEqual expr_equal;
   if (op->is_intrinsic(CallNode::likely)) {
     for (const auto& constraint : literal_constraints_) {
       // Cases such as for (i, 0, bound) {if (likely(iter_var < bound)) { .. } }
-      if (Equal(constraint, op->args[0])) {
+      if (expr_equal(constraint, op->args[0])) {
         return make_const(op->dtype, true);
       }
     }

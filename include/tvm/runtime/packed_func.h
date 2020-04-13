@@ -46,37 +46,12 @@
 #endif
 
 namespace tvm {
-// forward declarations
-class Integer;
-class PrimExpr;
-
 namespace runtime {
-
-/*!
- * \brief Runtime utility for getting custom type name from code
- * \param type_code Custom type code
- * \return Custom type name
- */
-TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
-
-/*!
- * \brief Runtime utility for checking whether custom type is registered
- * \param type_code Custom type code
- * \return Bool representing whether type is registered
- */
-TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
-
-/*!
- * \brief Runtime utility for parsing string of the form "custom[<typename>]"
- * \param s String to parse
- * \param scan pointer to parsing pointer, which is scanning across s
- * \return type code of custom type parsed
- */
-TVM_DLL uint8_t ParseCustomDatatype(const std::string& s, const char** scan);
 
 // forward declarations
 class TVMArgs;
 class TVMArgValue;
+class TVMMovableArgValue_;
 class TVMRetValue;
 class TVMArgsSetter;
 
@@ -232,6 +207,11 @@ class TypedPackedFunc<R(Args...)> {
    */
   inline TypedPackedFunc(const TVMArgValue& value);  // NOLINT(*)
   /*!
+   * \brief constructor from TVMMovableArgValue_
+   * \param value The TVMMovableArgValue_
+   */
+  inline TypedPackedFunc(TVMMovableArgValue_&& value);  // NOLINT(*)
+  /*!
    * \brief construct from a lambda function with the same signature.
    *
    * Example usage:
@@ -359,27 +339,6 @@ class TVMArgs {
   inline TVMArgValue operator[](int i) const;
 };
 
-/*!
- * \brief Convert type code to its name
- * \param type_code The type code .
- * \return The name of type code.
- */
-inline const char* TypeCode2Str(int type_code);
-
-/*!
- * \brief convert a string to TVM type.
- * \param s The string to be converted.
- * \return The corresponding tvm type.
- */
-inline DLDataType String2DLDataType(std::string s);
-
-/*!
- * \brief convert a TVM type to string.
- * \param t The type to be converted.
- * \return The corresponding tvm type in string.
- */
-inline std::string DLDataType2String(DLDataType t);
-
 // macro to check type code.
 #define TVM_CHECK_TYPE_CODE(CODE, T)                           \
   CHECK_EQ(CODE, T) << " expected "                            \
@@ -428,8 +387,8 @@ class TVMPODValue_ {
   }
   operator int() const {
     TVM_CHECK_TYPE_CODE(type_code_, kDLInt);
-    CHECK_LE(value_.v_int64,
-             std::numeric_limits<int>::max());
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
     return static_cast<int>(value_.v_int64);
   }
   operator bool() const {
@@ -491,9 +450,6 @@ class TVMPODValue_ {
   inline bool IsObjectRef() const;
   template<typename TObjectRef>
   inline TObjectRef AsObjectRef() const;
-  // ObjectRef Specializations
-  inline operator tvm::PrimExpr() const;
-  inline operator tvm::Integer() const;
 
  protected:
   friend class TVMArgsSetter;
@@ -539,8 +495,6 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator Module;
   using TVMPODValue_::IsObjectRef;
   using TVMPODValue_::AsObjectRef;
-  using TVMPODValue_::operator tvm::PrimExpr;
-  using TVMPODValue_::operator tvm::Integer;
 
   // conversion operator.
   operator std::string() const {
@@ -582,9 +536,49 @@ class TVMArgValue : public TVMPODValue_ {
   const TVMValue& value() const {
     return value_;
   }
+
   template<typename T,
            typename = typename std::enable_if<
              std::is_class<T>::value>::type>
+  inline operator T() const;
+};
+
+/*!
+ * \brief Internal auxiliary struct for TypedPackedFunc to indicate a movable argument.
+ *
+ *  We can only construct a movable argument once from a single argument position.
+ *  If the argument is passed as RValue reference, the result will be moved.
+ *  We should only construct a MovableArg from an argument once,
+ *  as the result will can moved.
+ *
+ * \note For internal development purpose only.
+ */
+class TVMMovableArgValue_ : public TVMArgValue {
+ public:
+  TVMMovableArgValue_(TVMValue value, int type_code)
+      : TVMArgValue(value, type_code) {
+  }
+  // reuse converter from parent
+  using TVMArgValue::operator double;
+  using TVMArgValue::operator int64_t;
+  using TVMArgValue::operator uint64_t;
+  using TVMArgValue::operator int;
+  using TVMArgValue::operator bool;
+  using TVMArgValue::operator void*;
+  using TVMArgValue::operator DLTensor*;
+  using TVMArgValue::operator TVMContext;
+  using TVMArgValue::operator std::string;
+  using TVMArgValue::operator DLDataType;
+  using TVMArgValue::operator DataType;
+  using TVMArgValue::operator PackedFunc;
+  /*!
+   * \brief Helper converter function.
+   *  Try to move out an argument if possible,
+   *  fall back to normal argument conversion rule otherwise.
+   */
+  template<typename T,
+           typename = typename std::enable_if<
+             std::is_base_of<ObjectRef, T>::value>::type>
   inline operator T() const;
 };
 
@@ -626,8 +620,6 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator Module;
   using TVMPODValue_::IsObjectRef;
   using TVMPODValue_::AsObjectRef;
-  using TVMPODValue_::operator tvm::PrimExpr;
-  using TVMPODValue_::operator tvm::Integer;
 
   TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
@@ -751,6 +743,10 @@ class TVMRetValue : public TVMPODValue_ {
     this->Assign(other);
     return *this;
   }
+  TVMRetValue& operator=(TVMMovableArgValue_&& other) {
+    this->Assign(other);
+    return *this;
+  }
   /*!
    * \brief Move the value back to front-end via C API.
    *  This marks the current container as null.
@@ -834,6 +830,10 @@ class TVMRetValue : public TVMPODValue_ {
                 static_cast<Object*>(other.value_.v_handle)));
         break;
       }
+      case kTVMObjectRValueRefArg: {
+        operator=(other.operator ObjectRef());
+        break;
+      }
       default: {
         SwitchToPOD(other.type_code());
         value_ = other.value_;
@@ -888,6 +888,35 @@ class TVMRetValue : public TVMPODValue_ {
       }
     }
     type_code_ = kTVMNullptr;
+  }
+};
+
+/*!
+ * \brief Type trait to specify special value conversion rules from
+ *        TVMArgValue and TVMRetValue.
+ *
+ *  The trait can be specialized to add type specific conversion logic
+ *  from the TVMArgvalue and TVMRetValue.
+ *
+ * \tparam TObjectRef the specific ObjectRefType.
+ */
+template<typename TObjectRef>
+struct PackedFuncValueConverter {
+  /*!
+   * \brief Convert a TObjectRef from an argument value.
+   * \param val The argument value.
+   * \return the converted result.
+   */
+  static TObjectRef From(const TVMArgValue& val) {
+    return val.AsObjectRef<TObjectRef>();
+  }
+  /*!
+   * \brief Convert a TObjectRef from a return value.
+   * \param val The argument value.
+   * \return the converted result.
+   */
+  static TObjectRef From(const TVMRetValue& val) {
+    return val.AsObjectRef<TObjectRef>();
   }
 };
 
@@ -994,96 +1023,6 @@ class TVMRetValue : public TVMPODValue_ {
     }                                                                   \
   }
 
-// implementation details
-inline const char* TypeCode2Str(int type_code) {
-  switch (type_code) {
-    case kDLInt: return "int";
-    case kDLUInt: return "uint";
-    case kDLFloat: return "float";
-    case kTVMStr: return "str";
-    case kTVMBytes: return "bytes";
-    case kTVMOpaqueHandle: return "handle";
-    case kTVMNullptr: return "NULL";
-    case kTVMDLTensorHandle: return "ArrayHandle";
-    case kTVMDataType: return "DLDataType";
-    case kTVMContext: return "TVMContext";
-    case kTVMPackedFuncHandle: return "FunctionHandle";
-    case kTVMModuleHandle: return "ModuleHandle";
-    case kTVMNDArrayHandle: return "NDArrayContainer";
-    case kTVMObjectHandle: return "Object";
-    default: LOG(FATAL) << "unknown type_code="
-                        << static_cast<int>(type_code); return "";
-  }
-}
-
-inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
-  if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
-    os << "bool"; return os;
-  }
-  if (t.code < kTVMCustomBegin) {
-    os << TypeCode2Str(t.code);
-  } else {
-    os << "custom[" << GetCustomTypeName(t.code) << "]";
-  }
-  if (t.code == kTVMOpaqueHandle) return os;
-  os << static_cast<int>(t.bits);
-  if (t.lanes != 1) {
-    os << 'x' << static_cast<int>(t.lanes);
-  }
-  return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) { // NOLINT(*)
-  return os << dtype.operator DLDataType();
-}
-
-inline std::string DLDataType2String(DLDataType t) {
-  if (t.bits == 0) return "";
-  std::ostringstream os;
-  os << t;
-  return os.str();
-}
-
-inline DLDataType String2DLDataType(std::string s) {
-  DLDataType t;
-  // handle None type
-  if (s.length() == 0) {
-    t.bits = 0; t.lanes = 0; t.code = kTVMOpaqueHandle;
-    return t;
-  }
-  t.bits = 32; t.lanes = 1;
-  const char* scan;
-  if (s.substr(0, 3) == "int") {
-    t.code = kDLInt;  scan = s.c_str() + 3;
-  } else if (s.substr(0, 4) == "uint") {
-    t.code = kDLUInt; scan = s.c_str() + 4;
-  } else if (s.substr(0, 5) == "float") {
-    t.code = kDLFloat; scan = s.c_str() + 5;
-  } else if (s.substr(0, 6) == "handle") {
-    t.code = kTVMOpaqueHandle;
-    t.bits = 64;  // handle uses 64 bit by default.
-    scan = s.c_str() + 6;
-  } else if (s == "bool") {
-    t.code = kDLUInt;
-    t.bits = 1;
-    t.lanes = 1;
-    return t;
-  } else if (s.substr(0, 6) == "custom") {
-    t.code = ParseCustomDatatype(s, &scan);
-  } else {
-    scan = s.c_str();
-    LOG(FATAL) << "unknown type " << s;
-  }
-  char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
-  uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
-  if (bits != 0) t.bits = bits;
-  char* endpt = xdelim;
-  if (*xdelim == 'x') {
-    t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
-  }
-  CHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
-  return t;
-}
 
 inline TVMArgValue TVMArgs::operator[](int i) const {
   CHECK_LT(i, num_args)
@@ -1250,10 +1189,24 @@ class TVMArgsSetter {
   // ObjectRef handling
   template<typename TObjectRef,
            typename = typename std::enable_if<
-             std::is_base_of<ObjectRef, TObjectRef>::value>::type>
-  inline void operator()(size_t i, const TObjectRef& value) const;
+             std::is_base_of<ObjectRef, TObjectRef>::value>
+           ::type>
+  void operator()(size_t i, const TObjectRef& value) const {
+    this->SetObject(i, value);
+  }
+
+  template<typename TObjectRef,
+           typename = typename std::enable_if<
+             std::is_base_of<ObjectRef,
+                             typename std::remove_reference<TObjectRef>::type>::value>
+           ::type>
+  void operator()(size_t i, TObjectRef&& value) const {
+    this->SetObject(i, std::forward<TObjectRef>(value));
+  }
 
  private:
+  template<typename TObjectRef>
+  inline void SetObject(size_t i, TObjectRef&& value) const;
   /*! \brief The values fields */
   TVMValue* values_;
   /*! \brief The type code fields */
@@ -1281,10 +1234,13 @@ struct unpack_call_dispatcher {
                   const TVMArgs& args_pack,
                   TVMRetValue* rv,
                   Args&&... unpacked_args) {
+    // construct a movable argument value
+    // which allows potential move of argument to the input of F.
     unpack_call_dispatcher<R, nleft - 1, index + 1, F>
         ::run(f, args_pack, rv,
               std::forward<Args>(unpacked_args)...,
-              args_pack[index]);
+              TVMMovableArgValue_(args_pack.values[index],
+                                  args_pack.type_codes[index]));
   }
 };
 
@@ -1364,6 +1320,10 @@ TypedPackedFunc<R(Args...)>::TypedPackedFunc(const TVMArgValue& value)
     : packed_(value.operator PackedFunc()) {}
 
 template<typename R, typename ...Args>
+TypedPackedFunc<R(Args...)>::TypedPackedFunc(TVMMovableArgValue_&& value)
+    : packed_(value.operator PackedFunc()) {}
+
+template<typename R, typename ...Args>
 template<typename FType>
 inline void TypedPackedFunc<R(Args...)>::AssignTypedLambda(FType flambda) {
   packed_ = PackedFunc([flambda](const TVMArgs& args, TVMRetValue* rv) {
@@ -1382,8 +1342,9 @@ inline R TypedPackedFunc<R(Args...)>::operator()(Args... args) const {
 //      kTVMNDArrayHandle, kTVMModuleHandle, kTVMObjectHandle
 //
 // We use type traits to eliminate un-necessary checks.
-template<typename TObjectRef, typename>
-inline void TVMArgsSetter::operator()(size_t i, const TObjectRef& value) const {
+template<typename T>
+inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
+  using TObjectRef = typename std::remove_reference<T>::type;
   if (value.defined()) {
     Object* ptr = value.data_.data_;
     if (std::is_base_of<NDArray, TObjectRef>::value ||
@@ -1396,8 +1357,11 @@ inline void TVMArgsSetter::operator()(size_t i, const TObjectRef& value) const {
                 ptr->IsInstance<Module::ContainerType>())) {
       values_[i].v_handle = ptr;
       type_codes_[i] = kTVMModuleHandle;
+    } else if (std::is_rvalue_reference<decltype(value)>::value) {
+      values_[i].v_handle = const_cast<Object**>(&(value.data_.data_));
+      type_codes_[i] = kTVMObjectRValueRefArg;
     } else {
-      values_[i].v_handle = ptr;
+      values_[i].v_handle = value.data_.data_;
       type_codes_[i] = kTVMObjectHandle;
     }
   } else {
@@ -1417,6 +1381,11 @@ inline bool TVMPODValue_::IsObjectRef() const {
   if (std::is_base_of<Module, TObjectRef>::value) {
     return type_code_ == kTVMModuleHandle &&
         static_cast<Object*>(value_.v_handle)->IsInstance<ContainerType>();
+  }
+  // NOTE: we don't pass NDArray and runtime::Module as RValue ref.
+  if (type_code_ == kTVMObjectRValueRefArg) {
+    return ObjectTypeChecker<TObjectRef>::Check(
+        *static_cast<Object**>(value_.v_handle));
   }
   return
       (std::is_base_of<TObjectRef, NDArray>::value && type_code_ == kTVMNDArrayHandle) ||
@@ -1453,6 +1422,12 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
   if (type_code_ == kTVMObjectHandle) {
     // normal object type check.
     Object* ptr = static_cast<Object*>(value_.v_handle);
+    CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
+        << "Expect " << ObjectTypeChecker<TObjectRef>::TypeName()
+        << " but get " << ptr->GetTypeKey();
+    return TObjectRef(GetObjectPtr<Object>(ptr));
+  } else if (type_code_ == kTVMObjectRValueRefArg) {
+    Object* ptr = *static_cast<Object**>(value_.v_handle);
     CHECK(ObjectTypeChecker<TObjectRef>::Check(ptr))
         << "Expect " << ObjectTypeChecker<TObjectRef>::TypeName()
         << " but get " << ptr->GetTypeKey();
@@ -1494,14 +1469,27 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
   return *this;
 }
 
+
 template<typename T, typename>
 inline TVMArgValue::operator T() const {
-  return AsObjectRef<T>();
+  return PackedFuncValueConverter<T>::From(*this);
+}
+
+template<typename T, typename>
+inline TVMMovableArgValue_::operator T() const {
+  if (type_code_ == kTVMObjectRValueRefArg) {
+    auto** ref = static_cast<Object**>(value_.v_handle);
+    if (ObjectTypeChecker<T>::Check(*ref)) {
+      return T(ObjectPtr<Object>::MoveFromRValueRefArg(ref));
+    }
+  }
+  // fallback
+  return PackedFuncValueConverter<T>::From(*this);
 }
 
 template<typename T, typename>
 inline TVMRetValue::operator T() const {
-  return AsObjectRef<T>();
+  return PackedFuncValueConverter<T>::From(*this);
 }
 
 inline PackedFunc Module::GetFunction(const std::string& name, bool query_imports) {
