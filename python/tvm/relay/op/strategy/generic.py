@@ -118,7 +118,7 @@ def wrap_compute_softmax(topi_compute):
 def softmax_strategy(attrs, inputs, out_type, target):
     """softmax generic strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implemenation(
+    strategy.add_implementation(
         wrap_compute_softmax(topi.nn.softmax),
         wrap_topi_schedule(topi.generic.schedule_softmax),
         name="softmax.generic")
