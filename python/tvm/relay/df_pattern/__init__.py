@@ -231,7 +231,7 @@ class DominatorPattern(DFPattern):
     Parameters
     ----------
     parent: tvm.relay.df_pattern.DFPattern
-        The root of domination 
+        The root of domination
     path: tvm.relay.df_pattern.DFPattern
         The fuzzy path pattern between parent and child
     child: tvm.relay.df_pattern.DFPattern
@@ -240,7 +240,7 @@ class DominatorPattern(DFPattern):
     def __init__(self, parent, path, child):
         self.__init_handle_by_constructor__(
             ffi.DominatorPattern, parent, path, child)
-        
+
 class DFPatternCallback(Object):
     def __init__(self, pattern, callback):
         self.__init_handle_by_constructor__(

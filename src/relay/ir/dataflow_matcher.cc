@@ -23,8 +23,8 @@
  */
 
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/dataflow_matcher.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
 namespace tvm {
@@ -164,7 +164,8 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     if (matches_op) {
       auto watermark2 = matched_nodes_.size();
 
-      auto match_args = [this, &watermark2](const Array<DFPattern> pattern_args, const Array<Expr> expr_args) {
+      auto match_args = [this, &watermark2](const Array<DFPattern> pattern_args,
+                                            const Array<Expr> expr_args) {
         bool matches = true;
         size_t i = 0;
         if (pattern_args.size() == expr_args.size()) {
@@ -347,14 +348,12 @@ DFPatternCallback DFPatternCallbackNode::make(DFPattern pattern, PackedFunc func
 TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
-.set_body_typed(DFPatternCallbackNode::make);
+    .set_body_typed(DFPatternCallbackNode::make);
 
 class PatternRewriter : protected MixedModeMutator {
  public:
   PatternRewriter(const Array<DFPatternCallback>& callbacks) : callbacks_(callbacks) {}
-  Expr Rewrite(const Expr& pre) {
-    return this->VisitExpr(pre);
-  }
+  Expr Rewrite(const Expr& pre) { return this->VisitExpr(pre); }
 
  protected:
   Expr DispatchVisitExpr(const Expr& pre) override {
@@ -377,8 +376,7 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
   return PatternRewriter(callbacks).Rewrite(expr);
 }
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite")
-.set_body_typed(RewritePatterns);
+TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite").set_body_typed(RewritePatterns);
 
 }  // namespace relay
 }  // namespace tvm

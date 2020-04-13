@@ -25,8 +25,11 @@
 #define TVM_RELAY_DATAFLOW_FUNCTOR_H_
 
 #include <tvm/relay/dataflow_pattern.h>
+#include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -159,7 +162,7 @@ class IndexedGraph {
  public:
   struct Node;
   struct Edge {
-    Edge(const std::shared_ptr<Node>& sink) : sink_(sink) {}
+    explicit Edge(const std::shared_ptr<Node>& sink) : sink_(sink) {}
     std::shared_ptr<Node> sink_;
   };
   struct Node {

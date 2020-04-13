@@ -284,6 +284,23 @@ def test_not_match_dominator():
     # Check
     assert not diamond.match(out)
 
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    reduction = is_op('add')(wildcard(), wildcard())
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Expr
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(inp)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    assert not diamond.match(out)
+
 def test_rewrite():
     x = relay.var('x')
     y = relay.var('y')
@@ -527,5 +544,6 @@ if __name__ == "__main__":
     #test_no_fuse_batchnorm()
     #test_fuse_double_batchnorm()
     #test_partial_fuse_double_batchnorm()
-    test_fuse_batchnorm_commutation()
+    #test_fuse_batchnorm_commutation()
     #test_match_dominator()
+    test_not_match_dominator()
