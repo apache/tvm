@@ -187,9 +187,9 @@ def _concatenate(prelude):
         static_tensor_array_ops = StaticTensorArrayOps(prelude, "float32", shape)
         static_tensor_array_ops.define_tensor_get_data(concat_shape)
 
-        concat = prelude.get_var_static('tensor_array_concat', "float32", concat_shape)
+        concat = prelude.get_var_static('tensor_array_concat', "float32", shape)
         concatenated = concat(tensor_array)
-        get_tensor = prelude.get_var_static('tensor_get_data', "float32", concat_shape)
+        get_tensor = prelude.get_var_static('tensor_get_data', "float32", shape)
         return get_tensor(concatenated)
 
     def _impl(inputs, input_types):
