@@ -122,6 +122,82 @@ class ManifestAllocPass(ExprMutator):
 
         return scope.get()
 
+    def dynamic_invoke(self, scope, op, ins, new_args, out_types, ret_type):
+        shape_func_ins = []
+        engine = compile_engine.get()
+        cfunc = engine.lower_shape_func(op, self.target_host)
+        input_states = cfunc.shape_func_param_states
+
+        is_inputs = []
+        input_pos = 0
+        for i, (arg, state) in enumerate(zip(new_args, input_states)):
+            state = int(state)
+            # Pass Shapes
+            if state == 2:
+                for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
+                    let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
+                    sh_of = self.visit(self.shape_of(let_in_arg))
+                    shape_func_ins.append(
+                        scope.let("in_shape_{0}".format(input_pos + j), sh_of))
+                    input_pos += 1
+                is_inputs.append(0)
+            # Pass Inputs
+            elif state == 1:
+                new_arg = self.visit(arg)
+                shape_func_ins.append(
+                    scope.let("in_shape_{0}".format(input_pos), new_arg))
+                input_pos += 1
+                is_inputs.append(1)
+            else:
+                # TODO(@jroesch): handle 3rd case
+                raise Exception("unsupported shape function input state")
+
+        out_shapes = []
+        for i, out in enumerate(cfunc.outputs):
+            tt = ty.TensorType(out.shape, out.dtype)
+            alloc = self.make_static_allocation(scope, tt, i)
+            alloc = scope.let("shape_func_out_{0}".format(i), alloc)
+            out_shapes.append(alloc)
+
+        shape_call = self.shape_func(
+            op,
+            expr.Tuple(shape_func_ins),
+            expr.Tuple(out_shapes), is_inputs)
+
+        scope.let("shape_func", shape_call)
+
+        storages = []
+        for out_shape, out_type in zip(out_shapes, out_types):
+            size = self.compute_storage_in_relay(
+                out_shape, out_type.dtype)
+            alignment = self.compute_alignment(out_type.dtype)
+            sto = scope.let("storage_{i}".format(i=i), self.alloc_storage(
+                size, alignment, self.default_context, out_type.dtype))
+            storages.append(sto)
+
+        outs = []
+        sh_ty_storage = zip(out_shapes, out_types, storages)
+        for i, (out_shape, out_type, storage) in enumerate(sh_ty_storage):
+            alloc = self.alloc_tensor(
+                storage,
+                out_shape,
+                out_type.dtype,
+                out_type.shape)
+            alloc = scope.let("out_{i}".format(i=i), alloc)
+            outs.append(alloc)
+
+        tuple_outs = expr.Tuple(outs)
+        invoke = self.invoke_tvm(op, ins, tuple_outs)
+        scope.let("", invoke)
+        return to_tuple_type(ret_type, tuple_outs.fields)
+
+    def is_dynamic(self, ret_type):
+        is_dynamic = ty.type_has_any(ret_type)
+        # TODO(@jroesch): restore this code, more complex then it seems
+        # for arg in call.args:
+        #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()
+        return is_dynamic
+
     def visit_call(self, call):
         if is_primitive(call):
             # Because we are in ANF we do not need to visit the arguments.
@@ -131,80 +207,11 @@ class ManifestAllocPass(ExprMutator):
             ret_type = call.checked_type
             out_types = flatten_tuple_type(ret_type)
 
-            is_dynamic = ty.type_has_any(ret_type)
-            # TODO(@jroesch): restore this code, more complex then it seems
-            # for arg in call.args:
-            #     is_dynamic = is_dynamic or arg.checked_type.is_dynamic()
-
-            if is_dynamic:
-                shape_func_ins = []
-                engine = compile_engine.get()
-                cfunc = engine.lower_shape_func(call.op, self.target_host)
-                input_states = cfunc.shape_func_param_states
-
-                is_inputs = []
-                input_pos = 0
-                for i, (arg, state) in enumerate(zip(new_args, input_states)):
-                    state = int(state)
-                    # Pass Shapes
-                    if state == 2:
-                        for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
-                            let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
-                            sh_of = self.visit(self.shape_of(let_in_arg))
-                            shape_func_ins.append(
-                                scope.let("in_shape_{0}".format(input_pos + j), sh_of))
-                            input_pos += 1
-                        is_inputs.append(0)
-                    # Pass Inputs
-                    elif state == 1:
-                        new_arg = self.visit(arg)
-                        shape_func_ins.append(
-                            scope.let("in_shape_{0}".format(input_pos), new_arg))
-                        input_pos += 1
-                        is_inputs.append(1)
-                    else:
-                        # TODO(@jroesch): handle 3rd case
-                        raise Exception("unsupported shape function input state")
-
-                out_shapes = []
-                for i, out in enumerate(cfunc.outputs):
-                    tt = ty.TensorType(out.shape, out.dtype)
-                    alloc = self.make_static_allocation(scope, tt, i)
-                    alloc = scope.let("shape_func_out_{0}".format(i), alloc)
-                    out_shapes.append(alloc)
-
-                shape_call = self.shape_func(
-                    call.op,
-                    expr.Tuple(shape_func_ins),
-                    expr.Tuple(out_shapes), is_inputs)
-
-                scope.let("shape_func", shape_call)
-
-                storages = []
-                for out_shape, out_type in zip(out_shapes, out_types):
-                    size = self.compute_storage_in_relay(
-                        out_shape, out_type.dtype)
-                    alignment = self.compute_alignment(out_type.dtype)
-                    sto = scope.let("storage_{i}".format(i=i), self.alloc_storage(
-                        size, alignment, self.default_context, out_type.dtype))
-                    storages.append(sto)
-
-                outs = []
-                sh_ty_storage = zip(out_shapes, out_types, storages)
-                for i, (out_shape, out_type, storage) in enumerate(sh_ty_storage):
-                    alloc = self.alloc_tensor(
-                        storage,
-                        out_shape,
-                        out_type.dtype,
-                        out_type.shape)
-                    alloc = scope.let("out_{i}".format(i=i), alloc)
-                    outs.append(alloc)
-
-                tuple_outs = expr.Tuple(outs)
-                invoke = self.invoke_tvm(call.op, ins, tuple_outs)
-                scope.let("", invoke)
-                return to_tuple_type(ret_type, tuple_outs.fields)
+            if self.is_dynamic(ret_type):
+                # Handle dynamic case.
+                return self.dynamic_invoke(scope, op, ins, new_args, out_types, ret_type)
             else:
+                # Handle static case.
                 outs = []
                 for i, out_ty in enumerate(out_types):
                     out = self.make_static_allocation(scope, out_ty, i)
