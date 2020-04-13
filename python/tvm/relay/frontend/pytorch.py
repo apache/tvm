@@ -934,7 +934,50 @@ def _dropout():
 def _reduce(name):
     def _impl(inputs, input_types):
         data = inputs[0]
-        return get_relay_op(name)(data)
+        axis = None
+        keepdims = False
+
+        if len(inputs) > 2: # default, torch have only data, axis=None, keepdims=False
+            if isinstance(inputs[1], int):
+                axis = int(inputs[1])
+            else:
+                axis = list(_infer_shape(inputs[1]))
+            keepdims = bool(inputs[2])
+
+        return get_relay_op(name)(data, axis=axis, keepdims=keepdims)
+
+    return _impl
+
+def _std():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = list(_infer_shape(inputs[1]))
+        keepdims = bool(inputs[3])
+        unbiased = bool(inputs[2])
+
+        if unbiased:
+            msg = "Currently only supports standard-deviation calculated via the biased "\
+                  "estimator. Pytorch's Bessel's correction is not supported."
+            raise NotImplementedError(msg)
+
+        return _op.reduce.std(data, axis=axis, keepdims=keepdims)
+
+    return _impl
+
+def _variance():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        axis = list(_infer_shape(inputs[1]))
+        keepdims = bool(inputs[3])
+        unbiased = bool(inputs[2])
+
+        if unbiased:
+            msg = "Currently only supports standard-deviation calculated via the biased "\
+                  "estimator. Pytorch's Bessel's correction is not supported."
+            raise NotImplementedError(msg)
+
+        return _op.reduce.variance(data, axis=axis, keepdims=keepdims)
+
     return _impl
 
 def _mean():
@@ -1381,6 +1424,10 @@ def _get_convert_map(prelude):
         "aten::permute"                         : _transpose(prelude),
         "aten::sum"                             : _reduce("sum"),
         "aten::prod"                            : _reduce("prod"),
+        "aten::argmin"                          : _reduce("argmin"),
+        "aten::argmax"                          : _reduce("argmax"),
+        "aten::std"                             : _std(),
+        "aten::var"                             : _variance(),
         "aten::sqrt"                            : _sqrt(),
         'aten::floor'                           : _floor(),
         "aten::detach"                          : _identity(),
