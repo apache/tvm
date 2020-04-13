@@ -23,9 +23,13 @@ This is an a tutorial on loading models quantized by deep learning frameworks in
 Pre-quantized model import is one of the quantization support we have in TVM. More details on
 the quantization story in TVM can be found
 `here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
+
 Here, we demonstrate how to load and run models quantized by PyTorch, MXNet, and TFLite.
 Once loaded, we can run quantized models on any hardware TVM supports.
 """
+
+#################################################################################
+# First, necessary imports
 from PIL import Image
 
 import numpy as np
@@ -102,14 +106,15 @@ inp = get_imagenet_input()
 # ------------------
 # First, we demonstrate how to load deep learning models quantized by PyTorch,
 # using our PyTorch frontend.
-
-##################################################################################
-# A helper function for converting floating point PyTorch models to quantized ones
+#
 # Please refer to the PyTorch static quantization tutorial below to learn about
 # their quantization workflow.
 # https://pytorch.org/tutorials/advanced/static_quantization_tutorial.html
-# In short, this function takes a floating point model and converts it to a uint8
-# model. A model is per-channel quantized.
+#
+# We use this function to quantize PyTorch models.
+# In short, this function takes a floating point model and converts it to uint8.
+# The model is per-channel quantized.
+
 def quantize_model(model, inp):
     model.fuse_model()
     model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
@@ -144,8 +149,11 @@ with torch.no_grad():
 # The PyTorch frontend has support for converting a quantized PyTorch model to
 # an equivalent Relay module enriched with quantization-aware operators.
 # We call this representation Relay QNN dialect.
+#
 # You can print the output from the frontend to see how quantized models are
-# represented. You would see operators specfic to quantization such as
+# represented.
+#
+# You would see operators specfic to quantization such as
 # qnn.quantize, qnn.dequantize, qnn.requantize, and qnn.conv2d etc.
 input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
 input_shapes = [(input_name, (1, 3, 224, 224))]
@@ -158,6 +166,7 @@ mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 # Once we obtained the quantized Relay module, the rest of the workflow
 # is the same as running floating point models. Please refer to other
 # tutorials for more details.
+#
 # Under the hood, quantization specific operators are lowered to a sequence of
 # standard Relay operators before compilation.
 tvm_result = run_tvm_model(mod, params, input_name, inp, target="llvm")
@@ -171,6 +180,12 @@ tvm_top3_labels = np.argsort(tvm_result[0])[::-1][:3]
 
 print("PyTorch top3 label:", [synset[label] for label in pt_top3_labels])
 print("TVM top3 label:", [synset[label] for label in tvm_top3_labels])
+
+##############################################################################
+# However, due to the difference in numerics, in general the raw floating point
+# outputs are not expected to be identical. Here, we print how many floating point
+# output values are identical out of 1000 outputs from mobilenet v2.
+print("%d in 1000 raw floating outputs identical." % np.sum(tvm_result[0] == pt_result[0]))
 
 
 ###############################################################################
