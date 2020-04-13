@@ -16,7 +16,7 @@
 # under the License.
 """
 Deploy a Framework-prequantized Model with TVM
-================================
+==============================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
 This is a tutorial on loading models quantized by deep learning frameworks into TVM.
@@ -103,7 +103,7 @@ inp = get_imagenet_input()
 
 ################################################################################
 # Deploy a quantized PyTorch Model
-# ------------------
+# --------------------------------
 # First, we demonstrate how to load deep learning models quantized by PyTorch,
 # using our PyTorch frontend.
 #
@@ -126,14 +126,14 @@ def quantize_model(model, inp):
 
 ##############################################################################
 # Load quantization-ready, pretrained Mobilenet v2 model from torchvision
-# -----------------
+# -----------------------------------------------------------------------
 # We choose mobilenet v2 because this model was trained with quantization aware
 # training. Other models require a full post training calibration.
 qmodel = qmobilenet.mobilenet_v2(pretrained=True).eval()
 
 ##############################################################################
 # Quantize, trace and run the PyTorch Mobilenet v2 model
-# -----------------
+# ------------------------------------------------------
 # The details are out of scope for this tutorial. Please refer to the tutorials
 # on the PyTorch website to learn about quantization and jit.
 pt_inp = torch.from_numpy(inp)
@@ -145,7 +145,7 @@ with torch.no_grad():
 
 ##############################################################################
 # Convert quantized Mobilenet v2 to Relay-QNN using the PyTorch frontend
-# -----------------
+# ----------------------------------------------------------------------
 # The PyTorch frontend has support for converting a quantized PyTorch model to
 # an equivalent Relay module enriched with quantization-aware operators.
 # We call this representation Relay QNN dialect.
@@ -162,7 +162,7 @@ mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 
 ##############################################################################
 # Compile and run the Relay module
-# -----------------
+# --------------------------------
 # Once we obtained the quantized Relay module, the rest of the workflow
 # is the same as running floating point models. Please refer to other
 # tutorials for more details.
@@ -171,9 +171,9 @@ mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 # standard Relay operators before compilation.
 tvm_result = run_tvm_model(mod, params, input_name, inp, target="llvm")
 
-######################################################################
+##########################################################################
 # Compare the output labels
-# -----------------
+# -------------------------
 # We should see identical labels printed.
 pt_top3_labels = np.argsort(pt_result[0])[::-1][:3]
 tvm_top3_labels = np.argsort(tvm_result[0])[::-1][:3]
@@ -181,7 +181,7 @@ tvm_top3_labels = np.argsort(tvm_result[0])[::-1][:3]
 print("PyTorch top3 label:", [synset[label] for label in pt_top3_labels])
 print("TVM top3 label:", [synset[label] for label in tvm_top3_labels])
 
-##############################################################################
+###########################################################################################
 # However, due to the difference in numerics, in general the raw floating point
 # outputs are not expected to be identical. Here, we print how many floating point
 # output values are identical out of 1000 outputs from mobilenet v2.
@@ -190,10 +190,10 @@ print("%d in 1000 raw floating outputs identical." % np.sum(tvm_result[0] == pt_
 
 ###############################################################################
 # Deploy a quantized MXNet Model
-# ------------------
+# ------------------------------
 # TODO
 
 ###############################################################################
 # Deploy a quantized TFLite Model
-# ------------------
+# -------------------------------
 # TODO
