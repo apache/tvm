@@ -74,6 +74,20 @@ namespace tir {
 //   store warp_mem[m * y + x]
 //   warp_shuffle(load warp_mem[m * y + x], z)
 //   subject to (m * y + x) is invariant to warp_index
+//
+// If width == warp size, we are shuffling on full warps.
+// Otherwise, we are virtually shuffling on sub-warps,
+// whose size equals to width. In this case, you can imagine
+// a warp only consists of `width` threads. Width is passed
+// as an argument to the shuffle primitive, and will be
+// lowered to the device code if the target supports.
+//
+// A limitation of this sub-warp approach is that users
+// cannot shuffle across the sub-warp boundary (i.e. shuffle
+// with threadIdx.y or threadIdx.z indices). It can be solved
+// via fusing threadIdx.x to the warp size, or improving the
+// analyzer to detect both 3 thread axes, which is left for
+// future improvements.
 
 // Algorithm
 //
