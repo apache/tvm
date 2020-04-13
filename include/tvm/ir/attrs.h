@@ -86,7 +86,7 @@ namespace tvm {
 template<typename TObjectRef>
 inline TObjectRef NullValue() {
   static_assert(TObjectRef::_type_is_nullable,
-                "Can only value for nullable types");
+                "Can only get NullValue for nullable types");
   return TObjectRef(ObjectPtr<Object>(nullptr));
 }
 

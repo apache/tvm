@@ -415,6 +415,8 @@ TEST(Optional, Composition) {
   CHECK(opt1 == "xyz");
   CHECK(opt1 != nullptr);
   CHECK(opt0 == nullptr);
+  CHECK(opt0.value_or("abc") == "abc");
+  CHECK(opt1.value_or("abc") == "xyz");
   CHECK(opt0 != opt1);
   CHECK(opt1 == Optional<String>(String("xyz")));
   CHECK(opt0 == Optional<String>(nullptr));
@@ -449,8 +451,8 @@ TEST(Optional, PackedCall) {
     return s;
   };
   auto func = TypedPackedFunc<Optional<String>(Optional<String>, bool)>(tf);
-  func(String("xyz"), false);
-  func(Optional<String>(nullptr), true);
+  CHECK(func(String("xyz"), false) == "xyz");
+  CHECK(func(Optional<String>(nullptr), true) == nullptr);
 
   auto pf = [](TVMArgs args, TVMRetValue* rv) {
     Optional<String> s = args[0];

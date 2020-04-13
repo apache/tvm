@@ -670,6 +670,13 @@ class Optional : public ObjectRef {
     CHECK(data_ != nullptr);
     return T(data_);
   }
+  /*!
+   * \return The contained value if the Optional is not null
+   *         otherwise return the default_value.
+   */
+  T value_or(T default_value) const {
+    return data_ != nullptr ? T(data_) : default_value;
+  }
   /*! \return Whether the container is not nullptr.*/
   explicit operator bool() const {
     return *this != nullptr;
