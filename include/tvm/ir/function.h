@@ -26,6 +26,7 @@
 
 #include <tvm/ir/expr.h>
 #include <tvm/ir/attrs.h>
+#include <tvm/runtime/container.h>
 #include <type_traits>
 #include <string>
 
@@ -90,25 +91,31 @@ class BaseFuncNode : public RelayExprNode {
    * \code
    *
    *  void GetAttrExample(const BaseFunc& f) {
-   *    Integer value = f->GetAttr<Integer>("AttrKey", 0);
+   *    auto value = f->GetAttr<Integer>("AttrKey", 0);
    *  }
    *
    * \endcode
    */
   template<typename TObjectRef>
-  TObjectRef GetAttr(const std::string& attr_key,
-                     TObjectRef default_value = NullValue<TObjectRef>()) const {
+  Optional<TObjectRef> GetAttr(
+      const std::string& attr_key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
     static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
                   "Can only call GetAttr with ObjectRef types.");
     if (!attrs.defined()) return default_value;
     auto it = attrs->dict.find(attr_key);
     if (it != attrs->dict.end()) {
-      return Downcast<TObjectRef>((*it).second);
+      return Downcast<Optional<TObjectRef>>((*it).second);
     } else {
       return default_value;
     }
   }
-
+  // variant that uses TObjectRef to enable implicit conversion to default value.
+  template<typename TObjectRef>
+  Optional<TObjectRef> GetAttr(
+      const std::string& attr_key, TObjectRef default_value) const {
+    return GetAttr<TObjectRef>(attr_key, Optional<TObjectRef>(default_value));
+  }
   /*!
    * \brief Check whether the function has an non-zero integer attr.
    *
@@ -129,7 +136,7 @@ class BaseFuncNode : public RelayExprNode {
    * \endcode
    */
   bool HasNonzeroAttr(const std::string& attr_key) const {
-    return GetAttr<Integer>(attr_key, 0)->value != 0;
+    return GetAttr<Integer>(attr_key, 0) != 0;
   }
 
   static constexpr const char* _type_key = "BaseFunc";

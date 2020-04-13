@@ -195,7 +195,7 @@ void VerifyMemory(const IRModule& mod) {
       auto target = func->GetAttr<Target>(tvm::attr::kTarget);
       CHECK(target.defined())
           << "LowerWarpMemory: Require the target attribute";
-      MemoryAccessVerifier v(func, target->device_type);
+      MemoryAccessVerifier v(func, target.value()->device_type);
       v.Run();
       if (v.Failed()) {
         LOG(FATAL)

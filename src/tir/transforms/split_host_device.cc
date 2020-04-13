@@ -277,7 +277,9 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
       << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
 
   HostDeviceSplitter splitter(
-      device_mod, target, static_cast<std::string>(global_symbol));
+      device_mod,
+      target.value(),
+      static_cast<std::string>(global_symbol.value()));
 
   auto* n = func.CopyOnWrite();
   n->body = splitter(std::move(n->body));
