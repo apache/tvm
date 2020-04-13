@@ -185,7 +185,19 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
     # Pack data if raw 4-D data is provided.
     # This can only happen when autotuning.
     if len(data.shape) == 4:
-        data, kernel = _pack_data(cfg, data, kernel)
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # Directly use modified data layout placeholder.
+            dshape = (n, in_channel // cfg["tile_ic"].size[-1],
+                      ih, iw, cfg["tile_ic"].size[-1])
+            data = tvm.te.placeholder(dshape, data.dtype, name="data")
+            kshape = (num_filter // cfg["tile_oc"].size[-1],
+                      in_channel // cfg["tile_ic"].size[-1],
+                      kernel_height, kernel_width,
+                      cfg["tile_ic"].size[-1],
+                      cfg["tile_oc"].size[-1])
+            kernel = tvm.te.placeholder(kshape, kernel.dtype, name="kernel")
+        else:
+            data, kernel = _pack_data(cfg, data, kernel)
 
     return nn.conv2d_NCHWc(data,
                            kernel,

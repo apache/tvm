@@ -47,19 +47,19 @@ enum class CallingConv : int {
    */
   kDefault = 0,
   /*!
+   * \brief PackedFunc that exposes a CPackedFunc signature.
+   *
+   * - Calling by PackedFunc calling convention.
+   * - Implementation: Expose a function with the CPackedFunc signature.
+   */
+  kCPackedFunc = 1,
+  /*!
    * \brief Device kernel launch
    *
    * - Call by PackedFunc calling convention.
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,
-  /*!
-   * \brief PackedFunc that exposes a CPackedFunc signature.
-   *
-   * - Calling by PackedFunc calling convention.
-   * - Implementation: Expose a function with the CPackedFunc signature.
-   */
-  kCPackedFunc = 3,
 };
 
 /*!

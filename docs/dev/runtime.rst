@@ -23,7 +23,7 @@ TVM Runtime System
 TVM supports multiple programming languages for the compiler stack development and deployment.
 In this note, we explain the key elements of the TVM runtime.
 
-.. image:: http://www.tvm.ai/images/release/tvm_flexible.png
+.. image:: https://tvm.apache.org/images/release/tvm_flexible.png
 
 We need to satisfy quite a few interesting requirements:
 
@@ -36,6 +36,8 @@ We need to satisfy quite a few interesting requirements:
 
 We want to be able to define a function from any language and call from another.
 We also want the runtime core to be minimal to deploy to embedded devices.
+
+.. _tvm-runtime-system-packed-func:
 
 PackedFunc
 ----------
@@ -172,13 +174,12 @@ Remote Deployment
 The PackedFunc and Module system also makes it easy to ship the function into remote devices directly.
 Under the hood, we have an RPCModule that serializes the arguments to do the data movement and launches the computation on the remote.
 
-.. image:: http://www.tvm.ai/images/release/tvm_rpc.png
+.. image:: https://tvm.apache.org/images/release/tvm_rpc.png
 
 The RPC server itself is minimum and can be bundled into the runtime. We can start a minimum TVM
 RPC server on iPhone/android/raspberry pi or even the browser. The cross compilation on server and shipping of the module for testing can be done in the same script. Checkout
-`Cross compilation and RPC tutorial`_ for more details.
+:ref:`tutorial-cross-compilation-and-rpc` for more details.
 
-.. _Cross compilation and RPC tutorial: https://docs.tvm.ai/tutorials/cross_compilation_and_rpc.html#sphx-glr-tutorials-cross-compilation-and-rpc-py
 
 This instant feedback gives us a lot of advantages. For example, to test the correctness of generated code on iPhone, we no longer have to write test-cases in swift/objective-c from scratch -- We can use RPC to execute on iPhone, copy the result back and do verification on the host via numpy. We can also do the profiling using the same script.
 

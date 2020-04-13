@@ -76,7 +76,7 @@ bool ParallelOpBatchCombiner::CanOpsBeCombined(const CallNode* a, const CallNode
     return false;
   }
 
-  AttrsEqual eq;
+  StructuralEqual eq;
   for (size_t i = 0; i < a->args.size(); i++) {
     auto ta = a->args[i]->type_as<TensorTypeNode>();
     auto tb = b->args[i]->type_as<TensorTypeNode>();
@@ -112,7 +112,7 @@ Call ParallelOpBatchCombiner::MakeCombinedOp(const Group& branches) {
 }
 
 bool ParallelOpBatchCombiner::IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
-  AttrsEqual eq;
+  StructuralEqual eq;
   auto ta = a->args[index]->type_as<TensorTypeNode>();
   auto tb = b->args[index]->type_as<TensorTypeNode>();
 
@@ -193,8 +193,7 @@ Pass CombineParallelOpBatch(const std::string& op_name,
                                                        batch_op_name,
                                                        min_num_branches));
   };
-  return CreateFunctionPass(pass_func, 4, "CombineParallelOpBatch",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 4, "CombineParallelOpBatch", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelOpBatch")

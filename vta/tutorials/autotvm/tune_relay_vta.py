@@ -141,7 +141,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 # Now we can register our devices to the tracker. The first step is to
 # build the TVM runtime for the Pynq devices.
 #
-# Follow `this section <https://docs.tvm.ai/vta/install.html#pynq-side-rpc-server-build-deployment>`_
+# Follow :ref:`vta-index`
 # to build the TVM runtime on the device. Then register the device to the tracker with:
 #
 # .. code-block:: bash
@@ -181,7 +181,7 @@ def compile_network(env, target, model, start_pack, stop_pack):
 tracker_host = os.environ.get("TVM_TRACKER_HOST", '0.0.0.0')
 tracker_port = int(os.environ.get("TVM_TRACKER_PORT", 9190))
 
-# Load VTA parameters from the vta/vta-hw/config/vta_config.json file
+# Load VTA parameters from the 3rdparty/vta-hw/config/vta_config.json file
 env = vta.get_env()
 
 # This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.

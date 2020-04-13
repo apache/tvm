@@ -18,29 +18,6 @@ import tvm
 from tvm import te
 import numpy as np
 
-def lower(s, args, name="mydot"):
-    binds = {}
-    arg_list = []
-
-    for x in args:
-        assert isinstance(x, te.tensor.Tensor)
-        buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.op.name)
-        binds[x] = buf
-        arg_list.append(buf)
-    s = s.normalize()
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 16)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    return fapi
-
-
-def mybuild(fapi, target="llvm"):
-    return
-
 
 def test_dot():
     nn = 12
@@ -50,13 +27,12 @@ def test_dot():
     k = te.reduce_axis((0, n), 'k')
     C = te.compute((1,), lambda _: te.sum(A[k] * B[k], axis=k), name='C')
     s = te.create_schedule(C.op)
-    fapi = lower(s, [A, B, C])
 
     def verify(target):
         if not tvm.runtime.enabled(target):
             print("Target %s is not enabled" % target)
             return
-        f = tvm.target.codegen.build_module(fapi, target)
+        f = tvm.driver.build(s, [A, B, C], target)
         # verify
         ctx = tvm.cpu(0)
         a = tvm.nd.array(np.random.uniform(size=(nn,)).astype(A.dtype), ctx)

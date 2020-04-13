@@ -20,3 +20,4 @@ from .int_set import IntSet, IntervalSet
 from .analyzer import ModularSet, ConstIntBound, Analyzer
 from .bound import deduce_bound
 from .pattern import detect_linear_equation, detect_clip_bound
+from .int_solver import solve_linear_equations

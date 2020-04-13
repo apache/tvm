@@ -85,12 +85,20 @@ struct ConvEntry {
   void CleanWorkspace();
 };  // ConvThreadEntry
 
+struct SoftmaxEntry {
+  cudnnSoftmaxMode_t mode;
+  cudnnDataType_t data_type;
+  cudnnTensorDescriptor_t shape_desc;
+  SoftmaxEntry();
+  ~SoftmaxEntry();
+};  // SoftmaxEntry
 
 struct CuDNNThreadEntry {
   CuDNNThreadEntry();
   ~CuDNNThreadEntry();
   cudnnHandle_t handle{nullptr};
   ConvEntry conv_entry;
+  SoftmaxEntry softmax_entry;
   runtime::DeviceAPI *cuda_api{nullptr};
   static CuDNNThreadEntry* ThreadLocal();
 };  // CuDNNThreadEntry

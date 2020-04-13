@@ -84,6 +84,7 @@ class OperatorConverter(object):
             'FULLY_CONNECTED': self.convert_fully_connected,
             'GREATER_EQUAL': self.convert_greater_equal,
             'GREATER': self.convert_greater,
+            'HARD_SWISH': self.convert_hard_swish,
             'L2_NORMALIZATION': self.convert_l2_normalization,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
@@ -129,6 +130,7 @@ class OperatorConverter(object):
             'TAN': self.convert_tan,
             'TANH':self.convert_tanh,
             'TILE': self.convert_tile,
+            'TOPK_V2': self.convert_topk_v2,
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'TRANSPOSE': self.convert_transpose,
             'UNPACK': self.convert_unpack,
@@ -594,6 +596,42 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_hard_swish(self, op):
+        """Convert TFLite Hard swish"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        assert isinstance(op, Operator)
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        def _relu6(data):
+            return _op.tensor.clip(data, 0.0, 6.0)
+
+        def _hard_swish(data):
+            return data * _relu6(data + relay.const(3.0)) / relay.const(6.0)
+
+        # Dequantize if the input is quantized.
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
+
+        # Perform hardswish
+        out = _hard_swish(in_expr)
+
+        # Go back to integer dataype if the original operator was quantized.
+        if output_tensor.qnn_params:
+            out = self.quantize(out, output_tensor)
+
+        return out
+
     def convert_concatenation(self, op):
         """Convert TFLite concatenation"""
         try:
@@ -888,8 +926,7 @@ class OperatorConverter(object):
         """Convert TFLite SUB"""
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized SUB operator is not supported yet.')
+            return self._convert_elemwise(_qnn.op.subtract, op)
         return self._convert_elemwise(_op.subtract, op)
 
     def convert_mul(self, op):
@@ -1317,7 +1354,9 @@ class OperatorConverter(object):
         if is_depthwise_conv:
             params['channels'] = int(in_channels)
             params['groups'] = int(input_c)
-            params['kernel_layout'] = 'HWOI'
+            # If number of input channels is 1, treat as normal
+            # convolution.
+            params['kernel_layout'] = 'HWIO' if input_c == 1 else 'HWOI'
         else:
             params['channels'] = int(output_channels)
             params['kernel_layout'] = 'HWIO'
@@ -1547,6 +1586,24 @@ class OperatorConverter(object):
         reps = tuple(self.get_tensor_value(input_tensors[1]))
 
         out = _op.tile(in_expr, reps)
+
+        return out
+
+    def convert_topk_v2(self, op):
+        """ Convert TFLite TOPK_v2 """
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+        k = self.get_tensor_value(input_tensors[1])
+        out = _op.topk(in_expr, int(k))
 
         return out
 

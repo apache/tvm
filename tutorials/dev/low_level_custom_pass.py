@@ -36,7 +36,7 @@ Before reading this tutorial, we assume readers have already known these topics 
 - Visitor design pattern. Otherwise, check the
   `Python AST module <https://docs.python.org/3/library/ast.html>`_ to see how an AST
   visitor is implemented.
-- How a HalideIR/Schedule is lowered to either a LoweredFunc class or a LLVM module. Otherwise,
+- How a Schedule is lowered to either an IRModule class or a LLVM module. Otherwise,
   take a look at ``python/tvm/build_module.py`` to get some basics.
 
 """

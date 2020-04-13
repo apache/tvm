@@ -26,10 +26,15 @@ use std::{
 pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
 
-pub trait PackedFunc : Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync {}
+pub trait PackedFunc:
+    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync
+{
+}
 
-impl<T> PackedFunc for T
-    where T : Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync {}
+impl<T> PackedFunc for T where
+    T: Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync
+{
+}
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
@@ -76,7 +81,7 @@ macro_rules! TVMPODValue {
             ObjectHandle(*mut c_void),
             ModuleHandle(TVMModuleHandle),
             FuncHandle(TVMFunctionHandle),
-            NDArrayContainer(*mut c_void),
+            NDArrayHandle(*mut c_void),
             $($extra_variant($variant_type)),+
         }
 
@@ -97,7 +102,7 @@ macro_rules! TVMPODValue {
                         TVMTypeCode_kTVMObjectHandle => ObjectHandle($value.v_handle),
                         TVMTypeCode_kTVMModuleHandle => ModuleHandle($value.v_handle),
                         TVMTypeCode_kTVMPackedFuncHandle => FuncHandle($value.v_handle),
-                        TVMTypeCode_kTVMNDArrayHandle => NDArrayContainer($value.v_handle),
+                        TVMTypeCode_kTVMNDArrayHandle => NDArrayHandle($value.v_handle),
                         $( $tvm_type => { $from_tvm_type } ),+
                         _ => unimplemented!("{}", type_code),
                     }
@@ -133,7 +138,7 @@ macro_rules! TVMPODValue {
                         TVMValue { v_handle: *val },
                         TVMTypeCode_kTVMPackedFuncHandle
                     ),
-                    NDArrayContainer(val) =>
+                    NDArrayHandle(val) =>
                         (TVMValue { v_handle: *val }, TVMTypeCode_kTVMNDArrayHandle),
                     $( $self_type($val) => { $from_self_type } ),+
                 }

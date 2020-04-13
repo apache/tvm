@@ -147,7 +147,7 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Array<PrimExpr> > kernel_info;
+  Array<Array<runtime::String> > kernel_info;
 
   for (auto kv :  mod->functions) {
     CHECK(kv.second->IsInstance<PrimFuncNode>())
@@ -161,11 +161,10 @@ runtime::Module BuildSDAccel(IRModule mod, std::string target_str) {
       code = (*f)(code).operator std::string();
     }
 
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
-    std::string func_name = global_symbol;
-    kernel_info.push_back(Array<PrimExpr>({func_name, code}));
+    kernel_info.push_back({global_symbol, code});
   }
 
   std::string xclbin;

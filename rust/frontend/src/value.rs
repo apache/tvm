@@ -22,14 +22,14 @@
 //! `TVMRetValue` is the owned version of `TVMPODValue`.
 
 use std::convert::TryFrom;
-
-use tvm_common::{
-    errors::ValueDowncastError,
-    ffi::{TVMArrayHandle, TVMFunctionHandle, TVMModuleHandle},
-    try_downcast,
-};
+// use std::ffi::c_void;
 
 use crate::{Function, Module, NDArray, TVMArgValue, TVMRetValue};
+use tvm_common::{
+    errors::ValueDowncastError,
+    ffi::{TVMFunctionHandle, TVMModuleHandle},
+    try_downcast,
+};
 
 macro_rules! impl_handle_val {
     ($type:ty, $variant:ident, $inner_type:ty, $ctor:path) => {
@@ -76,7 +76,60 @@ macro_rules! impl_handle_val {
 
 impl_handle_val!(Function, FuncHandle, TVMFunctionHandle, Function::new);
 impl_handle_val!(Module, ModuleHandle, TVMModuleHandle, Module::new);
-impl_handle_val!(NDArray, ArrayHandle, TVMArrayHandle, NDArray::new);
+
+impl<'a> From<&'a NDArray> for TVMArgValue<'a> {
+    fn from(arg: &'a NDArray) -> Self {
+        match arg {
+            &NDArray::Borrowed { handle } => TVMArgValue::ArrayHandle(handle),
+            &NDArray::Owned { handle } => TVMArgValue::NDArrayHandle(handle),
+        }
+    }
+}
+
+impl<'a> From<&'a mut NDArray> for TVMArgValue<'a> {
+    fn from(arg: &'a mut NDArray) -> Self {
+        match arg {
+            &mut NDArray::Borrowed { handle } => TVMArgValue::ArrayHandle(handle),
+            &mut NDArray::Owned { handle } => TVMArgValue::NDArrayHandle(handle),
+        }
+    }
+}
+
+impl<'a> TryFrom<TVMArgValue<'a>> for NDArray {
+    type Error = ValueDowncastError;
+    fn try_from(val: TVMArgValue<'a>) -> Result<NDArray, Self::Error> {
+        try_downcast!(val -> NDArray,
+            |TVMArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
+            |TVMArgValue::ArrayHandle(val)| { NDArray::new(val) })
+    }
+}
+
+impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for NDArray {
+    type Error = ValueDowncastError;
+    fn try_from(val: &'a TVMArgValue<'v>) -> Result<NDArray, Self::Error> {
+        try_downcast!(val -> NDArray,
+            |TVMArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(*val) },
+            |TVMArgValue::ArrayHandle(val)| { NDArray::new(*val) })
+    }
+}
+
+impl From<NDArray> for TVMRetValue {
+    fn from(val: NDArray) -> TVMRetValue {
+        match val {
+            NDArray::Owned { handle } => TVMRetValue::NDArrayHandle(handle),
+            _ => panic!("NYI"),
+        }
+    }
+}
+
+impl TryFrom<TVMRetValue> for NDArray {
+    type Error = ValueDowncastError;
+    fn try_from(val: TVMRetValue) -> Result<NDArray, Self::Error> {
+        try_downcast!(val -> NDArray,
+            |TVMRetValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
+            |TVMRetValue::ArrayHandle(val)| { NDArray::new(val) })
+    }
+}
 
 #[cfg(test)]
 mod tests {

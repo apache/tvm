@@ -17,7 +17,9 @@
 """Unit tests for graph partitioning."""
 import os
 import sys
+
 import numpy as np
+import pytest
 
 import tvm
 import tvm.relay.testing
@@ -25,8 +27,11 @@ from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
 from tvm.contrib import util
-from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
+from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.build_module import bind_params_by_name
+
 
 # Leverage the pass manager to write a simple white list based annotator
 @transform.function_pass(opt_level=0)
@@ -187,6 +192,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         return lib
 
     def check_vm_result():
+        compile_engine.get().clear()
         with relay.build_config(opt_level=3):
             exe = relay.vm.compile(mod, target=target, params=params)
         code, lib = exe.save()
@@ -198,6 +204,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         tvm.testing.assert_allclose(out.asnumpy(), result, rtol=tol, atol=tol)
 
     def check_graph_runtime_result():
+        compile_engine.get().clear()
         with relay.build_config(opt_level=3):
             json, lib, param = relay.build(mod, target=target, params=params)
         lib = update_lib(lib)
@@ -305,10 +312,8 @@ def test_extern_ccompiler_default_ops():
         func = relay.Function([x0, y0], add)
         func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler",
-                                  tvm.tir.StringImm("ccompiler"))
-        func = func.with_attr("ExternalSymbol",
-                                  tvm.tir.StringImm("ccompiler_0"))
+        func = func.with_attr("Compiler", "ccompiler")
+        func = func.with_attr("global_symbol", "ccompiler_0")
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [x, y])
@@ -319,7 +324,7 @@ def test_extern_ccompiler_default_ops():
         concat = relay.concatenate([log, exp], axis=0)
         fused_func = relay.Function([p0], concat)
         fused_func = fused_func.with_attr("Primitive",
-                                              tvm.tir.IntImm("int32", 1))
+                                          tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
         mod["main"] = main
@@ -392,9 +397,8 @@ def test_extern_dnnl():
         func = relay.Function([data0, input0, input1], out)
         func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler", tvm.tir.StringImm("dnnl"))
-        func = func.with_attr("ExternalSymbol",
-                                  tvm.tir.StringImm("dnnl_0"))
+        func = func.with_attr("Compiler", "dnnl")
+        func = func.with_attr("global_symbol", "dnnl_0")
         glb_var = relay.GlobalVar("dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
@@ -440,7 +444,7 @@ def test_extern_dnnl():
     check_result(mod, {"data": i_data, "weight1": w1_data},
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
-
+@pytest.mark.skip(reason="fix constant node before opening this case")
 def test_extern_dnnl_mobilenet():
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
@@ -451,8 +455,9 @@ def test_extern_dnnl_mobilenet():
     mod, params = relay.testing.mobilenet.get_workload(
         batch_size=1, dtype='float32')
 
-    op_list = ["nn.conv2d", "nn.dense", "nn.relu", "add"]
-    mod = WhiteListAnnotator(op_list, "dnnl")(mod)
+    mod["main"] = bind_params_by_name(mod["main"], params)
+    mod = transform.AnnotateTarget(["dnnl"])(mod)
+    mod = transform.MergeCompilerRegions()(mod)
     mod = transform.PartitionGraph()(mod)
     i_data = np.random.uniform(0, 1, ishape).astype(dtype)
 
@@ -518,10 +523,8 @@ def test_function_lifting():
                                bn.astuple())
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler",
-                                    tvm.tir.StringImm("test_compiler"))
-        func0 = func0.with_attr("ExternalSymbol",
-                                    tvm.tir.StringImm("test_compiler_0"))
+        func0 = func0.with_attr("Compiler", "test_compiler")
+        func0 = func0.with_attr("global_symbol", "test_compiler_0")
         gv0 = relay.GlobalVar("test_compiler_0")
         mod[gv0] = func0
 
@@ -537,10 +540,8 @@ def test_function_lifting():
         func1 = relay.Function([data1, weight1], conv)
         func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func1 = func1.with_attr("Compiler",
-                                    tvm.tir.StringImm("test_compiler"))
-        func1 = func1.with_attr("ExternalSymbol",
-                                    tvm.tir.StringImm("test_compiler_1"))
+        func1 = func1.with_attr("Compiler", "test_compiler")
+        func1 = func1.with_attr("global_symbol", "test_compiler_1")
         gv1 = relay.GlobalVar("test_compiler_1")
         mod[gv1] = func1
 
@@ -611,10 +612,8 @@ def test_function_lifting_inline():
                                bn.astuple())
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler",
-                                    tvm.tir.StringImm("test_compiler"))
-        func0 = func0.with_attr("ExternalSymbol",
-                                    tvm.tir.StringImm("test_compiler_0"))
+        func0 = func0.with_attr("Compiler", "test_compiler")
+        func0 = func0.with_attr("global_symbol", "test_compiler_0")
 
         # main function
         data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
@@ -648,9 +647,8 @@ def test_constant_propagation():
         func = relay.Function([y0], add)
         func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler", tvm.tir.StringImm("ccompiler"))
-        func = func.with_attr("ExternalSymbol",
-                              tvm.tir.StringImm("ccompiler_0"))
+        func = func.with_attr("Compiler", "ccompiler")
+        func = func.with_attr("global_symbol", "ccompiler_0")
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [y])
@@ -664,7 +662,7 @@ def test_constant_propagation():
     add = x + y
     log = relay.log(add)
     f = relay.Function([x, y], log)
-    f = relay.build_module.bind_params_by_name(f, {"x": tvm.nd.array(ones)})
+    f = bind_params_by_name(f, {"x": tvm.nd.array(ones)})
     mod = tvm.IRModule()
     mod["main"] = f
     mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
@@ -678,13 +676,314 @@ def test_constant_propagation():
     check_result(mod, {"y": y_data}, (8, 8), np.log(np_add))
 
 
+def test_multiple_outputs():
+
+    def create_graph():
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("weight", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        data_cb = compiler_begin(data, 'test_target')
+        weight_cb = compiler_begin(weight, 'test_target')
+        bn_gamma_cb = compiler_begin(bn_gamma, 'test_target')
+        bn_beta_cb = compiler_begin(bn_beta, 'test_target')
+        bn_mean_cb = compiler_begin(bn_mean, 'test_target')
+        bn_var_cb = compiler_begin(bn_var, 'test_target')
+
+        conv_o = relay.nn.conv2d(
+            data=data_cb,
+            weight=weight_cb,
+            kernel_size=(3, 3),
+            channels=16,
+            padding=(1, 1))
+
+        bn_o = relay.nn.batch_norm(conv_o, bn_gamma_cb, bn_beta_cb, bn_mean_cb,
+                                   bn_var_cb)
+
+        relu_o = relay.nn.relu(bn_o[0])
+        relu_o_ce = compiler_end(relu_o, 'test_target')
+
+        bn_omean = bn_o[1]
+        rebn_omean_ce = compiler_end(bn_omean, 'test_target')
+        bn_ovar = bn_o[2]
+        bn_ovar_ce = compiler_end(bn_ovar, 'test_target')
+
+        dummy_mean_abs = relay.abs(rebn_omean_ce)
+        dummy_ovar_abs = relay.abs(bn_ovar_ce)
+        dummy_tuple = relay.Tuple((relu_o_ce, dummy_mean_abs,dummy_ovar_abs))
+
+        func = relay.Function([data, weight, bn_gamma, bn_beta,
+                               bn_mean, bn_var], dummy_tuple)
+        return func
+
+    def expected():
+        mod = tvm.IRModule()
+
+        # function 0
+        data = relay.var("test_target_2_i0", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("test_target_2_i1", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("test_target_2_i2", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("test_target_2_i3", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("test_target_2_i4", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("test_target_2_i5", relay.TensorType((16, ), "float32"))
+
+        conv_o = relay.nn.conv2d(
+            data=data,
+            weight=weight,
+            kernel_size=(3, 3),
+            channels=16,
+            padding=(1, 1))
+
+        bn_o = relay.nn.batch_norm(conv_o, bn_gamma, bn_beta, bn_mean,
+                                   bn_var)
+
+        relu_o = relay.nn.relu(bn_o[0])
+        tuple_o = relay.Tuple((bn_o[2], bn_o[1], relu_o))
+
+        func0 = relay.Function([data, weight, bn_gamma, bn_beta,
+                                bn_mean, bn_var], tuple_o)
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler", "test_target")
+        func0 = func0.with_attr("global_symbol", "test_target_2")
+        gv0 = relay.GlobalVar("test_target_2")
+        mod[gv0] = func0
+
+        # body
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("weight", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("bn_gamma", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("bn_beta", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("bn_mean", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("bn_var", relay.TensorType((16, ), "float32"))
+
+        f0_o = gv0(data, weight, bn_gamma, bn_beta, bn_mean, bn_var)
+        f0_relu_o = relay.TupleGetItem(f0_o, 2)
+        f0_mean_o = relay.TupleGetItem(f0_o, 1)
+        f0_var_o = relay.TupleGetItem(f0_o, 0)
+
+        f0_mean_abs = relay.abs(f0_mean_o)
+        f0_var_abs = relay.abs(f0_var_o)
+        main_tuple = relay.Tuple((f0_relu_o, f0_mean_abs, f0_var_abs))
+
+        func = relay.Function([data, weight, bn_gamma,
+                               bn_beta, bn_mean, bn_var], main_tuple)
+        mod["main"] = func
+        return mod
+
+    mod = tvm.IRModule()
+    mod["main"] = create_graph()
+    ref_mod = expected()
+    partitioned = transform.PartitionGraph()(mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+
+
+def test_mixed_single_multiple_outputs():
+    def create_graph():
+        data = relay.var('data', shape=(10, 10))
+
+        cb_1 = compiler_begin(data, 'test_target')
+        O_1 = relay.abs(cb_1)
+        ce_2 = compiler_end(O_1, 'test_target')
+        O_2 = relay.nn.relu(O_1)
+        ce_3 = compiler_end(O_2, 'test_target')
+
+        X = relay.tanh(ce_2)
+
+        cb_3 = compiler_begin(ce_3, 'test_target')
+        cb_4 = compiler_begin(X, 'test_target')
+        O_3 = relay.add(cb_3, cb_4)
+        ce_4 = compiler_end(O_3, 'test_target')
+
+        func = relay.Function([data], ce_4)
+        return func
+
+    def expected():
+        mod = tvm.IRModule()
+
+        # function 1
+        f1_cb1 = relay.var('test_target_1_i0', shape=(10, 10))
+        f1_O_1 = relay.abs(f1_cb1)
+        f1_O_2 = relay.nn.relu(f1_O_1)
+        f1_out = relay.Tuple((f1_O_2, f1_O_1))
+        func1 = relay.Function([f1_cb1], f1_out)
+
+        func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Compiler", "test_target")
+        func1 = func1.with_attr("global_symbol", "test_target_1")
+        gv1 = relay.GlobalVar("test_target_1")
+        mod[gv1] = func1
+
+        # function 0
+        f2_cb3 = relay.var('test_target_0_i0', shape=(10, 10))
+        f2_cb4 = relay.var('test_target_0_i1', shape=(10, 10))
+        f2_O_3 = relay.add(f2_cb3, f2_cb4)
+        func0 = relay.Function([f2_cb3, f2_cb4], f2_O_3)
+
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler", "test_target")
+        func0 = func0.with_attr("global_symbol", "test_target_0")
+        gv0 = relay.GlobalVar("test_target_0")
+        mod[gv0] = func0
+
+        # body
+        data = relay.var('data', shape=(10, 10))
+        tuple_out = gv1(data)
+        ce_2 = relay.TupleGetItem(tuple_out, 1)
+        ce_3 = relay.TupleGetItem(tuple_out, 0)
+
+        X = relay.tanh(ce_2)
+        ce_4 = gv0(ce_3, X)
+        func = relay.Function([data], ce_4)
+        mod["main"] = func
+
+        return mod
+
+    mod = tvm.IRModule()
+    mod["main"] = create_graph()
+
+    ref_mod = expected()
+    partitioned = transform.PartitionGraph()(mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+
+
+def test_dnnl_fuse():
+    def make_pattern(with_bias=True):
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("weight")
+        bias = relay.var("bias")
+        conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
+                               channels=8, padding=(1, 1))
+        if with_bias:
+            conv_out = relay.add(conv, bias)
+        else:
+            conv_out = conv
+        return relay.nn.relu(conv_out)
+
+    conv2d_bias_relu_pat = ("dnnl.conv2d_bias_relu", make_pattern(with_bias=True))
+    conv2d_relu_pat = ("dnnl.conv2d_relu", make_pattern(with_bias=False))
+    dnnl_patterns = [conv2d_bias_relu_pat, conv2d_relu_pat]
+
+    def get_blocks(prefix, data, in_channel, out_channel,
+                   include_bn=True, include_sigmoid=False):
+        weight = relay.var(prefix + "weight")
+        bn_gamma = relay.var(prefix + "bn_gamma")
+        bn_beta = relay.var(prefix + "bn_beta")
+        bn_mmean = relay.var(prefix + "bn_mean")
+        bn_mvar = relay.var(prefix + "bn_var")
+
+        layer = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
+                                channels=out_channel, padding=(1, 1))
+        if include_bn:
+            bn_output = relay.nn.batch_norm(layer, bn_gamma, bn_beta,
+                                            bn_mmean, bn_mvar)
+            layer = bn_output[0]
+        if include_sigmoid:
+            # dummy layer to prevent pattern detection
+            layer = relay.sigmoid(layer)
+        layer = relay.nn.relu(layer)
+        return layer
+
+    def get_net(include_bn=True, include_sigmoid=False):
+        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
+        block1 = get_blocks("block1_", data, 3, 8, include_bn, include_sigmoid)
+        # The second block is always conv + relu, to make it more interesting
+        block2 = get_blocks("block2_", block1, 8, 8, False, include_sigmoid)
+        return relay.Function(relay.analysis.free_vars(block2), block2)
+
+    def get_partitoned_mod(mod, params, pattern_table):
+        # This is required for constant folding
+        mod["main"] = bind_params_by_name(mod["main"], params)
+
+        remove_bn_pass = transform.Sequential([
+            transform.InferType(),
+            transform.SimplifyInference(),
+            transform.FoldConstant(),
+            transform.FoldScaleAxis(),
+        ])
+        composite_partition = transform.Sequential([
+            remove_bn_pass,
+            transform.MergeComposite(pattern_table),
+            transform.AnnotateTarget("dnnl"),
+            transform.PartitionGraph()
+        ])
+
+        with relay.build_config(opt_level=3, disabled_pass=["AlterOpLayout"]):
+            return composite_partition(mod)
+
+    def test_detect_pattern(pattern_table, include_bn, include_sigmoid,
+                            num_expected_partition):
+        net = get_net(include_bn, include_sigmoid)
+        mod, params = tvm.relay.testing.create_workload(net)
+        mod = get_partitoned_mod(mod, params, pattern_table)
+        assert(len(mod.functions) - 1 == num_expected_partition)  # -1 for main
+
+    def test_partition():
+        # conv + bn + relu, conv + relu -> fused conv_bias_relu, conv, and relu
+        test_detect_pattern([conv2d_bias_relu_pat], True, False, 3)
+        # conv + bn + relu, conv + relu -> conv, bias, relu, and fused conv_relu
+        test_detect_pattern([conv2d_relu_pat], True, False, 4)
+        # conv + bn + relu, conv + relu -> fused conv_bias_relu, and fused conv_relu
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, False, 2)
+        # conv + relu, conv + relu -> two fused conv_relu
+        test_detect_pattern([conv2d_relu_pat], False, False, 2)
+        # conv + relu, conv + relu -> no fusion, 4 partition each with a single op
+        test_detect_pattern([conv2d_bias_relu_pat], False, False, 4)
+        # conv + bn + sigmoid + relu, conv + sigmoid + relu -> no fusion
+        test_detect_pattern([conv2d_bias_relu_pat, conv2d_relu_pat], True, True, 5)
+
+    def test_partition_mobilenet():
+        mod, params = relay.testing.mobilenet.get_workload()
+        mod = get_partitoned_mod(mod, params, dnnl_patterns)
+        # 27 fused conv + bn + relu and one dense
+        assert(len(mod.functions) - 1 == 28)  # -1 for main
+
+    def test_exec(mod, params, ref_mod, ref_params, out_shape):
+        ishape = (1, 3, 224, 224)
+        i_data = np.random.randn(*ishape).astype(np.float32)
+        ref_ex = relay.create_executor("graph", mod=ref_mod, ctx=tvm.cpu(0))
+        ref_res = ref_ex.evaluate()(i_data, **ref_params)
+        compile_engine.get().clear()
+
+        mod = get_partitoned_mod(mod, params, dnnl_patterns)
+
+        check_result(mod, {"data": i_data},
+                     out_shape, ref_res.asnumpy(), tol=1e-5, params=params)
+
+    test_partition()
+    test_partition_mobilenet()
+
+    if not tvm.get_global_func("relay.ext.dnnl", True):
+        print("skip because DNNL codegen is not available")
+        return
+
+    net = get_net()
+    mod, params = tvm.relay.testing.create_workload(net)
+    ref_mod, ref_params = tvm.relay.testing.create_workload(net)
+    test_exec(mod, params, ref_mod, ref_params, (1, 8, 224, 224))
+
+    # exec test on mobilenet is not possible due to manually inlined constants
+    # mod, params = relay.testing.mobilenet.get_workload()
+    # ref_mod, ref_params = relay.testing.mobilenet.get_workload()
+    # test_exec(mod, params, ref_mod, ref_params, (1, 1000))
+
+
 if __name__ == "__main__":
     test_multi_node_compiler()
     test_extern_ccompiler_single_op()
     test_extern_ccompiler_default_ops()
     test_extern_ccompiler()
     test_extern_dnnl()
-    test_extern_dnnl_mobilenet()
+    # TODO(@comaniac, @zhiics): Fix constant node and re-open this case.
+    #test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()
     test_constant_propagation()
+    test_multiple_outputs()
+    test_mixed_single_multiple_outputs()
+    test_dnnl_fuse()

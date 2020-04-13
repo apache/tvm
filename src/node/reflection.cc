@@ -178,13 +178,13 @@ ReflectionVTable* ReflectionVTable::Global() {
 
 ObjectPtr<Object>
 ReflectionVTable::CreateInitObject(const std::string& type_key,
-                                   const std::string& global_key) const {
+                                   const std::string& repr_bytes) const {
   uint32_t tindex = Object::TypeKey2Index(type_key);
   if (tindex >= fcreate_.size() || fcreate_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: " << type_key
                << " is not registered via TVM_REGISTER_NODE_TYPE";
   }
-  return fcreate_[tindex](global_key);
+  return fcreate_[tindex](repr_bytes);
 }
 
 class NodeAttrSetter : public AttrVisitor {

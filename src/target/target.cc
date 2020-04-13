@@ -48,8 +48,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 /*!
 * \brief Construct a Target node from the given name and options.
 * \param target_name The major target name. Should be one of
-* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hybrid", "llvm", "metal",
-*  "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
+* {"aocl", "aocl_sw_emu", "c", "cuda", "ext_dev", "hexagon", "hybrid", "llvm",
+*  "metal", "nvptx", "opencl", "opengl", "rocm", "sdaccel", "stackvm", "vulkan"}
 * \param options Additional options appended to the target
 * \return The constructed Target
 */
@@ -62,39 +62,39 @@ Target CreateTarget(const std::string& target_name,
   std::string device_flag = "-device=";
   std::string keys_flag = "-keys=";
   for (auto& item : options) {
-    t->options_array.push_back(tir::StringImmNode::make(item));
+    t->options_array.push_back(item);
 
     if (item.find(libs_flag) == 0) {
       std::stringstream ss(item.substr(libs_flag.length()));
       std::string lib_item;
       while (std::getline(ss, lib_item, ',')) {
-        t->libs_array.push_back(tir::StringImmNode::make(lib_item));
+        t->libs_array.push_back(lib_item);
       }
     } else if (item.find(device_flag) == 0) {
       t->device_name = item.substr(device_flag.length());
-      t->keys_array.push_back(tir::StringImmNode::make(t->device_name));
+      t->keys_array.push_back(t->device_name);
     } else if (item.find(keys_flag) == 0) {
       std::stringstream ss(item.substr(keys_flag.length()));
       std::string key_item;
       while (std::getline(ss, key_item, ',')) {
-        t->keys_array.push_back(tir::StringImmNode::make(key_item));
+        t->keys_array.push_back(key_item);
       }
     }
   }
 
   if (t->device_name.length() > 0) {
-    t->keys_array.push_back(tir::StringImmNode::make(t->device_name));
+    t->keys_array.push_back(t->device_name);
   }
   t->device_type = kDLCPU;
   t->thread_warp_size = 1;
   if (target_name == "c" && t->device_name == "micro_dev") {
     t->device_type = kDLMicroDev;
   } else if (target_name == "c" || target_name == "llvm") {
-    t->keys_array.push_back(tir::StringImmNode::make("cpu"));
+    t->keys_array.push_back("cpu");
   } else if (target_name == "cuda" || target_name == "nvptx") {
     t->device_type = kDLGPU;
-    t->keys_array.push_back(tir::StringImmNode::make("cuda"));
-    t->keys_array.push_back(tir::StringImmNode::make("gpu"));
+    t->keys_array.push_back("cuda");
+    t->keys_array.push_back("gpu");
     t->max_num_threads = 1024;
     t->thread_warp_size = 32;
   } else if (target_name == "rocm" || target_name == "opencl") {
@@ -104,8 +104,8 @@ Target CreateTarget(const std::string& target_name,
     } else {
       t->device_type = kDLROCM;
     }
-    t->keys_array.push_back(tir::StringImmNode::make(target_name));
-    t->keys_array.push_back(tir::StringImmNode::make("gpu"));
+    t->keys_array.push_back(target_name);
+    t->keys_array.push_back("gpu");
     t->max_num_threads = 256;
     if (t->device_name == "intel_graphics") {
       t->thread_warp_size = 16;
@@ -116,26 +116,29 @@ Target CreateTarget(const std::string& target_name,
     } else {
       t->device_type = kDLVulkan;
     }
-    t->keys_array.push_back(tir::StringImmNode::make(target_name));
-    t->keys_array.push_back(tir::StringImmNode::make("gpu"));
+    t->keys_array.push_back(target_name);
+    t->keys_array.push_back("gpu");
     t->max_num_threads = 256;
   } else if (target_name == "sdaccel") {
     t->device_type = kDLOpenCL;
-    t->keys_array.push_back(tir::StringImmNode::make("sdaccel"));
-    t->keys_array.push_back(tir::StringImmNode::make("hls"));
+    t->keys_array.push_back("sdaccel");
+    t->keys_array.push_back("hls");
   } else if (target_name == "aocl" || target_name == "aocl_sw_emu") {
     t->device_type = kDLAOCL;
-    t->keys_array.push_back(tir::StringImmNode::make("aocl"));
-    t->keys_array.push_back(tir::StringImmNode::make("hls"));
+    t->keys_array.push_back("aocl");
+    t->keys_array.push_back("hls");
   } else if (target_name == "opengl") {
     t->device_type = kOpenGL;
-    t->keys_array.push_back(tir::StringImmNode::make("opengl"));
+    t->keys_array.push_back("opengl");
   } else if (target_name == "stackvm") {
     t->device_type = kDLCPU;
   } else if (target_name == "ext_dev") {
     t->device_type = kDLExtDev;
   } else if (target_name == "hybrid") {
     t->device_type = kDLCPU;
+  } else if (target_name == "hexagon") {
+    t->keys_array.push_back("hexagon");
+    t->device_type = kDLHexagon;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
@@ -165,7 +168,7 @@ TVM_REGISTER_GLOBAL("target.TargetFromString")
 std::vector<std::string> TargetNode::keys() const {
   std::vector<std::string> result;
   for (auto& expr : keys_array) {
-    result.push_back(expr.as<tir::StringImmNode>()->value);
+    result.push_back(expr);
   }
   return result;
 }
@@ -173,7 +176,7 @@ std::vector<std::string> TargetNode::keys() const {
 std::vector<std::string> TargetNode::options() const {
   std::vector<std::string> result;
   for (auto& expr : options_array) {
-    result.push_back(expr.as<tir::StringImmNode>()->value);
+    result.push_back(expr);
   }
   return result;
 }
@@ -181,7 +184,7 @@ std::vector<std::string> TargetNode::options() const {
 std::unordered_set<std::string> TargetNode::libs() const {
   std::unordered_set<std::string> result;
   for (auto& expr : libs_array) {
-    result.insert(expr.as<tir::StringImmNode>()->value);
+    result.insert(expr);
   }
   return result;
 }
@@ -335,6 +338,10 @@ Target stackvm(const std::vector<std::string>& options) {
 
 Target ext_dev(const std::vector<std::string>& options) {
   return CreateTarget("ext_dev", options);
+}
+
+Target hexagon(const std::vector<std::string>& options) {
+  return CreateTarget("hexagon", options);
 }
 }  // namespace target
 

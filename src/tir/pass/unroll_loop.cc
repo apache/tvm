@@ -160,7 +160,9 @@ class LoopUnroller : public StmtExprMutator {
     PrimExpr extent = tir::Simplify(op->extent);
     const IntImmNode  *v1 = extent.as<IntImmNode>();
     int value = -1;
-    if (v1 != nullptr) {
+    // integers that do not fit in int32_t are treated as symbolic,
+    // as it's impossible to unroll such large loops
+    if (v1 != nullptr && v1->value <= std::numeric_limits<int>::max()) {
       value = static_cast<int>(v1->value);
     }
     return value;

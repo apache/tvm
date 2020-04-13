@@ -48,26 +48,26 @@ class Target(Object):
     @property
     def keys(self):
         if not self._keys:
-            self._keys = [k.value for k in self.keys_array]
+            self._keys = [str(k) for k in self.keys_array]
         return self._keys
 
     @property
     def options(self):
         if not self._options:
-            self._options = [o.value for o in self.options_array]
+            self._options = [str(o) for o in self.options_array]
         return self._options
 
     @property
     def libs(self):
         if not self._libs:
-            self._libs = [l.value for l in self.libs_array]
+            self._libs = [str(l) for l in self.libs_array]
         return self._libs
 
     @property
     def model(self):
         for opt in self.options_array:
-            if opt.value.startswith('-model='):
-                return opt.value[7:]
+            if opt.startswith('-model='):
+                return opt[7:]
         return 'unknown'
 
     @property
@@ -245,6 +245,103 @@ def bifrost(model='unknown', options=None):
     opts = ["-device=bifrost", '-model=%s' % model]
     opts = _merge_opts(opts, options)
     return _ffi_api.TargetCreate("opencl", *opts)
+
+
+def hexagon(cpu_ver='v66', sim_args=None, hvx=128):
+    """Returns a Hexagon target.
+
+    Parameters
+    ----------
+    cpu_ver : str
+        CPU version used for code generation. Not all allowed cpu str
+        will be valid, LLVM will throw an error.
+    sim_args : str or list of str
+        User defined sim arguments. CPU version defaults to cpu_ver.
+        Otherwise, separate versions are used for codegen and sim. Not
+        all allowed cpu strings will be valid, simulator will throw an
+        error if invalid. Does not affect codegen.
+    hvx : int
+        Size of hvx register. Value of 0 indicates disabled hvx.
+    """
+    # Example compiler arguments
+    # llvm -target=hexagon -mcpu=hexagonv66 -mattr=+hvxv66,+hvx-length128b
+
+    # Check for valid codegen cpu
+    valid_hex = ['v60', 'v62', 'v65', 'v66', 'v67', 'v67t']
+    try:
+        cpu_ver = cpu_ver[cpu_ver.index('v'):].lower()
+        assert 3 <= len(cpu_ver) <= 4
+    except:
+        msg = '{} is not a valid Hexagon version\nvalid versions include {}'
+        raise ValueError(msg.format(cpu_ver, valid_hex)) from None
+
+    assert hvx in [0, 64, 128]
+
+    # Target string
+    def create_target(cpu_ver):
+        target = ' -target=hexagon'
+        mcpu = ' -mcpu=hexagon' + cpu_ver
+        mattr = ''
+        # HVX enable
+        if hvx:
+            mattr = ' -mattr=+hvx' + cpu_ver + ',+hvx-length' + str(hvx) + 'b'
+        return 'llvm' + target + mcpu + mattr
+
+    # Simulator string
+    def create_sim(cpu_ver, sim_args):
+        def validate_hvx_length(codegen_hvx, sim_args):
+            if sim_args and '--hvx_length' in sim_args:
+                # If --hvx_length was specified, check HVX length of sim
+                # vs codegen
+                i = sim_args.index('hvx_length') + len('hvx_length') + 1
+                sim_hvx = sim_args[i:i+3]
+                if sim_hvx != str(codegen_hvx):
+                    print('WARNING: sim hvx {} and codegen hvx {} mismatch!' \
+                          .format(sim_hvx, codegen_hvx))
+            elif codegen_hvx != 0:
+                # If --hvx_length was not given, add it if HVX is enabled
+                sim_args = sim_args + ' ' if isinstance(sim_args, str) else ''
+                sim_args += '--hvx_length ' + str(codegen_hvx)
+            return sim_args or ''
+
+        if not sim_args:
+            return cpu_ver + ' ' + validate_hvx_length(hvx, sim_args)
+
+        sim_cpu = cpu_ver + ' '
+
+        # Add user defined args
+        if isinstance(sim_args, list):
+            sim_args = ' '.join(sim_args)
+
+        # Check for supplied sim cpu version
+        if 'v6' in sim_args:
+            sim_cpu = ''
+
+            # Regex match for allowed cpus
+            valid_cpu_str_regex = r'(?P<pre>--.*\s)?(--m)?' +                 \
+                r'(?P<base_version>v6[25678])(?P<sub_version>[a-z])?' +       \
+                r'(?P<l2_size>_[0-9]+)?(?P<rev>_rev[0-9])?\s?(?P<post>--.*)?'
+            m = re.match(valid_cpu_str_regex, sim_args.lower())
+            if not m:
+                raise ValueError(
+                    'Invalid simulator argument string "{}"'.format(sim_args))
+
+            # Parse options into correct order
+            cpu_attr = {x: str(m.groupdict()[x] or '') for x in m.groupdict()}
+            sim_args = cpu_attr['base_version'] +  \
+                       cpu_attr['sub_version']  +  \
+                       cpu_attr['l2_size'] +       \
+                       cpu_attr['rev'] + ' ' +     \
+                       cpu_attr['pre'] + cpu_attr['post']
+
+        return sim_cpu + ' ' + validate_hvx_length(hvx, sim_args)
+
+    # Sim args
+    os.environ['HEXAGON_SIM_ARGS'] = create_sim(cpu_ver, sim_args)
+
+    target_str = create_target(cpu_ver)
+    args_list = target_str.split()
+    return _ffi_api.TargetCreate("hexagon", *args_list)
 
 
 def create(target_str):

@@ -244,8 +244,9 @@ extern "C" int funcInvokeCallback(TVMValue *args,
     int tcode = typeCodes[i];
     if (tcode == kTVMObjectHandle ||
         tcode == kTVMPackedFuncHandle ||
+        tcode == kTVMObjectRValueRefArg ||
         tcode == kTVMModuleHandle) {
-      TVMCbArgToReturn(&arg, tcode);
+      TVMCbArgToReturn(&arg, &tcode);
     }
     jobject jarg = tvmRetValueToJava(env, arg, tcode);
     env->SetObjectArrayElement(jargs, i, jarg);

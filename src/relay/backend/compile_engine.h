@@ -26,7 +26,7 @@
 #define TVM_RELAY_BACKEND_COMPILE_ENGINE_H_
 
 #include <tvm/node/structural_equal.h>
-#include <tvm/tir/lowered_func.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/runtime/module.h>
 #include <tvm/relay/analysis.h>
 #include <tvm/relay/expr.h>
@@ -81,7 +81,8 @@ struct CachedFuncNode : public Object {
   /*! \brief The schedule to the function */
   te::Schedule schedule;
   /*! \brief The lowered functions to support the function. */
-  tvm::Array<tir::LoweredFunc> funcs;
+  IRModule funcs = IRModule::Empty();
+
   /*! \brief Parameter usage states in the shape function. */
   tvm::Array<Integer> shape_func_param_states;
 
@@ -258,7 +259,7 @@ bool IsDynamic(const Type& ty);
 inline size_t CCacheKeyNode::Hash() const {
   if (hash_ != 0) return hash_;
   // do structral hash, avoid 0.
-  hash_ = StructuralHash()(this->source_func);
+  hash_ = tvm::StructuralHash()(this->source_func);
   hash_ = dmlc::HashCombine(
       hash_, std::hash<std::string>()(target->str()));
   if (hash_ == 0) hash_ = 1;

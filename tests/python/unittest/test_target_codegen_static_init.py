@@ -19,6 +19,18 @@ from tvm import te
 import ctypes
 import numpy as np
 
+
+def MakeAPILegacy(stmt, name, args, num_unpacked_args, noalias):
+    """Legacy adapter to create a API"""
+    f = tvm.tir.PrimFunc(args, stmt).with_attr(
+        "global_symbol", tvm.runtime.String(name))
+    f = f.with_attr("tir.is_entry_func", True)
+    if noalias:
+        f = f.with_attr("tir.noalias", True)
+    mod = tvm.IRModule.from_expr(f)
+    return tvm.tir.transform.MakePackedAPI()(mod)
+
+
 def test_static_callback():
     dtype = 'int64'
     n = te.size_var('n')
@@ -32,9 +44,8 @@ def test_static_callback():
     with ib.for_range(0, n, "i", for_type="parallel") as i:
         A[i] = A[i] + 1
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    f = tvm.target.codegen.build_module(fapi, "llvm")
+    fapi = tvm.testing.MakeAPILegacy(stmt, "ramp", [Ab], 0, True)
+    f = tvm.driver.build(fapi, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
     f(a)
@@ -56,9 +67,8 @@ def test_static_init():
         return sh
 
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "ramp", [Ab], 0, True)
-    fapi = tvm.tir.ir_pass.LowerTVMBuiltin(fapi)
-    f = tvm.target.codegen.build_module(fapi, "llvm")
+    fapi = tvm.testing.MakeAPILegacy(stmt, "ramp", [Ab], 0, True)
+    f = tvm.driver.build(fapi, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     f(a)
 

@@ -107,9 +107,27 @@ def schedule_adaptive_pool(attrs, outs, target):
         return topi.generic.schedule_adaptive_pool(outs)
 
 # softmax
+def wrap_compute_softmax(topi_compute):
+    """Wrap softmax topi compute"""
+    def _compute_softmax(attrs, inputs, out_type):
+        axis = attrs.get_int("axis")
+        return [topi_compute(inputs[0], axis)]
+    return _compute_softmax
+
+@override_native_generic_func("softmax_strategy")
+def softmax_strategy(attrs, inputs, out_type, target):
+    """softmax generic strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implemenation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.generic.schedule_softmax),
+        name="softmax.generic")
+    return strategy
+
+# log_softmax
 @generic_func
-def schedule_softmax(attrs, outs, target):
-    """Schedule softmax"""
+def schedule_log_softmax(attrs, outs, target):
+    """Schedule log_softmax op"""
     with target:
         return topi.generic.schedule_softmax(outs)
 
@@ -373,6 +391,19 @@ def conv3d_strategy(attrs, inputs, out_type, target):
     else:
         raise ValueError("Not support this layout {} yet".format(layout))
     return strategy
+
+# conv3d_winograd_without_weight_transform
+@override_native_generic_func("conv3d_winograd_without_weight_transform_strategy")
+def conv3d_winograd_without_weight_transfrom_strategy(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom generic strategy"""
+    raise ValueError("No generic implemenation for conv3d_winograd_without_weight_transform")
+
+# conv3d_winograd_weight_transform
+@generic_func
+def schedule_conv3d_winograd_weight_transform(attrs, outs, target):
+    """Schedule conv3d_winograd_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv3d_winograd_weight_transform(outs)
 
 # conv1d
 def wrap_compute_conv1d(topi_compute):

@@ -25,7 +25,6 @@
 #define TVM_TE_OPERATION_COMPUTE_OP_H_
 
 #include <tvm/tir/expr.h>
-#include <tvm/tir/expr.h>
 #include <tvm/te/operation.h>
 #include <vector>
 #include <unordered_map>

@@ -156,7 +156,7 @@ def test_simplex_data_transferring():
                                              elemwise_sub],
                               name="elemwise_sub")
 
-        target_flist = {target_device: [lower_add], target_host: [lower_sub]}
+        target_flist = {target_device: lower_add, target_host: lower_sub}
         mhost = tvm.build(target_flist, target_host=target_host)
         ctx = [host_ctx, device_ctx]
         mod = graph_runtime.create(graph, mhost, ctx)
@@ -354,8 +354,9 @@ def test_duplex_data_transferring():
                                              elemwise_sub],
                               name="elemwise_sub")
 
-        target_flist = {target_device: [lower_add0, lower_add1], target_host:
-                        [lower_sub]}
+        lower_add0.update(lower_add1)
+        target_flist = {target_device: lower_add0, target_host:
+                        lower_sub}
         mhost = tvm.build(target_flist, target_host=target_host)
         ctx = [host_ctx, device_ctx]
         params = {}

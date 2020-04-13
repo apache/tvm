@@ -26,6 +26,7 @@
 
 #include <tvm/ir/module.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/function.h>
 
 #include <tvm/runtime/container.h>
@@ -42,81 +43,16 @@
 namespace tvm {
 namespace codegen {
 
-// The new build function.
-// adapt the old function to the new one
-runtime::Module BuildForIRModule(const IRModule& module,
-                                 const Target& target) {
+runtime::Module Build(IRModule mod, const Target& target) {
+  if (BuildConfig::Current()->disable_assert) {
+    mod = tir::transform::SkipAssert()(mod);
+  }
   std::string build_f_name = "target.build." + target->target_name;
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);
   CHECK(bf != nullptr)
       << "target.build." << target << " is not enabled";
-  return (*bf)(module, target->str());
-}
-
-
-
-// convert legacy LoweredFunc to PrimFunc.
-tir::PrimFunc ToPrimFunc(tir::LoweredFunc from) {
-  // remap args to attach type annotations.
-  Array<tir::Var> args;
-  Map<tir::Var, PrimExpr> remap_vars;
-
-  for (auto var : from->args) {
-    if (from->handle_data_type.count(var)) {
-      tir::Var new_var(var->name_hint,
-                       PointerType(PrimType(var->dtype)));
-      args.push_back(new_var);
-      remap_vars.Set(var, new_var);
-    } else {
-      args.push_back(var);
-    }
-  }
-  tir::PrimFunc func(args, Substitute(from->body, remap_vars));
-
-  func = WithAttr(std::move(func), attr::kGlobalSymbol, runtime::String(from->name));
-  func = WithAttr(std::move(func), tir::attr::kDeviceThreadAxis, from->thread_axis);
-  if (from->func_type == tir::LoweredFuncType::kDeviceFunc) {
-    func = WithAttr(std::move(func),
-                    attr::kCallingConv, Integer(CallingConv::kDeviceKernelLaunch));
-  }
-  if (from->is_restricted) {
-    func = WithAttr(std::move(func), tir::attr::kNoAlias, Integer(1));
-  }
-  return func;
-}
-
-IRModule ToIRModule(const Array<tir::LoweredFunc>& funcs) {
-  Map<GlobalVar, BaseFunc> functions;
-  for (size_t i = 0; i < funcs.size(); ++i) {
-    auto f = funcs[i];
-    tir::PrimFunc pf = ToPrimFunc(f);
-    if (i == 0) {
-      pf = WithAttr(std::move(pf), tir::attr::kIsEntryFunc, Integer(1));
-    }
-    functions.Set(GlobalVar(f->name), pf);
-  }
-  return IRModule(functions);
-}
-
-runtime::Module Build(const Array<tir::LoweredFunc>& funcs,
-                      const std::string& target) {
-  std::string mode = target;
-  size_t pos = mode.find(' ');
-  if (pos != std::string::npos) {
-    mode = mode.substr(0, pos);
-  }
-  Array<tir::LoweredFunc> transformed_funcs;
-  if (BuildConfig::Current()->disable_assert) {
-    for (const auto& x : funcs) {
-      auto func = tir::SkipAssert(x);
-      transformed_funcs.push_back(func);
-    }
-  }
-
-  return BuildForIRModule(
-      transformed_funcs.size() != 0 ? ToIRModule(transformed_funcs) : ToIRModule(funcs),
-      Target::Create(target));
+  return (*bf)(mod, target->str());
 }
 
 /*! \brief Helper class to serialize module */
@@ -302,16 +238,7 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod,
 }
 
 TVM_REGISTER_GLOBAL("target.Build")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  if (args[0].IsObjectRef<tir::LoweredFunc>()) {
-      *ret = Build({args[0]}, args[1]);
-    } else {
-      *ret = Build(args[0], args[1]);
-    }
-  });
-
-TVM_REGISTER_GLOBAL("testing.LoweredFuncsToIRModule")
-.set_body_typed(ToIRModule);
+.set_body_typed(Build);
 
 // Export two auxiliary function to the runtime namespace.
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC")

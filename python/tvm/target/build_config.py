@@ -20,9 +20,7 @@ import tvm._ffi
 import tvm.ir
 
 from tvm.runtime import Object
-from tvm.ir import container
 from tvm.tir import Stmt
-from tvm.tir.stmt import LoweredFunc
 from . import _ffi_api
 
 
@@ -48,17 +46,13 @@ class DumpIR(object):
         def dump(*args, **kwargs):
             """dump function"""
             retv = func(*args, **kwargs)
-            if not isinstance(retv, (Stmt, LoweredFunc, container.Array)):
+            if not isinstance(retv, (Stmt,)):
                 return retv
             fname = func.func_name if hasattr(func, 'func_name') else func.__name__
             pname = str(self._pass_id) + "_" + fname + "_ir.cc"
             with open(pname, "a") as f:
-                out = retv.body if isinstance(retv, LoweredFunc) else retv
+                out = retv
                 f.write(str(out))
-                if isinstance(retv, container.Array):
-                    for x in retv:
-                        out = x.body if isinstance(x, LoweredFunc) else x
-                        f.write("---------%s\n%s\n-----------\n"%(x.name, str(out)))
                 self._pass_id += 1
             return retv
         return dump

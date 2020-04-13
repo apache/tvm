@@ -42,5 +42,5 @@ pub mod packed_func;
 pub mod value;
 
 pub use errors::*;
-pub use ffi::{TVMByteArray, TVMContext, DLDataType as TVMType};
+pub use ffi::{DLDataType as TVMType, TVMByteArray, TVMContext};
 pub use packed_func::{TVMArgValue, TVMRetValue};

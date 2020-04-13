@@ -51,8 +51,12 @@ ReprPrinter::FType& ReprPrinter::vtable() {
   return inst;
 }
 
-void Dump(const ObjectRef& n) {
+void Dump(const runtime::ObjectRef& n) {
   std::cerr << n << "\n";
+}
+
+void Dump(const runtime::Object* n) {
+  Dump(runtime::GetRef<runtime::ObjectRef>(n));
 }
 
 TVM_REGISTER_GLOBAL("node.AsRepr")

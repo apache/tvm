@@ -23,6 +23,7 @@
  */
 
 #include <tvm/node/structural_equal.h>
+#include <tvm/node/structural_hash.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/support/logging.h>
@@ -39,7 +40,7 @@ namespace relay {
 namespace vm {
 
 inline std::string GenerateName(const Function& func) {
-  size_t hash = StructuralHash()(func);
+  size_t hash = tvm::StructuralHash()(func);
   return std::string("lifted_name") + std::to_string(hash);
 }
 
@@ -189,7 +190,7 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
-        if (n->GetAttr<tir::StringImm>(attr::kCompiler).defined()) continue;
+        if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
         func = Function(func->params,
                         VisitExpr(func->body),

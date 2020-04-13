@@ -59,7 +59,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
   bool CanOpsBeCombined(const CallNode* a, const CallNode* b) {
-    AttrsEqual eq;
+    StructuralEqual eq;
     const Layout kOIHW("OIHW");
     const auto* attrs_a = a->attrs.as<Conv2DAttrs>();
     const auto* attrs_b = b->attrs.as<Conv2DAttrs>();
@@ -112,7 +112,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   }
 
   bool IsArgCompatible(const CallNode* a, const CallNode* b, size_t index) {
-    AttrsEqual eq;
+    StructuralEqual eq;
     auto ta = a->args[index]->type_as<TensorTypeNode>();
     auto tb = b->args[index]->type_as<TensorTypeNode>();
     auto toutput_a = a->type_as<TensorTypeNode>();
@@ -220,8 +220,7 @@ Pass CombineParallelConv2D(uint64_t min_num_branches) {
     [=](Function f, IRModule m, PassContext pc) {
       return Downcast<Function>(CombineParallelConv2D(f, min_num_branches));
   };
-  return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 4, "CombineParallelConv2d", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.CombineParallelConv2D")
