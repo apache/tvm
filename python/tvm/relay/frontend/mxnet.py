@@ -1801,7 +1801,6 @@ _convert_map = {
     "Cast"          : _cast,
     "clip"          : _clip,
     "transpose"     : _transpose,
-    "SwapAxis"      : _mx_swap_axis,
     "UpSampling"    : _upsampling,
     "add_n"         : _elemwise_sum,
     # MXNet specific implementations
@@ -1825,6 +1824,7 @@ _convert_map = {
     "slice_axis"    : _mx_slice_axis,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
+    "SwapAxis"      : _mx_swap_axis,
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,
