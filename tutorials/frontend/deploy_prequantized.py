@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Deploy a Quantized Model on Cuda
+Deploy a Framework-prequantized Model with TVM
 ================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
@@ -23,6 +23,8 @@ This is an a tutorial on loading models quantized by deep learning frameworks in
 Pre-quantized model import is one of the quantization support we have in TVM. More details on
 the quantization story in TVM can be found
 `here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
+Here, we demonstrate how to load and run models quantized by PyTorch, MXNet, and TFLite.
+Once loaded, we can run quantized models on any hardware TVM supports.
 """
 from PIL import Image
 
@@ -37,7 +39,7 @@ from tvm.contrib.download import download_testdata
 
 
 #################################################################################
-# Helper functions
+# Helper functions to run the demo
 def get_transform():
     import torchvision.transforms as transforms
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -74,14 +76,40 @@ def get_synset():
         return eval(f.read())
 
 
+def run_tvm_model(mod, params, input_name, inp, target="llvm"):
+    with relay.build_config(opt_level=3):
+        json, lib, params = relay.build(mod, target=target, params=params)
+
+    runtime = tvm.contrib.graph_runtime.create(json, lib, tvm.context(target, 0))
+    runtime.set_input(**params)
+
+    runtime.set_input(input_name, inp)
+    runtime.run()
+    return runtime.get_output(0).asnumpy()
+
+
 #################################################################################
-# A mapping from label to class name and an input cat image used for demonstration
+# A mapping from label to class name, to verify that the outputs from models below
+# are reasonable
 synset = get_synset()
+
+#################################################################################
+# Everyone's favorite cat image for demonstration
 inp = get_imagenet_input()
 
-###############################################################################
-# Deploy quantized PyTorch Model
+################################################################################
+# Deploy a quantized PyTorch Model
 # ------------------
+# First, we demonstrate how to load deep learning models quantized by PyTorch,
+# using our PyTorch frontend.
+
+##################################################################################
+# A helper function for converting floating point PyTorch models to quantized ones
+# Please refer to the PyTorch static quantization tutorial below to learn about
+# their quantization workflow.
+# https://pytorch.org/tutorials/advanced/static_quantization_tutorial.html
+# In short, this function takes a floating point model and converts it to a uint8
+# model. A model is per-channel quantized.
 def quantize_model(model, inp):
     model.fuse_model()
     model.qconfig = torch.quantization.get_default_qconfig('fbgemm')
@@ -91,14 +119,18 @@ def quantize_model(model, inp):
     torch.quantization.convert(model, inplace=True)
 
 
-######################################################################
-# Load quantization ready Mobilenet v2 model from torchvision
+##############################################################################
+# Load quantization-ready, pretrained Mobilenet v2 model from torchvision
 # -----------------
+# We choose mobilenet v2 because this model was trained with quantization aware
+# training. Other models require a full post training calibration.
 qmodel = qmobilenet.mobilenet_v2(pretrained=True).eval()
 
-######################################################################
+##############################################################################
 # Quantize, trace and run the PyTorch Mobilenet v2 model
 # -----------------
+# The details are out of scope for this tutorial. Please refer to the tutorials
+# on the PyTorch website to learn about quantization and jit.
 pt_inp = torch.from_numpy(inp)
 quantize_model(qmodel, pt_inp)
 script_module = torch.jit.trace(qmodel, pt_inp).eval()
@@ -106,29 +138,34 @@ script_module = torch.jit.trace(qmodel, pt_inp).eval()
 with torch.no_grad():
     pt_result = script_module(pt_inp).numpy()
 
-######################################################################
+##############################################################################
 # Convert quantized Mobilenet v2 to Relay-QNN using the PyTorch frontend
 # -----------------
-input_name = "input"
+# The PyTorch frontend has support for converting a quantized PyTorch model to
+# an equivalent Relay module enriched with quantization-aware operators.
+# We call this representation Relay QNN dialect.
+# You can print the output from the frontend to see how quantized models are
+# represented. You would see operators specfic to quantization such as
+# qnn.quantize, qnn.dequantize, qnn.requantize, and qnn.conv2d etc.
+input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
 input_shapes = [(input_name, (1, 3, 224, 224))]
 mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+# print(mod)
 
-######################################################################
+##############################################################################
 # Compile and run the Relay module
 # -----------------
-with relay.build_config(opt_level=3):
-    json, lib, params = relay.build(mod, target="llvm", params=params)
-
-runtime = tvm.contrib.graph_runtime.create(json, lib, tvm.cpu(0))
-runtime.set_input(**params)
-
-runtime.set_input(input_name, inp)
-runtime.run()
-tvm_result = runtime.get_output(0).asnumpy()
+# Once we obtained the quantized Relay module, the rest of the workflow
+# is the same as running floating point models. Please refer to other
+# tutorials for more details.
+# Under the hood, quantization specific operators are lowered to a sequence of
+# standard Relay operators before compilation.
+tvm_result = run_tvm_model(mod, params, input_name, inp, target="llvm")
 
 ######################################################################
 # Compare the output labels
 # -----------------
+# We should see identical labels printed.
 pt_top3_labels = np.argsort(pt_result[0])[::-1][:3]
 tvm_top3_labels = np.argsort(tvm_result[0])[::-1][:3]
 
@@ -137,11 +174,11 @@ print("TVM top3 label:", [synset[label] for label in tvm_top3_labels])
 
 
 ###############################################################################
-# Deploy quantized MXNet Model
+# Deploy a quantized MXNet Model
 # ------------------
 # TODO
 
 ###############################################################################
-# Deploy quantized TFLite Model
+# Deploy a quantized TFLite Model
 # ------------------
 # TODO
