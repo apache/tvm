@@ -148,25 +148,42 @@ class Partitioner : public ExprMutator {
       CHECK_EQ(call->args.size(), 1U);
 
       // Traverse the rest graph.
-      auto input_expr = VisitExpr(call->args[0]);
+      Expr parent = call->args[0];
+      auto input_expr = VisitExpr(parent);
+
+      // Backtrace the parent to find the first ancestor node that is not a begin or end op
+      while (const auto* parent_call = parent.as<CallNode>()) {
+        if (parent_call->op == compiler_begin_op ||
+            parent_call->op == compiler_end_op) {
+          parent = parent_call->args[0];
+        } else {
+          break;
+        }
+      }
 
       AnnotatedRegion sg = GetRegion(GetRef<Call>(call));
       int index = GetArgIdx(sg, GetRef<Call>(call));
       CHECK_NE(index, -1);
-      // The type of the created variable is the same as the compiler_begin
-      // node.
-      std::string target = call->attrs.as<CompilerAttrs>()->compiler;
-      std::string varname =
-          target + "_" + std::to_string(sg->GetID()) + "_i" + std::to_string(index);
-      auto var = Var(varname, GetRef<Call>(call)->checked_type_);
 
-      auto cand = std::make_pair(var, input_expr);
-      if (std::find(region_args[sg].begin(), region_args[sg].end(), cand) ==
-          region_args[sg].end()) {
-        region_args[sg].push_back(cand);
+      if (shared_output_.count(parent) && shared_output_[parent].count(sg)) {
+        return shared_output_[parent][sg];
+      } else {
+        // The type of the created variable is the same as the compiler_begin
+        // node.
+        std::string target = call->attrs.as<CompilerAttrs>()->compiler;
+        std::string varname =
+            target + "_" + std::to_string(sg->GetID()) + "_i" + std::to_string(index);
+        auto var = Var(varname, GetRef<Call>(call)->checked_type_);
+
+        std::pair<Var, Expr> cand = std::make_pair(var, input_expr);
+
+        if (std::find(region_args[sg].begin(), region_args[sg].end(), cand) ==
+            region_args[sg].end()) {
+          region_args[sg].push_back(cand);
+        }
+        shared_output_[parent][sg] = var;
+        return std::move(var);
       }
-
-      return std::move(var);
     } else {
       CHECK_EQ(call->op, compiler_end_op);
       // The annotation node is inserted on edge so it must have only one
@@ -474,6 +491,12 @@ class Partitioner : public ExprMutator {
    * belongs to
    */
   std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectHash, ObjectEqual> regions_sets_;
+
+  /*!\brief Cache the output that is shared by different nodes. */
+  using RegionOutputMap = std::unordered_map<AnnotatedRegion, Var, ObjectHash, ObjectEqual>;
+  std::unordered_map<Expr, RegionOutputMap, ObjectHash, ObjectEqual> shared_output_;
+
+  /*!\brief The IRModule used for partitioning. */
   IRModule module_;
 };
 

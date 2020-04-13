@@ -128,42 +128,43 @@ std::vector<std::string> Add(const CallNode* call) {
 
 // TODO(@zhiics, @comaniac): This is a basic implementation. We should implement
 // all utilities and make a base class for users to implement.
-class CodegenDNNL : public ExprVisitor, public CodegenCBase {
+class CodegenDNNL : public ExprFunctor<std::vector<Output>(const Expr&)>,
+                    public CodegenCBase {
  public:
   explicit CodegenDNNL(const std::string& id) { this->ext_func_id_ = id; }
 
-  void VisitExpr_(const VarNode* node) final {
-    ext_func_args_.push_back(GetRef<Var>(node));
-    out_.clear();
-    Output output;
-    output.name = node->name_hint();
-    out_.push_back(output);
+  std::vector<Output> VisitExpr(const Expr& expr) final {
+    if (visited_.count(expr)) return visited_.at(expr);
+    std::vector<Output> output = ExprFunctor::VisitExpr(expr);
+    visited_[expr] = output;
+    return output;
   }
 
-  void VisitExpr_(const TupleGetItemNode* op) final {
-    VisitExpr(op->tuple);
-    CHECK(out_.size() > static_cast<size_t>(op->index));
+  std::vector<Output> VisitExprDefault_(const Object* op) final {
+    LOG(FATAL) << "DNNL codegen doesn't support: " << op->GetTypeKey();
+    return {};
+  }
+
+  std::vector<Output> VisitExpr_(const VarNode* node) final {
+    ext_func_args_.push_back(GetRef<Var>(node));
+    Output output;
+    output.name = node->name_hint();
+    return {output};
+  }
+
+  std::vector<Output> VisitExpr_(const TupleGetItemNode* op) final {
+    auto res = VisitExpr(op->tuple);
+    CHECK_GT(res.size(), static_cast<size_t>(op->index));
 
     // Only keep the item we want for the child node.
     // FIXME(@comaniac): The other items should still be requried for the primary outputs.
-    auto item = out_[op->index];
-    out_.clear();
-    out_.push_back(item);
+    return {res[op->index]};
   }
 
-  void VisitExpr_(const ConstantNode* cn) final {
-    Constant constant = GetRef<Constant>(cn);
-    if (visited_.count(constant)) {
-      out_.push_back(visited_[constant]);
-      return;
-    }
-
-    out_.clear();
+  std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
     Output output;
     output.name = "const_" + std::to_string(const_idx_++);
     output.dtype = "float";
-    out_.push_back(output);
-    visited_[constant] = output;
 
     runtime::NDArray array = cn->data;
 
@@ -176,16 +177,23 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
     CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
 
     std::ostringstream buf_stream;
-    buf_stream << "float* " << output.name << " = (float*)std::malloc(4 * " << num_elems << ");\n";
     const float* ptr = static_cast<float*>(array.ToDLPack()->dl_tensor.data);
-    for (int64_t i = 0; i < num_elems; i++) {
-      buf_stream << "  " << output.name << "[" << i << "] = " << ptr[i] << ";\n";
+
+    // Allocate large arrays on the static section to avoid stakc overflow.
+    // Note that this would probably increase compilation time as the source
+    // file could be really large.
+    buf_stream << "static float " << output.name << "[" << num_elems <<"] = {";
+    for (int64_t i = 0; i < num_elems - 1; i++) {
+      buf_stream << ptr[i] << ",";
     }
+    if (num_elems > 0) buf_stream << ptr[num_elems - 1];
+    buf_stream << "};\n";
 
     ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
+    return {output};
   }
 
-  void VisitExpr_(const CallNode* call) final {
+  std::vector<Output> VisitExpr_(const CallNode* call) final {
     GenerateBodyOutput ret;
     if (const auto* func = call->op.as<FunctionNode>()) {
       ret = GenerateCompositeFunctionCall(func, call);
@@ -193,16 +201,13 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
       ret = GenerateOpCall(call);
     }
 
-    out_.clear();
-    for (size_t i = 0; i < ret.outputs.size(); ++i) {
-      buf_decl_.push_back(ret.buffers[i]);
-      out_.push_back(ret.outputs[i]);
-    }
+    buf_decl_.insert(buf_decl_.end(), ret.buffers.begin(), ret.buffers.end());
     ext_func_body.push_back(ret.decl);
+    return ret.outputs;
   }
 
-  std::string JIT(void) {
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out_);
+  std::string JIT(const std::vector<Output>& out) {
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
   }
 
  private:
@@ -215,8 +220,8 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
   std::vector<std::string> GetArgumentNames(const CallNode* call) {
     std::vector<std::string> arg_names;
     for (size_t i = 0; i < call->args.size(); ++i) {
-      VisitExpr(call->args[i]);
-      for (auto out : out_) {
+      auto res = VisitExpr(call->args[i]);
+      for (const auto& out : res) {
         arg_names.push_back(out.name);
       }
     }
@@ -331,17 +336,15 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
    */
   int buf_idx_{0};
   /*! \brief The index of global constants. */
-  int const_idx_ = 0;
+  int const_idx_{0};
   /*! \brief The arguments used by a wrapped function that calls DNNL kernels. */
   Array<Var> ext_func_args_;
   /*! \brief statement of the function that will be compiled using DNNL kernels. */
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
-  /*! \brief The name of the the outputs. */
-  std::vector<Output> out_;
   /*! \brief The cached expressions. */
-  std::unordered_map<Expr, Output, ObjectHash, ObjectEqual> visited_;
+  std::unordered_map<Expr, std::vector<Output>, ObjectHash, ObjectEqual> visited_;
 };
 
 /*!
@@ -361,8 +364,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     auto sid = GetExtSymbol(func);
 
     CodegenDNNL builder(sid);
-    builder.VisitExpr(func->body);
-    code_stream_ << builder.JIT();
+    auto out = builder.VisitExpr(func->body);
+    code_stream_ << builder.JIT(out);
   }
 
   /*!

@@ -300,6 +300,14 @@ def test_extern_ccompiler_single_op():
     check_result(mod, {"x": x_data, "y": y_data}, (8, 8), x_data + y_data)
 
 
+def set_func_attr(func, compile_name, symbol_name):
+    func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+    func = func.with_attr("Compiler", compile_name)
+    func = func.with_attr("global_symbol", symbol_name)
+    return func
+
+
 def test_extern_ccompiler_default_ops():
     def expected():
         mod = tvm.IRModule()
@@ -310,10 +318,7 @@ def test_extern_ccompiler_default_ops():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
-        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler", "ccompiler")
-        func = func.with_attr("global_symbol", "ccompiler_0")
+        func = set_func_attr(func, "ccompiler", "ccompiler_0")
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [x, y])
@@ -380,32 +385,28 @@ def test_extern_dnnl():
 
     def expected():
         data0 = relay.var("data", shape=(ishape), dtype=dtype)
-        input0 = relay.var("input0", shape=(w1shape), dtype=dtype)
-        input1 = relay.var("input1", shape=(w1shape), dtype=dtype)
+        input0 = relay.var("input", shape=(w1shape), dtype=dtype)
         depthwise_conv2d_1 = relay.nn.conv2d(data0,
                                              input0,
                                              kernel_size=(3, 3),
                                              padding=(1, 1),
                                              groups=32)
         depthwise_conv2d_2 = relay.nn.conv2d(depthwise_conv2d_1,
-                                             input1,
+                                             input0,
                                              kernel_size=(3, 3),
                                              padding=(1, 1),
                                              groups=32)
         out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
-        func = relay.Function([data0, input0, input1], out)
-        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler", "dnnl")
-        func = func.with_attr("global_symbol", "dnnl_0")
+        func = relay.Function([data0, input0], out)
+        func = set_func_attr(func, "dnnl", "dnnl_0")
         glb_var = relay.GlobalVar("dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
 
         data = relay.var("data", shape=(ishape), dtype=dtype)
         weight = relay.var("input", shape=(w1shape), dtype=dtype)
-        main_f = relay.Function([data, weight], glb_var(data, weight, weight))
+        main_f = relay.Function([data, weight], glb_var(data, weight))
         mod["main"] = main_f
 
         return mod
@@ -444,7 +445,7 @@ def test_extern_dnnl():
     check_result(mod, {"data": i_data, "weight1": w1_data},
                  (1, 32, 14, 14), ref_res.asnumpy(), tol=1e-5)
 
-@pytest.mark.skip(reason="fix constant node before opening this case")
+
 def test_extern_dnnl_mobilenet():
     if not tvm.get_global_func("relay.ext.dnnl", True):
         print("skip because DNNL codegen is not available")
@@ -521,10 +522,7 @@ def test_function_lifting():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler", "test_compiler")
-        func0 = func0.with_attr("global_symbol", "test_compiler_0")
+        func0 = set_func_attr(func0, "test_compiler", "test_compiler_0")
         gv0 = relay.GlobalVar("test_compiler_0")
         mod[gv0] = func0
 
@@ -538,10 +536,7 @@ def test_function_lifting():
             channels=16,
             padding=(1, 1))
         func1 = relay.Function([data1, weight1], conv)
-        func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func1 = func1.with_attr("Compiler", "test_compiler")
-        func1 = func1.with_attr("global_symbol", "test_compiler_1")
+        func1 = set_func_attr(func1, "test_compiler", "test_compiler_1")
         gv1 = relay.GlobalVar("test_compiler_1")
         mod[gv1] = func1
 
@@ -610,10 +605,7 @@ def test_function_lifting_inline():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler", "test_compiler")
-        func0 = func0.with_attr("global_symbol", "test_compiler_0")
+        func0 = set_func_attr(func0, "test_compiler", "test_compiler_0")
 
         # main function
         data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
@@ -645,10 +637,7 @@ def test_constant_propagation():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([y0], add)
-        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler", "ccompiler")
-        func = func.with_attr("global_symbol", "ccompiler_0")
+        func = set_func_attr(func, "ccompiler", "ccompiler_0")
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [y])
@@ -745,10 +734,7 @@ def test_multiple_outputs():
 
         func0 = relay.Function([data, weight, bn_gamma, bn_beta,
                                 bn_mean, bn_var], tuple_o)
-        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler", "test_target")
-        func0 = func0.with_attr("global_symbol", "test_target_2")
+        func0 = set_func_attr(func0, "test_target", "test_target_2")
         gv0 = relay.GlobalVar("test_target_2")
         mod[gv0] = func0
 
@@ -810,11 +796,7 @@ def test_mixed_single_multiple_outputs():
         f1_O_2 = relay.nn.relu(f1_O_1)
         f1_out = relay.Tuple((f1_O_2, f1_O_1))
         func1 = relay.Function([f1_cb1], f1_out)
-
-        func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func1 = func1.with_attr("Compiler", "test_target")
-        func1 = func1.with_attr("global_symbol", "test_target_1")
+        func1 = set_func_attr(func1, "test_target", "test_target_1")
         gv1 = relay.GlobalVar("test_target_1")
         mod[gv1] = func1
 
@@ -823,11 +805,7 @@ def test_mixed_single_multiple_outputs():
         f2_cb4 = relay.var('test_target_0_i1', shape=(10, 10))
         f2_O_3 = relay.add(f2_cb3, f2_cb4)
         func0 = relay.Function([f2_cb3, f2_cb4], f2_O_3)
-
-        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.with_attr("Compiler", "test_target")
-        func0 = func0.with_attr("global_symbol", "test_target_0")
+        func0 = set_func_attr(func0, "test_target", "test_target_0")
         gv0 = relay.GlobalVar("test_target_0")
         mod[gv0] = func0
 
@@ -967,10 +945,96 @@ def test_dnnl_fuse():
     ref_mod, ref_params = tvm.relay.testing.create_workload(net)
     test_exec(mod, params, ref_mod, ref_params, (1, 8, 224, 224))
 
-    # exec test on mobilenet is not possible due to manually inlined constants
-    # mod, params = relay.testing.mobilenet.get_workload()
-    # ref_mod, ref_params = relay.testing.mobilenet.get_workload()
-    # test_exec(mod, params, ref_mod, ref_params, (1, 1000))
+    mod, params = relay.testing.mobilenet.get_workload()
+    ref_mod, ref_params = relay.testing.mobilenet.get_workload()
+    test_exec(mod, params, ref_mod, ref_params, (1, 1000))
+
+
+def test_multiple_use_of_an_output():
+    def expected_same_output_region():
+        mod = tvm.IRModule()
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        z = relay.var("z", shape=(8, 8))
+        x0 = relay.var("x0", shape=(8, 8))
+        y0 = relay.var("y0", shape=(8, 8))
+        log = relay.log(x0)
+        sub = x0 - y0
+        mul = log * sub
+        # The partitioned graph contains log, subtract, and multiply
+        func = relay.Function([x0, y0], mul)
+        func = set_func_attr(func, "ccompiler", "ccompiler_0")
+        glb_0 = relay.GlobalVar("ccompiler_0")
+        mod[glb_0] = func
+        add = x + y
+        call = relay.Call(glb_0, [add, z])
+        main = relay.Function([x, y, z], call)
+        mod["main"] = main
+        return mod
+
+    def expected_different_output_region():
+        mod = tvm.IRModule()
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        z = relay.var("z", shape=(8, 8))
+
+        # The partitioned graph contains log
+        i0 = relay.var("i0", shape=(8, 8))
+        log = relay.log(i0)
+        func = relay.Function([i0], log)
+        func = set_func_attr(func, "ccompiler", "ccompiler_0")
+        glb_0 = relay.GlobalVar("ccompiler_0")
+        mod[glb_0] = func
+
+        # The partitioned graph contains subtract
+        x0 = relay.var("x0", shape=(8, 8))
+        y0 = relay.var("y0", shape=(8, 8))
+        sub = x0 - y0
+        func = relay.Function([x0, y0], sub)
+        func = set_func_attr(func, "ccompiler", "ccompiler_1")
+        glb_1 = relay.GlobalVar("ccompiler_1")
+        mod[glb_1] = func
+
+        add = x + y
+        call_log = relay.Call(glb_0, [add])
+        call_sub = relay.Call(glb_1, [add, z])
+        main = relay.Function([x, y, z], call_log * call_sub)
+        mod["main"] = main
+        return mod
+
+    def get_mod():
+        x = relay.var("x", shape=(8, 8))
+        y = relay.var("y", shape=(8, 8))
+        z = relay.var("z", shape=(8, 8))
+        add = x + y
+        sub = add - z
+        log = relay.log(add)
+        sub1 = log * sub
+        f = relay.Function([x, y, z], sub1)
+        mod = tvm.IRModule()
+        mod["main"] = f
+        return mod
+
+    def test_same_output_region():
+        mod = get_mod()
+        mod = WhiteListAnnotator(["subtract", "log", "multiply"], "ccompiler")(mod)
+        mod = transform.MergeCompilerRegions()(mod)
+        mod = transform.PartitionGraph()(mod)
+
+        expected_mod = expected_same_output_region()
+        assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
+
+    def test_different_output_region():
+        mod = get_mod()
+        mod = WhiteListAnnotator(["subtract", "log"], "ccompiler")(mod)
+        mod = transform.MergeCompilerRegions()(mod)
+        mod = transform.PartitionGraph()(mod)
+
+        expected_mod = expected_different_output_region()
+        assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
+
+    test_same_output_region()
+    test_different_output_region()
 
 
 if __name__ == "__main__":
@@ -979,11 +1043,11 @@ if __name__ == "__main__":
     test_extern_ccompiler_default_ops()
     test_extern_ccompiler()
     test_extern_dnnl()
-    # TODO(@comaniac, @zhiics): Fix constant node and re-open this case.
-    #test_extern_dnnl_mobilenet()
+    test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()
     test_constant_propagation()
     test_multiple_outputs()
     test_mixed_single_multiple_outputs()
     test_dnnl_fuse()
+    test_multiple_use_of_an_output()
