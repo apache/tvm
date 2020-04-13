@@ -82,7 +82,10 @@ PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map)
     tmap[kv.first] = kv.second;
   }
 
-  auto thread_axis = f->GetAttr<Array<IterVar> >(tir::attr::kDeviceThreadAxis);
+  auto opt_thread_axis = f->GetAttr<Array<IterVar>>(tir::attr::kDeviceThreadAxis);
+  CHECK(opt_thread_axis != nullptr)
+      << "Require attribute " << tir::attr::kDeviceThreadAxis;
+  auto thread_axis = opt_thread_axis.value();
   auto* n = f.CopyOnWrite();
 
   // replace the thread axis

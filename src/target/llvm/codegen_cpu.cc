@@ -130,7 +130,7 @@ void CodeGenCPU::AddFunction(const PrimFunc& f) {
     CHECK(global_symbol.defined())
         << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
     export_system_symbols_.emplace_back(
-        std::make_pair(global_symbol.operator std::string(),
+        std::make_pair(global_symbol.value().operator std::string(),
                        builder_->CreatePointerCast(function_, t_void_p_)));
   }
   AddDebugInformation(function_);

@@ -620,14 +620,14 @@ class CompileEngineImpl : public CompileEngineNode {
       if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
         auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
-        std::string code_gen_name = code_gen;
+        std::string code_gen_name = code_gen.value();
         if (ext_mods.find(code_gen_name) == ext_mods.end()) {
           ext_mods[code_gen_name] = IRModule({}, {});
         }
         auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
-        auto gv = GlobalVar(std::string(symbol_name));
+        auto gv = GlobalVar(std::string(symbol_name.value()));
         ext_mods[code_gen_name]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
@@ -698,7 +698,7 @@ class CompileEngineImpl : public CompileEngineNode {
           key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       CHECK(name_node.defined())
           << "External function has not been attached a name yet.";
-      cache_node->func_name = std::string(name_node);
+      cache_node->func_name = std::string(name_node.value());
       cache_node->target = tvm::target::ext_dev();
       value->cached_func = CachedFunc(cache_node);
       return value;

@@ -446,7 +446,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK_NE(func->GetAttr<Integer>(attr::kPrimitive, 0)->value, 0)
+    CHECK(func->GetAttr<Integer>(attr::kPrimitive, 0) != 0)
       << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();

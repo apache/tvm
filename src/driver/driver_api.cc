@@ -244,8 +244,9 @@ split_dev_host_funcs(IRModule mod_mixed,
 
   auto host_pass_list = {
     FilterBy([](const tir::PrimFunc& f) {
-      int64_t value = f->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value;
-      return value != static_cast<int>(CallingConv::kDeviceKernelLaunch);
+      return f->GetAttr<Integer>(
+          tvm::attr::kCallingConv,
+          Integer(CallingConv::kDefault)) != CallingConv::kDeviceKernelLaunch;
     }),
     BindTarget(target_host),
     tir::transform::LowerTVMBuiltin(),
@@ -259,8 +260,9 @@ split_dev_host_funcs(IRModule mod_mixed,
   // device pipeline
   auto device_pass_list = {
     FilterBy([](const tir::PrimFunc& f) {
-      int64_t value = f->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value;
-      return value == static_cast<int>(CallingConv::kDeviceKernelLaunch);
+      return f->GetAttr<Integer>(
+          tvm::attr::kCallingConv,
+          Integer(CallingConv::kDefault)) == CallingConv::kDeviceKernelLaunch;
     }),
     BindTarget(target),
     tir::transform::LowerWarpMemory(),

@@ -216,7 +216,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
         auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
         CHECK(global_symbol.defined());
-        entry_func = global_symbol;
+        entry_func = global_symbol.value();
       }
       funcs.push_back(f);
     }

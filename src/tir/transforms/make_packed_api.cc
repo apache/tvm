@@ -48,9 +48,9 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
 PrimFunc MakePackedAPI(PrimFunc&& func,
                        int num_unpacked_args) {
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
+  CHECK(global_symbol)
       << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
-  std::string name_hint = global_symbol;
+  std::string name_hint = global_symbol.value();
 
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = EvaluateNode::make(0);
@@ -240,8 +240,9 @@ Pass MakePackedAPI(int num_unpacked_args) {
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         PrimFunc func = GetRef<PrimFunc>(n);
-        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value
-            == static_cast<int>(CallingConv::kDefault)) {
+        if (func->GetAttr<Integer>(
+                tvm::attr::kCallingConv,
+                Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func), num_unpacked_args);
           updates.push_back({kv.first, updated_func});
         }
