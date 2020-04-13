@@ -700,7 +700,15 @@ class Optional : public ObjectRef {
     }
   }
   auto operator!=(const Optional<T>& other) const {
-    return !(*this == other);
+    // support case where sub-class returns a symbolic ref type.
+    using RetType = decltype(value() != other.value());
+    if (same_as(other)) return RetType(false);
+    if (*this != nullptr && other != nullptr) {
+      return value() != other.value();
+    } else {
+      // one of them is nullptr.
+      return RetType(true);
+    }
   }
   auto operator==(const T& other) const {
     using RetType = decltype(value() == other);
@@ -719,7 +727,9 @@ class Optional : public ObjectRef {
   }
   template<typename U>
   auto operator!=(const U& other) const {
-    return !(*this == other);
+    using RetType = decltype(value() != other);
+    if (*this == nullptr) return RetType(true);
+    return value() != other;
   }
   static constexpr bool _type_is_nullable = true;
 };
