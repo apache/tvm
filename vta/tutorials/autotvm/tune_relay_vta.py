@@ -195,7 +195,7 @@ target = env.target if device == "vta" else env.target_vta_cpu
 # The ``start_pack`` and ``stop_pack`` labels indicate where
 # to start and end the graph packing relay pass: in other words
 # where to start and finish offloading to VTA.
-network = "resnet18_v1"
+network = "resnet50_v2"
 start_pack = "nn.max_pool2d"
 stop_pack = "nn.global_avg_pool2d"
 
@@ -368,7 +368,7 @@ def tune_and_evaluate(tuning_opt):
     tasks = list(filter(lambda t: len(t.args[0][1]) > 4, tasks))
 
     # We should have extracted 10 convolution tasks
-    assert len(tasks) == 10
+    # assert len(tasks) == 10
     print("Extracted {} conv2d tasks:".format(len(tasks)))
     for tsk in tasks:
         inp = tsk.args[0][1]
@@ -392,10 +392,11 @@ def tune_and_evaluate(tuning_opt):
     print("Tuning...")
     tune_tasks(tasks, **tuning_opt)
 
-    # recompile the programs with device annotations
-    relay_prog, params = compile_network(env, target, network, start_pack, stop_pack, device_annot=True)
     # compile kernels with history best records
     with autotvm.tophub.context(target, extra_files=[log_file]):
+        # recompile the programs with device annotations
+        print("Recompile")
+        relay_prog, params = compile_network(env, target, network, start_pack, stop_pack, device_annot=True)
         # Compile network
         print("Compile...")
         if target.device_name != "vta":
@@ -409,7 +410,7 @@ def tune_and_evaluate(tuning_opt):
                 "cpu": env.target_vta_cpu,
                 "ext_dev": env.target
             }
-            with vta.build_config(opt_level=3, disabled_pass={"AlterOpLayout"}):
+            with vta.build_config(opt_level=3, debug_flag=32, disabled_pass={"AlterOpLayout"}):
                 graph, lib, params = relay.build(
                     relay_prog,
                     target=targets,
