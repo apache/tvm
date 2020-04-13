@@ -16,7 +16,7 @@
 # under the License.
 
 TVM_ROOT=$(shell cd ../..; pwd)
-PKG_CFLAGS = -std=c++11 -O2 -fPIC\
+PKG_CFLAGS = -std=c++14 -O2 -fPIC\
 	-I${TVM_ROOT}/include\
 	-I${TVM_ROOT}/3rdparty/dmlc-core/include\
 	-I${TVM_ROOT}/3rdparty/dlpack/include

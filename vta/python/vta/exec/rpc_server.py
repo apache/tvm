@@ -107,7 +107,7 @@ def server_start():
             if pkg.same_config(old_cfg):
                 logging.info("Skip reconfig_runtime due to same config.")
                 return
-        cflags = ["-O2", "-std=c++11"]
+        cflags = ["-O2", "-std=c++14"]
         cflags += pkg.cflags
         ldflags = pkg.ldflags
         lib_name = dll_path

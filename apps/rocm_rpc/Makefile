@@ -21,7 +21,7 @@ ROCM_PATH=/opt/rocm
 TVM_ROOT=$(shell cd ../..; pwd)
 DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 
-PKG_CFLAGS = -std=c++11 -O2 -fPIC\
+PKG_CFLAGS = -std=c++14 -O2 -fPIC\
 	-I${TVM_ROOT}/include\
 	-I${DMLC_CORE}/include\
 	-I${TVM_ROOT}/3rdparty/dlpack/include\
