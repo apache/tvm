@@ -526,13 +526,13 @@ def test_forward_maxpool2d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool2d(kernel_size=[1, 1]).eval(),
-                input_data)
+                 input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[10, 10]).eval(),
-                input_data)
+                 input_data)
     verify_model(torch.nn.MaxPool2d(kernel_size=[4, 4],
                                     padding=2,
                                     stride=2).eval(),
-                input_data)
+                 input_data)
 
 def test_forward_maxpool1d():
     torch.set_grad_enabled(False)
@@ -540,13 +540,13 @@ def test_forward_maxpool1d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool1d(kernel_size=1).eval(),
-                input_data)
+                 input_data)
     verify_model(torch.nn.MaxPool1d(kernel_size=10).eval(),
-                input_data)
-    verify_model( torch.nn.MaxPool1d(kernel_size=4,
+                 input_data)
+    verify_model(torch.nn.MaxPool1d(kernel_size=4,
                                     padding=2,
                                     stride=2).eval(),
-                input_data)
+                 input_data)
 
 def test_forward_maxpool3d():
     torch.set_grad_enabled(False)
@@ -554,13 +554,13 @@ def test_forward_maxpool3d():
     input_data = torch.rand(input_shape).float()
 
     verify_model(torch.nn.MaxPool3d(kernel_size=[1, 1, 1]).eval(),
-                input_data)
+                 input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[10, 10, 10]).eval(),
-                input_data)
+                 input_data)
     verify_model(torch.nn.MaxPool3d(kernel_size=[4, 4, 4],
                                     padding=2,
                                     stride=2).eval(),
-                input_data)
+                 input_data)
 
 def test_forward_split():
     torch.set_grad_enabled(False)
@@ -577,13 +577,13 @@ def test_forward_split():
 
     input_data = torch.rand(input_shape).float()
     verify_model(Split(2, 0).float().eval(),
-                input_data=input_data)
+                 input_data=input_data)
     verify_model(Split(3, 1).float().eval(),
-                input_data=input_data)
+                 input_data=input_data)
     verify_model(Split(4, 1).float().eval(),
-                input_data=input_data)
+                 input_data=input_data)
     verify_model(Split([2, 3, 5], 1).float().eval(),
-                input_data=input_data)
+                 input_data=input_data)
 
 def test_forward_avgpool():
     torch.set_grad_enabled(False)
@@ -1363,3 +1363,8 @@ if __name__ == "__main__":
     # Test simple conditionals and loop
     test_control_flow()
     test_simple_rnn()
+
+    # More complex recurrent models
+    from lstm_test import custom_lstm_test
+
+    custom_lstm_test()
