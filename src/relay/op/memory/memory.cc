@@ -268,28 +268,6 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
       return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
     });
 
-
-//     def pack(self, seq):
-//         """Repack a linear type as a nested type."""
-//         def _pack(value, typ, out):
-//             if isinstance(typ, ty.TensorType):
-//                 out.append(value)
-//             elif isinstance(typ, ty.TupleType):
-//                 tuple_out = []
-//                 for i, field_ty in enumerate(typ.fields):
-//                     _pack(value[i], field_ty, tuple_out)
-//                 out.append(expr.Tuple(tuple_out))
-//             else:
-//                 raise Exception("unsupported Relay type: {0}".format(typ))
-
-//         if len(seq) == 1:
-//             return seq[0]
-//         else:
-//             out = []
-//             _pack(seq, self.typ, out)
-//             assert len(out) == 1, "must return fully packed type"
-//             return out[0]
-
 static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
   if (auto tt = type.as<TensorTypeNode>()) {
     out->push_back(GetRef<TensorType>(tt));
