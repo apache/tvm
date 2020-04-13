@@ -30,6 +30,7 @@ from ... import DataType, register_func
 from .. import ty, expr
 from ..backend import compile_engine
 from ..._ffi.runtime_ctypes import TVMContext
+from ...import cpu
 from typing import Optional
 from collections import defaultdict
 
@@ -48,7 +49,7 @@ def iterative_let(let, each_binding, kont):
     return kont(bindings, let)
 
 
-@attr.s(auto_attribs=True)
+@attr.s(auto_attribs=True, hash=False, eq=False)
 class DeviceDomain:
     domain: Optional[TVMContext]
 
@@ -59,8 +60,24 @@ class DeviceDomain:
             return other
         elif other.domain is None:
             return self
+        elif (self.domain.device_type == other.domain.device_type and
+              self.domain.device_id == other.domain.device_id):
+            return self
         else:
+            import pdb; pdb.set_trace()
             raise Exception("all expressions must have a singular device")
+
+    def __hash__(self):
+        if self.domain is None:
+            return id(self)
+        else:
+            return hash((self.domain.device_type, self.domain.device_id))
+
+    def __eq__(self, other):
+        if self.domain is None and other.domain is None:
+            return id(self) == id(other)
+        else:
+            return self.domain == other.domain
 
 def bottom():
     return DeviceDomain(None)
@@ -70,49 +87,95 @@ def device_type(ctx):
 
 class ContextAnalysis(ExprVisitor):
     """Compute on which device each sub-expression will execute."""
-    def __init__(self):
+    def __init__(self, default_device):
         super().__init__()
         self.expr_to_device = defaultdict(bottom)
         self.device_uf = {}
+        self.default_device = default_device
 
     def lookup(self, device):
+        while device in self.device_uf:
+            device = self.device_uf[device]
         return device
 
     def unify(self, device_one, device_two):
-        return device_one
+        device_one = self.lookup(device_one)
+        device_two = self.lookup(device_two)
+        unified_device = device_one.join(device_two)
+        if not device_one == unified_device:
+            self.device_uf[device_one] = unified_device
+        if not device_two == unified_device:
+            self.device_uf[device_two] = unified_device
+        return unified_device
+
+    def unify_expr(self, expr1, expr2):
+        """Compute the device type of both expressions and unify them."""
+        return self.unify(self.device_for(expr1), self.device_for(expr2))
 
     def device_for(self, expr):
         return self.lookup(self.expr_to_device[expr])
 
     def visit_let(self, let):
-        def _each_binding(lhs, rhs):
-            if isinstance(rhs, expr.Call) and rhs.op == op.op.get("device_copy"):
-                (input_tensor,) = rhs.args
-                src_device = self.unify(self.device_for(input_tensor), device_type(rhs.attrs.src_dev_type))
-                # Not sure about this line.
-                dst_device = self.unify(self.device_for(rhs), device_type(rhs.attrs.dst_dev_type))
-            elif isinstance(rhs, expr.Call) and isinstance(rhs.op, Function):
-                device = bottom()
-                for arg in rhs.args:
-                    self.visit(arg)
-                    device = self.unify(device, self.device_for(arg))
+        self.unify(self.device_for(let.var), self.device_for(let.value))
+        self.unify_expr(let, let.body)
+        super().visit_let(let)
 
-                for param in rhs.op.params:
-                    self.visit(param)
-                    device = self.unify(device, self.device_for(param))
+    def visit_function(self, func):
+        self.unify(self.device_for(func), self.device_for(func.body))
+        super().visit_function(func)
 
-                self.visit(rhs.op.body)
-                body_device = self.device_for(rhs.op.body)
-                self.expr_to_device[rhs] = body_device
-                self.expr_to_device[lhs] = body_device
+    def visit_var(self, var):
+        self.device_for(var)
+
+    def visit_call(self, call):
+        if call.op == op.op.get("device_copy"):
+            (input_tensor,) = call.args
+            src_dev_type = device_type(TVMContext(call.attrs.src_dev_type, 0))
+            self.unify(self.device_for(input_tensor), src_dev_type)
+            dst_dev_type = device_type(TVMContext(call.attrs.dst_dev_type, 0))
+            self.unify(self.device_for(call), dst_dev_type)
+        elif isinstance(call.op, Function):
+            device = bottom()
+            for arg in call.args:
+                self.visit(arg)
+                device = self.unify(device, self.device_for(arg))
+
+            for param in call.op.params:
+                self.visit(param)
+                device = self.unify(device, self.device_for(param))
+
+            out_device = self.device_for(call.op)
+            self.unify(self.device_for(call), out_device)
+            super().visit_call(call)
+        else:
+            device = bottom()
+            for arg in call.args:
+                self.visit(arg)
+                device = self.unify(device, self.device_for(arg))
+
+            device = self.unify(device, self.device_for(call.op))
+            self.unify(device, self.device_for(call))
+            super().visit_call(call)
+
+    def results(self):
+        results = {}
+        for exp in self.expr_to_device:
+            device = self.lookup(self.expr_to_device[exp])
+            if device.domain is None:
+                results[exp] = self.default_device
             else:
-                self.visit(rhs)
-                self.expr_to_device[lhs] = self.device_for(rhs)
+                results[exp] = device.domain
 
-        def _no_op(bindings, body):
-            self.visit(body)
+        return results
 
-        return iterative_let(let, _each_binding, _no_op)
+def mk_analysis_annotator(results):
+    def _annotator(exp):
+        if exp in results:
+            return f"<{results[exp]}>"
+        else:
+            return ""
+
+    return _annotator
 
 # TODO(@jroesch): port to c++ and unify with existing code
 class LinearizeRetType:
@@ -165,7 +228,7 @@ class LinearizeRetType:
 class ManifestAllocPass(ExprMutator):
     """A pass for explicitly manifesting all memory allocations in Relay."""
 
-    def __init__(self, target_host):
+    def __init__(self, target_host, context_analysis):
         self.invoke_tvm = op.memory.invoke_tvm_op
         self.alloc_storage = op.memory.alloc_storage
         self.alloc_tensor = op.memory.alloc_tensor
@@ -173,7 +236,11 @@ class ManifestAllocPass(ExprMutator):
         self.scopes = [ScopeBuilder()]
         self.target_host = target_host
         self.compute_dtype = "int64"
+        self.context_analysis = context_analysis
         super().__init__()
+
+    def get_context(self, expr):
+        return self.context_analysis[expr]
 
     def current_scope(self):
         return self.scopes[-1]
@@ -217,7 +284,7 @@ class ManifestAllocPass(ExprMutator):
         size *= (dtype.bits * dtype.lanes + 7) // 8
         return expr.const(size, dtype=self.compute_dtype)
 
-    def make_static_allocation(self, scope, tensor_type, i):
+    def make_static_allocation(self, scope, tensor_type, ctx, name_hint):
         """Allocate a tensor with a statically known shape."""
         shape = [int(sh) for sh in tensor_type.shape]
         if len(shape) == 0:
@@ -228,11 +295,14 @@ class ManifestAllocPass(ExprMutator):
         size = self.compute_storage(tensor_type)
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
-        sto = scope.let("storage_{0}".format(i), self.alloc_storage(
+
+        # Just need to pass the context here !
+        print(ctx)
+        sto = scope.let("storage_{0}".format(name_hint), self.alloc_storage(
             size, alignment, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
-        return scope.let("tensor_{0}".format(i), tensor)
+        return scope.let("tensor_{0}".format(name_hint), tensor)
 
     def visit_let(self, let):
         scope = ScopeBuilder()
@@ -342,6 +412,7 @@ class ManifestAllocPass(ExprMutator):
             else:
                 outs = []
                 for i, out_ty in enumerate(out_types):
+                    import pdb; pdb.set_trace()
                     out = self.make_static_allocation(scope, out_ty, i)
                     outs.append(out)
 
@@ -364,12 +435,11 @@ class ManifestAlloc:
         # TODO(@jroesch): Is there a way to do one shot initilization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")
-        ca = ContextAnalysis()
+        ca = ContextAnalysis(cpu(0))
         ca.visit(func)
-        import pdb; pdb.set_trace()
-        ea = ManifestAllocPass(self.target_host)
+        print(func.astext(annotate=mk_analysis_annotator(ca.results())))
+        ea = ManifestAllocPass(self.target_host, ca.results())
         func = ea.visit(func)
-        import pdb; pdb.set_trace()
         return func
 
 
