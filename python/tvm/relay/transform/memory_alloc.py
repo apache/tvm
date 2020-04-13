@@ -26,59 +26,13 @@ from .. import op
 from ... import DataType, register_func
 from .. import ty, expr
 from ..backend import compile_engine
+from ..op.memory import flatten_tuple_type, from_tuple_type, to_tuple_type
+from ...import cpu
 
 
 def is_primitive(call):
     return hasattr(call, 'op') and hasattr(call.op, 'attrs') and \
            hasattr(call.op.attrs, 'Primitive') and int(call.op.attrs.Primitive) == 1
-
-# TODO(@jroesch): port to c++ and unify with existing code
-class LinearizeRetType:
-    """A linear view of a Relay type, handles a linear order
-       for nested tuples, and tensor types.
-    """
-
-    def __init__(self, typ):
-        """Initialize the linearizer."""
-        self.typ = typ
-
-    def unpack(self):
-        """Return the linear representation of the type."""
-        def _unpack(typ, out):
-            # TODO(@jroesch): replace with new flattening pass
-            if isinstance(typ, ty.TensorType):
-                out.append(typ)
-            elif isinstance(typ, ty.TupleType):
-                for field_ty in typ.fields:
-                    _unpack(field_ty, out)
-            else:
-                raise Exception("unsupported Relay type: {0}".format(typ))
-
-        output = []
-        _unpack(self.typ, output)
-        return output
-
-    def pack(self, seq):
-        """Repack a linear type as a nested type."""
-        def _pack(value, typ, out):
-            if isinstance(typ, ty.TensorType):
-                out.append(value)
-            elif isinstance(typ, ty.TupleType):
-                tuple_out = []
-                for i, field_ty in enumerate(typ.fields):
-                    _pack(value[i], field_ty, tuple_out)
-                out.append(expr.Tuple(tuple_out))
-            else:
-                raise Exception("unsupported Relay type: {0}".format(typ))
-
-        if len(seq) == 1:
-            return seq[0]
-        else:
-            out = []
-            _pack(seq, self.typ, out)
-            assert len(out) == 1, "must return fully packed type"
-            return out[0]
-
 
 class ManifestAllocPass(ExprMutator):
     """A pass for explictly manifesting all memory allocations in Relay."""
@@ -90,6 +44,7 @@ class ManifestAllocPass(ExprMutator):
         self.shape_func = op.memory.shape_func
         self.scopes = [ScopeBuilder()]
         self.target_host = target_host
+        self.default_context = cpu(0)
         self.compute_dtype = "int64"
         super().__init__()
 
@@ -147,7 +102,7 @@ class ManifestAllocPass(ExprMutator):
         alignment = self.compute_alignment(tensor_type.dtype)
         dtype = tensor_type.dtype
         sto = scope.let("storage_{0}".format(i), self.alloc_storage(
-            size, alignment, dtype))
+            size, alignment, self.default_context, dtype))
         # TODO(@jroesch): There is a bug with typing based on the constant shape.
         tensor = self.alloc_tensor(sto, shape, dtype, tensor_type.shape)
         return scope.let("tensor_{0}".format(i), tensor)
@@ -174,8 +129,7 @@ class ManifestAllocPass(ExprMutator):
             new_args = [self.visit(arg) for arg in call.args]
             ins = expr.Tuple(new_args)
             ret_type = call.checked_type
-            view = LinearizeRetType(ret_type)
-            out_types = view.unpack()
+            out_types = flatten_tuple_type(ret_type)
 
             is_dynamic = ty.type_has_any(ret_type)
             # TODO(@jroesch): restore this code, more complex then it seems
@@ -194,18 +148,11 @@ class ManifestAllocPass(ExprMutator):
                     state = int(state)
                     # Pass Shapes
                     if state == 2:
-                        if isinstance(arg.type_annotation, ty.TupleType):
-                            for j in range(len(arg.type_annotation.fields)):
-                                let_in_arg = scope.let("in_arg_{0}".format(input_pos + j),
-                                                       expr.TupleGetItem(arg, j))
-                                sh_of = self.visit(self.shape_of(let_in_arg))
-                                shape_func_ins.append(
-                                    scope.let("in_shape_{0}".format(input_pos + j), sh_of))
-                            input_pos += len(arg.type_annotation.fields)
-                        else:
-                            sh_of = self.visit(self.shape_of(arg))
+                        for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
+                            let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
+                            sh_of = self.visit(self.shape_of(let_in_arg))
                             shape_func_ins.append(
-                                scope.let("in_shape_{0}".format(input_pos), sh_of))
+                                scope.let("in_shape_{0}".format(input_pos + j), sh_of))
                             input_pos += 1
                         is_inputs.append(0)
                     # Pass Inputs
@@ -215,8 +162,8 @@ class ManifestAllocPass(ExprMutator):
                             scope.let("in_shape_{0}".format(input_pos), new_arg))
                         input_pos += 1
                         is_inputs.append(1)
-                    # TODO(@jroesch): handle 3rd case
                     else:
+                        # TODO(@jroesch): handle 3rd case
                         raise Exception("unsupported shape function input state")
 
                 out_shapes = []
@@ -239,7 +186,7 @@ class ManifestAllocPass(ExprMutator):
                         out_shape, out_type.dtype)
                     alignment = self.compute_alignment(out_type.dtype)
                     sto = scope.let("storage_{i}".format(i=i), self.alloc_storage(
-                        size, alignment, out_type.dtype))
+                        size, alignment, self.default_context, out_type.dtype))
                     storages.append(sto)
 
                 outs = []
@@ -256,7 +203,7 @@ class ManifestAllocPass(ExprMutator):
                 tuple_outs = expr.Tuple(outs)
                 invoke = self.invoke_tvm(call.op, ins, tuple_outs)
                 scope.let("", invoke)
-                return outs[0] if len(outs) == 1 else tuple_outs
+                return to_tuple_type(ret_type, tuple_outs.fields)
             else:
                 outs = []
                 for i, out_ty in enumerate(out_types):
@@ -266,7 +213,7 @@ class ManifestAllocPass(ExprMutator):
                 output = expr.Tuple(outs)
                 invoke = self.invoke_tvm(call.op, ins, output)
                 scope.let("", invoke)
-                return view.pack(output)
+                return to_tuple_type(ret_type, output.fields)
         else:
             return super().visit_call(call)
 

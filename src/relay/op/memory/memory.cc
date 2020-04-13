@@ -43,9 +43,9 @@ TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
-    .set_body_typed([](Expr size, Expr alignment, DataType dtype, TVMContext ctx) {
+    .set_body_typed([](Expr size, Expr alignment, TVMContext ctx, DataType dtype_hint) {
       auto attrs = make_object<AllocStorageAttrs>();
-      attrs->dtype = dtype;
+      attrs->dtype = dtype_hint;
       attrs->device_id = ctx.device_id;
       attrs->device_type = ctx.device_type;
       static const Op& op = Op::Get("memory.alloc_storage");
@@ -213,19 +213,9 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
 .set_body_typed(
-  [](Expr func, Expr inputs, Expr outputs) {
-    Attrs attrs;
-    // Record the attribute of the input expression. The attribute of the master
-    // op in a fused function is used.
-    if (const auto* fn = func.as<FunctionNode>()) {
-      if (const auto* cn = fn->body.as<CallNode>()) {
-        attrs = cn->attrs;
-      }
-    } else if (const auto* cn = func.as<CallNode>()) {
-      attrs = cn->attrs;
-    }
-    return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, attrs);
-  });
+        [](Expr func, Expr inputs, Expr outputs) {
+          return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
+        });
 
 RELAY_REGISTER_OP("memory.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
@@ -278,31 +268,6 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
       return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
     });
 
-// # TODO(@jroesch): port to c++ and unify with existing code
-// class LinearizeRetType:
-//     """A linear view of a Relay type, handles a linear order
-//        for nested tuples, and tensor types.
-//     """
-
-//     def __init__(self, typ):
-//         """Initialize the linearizer."""
-//         self.typ = typ
-
-//     def unpack(self):
-//         """Return the linear representation of the type."""
-//         def _unpack(typ, out):
-//             # TODO(@jroesch): replace with new flattening pass
-//             if isinstance(typ, ty.TensorType):
-//                 out.append(typ)
-//             elif isinstance(typ, ty.TupleType):
-//                 for field_ty in typ.fields:
-//                     _unpack(field_ty, out)
-//             else:
-//                 raise Exception("unsupported Relay type: {0}".format(typ))
-
-//         output = []
-//         _unpack(self.typ, output)
-//         return output
 
 //     def pack(self, seq):
 //         """Repack a linear type as a nested type."""
@@ -343,14 +308,49 @@ std::vector<TensorType> FlattenTupleType(const Type& type) {
   return out;
 }
 
-Array<Expr> FromTupleType(const Type& type, const Expr& expr) {
-  LOG(FATAL) << "NYI";
+static void FromTupleTypeAux(const Type& type, const Expr& expr, std::vector<Expr>* out) {
+  if (auto tt = type.as<TensorTypeNode>()) {
+    out->push_back(expr);
+  } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
+    for (auto i = 0; i < tuple_ty->fields.size(); i++) {
+      FromTupleTypeAux(tuple_ty->fields[i], TupleGetItem(expr, i), out);
+    }
+  } else {
+    LOG(FATAL) << "unsupported " << type;
+  }
+}
+
+std::vector<Expr> FromTupleType(const Type& type, const Expr& expr) {
+  std::vector<Expr> out;
+  FromTupleTypeAux(type, expr, &out);
+  return out;
+}
+
+static void ToTupleTypeAux(const Type& type, const std::vector<Expr>& exprs, int* index, std::vector<Expr>* out) {
+  if (auto tt = type.as<TensorTypeNode>()) {
+    out->push_back(exprs[*index]);
+    *index += 1;
+  } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
+    std::vector<Expr> tuple_out;
+    for (auto i = 0; i < tuple_ty->fields.size(); i++) {
+      ToTupleTypeAux(tuple_ty->fields[i], exprs, index, &tuple_out);
+    }
+    out->push_back(Tuple(tuple_out));
+  } else {
+    LOG(FATAL) << "unsupported " << type;
+  }
 }
 
 // Pack the sequence of expressions according to the provided TupleType.
-Expr ToTupleType(const Type& t, const Array<Expr>& exprs) {
-  LOG(FATAL) << "NYI";
-  return Expr();
+Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs) {
+  if (t.as<TensorTypeNode>() && exprs.size() == 1) {
+    return exprs[0];
+  } else {
+    std::vector<Expr> out;
+    int index = 0;
+    ToTupleTypeAux(t, exprs, &index, &out);
+    return out[0];
+  }
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
@@ -360,10 +360,15 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
 });
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType")
-.set_body_typed(FromTupleType);
+.set_body_typed([](Type type, Expr expr) {
+  auto exprs = FromTupleType(type, expr);
+  return Array<Expr>(exprs.begin(), exprs.end());
+});
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.ToTupleType")
-.set_body_typed(ToTupleType);
+.set_body_typed([](Type t, Array<Expr> array) {
+  return ToTupleType(t, std::vector<Expr>(array.begin(), array.end()));
+});
 
 bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {

@@ -79,7 +79,7 @@ def alloc_storage(size, alignment, ctx, dtype_hint='float32'):
     result : tvm.relay.Expr
         The alloc_storage expression.
     """
-    return _make.alloc_storage(size, alignment, dtype_hint, ctx)
+    return _make.alloc_storage(size, alignment, ctx, dtype_hint)
 
 def shape_func(func, inputs, outputs, dependent=False):
     """Invoke the shape function of the passed function.
