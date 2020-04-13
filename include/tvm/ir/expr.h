@@ -312,6 +312,47 @@ class FloatImm : public PrimExpr {
 };
 
 /*!
+ * \brief Boolean constant.
+ *
+ *  This reference type is useful to add additional compile-time
+ *  type checks and helper functions for Integer equal comparisons.
+ */
+class Bool : public IntImm {
+ public:
+  explicit Bool(bool value)
+      : IntImm(DataType::Bool(), value) {
+  }
+  Bool operator!() const {
+    return Bool((*this)->value == 0);
+  }
+  operator bool() const {
+    return (*this)->value != 0;
+  }
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bool, IntImm, IntImmNode);
+};
+
+// Overload operators to make sure we have the most fine grained types.
+inline Bool operator||(const Bool& a, bool b) {
+  return Bool(a.operator bool() || b);
+}
+inline Bool operator||(bool a, const Bool& b) {
+  return Bool(a || b.operator bool());
+}
+inline Bool operator||(const Bool& a, const Bool& b) {
+  return Bool(a.operator bool() || b.operator bool());
+}
+inline Bool operator&&(const Bool& a, bool b) {
+  return Bool(a.operator bool() && b);
+}
+inline Bool operator&&(bool a, const Bool& b) {
+  return Bool(a && b.operator bool());
+}
+inline Bool operator&&(const Bool& a, const Bool& b) {
+  return Bool(a.operator bool() && b.operator bool());
+}
+
+/*!
  * \brief Container of constant int that adds more constructors.
  *
  * This is used to store and automate type check
@@ -340,10 +381,10 @@ class Integer : public IntImm {
    * \tparam Enum The enum type.
    * \param value The enum value.
    */
-  template<typename ENum,
-           typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
-  explicit Integer(ENum value) : Integer(static_cast<int>(value)) {
-    static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
+  template<typename Enum,
+           typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  explicit Integer(Enum value) : Integer(static_cast<int>(value)) {
+    static_assert(std::is_same<int, typename std::underlying_type<Enum>::type>::value,
                   "declare enum to be enum int to use visitor");
   }
   /*!
@@ -361,6 +402,24 @@ class Integer : public IntImm {
     CHECK(data_ != nullptr)
         << " Trying to reference a null Integer";
     return (*this)->value;
+  }
+  // comparators
+  Bool operator==(int other) const {
+    if (data_ == nullptr) return Bool(false);
+    return Bool((*this)->value == other);
+  }
+  Bool operator!=(int other) const {
+    return !(*this == other);
+  }
+  template<typename Enum,
+           typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  Bool operator==(Enum other) const {
+    return *this == static_cast<int>(other);
+  }
+  template<typename Enum,
+           typename = typename std::enable_if<std::is_enum<Enum>::value>::type>
+  Bool operator!=(Enum other) const {
+    return *this != static_cast<int>(other);
   }
 };
 

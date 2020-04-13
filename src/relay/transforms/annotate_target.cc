@@ -158,9 +158,9 @@ class AnnotateTargetWrapper : public ExprMutator {
       // if it is in the target list.
       Function func = Downcast<Function>(cn->op);
       CHECK(func.defined());
-      auto comp_name = func->GetAttr<String>(attr::kComposite);
-      if (comp_name.defined()) {
-        std::string comp_name_str = comp_name;
+
+      if (auto comp_name = func->GetAttr<String>(attr::kComposite)) {
+        std::string comp_name_str = comp_name.value();
         size_t i = comp_name_str.find('.');
         if (i != std::string::npos) {
           std::string comp_target = comp_name_str.substr(0, i);

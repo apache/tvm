@@ -63,7 +63,6 @@ using runtime::make_object;
 using runtime::PackedFunc;
 using runtime::TVMArgs;
 using runtime::TVMRetValue;
-using runtime::String;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

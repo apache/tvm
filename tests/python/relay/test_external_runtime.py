@@ -468,13 +468,13 @@ def run_extern(label, get_extern_src, **kwargs):
 
 
 def test_dso_extern():
-    run_extern("lib", generate_csource_module, options=["-O2", "-std=c++11"])
+    run_extern("lib", generate_csource_module, options=["-O2", "-std=c++14"])
 
 
 def test_engine_extern():
     run_extern("engine",
                generate_engine_module,
-               options=["-O2", "-std=c++11", "-I" + tmp_path.relpath("")])
+               options=["-O2", "-std=c++14", "-I" + tmp_path.relpath("")])
 
 def test_json_extern():
     if not tvm.get_global_func("module.loadfile_examplejson", True):

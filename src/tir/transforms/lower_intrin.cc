@@ -293,7 +293,7 @@ Pass LowerIntrin() {
         << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
     n->body =
-        IntrinInjecter(&analyzer, target->target_name)(std::move(n->body));
+        IntrinInjecter(&analyzer, target.value()->target_name)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});

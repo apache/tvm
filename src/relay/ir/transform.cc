@@ -145,8 +145,8 @@ IRModule FunctionPassNode::operator()(IRModule mod,
 }
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
-  return func->GetAttr<Integer>(attr::kSkipOptimization, 0)->value != 0 ||
-    (func->GetAttr<String>(attr::kCompiler).defined());
+  return (func->GetAttr<String>(attr::kCompiler).defined()) ||
+  func->GetAttr<Integer>(attr::kSkipOptimization, 0) != 0;
 }
 
 Pass CreateFunctionPass(

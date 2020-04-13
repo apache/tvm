@@ -131,12 +131,12 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  CHECK(module_->getFunction(static_cast<std::string>(global_symbol)) == nullptr)
+  CHECK(module_->getFunction(static_cast<std::string>(global_symbol.value())) == nullptr)
       << "Function " << global_symbol << " already exist in module";
 
   function_ = llvm::Function::Create(
       ftype, llvm::Function::ExternalLinkage,
-      global_symbol.operator std::string(), module_.get());
+      global_symbol.value().operator std::string(), module_.get());
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 

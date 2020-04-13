@@ -182,7 +182,7 @@ def check_result(mod, map_inputs, out_shape, result, tol=1e-5, target="llvm",
         contrib_path = os.path.join(source_dir, "src", "runtime", "contrib")
 
         kwargs = {}
-        kwargs["options"] = ["-O2", "-std=c++11", "-I" + contrib_path]
+        kwargs["options"] = ["-O2", "-std=c++14", "-I" + contrib_path]
         tmp_path = util.tempdir()
         lib_name = 'lib.so'
         lib_path = tmp_path.relpath(lib_name)

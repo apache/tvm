@@ -84,7 +84,7 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
-  this->stream << " " << static_cast<std::string>(global_symbol) << "(";
+  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
 
   for (size_t i = 0; i < f->params.size(); ++i) {
     tir::Var v = f->params[i];

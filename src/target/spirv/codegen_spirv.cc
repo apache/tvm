@@ -82,7 +82,8 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f) {
   CHECK(global_symbol.defined())
       << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
-  builder_->CommitKernelFunction(func_ptr, static_cast<std::string>(global_symbol));
+  builder_->CommitKernelFunction(
+    func_ptr, static_cast<std::string>(global_symbol.value()));
 
   return builder_->Finalize();
 }
