@@ -101,10 +101,51 @@ def shape_func(func, inputs, outputs, dependent=False):
     return _make.shape_func(func, inputs, outputs, dependent)
 
 def flatten_tuple_type(ty):
+    """Return a sequence of the types contained in the tuple type in order.
+
+    Parameters
+    ----------
+    ty: tvm.Type
+        The type to flatten.
+
+    Returns
+    -------
+    result: List[tvm.Type]
+        The types in their linear order.
+    """
     return _make.FlattenTupleType(ty)
 
 def from_tuple_type(ty, expr):
+    """Convert an expression with the given type into a sequence of expressions.
+       Each expressions maps to a field of the tuple or nested tuples in linear
+       order.
+
+    Parameters
+    ----------
+    ty: tvm.Type
+        The type to unpack.
+    expr: The expression from which to extract each sub-field.
+
+    Returns
+    -------
+    result: List[tvm.relay.Expr]
+        The list of sub-expressions.
+    """
     return _make.FromTupleType(ty, expr)
 
 def to_tuple_type(ty, exprs):
+    """Pack the sequence of expressions into the nested tuple type.
+
+    Parameters
+    ----------
+    ty: tvm.Type
+        The type to pack with.
+
+    exprs: The expressions to pack back into the nested tuple type.
+
+    Returns
+    -------
+    result: List[tvm.relay.Expr]
+    The packed tuple expression.
+    """
     return _make.ToTupleType(ty, exprs)
