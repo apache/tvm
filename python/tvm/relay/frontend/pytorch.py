@@ -272,6 +272,39 @@ def _select():
         return _op.transform.take(data, index, axis=dim)
     return _impl
 
+def _take():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        import torch
+
+        if isinstance(inputs[1], _expr.Var):
+            indices = _op.cast(inputs[1], "int32")
+        elif isinstance(inputs[1], torch.Tensor):
+            indices = _wrap_const(inputs[1].numpy())
+        else:
+            msg = "Data type %s could not be parsed in take operator." % (type(inputs[1]))
+            raise AssertionError(msg)
+
+        return _op.transform.take(data, indices=indices)
+    return _impl
+
+def _topk():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        k = int(inputs[1])
+        axis = int(inputs[2])
+        is_ascend = not bool(inputs[3])
+        sort = bool(inputs[4])
+
+        if not sort:
+            msg = "Currently supports only sorted output for topk operator."
+            raise AssertionError(msg)
+
+        outs = _op.topk(data, k=k, axis=axis, is_ascend=is_ascend, ret_type="both")
+
+        return outs[0], outs[1]
+    return _impl
+
 def _reciprocal():
     def _impl(inputs, input_types):
         data = inputs[0]
@@ -1416,6 +1449,8 @@ def _get_convert_map(prelude):
         "aten::split"                           : _split(),
         "aten::split_with_sizes"                : _split_with_sizes(),
         "aten::select"                          : _select(),
+        "aten::take"                            : _take(),
+        "aten::topk"                            : _topk(),
         "aten::relu"                            : _relu(),
         "aten::relu_"                           : _relu(),
         "aten::prelu"                           : _prelu(),
