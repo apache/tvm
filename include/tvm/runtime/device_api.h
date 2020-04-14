@@ -193,6 +193,15 @@ class TVM_DLL DeviceAPI {
    * \return The corresponding device API.
    */
   static DeviceAPI* Get(TVMContext ctx, bool allow_missing = false);
+
+  /*!
+   * \brief Whether a certian device type requires set device context
+   *        before launching the kernel function.
+   * \param device_type The device type.
+   */
+  static bool NeedSetDeviceContext(int device_type) {
+    return device_type != kDLCPU && device_type != kDLMicroDev;
+  }
 };
 
 /*! \brief The device type bigger than this is RPC device */

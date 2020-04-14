@@ -44,7 +44,7 @@ def lower(sch, args):
     f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
         "global_symbol", tvm.runtime.String("test"))
     mod = tvm.IRModule({"test": f})
-    return tvm.tir.transform.MakePackedAPI()(mod)
+    return mod
 
 
 # All computations are bound.
