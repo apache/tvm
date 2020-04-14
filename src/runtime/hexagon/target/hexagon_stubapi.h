@@ -28,8 +28,8 @@
 
 #include <tuple>
 
-#include "fastrpc/tvm_hexagon_remote.h"
-#include "fastrpc/tvm_hexagon_remote_nd.h"
+#include "fastrpc/include/tvm_remote.h"
+#include "fastrpc/include/tvm_remote_nd.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,15 +39,15 @@ namespace hexagon {
  * Unify the handling of domain and non-domain functions.
  *
  * In most cases, for a function "foo", the domain version will be called
- * "tvm_hexagon_remote_foo", and the non-domain version will have "nd_foo".
+ * "tvm_remote_foo", and the non-domain version will have "nd_foo".
  * The interfaces will be the same, except:
  * - the domain version will take "remote_handle64" as the first parameter,
  *   while the non-domain version will not:
- *   int tvm_hexagon_remote_foo   (remote_handle64 h, param1, param2, ...);
- *   int tvm_hexagon_remote_nd_foo                   (param1, param2, ...);
+ *   int tvm_remote_foo     (remote_handle64 h, param1, param2, ...);
+ *   int tvm_remote_nd_foo                     (param1, param2, ...);
  * - any parameter of type "buffer" in the IDL, will be converted into a
- *   type "tvm_hexagon_remote_buffer" for domain functions, and into
- *   "tvm_hexagon_remote_nd_buffer" for non-domain functions. These two
+ *   type "tvm_remote_buffer" for domain functions, and into
+ *   "tvm_remote_nd_buffer" for non-domain functions. These two
  *   types are identical, but since they are declared in two different IDLs,
  *   they get different names.
  *
@@ -55,32 +55,32 @@ namespace hexagon {
  * since the pointee types are different, this is enough to create a
  * difference in the function signatures even if the "remote_handle64"
  * parameter is ignored. For this reason, in all function types, the
- * types "tvm_hexagon_remote_buffer *" and "tvm_hexagon_remote_nd_buffer *",
+ * types "tvm_remote_buffer *" and "tvm_remote_nd_buffer *",
  * both const and non-const, are replaced with "void *", with the
  * corresponding const-qualification. This is done by the templates
  * "replace_pointee_type" and "map_tuple_element" below.
  *
  * The following functions are subject to the uniform handling:
  *
- *   tvm_hexagon_remote_load_library     (remote_handle64 h, p1, p2, ...)
- *   tvm_hexagon_remote_release_library
- *   tvm_hexagon_remote_get_symbol
- *   tvm_hexagon_remote_kernel
- *   tvm_hexagon_remote_close
- *   tvm_hexagon_remote_alloc_vtcm
- *   tvm_hexagon_remote_free_vtcm
+ *   tvm_remote_load_library     (remote_handle64 h, p1, p2, ...)
+ *   tvm_remote_release_library
+ *   tvm_remote_get_symbol
+ *   tvm_remote_kernel
+ *   tvm_remote_close
+ *   tvm_remote_alloc_vtcm
+ *   tvm_remote_free_vtcm
  *
- *   tvm_hexagon_remote_nd_load_library  (p1, p2, ...)
- *   tvm_hexagon_remote_nd_release_library
- *   tvm_hexagon_remote_nd_get_symbol
- *   tvm_hexagon_remote_nd_kernel
- *   tvm_hexagon_remote_nd_close
+ *   tvm_remote_nd_load_library  (p1, p2, ...)
+ *   tvm_remote_nd_release_library
+ *   tvm_remote_nd_get_symbol
+ *   tvm_remote_nd_kernel
+ *   tvm_remote_nd_close
  *
  * The "open" functions differ in their parameters in different ways, and
  * need to be handled individually.
  *
- *   tvm_hexagon_remote_open
- *   tvm_hexagon_remote_nd_open
+ *   tvm_remote_open
+ *   tvm_remote_nd_open
  */
 
 namespace {
@@ -157,35 +157,35 @@ class StubAPI {
 
  private:
   // Create types for each remote function. For functions that take
-  // a pointer to tvm_hexagon_remote_buffer or tvm_hexagon_remote_nd_buffer,
+  // a pointer to tvm_remote_buffer or tvm_remote_nd_buffer,
   // replace that pointer with pointer to void to make pointers to these
   // two types identical in the function types created below.
-  // For example, int foo(tvm_hexagon_remote_buffer*) and
-  // int bar(tvm_hexagon_remote_nd_buffer*) should both have the same type.
+  // For example, int foo(tvm_remote_buffer*) and
+  // int bar(tvm_remote_nd_buffer*) should both have the same type.
 #define MAPTYPE(fn, ty) \
   using fn##_t = typename map_func_type<ty, void, decltype(::fn)>::type;
-  MAPTYPE(tvm_hexagon_remote_load_library, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_release_library, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_get_symbol, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_kernel, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_close, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_alloc_vtcm, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_free_vtcm, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_call_mmap64, tvm_hexagon_remote_buffer)
+  MAPTYPE(tvm_remote_load_library, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_release_library, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_get_symbol, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_kernel, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_close, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_alloc_vtcm, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_free_vtcm, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_call_mmap64, tvm_remote_buffer)
 
-  MAPTYPE(tvm_hexagon_remote_nd_load_library, tvm_hexagon_remote_nd_buffer)
-  MAPTYPE(tvm_hexagon_remote_nd_release_library, tvm_hexagon_remote_nd_buffer)
-  MAPTYPE(tvm_hexagon_remote_nd_get_symbol, tvm_hexagon_remote_nd_buffer)
-  MAPTYPE(tvm_hexagon_remote_nd_kernel, tvm_hexagon_remote_nd_buffer)
-  MAPTYPE(tvm_hexagon_remote_nd_close, tvm_hexagon_remote_buffer)
-  MAPTYPE(tvm_hexagon_remote_nd_call_mmap64, tvm_hexagon_remote_buffer)
+  MAPTYPE(tvm_remote_nd_load_library, tvm_remote_nd_buffer)
+  MAPTYPE(tvm_remote_nd_release_library, tvm_remote_nd_buffer)
+  MAPTYPE(tvm_remote_nd_get_symbol, tvm_remote_nd_buffer)
+  MAPTYPE(tvm_remote_nd_kernel, tvm_remote_nd_buffer)
+  MAPTYPE(tvm_remote_nd_close, tvm_remote_buffer)
+  MAPTYPE(tvm_remote_nd_call_mmap64, tvm_remote_buffer)
 #undef MAPTYPE
 
   // For remote functions whose prototypes differ significantly between
   // the domain and non-domain versions, create the types directly.
 #define DECLTYPE(fn) using fn##_t = decltype(::fn);
-  DECLTYPE(tvm_hexagon_remote_open)
-  DECLTYPE(tvm_hexagon_remote_nd_open)
+  DECLTYPE(tvm_remote_open)
+  DECLTYPE(tvm_remote_nd_open)
 
   DECLTYPE(rpcmem_init)
   DECLTYPE(rpcmem_deinit)
@@ -214,9 +214,9 @@ class StubAPI {
 #define CONCAT_STR_FOR_REAL(a, b) a##b
 #define CONCAT_STR(a, b) CONCAT_STR_FOR_REAL(a, b)
 
-#define FUNC(name) CONCAT_STR(tvm_hexagon_remote_, name)
-#define FUNC_D(name) CONCAT_STR(tvm_hexagon_remote_, name)
-#define FUNC_ND(name) CONCAT_STR(tvm_hexagon_remote_nd_, name)
+#define FUNC(name) CONCAT_STR(tvm_remote_, name)
+#define FUNC_D(name) CONCAT_STR(tvm_remote_, name)
+#define FUNC_ND(name) CONCAT_STR(tvm_remote_nd_, name)
 #define PTRNAME(fn) CONCAT_STR(p, CONCAT_STR(fn, _))
 
 #define DECLFUNC(name)                                                   \
@@ -254,11 +254,11 @@ class StubAPI {
 #undef DECLSFUNC
 #undef DECLFUNC_D
 
-  int tvm_hexagon_remote_open(const char* uri, remote_handle64* handle) const {
+  int tvm_remote_open(const char* uri, remote_handle64* handle) const {
     if (enable_domains_) {
-      return PTRNAME(tvm_hexagon_remote_open)(uri, handle);
+      return PTRNAME(tvm_remote_open)(uri, handle);
     }
-    return PTRNAME(tvm_hexagon_remote_nd_open)();
+    return PTRNAME(tvm_remote_nd_open)();
   }
 
   static const StubAPI* Global();
@@ -268,23 +268,23 @@ class StubAPI {
   void* lib_handle_ = nullptr;
 
 #define DECLPTR(fn) fn##_t* PTRNAME(fn) = nullptr
-  DECLPTR(tvm_hexagon_remote_load_library);
-  DECLPTR(tvm_hexagon_remote_release_library);
-  DECLPTR(tvm_hexagon_remote_get_symbol);
-  DECLPTR(tvm_hexagon_remote_kernel);
-  DECLPTR(tvm_hexagon_remote_open);
-  DECLPTR(tvm_hexagon_remote_close);
-  DECLPTR(tvm_hexagon_remote_alloc_vtcm);
-  DECLPTR(tvm_hexagon_remote_free_vtcm);
-  DECLPTR(tvm_hexagon_remote_call_mmap64);
+  DECLPTR(tvm_remote_load_library);
+  DECLPTR(tvm_remote_release_library);
+  DECLPTR(tvm_remote_get_symbol);
+  DECLPTR(tvm_remote_kernel);
+  DECLPTR(tvm_remote_open);
+  DECLPTR(tvm_remote_close);
+  DECLPTR(tvm_remote_alloc_vtcm);
+  DECLPTR(tvm_remote_free_vtcm);
+  DECLPTR(tvm_remote_call_mmap64);
 
-  DECLPTR(tvm_hexagon_remote_nd_load_library);
-  DECLPTR(tvm_hexagon_remote_nd_release_library);
-  DECLPTR(tvm_hexagon_remote_nd_get_symbol);
-  DECLPTR(tvm_hexagon_remote_nd_kernel);
-  DECLPTR(tvm_hexagon_remote_nd_open);
-  DECLPTR(tvm_hexagon_remote_nd_close);
-  DECLPTR(tvm_hexagon_remote_nd_call_mmap64);
+  DECLPTR(tvm_remote_nd_load_library);
+  DECLPTR(tvm_remote_nd_release_library);
+  DECLPTR(tvm_remote_nd_get_symbol);
+  DECLPTR(tvm_remote_nd_kernel);
+  DECLPTR(tvm_remote_nd_open);
+  DECLPTR(tvm_remote_nd_close);
+  DECLPTR(tvm_remote_nd_call_mmap64);
 #undef DECLPTR
 
 // "System" functions.

@@ -73,7 +73,9 @@ ALLOW_EXTENSION = {
     "sdc",
     # generated parser
     "interp",
-    "tokens"
+    "tokens",
+    # interface definition
+    "idl",
     }
 
 # List of file names allowed
