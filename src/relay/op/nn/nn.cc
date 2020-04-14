@@ -961,14 +961,13 @@ Do log on the data - do not accept logits.
 .add_type_rel("CrossEntropy", CrossEntropyRel);
 
 
-/////
 // relay.nn.dilate
 TVM_REGISTER_NODE_TYPE(DilateAttrs);
 
 bool DilateRel(const Array<Type>& types,
-                    int num_inputs,
-                    const Attrs& attrs,
-                    const TypeReporter& reporter) {
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* x = types[0].as<TensorTypeNode>();
   const DilateAttrs* param = attrs.as<DilateAttrs>();
@@ -1009,7 +1008,6 @@ Dilate data with zeros.
 .add_argument("x", "1D Tensor", "Data to dilate.")
 .set_support_level(10)
 .add_type_rel("Dilate", DilateRel);
-/////
 
 // Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
 Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {

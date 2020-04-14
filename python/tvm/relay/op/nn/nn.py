@@ -1355,7 +1355,7 @@ def dilate(data, strides):
     data : tvm.relay.Expr
         n-D, can be any layout.
 
-    strides : <tuple of n <int>
+    strides : <tuple of <int>
         Dilation stride on each dimension, 1 means no dilation.
 
     Returns
