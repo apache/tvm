@@ -66,6 +66,7 @@ void DFPatternMatcher::ClearMap(size_t watermark) {
   }
   matched_nodes_.erase(matched_nodes_.begin() + watermark, matched_nodes_.end());
 }
+
 bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr) {
   if (memo_.count(pattern)) {
     return expr.same_as(memo_[pattern]);
@@ -85,6 +86,7 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
 bool DFPatternMatcher::VisitDFPattern_(const AltPatternNode* op, const Expr& expr) {
   return VisitDFPattern(op->left, expr) || VisitDFPattern(op->right, expr);
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr) {
   bool matches = false;
   if (const auto* op_node = expr.as<OpNode>()) {
@@ -121,7 +123,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
   return matches;
 }
 
-Array<DFPattern> reverse(const Array<DFPattern> args) {
+Array<DFPattern> reverse(const Array<DFPattern>& args) {
   Array<DFPattern> new_args;
   for (auto it = args.rbegin(); it != args.rend(); ++it) {
     new_args.push_back(*it);
@@ -248,6 +250,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   }
   return false;
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
   auto watermark = matched_nodes_.size();
   auto backup_memo = memo_;
@@ -310,9 +313,11 @@ bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Exp
   }
   return false;
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) {
   return StructuralEqual()(op->expr, expr);
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_get_item_node = expr.as<TupleGetItemNode>()) {
@@ -321,6 +326,7 @@ bool DFPatternMatcher::VisitDFPattern_(const TupleGetItemPatternNode* op, const 
   }
   return matches;
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* tuple_node = expr.as<TupleNode>()) {
@@ -335,6 +341,7 @@ bool DFPatternMatcher::VisitDFPattern_(const TuplePatternNode* op, const Expr& e
   }
   return matches;
 }
+
 Expr InferType(const Expr& expr) {
   auto mod = IRModule::FromExpr(expr);
   mod = transform::InferType()(mod);
@@ -344,10 +351,12 @@ Expr InferType(const Expr& expr) {
     return mod->Lookup("main").as<FunctionNode>()->body;
   }
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr) {
   auto expr_type = InferType(expr).as<ExprNode>()->checked_type();
   return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& expr) {
   bool matches = false;
   if (const auto* var_node = expr.as<VarNode>()) {
@@ -358,6 +367,7 @@ bool DFPatternMatcher::VisitDFPattern_(const VarPatternNode* op, const Expr& exp
   }
   return matches;
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) {
   return true;
 }
@@ -398,6 +408,7 @@ class PatternRewriter : protected MixedModeMutator {
     }
     return out;
   }
+
   DFPatternMatcher matcher_;
   Array<DFPatternCallback> callbacks_;
 };
