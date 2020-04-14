@@ -1201,10 +1201,12 @@ def _test_fill(dims, value_data, value_dtype):
     """ Use the fill op to create a tensor of value_data with constant dims."""
 
     value_data = np.array(value_data, dtype=value_dtype)
-    with tf.Graph().as_default():
-        value = array_ops.placeholder(dtype=value_dtype, name="value", shape=[])
-        out = tf.fill(dims,  value)
-        compare_tflite_with_tvm([value_data], ["value"], [value], [out])
+    # TF 1.13 TFLite convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        with tf.Graph().as_default():
+            value = array_ops.placeholder(dtype=value_dtype, name="value", shape=[])
+            out = tf.fill(dims,  value)
+            compare_tflite_with_tvm([value_data], ["value"], [value], [out])
 
     with tf.Graph().as_default():
         input1 = array_ops.placeholder(dtype=value_dtype, name="input1", shape=dims)
