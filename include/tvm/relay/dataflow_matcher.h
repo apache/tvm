@@ -39,7 +39,9 @@ class DFPatternCallback;
  */
 class DFPatternCallbackNode : public Object {
  public:
+  /*! \brief Pattern this callback matches */
   DFPattern pattern_;
+  /*! \brief Function to call when finding a matched expression */
   PackedFunc function_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {}

@@ -15,13 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """The Relay Pattern Language and tooling."""
+from tvm.relay import Expr
 from ...ir.base import Node
 from ...ir import make_node
 from ...runtime import Object
 from ... import _ffi as tvm_ffi
 from ..op import get
 from . import _ffi as ffi
-from tvm.relay import Expr
 
 
 def register_df_node(type_key=None):
@@ -107,7 +107,7 @@ class DFPattern(Node):
         path: tvm.relay.df_pattern.DFPattern
             The fuzzy path pattern.
         """
-        if path == None:
+        if path is None:
             path = wildcard()
         return DominatorPattern(parent, path, self)
 

@@ -120,6 +120,12 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
   }
 };
 
+/*!
+ * \brief A simple visitor wrapper around DFPatternFunctor.
+ *  Recursively visit the content.
+ *
+ *  DFPatternVisitor treats the Pattern as dataflow graph,and only visit each Expr node once.
+ */
 class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
  public:
   void VisitDFPattern(const DFPattern& pattern) override;
@@ -135,28 +141,47 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   void VisitDFPattern_(const WildcardPatternNode* op) override;
 
  protected:
+  // set of already-visited nodes
   std::unordered_set<const Object*> visited_;
 };
 
+/*!
+ * \brief A Wrapper around a templated graph type
+ *  Holds a forward-backward indexed representation of the graph and a dominator tree representation
+ * of the graph
+ *
+ *  Class is Templated and the implementaiton is in the header file so we can analyis both DFPattern
+ * and Expr with the same infrastructure.
+ *
+ *  IndexedGraph should be instantiated thorught the CreateIndexedGraph utilities.
+ */
 template <typename T>
 class IndexedGraph {
  public:
-  struct Node;
-  struct Edge {
-    explicit Edge(const std::shared_ptr<Node>& sink) : sink_(sink) {}
-    std::shared_ptr<Node> sink_;
-  };
+  /*! \brief A Node that wraps the input type and represents the indexed graph and dominator tree */
   struct Node {
+    /*! \brief Node Constructor
+     *  \param ref The input graph node
+     *  \param index The index of the node in toplogoical order
+     */
     Node(const T& ref, const size_t index) : ref_(ref), index_(index) {}
+
+    /*! \brief The input node */
     const T ref_;
+    /*! \brief The topological order index */
     const size_t index_;
 
+    /*! \brief A boolean to determine if this node is external to the graph */
     bool is_external_ = false;
-    std::vector<std::shared_ptr<Edge>> outputs_;
+    /*! \brief The forward outputs/users of the node */
+    std::vector<std::shared_ptr<Node>> outputs_;
 
+    /*! \brief The depth of the node in the dominator tree */
     size_t depth_;
+    /*! \brief The dominator parent/final user of the outputs of this node */
     std::shared_ptr<Node> dominator_parent_;
   };
+  /*! \brief Construct the domination create of the index graph */
   void PostDom() {
     for (size_t i = topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;
@@ -171,20 +196,25 @@ class IndexedGraph {
       }
     }
   }
+  /*! \brief Map of input nodes to IndexedGraph Nodes */
   std::unordered_map<T, std::shared_ptr<Node>, ObjectHash, ObjectEqual> node_map_;
+  /*! \brief Topological IndexedGraph Nodes */
   std::vector<std::shared_ptr<Node>> topological_order_;
 
  protected:
-  std::shared_ptr<Node> LeastCommonAncestor(const std::vector<std::shared_ptr<Edge>>& outputs) {
+  /*! \brief Find the least common ancestor of all outputs of a node */
+  std::shared_ptr<Node> LeastCommonAncestor(const std::vector<std::shared_ptr<Node>>& outputs) {
     if (outputs.size() == 0) {
       return nullptr;
     }
-    auto parent = outputs.at(0)->sink_;
+    auto parent = outputs.at(0);
     for (size_t i = 1; i < outputs.size(); ++i) {
-      parent = LeastCommonAncestor(parent, outputs.at(i)->sink_);
+      parent = LeastCommonAncestor(parent, outputs.at(i));
     }
     return parent;
   }
+
+  /*! \brief Find the least common ancestor of two nodes */
   std::shared_ptr<Node> LeastCommonAncestor(std::shared_ptr<Node> lhs, std::shared_ptr<Node> rhs) {
     if (lhs == nullptr || rhs == nullptr) {
       return nullptr;
@@ -203,7 +233,9 @@ class IndexedGraph {
   }
 };
 
+/*! \brief Create an Indexed Graph based on an Expr */
 IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr);
+/*! \brief Create an Indexed Graph based on an DFPattern */
 IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 
 }  // namespace relay

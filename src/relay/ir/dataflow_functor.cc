@@ -23,8 +23,8 @@
  */
 
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/dataflow_functor.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 
 namespace tvm {
@@ -80,6 +80,7 @@ void DFPatternVisitor::VisitDFPattern_(const WildcardPatternNode* op) {}
 
 IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
   using NodePtr = std::shared_ptr<IndexedGraph<Expr>::Node>;
+  /*! \brief Creator Creates an IndexedGraph and determintes Toplogical order */
   class Creator : public MixedModeVisitor {
    public:
     IndexedGraph<Expr> CreateGraph(const Expr& expr) {
@@ -98,22 +99,30 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
     IndexedGraph<Expr> graph_;
     size_t index_ = 0;
   };
+  /*! \brief Annotator takes an IndexedGraph, fills it's forward outputs, and does domiantor tree
+   * analysis.
+   *
+   *  Annotator use ExprFunctor to visit nodes, but iterates over them in pre-determined
+   * topological order instead of recursing.
+   */
   class Annotator : public ExprFunctor<void(const Expr&, NodePtr)> {
    public:
     Annotator(const IndexedGraph<Expr>& graph) : graph_(graph) {}
     IndexedGraph<Expr> Annotate() {
+      // Visit all of the nodes in topological order to get forward outputs
       for (const auto& node : graph_.topological_order_) {
         ExprFunctor::VisitExpr(node->ref_, nullptr);
       }
+      // do the dominator analysis
       graph_.PostDom();
       return std::move(graph_);
     }
 
+    /*! Default visitation pushes the parent to the child's ouputs */
     void VisitExpr(const Expr& expr, NodePtr parent) override {
       auto current = graph_.node_map_[expr];
       if (parent) {
-        auto edge = std::make_shared<IndexedGraph<Expr>::Edge>(parent);
-        current->outputs_.push_back(edge);
+        current->outputs_.push_back(parent);
       }
     }
 
@@ -214,6 +223,7 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
 
 IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
   using NodePtr = std::shared_ptr<IndexedGraph<DFPattern>::Node>;
+  /*! \brief Creator Creates an IndexedGraph and determintes Toplogical order */
   class Creator : public DFPatternVisitor {
    public:
     IndexedGraph<DFPattern> CreateGraph(const DFPattern& pattern) {
@@ -232,22 +242,30 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
     IndexedGraph<DFPattern> graph_;
     size_t index_ = 0;
   };
+  /*! \brief Annotator takes an IndexedGraph, fills it's forward outputs, and does domiantor tree
+   * analysis.
+   *
+   *  Annotator use ExprFunctor to visit nodes, but iterates over them in pre-determined
+   * topological order instead of recursing.
+   */
   class Annotator : public DFPatternFunctor<void(const DFPattern&, NodePtr)> {
    public:
     Annotator(const IndexedGraph<DFPattern>& graph) : graph_(graph) {}
     IndexedGraph<DFPattern> Annotate() {
+      // Visit all of the nodes in topological order to get forward outputs
       for (const auto& node : graph_.topological_order_) {
         DFPatternFunctor::VisitDFPattern(node->ref_, nullptr);
       }
       graph_.PostDom();
+      // do the dominator analysis
       return std::move(graph_);
     }
 
+    /*! Default visitation pushes the parent to the child's ouputs */
     void VisitDFPattern(const DFPattern& pattern, NodePtr parent) override {
       auto current = graph_.node_map_[pattern];
       if (parent) {
-        auto edge = std::make_shared<IndexedGraph<DFPattern>::Edge>(parent);
-        current->outputs_.push_back(edge);
+        current->outputs_.push_back(parent);
       }
     }
 
@@ -268,8 +286,7 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
         VisitDFPattern(arg, graph_.node_map_[GetRef<DFPattern>(op)]);
       }
     }
-    void VisitDFPattern_(const DominatorPatternNode* op,
-                                           NodePtr parent) override {
+    void VisitDFPattern_(const DominatorPatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->parent, graph_.node_map_[GetRef<DFPattern>(op)]);
       VisitDFPattern(op->path, graph_.node_map_[GetRef<DFPattern>(op)]);
       VisitDFPattern(op->child, graph_.node_map_[GetRef<DFPattern>(op)]);
@@ -277,8 +294,7 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
     void VisitDFPattern_(const ExprPatternNode* op, NodePtr parent) override {}
 
-    void VisitDFPattern_(const TupleGetItemPatternNode* op,
-                                           NodePtr parent) override {
+    void VisitDFPattern_(const TupleGetItemPatternNode* op, NodePtr parent) override {
       VisitDFPattern(op->tuple, graph_.node_map_[GetRef<DFPattern>(op)]);
     }
 
@@ -294,13 +310,10 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
 
     void VisitDFPattern_(const VarPatternNode* op, NodePtr parent) override {}
 
-    void VisitDFPattern_(const WildcardPatternNode* op, NodePtr parent) override {
-    }
+    void VisitDFPattern_(const WildcardPatternNode* op, NodePtr parent) override {}
   };
   return Annotator(Creator().CreateGraph(pattern)).Annotate();
 }
-
-
 
 }  // namespace relay
 }  // namespace tvm

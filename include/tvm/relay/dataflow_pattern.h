@@ -276,25 +276,6 @@ class WildcardPattern : public DFPattern {
   TVM_DEFINE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
 };
 
-/*!
- * \brief Null Pattern.
- */
-class NullPatternNode : public DFPatternNode {
- public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-
-  static constexpr const char* _type_key = "relay.df_pattern.NullPattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(NullPatternNode, DFPatternNode);
-};
-
-/*!
- * \brief A pattern which matches anything.
- */
-class NullPattern : public DFPattern {
- public:
-  TVM_DEFINE_OBJECT_REF_METHODS(NullPattern, DFPattern, NullPatternNode);
-};
-
 class TypePattern;
 /*!
  * \brief Pattern for Types.

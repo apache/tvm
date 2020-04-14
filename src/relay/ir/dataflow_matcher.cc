@@ -352,7 +352,7 @@ TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
 
 class PatternRewriter : protected MixedModeMutator {
  public:
-  PatternRewriter(const Array<DFPatternCallback>& callbacks) : callbacks_(callbacks) {}
+  explicit PatternRewriter(const Array<DFPatternCallback>& callbacks) : callbacks_(callbacks) {}
   Expr Rewrite(const Expr& pre) { return this->VisitExpr(pre); }
 
  protected:
