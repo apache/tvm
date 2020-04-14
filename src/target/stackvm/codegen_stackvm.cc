@@ -58,6 +58,8 @@ StackVM::StructFieldKind MapFieldKind(int64_t kind) {
 }
 
 StackVM CodeGenStackVM::Compile(const PrimFunc& f) {
+  CHECK_EQ(f->buffer_map.size(), 0U)
+      << "Cannot codegen function with buffer_map, please lower them first";
   for (size_t i = 0; i < f->params.size(); ++i) {
     Var v = f->params[i];
     int vid = AllocVarID(v.get());
