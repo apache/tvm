@@ -33,6 +33,7 @@ from .common import ExprTable
 from .common import infer_shape as _infer_shape
 from .tflite_flexbuffer import FlexBufferDecoder
 
+
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
@@ -114,6 +115,7 @@ class OperatorConverter(object):
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
             'QUANTIZE': self.convert_quantize,
+            'RANGE': self.convert_range,
             'REDUCE_ANY': self.convert_reduce_any,
             'REDUCE_MAX': self.convert_reduce_max,
             'REDUCE_MIN': self.convert_reduce_min,
@@ -125,6 +127,7 @@ class OperatorConverter(object):
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
             'SELECT': self.convert_select,
+            'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
@@ -604,6 +607,63 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.tanh(in_expr)
+
+        return out
+
+    def convert_range(self, op):
+        """Convert TFLite Range"""
+        try:
+            from tflite.Operator import Operator
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized RANGE operator is not supported yet.')
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
+        expressions = []
+
+        for t in [start, limit, delta]:
+            if self.has_expr(t.tensor_idx):
+                expressions.append(self.get_expr(t.tensor_idx))
+            else:
+                tensor_type = self.get_tensor_type_str(t.tensor.Type())
+                tensor_value = self.get_tensor_value(t)
+                expressions.append(self.exp_tab.new_const(tensor_value, dtype=tensor_type))
+
+        #out type inference
+        if delta.tensor.Type() == TensorType.FLOAT32:
+            out_type = self.get_tensor_type_str(delta.tensor.Type())
+        else:
+            out_type = self.get_tensor_type_str(start.tensor.Type())
+
+        #put type here form op
+        out = _op.arange(expressions[0], expressions[1], expressions[2], out_type)
+
+        return out
+
+    def convert_shape(self, op):
+        """Convert TFLite Shape"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized SHAPE operator is not supported yet.')
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        out = _op.shape_of(self.get_expr(input_tensors[0].tensor_idx))
 
         return out
 
