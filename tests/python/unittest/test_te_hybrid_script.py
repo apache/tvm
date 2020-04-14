@@ -366,7 +366,7 @@ def test_bind():
     c = foo(a)
     s = te.create_schedule(c.op)
     ir = tvm.lower(s, [a, c], simple_mode=True)
-    assert not isinstance(ir, tvm.tir.AttrStmt)
+
     func, ins, outs = run_and_check(foo, [a], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
 

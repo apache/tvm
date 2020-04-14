@@ -57,8 +57,8 @@ def test_basic():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body[0]))
-    assert('if' in str(stmt.body.body.body[1]))
+    assert('if' not in str(stmt.body.body[0]))
+    assert('if' in str(stmt.body.body[1]))
 
 def test_const_loop():
     n = 21
@@ -73,7 +73,7 @@ def test_const_loop():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body[0]))
+    assert('if' not in str(stmt.body.body[0]))
 
 def test_multi_loop():
     ib = tvm.tir.ir_builder.create()
@@ -128,7 +128,7 @@ def test_thread_axis():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body[0]))
+    assert('if' not in str(stmt.body.body[0]))
 
 def test_vectorize():
     n = te.size_var('n')
@@ -148,7 +148,7 @@ def test_vectorize():
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
     stmt = lower(s, [A, B])
-    body = stmt.body.body.body.body.body
+    body = stmt.body.body.body.body
     assert(x.var.name not in str(body.condition))
     assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp))))
 
@@ -191,7 +191,7 @@ def test_thread_axis2():
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     stmt = lower(s, [A, B])
-    for_body = stmt.body.body.body.body.body[0]
+    for_body = stmt.body.body.body.body[0]
     assert('threadIdx' not in str(for_body.extent))
 
 def test_everything_during_deduction():

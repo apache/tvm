@@ -284,10 +284,10 @@ def test_tensor_intrin_scalar_params():
     C = te.compute((10,10), lambda i, j: intrin(i*i, A[i, j], i+j), name="C")
     s = te.create_schedule(C.op)
     stmt = tvm.lower(s, [A, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body, tvm.tir.Evaluate)
-    assert len(stmt.body.body.body.value.args) == 5
-    assert str(stmt.body.body.body.value.args[3]) == "(i*i)"
-    assert str(stmt.body.body.body.value.args[4]) == "(i + j)"
+    assert isinstance(stmt.body.body, tvm.tir.Evaluate)
+    assert len(stmt.body.body.value.args) == 5
+    assert str(stmt.body.body.value.args[3]) == "(i*i)"
+    assert str(stmt.body.body.value.args[4]) == "(i + j)"
 
 if __name__ == "__main__":
     test_singleton()
