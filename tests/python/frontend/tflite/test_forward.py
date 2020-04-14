@@ -180,7 +180,6 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
             converter.quantized_input_stats = input_stats
 
         tflite_model_buffer = converter.convert()
-        open("/Users/mahesh/Downloads/converted_model2.tflite", "wb").write(tflite_model_buffer)
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
         for device in ["llvm"]:
@@ -218,59 +217,48 @@ def with_fused_activation_function(input_tensor, fn_name):
     raise AssertionError("Unknown fused_activation_function {}".format(fn_name))
 
 
-def _test_split(in_shape, axis, num_Splits, dtype):
-    '''internal split tester taking as parameters in_shape, number of tensors to split into
-       and dtype (data type)'''
+def _test_split(in_shape, axis, num_splits, dtype):
+    """internal split tester taking as parameters in_shape, number of tensors to split into
+       and dtype (data type)"""
+
     np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=in_shape, dtype='float32')
-        input_range = {'inq_0': (-100, 100)}
-        inq_data = tf.quantization.fake_quant_with_min_max_args(in_data,
-                                                                 min=-100,
-                                                                 max=100,
-                                                                 name="inq_0")
-        out1 = tf.add(inq_data, inq_data)
-        out1 = tf.quantization.fake_quant_with_min_max_args(out1,
-                                                                 min=-100,
-                                                                 max=100,
-                                                                 name="out1")
-        out = array_ops.split(out1, num_Splits, axis=axis)
-        num_Splits = len(num_Splits) if isinstance(num_Splits, list) \
-            else num_Splits
-
-
-        out_names = ['out_' + str(n) + ':0' for n in range(num_Splits)]
-        compare_tflite_with_tvm([np_data], ['inq_0'],  [inq_data], out,
-                                out_names=out_names, quantized=True, input_range=input_range)
+        in_data = array_ops.placeholder(shape=in_shape, dtype=dtype, name="in_data")
+        out = array_ops.split(in_data, num_splits, axis=axis)
+        num_splits = len(num_splits) if isinstance(num_splits, list) \
+            else num_splits
+        out_names = ['out_' + str(n) + ':0' for n in range(num_splits)]
+        compare_tflite_with_tvm([np_data], ['in_data'],  [in_data], out,
+                                out_names=out_names)
 
 def test_forward_split():
     '''test split layer'''
     # rank 1
-    # _test_split((3,), 0, 1, 'float32')
-    # _test_split((3,), 0, 3, 'float32')
-    # _test_split((6,), 0, 3, 'float32')
-    # # rank 2
-    # _test_split((6, 2), 0, 3, 'float32')
-    # _test_split((2, 6), 1, 6, 'float32')
-    # # rank 3
-    # if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
-    #     _test_split((6, 2, 4), 0, 2, 'int32')
-    #
-    # _test_split((2, 6, 4), 1, 3, 'float32')
-    # _test_split((2, 4, 6), 2, 1, 'float32')
-    # # rank 4
-    # _test_split((6, 1, 3, 5), 0, 3, 'float32')
-    # _test_split((1, 6, 3, 5), 1, 3, 'float32')
-    # _test_split((1, 3, 6, 5), 2, 3, 'float32')
-    # _test_split((1, 3, 5, 6), 3, 3, 'float32')
-    # # split along negative axis
-    # _test_split((6, 1, 3, 5), -4, 3, 'float32')
-    # _test_split((1, 6, 3, 5), -3, 3, 'float32')
-    # _test_split((1, 3, 6, 5), -2, 3, 'float32')
-    # _test_split((1, 3, 5, 6), -1, 3, 'float32')
+    _test_split((3,), 0, 1, 'float32')
+    _test_split((3,), 0, 3, 'float32')
+    _test_split((6,), 0, 3, 'float32')
+    # rank 2
+    _test_split((6, 2), 0, 3, 'float32')
+    _test_split((2, 6), 1, 6, 'float32')
+    # rank 3
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        _test_split((6, 2, 4), 0, 2, 'int32')
 
-    _test_split((6,), 0, [1, 2, 3], np.uint8)
-    # _test_split((3, 6, 4), -2, [1, 4, 1], 'float32')
+    _test_split((2, 6, 4), 1, 3, 'float32')
+    _test_split((2, 4, 6), 2, 1, 'float32')
+    # rank 4
+    _test_split((6, 1, 3, 5), 0, 3, 'float32')
+    _test_split((1, 6, 3, 5), 1, 3, 'float32')
+    _test_split((1, 3, 6, 5), 2, 3, 'float32')
+    _test_split((1, 3, 5, 6), 3, 3, 'float32')
+    # split along negative axis
+    _test_split((6, 1, 3, 5), -4, 3, 'float32')
+    _test_split((1, 6, 3, 5), -3, 3, 'float32')
+    _test_split((1, 3, 6, 5), -2, 3, 'float32')
+    _test_split((1, 3, 5, 6), -1, 3, 'float32')
+    # size_splits split
+    _test_split((6,), 0, [1, 2, 3], 'float32')
+    _test_split((3, 6, 4), -2, [1, 4, 1], 'float32')
 
 #######################################################################
 # slice
@@ -698,28 +686,18 @@ def test_forward_transpose_conv():
 
 def _test_reshape(data, out_shape):
     """ One iteration of reshape operation with given data and out shape """
-    # with tf.Graph().as_default():
-    #     in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-    #     out = array_ops.reshape(in_data, out_shape)
-    #
-    #     compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
-
     with tf.Graph().as_default():
-        out_shape = np.array(out_shape, dtype="int32")
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in_data")
-        out_shape_data = array_ops.placeholder(shape=out_shape.shape, dtype=out_shape.dtype,
-                                               name="out_shape_data")
-        out = array_ops.reshape(in_data, out_shape_data)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = array_ops.reshape(in_data, out_shape)
 
-        compare_tflite_with_tvm([data, out_shape], ['in_data', 'out_shape_data'],
-                                [in_data, out_shape_data], [out])
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
 
 def test_forward_reshape():
     _test_reshape(np.arange(6.0, dtype=np.float32), [2, 3])
-    # _test_reshape(np.arange(6), [-1, 2])
-    # _test_reshape(np.arange(6), [3, -1])
-    # _test_reshape(np.arange(6), [-1])
+    _test_reshape(np.arange(6), [-1, 2])
+    _test_reshape(np.arange(6), [3, -1])
+    _test_reshape(np.arange(6), [-1])
 
 
 #######################################################################
@@ -1210,75 +1188,9 @@ def _test_zeros_like(data):
         out = gen_array_ops.zeros_like(in_data)
         compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
 
-        tf.reverse_sequence
-
 def test_forward_zeros_like():
     """ ZEROS LIKE """
     _test_zeros_like(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
-
-#######################################################################
-# RANGE
-# ----------
-
-def _test_range(data, reshape_shape):
-    """ One iteration of Shape  """
-
-    start = np.array(start,dtype=dtype)
-    limit = np.array(start, dtype=dtype)
-    delta = np.array(start, dtype=dtype)
-    with tf.Graph().as_default():
-        in_start = array_ops.placeholder(shape=start.shape, dtype=data.dtype, name="start")
-        in_limit = array_ops.placeholder(shape=limit.shape, dtype=data.dtype, name="start")
-        in_delta = array_ops.placeholder(shape=delta.shape, dtype=data.dtype, name="start")
-        out = tf.range(1, 18, 3, name="range")
-
-        compare_tflite_with_tvm([start, limit, delta], ['Placeholder:0'],
-                                [in_start, in_limit, in_delta], out)
-
-        """test operator Range"""
-        tf.reset_default_graph()
-        with tf.Graph().as_default():
-            tf.range(1, 18, 3, name="range")
-            compare_tf_with_tvm([], [], 'range:0')
-
-        """test type assignment for operator Range"""
-        tf.reset_default_graph()
-        with tf.Graph().as_default():
-            tf.range(1, 256 + 1, 1, dtype=tf.float32)
-            compare_tf_with_tvm([], [], 'range:0')
-
-
-def test_forward_range():
-    """ RANGE """
-    _test_shape(np.arange(6.0, dtype=np.int32).reshape((1, 6)),
-                np.array([2,3], dtype="int32"))
-
-
-#######################################################################
-# Shape
-# ----------
-
-def _test_shape(data, reshape_shape):
-    """ One iteration of Shape  """
-
-    with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
-       # value = array_ops.placeholder(dtype=value_dtype, name="value", shape=[])
-        new_shape = tf.placeholder(
-            dtype=reshape_shape.dtype, shape=[len(reshape_shape)], name="new_shape")
-        reshaped = array_ops.split(in_data, 3, 1)
-        #reshaped = tf.reshape(in_data, shape=new_shape)
-        #out = tf.shape(reshaped)
-        #out = tf.fill(dims,  value)
-
-        compare_tflite_with_tvm([data], ['Placeholder:0'],
-                                [in_data], reshaped)
-
-
-def test_forward_shape():
-    """ SHAPE """
-    _test_shape(np.arange(6.0, dtype=np.int32).reshape((1, 6)),
-                np.array([2,3], dtype="int32"))
 
 
 #######################################################################
@@ -1301,6 +1213,7 @@ def _test_fill(dims, value_data, value_dtype):
         out1 = tf.add(out, input1)
         input1_data = np.random.uniform(0, 5, size=dims).astype(value_dtype)
         compare_tflite_with_tvm([input1_data], ["input1"], [input1], [out1])
+
 
 def test_forward_fill():
     """ Test FILL op """
@@ -2020,45 +1933,6 @@ def test_forward_mediapipe_hand_landmark():
     for i in range(2):
         tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
                                     rtol=1e-5, atol=1e-5)
-
-
-def test_tflite():
-    import tensorflow as tf
-
-
-    # img = tf.placeholder(name="img", dtype=tf.int32, shape=(4,))
-    # const = tf.constant([1., 2., 3.]) + tf.constant([1., 4., 4.])
-    # const = tf.constant(1.)
-    #
-    # out = tf.range(tf.constant([1,2,3,4]) , const)
-    # #out = tf.fake_quant_with_min_max_args(out, min=0., max=1., name="output")
-    #
-    # with tf.Session() as sess:
-    #     print(sess.run([out]))
-    #     converter = tf.lite.TFLiteConverter.from_session(sess, [img], [out])
-    #     #converter.inference_type = tf.lite.constants.QUANTIZED_UINT8
-    #     input_arrays = converter.get_input_arrays()
-    #     #converter.quantized_input_stats = {input_arrays[0]: (0., 1.)}  # mean, std_dev
-    #     tflite_model = converter.convert()
-    #     open("/Users/mahesh/Downloads/converted_model.tflite", "wb").write(tflite_model)
-
-
-    import tensorflow as tf
-
-
-    start = tf.placeholder(dtype = tf.int32, shape=())
-    limit = tf.placeholder(dtype = tf.int32, shape=())
-    delta = tf.placeholder(dtype = tf.int32, shape=())
-    r = tf.range(start, limit, delta, tf.int32, name="range_op")
-
-    with tf.Session() as sess:
-        o = sess.run([r], feed_dict={start: 1, limit:10, delta:2})
-        print(o)
-
-        converter = tf.lite.TFLiteConverter.from_session(sess, [start,limit,delta], [r])
-        tflite_model = converter.convert()
-        open("/Users/mahesh/Downloads/converted_model.tflite", "wb").write(tflite_model)
-
 
 #######################################################################
 # Main

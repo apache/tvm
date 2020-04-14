@@ -108,7 +108,6 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
-            'RANGE': self.convert_range,
             'REDUCE_ANY': self._convert_reduce_any,
             'REDUCE_MAX': self._convert_reduce_max,
             'REDUCE_MIN': self._convert_reduce_min,
@@ -119,7 +118,6 @@ class OperatorConverter(object):
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
-            'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
@@ -357,11 +355,6 @@ class OperatorConverter(object):
         target_shape = reshape_options.NewShapeAsNumpy()
 
         in_expr = self.get_expr(input_tensor_idx)
-        if not len(target_shape):
-            target_shape = self.get_expr(input_tensors[1].tensor_idx)
-        else:
-            target_shape = tuple(target_shape)
-
 
         # If the tensors are quantized, ensure that input/output qnn params are same.
         if input_tensor.qnn_params:
@@ -370,7 +363,7 @@ class OperatorConverter(object):
             output_tensor = output_tensors[0]
             assert self.has_same_qnn_params(input_tensor, output_tensor), \
                     "TFLite reshape requires input and output scale and zero points to be equal"
-        out = _op.reshape(in_expr, target_shape)
+        out = _op.reshape(in_expr, newshape=tuple(target_shape))
         return out
 
     def _convert_resize(self, method, op):
@@ -739,22 +732,6 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized RSQRT operator is not supported yet.')
         return self._convert_unary_elemwise(_op.rsqrt, op)
-
-    def convert_shape(self, op):
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
-
-        input_tensor = input_tensors[0]
-        in_expr = self.get_expr(input_tensor.tensor_idx)
-        return _op.shape_of(in_expr)
-
-
 
     def convert_neg(self, op):
         """Convert TFLite NEG"""
@@ -1242,37 +1219,17 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 1"
+        assert len(input_tensors) == 2, "input tensors length should be 2"
 
         if self.has_expr(input_tensors[0].tensor_idx):
-            raise tvm.error.OpNotImplemented("For dims parameter of fill operator, only constant values are supported.")
+            raise tvm.error.OpNotImplemented("For dims parameter of Fill operator,"
+                                             " only constant values are supported.")
 
         in_dims = list(self.get_tensor_value(input_tensors[0]))
         in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
-
         out = _op.full(in_value_expr, in_dims)
+
         return out
-
-    def convert_range(self, op):
-        """Convert TFLite RANGE"""
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2, "input tensors length should be 1"
-
-        if self.has_expr(input_tensors[0].tensor_idx):
-            raise tvm.error.OpNotImplemented("For dims parameter of fill operator, only constant values are supported.")
-
-        in_dims = list(self.get_tensor_value(input_tensors[0]))
-        in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
-
-        out = _op.full(in_value_expr, in_dims)
-        return out
-
 
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""
@@ -2379,11 +2336,6 @@ class OperatorConverter(object):
 
     def get_expr(self, input_tensor_idx):
         return self.exp_tab.get_expr(get_tensor_name(self.subgraph, input_tensor_idx))
-
-    def get_const_expr(self,  input_tensor):
-        type_str = self.get_tensor_type_str(input_tensor.tensor.Type())
-        return self.exp_tab.new_const(self.get_tensor_value(input_tensor),
-                                          dtype=type_str)
 
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
