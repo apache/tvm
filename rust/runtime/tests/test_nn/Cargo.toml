@@ -25,7 +25,7 @@ authors = ["TVM Contributors"]
 ndarray="0.12"
 serde = "1.0"
 serde_json = "1.0"
-tvm-runtime = { path = "../../" }
+tvm-graph-runtime = { path = "../../" }
 
 [build-dependencies]
 ar = "0.6"

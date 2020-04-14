@@ -23,4 +23,4 @@ authors = ["TVM Contributors"]
 
 [dependencies]
 ndarray="0.12"
-tvm-runtime = { path = "../../" }
+tvm-graph-runtime = { path = "../../" }

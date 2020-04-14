@@ -91,7 +91,7 @@ class IdNode : public Object {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);

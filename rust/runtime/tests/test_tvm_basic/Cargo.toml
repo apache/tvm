@@ -23,7 +23,7 @@ authors = ["TVM Contributors"]
 
 [dependencies]
 ndarray="0.12"
-tvm-runtime = { path = "../../" }
+tvm-graph-runtime = { path = "../../" }
 
 [build-dependencies]
 ar = "0.6"

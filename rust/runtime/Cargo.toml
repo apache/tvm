@@ -16,10 +16,10 @@
 # under the License.
 
 [package]
-name = "tvm-runtime"
-version = "0.1.0"
+name = "tvm-graph-runtime"
+version = "0.2.0"
 license = "Apache-2.0"
-description = "A static TVM runtime"
+description = "A static linking friendly TVM graph runtime."
 repository = "https://github.com/apache/incubator-tvm"
 readme = "README.md"
 keywords = ["tvm"]

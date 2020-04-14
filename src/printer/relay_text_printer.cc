@@ -193,8 +193,7 @@ class RelayTextPrinter :
     case kTypeData:
       return Doc::Text("TypeData");
     default:
-      LOG(ERROR) << "Unknown Kind";
-      throw;
+      CHECK(false) << "Unknown Kind";
     }
   }
   /*!
@@ -940,4 +939,13 @@ TVM_REGISTER_GLOBAL("ir.PrettyPrint")
 
 TVM_REGISTER_GLOBAL("ir.AsText")
 .set_body_typed(AsText);
+
+TVM_REGISTER_GLOBAL("ir.TextPrinter")
+.set_body_typed([](ObjectRef node) {
+  std::cout << "The program: " << node << std::endl;
+  auto text = AsText(node, false, nullptr);
+  std::cout << "The text " << text;
+  return text;
+});
+
 }  // namespace tvm

@@ -35,6 +35,7 @@ fn main() {
             .unwrap()
             .to_string()
     });
+
     if cfg!(feature = "bindings") {
         println!("cargo:rerun-if-env-changed=TVM_HOME");
         // println!("cargo:rustc-link-lib=dylib=tvm_runtime");

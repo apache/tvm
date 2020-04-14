@@ -128,10 +128,19 @@ impl<T: IsObject> ObjectPtr<T> {
     fn as_object<'s>(&'s self) -> &'s Object {
         unsafe { self.ptr.as_ref().as_object() }
     }
+
+    pub fn upcast(&self) -> ObjectPtr<Object> {
+        ObjectPtr { ptr: self.ptr.cast() }
+    }
 }
 
 pub struct ObjectRef(pub Option<ObjectPtr<Object>>);
 
+impl ObjectRef {
+    pub fn null() -> ObjectRef {
+        ObjectRef(None)
+    }
+}
 
 impl TryFrom<TVMRetValue> for ObjectRef {
     type Error = ();
@@ -170,6 +179,21 @@ pub fn debug_print(object: &ObjectRef) -> CString {
         let ret = crate::call_packed!(dp, object).expect("always returns strings");
         match ret {
             TVMRetValue::Str(cstring) => cstring.into(),
+            x => panic!("{:?}", x),
+        }
+}
+
+lazy_static! {
+    static ref _AS_TEXT: &'static Function = {
+        Function::get("ir.TextPrinter").expect("ir.AsText is unregistered")
+    };
+}
+
+pub fn as_text(object: &ObjectRef) -> CString {
+        let dp: &Function = &_AS_TEXT;
+        let ret = crate::call_packed!(dp, object, 0, dp).expect("always returns strings");
+        match ret {
+            TVMRetValue::Str(cstring) => dbg!(cstring.into()),
             x => panic!("{:?}", x),
         }
 }
