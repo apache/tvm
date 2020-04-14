@@ -89,7 +89,7 @@ def run_tvm_model(mod, params, input_name, inp, target="llvm"):
 
     runtime.set_input(input_name, inp)
     runtime.run()
-    return runtime.get_output(0).asnumpy()
+    return runtime.get_output(0).asnumpy(), runtime
 
 
 #################################################################################
@@ -169,7 +169,7 @@ mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 #
 # Under the hood, quantization specific operators are lowered to a sequence of
 # standard Relay operators before compilation.
-tvm_result = run_tvm_model(mod, params, input_name, inp, target="llvm")
+tvm_result, rt_mod = run_tvm_model(mod, params, input_name, inp, target="llvm")
 
 ##########################################################################
 # Compare the output labels
@@ -186,6 +186,45 @@ print("TVM top3 label:", [synset[label] for label in tvm_top3_labels])
 # outputs are not expected to be identical. Here, we print how many floating point
 # output values are identical out of 1000 outputs from mobilenet v2.
 print("%d in 1000 raw floating outputs identical." % np.sum(tvm_result[0] == pt_result[0]))
+
+
+##########################################################################
+# Measure performance
+# -------------------------
+# Here we give an example of how to measure performance of TVM compiled models.
+n_repeat = 100  # should be bigger to make the measurement more accurate
+ctx = tvm.cpu(0)
+ftimer = rt_mod.module.time_evaluator("run", ctx, number=1,
+                                      repeat=n_repeat)
+prof_res = np.array(ftimer().results) * 1e3
+print("Elapsed ms:", np.mean(prof_res))
+
+######################################################################
+# .. note::
+#
+#   We recommend this method for the following reasons:
+#
+#    * Measurements are done in C++, so there is no Python overhead
+#    * It includes several warm up runs
+#    * The same method can be used to profile on remote devices (android etc.).
+
+
+######################################################################
+# .. note::
+#
+#   Unless the hardware has special support for fast 8 bit instructions, quantized models are
+#   not expected to be any faster than FP32 models. Without fast 8 bit instructions, TVM does
+#   quantized convolution in 16 bit, even if the model itself is 8 bit.
+#
+#   For x86, the best performance can be acheived on CPUs with AVX512 instructions set.
+#   In this case, TVM utilizes the fastest available 8 bit instructions for the given target.
+#   This includes support for the VNNI 8 bit dot product instruction (CascadeLake or newer).
+#
+#   Moreover, the following general tips for CPU performance equally applies:
+#
+#    * Set the environment variable TVM_NUM_THREADS to the number of physical cores
+#    * Choose the best target for your hardware, such as "llvm -mcpu=skylake-avx512" or
+#      "llvm -mcpu=cascadelake" (more CPUs with AVX512 would come in the future)
 
 
 ###############################################################################
