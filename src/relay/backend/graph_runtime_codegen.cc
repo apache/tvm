@@ -28,13 +28,12 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/device_api.h>
 
-
 #include <list>
 #include <string>
 #include <vector>
 
-#include "utils.h"
 #include "compile_engine.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relay {
@@ -190,11 +189,9 @@ class GraphOpNode : public GraphNode {
 };
 
 /*! \brief Code generator for graph runtime */
-class GraphRuntimeCodegen
-    : public ::tvm::relay::ExprFunctor<std::vector<GraphNodeRef>(const Expr&)> {
+class GraphRuntimeCodegen : public backend::MemoizedExprTranslator<std::vector<GraphNodeRef>> {
  public:
-  GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets)
-      : mod_(mod) {
+  GraphRuntimeCodegen(runtime::Module* mod, const TargetsMap& targets) : mod_(mod) {
     compile_engine_ = CompileEngine::Global();
     targets_ = targets;
   }
@@ -311,47 +308,6 @@ class GraphRuntimeCodegen
       LOG(FATAL) << "type " << checked_type->GetTypeKey() << " not supported";
     }
     return {GraphNodeRef(node_id, 0)};
-  }
-
-  /*! \brief Visitors */
-  std::unordered_map<Expr, std::vector<GraphNodeRef>, ObjectHash, ObjectEqual> visitor_cache_;
-
-  std::vector<GraphNodeRef> VisitExpr(const Expr& expr) override {
-    if (visitor_cache_.count(expr)) return visitor_cache_.at(expr);
-    std::vector<GraphNodeRef> res;
-    if (expr.as<ConstantNode>()) {
-      res = VisitExpr_(expr.as<ConstantNode>());
-    } else if (expr.as<TupleNode>()) {
-      res = VisitExpr_(expr.as<TupleNode>());
-    } else if (expr.as<VarNode>()) {
-      res = VisitExpr_(expr.as<VarNode>());
-    } else if (expr.as<GlobalVarNode>()) {
-      res = VisitExpr_(expr.as<GlobalVarNode>());
-    } else if (expr.as<FunctionNode>()) {
-      res = VisitExpr_(expr.as<FunctionNode>());
-    } else if (expr.as<CallNode>()) {
-      res = VisitExpr_(expr.as<CallNode>());
-    } else if (expr.as<LetNode>()) {
-      res = VisitExpr_(expr.as<LetNode>());
-    } else if (expr.as<IfNode>()) {
-      res = VisitExpr_(expr.as<IfNode>());
-    } else if (expr.as<OpNode>()) {
-      res = VisitExpr_(expr.as<OpNode>());
-    } else if (expr.as<TupleGetItemNode>()) {
-      res = VisitExpr_(expr.as<TupleGetItemNode>());
-    } else if (expr.as<RefCreateNode>()) {
-      res = VisitExpr_(expr.as<RefCreateNode>());
-    } else if (expr.as<RefReadNode>()) {
-      res = VisitExpr_(expr.as<RefReadNode>());
-    } else if (expr.as<RefWriteNode>()) {
-      res = VisitExpr_(expr.as<RefWriteNode>());
-    } else if (expr.as<ConstructorNode>()) {
-      res = VisitExpr_(expr.as<ConstructorNode>());
-    } else if (expr.as<MatchNode>()) {
-      res = VisitExpr_(expr.as<MatchNode>());
-    }
-    visitor_cache_[expr] = res;
-    return res;
   }
 
   std::vector<GraphNodeRef> VisitExpr_(const VarNode* op) override {
