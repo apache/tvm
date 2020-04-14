@@ -118,14 +118,16 @@ def flatten_tuple_type(ty):
 
 def from_tuple_type(ty, expr):
     """Convert an expression with the given type into a sequence of expressions.
-       Each expressions maps to a field of the tuple or nested tuples in linear
+       Each expression maps to a field of the tuple or nested tuples in linear
        order.
 
     Parameters
     ----------
     ty: tvm.Type
         The type to unpack.
-    expr: The expression from which to extract each sub-field.
+
+    expr: tvm.relay.Expr
+        The expression from which to extract each sub-field.
 
     Returns
     -------
@@ -142,11 +144,12 @@ def to_tuple_type(ty, exprs):
     ty: tvm.Type
         The type to pack with.
 
-    exprs: The expressions to pack back into the nested tuple type.
+    exprs: tvm.relay.Expr
+        The expressions to pack back into the nested tuple type.
 
     Returns
     -------
     result: List[tvm.relay.Expr]
-    The packed tuple expression.
+        The packed tuple expression.
     """
     return _make.ToTupleType(ty, exprs)
