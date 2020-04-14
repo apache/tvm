@@ -35,11 +35,11 @@ def test_makeapi():
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
 
     num_unpacked_args = 2
-    f = tvm.tir.PrimFunc([n, Ab, Bb, Cb], stmt)
-    f = f.with_attr("global_symbol", "myadd")
-    f = f.with_attr("target", tvm.target.create("llvm"))
-
-    mod = tvm.IRModule.from_expr(f)
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([n, Ab, Bb, Cb], stmt).with_attr({
+            "global_symbol": "main",
+            "target": tvm.target.create("llvm")
+        }))
     f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
     assert(len(f.params) == 7)
 

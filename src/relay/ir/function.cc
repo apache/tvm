@@ -74,11 +74,5 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
             << node->attrs << ")";
 });
 
-TVM_REGISTER_GLOBAL("relay.ir.FunctionWithAttr")
-.set_body_typed(
-    [](Function func, std::string name, ObjectRef ref) {
-      return WithAttr(std::move(func), name, ref);
-    });
-
 }  // namespace relay
 }  // namespace tvm

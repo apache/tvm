@@ -65,22 +65,3 @@ class Function(BaseFunc):
             Arguments.
         """
         return Call(self, args, None, None)
-
-    def with_attr(self, attr_key, attr_value):
-        """Create a new copy of the function and update the attribute
-
-        Parameters
-        ----------
-        attr_key : str
-            The attribute key to use.
-
-        attr_value : Object
-            The new attribute value.
-
-        Returns
-        -------
-        func : Function
-            A new copy of the function
-        """
-        return _ffi_api.FunctionWithAttr(
-            self, attr_key, convert(attr_value))
