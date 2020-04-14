@@ -500,16 +500,16 @@ class Partitioner : public ExprMutator {
    * for a given region. If there are multiple entries for a region, then the
    * function has a tuple of multiple outputs for its return.
    */
-  using RegionReturnIndexMap = std::unordered_map<Expr, int, ObjectHash, ObjectEqual>;
-  std::unordered_map<AnnotatedRegion, RegionReturnIndexMap, ObjectHash, ObjectEqual>
+  using RegionRetIndexMap = std::unordered_map<Expr, int, ObjectHash, ObjectEqual>;
+  std::unordered_map<AnnotatedRegion, RegionRetIndexMap, ObjectHash, ObjectEqual>
       region_return_indices_;
-  
+
   /*!
    * \brief This map holds already created TupleGetItem nodes for accessing
    * outputs of a function.
    */
-  using RegionReturnTupleGetItemMap = std::unordered_map<Expr, TupleGetItem, ObjectHash, ObjectEqual>;
-  std::unordered_map<AnnotatedRegion, RegionReturnTupleGetItemMap, ObjectHash, ObjectEqual>
+  using RegionRetTupleGetItemMap = std::unordered_map<Expr, TupleGetItem, ObjectHash, ObjectEqual>;
+  std::unordered_map<AnnotatedRegion, RegionRetTupleGetItemMap, ObjectHash, ObjectEqual>
       region_return_tuplegetitem_;
 
   /*!
