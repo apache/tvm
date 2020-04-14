@@ -200,7 +200,7 @@ def lower(sch,
     if cfg.restricted_func:
         f = f.with_attr("tir.noalias", True)
     mod = tvm.IRModule({name: f})
-    return tvm.tir.transform.MakePackedAPI()(mod)
+    return mod
 
 
 def _build_for_device(input_mod, target, target_host):
@@ -243,13 +243,13 @@ def _build_for_device(input_mod, target, target_host):
                   tvm.tir.transform.ThreadSync("warp"),
                   tvm.tir.transform.InferFragment(),
                   tvm.tir.transform.LowerThreadAllreduce(),
-                  tvm.tir.transform.BindDeviceType(),
+                  tvm.tir.transform.MakePackedAPI(),
                   tvm.tir.transform.SplitHostDevice()]
-    mod_mixed = tvm.ir.transform.Sequential(opt_mixed)(mod_mixed)
+    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
 
 
     # device optimizations
-    opt_device = tvm.ir.transform.Sequential(
+    opt_device = tvm.transform.Sequential(
         [tvm.tir.transform.Filter(
             lambda f: "calling_conv" in f.attrs and
             f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
@@ -259,7 +259,7 @@ def _build_for_device(input_mod, target, target_host):
     mod_dev = opt_device(mod_mixed)
 
     # host optimizations
-    opt_host = tvm.ir.transform.Sequential(
+    opt_host = tvm.transform.Sequential(
         [tvm.tir.transform.Filter(
             lambda f: "calling_conv" not in f.attrs or
             f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH),

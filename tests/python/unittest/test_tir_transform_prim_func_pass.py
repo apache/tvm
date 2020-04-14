@@ -60,7 +60,7 @@ def test_cow_pass():
     del func
     # copy on write
     mod_hash = mod.__hash__()
-    mod = tvm.ir.transform.Sequential(
+    mod = tvm.transform.Sequential(
         [pidentity, tvm.tir.transform.NarrowDataType(32)])(mod._move())
     assert mod_hash == mod.__hash__()
     assert func_hash == mod["main"].__hash__()

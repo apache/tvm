@@ -352,11 +352,18 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-Pass CreateModulePass(
+TVM_DLL Pass CreateModulePass(
     const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
     const Array<runtime::String>& required);
+
+
+/*!
+ * \brief A special trace pass that prints the header and IR to LOG(INFO).
+ * \return The pass.
+ */
+TVM_DLL Pass PrintIR(std::string header);
 
 }  // namespace transform
 }  // namespace tvm

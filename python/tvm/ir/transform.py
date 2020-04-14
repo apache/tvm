@@ -22,13 +22,13 @@ import functools
 
 import tvm._ffi
 
-from tvm._ffi.runtime_ctypes import TVMContext
-from tvm.runtime import Object, ndarray as _nd
+import tvm.runtime
+from tvm.runtime import ndarray as _nd
 
 from . import _ffi_transform_api
 
 @tvm._ffi.register_object("transform.PassInfo")
-class PassInfo(Object):
+class PassInfo(tvm.runtime.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
     This class can be extended by adding new members when more meta data is
@@ -52,7 +52,7 @@ class PassInfo(Object):
 
 
 @tvm._ffi.register_object("transform.PassContext")
-class PassContext(Object):
+class PassContext(tvm.runtime.Object):
     """The basis where a Relay optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
@@ -79,7 +79,7 @@ class PassContext(Object):
                  trace=None):
         if isinstance(fallback_device, str):
             fallback_device = _nd.context(fallback_device).device_type
-        elif isinstance(fallback_device, TVMContext):
+        elif isinstance(fallback_device, tvm.runtime.TVMContext):
             fallback_device = fallback_device.device_type
         if not isinstance(fallback_device, int):
             raise TypeError("fallback_device is expected to be the type of " +
@@ -113,7 +113,7 @@ class PassContext(Object):
 
 
 @tvm._ffi.register_object("transform.Pass")
-class Pass(Object):
+class Pass(tvm.runtime.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
     conveniently interact with the base class.
@@ -327,3 +327,18 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None):
     if pass_func:
         return create_module_pass(pass_func)
     return create_module_pass
+
+
+def PrintIR(header):
+    """A special trace pass that prints the header and IR.
+
+    Parameters
+    ----------
+    header : str
+        The header to be displayed along with the dump.
+
+    Returns
+    --------
+    The pass
+    """
+    return _ffi_transform_api.PrintIR(header)

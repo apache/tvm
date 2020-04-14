@@ -216,8 +216,7 @@ IRModule lower(te::Schedule sch,
   if (config->restricted_func) {
     f = WithAttr(std::move(f), "tir.noalias", Integer(1));
   }
-  auto mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
-  return tir::transform::MakePackedAPI(0)(mod);
+  return IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
 }
 
 
@@ -237,7 +236,7 @@ split_dev_host_funcs(IRModule mod_mixed,
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
-  mixed_pass_list.push_back(tir::transform::BindDeviceType());
+  mixed_pass_list.push_back(tir::transform::MakePackedAPI(0));
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
   auto opt_mixed = transform::Sequential(mixed_pass_list);
   mod_mixed = opt_mixed(std::move(mod_mixed));
