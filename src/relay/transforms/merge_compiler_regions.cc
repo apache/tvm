@@ -140,11 +140,11 @@ class RegionMerger : public ExprVisitor {
   std::unordered_map<int, std::unordered_set<int>> region_restrictions_;
 };
 
-class MergeAnnotations : public ExprMutator {
+class MergeAnnotations : public ExprRewriter {
  public:
   explicit MergeAnnotations(AnnotatedRegionSet regions) : regions_(regions) {}
 
-  Expr VisitExpr_(const CallNode* call) final {
+  Expr Rewrite_(const CallNode* call, const Expr& post) final {
     // Merge annotations which are now internal to a region.
     // This happens if we see a compiler begin next to a
     // compiler end and they're both in the same region.
@@ -154,11 +154,12 @@ class MergeAnnotations : public ExprMutator {
         auto region1 = regions_->GetRegion(GetRef<Call>(call));
         auto region2 = regions_->GetRegion(arg);
         if (region1 == region2) {
-          return VisitExpr(arg->args[0]);
+          auto post_arg = post.as<CallNode>()->args[0];
+          return post_arg.as<CallNode>()->args[0];
         }
       }
     }
-    return ExprMutator::VisitExpr_(call);
+    return post;
   }
 
  private:
@@ -175,7 +176,7 @@ Expr MergeCompilerRegions(const Expr& expr) {
 
   // Remove annotations that are not in the region boundaries.
   MergeAnnotations merge_anno(regions);
-  return merge_anno.Mutate(expr);
+  return PostOrderRewrite(expr, &merge_anno);
 }
 
 }  // namespace merge_compiler_region
