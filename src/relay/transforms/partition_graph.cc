@@ -205,18 +205,13 @@ class Partitioner : public ExprMutator {
       // region_function_calls is map that maintains
       // (each annotated regions) --> created function
 
-      if (region_function_calls.find(region) != region_function_calls.end()) {
-        // This section is executed if there are multiple outputs in the region
-        // or if the output of the function is being accessed multiple times by
-        // different nodes.
-        return GetFunctionOutput(region, GetRef<Call>(call));
-      } else {
+      if (region_function_calls.find(region) == region_function_calls.end()) {
         // First time this region is encountered in the traversal.
         // Creating the function.
         CreateFunction(region, call);
-        // Retrieve particular output.
-        return GetFunctionOutput(region, GetRef<Call>(call));
       }
+      // Retrieve this particular output of function.
+      return GetFunctionOutput(region, GetRef<Call>(call));
     }
   }
 
@@ -454,7 +449,9 @@ class Partitioner : public ExprMutator {
   }
 
   /*!
-   * \brief Get the return(output) of the function for compiler end node "arg".
+   * \brief Get the return(output) of the function for compiler end node "end_arg".
+   * This will return either a Call (for a function with a single output) or a
+   * TupleGetItem (for a function with multiple outputs).
    */
   Expr GetFunctionOutput(AnnotatedRegion region, const Expr& end_arg) {
     Expr arg = Downcast<Call>(end_arg)->args[0];
