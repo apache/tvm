@@ -174,18 +174,20 @@ class IndexedGraph {
     /*! \brief A boolean to determine if this node is external to the graph */
     bool is_external_ = false;
     /*! \brief The forward outputs/users of the node */
-    std::vector<std::shared_ptr<Node>> outputs_;
+    std::vector<Node*> outputs_;
 
     /*! \brief The depth of the node in the dominator tree */
     size_t depth_;
     /*! \brief The dominator parent/final user of the outputs of this node */
-    std::shared_ptr<Node> dominator_parent_;
+    Node* dominator_parent_;
+    /*! \brief The nodes this node dominates */
+    std::vector<Node*> dominator_children_;
   };
   /*! \brief Construct the domination create of the index graph */
   void PostDom() {
     for (size_t i = topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;
-      auto current = topological_order_[index];
+      auto* current = topological_order_[index].get();
       if (current->is_external_) {
         current->depth_ = 1;
         current->dominator_parent_ = nullptr;
@@ -193,6 +195,7 @@ class IndexedGraph {
         auto parent = LeastCommonAncestor(current->outputs_);
         current->depth_ = parent ? parent->depth_ + 1 : 1;
         current->dominator_parent_ = parent;
+        parent->dominator_children_.push_back(current);
       }
     }
   }
@@ -203,7 +206,7 @@ class IndexedGraph {
 
  protected:
   /*! \brief Find the least common ancestor of all outputs of a node */
-  std::shared_ptr<Node> LeastCommonAncestor(const std::vector<std::shared_ptr<Node>>& outputs) {
+  Node* LeastCommonAncestor(const std::vector<Node*>& outputs) {
     if (outputs.size() == 0) {
       return nullptr;
     }
@@ -215,7 +218,7 @@ class IndexedGraph {
   }
 
   /*! \brief Find the least common ancestor of two nodes */
-  std::shared_ptr<Node> LeastCommonAncestor(std::shared_ptr<Node> lhs, std::shared_ptr<Node> rhs) {
+  Node* LeastCommonAncestor(Node* lhs, Node* rhs) {
     if (lhs == nullptr || rhs == nullptr) {
       return nullptr;
     }

@@ -52,7 +52,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   void ClearMap(size_t watermark);
   std::unordered_map<DFPattern, Expr, ObjectHash, ObjectEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
-};
+  };
 
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   memo_.clear();
@@ -98,6 +98,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
         switch (op_map[op].type_code()) {
           case kDLInt:
             if (auto* val = kv.second.as<IntImmNode>()) {
+              std::cout << op << " " << op_map[op].operator int64_t() <<  std::endl;
               matches = val->value == op_map[op].operator int64_t();
             }
             break;
@@ -249,32 +250,61 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 }
 bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
   auto watermark = matched_nodes_.size();
+  auto backup_memo = memo_;
+  auto backup_matched_nodes = matched_nodes_;
+
   if (VisitDFPattern(op->child, expr)) {
-    bool matches = true;
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> dominated_exprs;
-    auto child_graph = CreateIndexedGraph(op->child);
-    for (auto node : child_graph.topological_order_) {
-      if (node->ref_.as<WildcardPatternNode>()) {
-        continue;
-      }
-      if (node->dominator_parent_ && node->dominator_parent_->ref_ == op->child) {
-        dominated_exprs.insert(memo_[node->ref_]);
-      }
-    }
-    ClearMap(watermark);
+    auto child_graph = CreateIndexedGraph(GetRef<DFPattern>(op));
     auto expr_graph = CreateIndexedGraph(expr);
-    for (auto node : expr_graph.topological_order_) {
-      if (node->dominator_parent_ && node->dominator_parent_->ref_ == expr) {
-        if (dominated_exprs.count(node->ref_) == 0) {
-          bool node_matches = VisitDFPattern(op->parent, node->ref_);
-          ClearMap(watermark);
-          matches = node_matches || VisitDFPattern(op->path, node->ref_);
-          ClearMap(watermark);
-          if (!matches) {
-            return false;
+    auto find_dominated = [&child_graph, this](const DFPattern& node) {
+      std::unordered_set<Expr, ObjectHash, ObjectEqual> dominated_exprs;
+      auto indexed_node = child_graph.node_map_[node];
+      for (auto dominated : indexed_node->dominator_children_) {
+        if (dominated->ref_.as<WildcardPatternNode>() || dominated->ref_.as<OpNode>()) {
+          continue;
+        }
+        dominated_exprs.insert(memo_[dominated->ref_]);
+      }
+      return dominated_exprs;
+    };
+    std::function<bool(const Expr&, const std::unordered_set<Expr, ObjectHash, ObjectEqual>&)>
+        find_parent;
+    find_parent = [this, &op, &watermark, &backup_memo, &backup_matched_nodes, &find_dominated,
+                   &expr_graph, &find_parent](
+                      const Expr& expr,
+                      const std::unordered_set<Expr, ObjectHash, ObjectEqual>& dominated_exprs) {
+      bool out = true;
+      for (auto node : expr_graph.node_map_[expr]->dominator_children_) {
+        if (out && dominated_exprs.count(node->ref_) == 0) {
+          if (VisitDFPattern(op->parent, node->ref_)) {
+            backup_memo[op->parent] = memo_.at(op->parent);
+            backup_matched_nodes.push_back(op->parent);
+            memo_ = backup_memo;
+            matched_nodes_ = backup_matched_nodes;
+            watermark += 1;
+            return true;
+          } else {
+            if (VisitDFPattern(op->path, node->ref_)) {
+              auto new_dominated_exprs = find_dominated(op->path);
+              std::cout << watermark << std::endl;
+              ClearMap(watermark);
+              out &= find_parent(node->ref_, new_dominated_exprs);
+            } else {
+              out = false;
+            }
           }
         }
       }
+      return out;
+    };
+
+    auto dominated_exprs = find_dominated(op->child);
+    ClearMap(watermark);
+    bool matches = find_parent(expr, dominated_exprs);
+    if (matches) {
+      backup_memo[op->parent] = memo_.at(op->parent);
+      backup_memo[op->child] = expr;
+      memo_ = backup_memo;
     }
     return matches;
   }

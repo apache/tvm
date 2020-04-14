@@ -122,7 +122,7 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
     void VisitExpr(const Expr& expr, NodePtr parent) override {
       auto current = graph_.node_map_[expr];
       if (parent) {
-        current->outputs_.push_back(parent);
+        current->outputs_.push_back(parent.get());
       }
     }
 
@@ -265,7 +265,7 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
     void VisitDFPattern(const DFPattern& pattern, NodePtr parent) override {
       auto current = graph_.node_map_[pattern];
       if (parent) {
-        current->outputs_.push_back(parent);
+        current->outputs_.push_back(parent.get());
       }
     }
 

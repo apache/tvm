@@ -247,12 +247,6 @@ def test_match_dominator():
     # Check
     assert diamond.match(out)
 
-    # Pattern
-    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
-    reduction = is_op('add')(wildcard(), wildcard())
-    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
-
     # Expr
     inp = relay.var('input')
     weight = relay.var('weight')
@@ -266,11 +260,38 @@ def test_match_dominator():
     # Check
     assert diamond.match(out)
 
+    # Expr
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    tanh = relay.op.tanh(relu)
+    out = relu + tanh
+
+    # Check
+    assert diamond.match(out)
+    
+
 def test_not_match_dominator():
     is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
     is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
     reduction = is_op('add')(wildcard(), wildcard())
     diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Expr
+    input1 = relay.var('input1')
+    weight1 = relay.var('weight1')
+    conv2d1 = relay.op.nn.conv2d(input1, weight1)
+    inp2 = relay.var('input2')
+    weight2 = relay.var('weight2')
+    conv2d2 = relay.op.nn.conv2d(inp2, weight2)
+    relu = relay.op.nn.relu(conv2d1)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d2, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    assert not diamond.match(out)
 
     # Expr
     inp = relay.var('input')
@@ -284,12 +305,6 @@ def test_not_match_dominator():
     # Check
     assert not diamond.match(out)
 
-    # Pattern
-    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
-    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
-    reduction = is_op('add')(wildcard(), wildcard())
-    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
-
     # Expr
     inp = relay.var('input')
     weight = relay.var('weight')
@@ -297,6 +312,16 @@ def test_not_match_dominator():
     relu = relay.op.nn.relu(inp)
     leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
     out = relu + leaky_relu
+
+    # Check
+    assert not diamond.match(out)
+
+    # Expr
+    inp = relay.var('input')
+    relu = relay.op.nn.relu(inp)
+    relu = relay.op.nn.relu(relu)
+    tanh = relay.op.tanh(relu)
+    out = relu + tanh
 
     # Check
     assert not diamond.match(out)
