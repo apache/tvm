@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison
 # pylint: disable=bad-continuation, unused-argument
 """Non-maximum suppression operator"""
-import math
 import tvm
 from tvm import te
 
