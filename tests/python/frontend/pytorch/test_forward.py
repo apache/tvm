@@ -1441,6 +1441,110 @@ def test_forward_variance():
     verify_model(Variance5().float().eval(), input_data=input_data)
 
 
+
+def test_forward_isfinite():
+    torch.set_grad_enabled(False)
+
+    class IsFinite1(Module):
+        def forward(self, *args):
+            return torch.isfinite(args[0])
+
+    input_data = torch.tensor([1, float('inf'), 2, float('-inf'), float('nan')]).float()
+    verify_model(IsFinite1().float().eval(), input_data=input_data)
+
+
+def test_forward_isnan():
+    torch.set_grad_enabled(False)
+
+    class IsNan1(Module):
+        def forward(self, *args):
+            return torch.isnan(args[0])
+
+    input_data = torch.tensor([1, float('inf'), 2, float('-inf'), float('nan')]).float()
+    verify_model(IsNan1().float().eval(), input_data=input_data)
+
+
+def test_forward_isinf():
+    torch.set_grad_enabled(False)
+
+    class IsInf1(Module):
+        def forward(self, *args):
+            return torch.isinf(args[0])
+
+    input_data = torch.tensor([1, float('inf'), 2, float('-inf'), float('nan')]).float()
+    verify_model(IsInf1().float().eval(), input_data=input_data)
+
+
+def test_forward_rsqrt():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Rsqrt1(Module):
+        def forward(self, *args):
+            return torch.rsqrt(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Rsqrt1().float().eval(), input_data=input_data)
+
+
+def test_forward_ceil():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Ceil1(Module):
+        def forward(self, *args):
+            return torch.ceil(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Ceil1().float().eval(), input_data=input_data)
+
+
+def test_forward_clamp():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Clamp1(Module):
+        def forward(self, *args):
+            return torch.clamp(args[0], min=-0.5, max=0.5)
+
+    class Clamp2(Module):
+        def forward(self, *args):
+            return torch.clamp(args[0], min=-0.3)
+
+    class Clamp3(Module):
+        def forward(self, *args):
+            return torch.clamp(args[0], max=1.0)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Clamp1().float().eval(), input_data=input_data)
+    verify_model(Clamp2().float().eval(), input_data=input_data)
+    verify_model(Clamp3().float().eval(), input_data=input_data)
+
+
+def test_forward_floor():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Floor1(Module):
+        def forward(self, *args):
+            return torch.floor(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Floor1().float().eval(), input_data=input_data)
+
+
+def test_forward_round():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class Round1(Module):
+        def forward(self, *args):
+            return torch.round(args[0])
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Round1().float().eval(), input_data=input_data)
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -1497,6 +1601,14 @@ if __name__ == "__main__":
     test_forward_expand()
     test_forward_pow()
     test_forward_abs()
+    test_forward_rsqrt()
+    test_forward_ceil()
+    test_forward_clamp()
+    test_forward_floor()
+    test_forward_round()
+    test_forward_isfinite()
+    test_forward_isnan()
+    test_forward_isinf()
     test_forward_arange()
     test_forward_chunk()
     test_forward_split()
