@@ -291,7 +291,7 @@ static inline __device__ __host__ unsigned
 __pack_half2(const half x, const half y) {
   unsigned v0 = *((unsigned short *)&x);
   unsigned v1 = *((unsigned short *)&y);
-  return (v0 << 16) | v1;
+  return (v1 << 16) | v0;
 }
 )";
 

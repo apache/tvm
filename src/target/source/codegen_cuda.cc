@@ -591,13 +591,17 @@ void CodeGenCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {   // NOLINT(*)
-  if (op->dtype.is_int() && op->dtype.bits() == 8 && op->lanes == 4) {
+  if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && op->lanes == 4) {
     // make_int8x4
     const int64_t *p = as_const_int(op->value);
     CHECK(p);
     int64_t v = *p & 0xFF;
     v = (v << 24) | (v << 16) | (v << 8) | v;
-    os << "(int)" << v;
+    if (op->dtype.is_uint()) {
+      os << "(uint)" << v;
+    } else {
+      os << "(int)" << v;
+    }
     return;
   }
 
@@ -794,6 +798,50 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value,
   } else {
     os << value;
   }
+}
+
+void CodeGenCUDA::PrintVecElemLoadExpr(
+    DataType t, int i, const std::string& value, std::ostream& os) {
+  CHECK_GT(t.lanes(), 1);
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
+    if (i != 0) {
+      os << "|";
+    }
+    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
+    return;
+  }
+
+  if (t.is_float16()) {
+    if (i == 0) {
+      os << "make_";
+      PrintType(t, os);
+      os << '(';
+    }
+    if (i % 2 == 0) {
+      os << "__pack_half2(" << value;
+    } else {
+      os << "," << value << ")";
+      if (i != t.lanes() - 1) {
+        os << ",";
+      } else {
+        os << ")";
+      }
+    }
+    return;
+  }
+
+  if (i == 0) {
+    os << "make_";
+    PrintType(t, os);
+    os << "(";
+  }
+  os << value;
+  if (i != t.lanes() - 1) {
+    os << ",";
+  } else {
+    os << ")";
+  }
+  return;
 }
 
 }  // namespace codegen
