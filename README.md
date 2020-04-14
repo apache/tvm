@@ -25,9 +25,11 @@
 [![Build Status](https://ci.tvm.ai/buildStatus/icon?job=tvm/master)](https://ci.tvm.ai/job/tvm/job/master/)
 [![WinMacBuild](https://github.com/apache/incubator-tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/incubator-tvm/actions?query=workflow%3AWinMacBuild)
 
-Apache TVM (incubating) is a compiler stack for deep learning systems. It is designed to close the gap between the
-productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
-TVM works with deep learning frameworks to provide end to end compilation to different backends.
+Apache(incubating) TVM is an open deep learning compiler stack for CPUs, GPUs, and specialized accelerators. It aims to close the gap between the productivity focused deep learning frameworks, and the performance or efficiency oriented hardware backends. TVM provides the following main features:
+
+* Compilation of deep learning models in Keras, MXNet, PyTorch, TensorFlow, TFLite, CoreML, ONNX, Caffe2, DarkNet into minimum deployable modules on diverse hardware backends.
+* Infrastructure to automatically generate and optimize tensor operators on more backend with better performance.
+
 
 License
 -------
