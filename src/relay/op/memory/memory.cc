@@ -284,10 +284,10 @@ std::vector<TensorType> FlattenTupleType(const Type& type) {
 }
 
 static void FromTupleTypeAux(const Type& type, const Expr& expr, std::vector<Expr>* out) {
-  if (auto tt = type.as<TensorTypeNode>()) {
+  if (type.as<TensorTypeNode>()) {
     out->push_back(expr);
   } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
-    for (auto i = 0; i < tuple_ty->fields.size(); i++) {
+    for (size_t i = 0; i < tuple_ty->fields.size(); i++) {
       FromTupleTypeAux(tuple_ty->fields[i], TupleGetItem(expr, i), out);
     }
   } else {
@@ -303,12 +303,12 @@ std::vector<Expr> FromTupleType(const Type& type, const Expr& expr) {
 
 static void ToTupleTypeAux(const Type& type, const std::vector<Expr>& exprs, int* index,
                            std::vector<Expr>* out) {
-  if (auto tt = type.as<TensorTypeNode>()) {
+  if (type.as<TensorTypeNode>()) {
     out->push_back(exprs[*index]);
     *index += 1;
   } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
     std::vector<Expr> tuple_out;
-    for (auto i = 0; i < tuple_ty->fields.size(); i++) {
+    for (size_t i = 0; i < tuple_ty->fields.size(); i++) {
       ToTupleTypeAux(tuple_ty->fields[i], exprs, index, &tuple_out);
     }
     out->push_back(Tuple(tuple_out));
