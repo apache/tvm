@@ -26,7 +26,7 @@ from tvm import autotvm
 
 from ..nn import conv2d_alter_layout
 from ..util import get_const_tuple
-
+from ..x86.conv2d import _get_default_config as _get_x86_default_config
 
 logger = logging.getLogger('topi')
 
@@ -58,6 +58,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     kernel_layout = attrs["kernel_layout"]
     data, kernel = tinfos
     out_dtype = out_type.dtype
+
+    # Extract data types
+    data_tensor, kernel_tensor = tinfos
+    data_dtype = data_tensor.dtype
+    kernel_dtype = kernel_tensor.dtype
 
     idxd = tvm.tir.indexdiv
 
@@ -168,5 +173,61 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
 
         return relay.nn.conv2d(*inputs, **new_attrs)
+
+    if topi_tmpl == "conv2d_NCHWc.x86":
+        # Converting NCHW to NCHWc.
+        assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        if cfg.is_fallback:
+            _get_x86_default_config(cfg, data_tensor, kernel_tensor, strides, padding,
+                                    out_dtype, False, data_layout)
+        batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
+        out_channel, _, kh, kw = get_const_tuple(kernel_tensor.shape)
+        ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+
+        # update new attrs
+        new_attrs['channels'] = out_channel
+        new_attrs['data_layout'] = 'NCHW%dc' % ic_bn
+        # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
+        new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
+        new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
+
+        # Store altered operator's config
+        new_data = te.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
+                                  dtype=data_dtype)
+        new_kernel = te.placeholder((out_channel//oc_bn, in_channel//ic_bn,
+                                     kh, kw, ic_bn, oc_bn), dtype=kernel_tensor.dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, new_attrs["data_layout"],
+             new_attrs["out_layout"], out_dtype], topi_tmpl)
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_conv2d_nchwc(*inputs, **new_attrs)
+
+    if topi_tmpl == "depthwise_conv2d_NCHWc.x86":
+        # Converting NCHW to NCHWc.
+        assert data_layout == "NCHW" and kernel_layout == "OIHW"
+        if cfg.is_fallback:
+            _get_x86_default_config(cfg, data_tensor, kernel_tensor, strides, padding,
+                                    out_dtype, True, data_layout)
+
+        batch_size, in_channel, height, width = get_const_tuple(data_tensor.shape)
+        out_channel, channel_multiplier, kh, kw = get_const_tuple(kernel_tensor.shape)
+        ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+        assert channel_multiplier == 1
+
+        # update new attrs
+        new_attrs['channels'] = out_channel
+        new_attrs['data_layout'] = 'NCHW%dc' % ic_bn
+        new_attrs['kernel_layout'] = 'OIHW1i%do' % oc_bn
+        new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
+
+        # Store altered operator's config.
+        new_data = te.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
+                                  dtype=data_dtype)
+        new_kernel = te.placeholder((out_channel//oc_bn, 1, kh, kw, 1, oc_bn), dtype=kernel_dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, new_attrs['data_layout'],
+             new_attrs['out_layout'], out_dtype], topi_tmpl)
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_depthwise_conv2d_nchwc(*inputs, **new_attrs)
 
     return None

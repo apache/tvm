@@ -169,7 +169,8 @@ def conv2d_NCHWc(cfg, data, kernel, strides, padding, dilation, layout, out_layo
 
     cfg.define_split("tile_ic", in_channel, num_outputs=2)
     cfg.define_split("tile_oc", num_filter, num_outputs=2)
-    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+    cfg.define_split("tile_ow", ow, num_outputs=2, filter=lambda y: y.size[-1] <= 64,
+                     policy="verbose")
     if is_kernel_1x1:
         cfg.define_knob("tile_oh", [1, 2] if oh > 1 else [1])
     else:
