@@ -731,8 +731,6 @@ def test_schedule():
     sch[c].vectorize(ji)
     sch[c].reorder(ii, io, joo, joi, ji)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(ir, tvm.tir.ProducerConsumer)
-    ir = ir.body
     assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
     assert isinstance(ir, tvm.tir.For)
@@ -754,8 +752,6 @@ def test_schedule():
     sch = te.create_schedule(c.op)
     sch[c].fuse(c.op.axis[0], c.op.axis[1])
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(ir, tvm.tir.ProducerConsumer)
-    ir = ir.body
     assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
     assert isinstance(ir, tvm.tir.For)

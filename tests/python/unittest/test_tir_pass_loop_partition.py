@@ -23,14 +23,6 @@ def collect_visit(stmt, f):
     tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x : ret.append(f(x)))
     return ret
 
-def find_top_produce(stmt):
-    def f(x, ret):
-        if isinstance(x, tvm.tir.ProducerConsumer):
-            ret.append(x)
-    ret = []
-    tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x : f(x, ret))
-    return ret[-1]
-
 def lower(sch, args):
     binds = {}
     arg_list = []
@@ -405,9 +397,7 @@ def test_double_splitting_with_indivisible_factors():
         f = tvm.lower(s, [A, C, D], name="fadd1", simple_mode=False)
         func = tvm.build(f, target=target)
 
-    # Find the beginning of the Halide IR corresponding to kernel code
-    # and make sure it doesn't have an if statements left
-    top_produce = find_top_produce(f["fadd1"].body)
+    top_produce = f["fadd1"].body
     assert(not any(collect_visit(top_produce, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
     # check functional correctness of generated code

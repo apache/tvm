@@ -399,10 +399,6 @@ void CodeGenHybrid::VisitStmt_(const EvaluateNode* op) {
     stream << str << "\n";
 }
 
-void CodeGenHybrid::VisitStmt_(const ProducerConsumerNode* op) {
-  PrintStmt(op->body);
-}
-
 void CodeGenHybrid::PrintIndent() {
   stream << std::string(indent_, ' ');
 }

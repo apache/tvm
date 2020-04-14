@@ -514,51 +514,44 @@ void CodeGenCUDA::VisitStmt_(const AttrStmtNode* op) {
 void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
-  if (op->new_expr.defined()) {
-    // Prefer global static allocation for the program
-    CHECK_EQ(op->free_function, "nop");
-    std::string new_data = PrintExpr(op->new_expr);
-    this->PrintIndent();
-    PrintType(op->dtype, stream);
-    stream << "* "<< vid << '=' << new_data << ";\n";
-  } else {
-    this->PrintIndent();
-    int32_t constant_size = op->constant_allocation_size();
-    CHECK_GT(constant_size, 0)
-      << "Can only handle constant size stack allocation for now";
-    const VarNode* buffer = op->buffer_var.as<VarNode>();
-    std::string scope = alloc_storage_scope_.at(buffer);
-    if (scope.find("wmma.") == 0) {
-      if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-        CHECK(op->dtype == DataType::Float(16) ||
-              op->dtype == DataType::Int(8) ||
-              op->dtype == DataType::UInt(8) ||
-              op->dtype == DataType::Int(4) ||
-              op->dtype == DataType::UInt(4) ||
-              op->dtype == DataType::Int(1))
-          << "Matrix_a and matrix_b only support half or char or unsigned char "
-          << "or uint4 or int4 or int1 type for now";
-      } else {
-        CHECK(op->dtype == DataType::Float(16) ||
-              op->dtype == DataType::Float(32) ||
-              op->dtype == DataType::Int(32))
-          << "Accumulator only support half, float and int type for now";
-      }
-      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
-      PrintWmmaScope(scope, op->dtype, buffer, stream);
+
+  this->PrintIndent();
+  int32_t constant_size = op->constant_allocation_size();
+  CHECK_GT(constant_size, 0)
+    << "Can only handle constant size stack allocation for now";
+  const VarNode* buffer = op->buffer_var.as<VarNode>();
+  std::string scope = alloc_storage_scope_.at(buffer);
+  if (scope.find("wmma.") == 0) {
+    if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+      CHECK(op->dtype == DataType::Float(16) ||
+            op->dtype == DataType::Int(8) ||
+            op->dtype == DataType::UInt(8) ||
+            op->dtype == DataType::Int(4) ||
+            op->dtype == DataType::UInt(4) ||
+            op->dtype == DataType::Int(1))
+        << "Matrix_a and matrix_b only support half or char or unsigned char "
+        << "or uint4 or int4 or int1 type for now";
     } else {
-      PrintStorageScope(scope, stream);
-      stream << ' ';
-      PrintType(op->dtype, stream);
+      CHECK(op->dtype == DataType::Float(16) ||
+            op->dtype == DataType::Float(32) ||
+            op->dtype == DataType::Int(32))
+        << "Accumulator only support half, float and int type for now";
     }
-    if ((op->dtype == DataType::Int(4) ||
-         op->dtype == DataType::UInt(4) ||
-         op->dtype == DataType::Int(1)) && scope == "shared") {
-      constant_size = constant_size / (32 / op->dtype.bits());
-    }
-    stream << ' '<< vid << '['
-           << constant_size << "];\n";
+    constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+    PrintWmmaScope(scope, op->dtype, buffer, stream);
+  } else {
+    PrintStorageScope(scope, stream);
+    stream << ' ';
+    PrintType(op->dtype, stream);
   }
+  if ((op->dtype == DataType::Int(4) ||
+        op->dtype == DataType::UInt(4) ||
+        op->dtype == DataType::Int(1)) && scope == "shared") {
+    constant_size = constant_size / (32 / op->dtype.bits());
+  }
+  stream << ' '<< vid << '['
+          << constant_size << "];\n";
+
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);
 }

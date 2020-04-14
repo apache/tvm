@@ -149,9 +149,6 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
   this->VisitStmt(op->body);
   this->VisitExpr(op->condition);
-  if (op->new_expr.defined()) {
-    this->VisitExpr(op->new_expr);
-  }
 }
 
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
@@ -177,10 +174,6 @@ void StmtVisitor::VisitStmt_(const FreeNode* op) {}
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
-  this->VisitStmt(op->body);
-}
-
-void StmtVisitor::VisitStmt_(const ProducerConsumerNode* op) {
   this->VisitStmt(op->body);
 }
 
@@ -291,21 +284,16 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
   Stmt body = this->VisitStmt(op->body);
   PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr new_expr;
-  if (op->new_expr.defined()) {
-    new_expr = this->VisitExpr(op->new_expr);
-  }
+
   if (extents.same_as(op->extents) &&
       body.same_as(op->body) &&
-      condition.same_as(op->condition) &&
-      new_expr.same_as(op->new_expr)) {
+      condition.same_as(op->condition)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->extents = std::move(extents);
     n->body = std::move(body);
     n->condition = std::move(condition);
-    n->new_expr = std::move(new_expr);
     return Stmt(n);
   }
 }
@@ -470,17 +458,6 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
     auto n = CopyOnWrite(op);
     n->condition = std::move(condition);
     n->message = std::move(message);
-    n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const ProducerConsumerNode* op) {
-  Stmt body = this->VisitStmt(op->body);
-  if (body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
     n->body = std::move(body);
     return Stmt(n);
   }

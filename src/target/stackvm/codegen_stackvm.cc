@@ -156,16 +156,7 @@ void CodeGenStackVM::VisitStmt_(const StoreNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
-  CHECK(!is_zero(op->condition));
-  int vid = AllocVarID(op->buffer_var.get());
-  if (op->new_expr.defined()) {
-    // Prefer global static allocation for the program
-    CHECK_EQ(op->free_function, "nop");
-    this->Push(op->new_expr);
-    this->PushOp(StackVM::STORE_HEAP, vid);
-  } else {
-    LOG(FATAL) << "Dynamic allocation not supported";
-  }
+  LOG(FATAL) << "Dynamic allocation not supported";
 }
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
@@ -408,10 +399,6 @@ void CodeGenStackVM::VisitExpr_(const OrNode* op) {
 void CodeGenStackVM::VisitExpr_(const NotNode* op) {
   this->Push(op->a);
   this->PushOp(StackVM::NOT);
-}
-
-void CodeGenStackVM::VisitStmt_(const ProducerConsumerNode* op) {
-  this->Push(op->body);
 }
 
 void CodeGenStackVM::VisitStmt_(const ForNode* op) {

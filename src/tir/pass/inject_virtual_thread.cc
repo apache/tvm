@@ -129,9 +129,6 @@ class VarTouchedAnalysis : public StmtVisitor {
       tc(op->extents[i]);
     }
     tc.VisitExpr(op->condition);
-    if (op->new_expr.defined()) {
-      tc(op->new_expr);
-    }
     Record(op->buffer_var.get(), tc);
     this->VisitStmt(op->body);
   }
@@ -371,9 +368,6 @@ class VTInjector : public StmtExprMutator {
   }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
-    if (op->new_expr.defined() && !vt_loop_injected_) {
-      return InjectVTLoop(GetRef<Stmt>(op), true);
-    }
     PrimExpr condition = this->VisitExpr(op->condition);
     if (visit_touched_var_ && !vt_loop_injected_) {
       return InjectVTLoop(GetRef<Stmt>(op), true);
@@ -419,8 +413,7 @@ class VTInjector : public StmtExprMutator {
     } else {
       return AllocateNode::make(
           op->buffer_var, op->dtype,
-          extents, condition, body,
-          op->new_expr, op->free_function);
+          extents, condition, body);
     }
   }
 

@@ -43,9 +43,6 @@ Stmt MakePipeline(const Stage& s,
                   Stmt consumer,
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
-  if (producer.defined()) {
-    producer = ProducerConsumerNode::make(s->op, true, producer);
-  }
   if (s->double_buffer) {
     producer = AttrStmtNode::make(
         s->op, tir::attr::double_buffer_scope, 1, producer);
@@ -53,7 +50,6 @@ Stmt MakePipeline(const Stage& s,
   Stmt pipeline = producer;
 
   if (consumer.defined() && !is_no_op(consumer)) {
-    consumer = ProducerConsumerNode::make(s->op, false, consumer);
     pipeline = SeqStmt({producer, consumer});
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
@@ -163,20 +159,6 @@ class InjectScanStep : public StmtMutator {
 // Replace the init and update's expression by scan's buffer.
 class SchedulePostProc : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ProducerConsumerNode* op) final {
-    auto it = replace_op_.find(op->func.get());
-    if (it != replace_op_.end()) {
-      Stmt body = this->VisitStmt(op->body);
-      if (it->second.defined()) {
-        return ProducerConsumerNode::make(
-            it->second, op->is_producer, body);
-      } else {
-        return body;
-      }
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
   Stmt VisitStmt_(const LetStmtNode* op) final {
     if (!HasSideEffect(op->value)) {
       var_value_[op->var.get()] = this->VisitExpr(op->value);
