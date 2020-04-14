@@ -543,6 +543,44 @@ def test_vectorized_popcount():
     run_test("uint32")
     run_test("uint64")
 
+def test_cuda_vectorize_load_permute_pad():
+    def check_cuda(dtype, n, l, padding, lanes):
+        if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        if dtype == "float16" and not have_fp16(tvm.gpu(0).compute_version):
+            print("Skip because gpu does not have fp16 support")
+            return
+
+        ctx = tvm.gpu(0)
+        A = tvm.te.placeholder((n, l), name='A', dtype=dtype)
+        B = tvm.te.compute((n // lanes, l + 2 * padding, lanes),
+                           lambda i, j, k: tvm.te.if_then_else(
+            tvm.te.any(j < padding, j >= l + padding),
+            tvm.runtime.convert(0).astype(dtype), A[i * lanes + k, j - padding]),
+            name='B')
+        s = te.create_schedule(B.op)
+        block, thread, vectorize = s[B].op.axis
+        s[B].bind(block, bx)
+        s[B].bind(thread, tx)
+        s[B].vectorize(vectorize)
+        fun = tvm.build(s, [A, B], "cuda", name="vector_load_permute_pad")
+        np_a = np.random.randint(
+            low=-128, high=127, size=(n, l)).astype(A.dtype)
+        a = tvm.nd.empty((n, l), A.dtype, ctx).copyfrom(np_a)
+        b = tvm.nd.empty((n // lanes, l + padding * 2, lanes), B.dtype, ctx)
+        fun(a, b)
+        np_a_reshape = np_a.reshape(n // lanes, lanes, l).transpose(0, 2, 1)
+        ref = np.pad(np_a_reshape, ((0, 0), (padding, padding),
+                                    (0, 0)), mode='constant', constant_values=0)
+        tvm.testing.assert_allclose(b.asnumpy(), ref)
+
+    check_cuda("int8", 64, 16, 3, 4)
+    check_cuda("uint8", 64, 16, 3, 4)
+    check_cuda("int32", 64, 16, 3, 4)
+    check_cuda("float16", 64, 16, 3, 4)
+    check_cuda("float32", 64, 16, 3, 4)
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
@@ -560,3 +598,4 @@ if __name__ == "__main__":
     test_vectorized_intrin1()
     test_vectorized_intrin2()
     test_vectorized_popcount()
+    test_cuda_vectorize_load_permute_pad()

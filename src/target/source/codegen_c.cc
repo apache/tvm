@@ -668,15 +668,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base);
       HandleVolatileLoads(ref, op, os);
     } else {
-      // The assignment below introduces side-effect, and the resulting value cannot
-      // be reused across multiple expression, thus a new scope is needed
-      int vec_scope = BeginScope();
-
-      // load seperately.
-      std::string svalue = GetUniqueName("_");
-      this->PrintIndent();
-      this->PrintType(op->dtype, stream);
-      stream << ' ' << svalue << ";\n";
+      std::ostringstream svalue_expr;
       std::string sindex = SSAGetID(PrintExpr(op->index), op->index.dtype());
       std::string vid = GetVarID(op->buffer_var.get());
       DataType elem_type = op->dtype.element_of();
@@ -699,10 +691,9 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
         value_temp << '[';
         PrintVecElemLoad(sindex, op->index.dtype(), i, value_temp);
         value_temp << ']';
-        PrintVecElemStore(svalue, op->dtype, i, value_temp.str());
+        PrintVecElemLoadExpr(op->dtype, i, value_temp.str(), svalue_expr);
       }
-      os << svalue;
-      EndScope(vec_scope);
+      os << svalue_expr.str();
     }
   }
 }
@@ -953,6 +944,31 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
 
 void CodeGenC::VisitStmt_(const ProducerConsumerNode* op) {
   PrintStmt(op->body);
+}
+
+void CodeGenC::PrintVecElemLoadExpr(
+    DataType t, int i, const std::string& value, std::ostream& os) {
+  CHECK_GT(t.lanes(), 1);
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
+    if (i != 0) {
+      os << "|";
+    }
+    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
+    return;
+  }
+
+  if (i == 0) {
+    os << "((";
+    PrintType(t, os);
+    os << t.lanes() << ")(";
+  }
+  os << value;
+  if (i != t.lanes() - 1) {
+    os << ",";
+  } else {
+    os << "))";
+  }
+  return;
 }
 
 }  // namespace codegen
