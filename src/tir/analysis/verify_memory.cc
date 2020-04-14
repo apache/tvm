@@ -114,9 +114,11 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Check if the value of a Variable comes from function argument.
   bool IsFromFunctionArgs(const VarNode *var) const {
     const VarNode *V = var;
-    while (true) {
-      CHECK(V) << "Invalid Variable\n";
+    for (auto kv : func_->buffer_map) {
+      if (V == kv.second->data.get()) return true;
+    }
 
+    while (true) {
       // Variable is from function args. Return true.
       if (V == func_->params[0].get()) return true;
 
