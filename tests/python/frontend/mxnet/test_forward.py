@@ -983,6 +983,18 @@ def test_forward_unravel_index():
     # verify([0, 1, 2, 5], [2, 2], dtype)
 
 
+def test_forward_swap_axis():
+    def _verify_swap_axis(in_shape, out_shape, dim1, dim2):
+        data = mx.sym.var('data')
+        mx_sym = mx.sym.swapaxes(data, dim1, dim2)
+        verify_mxnet_frontend_impl(mx_sym, in_shape, out_shape)
+
+    _verify_swap_axis((4, 5), (5, 4), 0, 1)
+    _verify_swap_axis((2, 4, 4, 5), (2, 5, 4, 4), 1, 3)
+    # MXNet errors out when dim1 == dim2
+    # _verify_swap_axis((4, 5), (5, 4), 0, 0)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1040,3 +1052,4 @@ if __name__ == '__main__':
     test_forward_cond()
     test_forward_make_loss()
     test_forward_unravel_index()
+    test_forward_swap_axis()
