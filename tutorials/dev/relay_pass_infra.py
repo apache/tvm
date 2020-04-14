@@ -29,7 +29,7 @@ introduced an infrastructure to manage the optimization passes.
 The optimizations of a Relay program could be applied at various granularity,
 namely function-level and module-level using :py:class:`tvm.relay.transform.FunctionPass`
 and py:class:`tvm.relay.transform.ModulePass`
-respectively. Or users can rely on py:class:`tvm.relay.transform.Sequential` to apply a sequence of passes
+respectively. Or users can rely on py:class:`tvm.transform.Sequential` to apply a sequence of passes
 on a Relay program where the dependencies between passes can be resolved by the
 pass infra. For more details about each type of these passes, please refer to
 the :ref:`relay-pass-infra`
@@ -130,22 +130,22 @@ print(mod)
 # fusion, as this pass generates let bindings for each expression to
 # canonicalize a Relay program.
 #
-# Relay, hence, provides :py:class:`tvm.relay.transform.Sequential` to alleviate developers from handling
+# Relay, hence, provides :py:class:`tvm.transform.Sequential` to alleviate developers from handling
 # these issues explicitly by specifying the required passes of each pass and
 # packing them as a whole to execute. For example, the same passes can now be
-# applied using the sequential style as the following. :py:class:`tvm.relay.transform.Sequential` is
+# applied using the sequential style as the following. :py:class:`tvm.transform.Sequential` is
 # similiar to `torch.nn.sequential <https://pytorch.org/docs/stable/nn.html#torch.nn.Sequential>`_
 # and `mxnet.gluon.block <https://mxnet.incubator.apache.org/api/python/docs/_modules/mxnet/gluon/block.html>`_.
 # For example, `torch.nn.sequential` is used to contain a sequence of PyTorch
 # `Modules` that will be added to build a network. It focuses on the network
-# layers. Instead, the :py:class:`tvm.relay.transform.Sequential` in our pass infra works on the optimizing
+# layers. Instead, the :py:class:`tvm.transform.Sequential` in our pass infra works on the optimizing
 # pass.
 
-# Now let's execute some passes through :py:class:`tvm.relay.transform.Sequential`
+# Now let's execute some passes through :py:class:`tvm.transform.Sequential`
 f = example()
 mod = tvm.IRModule.from_expr(f)
 # Glob the interested passes.
-seq = relay.transform.Sequential([relay.transform.FoldConstant(),
+seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
                                   relay.transform.EliminateCommonSubexpr(),
                                   relay.transform.FuseOps(fuse_opt_level=2)])
 mod1 = seq(mod)
@@ -156,7 +156,7 @@ print(mod1)
 # identical addition operations. This is because `EliminateCommonSubexpr`
 # was not actually performed. The reason is because only the passes that have
 # optimization level less or equal to 2 will be executed by default under
-# :py:class:`tvm.relay.transform.Sequential`. The pass infra,
+# :py:class:`tvm.transform.Sequential`. The pass infra,
 # however, provides a configuration interface
 # for users to customize the optimization level that they want to execute.
 
@@ -186,7 +186,7 @@ with relay.build_config(opt_level=3):
     mod4 = seq(mod)
 print(mod4)
 
-seq1 = relay.transform.Sequential([relay.transform.AlterOpLayout()])
+seq1 = tvm.transform.Sequential([relay.transform.AlterOpLayout()])
 with relay.build_config(opt_level=3):
     with tvm.target.create("llvm"):
         mod5 = seq1(mod)
@@ -237,11 +237,11 @@ print(mod3)
 
 f = example()
 mod = tvm.IRModule.from_expr(f)
-seq = relay.transform.Sequential([relay.transform.FoldConstant(),
-                                  relay.transform.PrintIR(False),
-                                  relay.transform.EliminateCommonSubexpr(),
-                                  relay.transform.FuseOps(),
-                                  relay.transform.PrintIR(False)])
+seq = tvm.transform.Sequential([relay.transform.FoldConstant(),
+                                tvm.transform.PrintIR(),
+                                relay.transform.EliminateCommonSubexpr(),
+                                relay.transform.FuseOps(),
+                                tvm.transform.PrintIR()])
 with relay.build_config(opt_level=3):
     mod = seq(mod)
 
