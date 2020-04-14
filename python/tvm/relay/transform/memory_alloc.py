@@ -210,7 +210,7 @@ class ManifestAllocPass(ExprMutator):
 
             if self.is_dynamic(ret_type):
                 # Handle dynamic case.
-                return self.dynamic_invoke(scope, op, ins, new_args, out_types, ret_type)
+                return self.dynamic_invoke(scope, call.op, ins, new_args, out_types, ret_type)
             else:
                 # Handle static case.
                 outs = []
