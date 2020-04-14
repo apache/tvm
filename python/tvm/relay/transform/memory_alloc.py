@@ -122,10 +122,11 @@ class ManifestAllocPass(ExprMutator):
 
         return scope.get()
 
-    def dynamic_invoke(self, scope, op, ins, new_args, out_types, ret_type):
+    def dynamic_invoke(self, scope, func, ins, new_args, out_types, ret_type):
+        """Generate the code for invoking a TVM op with a dynamic shape."""
         shape_func_ins = []
         engine = compile_engine.get()
-        cfunc = engine.lower_shape_func(op, self.target_host)
+        cfunc = engine.lower_shape_func(func, self.target_host)
         input_states = cfunc.shape_func_param_states
 
         is_inputs = []
@@ -160,7 +161,7 @@ class ManifestAllocPass(ExprMutator):
             out_shapes.append(alloc)
 
         shape_call = self.shape_func(
-            op,
+            func,
             expr.Tuple(shape_func_ins),
             expr.Tuple(out_shapes), is_inputs)
 
@@ -187,7 +188,7 @@ class ManifestAllocPass(ExprMutator):
             outs.append(alloc)
 
         tuple_outs = expr.Tuple(outs)
-        invoke = self.invoke_tvm(op, ins, tuple_outs)
+        invoke = self.invoke_tvm(func, ins, tuple_outs)
         scope.let("", invoke)
         return to_tuple_type(ret_type, tuple_outs.fields)
 
