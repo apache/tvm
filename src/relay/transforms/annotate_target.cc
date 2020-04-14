@@ -192,7 +192,7 @@ class AnnotateTargetRewriter : public ExprRewriter {
     // Update the target map.
     op_expr_to_target_[new_call] = target;
 
-    return new_call;
+    return std::move(new_call);
   }
 
   Expr Rewrite_(const TupleNode* op, const Expr& post) final {

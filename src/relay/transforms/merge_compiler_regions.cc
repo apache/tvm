@@ -53,7 +53,7 @@ namespace merge_compiler_region {
 static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
 static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
-class RegionMerger : public ExprVisitor {
+class RegionMerger : public MixedModeVisitor {
  public:
   explicit RegionMerger(AnnotatedRegionSet regions) : regions_(regions) {}
 
@@ -131,7 +131,6 @@ class RegionMerger : public ExprVisitor {
       }
       merged_regions_.insert(region->GetID());
     }
-    ExprVisitor::VisitExpr_(call);
   }
 
  private:
