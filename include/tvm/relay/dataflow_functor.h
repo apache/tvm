@@ -138,25 +138,6 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
   std::unordered_set<const Object*> visited_;
 };
 
-class DFPatternMutator : public DFPatternFunctor<DFPattern(const DFPattern&)> {
- public:
-  virtual DFPattern Mutate(const DFPattern& pattern);
-  DFPattern VisitDFPattern(const DFPattern& pattern) override;
-  DFPattern VisitDFPattern_(const AltPatternNode* op) override;
-  DFPattern VisitDFPattern_(const AttrPatternNode* op) override;
-  DFPattern VisitDFPattern_(const CallPatternNode* op) override;
-  DFPattern VisitDFPattern_(const DominatorPatternNode* op) override;
-  DFPattern VisitDFPattern_(const ExprPatternNode* op) override;
-  DFPattern VisitDFPattern_(const TupleGetItemPatternNode* op) override;
-  DFPattern VisitDFPattern_(const TuplePatternNode* op) override;
-  DFPattern VisitDFPattern_(const TypePatternNode* op) override;
-  DFPattern VisitDFPattern_(const VarPatternNode* op) override;
-  DFPattern VisitDFPattern_(const WildcardPatternNode* op) override;
-
- protected:
-  std::unordered_map<DFPattern, DFPattern, ObjectHash, ObjectEqual> memo_;
-};
-
 template <typename T>
 class IndexedGraph {
  public:
