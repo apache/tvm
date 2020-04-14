@@ -111,7 +111,7 @@ def test_llvm_lookup_intrin():
     x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
     ib.emit(x)
     body = ib.get()
-    func = tvm.testing.MakeAPILegacy(body, "ctpop", [A], 1, True)
+    func = tvm.testing.MakeAPILegacy(body, "ctpop", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
 
 

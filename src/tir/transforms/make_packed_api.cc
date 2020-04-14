@@ -26,6 +26,7 @@
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/target/target.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
@@ -50,6 +51,12 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol)
       << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
+
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  CHECK(target.defined())
+      << "MakePackedAPI: Require the target attribute";
+  int target_device_type = target.value()->device_type;
+
   std::string name_hint = global_symbol.value();
 
   auto* func_ptr = func.CopyOnWrite();
@@ -68,7 +75,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   // The arguments of the function.
   Array<Var> args;
   // The device context
-  Var device_type("dev_type"), device_id("dev_id");
+  Var device_id("dev_id");
+  Integer device_type(target_device_type);
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check;
@@ -195,17 +203,18 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   // Set device context
   if (vmap.count(device_id.get())) {
     PrimExpr node = StringImmNode::make("default");
-    CHECK(vmap.count(device_type.get()));
     seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_id, device_id, nop));
     seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_type, device_type, nop));
-    Stmt set_device = IfThenElseNode::make(
-        device_type != kDLCPU, EvaluateNode::make(CallNode::make(
-            DataType::Int(32), intrinsic::tvm_call_packed,
-            {StringImmNode::make(runtime::symbol::tvm_set_device),
-             device_type, device_id}, CallNode::Intrinsic)));
-    body = SeqStmt({set_device, body});
+
+    if (runtime::DeviceAPI::NeedSetDeviceContext(target_device_type)) {
+      Stmt set_device = EvaluateNode::make(CallNode::make(
+              DataType::Int(32), intrinsic::tvm_call_packed,
+              {StringImmNode::make(runtime::symbol::tvm_set_device),
+               device_type, device_id}, CallNode::Intrinsic));
+      body = SeqStmt({set_device, body});
+    }
   }
   func_ptr->body = MergeNest(
       {seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);

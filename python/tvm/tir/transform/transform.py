@@ -32,7 +32,7 @@ def Apply(ftransform):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     # pylint: disable=unused-argument
@@ -51,7 +51,7 @@ def Filter(fcond):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     # pylint: disable=unused-argument
@@ -67,7 +67,7 @@ def LowerCustomDatatypes():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.LowerCustomDatatypes()
@@ -84,22 +84,10 @@ def MakePackedAPI(num_unpacked_params=0):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.MakePackedAPI(num_unpacked_params)
-
-
-def BindDeviceType():
-    """Bind the device type of the function to be
-       the device_type specified in the target attribute.
-
-    Returns
-    -------
-    fpass : tvm.ir.transform.Pass
-        The result pass
-    """
-    return _ffi_api.BindDeviceType()
 
 
 def SplitHostDevice():
@@ -107,7 +95,7 @@ def SplitHostDevice():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.SplitHostDevice()
@@ -118,7 +106,7 @@ def SkipAssert():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.SkipAssert()
@@ -134,7 +122,7 @@ def ThreadSync(storage_scope):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.ThreadSync(storage_scope)
@@ -145,7 +133,7 @@ def LowerThreadAllreduce():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.LowerThreadAllreduce()
@@ -156,7 +144,7 @@ def InferFragment():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.InferFragment()
@@ -167,7 +155,7 @@ def LowerWarpMemory():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.LowerWarpMemory()
@@ -178,7 +166,7 @@ def LowerTVMBuiltin():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.LowerTVMBuiltin()
@@ -189,7 +177,7 @@ def LowerIntrin():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.LowerIntrin()
@@ -200,7 +188,7 @@ def LowerDeviceStorageAccessInfo():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
 
     Note
@@ -215,7 +203,7 @@ def CombineContextCall():
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
     """
     return _ffi_api.CombineContextCall()
@@ -231,7 +219,7 @@ def NarrowDataType(target_bits):
 
     Returns
     -------
-    fpass : tvm.ir.transform.Pass
+    fpass : tvm.transform.Pass
         The result pass
 
     Note

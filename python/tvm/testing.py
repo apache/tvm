@@ -195,13 +195,14 @@ def MakeAPILegacy(stmt, name, args, num_unpacked_args, noalias):
     mod : IRModule
         The created IRModule.
     """
+    assert num_unpacked_args == 0
     f = tvm.tir.PrimFunc(args, stmt).with_attr(
         "global_symbol", tvm.runtime.String(name))
     f = f.with_attr("tir.is_entry_func", True)
     if noalias:
         f = f.with_attr("tir.noalias", True)
     mod = tvm.IRModule({name: f})
-    return tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)
+    return mod
 
 
 tvm._ffi._init_api("testing", __name__)

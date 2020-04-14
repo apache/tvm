@@ -473,5 +473,18 @@ TVM_REGISTER_GLOBAL("transform.EnterPassContext")
 TVM_REGISTER_GLOBAL("transform.ExitPassContext")
 .set_body_typed(PassContext::Internal::ExitScope);
 
+
+Pass PrintIR(std::string header) {
+  auto pass_func =[header](IRModule mod, const PassContext& ctx) {
+    LOG(INFO) << "PrintIR(" << header << "):\n"
+              << mod;
+    return mod;
+  };
+  return CreateModulePass(pass_func, 0, "PrintIR", {});
+}
+
+TVM_REGISTER_GLOBAL("transform.PrintIR")
+.set_body_typed(PrintIR);
+
 }  // namespace transform
 }  // namespace tvm
