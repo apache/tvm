@@ -27,6 +27,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/relay/expr.h>
 #include <string>
+#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -50,12 +51,10 @@ struct AllocStorageAttrs : public tvm::AttrsNode<AllocStorageAttrs> {
       .set_default(DataType::Float(32, 1));
     TVM_ATTR_FIELD(device_id)
       .describe(
-        "The device id on which to allocate memory."
-      );
+        "The device id on which to allocate memory.");
     TVM_ATTR_FIELD(device_type)
       .describe(
-        "The device type on which to allocate memory."
-      );
+        "The device type on which to allocate memory.");
   }
 };
 
