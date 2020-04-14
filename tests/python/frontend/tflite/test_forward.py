@@ -1992,6 +1992,9 @@ if __name__ == '__main__':
     # Zeros Like
     test_forward_zeros_like()
 
+    # Fill
+    test_forward_fill()
+
     # Reduce
     test_all_reduce()
 

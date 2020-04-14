@@ -1646,29 +1646,28 @@ class OperatorConverter(object):
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
 
-        assert len(input_tensors) == 3, "input tensors length should be == 3"
+        assert len(input_tensors) == 3, "input tensors length should be 3"
 
-        axis_tensor = input_tensors[2]
-        split_axis = self.get_tensor_value(axis_tensor)
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
-
         in_expr = self.get_expr(input_tensor_idx)
+
         if self.has_expr(input_tensors[1].tensor_idx):
             raise tvm.error.OpNotImplemented("For size_splits parameter of SPLIT_V operator, "
                                              "only constant values are supported.")
-
         size_splits = list(self.get_tensor_value(input_tensors[1]))
         size_splits = tuple(np.cumsum(size_splits)[:-1])
+
+        axis_tensor = input_tensors[2]
+        split_axis = self.get_tensor_value(axis_tensor)
 
         out = _op.split(in_expr, size_splits, axis=int(split_axis))
         # Relay does not like a TupleWrapper of 1 element, further this
         # only shows up with tf1.13 if we use a split with num_splits==1.
         # In tf 1.14 this doesn't appear as it is automatically a reshape
         # operation.
-        if isinstance(out, _expr.TupleWrapper):
-            if out.size == 1:
-                out = out[0]
+        if isinstance(out, _expr.TupleWrapper) and out.size == 1:
+            out = out[0]
 
         return out
 
