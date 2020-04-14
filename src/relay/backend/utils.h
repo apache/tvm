@@ -27,6 +27,7 @@
 #include <dmlc/json.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
@@ -42,6 +43,40 @@
 namespace tvm {
 namespace relay {
 namespace backend {
+
+/*!
+ * \brief A simple wrapper around ExprFunctor for a single argument case.
+ *  The result of visit is memoized.
+ */
+template <typename OutputType>
+class MemoizedExprTranslator : public ::tvm::relay::ExprFunctor<OutputType(const Expr&)> {
+  using BaseFunctor = ::tvm::relay::ExprFunctor<OutputType(const Expr&)>;
+
+ public:
+  /*! \brief virtual destructor */
+  virtual ~MemoizedExprTranslator() {}
+
+  /*!
+   * \brief The memoized call.
+   * \param n The expression node.
+   * \return The result of the call
+   */
+  virtual OutputType VisitExpr(const Expr& n) {
+    CHECK(n.defined());
+    auto it = memo_.find(n);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    auto res = BaseFunctor::VisitExpr(n);
+    memo_[n] = res;
+    return res;
+  }
+
+ protected:
+  /*! \brief Internal map used for memoization. */
+  std::unordered_map<Expr, OutputType, ObjectHash, ObjectEqual> memo_;
+};
+
 /*!
  * \brief Get the Packed Func
  *

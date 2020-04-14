@@ -40,17 +40,9 @@ using namespace backend;
  * purpose. Only several binary options are covered. Users
  * may need to extend them to cover more operators.
  */
-class CodegenC : public ExprFunctor<std::vector<Output>(const Expr&)>,
-                 public CodegenCBase {
+class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public CodegenCBase {
  public:
   explicit CodegenC(const std::string& id) { this->ext_func_id_ = id; }
-
-  std::vector<Output> VisitExpr(const Expr& expr) final {
-    if (visited_.count(expr)) return visited_.at(expr);
-    std::vector<Output> output = ExprFunctor::VisitExpr(expr);
-    visited_[expr] = output;
-    return output;
-  }
 
   std::vector<Output> VisitExprDefault_(const Object* op) final {
     LOG(FATAL) << "C codegen doesn't support: " << op->GetTypeKey();
@@ -208,8 +200,6 @@ class CodegenC : public ExprFunctor<std::vector<Output>(const Expr&)>,
   std::vector<std::string> func_decl_;
   /*! \brief The declaration statements of buffers. */
   std::vector<std::string> buf_decl_;
-  /*! \brief The name and index pairs for output. */
-  std::unordered_map<Expr, std::vector<Output>, ObjectHash, ObjectEqual> visited_;
 };
 
 class CSourceCodegen : public CSourceModuleCodegenBase {
