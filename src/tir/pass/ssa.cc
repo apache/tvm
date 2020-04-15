@@ -158,7 +158,7 @@ class IRConvertSSA final : public StmtExprMutator {
       op = stmt.as<AllocateNode>();
       return AllocateNode::make(
           new_var, op->dtype, op->extents, op->condition,
-          op->body, op->new_expr, op->free_function);
+          op->body);
     } else {
       defined_.insert(v.get());
       return StmtExprMutator::VisitStmt_(op);

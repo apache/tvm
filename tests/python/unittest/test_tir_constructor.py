@@ -148,10 +148,6 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
-    x = tvm.tir.ProducerConsumer(None, True, nop)
-    assert isinstance(x, tvm.tir.ProducerConsumer)
-    assert x.body == nop
-
     x = tvm.tir.For(te.var("x"), 0, 10, 0, 0, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0

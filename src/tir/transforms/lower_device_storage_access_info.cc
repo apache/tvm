@@ -51,12 +51,13 @@ class StorageAccessInfoLower : public StmtExprMutator {
       ++it->second.alloc_count;
       CHECK_LE(it->second.alloc_count, 1)
           << "Double allocation of " << it->second.scope.to_string();
+
       if (info->head_address.defined()) {
-        return AllocateNode::make(
-            op->buffer_var, op->dtype, op->extents, op->condition,
-            op->body, info->head_address, "nop");
+        return LetStmtNode::make(
+          op->buffer_var, info->head_address, op->body);
+      } else {
+        return op->body;
       }
-      return op->body;
     } else {
       return stmt;
     }
@@ -110,10 +111,10 @@ class StorageAccessInfoLower : public StmtExprMutator {
   }
 
   PrimExpr MakeTaggedAccessPtr(DataType ptr_type,
-                           Var buffer_var,
-                           DataType dtype,
-                           PrimExpr offset,
-                           const MemoryInfo& info) {
+                               Var buffer_var,
+                               DataType dtype,
+                               PrimExpr offset,
+                               const MemoryInfo& info) {
     if (ptr_type.is_handle()) {
       CHECK(info->head_address.defined())
           << buffer_var << " is not adddressable.";

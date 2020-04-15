@@ -23,14 +23,6 @@ def collect_visit(stmt, f):
     tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x : ret.append(f(x)))
     return ret
 
-def find_top_produce(stmt):
-    def f(x, ret):
-        if isinstance(x, tvm.tir.ProducerConsumer):
-            ret.append(x)
-    ret = []
-    tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x : f(x, ret))
-    return ret[-1]
-
 def lower(sch, args):
     binds = {}
     arg_list = []
@@ -65,8 +57,8 @@ def test_basic():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body[0]))
-    assert('if' in str(stmt.body.body.body[1]))
+    assert('if' not in str(stmt.body.body[0]))
+    assert('if' in str(stmt.body.body[1]))
 
 def test_const_loop():
     n = 21
@@ -81,7 +73,7 @@ def test_const_loop():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body[0]))
+    assert('if' not in str(stmt.body.body[0]))
 
 def test_multi_loop():
     ib = tvm.tir.ir_builder.create()
@@ -136,7 +128,7 @@ def test_thread_axis():
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body.body[0]))
+    assert('if' not in str(stmt.body.body[0]))
 
 def test_vectorize():
     n = te.size_var('n')
@@ -156,7 +148,7 @@ def test_vectorize():
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
     stmt = lower(s, [A, B])
-    body = stmt.body.body.body.body.body
+    body = stmt.body.body.body.body
     assert(x.var.name not in str(body.condition))
     assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp))))
 
@@ -199,7 +191,7 @@ def test_thread_axis2():
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     stmt = lower(s, [A, B])
-    for_body = stmt.body.body.body.body.body[0]
+    for_body = stmt.body.body.body.body[0]
     assert('threadIdx' not in str(for_body.extent))
 
 def test_everything_during_deduction():
@@ -405,9 +397,7 @@ def test_double_splitting_with_indivisible_factors():
         f = tvm.lower(s, [A, C, D], name="fadd1", simple_mode=False)
         func = tvm.build(f, target=target)
 
-    # Find the beginning of the Halide IR corresponding to kernel code
-    # and make sure it doesn't have an if statements left
-    top_produce = find_top_produce(f["fadd1"].body)
+    top_produce = f["fadd1"].body
     assert(not any(collect_visit(top_produce, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
     # check functional correctness of generated code

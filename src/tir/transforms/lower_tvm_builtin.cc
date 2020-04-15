@@ -93,7 +93,6 @@ class BuiltinLower : public StmtExprMutator {
     // Lower allocate to device allocate when needed.
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
-    if (op->new_expr.defined()) return stmt;
     // Get constant allocation bound.
     int64_t dev_type;
     int64_t nbytes = GetVectorBytes(op->dtype);

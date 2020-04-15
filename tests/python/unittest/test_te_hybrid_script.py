@@ -366,7 +366,7 @@ def test_bind():
     c = foo(a)
     s = te.create_schedule(c.op)
     ir = tvm.lower(s, [a, c], simple_mode=True)
-    assert not isinstance(ir, tvm.tir.AttrStmt)
+
     func, ins, outs = run_and_check(foo, [a], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
 
@@ -731,8 +731,6 @@ def test_schedule():
     sch[c].vectorize(ji)
     sch[c].reorder(ii, io, joo, joi, ji)
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(ir, tvm.tir.ProducerConsumer)
-    ir = ir.body
     assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
     assert isinstance(ir, tvm.tir.For)
@@ -754,8 +752,6 @@ def test_schedule():
     sch = te.create_schedule(c.op)
     sch[c].fuse(c.op.axis[0], c.op.axis[1])
     ir = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(ir, tvm.tir.ProducerConsumer)
-    ir = ir.body
     assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
     assert isinstance(ir, tvm.tir.For)

@@ -56,29 +56,6 @@ class GPUCodeVerifier : public StmtVisitor {
     return valid_;
   }
 
-  void VisitStmt_(const ProducerConsumerNode* op) final {
-    if (nest_level_ == 0) {
-      // enter a new kernel, reset statistics
-      Reset_();
-    }
-
-    if (op->is_producer) {
-      nest_level_++;
-      StmtVisitor::VisitStmt_(op);
-      nest_level_--;
-    } else {
-      StmtVisitor::VisitStmt_(op);
-    }
-
-    if (nest_level_ == 0) {
-      // exit a kernel, check the validity
-      valid_ &= thread_per_block_ <= max_threads_per_block_;
-
-      valid_ &= local_memory_per_block_ <= max_local_memory_per_block_;
-      valid_ &= shared_memory_per_block_ <= max_shared_memory_per_block_;
-    }
-  }
-
   void VisitStmt_(const AllocateNode* op) final {
     StmtVisitor::VisitStmt_(op);
     // visit an allocation of a buffer in shared memory, record its size
@@ -99,7 +76,13 @@ class GPUCodeVerifier : public StmtVisitor {
       } else if (op_value == "shared") {
         visited_shared_buffers_.insert(op->node.as<VarNode>());
       }
+      StmtVisitor::VisitStmt_(op);
     } else if (op->attr_key == attr::thread_extent) {
+      if (nest_level_ == 0) {
+        // enter a new kernel, reset statistics
+        Reset_();
+      }
+
       Var var = op->node.as<IterVarNode>()->var;
       const auto *extent = op->value.as<IntImmNode>();
       CHECK(extent);
@@ -133,8 +116,21 @@ class GPUCodeVerifier : public StmtVisitor {
           }
         }
       }
+
+      nest_level_++;
+      StmtVisitor::VisitStmt_(op);
+      nest_level_--;
+
+      if (nest_level_ == 0) {
+        // exit a kernel, check the validity
+        valid_ &= thread_per_block_ <= max_threads_per_block_;
+
+        valid_ &= local_memory_per_block_ <= max_local_memory_per_block_;
+        valid_ &= shared_memory_per_block_ <= max_shared_memory_per_block_;
+      }
+    } else {
+      StmtVisitor::VisitStmt_(op);
     }
-    StmtVisitor::VisitStmt_(op);
   }
 
  private:

@@ -1268,10 +1268,7 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
 void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;
-  if (op->new_expr.defined()) {
-    CHECK_EQ(op->free_function, "nop");
-    buf = MakeValue(op->new_expr);
-  } else {
+
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
         << "Can only handle constant size stack allocation";
@@ -1296,7 +1293,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
     }
     info.alignment = alloca->getAlignment();
     buf = alloca;
-  }
+
   buf = builder_->CreatePointerCast(
       buf, DTypeToLLVMType(op->dtype)->getPointerTo(
           buf->getType()->getPointerAddressSpace()));
@@ -1359,9 +1356,6 @@ void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenLLVM::VisitStmt_(const ProducerConsumerNode* op) {
-  this->VisitStmt(op->body);
-}
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION
