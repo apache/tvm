@@ -225,6 +225,9 @@ def test_get_valid_counts():
             intrp = relay.create_executor("debug", ctx=ctx, target=target)
             out = intrp.evaluate(func)(np_data)
             tvm.testing.assert_allclose(out[0].asnumpy(), np_out1, rtol=1e-3, atol=1e-04)
+            # get_valid_count for cuda doesn't do data rearrangement
+            if target == 'cuda':
+                return
             tvm.testing.assert_allclose(out[1].asnumpy(), np_out2, rtol=1e-3, atol=1e-04)
 
     verify_get_valid_counts((1, 2500, 6), 0, 0, 1)
