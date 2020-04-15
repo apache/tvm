@@ -21,5 +21,4 @@ tvm.relay.transform
 .. automodule:: tvm.relay.transform
     :members:
     :imported-members:
-    :exclude-members: Object
     :autosummary:
