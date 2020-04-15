@@ -1,8 +1,4 @@
-if(WIN32)
-  cmake_minimum_required(VERSION 3.9)
-else()
-  cmake_minimum_required(VERSION 3.2)
-endif()
+cmake_minimum_required(VERSION 3.2)
 
 project(tvm C CXX)
 
@@ -74,6 +70,10 @@ tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
+
+if(USE_CPP_RPC AND UNIX)
+    message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32")
+endif()
 
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
@@ -441,11 +441,6 @@ endif(INSTALL_DEV)
 
 # More target definitions
 if(MSVC)
-  if(USE_CPP_RPC STREQUAL "ON")
-    set_property(TARGET tvm_rpc PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  endif()
-  set_property(TARGET tvm PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  set_property(TARGET tvm_topi PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   target_compile_definitions(tvm PRIVATE -DTVM_EXPORTS)
   target_compile_definitions(tvm_runtime PRIVATE -DTVM_EXPORTS)
 endif()
