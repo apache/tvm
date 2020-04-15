@@ -34,46 +34,31 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tvm {
 namespace runtime {
 
 /*!
- * \brief CoreML runtime.
- *
- *  This runtime can be accessed in various language via
- *  TVM runtime PackedFunc API.
+ * \brief CoreML model.
  */
-class CoreMLRuntime : public ModuleNode {
+class CoreMLModel {
  public:
   /*!
-   * \brief Get member function to front-end.
-   * \param name The name of the function.
-   * \param sptr_to_self The pointer to the module node.
-   * \return The corresponding member function.
+   * \brief constructor
+   * \param url The directory where compiled models are located.
    */
-  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
-
-  /*!
-   * \return The type key of the executor.
-   */
-  const char* type_key() const { return "CoreMLRuntime"; }
-
+  explicit CoreMLModel(NSURL* url) {
+    url_ = url;
+    model_ = [MLModel modelWithContentsOfURL:url error:nil];
+    input_dict_ = [NSMutableDictionary dictionary];
+    output_ = nil;
+  }
   /*!
    * \brief Invoke the coreml prediction.
    */
   void Invoke();
-
-  /*!
-   * \brief Initialize the coreml runtime with coreml model and context.
-   * \param model_path The compiled model path.
-   * \param ctx The context where the coreml model will be executed on.
-   * \param output_names The output names of the model.
-   */
-  void Init(const std::string& model_path, TVMContext ctx,
-            const std::vector<NSString*>& output_names);
-
   /*!
    * \brief set input to the model.
    * \param key The input name.
@@ -94,16 +79,58 @@ class CoreMLRuntime : public ModuleNode {
    */
   int GetNumOutputs() const;
 
+  // CoreML model url
+  NSURL* url_;
   // CoreML model
   MLModel* model_;
   // CoreML model input dictionary
   NSMutableDictionary<NSString*, id>* input_dict_;
   // CoreML model output
   id<MLFeatureProvider> output_;
-  // List of output names
-  std::vector<NSString*> output_names_;
-  // TVM context
-  TVMContext ctx_;
+};
+
+/*!
+ * \brief CoreML runtime.
+ *
+ *  This runtime can be accessed in various language via
+ *  TVM runtime PackedFunc API.
+ */
+class CoreMLRuntime : public ModuleNode {
+ public:
+  /*!
+   * \brief Get member function to front-end.
+   * \param name The name of the function.
+   * \param sptr_to_self The pointer to the module node.
+   * \return The corresponding member function.
+   */
+  virtual PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self);
+
+  /*!
+   * \brief Serialize the content of the mlmodelc directory and save it to
+   *        binary stream.
+   * \param stream The binary stream to save to.
+   */
+  void SaveToBinary(dmlc::Stream* stream) final;
+
+  /*!
+   * \return The type key of the executor.
+   */
+  const char* type_key() const { return "coreml"; }
+
+  /*!
+   * \brief Initialize the coreml runtime with coreml model and context.
+   * \param model_dir The directory where compiled models are located.
+   */
+  void Init(const std::string& model_dir);
+
+  /*!
+   * \brief Get coreml model.
+   * \param model_name The name of the model.
+   */
+  CoreMLModel& GetModel(const std::string& model_name);
+
+  // Map of the avaiable CoreML models
+  std::unordered_map<std::string, std::unique_ptr<CoreMLModel>> model_map_;
 };
 
 }  // namespace runtime
