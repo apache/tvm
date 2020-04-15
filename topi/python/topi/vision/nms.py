@@ -466,8 +466,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   zero=tvm.tir.const(0, dtype=data.dtype),
                                   one=tvm.tir.const(1, dtype=data.dtype))
     if return_indices:
-        box_indices, out_shape = hybrid_rearrange_out(box_indices, one=tvm.tir.const(1, dtype="int32"))
-        return tuple([box_indices, out_shape])
+        return hybrid_rearrange_out(box_indices, one=tvm.tir.const(1, dtype="int32"))
 
     if invalid_to_bottom:
         out, out_shape = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype))
