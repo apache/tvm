@@ -1083,7 +1083,7 @@ def test_duplicate_outputs():
     mod = tvm.IRModule()
     mod["main"] = create_graph()
 
-    seq = transform.Sequential([
+    seq = tvm.transform.Sequential([
         transform.AnnotateTarget(target),
         transform.MergeCompilerRegions(),
         transform.PartitionGraph(),
@@ -1160,7 +1160,7 @@ def test_duplicate_merge_and_tuplegetitem():
     mod = tvm.IRModule()
     mod["main"] = create_graph()
 
-    seq = transform.Sequential([
+    seq = tvm.transform.Sequential([
         transform.AnnotateTarget(target),
         transform.MergeCompilerRegions(),
         transform.PartitionGraph(),
