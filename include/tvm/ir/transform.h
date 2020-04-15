@@ -361,9 +361,11 @@ TVM_DLL Pass CreateModulePass(
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
+ * \param header The header to be attached to the output.
+ * \param show_meta_data Whether should we show meta data.
  * \return The pass.
  */
-TVM_DLL Pass PrintIR(std::string header);
+TVM_DLL Pass PrintIR(std::string header = "", bool show_meta_data = false);
 
 }  // namespace transform
 }  // namespace tvm

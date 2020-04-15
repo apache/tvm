@@ -106,7 +106,7 @@ def create_updater_06_to_07():
         "relay.PassInfo": _rename("transform.PassInfo"),
         "relay.PassContext": _rename("transform.PassContext"),
         "relay.ModulePass": _rename("transform.ModulePass"),
-        "relay.Sequantial": _rename("transform.Sequantial"),
+        "relay.Sequential": _rename("transform.Sequential"),
         # TIR
         "Variable": _update_tir_var("tir.Var"),
         "SizeVar": _update_tir_var("tir.SizeVar"),
