@@ -57,8 +57,11 @@ def test_dso_module_load():
             tvm.tir.Store(Ab.data,
                            tvm.tir.Load(dtype, Ab.data, i) + 1,
                            i + 1))
-        m = tvm.testing.MakeAPILegacy(stmt, "ramp", [Ab], 0, True)
-        m = tvm.driver.build(m, target="llvm")
+        mod = tvm.IRModule.from_expr(
+            tvm.tir.PrimFunc([Ab], stmt).with_attr(
+                "global_symbol", "main")
+        )
+        m = tvm.driver.build(mod, target="llvm")
         for name in names:
             m.save(name)
 
