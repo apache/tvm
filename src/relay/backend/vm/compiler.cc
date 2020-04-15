@@ -579,7 +579,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
           auto alignment_register = last_register_;
 
           // Get the dtype hint from the attributes.
-          auto alloc_attrs = attrs.as<AllocTensorAttrs>();
+          auto alloc_attrs = attrs.as<AllocStorageAttrs>();
           CHECK(alloc_attrs != nullptr)
               << "must be the alloc tensor attrs";
           auto dtype = alloc_attrs->dtype;

@@ -40,11 +40,11 @@ struct DeviceCopyAttrs : public tvm::AttrsNode<DeviceCopyAttrs> {
   TVM_DECLARE_ATTRS(DeviceCopyAttrs, "relay.attrs.DeviceCopyAttrs") {
     TVM_ATTR_FIELD(src_dev_type)
       .describe(
-         "The virutal device/context type where the op copies data from.")
+         "The virtual device/context type where the op copies data from.")
       .set_default(0);
     TVM_ATTR_FIELD(dst_dev_type)
       .describe(
-         "The virutal device/context type where the op copies data to.")
+         "The virtual device/context type where the op copies data to.")
       .set_default(0);
   }
 };
