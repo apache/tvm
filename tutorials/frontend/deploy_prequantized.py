@@ -149,15 +149,16 @@ with torch.no_grad():
 # The PyTorch frontend has support for converting a quantized PyTorch model to
 # an equivalent Relay module enriched with quantization-aware operators.
 # We call this representation Relay QNN dialect.
-#
+input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
+input_shapes = [(input_name, (1, 3, 224, 224))]
+mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+
 # You can print the output from the frontend to see how quantized models are
 # represented.
 #
 # You would see operators specific to quantization such as
 # qnn.quantize, qnn.dequantize, qnn.requantize, and qnn.conv2d etc.
-input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
-input_shapes = [(input_name, (1, 3, 224, 224))]
-mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+#
 # print(mod)
 
 ##############################################################################
@@ -178,15 +179,14 @@ tvm_result, rt_mod = run_tvm_model(mod, params, input_name, inp, target="llvm")
 pt_top3_labels = np.argsort(pt_result[0])[::-1][:3]
 tvm_top3_labels = np.argsort(tvm_result[0])[::-1][:3]
 
-print("PyTorch top3 label:", [synset[label] for label in pt_top3_labels])
-print("TVM top3 label:", [synset[label] for label in tvm_top3_labels])
+print("PyTorch top3 labels:", [synset[label] for label in pt_top3_labels])
+print("TVM top3 labels:", [synset[label] for label in tvm_top3_labels])
 
 ###########################################################################################
 # However, due to the difference in numerics, in general the raw floating point
 # outputs are not expected to be identical. Here, we print how many floating point
 # output values are identical out of 1000 outputs from mobilenet v2.
 print("%d in 1000 raw floating outputs identical." % np.sum(tvm_result[0] == pt_result[0]))
-
 
 ##########################################################################
 # Measure performance
@@ -197,7 +197,7 @@ ctx = tvm.cpu(0)
 ftimer = rt_mod.module.time_evaluator("run", ctx, number=1,
                                       repeat=n_repeat)
 prof_res = np.array(ftimer().results) * 1e3
-print("Elapsed ms:", np.mean(prof_res))
+print("Elapsed average ms:", np.mean(prof_res))
 
 ######################################################################
 # .. note::
@@ -216,7 +216,7 @@ print("Elapsed ms:", np.mean(prof_res))
 #   not expected to be any faster than FP32 models. Without fast 8 bit instructions, TVM does
 #   quantized convolution in 16 bit, even if the model itself is 8 bit.
 #
-#   For x86, the best performance can be acheived on CPUs with AVX512 instructions set.
+#   For x86, the best performance can be achieved on CPUs with AVX512 instructions set.
 #   In this case, TVM utilizes the fastest available 8 bit instructions for the given target.
 #   This includes support for the VNNI 8 bit dot product instruction (CascadeLake or newer).
 #
