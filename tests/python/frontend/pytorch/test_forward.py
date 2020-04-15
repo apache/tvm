@@ -1549,7 +1549,10 @@ def test_forward_take():
     torch.set_grad_enabled(False)
     class Take1(Module):
         def forward(self, *args):
-            return torch.take(args[0], torch.tensor([[0,0],[1,0]]))
+            indices = torch.tensor([[0,0],[1,0]])
+            if torch.cuda.is_available():
+                indices = indices.cuda()
+            return torch.take(args[0], indices)
 
     class Take2(Module):
         def forward(self, *args):
