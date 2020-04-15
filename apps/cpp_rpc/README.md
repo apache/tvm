@@ -18,7 +18,7 @@
 # TVM RPC Server
 This folder contains a simple recipe to make RPC server in c++.
 
-## Usage
+## Usage (Non-Windows)
 - Build tvm runtime
 - Make the rpc executable [Makefile](Makefile).
   `make CXX=/path/to/cross compiler g++/ TVM_RUNTIME_DIR=/path/to/tvm runtime library directory/ OS=Linux`
@@ -34,6 +34,12 @@ This folder contains a simple recipe to make RPC server in c++.
   make runtime
 ```
 - Use `./tvm_rpc server` to start the RPC server
+
+## Usage (Windows)
+- Build tvm with the argument -DUSE_CPP_RPC
+- Install [LLVM pre-build binaries](https://releases.llvm.org/download.html), making sure to select the option to add it to the PATH.
+- Verify Python 3.6 or newer is installed and in the PATH.
+- Use `<tmv_output_dir>\tvm_rpc.exe` to start the RPC server
 
 ## How it works
 - The tvm runtime dll is linked along with this executable and when the RPC server starts it will load the tvm runtime library.
@@ -53,4 +59,4 @@ Command line usage
 ```
 
 ## Note
-Currently support is only there for Linux / Android environment and proxy mode doesn't be supported currently.
+Currently support is only there for Linux / Android / Windows environment and proxy mode doesn't be supported currently.
