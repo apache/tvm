@@ -814,14 +814,7 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
 void CodeGenC::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
-  if (op->new_expr.defined()) {
-    // Prefer global static allocation for the program
-    CHECK_EQ(op->free_function, "nop");
-    std::string new_data = PrintExpr(op->new_expr);
-    this->PrintIndent();
-    PrintType(op->dtype, stream);
-    stream << "* "<< vid << '=' << new_data << ";\n";
-  } else {
+
     this->PrintIndent();
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
@@ -833,7 +826,7 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
     PrintType(op->dtype, stream);
     stream << ' '<< vid << '['
            << constant_size << "];\n";
-  }
+
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);
 }
@@ -940,10 +933,6 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     this->PrintIndent();
     this->stream << "(void)" << vid << ";\n";
   }
-}
-
-void CodeGenC::VisitStmt_(const ProducerConsumerNode* op) {
-  PrintStmt(op->body);
 }
 
 void CodeGenC::PrintVecElemLoadExpr(

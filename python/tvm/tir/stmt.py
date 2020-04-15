@@ -77,26 +77,6 @@ class AssertStmt(Stmt):
 
 
 @tvm._ffi.register_object
-class ProducerConsumer(Stmt):
-    """ProducerConsumer node.
-
-    Parameters
-    ----------
-    func : Operation
-        The Operation.
-
-    is_producer : bool
-        Whether if the node is producer.
-
-    body : Stmt
-        The body statement.
-    """
-    def __init__(self, func, is_producer, body):
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerConsumer, func, is_producer, body)
-
-
-@tvm._ffi.register_object
 class For(Stmt):
     """For node.
 
@@ -425,6 +405,4 @@ def stmt_list(stmt):
         for x in stmt:
             res += stmt_list(x)
         return res
-    if isinstance(stmt, ProducerConsumer):
-        return stmt_list(stmt.body)
     return [stmt]

@@ -82,20 +82,6 @@ TVM_REGISTER_GLOBAL("tir.AssertStmt")
   }
 });
 
-Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
-  CHECK(body.defined());
-
-  ObjectPtr<ProducerConsumerNode> node = make_object<ProducerConsumerNode>();
-  node->func = std::move(func);
-  node->is_producer = is_producer;
-  node->body = std::move(body);
-  return Stmt(node);
-}
-
-TVM_REGISTER_GLOBAL("tir.ProducerConsumer")
-.set_body_typed(ProducerConsumerNode::make);
-
-
 Stmt ForNode::make(Var loop_var,
                    PrimExpr min,
                    PrimExpr extent,
@@ -184,9 +170,7 @@ Stmt AllocateNode::make(Var buffer_var,
                         DataType dtype,
                         Array<PrimExpr> extents,
                         PrimExpr condition,
-                        Stmt body,
-                        PrimExpr new_expr,
-                        std::string free_function) {
+                        Stmt body) {
     for (size_t i = 0; i < extents.size(); ++i) {
       CHECK(extents[i].defined());
       CHECK(extents[i].dtype().is_scalar());
@@ -201,8 +185,6 @@ Stmt AllocateNode::make(Var buffer_var,
     node->extents = std::move(extents);
     node->condition = std::move(condition);
     node->body = std::move(body);
-    node->new_expr = std::move(new_expr);
-    node->free_function = std::move(free_function);
     return Stmt(node);
 }
 
@@ -379,22 +361,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->Print(op->message);
     p->stream << ")\n";
     p->Print(op->body);
-  });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ProducerConsumerNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const ProducerConsumerNode*>(node.get());
-    if (op->is_producer) {
-      p->PrintIndent();
-      p->stream << "produce " << op->func->func_name() << " {\n";
-      p->indent += 2;
-      p->Print(op->body);
-      p->indent -= 2;
-      p->PrintIndent();
-      p->stream << "}\n";
-    } else {
-      p->Print(op->body);
-    }
   });
 
 std::ostream &operator<<(std::ostream& out, ForType type) { // NOLINT(*)
@@ -615,7 +581,6 @@ TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_REGISTER_NODE_TYPE(LetNode);
 TVM_REGISTER_NODE_TYPE(LetStmtNode);
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
-TVM_REGISTER_NODE_TYPE(ProducerConsumerNode);
 TVM_REGISTER_NODE_TYPE(ForNode);
 TVM_REGISTER_NODE_TYPE(StoreNode);
 TVM_REGISTER_NODE_TYPE(ProvideNode);

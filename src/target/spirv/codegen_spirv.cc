@@ -586,7 +586,6 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
-  CHECK(!op->new_expr.defined());
   CHECK(!op->dtype.is_handle());
   int32_t constant_size = op->constant_allocation_size();
   CHECK_GT(constant_size, 0)
@@ -657,10 +656,6 @@ void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
-}
-
-void CodeGenSPIRV::VisitStmt_(const ProducerConsumerNode* op) {
-  this->VisitStmt(op->body);
 }
 
 }  // namespace codegen
