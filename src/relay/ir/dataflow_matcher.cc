@@ -100,7 +100,6 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
         switch (op_map[op].type_code()) {
           case kDLInt:
             if (auto* val = kv.second.as<IntImmNode>()) {
-              std::cout << op << " " << op_map[op].operator int64_t() <<  std::endl;
               matches = val->value == op_map[op].operator int64_t();
             }
             break;
@@ -289,7 +288,6 @@ bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Exp
           } else {
             if (VisitDFPattern(op->path, node->ref_)) {
               auto new_dominated_exprs = find_dominated(op->path);
-              std::cout << watermark << std::endl;
               ClearMap(watermark);
               out &= find_parent(node->ref_, new_dominated_exprs);
             } else {

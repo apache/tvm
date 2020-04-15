@@ -150,10 +150,10 @@ class DFPatternVisitor : public DFPatternFunctor<void(const DFPattern&)> {
  *  Holds a forward-backward indexed representation of the graph and a dominator tree representation
  * of the graph
  *
- *  Class is Templated and the implementaiton is in the header file so we can analyis both DFPattern
- * and Expr with the same infrastructure.
+ *  This class is templated and the implementaiton is in the header file so we can analyze both
+ * DFPattern and Expr with the same infrastructure.
  *
- *  IndexedGraph should be instantiated thorught the CreateIndexedGraph utilities.
+ *  IndexedGraph should be instantiated through the CreateIndexedGraph utilities.
  */
 template <typename T>
 class IndexedGraph {
@@ -162,7 +162,7 @@ class IndexedGraph {
   struct Node {
     /*! \brief Node Constructor
      *  \param ref The input graph node
-     *  \param index The index of the node in toplogoical order
+     *  \param index The index of the node in toplogical order
      */
     Node(const T& ref, const size_t index) : ref_(ref), index_(index) {}
 
@@ -183,7 +183,7 @@ class IndexedGraph {
     /*! \brief The nodes this node dominates */
     std::vector<Node*> dominator_children_;
   };
-  /*! \brief Construct the domination create of the index graph */
+  /*! \brief Construct the domination tree inside IndexedGraph */
   void PostDom() {
     for (size_t i = topological_order_.size(); i != 0; --i) {
       size_t index = i - 1;

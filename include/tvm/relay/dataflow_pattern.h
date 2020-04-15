@@ -308,7 +308,7 @@ class TypePattern : public DFPattern {
 
 class AttrPattern;
 /*!
- * \brief Pattern for Types.
+ * \brief Pattern for Attributes.
  */
 class AttrPatternNode : public DFPatternNode {
  public:
@@ -329,7 +329,7 @@ class AttrPatternNode : public DFPatternNode {
 };
 
 /*!
- * \brief A pattern which matches a type in another pattern
+ * \brief A pattern which matches attributes in another pattern
  */
 class AttrPattern : public DFPattern {
  public:
@@ -338,7 +338,9 @@ class AttrPattern : public DFPattern {
 
 class DominatorPattern;
 /*!
- * \brief Pattern for Types.
+ * \brief Dominated Graph Pattern
+ * Pattern for fuzzy subgraphs where all outputs of the parent are used finally by the child, and
+ * every operation between the parent and the child matches the path.
  */
 class DominatorPatternNode : public DFPatternNode {
  public:
