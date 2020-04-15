@@ -37,8 +37,8 @@ def alpha_equal(x, y):
 def run_opt_pass(expr, passes):
     passes = passes if isinstance(passes, list) else [passes]
     mod = tvm.IRModule.from_expr(expr)
-    seq = transform.Sequential(passes)
-    with transform.PassContext(opt_level=3):
+    seq = tvm.transform.Sequential(passes)
+    with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
     entry = mod["main"]
     return entry if isinstance(expr, relay.Function) else entry.body

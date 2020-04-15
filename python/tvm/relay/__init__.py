@@ -128,20 +128,9 @@ Prelude = prelude.Prelude
 # Scope builder
 ScopeBuilder = scope_builder.ScopeBuilder
 
-module_pass = transform.module_pass
-function_pass = transform.function_pass
-
 # Parser
 fromtext = parser.fromtext
 
 # Param Serialization
 save_param_dict = param_dict.save_param_dict
 load_param_dict = param_dict.load_param_dict
-
-# Pass manager
-PassInfo = transform.PassInfo
-PassContext = transform.PassContext
-Pass = transform.Pass
-ModulePass = transform.ModulePass
-FunctionPass = transform.FunctionPass
-Sequential = transform.Sequential

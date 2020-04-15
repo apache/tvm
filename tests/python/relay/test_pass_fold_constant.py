@@ -24,7 +24,7 @@ from tvm.relay.testing import run_infer_type, create_workload
 
 
 def run_opt_pass(expr, opt_pass):
-    assert isinstance(opt_pass, transform.Pass)
+    assert isinstance(opt_pass, tvm.transform.Pass)
 
     mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
@@ -174,7 +174,7 @@ def test_fold_batch_norm():
         add = relay.add(conv, bias)
         return relay.Function(relay.analysis.free_vars(add), add)
 
-    remove_bn_pass = transform.Sequential([
+    remove_bn_pass = tvm.transform.Sequential([
         relay.transform.InferType(),
         relay.transform.SimplifyInference(),
         relay.transform.FoldConstant(),
