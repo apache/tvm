@@ -167,21 +167,44 @@ impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
     }
 }
 
-
-lazy_static! {
-    static ref _DEBUG_PRINT: &'static Function = {
-        Function::get("ir.DebugPrinter").expect("ir.DebugPrinter is unregistered")
-    };
-}
-
-pub fn debug_print(object: &ObjectRef) -> CString {
-        let dp: &Function = &_DEBUG_PRINT;
-        let ret = crate::call_packed!(dp, object).expect("always returns strings");
-        match ret {
-            TVMRetValue::Str(cstring) => cstring.into(),
-            x => panic!("{:?}", x),
+macro_rules! external_func {
+    (fn $name:ident ( $($arg:ident : $ty:ty),* ) -> $ret_type:ty as $ext_name:literal;) => {
+        ::paste::item! {
+            #[allow(non_upper_case_globals)]
+            static [<global_ $name>]: ::once_cell::sync::Lazy<&'static $crate::Function> =
+            ::once_cell::sync::Lazy::new(|| {
+                $crate::Function::get($ext_name)
+                .expect(concat!("unable to load external function", stringify!($ext_name), "from TVM registry."))
+            });
         }
+
+        pub fn $name($($arg : $ty),*) -> Result<$ret_type, failure::Error> {
+            use std::ops::Deref;
+            let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
+            let res = $crate::call_packed!(func_ref,$($arg),*);
+            res.map(|r| r.into())
+        }
+    }
 }
+
+external_func! {
+    fn debug_print(object: &ObjectRef) -> CString as "ir.DebugPrinter";
+}
+
+// lazy_static! {
+//     static ref _DEBUG_PRINT: &'static Function = {
+//         Function::get("ir.DebugPrinter").expect("ir.DebugPrinter is unregistered")
+//     };
+// }
+
+// pub fn debug_print(object: &ObjectRef) -> CString {
+//         let dp: &Function = &_DEBUG_PRINT;
+//         let ret = crate::call_packed!(dp, object).expect("always returns strings");
+//         match ret {
+//             TVMRetValue::Str(cstring) => cstring.into(),
+//             x => panic!("{:?}", x),
+//         }
+// }
 
 lazy_static! {
     static ref _AS_TEXT: &'static Function = {

@@ -122,8 +122,8 @@ pub struct ConstantNode {
     pub data: ObjectRef, // make this NDArray.
 }
 
-unsafe impl IsObject for VarNode {
-    const TYPE_KEY: &'static str = "relay.Var";
+unsafe impl IsObject for ConstantNode {
+    const TYPE_KEY: &'static str = "relay.Constant";
 
     fn as_object<'s>(&'s self) -> &'s Object {
         &self.base.base.base
@@ -131,16 +131,15 @@ unsafe impl IsObject for VarNode {
 }
 
 
-pub struct Var(Option<ObjectPtr<VarNode>>);
+pub struct Constant(Option<ObjectPtr<ConstantNode>>);
 
-impl Var {
-    fn new(name_hint: String, span: ObjectRef) -> Var {
-        let node = VarNode {
-            base: RelayExpr::base::<VarNode>(),
-            vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
-            type_annotation: ObjectRef::null(),
+impl Constant {
+    fn new(data: ObjectRef, span: ObjectRef) -> Constant {
+        let node = ConstantNode {
+            base: RelayExpr::base::<ConstantNode>(),
+            data: data,
         };
-        Var(Some(ObjectPtr::new(node)))
+        Constant(Some(ObjectPtr::new(node)))
     }
 
     fn upcast(&self) -> ObjectRef {

@@ -472,7 +472,7 @@ class Map : public ObjectRef {
   /*!
    * \brief Read element from map.
    * \param key The key
-   * \return the corresonding element.
+   * \return the corresponding element.
    */
   inline const V operator[](const K& key) const {
     return DowncastNoCheck<V>(
