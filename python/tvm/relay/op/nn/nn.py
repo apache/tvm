@@ -16,8 +16,8 @@
 # under the License.
 #pylint: disable=invalid-name, too-many-lines
 """Neural network operations."""
-from __future__ import absolute_import as _abs
-from ...expr import TupleWrapper
+from tvm.relay import expr
+
 from . import _make
 from .util import get_pad_tuple2d, get_pad_tuple3d
 
@@ -1457,7 +1457,7 @@ def dropout(data, rate=0.5):
     result : tvm.relay.Expr
         The result of dropout
     """
-    return TupleWrapper(dropout_raw(data, rate), 2)[0]
+    return expr.TupleWrapper(dropout_raw(data, rate), 2)[0]
 
 
 def dropout_raw(data, rate=0.5):
@@ -1580,7 +1580,7 @@ def batch_norm(data,
                               epsilon,
                               center,
                               scale)
-    return TupleWrapper(result, 3)
+    return expr.TupleWrapper(result, 3)
 
 
 def instance_norm(data,
@@ -1791,7 +1791,8 @@ def sparse_transpose(x):
         Tuple of output sparse tensor (same shape and format as input),
         i.e. if CSR then output is in ([data, indices, indptr]) form
     """
-    return TupleWrapper(_make.sparse_transpose(x.data, x.indices, x.indptr), 3)
+    return expr.TupleWrapper(
+        _make.sparse_transpose(x.data, x.indices, x.indptr), 3)
 
 def contrib_conv2d_winograd_without_weight_transform(data,
                                                      weight,

@@ -23,9 +23,7 @@ import tvm
 from tvm import te
 import tvm.relay as relay
 import tvm.relay.op as op
-from tvm.relay import transform
-from tvm.relay import Function, GlobalVar, ScopeBuilder, Tuple, TupleGetItem, create_executor
-from tvm.relay import TensorType, TupleType
+
 
 from . import mlp
 from . import resnet
@@ -55,7 +53,7 @@ def run_opt_pass(expr, opt_pass):
 
 
 def run_infer_type(expr):
-    return run_opt_pass(expr, transform.InferType())
+    return run_opt_pass(expr, relay.transform.InferType())
 
 
 def _np_randn_from_type(t, scale=1, mean=0):
