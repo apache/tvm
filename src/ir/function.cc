@@ -23,6 +23,14 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/function.h>
+// NOTE: reverse dependency on relay, tir/
+// These dependencies do not happen at the interface-level,
+// and are only used in minimum cases where they are clearly marked.
+//
+// Rationale: We calls into the type specific WithAttr function
+#include <tvm/tir/function.h>
+#include <tvm/relay/function.h>
+
 
 namespace tvm {
 
@@ -30,5 +38,23 @@ TVM_REGISTER_GLOBAL("ir.BaseFunc_Attrs")
 .set_body_typed([](BaseFunc func) {
   return func->attrs;
 });
+
+TVM_REGISTER_GLOBAL("ir.BaseFuncCopy")
+.set_body_typed([](BaseFunc func) {
+  return func;
+});
+
+TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
+.set_body_typed([](BaseFunc func, std::string key, ObjectRef value) -> BaseFunc {
+  if (func->IsInstance<tir::PrimFuncNode>()) {
+    return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
+  } else if (func->IsInstance<relay::FunctionNode>()) {
+    return WithAttr(Downcast<relay::Function>(std::move(func)), key, value);
+  } else {
+    LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
+    return func;
+  }
+});
+
 
 }  // namespace tvm

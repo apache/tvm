@@ -67,22 +67,3 @@ class PrimFunc(BaseFunc):
 
         self.__init_handle_by_constructor__(
             _ffi_api.PrimFunc, param_list, body, ret_type, buffer_map, attrs)
-
-    def with_attr(self, attr_key, attr_value):
-        """Create a new copy of the function and update the attribute
-
-        Parameters
-        ----------
-        attr_key : str
-            The attribute key to use.
-
-        attr_value : Object
-            The new attribute value.
-
-        Returns
-        -------
-        func : Function
-            A new copy of the function
-        """
-        return _ffi_api.PrimFuncWithAttr(
-            self, attr_key, tvm.runtime.convert(attr_value))

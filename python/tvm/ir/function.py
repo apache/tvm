@@ -16,6 +16,8 @@
 # under the License.
 """Function defintiions."""
 from enum import IntEnum
+import tvm.runtime
+
 from .expr import RelayExpr
 from . import _ffi_api
 
@@ -34,3 +36,32 @@ class BaseFunc(RelayExpr):
         """Return the attrs member of the function.
         """
         return _ffi_api.BaseFunc_Attrs(self)
+
+    def with_attr(self, attr_key_or_dict, attr_value=None):
+        """Create a new copy of the function and update the attribute.
+
+        Parameters
+        ----------
+        attr_key_or_dict : Union[str, dict]
+            The attribute key to use or a dict containing multiple key value pairs.
+
+        attr_value : Object
+            The new attribute value.
+
+        Returns
+        -------
+        func : Function
+            A new copy of the function
+        """
+        # make sure we first copy so that we can safely do copy on write
+        # for multiple updates.
+        res = _ffi_api.BaseFuncCopy(self)
+
+        if isinstance(attr_key_or_dict, dict):
+            for key, val in attr_key_or_dict.items():
+                res = _ffi_api.BaseFuncWithAttr(
+                    res._move(), key, tvm.runtime.convert(val))
+            return res
+
+        return _ffi_api.BaseFuncWithAttr(
+            res._move(), attr_key_or_dict, tvm.runtime.convert(attr_value))
