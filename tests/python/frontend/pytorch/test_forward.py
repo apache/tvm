@@ -1545,6 +1545,61 @@ def test_forward_round():
     verify_model(Round1().float().eval(), input_data=input_data)
 
 
+def test_forward_take():
+    torch.set_grad_enabled(False)
+    class Take1(Module):
+        def forward(self, *args):
+            indices = torch.tensor([[0,0],[1,0]])
+            if torch.cuda.is_available():
+                indices = indices.cuda()
+            return torch.take(args[0], indices)
+
+    class Take2(Module):
+        def forward(self, *args):
+            return torch.take(args[0], args[1])
+
+    input_data = torch.tensor([[1,2],[3,4]])
+    verify_model(Take1().float().eval(), input_data=input_data)
+    indices = torch.tensor([[0,0],[1,0]])
+    verify_model(Take2().float().eval(), input_data=[input_data, indices])
+
+
+def test_forward_topk():
+    torch.set_grad_enabled(False)
+    class Topk1(Module):
+        def forward(self, *args):
+            return torch.topk(args[0], k=3)
+
+    class Topk2(Module):
+        def forward(self, *args):
+            return torch.topk(args[0], k=3, dim=-2)
+
+    class Topk3(Module):
+        def forward(self, *args):
+            return torch.topk(args[0], k=3, dim=3)
+
+    class Topk4(Module):
+        def forward(self, *args):
+            return torch.topk(args[0], k=3, largest=True)
+
+    class Topk5(Module):
+        def forward(self, *args):
+            return torch.topk(args[0], k=3, largest=False)
+
+    class Topk6(Module):
+        def forward(self, *args):
+            return torch.topk(args[0], k=3, sorted=True)
+
+    input_shape = [1, 3, 10, 10]
+    input_data = torch.rand(input_shape).float()
+    verify_model(Topk1().float().eval(), input_data=input_data)
+    verify_model(Topk2().float().eval(), input_data=input_data)
+    verify_model(Topk3().float().eval(), input_data=input_data)
+    verify_model(Topk4().float().eval(), input_data=input_data)
+    verify_model(Topk5().float().eval(), input_data=input_data)
+    verify_model(Topk6().float().eval(), input_data=input_data)
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -1587,6 +1642,8 @@ if __name__ == "__main__":
     test_forward_size()
     test_forward_view()
     test_forward_select()
+    test_forward_take()
+    test_forward_topk()
     test_forward_clone()
     test_forward_softplus()
     test_forward_softsign()
