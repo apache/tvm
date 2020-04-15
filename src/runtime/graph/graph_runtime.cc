@@ -149,6 +149,8 @@ void GraphRuntime::SetOutput(int index, DLTensor* data_out) {
   }
 
   const_cast<DLTensor*>(old_t)->data = data_out->data;
+  const_cast<DLTensor*>(old_t)->strides = data_out->strides;
+  const_cast<DLTensor*>(old_t)->byte_offset = data_out->byte_offset;
 }
 /*!
  * \brief Get the number of outputs
