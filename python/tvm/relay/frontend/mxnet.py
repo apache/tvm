@@ -853,7 +853,6 @@ def _mx_smooth_l1(inputs, attrs):
 
 def _mx_deformable_convolution(inputs, attrs):
     new_attrs = {}
-    assert attrs.get_bool("no_bias")
     new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
     new_attrs["strides"] = attrs.get_int_tuple("stride")
     new_attrs["padding"] = attrs.get_int_tuple("pad")
