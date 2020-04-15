@@ -129,7 +129,7 @@ def test_tensor_compute1():
 
     s = te.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body, tvm.tir.Evaluate)
+    assert isinstance(stmt.body, tvm.tir.Evaluate)
 
 def test_tensor_compute2():
     M = 2048
@@ -172,8 +172,8 @@ def test_tensor_compute2():
 
     s = te.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body[0], tvm.tir.Evaluate)
-    assert isinstance(stmt.body.body.body[1].body, tvm.tir.Evaluate)
+    assert isinstance(stmt.body.body[0], tvm.tir.Evaluate)
+    assert isinstance(stmt.body.body[1].body, tvm.tir.Evaluate)
 
 def test_tensor_scan():
     m = te.size_var("m")

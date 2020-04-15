@@ -147,7 +147,6 @@ class CodeGenStackVM
   void VisitStmt_(const AssertStmtNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const SeqStmtNode* op) final;
-  void VisitStmt_(const ProducerConsumerNode* op) final;
 
  private:
   bool debug_{false};

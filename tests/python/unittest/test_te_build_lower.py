@@ -49,8 +49,8 @@ def test_split_uneven_unique_likely():
     sch = te.create_schedule(c.op)
     xo, xi = sch[c].split(x, 5)
     stmt = tvm.lower(sch, [a, b, c], simple_mode=True)
-    assert isinstance(stmt.body.body.body.body, tvm.tir.stmt.IfThenElse)
-    assert str(stmt.body.body.body.body).count("likely") == 1
+    assert isinstance(stmt.body.body.body, tvm.tir.stmt.IfThenElse)
+    assert str(stmt.body.body.body).count("likely") == 1
 
 if __name__ == "__main__":
     test_lower_rfactor()

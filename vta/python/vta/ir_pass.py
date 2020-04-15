@@ -60,11 +60,8 @@ def fold_uop_loop(stmt_in):
 
     def _fold_outermost_loop(body):
         stmt = body
-        while not isinstance(stmt, tvm.tir.For):
-            if isinstance(stmt, (tvm.tir.ProducerConsumer,)):
-                stmt = stmt.body
-            else:
-                return None, body, None
+        if not isinstance(stmt, tvm.tir.For):
+            return None, body, None
 
         loop_var = stmt.loop_var
         gemm_offsets = [None, None, None]

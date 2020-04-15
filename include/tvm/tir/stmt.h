@@ -178,42 +178,6 @@ class AssertStmtNode : public StmtNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
 };
 
-// TODO(tvm-team): consider consolidate with AttrStmt.
-/*! \brief annotation node of producer/consumer relation. */
-class ProducerConsumerNode : public StmtNode {
- public:
-  /*! \brief The corresponding tensor. */
-  FunctionRef func;
-  /*! \brief Whether the relation is producer. */
-  bool is_producer;
-  /*! \brief Body to be executed. */
-  Stmt body;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("is_producer", &is_producer);
-    v->Visit("body", &body);
-  }
-
-  bool SEqualReduce(const ProducerConsumerNode* other, SEqualReducer equal) const {
-    return
-        equal(func, other->func) &&
-        equal(is_producer, other->is_producer) &&
-        equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(is_producer);
-    hash_reduce(body);
-  }
-
-  TVM_DLL static Stmt make(FunctionRef func, bool is_producer, Stmt body);
-
-  static constexpr const char* _type_key = "ProducerConsumer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerConsumerNode, StmtNode);
-};
-
 /*!
  * \brief Store value to the buffer.
  *
@@ -385,10 +349,6 @@ class AllocateNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body to be executed. */
   Stmt body;
-  // The following two fields are deprecated
-  // kept for backward compatibility and will be refactored later.
-  PrimExpr new_expr;
-  std::string free_function;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -419,9 +379,7 @@ class AllocateNode : public StmtNode {
                            DataType dtype,
                            Array<PrimExpr> extents,
                            PrimExpr condition,
-                           Stmt body,
-                           PrimExpr new_expr = PrimExpr(),
-                           std::string free_function = std::string());
+                           Stmt body);
 
   /*!
    * \brief If the buffer size is constant, return the size.
@@ -589,8 +547,6 @@ class SeqStmt : public Stmt {
    *
    * - When an argument is nullptr, it will be ignored.
    * - When an argument is an array or a SeqStmt, it will be flattened recursively.
-   * - When an argument is a consumer block in ProducerConsumer, the consumer
-   *   tag will be dropped as such information is not useful in lowering.
    * - A normal Stmt will be appended to the end of the sequence.
    *
    * \note This function can directly return an element
@@ -618,13 +574,6 @@ class SeqStmt : public Stmt {
       if (!stmt.defined()) return;
       if (auto* op = stmt.as<SeqStmtNode>()) {
         operator()(0, op->seq);
-      } else if (auto* op = stmt.as<ProducerConsumerNode>()) {
-        // NOTE: The consumer block annotation was not as useful and can be safely dropped.
-        if (!op->is_producer) {
-          operator()(0, op->body);
-        } else {
-          seq_->push_back(stmt);
-        }
       } else {
         seq_->push_back(stmt);
       }

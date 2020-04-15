@@ -58,8 +58,7 @@ class AttrScopeLifter : public StmtMutator {
       attr_value_ = PrimExpr();
       return AllocateNode::make(
         op->buffer_var, op->dtype,
-        op->extents, op->condition, body,
-        op->new_expr, op->free_function);
+        op->extents, op->condition, body);
     } else {
       return stmt;
     }
