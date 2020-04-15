@@ -150,7 +150,6 @@ class CodeGenLLVM :
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const ProducerConsumerNode* op) override;
 
  protected:
   /*! \brief The storage information */

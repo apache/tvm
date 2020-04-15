@@ -403,10 +403,6 @@ class Vectorizer : public StmtExprMutator {
   }
   // Allocate
   Stmt VisitStmt_(const AllocateNode* op) final {
-    if (op->new_expr.defined()) {
-      LOG(WARNING) << "Cannot vectorize with new expr";
-      return Scalarize(GetRef<Stmt>(op));
-    }
     PrimExpr condition = this->VisitExpr(op->condition);
     if (condition.dtype().is_vector()) {
       LOG(WARNING) << "Cannot handle vector extent in alloc ";
@@ -429,8 +425,7 @@ class Vectorizer : public StmtExprMutator {
     body = this->VisitStmt(body);
     return AllocateNode::make(
         op->buffer_var, op->dtype,
-        extents, condition, body,
-        op->new_expr, op->free_function);
+        extents, condition, body);
   }
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {

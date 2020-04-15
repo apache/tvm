@@ -153,7 +153,6 @@ class CodeGenC :
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const ProducerConsumerNode* op) override;
   /*!
    * Print Type represetnation of type t.
    * \param t The type representation.
