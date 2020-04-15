@@ -33,8 +33,8 @@ def test_eta_expand_global_var():
             @aux
         }
     """)
-    seq = _transform.Sequential([_transform.EtaExpand(expand_global_var=True)])
-    with _transform.PassContext(opt_level=3):
+    seq = tvm.transform.Sequential([_transform.EtaExpand(expand_global_var=True)])
+    with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
     expected = relay.fromtext(r"""
         v0.0.4
@@ -62,8 +62,8 @@ def test_eta_expand_constructor():
             Cons
         }
     """)
-    seq = _transform.Sequential([_transform.EtaExpand(expand_constructor=True)])
-    with _transform.PassContext(opt_level=3):
+    seq = tvm.transform.Sequential([_transform.EtaExpand(expand_constructor=True)])
+    with tvm.transform.PassContext(opt_level=3):
         mod = seq(mod)
     expected = relay.fromtext(r"""
         v0.0.4

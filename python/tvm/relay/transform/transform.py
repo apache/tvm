@@ -22,10 +22,9 @@ import types
 import inspect
 import functools
 
-import tvm
+import tvm.ir
 from tvm import te
 from tvm.runtime import ndarray as _nd
-from tvm.ir.transform import PassInfo, PassContext, Pass, ModulePass, Sequential, module_pass
 
 from tvm import relay
 from . import _ffi_api
@@ -78,12 +77,13 @@ def build_config(opt_level=2,
     pass_context: PassContext
         The pass context for optimizations.
     """
-    return PassContext(opt_level, fallback_device, required_pass,
-                       disabled_pass, trace)
+    return tvm.ir.transform.PassContext(
+        opt_level, fallback_device, required_pass,
+        disabled_pass, trace)
 
 
 @tvm._ffi.register_object("relay.FunctionPass")
-class FunctionPass(Pass):
+class FunctionPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relay.Function in a module. A function
     pass class should be created through `function_pass`.
     """
@@ -94,7 +94,7 @@ def InferType():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered type inference pass.
     """
     return _ffi_api.InferType()
@@ -106,7 +106,7 @@ def FoldScaleAxis():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass to fold expressions.
 
     Note
@@ -123,7 +123,7 @@ def BackwardFoldScaleAxis():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass to backward fold expressions.
 
     Note
@@ -144,7 +144,7 @@ def RemoveUnusedFunctions(entry_functions=None):
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass to remove unused functions.
     """
     if entry_functions is None:
@@ -156,7 +156,7 @@ def ForwardFoldScaleAxis():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass to forward fold expressions.
 
     Note
@@ -174,7 +174,7 @@ def SimplifyInference():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass to perform operator simplification.
     """
     return _ffi_api.SimplifyInference()
@@ -185,7 +185,7 @@ def FastMath():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass to perform fast math operations.
     """
     return _ffi_api.FastMath()
@@ -198,7 +198,7 @@ def CanonicalizeOps():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass performing the canonicalization.
     """
     return _ffi_api.CanonicalizeOps()
@@ -214,7 +214,7 @@ def DeadCodeElimination(inline_once=False):
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that eliminates the dead code in a Relay program.
     """
     return _ffi_api.DeadCodeElimination(inline_once)
@@ -227,7 +227,7 @@ def LazyGradientInit():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         A pass which delays and/or reduces memory allocation,
         by lazily allocating 0 or one filled tensors.
     """
@@ -238,7 +238,7 @@ def FoldConstant():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass for constant folding.
     """
     return _ffi_api.FoldConstant()
@@ -255,7 +255,7 @@ def FuseOps(fuse_opt_level=-1):
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass for operator fusion.
     """
     return _ffi_api.FuseOps(fuse_opt_level)
@@ -272,7 +272,7 @@ def CombineParallelConv2D(min_num_branches=3):
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that combines parallel conv2d operators.
     """
     return _ffi_api.CombineParallelConv2D(min_num_branches)
@@ -304,7 +304,7 @@ def CombineParallelDense(min_num_branches=3):
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that combines parallel dense operators.
     """
     return _ffi_api.CombineParallelDense(min_num_branches)
@@ -318,7 +318,7 @@ def AlterOpLayout():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that alters the layout of operators.
     """
     return _ffi_api.AlterOpLayout()
@@ -366,7 +366,7 @@ def Legalize(legalize_map_attr_name="FTVMLegalize"):
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that rewrites an expr.
     """
     return _ffi_api.Legalize(legalize_map_attr_name)
@@ -387,7 +387,7 @@ def MergeComposite(pattern_table):
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that merges operators into a single composite
         relay function.
     """
@@ -413,7 +413,7 @@ def MergeCompilerRegions():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that merges compiler regions.
     """
     return _ffi_api.MergeCompilerRegions()
@@ -433,7 +433,7 @@ def RewriteAnnotatedOps(fallback_device):
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that rewrites an expression with annotated
         `on_device` operators.
     """
@@ -448,7 +448,7 @@ def ToANormalForm():
 
     Returns
     -------
-    ret: Union[tvm.relay.Pass, tvm.relay.Expr]
+    ret: Union[tvm.transform.Pass, tvm.relay.Expr]
         The registered pass that transforms an expression into A Normal Form.
     """
     return _ffi_api.ToANormalForm()
@@ -462,7 +462,7 @@ def ToCPS(expr, mod=None):
 
     Returns
     -------
-    result: tvm.relay.Pass
+    result: tvm.transform.Pass
         The registered pass that transforms an expression into CPS.
     """
     return _ffi_api.to_cps(expr, mod)
@@ -481,7 +481,7 @@ def EtaExpand(expand_constructor=False, expand_global_var=False):
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that eta expands an expression.
     """
     return _ffi_api.EtaExpand(expand_constructor, expand_global_var)
@@ -492,7 +492,7 @@ def ToGraphNormalForm():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that transforms an expression into Graph Normal Form.
     """
     return _ffi_api.ToGraphNormalForm()
@@ -509,7 +509,7 @@ def EliminateCommonSubexpr(fskip=None):
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that eliminates common subexpressions.
     """
     return _ffi_api.EliminateCommonSubexpr(fskip)
@@ -527,7 +527,7 @@ def PartialEvaluate():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that performs partial evaluation on an expression.
     """
     return _ffi_api.PartialEvaluate()
@@ -539,7 +539,7 @@ def CanonicalizeCast():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that canonicalizes cast expression.
     """
     return _ffi_api.CanonicalizeCast()
@@ -551,27 +551,10 @@ def LambdaLift():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that lifts the lambda function.
     """
     return _ffi_api.LambdaLift()
-
-
-def PrintIR(show_meta_data=True):
-    """
-    Print the IR for a module to help debugging.
-
-    Parameters
-    ----------
-    show_meta_data : bool
-        A boolean flag to indicate if meta data should be printed.
-
-    Returns
-    -------
-    ret : tvm.relay.Pass
-        The registered pass that prints the module IR.
-    """
-    return _ffi_api.PrintIR(show_meta_data)
 
 
 def PartitionGraph():
@@ -580,7 +563,7 @@ def PartitionGraph():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that partitions the Relay program.
     """
     return _ffi_api.PartitionGraph()
@@ -598,7 +581,7 @@ def AnnotateTarget(targets):
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The annotated pass that wrapps ops with subgraph_start and
         subgraph_end.
     """
@@ -614,7 +597,7 @@ def Inline():
 
     Returns
     -------
-    ret: tvm.relay.Pass
+    ret: tvm.transform.Pass
         The registered pass that performs inlining for a Relay IR module.
     """
     return _ffi_api.Inline()
@@ -809,7 +792,7 @@ def function_pass(pass_func=None, opt_level=None, name=None, required=None):
     def create_function_pass(pass_arg):
         """Internal function that creates a function pass"""
         fname = name if name else pass_arg.__name__
-        info = PassInfo(opt_level, fname, required)
+        info = tvm.transform.PassInfo(opt_level, fname, required)
         if inspect.isclass(pass_arg):
             return _wrap_class_function_pass(pass_arg, info)
         if not isinstance(pass_arg, (types.FunctionType, types.LambdaType)):

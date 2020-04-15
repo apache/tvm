@@ -227,7 +227,7 @@ ConvertLayout pass is extremely easy to use. The pass is not a part of default r
 
     # Convert the layout to NCHW
     # RemoveUnunsedFunctions is used to clean up the graph.
-    seq = relay.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
+    seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
                                       relay.transform.ConvertLayout('NCHW')])
     with relay.transform.PassContext(opt_level=3):
         mod = seq(mod)

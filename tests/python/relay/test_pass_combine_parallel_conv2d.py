@@ -26,7 +26,7 @@ def run_combine_parallel(expr, min_num_branches=3):
     return mod["main"]
 
 def run_opt_pass(expr, opt_pass):
-    assert isinstance(opt_pass, transform.Pass)
+    assert isinstance(opt_pass, tvm.transform.Pass)
     mod = tvm.IRModule.from_expr(expr)
     mod = opt_pass(mod)
     return mod["main"]

@@ -53,10 +53,10 @@ def test_checkpoint_alpha_equal():
     df = transform.gradient(run_infer_type(f))
 
     # run PE and DCE
-    with transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
+        mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(
@@ -109,10 +109,10 @@ def test_checkpoint_alpha_equal_tuple():
     df = transform.gradient(run_infer_type(f))
 
     # run PE and DCE
-    with transform.PassContext(opt_level=3):
+    with tvm.transform.PassContext(opt_level=3):
         passes = [transform.PartialEvaluate(),
                   transform.DeadCodeElimination(inline_once=True)]
-        mod = transform.Sequential(passes)(tvm.IRModule.from_expr(df))
+        mod = tvm.transform.Sequential(passes)(tvm.IRModule.from_expr(df))
         df = mod["main"]
 
     df_parsed = relay.parser.fromtext(

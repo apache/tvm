@@ -496,7 +496,7 @@ def test_function_lifting():
         op_list = ["nn.batch_norm", "nn.conv2d"]
         mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
 
-        opt_pass = transform.Sequential([
+        opt_pass = tvm.transform.Sequential([
             transform.InferType(),
             transform.PartitionGraph(),
             transform.SimplifyInference(),
@@ -578,7 +578,7 @@ def test_function_lifting_inline():
         op_list = ["nn.batch_norm", "nn.conv2d"]
         mod = WhiteListAnnotator(op_list, "test_compiler")(mod)
 
-        opt_pass = transform.Sequential([
+        opt_pass = tvm.transform.Sequential([
             transform.InferType(),
             transform.PartitionGraph(),
             transform.SimplifyInference(),
@@ -878,13 +878,13 @@ def test_dnnl_fuse():
         # This is required for constant folding
         mod["main"] = bind_params_by_name(mod["main"], params)
 
-        remove_bn_pass = transform.Sequential([
+        remove_bn_pass = tvm.transform.Sequential([
             transform.InferType(),
             transform.SimplifyInference(),
             transform.FoldConstant(),
             transform.FoldScaleAxis(),
         ])
-        composite_partition = transform.Sequential([
+        composite_partition = tvm.transform.Sequential([
             remove_bn_pass,
             transform.MergeComposite(pattern_table),
             transform.AnnotateTarget("dnnl"),
