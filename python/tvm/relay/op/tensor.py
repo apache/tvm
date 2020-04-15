@@ -537,6 +537,23 @@ def logical_or(lhs, rhs):
     return _make.logical_or(lhs, rhs)
 
 
+def logical_xor(lhs, rhs):
+    """logical XOR with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.logical_xor(lhs, rhs)
+
 def bitwise_and(lhs, rhs):
     """bitwise AND with numpy-style broadcasting.
 
