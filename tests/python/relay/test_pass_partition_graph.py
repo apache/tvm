@@ -1185,4 +1185,4 @@ if __name__ == "__main__":
     test_dnnl_fuse()
     test_multiple_use_of_an_output()
     test_duplicate_outputs()
-    test_duplicate_tuplegetitem()
+    test_duplicate_merge_and_tuplegetitem()

@@ -474,7 +474,7 @@ class Partitioner : public ExprMutator {
     auto tuple_get_item_ = TupleGetItem(func_call, index);
     tuple_get_item_->checked_type_ = arg->checked_type_;
     region_return_tuplegetitem_[region][arg] = tuple_get_item_;
-    return tuple_get_item_;
+    return std::move(tuple_get_item_);
   }
 
   /*!
