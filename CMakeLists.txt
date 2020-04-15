@@ -314,7 +314,7 @@ add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
 
-if(USE_CPP_RPC STREQUAL "ON")
+if(USE_CPP_RPC)
   add_subdirectory("apps/cpp_rpc")
 endif()
 
