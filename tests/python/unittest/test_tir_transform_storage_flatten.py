@@ -30,11 +30,14 @@ def test_flatten2():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(
+        [Ab, A2b], stmt, {A: Ab, A2: A2b})
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+
 
 def test_flatten_prefetch():
     A = te.placeholder((25, 100, 4), name = 'A')
@@ -42,8 +45,14 @@ def test_flatten_prefetch():
     i = te.size_var('i')
     j = te.size_var('j')
     region = [tvm.ir.Range.make_by_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
-    stmt = tvm.tir.Prefetch(A.op, 0, A.dtype, region)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: _A}, 64)
+    stmt = tvm.tir.Prefetch(_A, region)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(
+        [_A], stmt, {A: _A})
+
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    stmt = mod["main"].body
     stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert stmt.extent.value == 2
     assert isinstance(stmt.body, tvm.tir.For)
@@ -62,11 +71,14 @@ def test_flatten_storage_align():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name='A2')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, A2: A2b}, 64)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    stmt = mod["main"].body
     stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert(stmt.body.extents[0].value == 17 * 8)
+
 
 def test_flatten_double_buffer():
     dtype = 'int64'
@@ -87,7 +99,13 @@ def test_flatten_double_buffer():
             C[j] = B[j] + 1
 
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {}, 64)
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C], stmt))
+
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    stmt = mod["main"].body
+
     stmt = tvm.tir.ir_pass.InjectDoubleBuffer(stmt, 2)
     stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
@@ -105,7 +123,7 @@ def test_flatten_double_buffer():
     assert count[0] == 4
 
 if __name__ == "__main__":
-    test_flatten_storage_align()
     test_flatten2()
-    test_flatten_prefetch()
+    test_flatten_storage_align()
     test_flatten_double_buffer()
+    test_flatten_prefetch()

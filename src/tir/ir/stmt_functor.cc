@@ -158,7 +158,17 @@ void StmtVisitor::VisitStmt_(const StoreNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
+  this->VisitExpr(op->value);
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
+}
+
+void StmtVisitor::VisitStmt_(const BufferRealizeNode* op) {
+  VisitArray(op->bounds, [this](const Range& r) {
+      this->VisitExpr(r->min);
+      this->VisitExpr(r->extent);
+    });
+  this->VisitExpr(op->condition);
+  this->VisitStmt(op->body);
 }
 
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
@@ -336,12 +346,34 @@ Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
   Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
-  if (indices.same_as(op->indices)) {
+
+  if (value.same_as(op->value) &&
+      indices.same_as(op->indices)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->value = std::move(value);
     n->indices = std::move(indices);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
+  Region bounds = Internal::Mutate(this, op->bounds);
+  PrimExpr condition = this->VisitExpr(op->condition);
+  Stmt body = this->VisitStmt(op->body);
+
+  if (bounds.same_as(op->bounds) &&
+      condition.same_as(op->condition) &&
+      body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->bounds = std::move(bounds);
+    n->condition = std::move(condition);
+    n->body = std::move(body);
     return Stmt(n);
   }
 }

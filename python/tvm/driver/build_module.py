@@ -85,7 +85,8 @@ def get_binds(args, compact=False, binds=None):
 
 
 def form_body(sch):
-    """According to the given schedule, form the raw body
+    """According to the given schedule, form a function.
+
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
@@ -99,13 +100,31 @@ def form_body(sch):
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
-    stmt = ir_pass.InjectPrefetch(stmt)
     return stmt
+
+
+def _wrap_as_prim_func_pass(flist, name):
+    """Wrap flist as a function pass.
+
+    This is an temporary adapter before we fully
+    migrate to the new pass manager.
+    """
+    def _transform(func, *_):
+        stmt = func.body
+        for f in flist:
+            stmt = f(stmt)
+        # create a new function with updated body.
+        return tvm.tir.PrimFunc(func.params,
+                                stmt,
+                                func.ret_type,
+                                func.buffer_map,
+                                func.attrs)
+    return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name=name)
 
 
 def lower(sch,
           args,
-          name="default_function",
+          name="main",
           binds=None,
           simple_mode=False):
     """Lowering step before build into target.
@@ -154,56 +173,57 @@ def lower(sch,
 
     compact = ir_pass.VerifyCompactBuffer(stmt)
     binds, arg_list = get_binds(args, compact, binds)
+    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
+
+    # Start the new style pass manager.
+    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
+    func = func.with_attr("global_symbol", name)
+    if cfg.restricted_func:
+        func = func.with_attr("tir.noalias", True)
+    mod = tvm.IRModule({name: func})
 
     # Phase 1
-    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
-    stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
-    stmt = ir_pass.NarrowDataType(stmt, 32)
-    stmt = ir_pass.CanonicalSimplify(stmt)
-    for f in lower_phase1:
-        stmt = f(stmt)
+    pass_list = [
+        tvm.tir.transform.InjectPrefetch(),
+        tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
+        tvm.tir.transform.NarrowDataType(32),
+        tvm.tir.transform.Simplify(),
+        _wrap_as_prim_func_pass(lower_phase1, "Custom-Phase1"),
+    ]
 
     # Phase 2
     if not simple_mode:
-        stmt = ir_pass.LoopPartition(stmt, cfg.partition_const_loop)
-    if cfg.disable_vectorize:
-        stmt = ir_pass.SkipVectorize(stmt)
-    else:
-        stmt = ir_pass.VectorizeLoop(stmt)
-    stmt = ir_pass.InjectVirtualThread(stmt)
-    stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
-    stmt = ir_pass.StorageRewrite(stmt)
-    stmt = ir_pass.UnrollLoop(
-        stmt,
-        cfg.auto_unroll_max_step,
-        cfg.auto_unroll_max_depth,
-        cfg.auto_unroll_max_extent,
-        cfg.unroll_explicit)
+        pass_list += [(tvm.tir.transform.LoopPartition(cfg.partition_const_loop))]
 
-    for f in lower_phase2:
-        stmt = f(stmt)
+    pass_list += [
+        tvm.tir.transform.VectorizeLoop(not cfg.disable_vectorize),
+        tvm.tir.transform.InjectVirtualThread(),
+        tvm.tir.transform.InjectDoubleBuffer(cfg.double_buffer_split_loop),
+        tvm.tir.transform.StorageRewrite(),
+        tvm.tir.transform.UnrollLoop(
+            cfg.auto_unroll_max_step,
+            cfg.auto_unroll_max_depth,
+            cfg.auto_unroll_max_extent,
+            cfg.unroll_explicit),
+        _wrap_as_prim_func_pass(lower_phase2, "Custom-Phase2"),
+    ]
 
     # Phase 3
-    stmt = ir_pass.Simplify(stmt)
-    stmt = ir_pass.RemoveNoOp(stmt)
-    if not cfg.disable_select_rewriting:
-        stmt = ir_pass.RewriteUnsafeSelect(stmt)
+    pass_list += [
+        tvm.tir.transform.Simplify(),
+        tvm.tir.transform.RemoveNoOp(),
+    ]
 
-    for f in lower_phase3:
-        stmt = f(stmt)
+    if not cfg.disable_select_rewriting:
+        pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    pass_list += [_wrap_as_prim_func_pass(lower_phase3, "Custom-Phase3")]
 
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
-        stmt = ir_pass.InstrumentBoundCheckers(stmt)
+        pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
 
-    if simple_mode:
-        return stmt
-
-    f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
-        "global_symbol", tvm.runtime.String(name))
-    if cfg.restricted_func:
-        f = f.with_attr("tir.noalias", True)
-    mod = tvm.IRModule({name: f})
+    optimize = tvm.transform.Sequential(pass_list)
+    mod = optimize(mod)
     return mod
 
 

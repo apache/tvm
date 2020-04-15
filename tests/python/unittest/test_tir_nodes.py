@@ -301,6 +301,10 @@ def test_buffer_load_store():
     s = tvm.tir.BufferStore(b, 0.1, [0])
     assert isinstance(s, tvm.tir.BufferStore)
 
+    s = tvm.tir.BufferRealize(b, [tvm.ir.Range(0, 1)],
+                              True, tvm.tir.Evaluate(0))
+    assert isinstance(s, tvm.tir.BufferRealize)
+
 
 def test_intimm_cond():
     x = tvm.runtime.convert(1)

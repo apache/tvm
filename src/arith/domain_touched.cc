@@ -36,10 +36,14 @@ namespace arith {
 using namespace tir;
 
 // Find Read region of the tensor in the stmt.
-class FuncTouchedDomain final : public StmtExprVisitor {
+class BufferTouchedDomain final : public StmtExprVisitor {
  public:
-  FuncTouchedDomain(const te::Tensor &tensor, bool consider_calls, bool consider_provides)
-    : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
+  BufferTouchedDomain(const Buffer &buffer,
+                      bool consider_loads,
+                      bool consider_stores)
+      : buffer_(buffer),
+        consider_loads_(consider_loads),
+        consider_stores_(consider_stores)  {}
 
   Domain Find(const Stmt& stmt) {
     operator()(stmt);
@@ -80,18 +84,16 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    if (consider_calls_ && tensor_->op.same_as(op->func)
-        && tensor_->value_index == op->value_index) {
-      Touch(op->args);
+  void VisitExpr_(const BufferLoadNode* op) final {
+    if (consider_loads_ && buffer_.same_as(op->buffer)) {
+      Touch(op->indices);
     }
     StmtExprVisitor::VisitExpr_(op);
   }
 
-  void VisitStmt_(const ProvideNode* op) final {
-    if (consider_provides_ && tensor_->op.same_as(op->func)
-        && tensor_->value_index == op->value_index) {
-      Touch(op->args);
+  void VisitStmt_(const BufferStoreNode* op) final {
+    if (consider_stores_ && buffer_.same_as(op->buffer)) {
+      Touch(op->indices);
     }
     StmtExprVisitor::VisitStmt_(op);
   }
@@ -106,17 +108,17 @@ class FuncTouchedDomain final : public StmtExprVisitor {
     }
   }
 
-  const te::Tensor &tensor_;
-  bool consider_calls_, consider_provides_;
+  const Buffer &buffer_;
+  bool consider_loads_, consider_stores_;
   std::vector<std::vector<IntSet> > bounds_;
   std::unordered_map<const VarNode*, IntSet> dom_map_;
 };
 
-Domain DomainTouched(Stmt stmt,
-                     const te::Tensor &tensor,
-                     bool consider_calls,
-                     bool consider_provides) {
-  return FuncTouchedDomain(tensor, consider_calls, consider_provides).Find(stmt);
+Domain DomainTouched(const Stmt& stmt,
+                     const Buffer& buffer,
+                     bool consider_loads,
+                     bool consider_stores) {
+  return BufferTouchedDomain(buffer, consider_loads, consider_stores).Find(stmt);
 }
 
 TVM_REGISTER_GLOBAL("arith.DomainTouched")

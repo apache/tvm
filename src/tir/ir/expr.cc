@@ -646,6 +646,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<BufferLoadNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const BufferLoadNode*>(node.get());
+    p->stream << op->buffer->name << "[";
+    for (size_t i = 0; i < op->indices.size(); ++i) {
+      p->Print(op->indices[i]);
+      if (i < op->indices.size() - 1) {
+        p->stream << ", ";
+      }
+    }
+    p->stream << "]";
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<LetNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const LetNode*>(node.get());
     p->stream << "(let " << op->var << " = ";
