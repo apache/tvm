@@ -149,17 +149,16 @@ with torch.no_grad():
 # The PyTorch frontend has support for converting a quantized PyTorch model to
 # an equivalent Relay module enriched with quantization-aware operators.
 # We call this representation Relay QNN dialect.
-input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
-input_shapes = [(input_name, (1, 3, 224, 224))]
-mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
-
+#
 # You can print the output from the frontend to see how quantized models are
 # represented.
 #
 # You would see operators specific to quantization such as
 # qnn.quantize, qnn.dequantize, qnn.requantize, and qnn.conv2d etc.
-#
-# print(mod)
+input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
+input_shapes = [(input_name, (1, 3, 224, 224))]
+mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
+# print(mod) # comment in to see the QNN IR dump
 
 ##############################################################################
 # Compile and run the Relay module
