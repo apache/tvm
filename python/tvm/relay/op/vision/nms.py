@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Non-maximum suppression operations."""
+from tvm.relay import expr
 from . import _make
-from ...expr import TupleWrapper
+
 
 def get_valid_counts(data,
                      score_threshold,
@@ -47,8 +48,9 @@ def get_valid_counts(data,
     out_tensor : relay.Expr
         Rearranged data tensor.
     """
-    return TupleWrapper(_make.get_valid_counts(data, score_threshold,
-                                               id_index, score_index), 2)
+    return expr.TupleWrapper(
+        _make.get_valid_counts(data, score_threshold,
+                               id_index, score_index), 2)
 
 
 def non_max_suppression(data,
