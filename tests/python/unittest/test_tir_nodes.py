@@ -277,7 +277,7 @@ def test_prim_func():
     assert func.buffer_map[func.params[2]].same_as(b)
 
     assert len(func.buffer_map) == 1
-    f2 = func.with_attr("calling_conv", 1)
+    f2 = func.with_attr({"calling_conv": 1, "tir.noalias": True})
     assert f2.attrs["calling_conv"].value == 1
     assert func.attrs is None
 

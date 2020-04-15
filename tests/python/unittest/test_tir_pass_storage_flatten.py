@@ -92,7 +92,9 @@ def test_flatten_double_buffer():
     stmt = tvm.tir.ir_pass.Simplify(stmt)
     assert isinstance(stmt.body.body, tvm.tir.Allocate)
     assert stmt.body.body.extents[0].value == 2
-    mod = tvm.testing.MakeAPILegacy(stmt, "db", [A.asobject(), C.asobject()], 0, True)
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C], stmt).with_attr("global_symbol", "db"))
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
 
     count = [0]
