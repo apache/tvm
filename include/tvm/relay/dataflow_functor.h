@@ -173,6 +173,8 @@ class IndexedGraph {
 
     /*! \brief A boolean to determine if this node is external to the graph */
     bool is_external_ = false;
+    /*! \brief The forward inputs of the node */
+    std::vector<Node*> inputs_;
     /*! \brief The forward outputs/users of the node */
     std::vector<Node*> outputs_;
 

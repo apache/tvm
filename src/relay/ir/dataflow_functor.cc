@@ -118,11 +118,13 @@ IndexedGraph<Expr> CreateIndexedGraph(const Expr& expr) {
       return std::move(graph_);
     }
 
-    /*! Default visitation pushes the parent to the child's ouputs */
+    /*! Default visitation pushes the parent to the child's ouputs and the child to the parent's
+     * inputs*/
     void VisitExpr(const Expr& expr, NodePtr parent) override {
       auto current = graph_.node_map_[expr];
       if (parent) {
         current->outputs_.push_back(parent.get());
+        parent->inputs_.push_back(current.get());
       }
     }
 
