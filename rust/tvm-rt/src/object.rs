@@ -143,17 +143,22 @@ impl ObjectRef {
     }
 }
 
+pub trait ToObjectRef {
+    fn to_object_ref(&self) -> ObjectRef;
+}
+
 impl TryFrom<TVMRetValue> for ObjectRef {
-    type Error = ();
+    type Error = anyhow::Error;
 
     fn try_from(ret_val: TVMRetValue) -> Result<ObjectRef, Self::Error> {
         match ret_val {
             TVMRetValue::ObjectHandle(handle) =>
             // I think we can type the lower-level bindings even further.
-            unsafe { let handle = std::mem::transmute(handle);
+            unsafe {
+                let handle = std::mem::transmute(handle);
                 Ok(ObjectRef(ObjectPtr::from_raw(handle)))
             },
-            _ => Err(())
+            _ => Err(anyhow::anyhow!("unable to convert the result to an Object"))
         }
     }
 }
@@ -168,6 +173,7 @@ impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
     }
 }
 
+#[macro_export]
 macro_rules! external_func {
     (fn $name:ident ( $($arg:ident : $ty:ty),* ) -> $ret_type:ty as $ext_name:literal;) => {
         ::paste::item! {

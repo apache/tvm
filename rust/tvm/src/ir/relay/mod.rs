@@ -1,18 +1,6 @@
 
-use crate::runtime::{Object, IsObject, ObjectPtr, ObjectRef, String as TString};
+use crate::runtime::{Object, IsObject, ObjectPtr, ObjectRef, ToObjectRef, String as TString};
 use crate::DataType;
-
-// macro_rules! define_ref {
-//     ($name:ident, $node_type:ident) => {
-//         pub struct $name(ObjectPtr<$node_type>);
-
-//         impl $name {
-//             fn to_object_ref(self) -> ObjectRef {
-//                 ObjectRef(Some(self.0))
-//             }
-//         }
-//     };
-// }
 
 #[repr(C)]
 pub struct IdNode {
@@ -161,7 +149,6 @@ unsafe impl IsObject for VarNode {
     }
 }
 
-
 pub struct Var(Option<ObjectPtr<VarNode>>);
 
 impl Var {
@@ -179,30 +166,40 @@ impl Var {
     }
 }
 
+impl ToObjectRef for Var {
+    fn to_object_ref(&self) -> ObjectRef {
+        self.upcast()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::runtime::{as_text, String as TString};
+    use anyhow::Result;
 
     #[test]
-    fn test_id() {
+    fn test_id() -> Result<()> {
         let string = TString::new("foo".to_string()).expect("bar");
         let id = Id::new(string);
-        let cstr = as_text(&id.upcast());
-        assert!(cstr.into_string().unwrap().contains("relay.Id"));
+        let cstr = as_text(&id.upcast())?;
+        assert!(cstr.into_string()?.contains("relay.Id"));
+        Ok(())
     }
 
     #[test]
-    fn test_global() {
+    fn test_global() -> Result<()> {
         let gv = GlobalVar::new("main".to_string(), ObjectRef::null());
-        let cstr = as_text(&gv.upcast());
-        assert!(cstr.into_string().unwrap().contains("@main"));
+        let cstr = as_text(&gv.upcast())?;
+        assert!(cstr.into_string()?.contains("@main"));
+        Ok(())
     }
 
     #[test]
-    fn test_var() {
+    fn test_var() -> Result<()> {
         let var = Var::new("local".to_string(), ObjectRef::null());
-        let cstr = as_text(&var.upcast());
-        assert!(cstr.into_string().unwrap().contains("%local"));
+        let cstr = as_text(&var.upcast())?;
+        assert!(cstr.into_string()?.contains("%local"));
+        Ok(())
     }
 }

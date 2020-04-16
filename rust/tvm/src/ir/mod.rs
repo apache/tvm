@@ -2,6 +2,7 @@
 use crate::{DataType};
 use crate::runtime::{Object};
 
+pub mod array;
 pub mod relay;
 
 #[repr(C)]
