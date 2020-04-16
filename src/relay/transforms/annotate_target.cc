@@ -63,7 +63,7 @@ class AnnotateTargetWrapper : public ExprMutator {
     std::string ref_target = "";
     Array<Expr> compiler_ends;
     for (auto arg : args) {
-      std::string arg_target = "defualt";
+      std::string arg_target = "default";
       const CallNode* call = arg.as<CallNode>();
 
       if (call && call->op == compiler_begin_op) {
