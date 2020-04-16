@@ -19,12 +19,12 @@
 members = [
 	"tvm-sys",
 	"macros",
-	"runtime",
-	"runtime/tests/test_tvm_basic",
-	"runtime/tests/test_tvm_dso",
-	"runtime/tests/test_nn",
-	"frontend",
-	"frontend/tests/basics",
-	"frontend/tests/callback",
-	"frontend/examples/resnet"
+	"graph-runtime",
+	"graph-runtime/tests/test_tvm_basic",
+	"graph-runtime/tests/test_tvm_dso",
+	"graph-runtime/tests/test_nn",
+	"tvm",
+	"tvm/tests/basics",
+	"tvm/tests/callback",
+	"tvm/examples/resnet"
 ]
