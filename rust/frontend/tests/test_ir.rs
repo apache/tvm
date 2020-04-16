@@ -7,24 +7,7 @@ use tvm_common::TVMRetValue;
 use std::str::FromStr;
 use std::convert::TryInto;
 
-// macro_rules! external_func {
-//     (fn $name:ident ( $($arg:ident : $ty:ty),* ]==) as $ext_name:literal;) => {
-//         ::lazy_static::lazy_static! {
-//             static ref global_$name: &'static ::tvm_frontend::Function = {
-//                 ::tvm_frontend::Function::get($ext)
-//                 .expect("unable to load external function from TVM registry.");
-//             }
-//         }
 
-//         fn $name() {
-//             let ret_val = call_packed!(&global_$name);
-//         }
-//     }
-// }
-
-// external_func! {
-//     fn int_imm() as "ir.IntImm";
-// }
 
 #[test]
 fn test_new_object() -> anyhow::Result<()> {

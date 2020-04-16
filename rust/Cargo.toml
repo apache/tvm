@@ -17,7 +17,7 @@
 
 [workspace]
 members = [
-	"common",
+	"tvm-sys",
 	"macros",
 	"runtime",
 	"runtime/tests/test_tvm_basic",

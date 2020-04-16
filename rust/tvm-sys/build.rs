@@ -21,6 +21,61 @@ extern crate bindgen;
 
 use std::path::PathBuf;
 
+extern crate cmake;
+
+use std::env;
+use std::path::Path;
+use std::process::Command;
+use cmake::Config;
+
+// fn main() {
+//     if !Path::new("tvm/.git").exists() {
+//         let _ = Command::new("git")
+//             .args(&["submodule", "update", "--recursive", "--init"])
+//             .status();
+//     }
+
+//     let dst = Config::new("tvm")
+//         .very_verbose(true)
+//         .build();
+
+//     // let dst = dst.join("build");
+
+//     let out_dir = env::var("OUT_DIR").unwrap();
+
+//     println!("{}", out_dir);
+//     // let _ = Command::new("mv")
+//     //     .args(&[format!("{}/build/libtvm.dylib", dst.display()), out_dir])
+//     //     .status();
+
+//     println!("cargo:rustc-link-search=native={}/lib", dst.display());
+//     // TODO(@jroesch): hack for dylib behavior
+//     for lib in &[/* "tvm", */ "tvm_runtime", /* "tvm_topi" */] {
+//         // let src = format!("{}/lib/lib{}.dylib", out_dir, lib);
+//         // let dst = format!("{}/../../../deps", out_dir);
+//         // let _ = Command::new("mv")
+//         //     .args(&[src, dst])
+//         //     .status();
+//         println!("cargo:rustc-link-lib=dylib={}", lib);
+//     }
+//     // "-Wl,-rpath,/scratch/library/"
+//     println!("cargo:rustc-env=TVM_HOME={}/build", dst.display());
+//     // panic!("");
+//     // cc::Build::new()
+//     //     .cpp(true)
+//     //     .flag("-std=c++11")
+//     //     .flag("-Wno-ignored-qualifiers")
+//     //     .flag("-Wno-unused-parameter")
+//     //     .include("/Users/jroesch/Git/tvm/include")
+//     //     .include("/Users/jroesch/Git/tvm/3rdparty/dmlc-core/include")
+//     //     .include("/Users/jroesch/Git/tvm/3rdparty/dlpack/include")
+//     //     .include("/Users/jroesch/Git/tvm/3rdparty/HalideIR/src")
+//     //     .file("tvm_wrapper.cc")
+//     //     .compile("tvm_ffi");
+//     // println!("cargo:rustc-link-lib=dylib=tvm");
+//     // println!("cargo:rustc-link-search=/Users/jroesch/Git/tvm/build");
+// }
+
 fn main() {
     let tvm_home = option_env!("TVM_HOME").map(str::to_string).unwrap_or({
         let crate_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
