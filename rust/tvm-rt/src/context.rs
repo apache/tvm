@@ -48,7 +48,7 @@ use std::{
 
 use anyhow::Result;
 
-use tvm_common::ffi;
+use tvm_sys::ffi;
 
 use crate::{function, TVMArgValue};
 

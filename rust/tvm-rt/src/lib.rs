@@ -32,6 +32,12 @@
 
 extern crate ndarray as rust_ndarray;
 
+pub mod object;
+pub mod string;
+
+pub use object::*;
+pub use string::*;
+
 use std::{
     ffi::{CStr, CString},
     str,
@@ -47,7 +53,7 @@ pub use crate::{
     ndarray::NDArray,
 };
 
-pub use tvm_common::{
+pub use tvm_sys::{
     errors as common_errors,
     ffi::{self, DLDataType, TVMByteArray},
     packed_func::{TVMArgValue, TVMRetValue},
@@ -88,8 +94,6 @@ pub mod errors;
 pub mod module;
 pub mod ndarray;
 pub mod value;
-pub mod runtime;
-pub mod ir;
 
 /// Outputs the current TVM version.
 pub fn version() -> &'static str {

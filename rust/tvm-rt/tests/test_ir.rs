@@ -3,7 +3,7 @@ use tvm::{Function, DLDataType, call_packed};
 use tvm::ir::IntImmNode;
 use tvm::runtime::{Object, ObjectRef, ObjectPtr, debug_print};
 use tvm::runtime::String as TString;
-use tvm_common::TVMRetValue;
+use tvm_sys::TVMRetValue;
 use std::str::FromStr;
 use std::convert::TryInto;
 

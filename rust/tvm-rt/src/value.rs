@@ -25,7 +25,7 @@ use std::convert::TryFrom;
 // use std::ffi::c_void;
 
 use crate::{Function, Module, NDArray, TVMArgValue, TVMRetValue};
-use tvm_common::{
+use tvm_sys::{
     errors::ValueDowncastError,
     ffi::{TVMFunctionHandle, TVMModuleHandle},
     try_downcast,
@@ -135,7 +135,7 @@ impl TryFrom<TVMRetValue> for NDArray {
 mod tests {
     use std::{convert::TryInto, str::FromStr};
 
-    use tvm_common::{TVMByteArray, TVMContext, TVMType};
+    use tvm_sys::{TVMByteArray, TVMContext, TVMType};
 
     use super::*;
 

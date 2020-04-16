@@ -28,7 +28,7 @@ use std::{
 };
 
 use anyhow::{anyhow, ensure, Error};
-use tvm_common::ffi;
+use tvm_sys::ffi;
 
 use crate::{errors, function::Function};
 

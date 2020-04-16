@@ -54,8 +54,8 @@ use num_traits::Num;
 use rust_ndarray::{Array, ArrayD};
 use std::convert::TryInto;
 use std::ffi::c_void;
-use tvm_common::ffi::DLTensor;
-use tvm_common::{ffi, TVMType};
+use tvm_sys::ffi::DLTensor;
+use tvm_sys::{ffi, TVMType};
 
 use crate::{errors, TVMByteArray, TVMContext};
 

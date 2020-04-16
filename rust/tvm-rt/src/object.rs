@@ -1,7 +1,7 @@
 use std::ffi::{CString};
 use crate::Function;
-use tvm_common::{TVMRetValue, TVMArgValue};
-use tvm_common::ffi::{TVMObjectRetain, TVMObjectFree, TVMObjectTypeKey2Index};
+use tvm_sys::{TVMRetValue, TVMArgValue};
+use tvm_sys::ffi::{TVMObjectRetain, TVMObjectFree, TVMObjectTypeKey2Index};
 use std::ptr::NonNull;
 use std::convert::TryFrom;
 use std::convert::TryInto;
