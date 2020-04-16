@@ -41,12 +41,12 @@ int main(int argc, char **argv) {
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
 
-  auto *handle = tvm_runtime_create(json_data, params_data, params_size);
+  void *handle = tvm_runtime_create(json_data, params_data, params_size);
   gettimeofday(&t1, 0);
 
   float input_storage[1 * 3 * 224 * 224];
   FILE * fp = fopen(argv[1], "rb");
-  fread(input_storage, 3 * 224 * 224, 4, fp);
+  (void)fread(input_storage, 3 * 224 * 224, 4, fp);
   fclose(fp);
 
   DLTensor input;
@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
 
   float max_iter = -FLT_MAX;
   int32_t max_index = -1;
-  for (auto i = 0; i < OUTPUT_LEN; ++i) {
+  for (int i = 0; i < OUTPUT_LEN; ++i) {
     if (output_storage[i] > max_iter) {
       max_iter = output_storage[i];
       max_index = i;

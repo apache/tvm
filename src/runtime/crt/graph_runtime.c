@@ -696,13 +696,13 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
   runtime->data_entry_count = runtime->node_row_ptr[runtime->node_row_ptr_count - 1];
   runtime->data_entry = vmalloc(sizeof(TVMNDArray) * runtime->data_entry_count);
   for (idx = 0; idx < runtime->data_entry_count; ++idx) {
-    size_t storage_id = attrs->storage_id[idx];
+    uint32_t storage_id = attrs->storage_id[idx];
     CHECK(storage_id < runtime->storage_pool_count);
     runtime->data_entry[idx] =
       TVMNDArray_CreateView(&(runtime->storage_pool[storage_id]),
                          attrs->shape+idx*TVM_CRT_MAX_NDIM, attrs->ndim[idx], vtype[idx]);
     CHECK_NE(runtime->data_entry[idx].dl_tensor.data, 0,
-             "fail to create for node with idx=%d, storage_id=%lu\n", idx, storage_id);
+             "fail to create for node with idx=%d, storage_id=%u\n", idx, storage_id);
   }
 
   // Release memory

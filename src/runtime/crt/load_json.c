@@ -182,6 +182,7 @@ int JSONReader_ReadString(JSONReader * reader, char * out_str) {
     }
     if (ch == EOF || ch == '\r' || ch == '\n') {
       fprintf(stderr, "Error at line X, Expect \'\"\' but reach end of line\n");
+      status = -1;
     }
   }
   snprintf(out_str, sizeof(output), "%s", output);
