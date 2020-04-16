@@ -244,23 +244,11 @@ stage('Integration Test') {
         }
       }
     }
-  },
-  'docs: GPU': {
-    node('GPU') {
-      ws(per_exec_ws("tvm/docs-python-gpu")) {
-        init_git()
-        unpack_lib('gpu', tvm_multilib)
-        timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ${ci_gpu} ./tests/scripts/task_python_docs.sh"
-        }
-        pack_lib('mydocs', 'docs.tgz')
-      }
-    }
   }
   // TODO: Fix the doc
   // 'docs: GPU': {
   //   node('GPU') {
-  //     ws('workspace/tvm/docs-python-gpu') {
+  //     ws(per_exec_ws("tvm/docs-python-gpu")) {
   //       init_git()
   //       unpack_lib('gpu', tvm_multilib)
   //       timeout(time: max_time, unit: 'MINUTES') {
