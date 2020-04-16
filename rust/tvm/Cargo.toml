@@ -35,6 +35,7 @@ lazy_static = "1.1"
 ndarray = "0.12"
 num-traits = "0.2"
 tvm-rt = { version = "0.1", path = "../tvm-rt/" }
+tvm-sys = { version = "0.1", path = "../tvm-sys/" }
 paste = "0.1"
 mashup = "0.1"
 once_cell = "^1.3.1"

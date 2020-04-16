@@ -1,7 +1,6 @@
 
 use crate::runtime::{Object, IsObject, ObjectPtr, ObjectRef, String as TString};
 use crate::DataType;
-use std::str::FromStr;
 
 // macro_rules! define_ref {
 //     ($name:ident, $node_type:ident) => {
@@ -101,7 +100,7 @@ unsafe impl IsObject for GlobalVarNode {
 pub struct GlobalVar(Option<ObjectPtr<GlobalVarNode>>);
 
 impl GlobalVar {
-    fn new(name_hint: String, span: ObjectRef) -> GlobalVar {
+    pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
         let node = GlobalVarNode {
             base: RelayExpr::base::<GlobalVarNode>(),
             // span: span,
@@ -111,7 +110,7 @@ impl GlobalVar {
         GlobalVar(Some(ObjectPtr::new(node)))
     }
 
-    fn upcast(&self) -> ObjectRef {
+    pub fn upcast(&self) -> ObjectRef {
         ObjectRef(self.0.as_ref().map(|o| o.upcast()))
     }
 }
@@ -134,7 +133,7 @@ unsafe impl IsObject for ConstantNode {
 pub struct Constant(Option<ObjectPtr<ConstantNode>>);
 
 impl Constant {
-    fn new(data: ObjectRef, span: ObjectRef) -> Constant {
+    pub fn new(data: ObjectRef, _span: ObjectRef) -> Constant {
         let node = ConstantNode {
             base: RelayExpr::base::<ConstantNode>(),
             data: data,
@@ -142,7 +141,7 @@ impl Constant {
         Constant(Some(ObjectPtr::new(node)))
     }
 
-    fn upcast(&self) -> ObjectRef {
+    pub fn upcast(&self) -> ObjectRef {
         ObjectRef(self.0.as_ref().map(|o| o.upcast()))
     }
 }
@@ -166,7 +165,7 @@ unsafe impl IsObject for VarNode {
 pub struct Var(Option<ObjectPtr<VarNode>>);
 
 impl Var {
-    fn new(name_hint: String, span: ObjectRef) -> Var {
+    pub fn new(name_hint: String, _span: ObjectRef) -> Var {
         let node = VarNode {
             base: RelayExpr::base::<VarNode>(),
             vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
@@ -175,7 +174,7 @@ impl Var {
         Var(Some(ObjectPtr::new(node)))
     }
 
-    fn upcast(&self) -> ObjectRef {
+    pub fn upcast(&self) -> ObjectRef {
         ObjectRef(self.0.as_ref().map(|o| o.upcast()))
     }
 }

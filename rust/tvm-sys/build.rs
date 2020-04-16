@@ -24,8 +24,8 @@ use std::path::PathBuf;
 // extern crate cmake;
 
 use std::env;
-use std::path::Path;
-use std::process::Command;
+// use std::path::Path;
+// use std::process::Command;
 // use cmake::Config;
 
 // fn main() {
