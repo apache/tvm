@@ -18,7 +18,7 @@
 """ Utility functions that are used across many directories. """
 from __future__ import absolute_import
 import numpy as np
-from .. import expr as _expr
+from . import expr as _expr
 
 def get_scalar_from_constant(expr):
     """ Returns scalar value from Relay constant scalar. """

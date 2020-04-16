@@ -28,7 +28,7 @@ from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
 from ... import nd as _nd
-from .util import get_scalar_from_constant
+from ..util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
