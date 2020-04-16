@@ -78,5 +78,4 @@ def _nms_shape_func(data_shape):
 def nms_shape_func(attrs, inputs, _):
     if attrs.return_indices:
         return _nms_shape_func(inputs[0])
-    else:
-        return [topi.math.identity(inputs[0])]
+    return [topi.math.identity(inputs[0])]

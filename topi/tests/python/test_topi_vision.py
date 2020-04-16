@@ -153,7 +153,8 @@ def verify_non_max_suppression(np_data, np_valid_count, np_indices, np_result, n
                            coord_start=coord_start, score_index=score_index, id_index=id_index,
                            return_indices=False)
             indices_out = fcompute(data, valid_count, indices, -1, iou_threshold, force_suppress, top_k,
-                                   coord_start=coord_start, score_index=score_index, id_index=id_index)
+                                   coord_start=coord_start, score_index=score_index, id_index=id_index,
+                                   return_indices=True)
             s = fschedule(out)
             indices_s = fschedule(indices_out)
 

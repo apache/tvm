@@ -699,10 +699,9 @@ def wrap_compute_nms(topi_compute):
             return topi_compute(inputs[0], inputs[1], inputs[2], max_output_size, iou_threshold,
                                 force_suppress, top_k, coord_start, score_index, id_index,
                                 return_indices, invalid_to_bottom)
-        else:
-            return [topi_compute(inputs[0], inputs[1], inputs[2], max_output_size, iou_threshold,
-                                 force_suppress, top_k, coord_start, score_index, id_index,
-                                 return_indices, invalid_to_bottom)]
+        return [topi_compute(inputs[0], inputs[1], inputs[2], max_output_size, iou_threshold,
+                             force_suppress, top_k, coord_start, score_index, id_index,
+                             return_indices, invalid_to_bottom)]
     return _compute_nms
 
 @override_native_generic_func("non_max_suppression_strategy")

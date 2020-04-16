@@ -317,15 +317,13 @@ def test_non_max_suppression():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-            if top_k == -1:
-                op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data)
-                tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
+            op_indices_res1 = intrp1.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            tvm.testing.assert_allclose(op_indices_res1[0].asnumpy(), ref_indices_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data, x2_data)
             tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
-            if top_k == -1:
-                op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data)
-                tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
+            op_indices_res2 = intrp2.evaluate(func_indices)(x0_data, x1_data, x2_data)
+            tvm.testing.assert_allclose(op_indices_res2[0].asnumpy(), ref_indices_res, rtol=1e-5)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
@@ -337,7 +335,7 @@ def test_non_max_suppression():
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [-1, -1, -1, -1, -1, -1], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[3, 0, -1, -1, -1]])
+    np_indices_result = np.array([[4, 0, -1, -1, -1]])
     num_anchors = 5
 
     dshape = (te.size_var("n"), num_anchors, 6)
@@ -350,7 +348,7 @@ def test_non_max_suppression():
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [1, 0.7, 30, 60, 50, 80], [-1, -1, -1, -1, -1, -1],
                            [-1, -1, -1, -1, -1, -1]]])
-    np_indices_result = np.array([[3, 0, 1, -1, -1]])
+    np_indices_result = np.array([[4, 0, 1, -1, -1]])
     dshape = (te.size_var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, np_indices, dshape, np_result,
                np_indices_result, check_type_only=True)

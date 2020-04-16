@@ -134,5 +134,5 @@ def non_max_suppression(data,
                                     return_indices,
                                     invalid_to_bottom)
     if return_indices:
-        return TupleWrapper(out, 2)
+        return expr.TupleWrapper(out, 2)
     return out
