@@ -24,6 +24,6 @@ build = "build.rs"
 
 [dependencies]
 ndarray = "0.12"
-tvm-frontend = { path = "../../" }
+tvm = { path = "../../" }
 image = "0.20"
 csv = "1.1"

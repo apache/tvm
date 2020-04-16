@@ -23,4 +23,4 @@ edition = "2018"
 
 [dependencies]
 ndarray = "0.12"
-tvm-frontend = { path = "../../" }
+tvm = { path = "../../" }

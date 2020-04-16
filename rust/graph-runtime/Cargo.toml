@@ -38,7 +38,7 @@ num_cpus = "1.10"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-tvm-common = { version = "0.1", path = "../common" }
+tvm-sys = { version = "0.1", path = "../tvm-sys" }
 tvm-macros = { version = "0.1", path = "../macros" }
 
 [target.'cfg(not(any(target_arch = "wasm32", target_env = "sgx")))'.dependencies]

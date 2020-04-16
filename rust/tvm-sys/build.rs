@@ -21,12 +21,12 @@ extern crate bindgen;
 
 use std::path::PathBuf;
 
-extern crate cmake;
+// extern crate cmake;
 
 use std::env;
 use std::path::Path;
 use std::process::Command;
-use cmake::Config;
+// use cmake::Config;
 
 // fn main() {
 //     if !Path::new("tvm/.git").exists() {

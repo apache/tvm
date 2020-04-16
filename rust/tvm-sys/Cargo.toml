@@ -16,7 +16,7 @@
 # under the License.
 
 [package]
-name = "tvm-common"
+name = "tvm-sys"
 version = "0.1.0"
 authors = ["TVM Contributors"]
 license = "Apache-2.0"
