@@ -180,11 +180,11 @@ impl<'a, 'm> Builder<'a, 'm> {
     /// Pushes multiple [`TVMArgValue`]s into the function argument buffer.
     pub fn args<T: 'a, I>(&mut self, args: I) -> &mut Self
     where
-        I: IntoIterator<Item = &'a T>,
-        TVMArgValue<'a>: From<&'a T>,
+        I: IntoIterator<Item = T>,
+        TVMArgValue<'a>: From<T>,
     {
         args.into_iter().for_each(|arg| {
-            self.arg(&arg);
+            self.arg(arg);
         });
         self
     }

@@ -1,6 +1,8 @@
 
 use crate::runtime::{Object, IsObject, ObjectPtr, ObjectRef, ToObjectRef, String as TString};
 use crate::DataType;
+use std::convert::TryFrom;
+use tvm_rt::TVMRetValue;
 
 #[repr(C)]
 pub struct IdNode {
@@ -117,7 +119,6 @@ unsafe impl IsObject for ConstantNode {
     }
 }
 
-
 pub struct Constant(Option<ObjectPtr<ConstantNode>>);
 
 impl Constant {
@@ -164,11 +165,33 @@ impl Var {
     pub fn upcast(&self) -> ObjectRef {
         ObjectRef(self.0.as_ref().map(|o| o.upcast()))
     }
+
+    pub fn name_hint(&self) -> &TString {
+        &self.vid.0.as_ref().unwrap().name_hint
+    }
 }
 
 impl ToObjectRef for Var {
     fn to_object_ref(&self) -> ObjectRef {
         self.upcast()
+    }
+}
+
+impl std::ops::Deref for Var {
+    type Target = VarNode;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().unwrap()
+    }
+}
+
+
+impl TryFrom<TVMRetValue> for Var {
+    type Error = anyhow::Error;
+
+    fn try_from(ret_val: TVMRetValue) -> Result<Var, Self::Error> {
+        let oref: ObjectRef = ret_val.try_into()?;
+        oref.downcast::<Var>()
     }
 }
 

@@ -63,8 +63,8 @@ pub unsafe trait IsObject {
     fn as_object<'s>(&'s self) -> &'s Object;
 
     unsafe extern fn typed_delete(object: *mut Self) {
-        let object = Box::from_raw(object);
-        drop(object)
+        // let object = Box::from_raw(object);
+        // drop(object)
     }
 }
 
@@ -133,8 +133,21 @@ impl<T: IsObject> ObjectPtr<T> {
     pub fn upcast(&self) -> ObjectPtr<Object> {
         ObjectPtr { ptr: self.ptr.cast() }
     }
+
+    pub downcast(&self) -> Result<ObjectPtr<Object>> {
+        panic!("figured out downcast")
+    }
 }
 
+impl<T> std::ops::Deref for ObjectPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.ptr.as_ref() }
+    }
+}
+
+#[derive(Clone)]
 pub struct ObjectRef(pub Option<ObjectPtr<Object>>);
 
 impl ObjectRef {
@@ -165,6 +178,16 @@ impl TryFrom<TVMRetValue> for ObjectRef {
 
 impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
     fn from(object_ref: &ObjectRef) -> TVMArgValue<'a> {
+        let object_ptr = &object_ref.0;
+        let raw_object_ptr = object_ptr.as_ref().map(|p| p.ptr.as_ptr()).unwrap_or(std::ptr::null_mut());
+        // Should be able to hide this unsafety in raw bindings.
+        let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
+        TVMArgValue::ObjectHandle(void_ptr)
+    }
+}
+
+impl From<ObjectRef> for TVMArgValue<'static> {
+    fn from(object_ref: ObjectRef) -> TVMArgValue<'static> {
         let object_ptr = &object_ref.0;
         let raw_object_ptr = object_ptr.as_ref().map(|p| p.ptr.as_ptr()).unwrap_or(std::ptr::null_mut());
         // Should be able to hide this unsafety in raw bindings.
