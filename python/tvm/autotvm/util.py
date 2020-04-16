@@ -186,3 +186,27 @@ def get_const_tuple(in_tuple):
         else:
             ret.append(get_const_int(elem))
     return tuple(ret)
+
+def remove_template(tasks, template_names):
+    """ Removes the tasks that have a template name present in the template_names list.
+
+    Parameters
+    ----------
+    tasks: list of tasks.
+        The list of autotvm tasks.
+
+    template_names : list of str.
+        The list of template names that should be removed from tasks.
+
+    Returns
+    -------
+    out_tasks: list of tasks.
+        Filtered out tasks.
+    """
+
+    out_tasks = []
+    for task in tasks:
+        template_name = task.workload[0]
+        if template_name not in template_names:
+            out_tasks.append(task)
+    return out_tasks
