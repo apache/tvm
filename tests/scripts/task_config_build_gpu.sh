@@ -40,6 +40,8 @@ echo set\(USE_GRAPH_RUNTIME_DEBUG ON\) >> config.cmake
 echo set\(USE_VM_PROFILER ON\) >> config.cmake
 echo set\(USE_EXAMPLE_EXT_RUNTIME ON\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
+echo set\(USE_VTA_TSIM ON\) >> config.cmake
+echo set\(USE_VTA_FSIM ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
 echo set\(CMAKE_CXX_COMPILER g++\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake
