@@ -24,7 +24,7 @@ from ..sort import argsort
 
 
 @hybrid.script
-def hybrid_rearrange_out(data, one):
+def hybrid_rearrange_out(data, one, batch_size):
     """Hybrid routine to rearrange nms output to
     move all valid entries to top.
 
@@ -39,6 +39,10 @@ def hybrid_rearrange_out(data, one):
     one: tvm.tir.const
         Constant one with the same dtype as data.
 
+    batch_size: tvm.tir.IntImm or tvm.tir.Var
+        Batch size. We need to pass it in since hybrid script doesn't support
+        binding variable to symbolic dim.
+
     Returns
     -------
     output : tvm.te.Tensor or numpy NDArray
@@ -51,7 +55,6 @@ def hybrid_rearrange_out(data, one):
         the valid number of boxes.
     """
     ndim = len(data.shape)
-    batch_size = data.shape[0]
     num_anchors = data.shape[1]
     valid_box_count = output_tensor((batch_size, 1), "int32")
     output = output_tensor((batch_size, num_anchors), data.dtype)
@@ -88,7 +91,7 @@ def hybrid_rearrange_out(data, one):
 
 
 @hybrid.script
-def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one):
+def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one, batch_size):
     """Hybrid routine to get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
@@ -111,6 +114,10 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one):
     one: tvm.tir.const
         Constant one with the same dtype as data.
 
+    batch_size: tvm.tir.IntImm or tvm.tir.Var
+        Batch size. We need to pass it in since hybrid script doesn't support
+        binding variable to symbolic dim.
+
     Returns
     -------
     valid_count : tvm.te.Tensor or numpy NDArray
@@ -122,7 +129,6 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one):
     out_indices: tvm.te.Tensor or numpy NDArray
         Related index in input data.
     """
-    batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
     valid_count = output_tensor((batch_size,), "int32")
@@ -183,11 +189,12 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     score_index_const = tvm.tir.const(score_index, "int32")
     return hybrid_get_valid_counts(data, score_threshold_const,
                                    id_index_const, score_index_const,
-                                   tvm.tir.const(1, data.dtype))
+                                   tvm.tir.const(1, data.dtype),
+                                   data.shape[0])
 
 
 @hybrid.script
-def hybrid_nms(data, sorted_index, valid_count, indices, max_output_size,
+def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, max_output_size,
                iou_threshold, force_suppress, top_k, coord_start, score_index,
                id_index, return_indices, zero, one):
     """Hybrid routing for non-maximum suppression.
@@ -207,6 +214,10 @@ def hybrid_nms(data, sorted_index, valid_count, indices, max_output_size,
 
     indices : tvm.te.Tensor or numpy.NDArray
         indices in original tensor, with shape [batch_size, num_anchors]
+
+    batch_size: tvm.tir.IntImm or tvm.tir.Var
+        Batch size. We need to pass it in since hybrid script doesn't support
+        binding variable to symbolic dim.
 
     max_output_size : tvm.tir.const
         Max number of output valid boxes for each instance.
@@ -249,7 +260,6 @@ def hybrid_nms(data, sorted_index, valid_count, indices, max_output_size,
         2-D tensor with shape [batch_size, num_anchors].
     """
 
-    batch_size = data.shape[0]
     num_anchors = data.shape[1]
     box_data_length = data.shape[2]
 
@@ -455,6 +465,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   sort_tensor,
                                   valid_count,
                                   indices,
+                                  batch_size,
                                   tvm.tir.const(max_output_size, dtype="int32"),
                                   tvm.tir.const(iou_threshold, dtype=data.dtype),
                                   tvm.tir.const(force_suppress, dtype="bool"),
@@ -466,8 +477,10 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   zero=tvm.tir.const(0, dtype=data.dtype),
                                   one=tvm.tir.const(1, dtype=data.dtype))
     if return_indices:
-        return hybrid_rearrange_out(box_indices, one=tvm.tir.const(1, dtype="int32"))
+        return hybrid_rearrange_out(box_indices, one=tvm.tir.const(1, dtype="int32"),
+                                    batch_size=batch_size)
 
     if invalid_to_bottom:
-        out, out_shape = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype))
+        out, _ = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype),
+                                      batch_size=batch_size)
     return out
