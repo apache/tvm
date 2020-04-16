@@ -23,7 +23,7 @@ use std::{
     ptr,
 };
 
-use failure::Error;
+use anyhow::Error;
 
 use crate::allocator::Allocation;
 

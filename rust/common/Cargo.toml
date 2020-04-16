@@ -26,7 +26,8 @@ edition = "2018"
 bindings = []
 
 [dependencies]
-failure = { version = "0.1", default-features = false, features = ["derive"] }
+thiserror = "^1.0"
+anyhow = "^1.0"
 ndarray = "0.12"
 
 [build-dependencies]

@@ -27,7 +27,7 @@ use std::{
     ptr,
 };
 
-use failure::Error;
+use anyhow::{anyhow, ensure, Error};
 use tvm_common::ffi;
 
 use crate::{errors, function::Function};
@@ -91,13 +91,13 @@ impl Module {
                 .unwrap_or_else(|| std::ffi::OsStr::new(""))
                 .to_str()
                 .ok_or_else(|| {
-                    format_err!("Bad module load path: `{}`.", path.as_ref().display())
+                    anyhow!("Bad module load path: `{}`.", path.as_ref().display())
                 })?,
         )?;
         let func = Function::get("runtime.ModuleLoadFromFile").expect("API function always exists");
         let cpath =
             CString::new(path.as_ref().to_str().ok_or_else(|| {
-                format_err!("Bad module load path: `{}`.", path.as_ref().display())
+                anyhow!("Bad module load path: `{}`.", path.as_ref().display())
             })?)?;
         let ret: Module = call_packed!(func, cpath.as_c_str(), ext.as_c_str())?.try_into()?;
         Ok(ret)

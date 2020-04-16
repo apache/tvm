@@ -131,14 +131,6 @@ impl TryFrom<TVMRetValue> for NDArray {
     }
 }
 
-impl TryFrom<TVMRetValue> for std::ffi::CString {
-    type Error = ValueDowncastError;
-    fn try_from(val: TVMRetValue) -> Result<NDArray, Self::Error> {
-        try_downcast!(val -> std::ffi::CString,
-            |TVMRetValue::Str(val)| { val.into() })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{convert::TryInto, str::FromStr};

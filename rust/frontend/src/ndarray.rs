@@ -49,7 +49,7 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
-use failure::Error;
+use anyhow::{Result, ensure, bail};
 use num_traits::Num;
 use rust_ndarray::{Array, ArrayD};
 use std::convert::TryInto;
@@ -147,7 +147,7 @@ impl NDArray {
     }
 
     /// Shows whether the underlying ndarray is contiguous in memory or not.
-    pub fn is_contiguous(&self) -> Result<bool, Error> {
+    pub fn is_contiguous(&self) -> Result<bool> {
         Ok(match self.strides() {
             None => true,
             Some(strides) => {
@@ -189,7 +189,7 @@ impl NDArray {
     /// assert_eq!(ndarray.shape(), Some(&mut shape[..]));
     /// assert_eq!(ndarray.to_vec::<i32>().unwrap(), data);
     /// ```
-    pub fn to_vec<T>(&self) -> Result<Vec<T>, Error> {
+    pub fn to_vec<T>(&self) -> Result<Vec<T>> {
         ensure!(self.shape().is_some(), errors::EmptyArrayError);
         let earr = NDArray::empty(
             self.shape().ok_or(errors::MissingShapeError)?,
@@ -209,7 +209,7 @@ impl NDArray {
     }
 
     /// Converts the NDArray to [`TVMByteArray`].
-    pub fn to_bytearray(&self) -> Result<TVMByteArray, Error> {
+    pub fn to_bytearray(&self) -> Result<TVMByteArray> {
         let v = self.to_vec::<u8>()?;
         Ok(TVMByteArray::from(v))
     }
@@ -239,7 +239,7 @@ impl NDArray {
     }
 
     /// Copies the NDArray to another target NDArray.
-    pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray, Error> {
+    pub fn copy_to_ndarray(&self, target: NDArray) -> Result<NDArray> {
         if self.dtype() != target.dtype() {
             bail!(
                 "{}",
@@ -258,7 +258,7 @@ impl NDArray {
     }
 
     /// Copies the NDArray to a target context.
-    pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray, Error> {
+    pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray> {
         let tmp = NDArray::empty(
             self.shape().ok_or(errors::MissingShapeError)?,
             *target,
@@ -273,7 +273,7 @@ impl NDArray {
         rnd: &ArrayD<T>,
         ctx: TVMContext,
         dtype: TVMType,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self> {
         let shape = rnd.shape().to_vec();
         let mut nd = NDArray::empty(&shape, ctx, dtype);
         let mut buf = Array::from_iter(rnd.into_iter().map(|&v| v as T));
@@ -304,8 +304,8 @@ impl NDArray {
 macro_rules! impl_from_ndarray_rustndarray {
     ($type:ty, $type_name:tt) => {
         impl<'a> TryFrom<&'a NDArray> for ArrayD<$type> {
-            type Error = Error;
-            fn try_from(nd: &NDArray) -> Result<ArrayD<$type>, Self::Error> {
+            type Error = anyhow::Error;
+            fn try_from(nd: &NDArray) -> Result<ArrayD<$type>> {
                 ensure!(nd.shape().is_some(), errors::MissingShapeError);
                 assert_eq!(nd.dtype(), TVMType::from_str($type_name)?, "Type mismatch");
                 Ok(Array::from_shape_vec(
@@ -316,8 +316,8 @@ macro_rules! impl_from_ndarray_rustndarray {
         }
 
         impl<'a> TryFrom<&'a mut NDArray> for ArrayD<$type> {
-            type Error = Error;
-            fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>, Self::Error> {
+            type Error = anyhow::Error;
+            fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>> {
                 ensure!(nd.shape().is_some(), errors::MissingShapeError);
                 assert_eq!(nd.dtype(), TVMType::from_str($type_name)?, "Type mismatch");
                 Ok(Array::from_shape_vec(

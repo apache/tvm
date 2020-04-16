@@ -4,6 +4,7 @@ use tvm_common::{TVMRetValue, TVMArgValue};
 use tvm_common::ffi::{TVMObjectRetain, TVMObjectFree, TVMObjectTypeKey2Index};
 use std::ptr::NonNull;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 
 type Deleter<T> = unsafe extern fn(object: *mut T) -> ();
 
@@ -178,11 +179,11 @@ macro_rules! external_func {
             });
         }
 
-        pub fn $name($($arg : $ty),*) -> Result<$ret_type, failure::Error> {
-            use std::ops::Deref;
+        pub fn $name($($arg : $ty),*) -> Result<$ret_type, anyhow::Error> {
             let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
-            let res = $crate::call_packed!(func_ref,$($arg),*);
-            res.map(|r| r.into())
+            let res = $crate::call_packed!(func_ref,$($arg),*)?;
+            let res = res.try_into()?;
+            Ok(res)
         }
     }
 }
@@ -191,32 +192,6 @@ external_func! {
     fn debug_print(object: &ObjectRef) -> CString as "ir.DebugPrinter";
 }
 
-// lazy_static! {
-//     static ref _DEBUG_PRINT: &'static Function = {
-//         Function::get("ir.DebugPrinter").expect("ir.DebugPrinter is unregistered")
-//     };
-// }
-
-// pub fn debug_print(object: &ObjectRef) -> CString {
-//         let dp: &Function = &_DEBUG_PRINT;
-//         let ret = crate::call_packed!(dp, object).expect("always returns strings");
-//         match ret {
-//             TVMRetValue::Str(cstring) => cstring.into(),
-//             x => panic!("{:?}", x),
-//         }
-// }
-
-lazy_static! {
-    static ref _AS_TEXT: &'static Function = {
-        Function::get("ir.TextPrinter").expect("ir.AsText is unregistered")
-    };
-}
-
-pub fn as_text(object: &ObjectRef) -> CString {
-        let dp: &Function = &_AS_TEXT;
-        let ret = crate::call_packed!(dp, object, 0, dp).expect("always returns strings");
-        match ret {
-            TVMRetValue::Str(cstring) => dbg!(cstring.into()),
-            x => panic!("{:?}", x),
-        }
+external_func! {
+    fn as_text(object: &ObjectRef) -> CString as "ir.TextPrinter";
 }

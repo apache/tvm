@@ -46,7 +46,7 @@ use std::{
     ptr,
 };
 
-use failure::Error;
+use anyhow::Result;
 
 use tvm_common::ffi;
 
@@ -236,7 +236,7 @@ impl TVMContext {
     }
 
     /// Synchronize the context stream.
-    pub fn sync(&self) -> Result<(), Error> {
+    pub fn sync(&self) -> Result<()> {
         check_call!(ffi::TVMSynchronize(
             self.device_type.0 as i32,
             self.device_id as i32,

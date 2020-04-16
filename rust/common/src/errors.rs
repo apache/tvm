@@ -17,18 +17,17 @@
  * under the License.
  */
 
-#[derive(Debug, Fail)]
-#[fail(
-    display = "Could not downcast `{}` into `{}`",
-    expected_type, actual_type
-)]
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+#[error("invalid header (expected {expected_type:?}, found {actual_type:?})")]
 pub struct ValueDowncastError {
     pub actual_type: String,
     pub expected_type: &'static str,
 }
 
-#[derive(Debug, Fail)]
-#[fail(display = "Function call `{}` returned error: {}", context, message)]
+#[derive(Error, Debug)]
+#[error("Function call `{context:?}` returned error: {message:?}")]
 pub struct FuncCallError {
     context: String,
     message: String,

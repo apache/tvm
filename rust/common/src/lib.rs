@@ -20,9 +20,6 @@
 //! This crate contains the refactored basic components required
 //! for `runtime` and `frontend` TVM crates.
 
-#[macro_use]
-extern crate failure;
-
 /// Unified ffi module for both runtime and frontend crates.
 pub mod ffi {
     #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, unused)]

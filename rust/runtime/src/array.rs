@@ -19,7 +19,7 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
-use failure::Error;
+use anyhow::Error;
 use ndarray;
 use tvm_common::{
     array::{DataType, TVMContext},

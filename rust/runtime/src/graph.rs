@@ -19,7 +19,7 @@
 
 use std::{cmp, collections::HashMap, convert::TryFrom, iter::FromIterator, mem, str};
 
-use failure::Error;
+use anyhow::Error;
 use nom::{
     character::complete::{alpha1, digit1},
     number::complete::{le_i32, le_i64, le_u16, le_u32, le_u64, le_u8},
@@ -263,7 +263,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
 
             let func = lib
                 .get_function(&attrs.func_name)
-                .ok_or_else(|| format_err!("Library is missing function {}", attrs.func_name))?;
+                .ok_or_else(|| anyhow!("Library is missing function {}", attrs.func_name))?;
             let arg_indices = node
                 .inputs
                 .iter()

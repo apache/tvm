@@ -363,3 +363,11 @@ impl Default for TVMRetValue {
         Self::Int(0)
     }
 }
+
+impl TryFrom<TVMRetValue> for std::ffi::CString {
+    type Error = ValueDowncastError;
+    fn try_from(val: TVMRetValue) -> Result<CString, Self::Error> {
+        try_downcast!(val -> std::ffi::CString,
+            |TVMRetValue::Str(val)| { val.into() })
+    }
+}

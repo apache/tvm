@@ -19,6 +19,8 @@
 
 use std::{os::raw::c_char, str::FromStr};
 
+use thiserror::Error;
+
 use crate::ffi::*;
 
 impl DLDataType {
@@ -31,11 +33,11 @@ impl DLDataType {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum ParseTvmTypeError {
-    #[fail(display = "invalid number: {}", _0)]
+    #[error("invalid number: {0}")]
     InvalidNumber(std::num::ParseIntError),
-    #[fail(display = "unknown type: {}", _0)]
+    #[error("unknown type: {0}")]
     UnknownType(String),
 }
 
@@ -126,8 +128,9 @@ impl_pod_tvm_value!(v_float64, f64, f32, f64);
 impl_pod_tvm_value!(v_type, DLDataType);
 impl_pod_tvm_value!(v_ctx, TVMContext);
 
-#[derive(Debug, Fail)]
-#[fail(display = "unsupported device: {}", _0)]
+
+#[derive(Debug, Error)]
+#[error("unsupported device: {0}")]
 pub struct UnsupportedDeviceError(String);
 
 macro_rules! impl_tvm_context {

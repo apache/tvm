@@ -34,7 +34,8 @@ use std::{
     sync::Mutex,
 };
 
-use failure::Error;
+use lazy_static::lazy_static;
+use anyhow::{Result, ensure};
 
 use crate::{errors, ffi, Module, TVMArgValue, TVMRetValue};
 
@@ -199,7 +200,7 @@ impl<'a, 'm> Builder<'a, 'm> {
     }
 
     /// Calls the function that created from `Builder`.
-    pub fn invoke(&mut self) -> Result<TVMRetValue, Error> {
+    pub fn invoke(&mut self) -> Result<TVMRetValue> {
         #![allow(unused_unsafe)]
         ensure!(self.func.is_some(), errors::FunctionNotFoundError);
 
@@ -253,7 +254,7 @@ unsafe extern "C" fn tvm_callback(
     let mut value = MaybeUninit::uninit().assume_init();
     let mut tcode = MaybeUninit::uninit().assume_init();
     let rust_fn =
-        mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>>(fhandle);
+        mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
     for i in 0..len {
         value = args_list[i];
         tcode = type_codes_list[i];
@@ -290,13 +291,13 @@ unsafe extern "C" fn tvm_callback(
 
 unsafe extern "C" fn tvm_callback_finalizer(fhandle: *mut c_void) {
     let _rust_fn =
-        mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>>(fhandle);
+        mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
     // XXX: give converted functions lifetimes so they're not called after use
 }
 
-fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>) -> Function {
+fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue>) -> Function {
     let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
-    let resource_handle = f as *mut fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>;
+    let resource_handle = f as *mut fn(&[TVMArgValue]) -> Result<TVMRetValue>;
     check_call!(ffi::TVMFuncCreateFromCFunc(
         Some(tvm_callback),
         resource_handle as *mut c_void,
@@ -318,7 +319,7 @@ fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>) -> F
 /// ```
 /// # use tvm_frontend::{TVMArgValue, function, TVMRetValue};
 /// # use tvm_frontend::function::Builder;
-/// # use failure::Error;
+/// # use anyhow::Error;
 /// use std::convert::TryInto;
 ///
 /// fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
@@ -339,10 +340,10 @@ fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>) -> F
 /// assert_eq!(ret, 60);
 /// ```
 pub fn register<S: AsRef<str>>(
-    f: fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>,
+    f: fn(&[TVMArgValue]) -> Result<TVMRetValue>,
     name: S,
     override_: bool,
-) -> Result<(), Error> {
+) -> Result<()> {
     let func = convert_to_tvm_func(f);
     let name = CString::new(name.as_ref())?;
     check_call!(ffi::TVMFuncRegisterGlobal(
@@ -362,7 +363,7 @@ pub fn register<S: AsRef<str>>(
 /// ```
 /// # use std::convert::TryInto;
 /// # use tvm_frontend::{register_global_func, TVMArgValue, TVMRetValue};
-/// # use failure::Error;
+/// # use anyhow::Error;
 /// # use tvm_frontend::function::Builder;
 ///
 /// register_global_func! {

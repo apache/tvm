@@ -30,20 +30,14 @@
 //!
 //! Checkout the `examples` repository for more details.
 
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate lazy_static;
 extern crate ndarray as rust_ndarray;
-extern crate num_traits;
-extern crate tvm_common;
 
 use std::{
     ffi::{CStr, CString},
     str,
 };
 
-use failure::Error;
+use anyhow::Error;
 
 pub use crate::{
     context::{TVMContext, TVMDeviceType},
@@ -51,11 +45,12 @@ pub use crate::{
     function::Function,
     module::Module,
     ndarray::NDArray,
-    tvm_common::{
-        errors as common_errors,
-        ffi::{self, DLDataType, TVMByteArray},
-        packed_func::{TVMArgValue, TVMRetValue},
-    },
+};
+
+pub use tvm_common::{
+    errors as common_errors,
+    ffi::{self, DLDataType, TVMByteArray},
+    packed_func::{TVMArgValue, TVMRetValue},
 };
 
 pub type DataType = DLDataType;
