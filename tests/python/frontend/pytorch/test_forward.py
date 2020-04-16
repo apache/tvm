@@ -159,7 +159,7 @@ def verify_model(model_name, input_data=[],
     if isinstance(baseline_outputs, tuple):
         baseline_outputs = tuple(out.cpu().numpy() for out in baseline_outputs)
     else:
-        baseline_outputs = (baseline_outputs.float().cpu().numpy(),)
+        baseline_outputs = (baseline_outputs.cpu().numpy(),)
 
     trace = torch.jit.trace(baseline_model, baseline_input).float().eval()
 
@@ -1600,6 +1600,95 @@ def test_forward_topk():
     verify_model(Topk6().float().eval(), input_data=input_data)
 
 
+def test_forward_logical_not():
+    torch.set_grad_enabled(False)
+
+    class LogicalNot1(Module):
+        def forward(self, *args):
+            return torch.logical_not(args[0])
+
+    input_data = torch.tensor([True, False])
+    verify_model(LogicalNot1().float().eval(), input_data=input_data)
+
+    input_data = torch.tensor([0, 1, -10], dtype=torch.int8)
+    verify_model(LogicalNot1().float().eval(), input_data=input_data)
+
+    input_data = torch.tensor([0., 1.5, -10.], dtype=torch.double)
+    verify_model(LogicalNot1().float().eval(), input_data=input_data)
+
+    input_data = torch.tensor([0., 1., -10.], dtype=torch.int32)
+    verify_model(LogicalNot1().float().eval(), input_data=input_data)
+
+
+def test_forward_bitwise_not():
+    torch.set_grad_enabled(False)
+
+    class BitwiseNot1(Module):
+        def forward(self, *args):
+            return torch.bitwise_not(args[0])
+
+    input_data = torch.tensor([0, 1, -10], dtype=torch.int8)
+    verify_model(BitwiseNot1().float().eval(), input_data=input_data)
+
+    input_data = torch.tensor([0., 1., -10.], dtype=torch.int32)
+    verify_model(BitwiseNot1().float().eval(), input_data=input_data)
+
+    input_data = torch.tensor([True, False])
+    verify_model(BitwiseNot1().float().eval(), input_data=input_data)
+
+
+def test_forward_bitwise_xor():
+    torch.set_grad_enabled(False)
+
+    class BitwiseXor1(Module):
+        def forward(self, *args):
+            return torch.bitwise_xor(args[0], args[1])
+
+    class BitwiseXor2(Module):
+        def forward(self, *args):
+            rhs = torch.tensor([1, 0, 3], dtype=torch.int8)
+            if torch.cuda.is_available():
+                rhs = rhs.cuda()
+            return torch.bitwise_xor(args[0], rhs)
+
+    lhs = torch.tensor([-1, -2, 3], dtype=torch.int8)
+    rhs = torch.tensor([1, 0, 3], dtype=torch.int8)
+    verify_model(BitwiseXor1().float().eval(), input_data=[lhs, rhs])
+
+    lhs = torch.tensor([True, True, False])
+    rhs = torch.tensor([False, True, False])
+    verify_model(BitwiseXor1().float().eval(), input_data=[lhs, rhs])
+
+    lhs = torch.tensor([-1, -2, 3], dtype=torch.int8)
+    verify_model(BitwiseXor2().float().eval(), input_data=[lhs])
+
+
+def test_forward_logical_xor():
+    torch.set_grad_enabled(False)
+
+    class LogicalXor1(Module):
+        def forward(self, *args):
+            return torch.logical_xor(args[0], args[1])
+
+    class LogicalXor2(Module):
+        def forward(self, *args):
+            rhs = torch.tensor([1, 0, 3], dtype=torch.int8)
+            if torch.cuda.is_available():
+                rhs = rhs.cuda()
+            return torch.logical_xor(args[0], rhs)
+
+    lhs = torch.tensor([-1, -2, 3], dtype=torch.int8)
+    rhs = torch.tensor([1, 0, 3], dtype=torch.int8)
+    verify_model(LogicalXor1().float().eval(), input_data=[lhs, rhs])
+
+    lhs = torch.tensor([True, True, False])
+    rhs = torch.tensor([False, True, False])
+    verify_model(LogicalXor1().float().eval(), input_data=[lhs, rhs])
+
+    lhs = torch.tensor([-1, -2, 3], dtype=torch.int8)
+    verify_model(LogicalXor2().float().eval(), input_data=[lhs])
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -1663,6 +1752,10 @@ if __name__ == "__main__":
     test_forward_clamp()
     test_forward_floor()
     test_forward_round()
+    test_forward_logical_not()
+    test_forward_bitwise_not()
+    test_forward_bitwise_xor()
+    test_forward_logical_xor()
     test_forward_isfinite()
     test_forward_isnan()
     test_forward_isinf()

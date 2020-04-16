@@ -99,6 +99,7 @@ List of operators
    topi.logical_and
    topi.logical_or
    topi.logical_not
+   topi.logical_xor
    topi.arange
    topi.stack
    topi.repeat
@@ -193,6 +194,7 @@ topi
 .. autofunction:: topi.logical_and
 .. autofunction:: topi.logical_or
 .. autofunction:: topi.logical_not
+.. autofunction:: topi.logical_xor
 
 topi.nn
 ~~~~~~~
