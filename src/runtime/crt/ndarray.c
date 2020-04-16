@@ -68,15 +68,15 @@ int TVMNDArray_Load(TVMNDArray * ret, const char ** strm) {
   ctx = ((DLContext*)*strm)[0]; *strm += sizeof(ctx);  // NOLINT(*)
   ndim = ((uint32_t*)*strm)[0]; *strm += sizeof(ndim);  // NOLINT(*)
   dtype = ((DLDataType*)*strm)[0]; *strm += sizeof(dtype);  // NOLINT(*)
-  if ((ndim <= 0) || (ndim > TVM_CRT_MAX_NDIM)) {
-    fprintf(stderr, "Invalid ndim=%d: expected to be 1 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
+  if ((ndim < 0) || (ndim > TVM_CRT_MAX_NDIM)) {
+    fprintf(stderr, "Invalid ndim=%d: expected to be 0 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
     status = -1;
   }
   if (ctx.device_type != kDLCPU) {
     fprintf(stderr, "Invalid DLTensor context: can only save as CPU tensor\n");
     status = -1;
   }
-  int64_t shape[TVM_CRT_MAX_NDIM];
+  int64_t shape[TVM_CRT_MAX_NDIM] = {0};
   uint32_t idx;
   if (ndim != 0) {
     for (idx = 0; idx < ndim; idx++) {
