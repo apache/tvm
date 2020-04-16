@@ -22,7 +22,7 @@ import tvm
 from tvm import relay
 from tvm.relay.expr import Call, Constant
 
-from . import _transform
+from tvm.relay.transform import _ffi_api
 from .expr_functor import ExprMutator
 
 def _bind_params(func, params):
@@ -140,7 +140,7 @@ def GetTrtVersion():
         TensorRT version as a tuple of major, minor, and patch number. If TVM
         is not built with TensorRT, an empty tuple is returned instead.
     """
-    return tuple(map(int, _transform.GetTrtVersion()))
+    return tuple(map(int, _ffi_api.GetTrtVersion()))
 
 def IsTrtRuntimeAvailable():
     if not tvm.get_global_func("relay._transform.GetTrtVersion", True):
@@ -191,4 +191,4 @@ def EnableTrt(mod, params=None, trt_version=None):
         # Bind params so that we can use FoldConstant.
         mod['main'] = _bind_params(mod['main'], params)
     mod = relay.transform.FoldConstant()(mod)
-    return _transform.EnableTrt(*trt_version)(mod)
+    return _ffi_api.EnableTrt(*trt_version)(mod)
