@@ -19,7 +19,6 @@ import os
 import sys
 
 import numpy as np
-import pytest
 
 import tvm
 import tvm.relay.testing
@@ -31,6 +30,7 @@ from tvm.contrib import util
 from tvm.relay.backend import compile_engine
 from tvm.relay.expr_functor import ExprMutator
 from tvm.relay.op.annotation import compiler_begin, compiler_end
+from tvm.relay.op.contrib.register import get_pattern_table
 from tvm.relay.build_module import bind_params_by_name
 
 
@@ -832,21 +832,8 @@ def test_mixed_single_multiple_outputs():
 
 
 def test_dnnl_fuse():
-    def make_pattern(with_bias=True):
-        data = relay.var("data", relay.TensorType((1, 3, 224, 224), "float32"))
-        weight = relay.var("weight")
-        bias = relay.var("bias")
-        conv = relay.nn.conv2d(data=data, weight=weight, kernel_size=(3, 3),
-                               channels=8, padding=(1, 1))
-        if with_bias:
-            conv_out = relay.add(conv, bias)
-        else:
-            conv_out = conv
-        return relay.nn.relu(conv_out)
-
-    conv2d_bias_relu_pat = ("dnnl.conv2d_bias_relu", make_pattern(with_bias=True))
-    conv2d_relu_pat = ("dnnl.conv2d_relu", make_pattern(with_bias=False))
-    dnnl_patterns = [conv2d_bias_relu_pat, conv2d_relu_pat]
+    dnnl_patterns = get_pattern_table("dnnl")
+    conv2d_bias_relu_pat, conv2d_relu_pat = dnnl_patterns
 
     def get_blocks(prefix, data, in_channel, out_channel,
                    include_bn=True, include_sigmoid=False):
