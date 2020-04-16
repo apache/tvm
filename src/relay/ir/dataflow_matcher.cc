@@ -32,8 +32,12 @@ namespace relay {
 
 // Pattern Matcher
 
+
+class DominatorMatcher;
+
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
+  explicit DFPatternMatcher(const Expr& root_expr) : expr_graph_(CreateIndexedGraph(root_expr)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
 
  protected:
@@ -52,7 +56,9 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   void ClearMap(size_t watermark);
   std::unordered_map<DFPattern, Expr, ObjectHash, ObjectEqual> memo_;
   std::vector<DFPattern> matched_nodes_;
-  };
+  IndexedGraph<Expr> expr_graph_;
+  friend DominatorMatcher;
+};
 
 bool DFPatternMatcher::Match(const DFPattern& pattern, const Expr& expr) {
   memo_.clear();
@@ -250,66 +256,78 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   return false;
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
-  auto watermark = matched_nodes_.size();
-  auto backup_memo = memo_;
-  auto backup_matched_nodes = matched_nodes_;
+// Friend class to do recursive dominator matching
+class DominatorMatcher {
+ public:
+  DominatorMatcher(DFPatternMatcher* matcher, const DominatorPatternNode* op, const Expr& expr)
+      : matcher_(matcher), op_(op), expr_(expr) {
+    watermark_ = matcher_->matched_nodes_.size();
+    pattern_graph_ = CreateIndexedGraph(GetRef<DFPattern>(op));
+  }
+  bool Match() {
+    if (matcher_->VisitDFPattern(op_->child, expr_)) {
+      auto dominated_exprs = FindDominated(op_->child);
+      matcher_->ClearMap(watermark_);
 
-  if (VisitDFPattern(op->child, expr)) {
-    auto child_graph = CreateIndexedGraph(GetRef<DFPattern>(op));
-    auto expr_graph = CreateIndexedGraph(expr);
-    auto find_dominated = [&child_graph, this](const DFPattern& node) {
-      std::unordered_set<Expr, ObjectHash, ObjectEqual> dominated_exprs;
-      auto indexed_node = child_graph.node_map_[node];
-      for (auto dominated : indexed_node->dominator_children_) {
-        if (dominated->ref_.as<WildcardPatternNode>() || dominated->ref_.as<OpNode>()) {
-          continue;
-        }
-        dominated_exprs.insert(memo_[dominated->ref_]);
+      bool matches = FindParent(expr_, dominated_exprs);
+      if (matches) {
+        matcher_->ClearMap(watermark_);
+        matcher_->memo_[op_->child] = expr_;
+        matcher_->matched_nodes_.push_back(op_->child);
       }
-      return dominated_exprs;
-    };
-    std::function<bool(const Expr&, const std::unordered_set<Expr, ObjectHash, ObjectEqual>&)>
-        find_parent;
-    find_parent = [this, &op, &watermark, &backup_memo, &backup_matched_nodes, &find_dominated,
-                   &expr_graph, &find_parent](
-                      const Expr& expr,
-                      const std::unordered_set<Expr, ObjectHash, ObjectEqual>& dominated_exprs) {
-      bool out = true;
-      for (auto node : expr_graph.node_map_[expr]->dominator_children_) {
-        if (out && dominated_exprs.count(node->ref_) == 0) {
-          if (VisitDFPattern(op->parent, node->ref_)) {
-            backup_memo[op->parent] = memo_.at(op->parent);
-            backup_matched_nodes.push_back(op->parent);
-            memo_ = backup_memo;
-            matched_nodes_ = backup_matched_nodes;
-            watermark += 1;
-            return true;
+      return matches;
+    }
+    return false;
+  }
+
+ protected:
+  DFPatternMatcher* matcher_;
+  const DominatorPatternNode* op_;
+  IndexedGraph<DFPattern> pattern_graph_;
+  Expr expr_;
+  size_t watermark_;
+
+  std::unordered_set<Expr, ObjectHash, ObjectEqual> FindDominated(const DFPattern& node) {
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> dominated_exprs;
+    auto indexed_node = pattern_graph_.node_map_[node];
+    for (auto dominated : indexed_node->dominator_children_) {
+      if (dominated->ref_.as<WildcardPatternNode>()) {
+        continue;
+      }
+      if (matcher_->memo_.count(dominated->ref_)) {
+        dominated_exprs.insert(matcher_->memo_[dominated->ref_]);
+      }
+    }
+    return dominated_exprs;
+  }
+  bool FindParent(const Expr& expr,
+                  const std::unordered_set<Expr, ObjectHash, ObjectEqual>& dominated_exprs) {
+    bool out = true;
+    for (auto node : matcher_->expr_graph_.node_map_[expr]->dominator_children_) {
+      if (out && dominated_exprs.count(node->ref_) == 0 && node->ref_.as<OpNode>() == nullptr) {
+        if (matcher_->VisitDFPattern(op_->parent, node->ref_)) {
+          matcher_->ClearMap(watermark_);
+          matcher_->memo_[op_->parent] = node->ref_;
+          matcher_->matched_nodes_.push_back(op_->parent);
+          watermark_ += 1;
+          return true;
+        } else {
+          if (matcher_->VisitDFPattern(op_->path, node->ref_)) {
+            auto new_dominated_exprs = FindDominated(op_->path);
+            matcher_->ClearMap(watermark_);
+            out &= FindParent(node->ref_, new_dominated_exprs);
           } else {
-            if (VisitDFPattern(op->path, node->ref_)) {
-              auto new_dominated_exprs = find_dominated(op->path);
-              ClearMap(watermark);
-              out &= find_parent(node->ref_, new_dominated_exprs);
-            } else {
-              out = false;
-            }
+            out = false;
           }
         }
       }
-      return out;
-    };
-
-    auto dominated_exprs = find_dominated(op->child);
-    ClearMap(watermark);
-    bool matches = find_parent(expr, dominated_exprs);
-    if (matches) {
-      backup_memo[op->parent] = memo_.at(op->parent);
-      backup_memo[op->child] = expr;
-      memo_ = backup_memo;
     }
-    return matches;
+    return out;
   }
-  return false;
+};
+
+bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
+  return DominatorMatcher(this, op, expr).Match();
 }
 
 bool DFPatternMatcher::VisitDFPattern_(const ExprPatternNode* op, const Expr& expr) {
@@ -371,7 +389,7 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
 }
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.match").set_body_typed([](DFPattern pattern, Expr expr) {
-  return DFPatternMatcher().Match(pattern, expr);
+  return DFPatternMatcher(expr).Match(pattern, expr);
 });
 
 // Rewrite
@@ -390,7 +408,8 @@ TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
 
 class PatternRewriter : protected MixedModeMutator {
  public:
-  explicit PatternRewriter(const Array<DFPatternCallback>& callbacks) : callbacks_(callbacks) {}
+  explicit PatternRewriter(const Array<DFPatternCallback>& callbacks, const Expr& root_expr)
+      : callbacks_(callbacks), matcher_(DFPatternMatcher(root_expr)) {}
   Expr Rewrite(const Expr& pre) { return this->VisitExpr(pre); }
 
  protected:
@@ -407,12 +426,12 @@ class PatternRewriter : protected MixedModeMutator {
     return out;
   }
 
-  DFPatternMatcher matcher_;
   Array<DFPatternCallback> callbacks_;
+  DFPatternMatcher matcher_;
 };
 
 Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
-  return PatternRewriter(callbacks).Rewrite(expr);
+  return PatternRewriter(callbacks, expr).Rewrite(expr);
 }
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite").set_body_typed(RewritePatterns);
