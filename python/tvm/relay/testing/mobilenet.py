@@ -44,20 +44,22 @@ def conv_block(data, name, channels, kernel_size=(3, 3), strides=(1, 1),
 
 def separable_conv_block(data, name, depthwise_channels, pointwise_channels,
                          kernel_size=(3, 3), downsample=False, padding=(1, 1),
-                         epsilon=1e-5, layout='NCHW', dtype="float32"):
+                         epsilon=1e-5, layout='NCHW', dtype="float32", depthwise_group_factor=1):
     """Helper function to get a separable conv block"""
     if downsample:
         strides = (2, 2)
     else:
         strides = (1, 1)
     # depthwise convolution + bn + relu
-    wshape = (depthwise_channels, 1) + kernel_size
+    wshape = (depthwise_channels, depthwise_group_factor) + kernel_size
     weight = relay.var(name + "_weight", shape=wshape, dtype=dtype)
+    depthwise_group_factor = min(depthwise_group_factor, depthwise_channels)
+    groups = int(depthwise_channels/depthwise_group_factor)
     conv1 = layers.conv2d(
         data=data,
         weight=weight,
         channels=depthwise_channels,
-        groups=depthwise_channels,
+        groups=groups,
         kernel_size=kernel_size,
         strides=strides,
         padding=padding,
@@ -82,47 +84,59 @@ def separable_conv_block(data, name, depthwise_channels, pointwise_channels,
 
 
 def mobile_net(num_classes=1000, data_shape=(1, 3, 224, 224),
-               dtype='float32', alpha=1.0, is_shallow=False, layout='NCHW'):
+               dtype='float32', alpha=1.0, is_shallow=False, layout='NCHW',
+               depthwise_group_factor=1):
     """Function to construct a MobileNet"""
     data = relay.var("data", shape=data_shape, dtype=dtype)
     body = conv_block(data, 'conv_block_1', int(32*alpha), strides=(2, 2),
                       layout=layout)
     body = separable_conv_block(body, 'separable_conv_block_1',
                                 int(32*alpha), int(64*alpha), layout=layout,
-                                dtype=dtype)
+                                dtype=dtype,
+                                depthwise_group_factor=depthwise_group_factor)
     body = separable_conv_block(body, 'separable_conv_block_2',
                                 int(64*alpha), int(128*alpha), downsample=True,
-                                layout=layout, dtype=dtype)
+                                layout=layout, dtype=dtype,
+                                depthwise_group_factor=depthwise_group_factor)
     body = separable_conv_block(body, 'separable_conv_block_3',
                                 int(128*alpha), int(128*alpha), layout=layout,
-                                dtype=dtype)
+                                dtype=dtype,
+                                depthwise_group_factor=depthwise_group_factor)
     body = separable_conv_block(body, 'separable_conv_block_4',
                                 int(128*alpha), int(256*alpha), downsample=True,
-                                layout=layout, dtype=dtype)
+                                layout=layout, dtype=dtype,
+                                depthwise_group_factor=depthwise_group_factor)
     body = separable_conv_block(body, 'separable_conv_block_5',
                                 int(256*alpha), int(256*alpha), layout=layout,
-                                dtype=dtype)
+                                dtype=dtype,
+                                depthwise_group_factor=depthwise_group_factor)
     body = separable_conv_block(body, 'separable_conv_block_6',
                                 int(256*alpha), int(512*alpha), downsample=True,
-                                layout=layout, dtype=dtype)
+                                layout=layout, dtype=dtype,
+                                depthwise_group_factor=depthwise_group_factor)
     if is_shallow:
         body = separable_conv_block(body, 'separable_conv_block_7',
                                     int(512*alpha), int(1024*alpha),
-                                    downsample=True, layout=layout, dtype=dtype)
+                                    downsample=True, layout=layout, dtype=dtype,
+                                    depthwise_group_factor=depthwise_group_factor)
         body = separable_conv_block(body, 'separable_conv_block_8',
                                     int(1024*alpha), int(1024*alpha),
-                                    downsample=True, layout=layout, dtype=dtype)
+                                    downsample=True, layout=layout, dtype=dtype,
+                                    depthwise_group_factor=depthwise_group_factor)
     else:
         for i in range(7, 12):
             body = separable_conv_block(body, 'separable_conv_block_%d' % i,
                                         int(512*alpha), int(512*alpha),
-                                        layout=layout, dtype=dtype)
+                                        layout=layout, dtype=dtype,
+                                        depthwise_group_factor=depthwise_group_factor)
         body = separable_conv_block(body, 'separable_conv_block_12',
                                     int(512*alpha), int(1024*alpha),
-                                    downsample=True, layout=layout, dtype=dtype)
+                                    downsample=True, layout=layout, dtype=dtype,
+                                    depthwise_group_factor=depthwise_group_factor)
         body = separable_conv_block(body, 'separable_conv_block_13',
-                                    int(1024*alpha), int(1024*alpha),
-                                    layout=layout, dtype=dtype)
+                                   int(1024*alpha), int(1024*alpha),
+                                   layout=layout, dtype=dtype,
+                                   depthwise_group_factor=depthwise_group_factor)
     pool = relay.nn.global_avg_pool2d(data=body, layout=layout)
     flatten = relay.nn.batch_flatten(data=pool)
     weight = relay.var('fc_weight')
@@ -134,7 +148,7 @@ def mobile_net(num_classes=1000, data_shape=(1, 3, 224, 224),
 
 
 def get_workload(batch_size=1, num_classes=1000, image_shape=(3, 224, 224),
-                 dtype='float32', layout='NCHW'):
+                 dtype='float32', layout='NCHW', depthwise_group_factor=1):
     """Get benchmark workload for mobilenet
 
     Parameters
@@ -166,5 +180,5 @@ def get_workload(batch_size=1, num_classes=1000, image_shape=(3, 224, 224),
     data_shape = tuple([batch_size] + list(image_shape))
     net = mobile_net(num_classes=num_classes, data_shape=data_shape,
                      dtype=dtype, alpha=1.0, is_shallow=False,
-                     layout=layout)
+                     layout=layout, depthwise_group_factor=depthwise_group_factor)
     return create_workload(net)
