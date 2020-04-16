@@ -22,9 +22,52 @@ from tvm import te
 from tvm.te import hybrid
 from ..sort import argsort
 
+@hybrid.script
+def hybrid_rearrange_box_out(data, one, batch_size):
+    """Hybrid routine to rearrange nms output to
+    move all valid entries to top.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor or numpy NDArray
+        NMS output. 3-D tensor with shape
+        [batch_size, num_anchors, 6].
+
+    one: tvm.tir.const
+        Constant one with the same dtype as data.
+
+    batch_size: tvm.tir.IntImm or tvm.tir.Var
+        Batch size. We need to pass it in since hybrid script doesn't support
+        binding variable to symbolic dim.
+
+    Returns
+    -------
+    output : tvm.te.Tensor or numpy NDArray
+        Transformed NMS output. 3-D tensor with shape
+        [batch_size, num_anchors, 6].
+    """
+    num_anchors = data.shape[1]
+    elem_length = data.shape[2]
+    output = output_tensor((batch_size,
+                            num_anchors,
+                            elem_length),
+                           data.dtype)
+
+    for i in parallel(batch_size):
+        valid_idx = 0
+        for j in range(num_anchors):
+            if data[i, j, 0] >= 0:
+                for k in range(elem_length):
+                    output[i, valid_idx, k] = data[i, j, k]
+                valid_idx += 1
+            if j >= valid_idx:
+                for k in range(elem_length):
+                    output[i, j, k] = -one
+    return output
+
 
 @hybrid.script
-def hybrid_rearrange_out(data, one, batch_size):
+def hybrid_rearrange_indices_out(data, one, batch_size):
     """Hybrid routine to rearrange nms output to
     move all valid entries to top.
 
@@ -46,45 +89,27 @@ def hybrid_rearrange_out(data, one, batch_size):
     Returns
     -------
     output : tvm.te.Tensor or numpy NDArray
-        Transformed NMS output. 3-D tensor with shape
-        [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5],
-        or 2-D tensor with shape [batch_size, num_anchors].
+        2-D tensor with shape [batch_size, num_anchors].
 
     valid_box_count : tvm.te.Tensor or numpy NDArray
         Tensor with shape [batch_size, 1], indicates
         the valid number of boxes.
     """
-    ndim = len(data.shape)
     num_anchors = data.shape[1]
     valid_box_count = output_tensor((batch_size, 1), "int32")
     output = output_tensor((batch_size, num_anchors), data.dtype)
-    if ndim > 2:
-        output = output_tensor((batch_size,
-                                num_anchors,
-                                data.shape[2]),
-                               data.dtype)
 
     for i in parallel(batch_size):
         valid_idx = 0
         for j in range(num_anchors):
-            if ndim > 2:
-                elem_length = data.shape[2]
-                if data[i, j, 0] >= 0:
-                    for k in range(elem_length):
-                        output[i, valid_idx, k] = data[i, j, k]
-                    valid_idx += 1
-                if j >= valid_idx:
-                    for k in range(elem_length):
-                        output[i, j, k] = -one
-            else:
-                if data[i, j] >= 0:
-                    output[i, valid_idx] = data[i, j]
-                    valid_idx += 1
-                if data[i, j] > num_anchors or data[i, j] < -num_anchors:
-                    output[i, valid_idx] = 0
-                    valid_idx += 1
-                if j >= valid_idx:
-                    output[i, j] = -one
+            if data[i, j] >= 0:
+                output[i, valid_idx] = data[i, j]
+                valid_idx += 1
+            if data[i, j] > num_anchors or data[i, j] < -num_anchors:
+                output[i, valid_idx] = 0
+                valid_idx += 1
+            if j >= valid_idx:
+                output[i, j] = -one
         valid_box_count[i, 0] = valid_idx
 
     return output, valid_box_count
@@ -477,10 +502,10 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   zero=tvm.tir.const(0, dtype=data.dtype),
                                   one=tvm.tir.const(1, dtype=data.dtype))
     if return_indices:
-        return hybrid_rearrange_out(box_indices, one=tvm.tir.const(1, dtype="int32"),
-                                    batch_size=batch_size)
+        return hybrid_rearrange_indices_out(box_indices, one=tvm.tir.const(1, dtype="int32"),
+                                            batch_size=batch_size)
 
     if invalid_to_bottom:
-        out, _ = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype),
-                                      batch_size=batch_size)
+        out = hybrid_rearrange_box_out(out, one=tvm.tir.const(1, dtype=data.dtype),
+                                       batch_size=batch_size)
     return out
