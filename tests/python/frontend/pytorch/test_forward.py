@@ -1545,6 +1545,144 @@ def test_forward_round():
     verify_model(Round1().float().eval(), input_data=input_data)
 
 
+def test_forward_ones():
+    torch.set_grad_enabled(False)
+
+    class Ones1(Module):
+        def forward(self, *args):
+            return torch.ones(2,3)
+
+    verify_model(Ones1().float().eval(), input_data=[])
+
+
+def test_forward_ones_like():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class OnesLike1(Module):
+        def forward(self, *args):
+            return torch.ones_like(args[0])
+
+    class OnesLike2(Module):
+        def forward(self, *args):
+            return torch.ones_like(args[0], dtype=torch.int8)
+
+    class OnesLike3(Module):
+        def forward(self, *args):
+            return torch.ones_like(args[0], dtype=torch.float)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(OnesLike1().float().eval(), input_data=input_data)
+    verify_model(OnesLike2().float().eval(), input_data=input_data)
+    verify_model(OnesLike3().float().eval(), input_data=input_data)
+
+
+def test_forward_zeros():
+    torch.set_grad_enabled(False)
+
+    class Zeros1(Module):
+        def forward(self, *args):
+            return torch.zeros(2,3)
+
+    verify_model(Zeros1().float().eval(), input_data=[])
+
+
+def test_forward_zeros_like():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class ZerosLike1(Module):
+        def forward(self, *args):
+            return torch.zeros_like(args[0])
+
+    class ZerosLike2(Module):
+        def forward(self, *args):
+            return torch.zeros_like(args[0], dtype=torch.int32)
+
+    class ZerosLike3(Module):
+        def forward(self, *args):
+            return torch.zeros_like(args[0], dtype=torch.float)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(ZerosLike1().float().eval(), input_data=input_data)
+    verify_model(ZerosLike2().float().eval(), input_data=input_data)
+    verify_model(ZerosLike3().float().eval(), input_data=input_data)
+
+
+def test_forward_full():
+    torch.set_grad_enabled(False)
+
+    class Full1(Module):
+        def forward(self, *args):
+            return torch.full((2,3), 3.14)
+
+    class Full2(Module):
+        def forward(self, *args):
+            return torch.full((1, 2,3), 1.0, dtype=torch.int32)
+
+    verify_model(Full1().float().eval(), input_data=[])
+    verify_model(Full2().float().eval(), input_data=[])
+
+
+def test_forward_full_like():
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3, 10, 10]
+
+    class FullLike1(Module):
+        def forward(self, *args):
+            return torch.full_like(args[0], 3.14)
+
+    class FullLike2(Module):
+        def forward(self, *args):
+            return torch.full_like(args[0], 22.22, dtype=torch.int32)
+
+    class FullLike3(Module):
+        def forward(self, *args):
+            return torch.full_like(args[0], 1.4, dtype=torch.float)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(FullLike1().float().eval(), input_data=input_data)
+    verify_model(FullLike2().float().eval(), input_data=input_data)
+    verify_model(FullLike3().float().eval(), input_data=input_data)
+
+def test_forward_linspace():
+    torch.set_grad_enabled(False)
+
+    class Linspace1(Module):
+        def forward(self, *args):
+            return torch.linspace(5, 10)
+    class Linspace2(Module):
+        def forward(self, *args):
+            return torch.linspace(-10, 10, steps=5)
+    class Linspace3(Module):
+        def forward(self, *args):
+            return torch.linspace(start=-10, end=10, steps=5)
+    class Linspace4(Module):
+        def forward(self, *args):
+            return torch.linspace(start=-10, end=10, steps=1)
+    class Linspace5(Module):
+        def forward(self, *args):
+            return torch.linspace(1, 2, 1, dtype=torch.int32)
+    class Linspace6(Module):
+        def forward(self, *args):
+            return torch.linspace(start=1, end=6, steps=2)
+    class Linspace7(Module):
+        def forward(self, *args):
+            return torch.linspace(1, 4, dtype=torch.float32)
+    class Linspace8(Module):
+        def forward(self, *args):
+            return torch.linspace(1, 2, 1, dtype=torch.int16)
+
+    verify_model(Linspace1().float().eval())
+    verify_model(Linspace2().float().eval())
+    verify_model(Linspace3().float().eval())
+    verify_model(Linspace4().float().eval())
+    verify_model(Linspace5().float().eval())
+    verify_model(Linspace6().float().eval())
+    verify_model(Linspace7().float().eval())
+    verify_model(Linspace8().float().eval())
+
+
 def test_forward_take():
     torch.set_grad_enabled(False)
     class Take1(Module):
@@ -1759,6 +1897,13 @@ if __name__ == "__main__":
     test_forward_isfinite()
     test_forward_isnan()
     test_forward_isinf()
+    test_forward_ones()
+    test_forward_ones_like()
+    test_forward_zeros()
+    test_forward_zeros_like()
+    test_forward_full()
+    test_forward_full_like()
+    test_forward_linspace()
     test_forward_arange()
     test_forward_chunk()
     test_forward_split()
