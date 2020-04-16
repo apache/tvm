@@ -376,6 +376,15 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds);
 TVM_DLL Function InferType(const Function& f, const IRModule& mod, const GlobalVar& var);
 
 /*!
+ * \brief Infer the type of an expression base on it's inputs.
+ *
+ * \param expr the Expr.
+ *
+ * \return A type checked Expr with its checked_type field populated.
+ */
+TVM_DLL Expr InferType(const Expr& expr);
+
+/*!
  * \brief Apply rewrite rules to rewrite the expr in post DFS order. This
  * function is used as a helper function to rewrtie an expression in a pass.
  *
