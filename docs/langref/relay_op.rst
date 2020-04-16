@@ -150,6 +150,7 @@ This level enables additional math and transform operators.
    tvm.relay.logical_and
    tvm.relay.logical_or
    tvm.relay.logical_not
+   tvm.relay.logical_xor
    tvm.relay.maximum
    tvm.relay.minimum
    tvm.relay.power

@@ -1168,7 +1168,6 @@ def _ceil():
 
 def _clamp():
     def _impl(inputs, input_types):
-        print(inputs, input_types)
         data = inputs[0]
         amin = inputs[1] if inputs[1] else np.finfo(np.float32).min
         amax = inputs[2] if inputs[2] else np.finfo(np.float32).max
@@ -1295,6 +1294,67 @@ def _Float():
 def _mm():
     def _impl(inputs, input_types):
         return _op.nn.dense(inputs[0], inputs[1])
+    return _impl
+
+
+def _bitwise_not():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+        # The input tensor must be of integral or Boolean types.
+        # For bool tensors, it computes the logical NOT
+        if input_types[0] == "bool":
+            out = _op.logical_not(_op.cast(data, "bool"))
+        else:
+            out = _op.bitwise_not(_op.cast(data, "int"))
+
+        return out
+    return _impl
+
+
+def _bitwise_xor():
+    def _impl(inputs, input_types):
+        lhs = inputs[0]
+
+        import torch
+        if isinstance(inputs[1], _expr.Var):
+            rhs = inputs[1]
+        elif isinstance(inputs[1], torch.Tensor):
+            rhs = _wrap_const(inputs[1].numpy())
+        else:
+            msg = "Data type %s could not be parsed in bitwise_xor operator." % (type(inputs[1]))
+            raise AssertionError(msg)
+
+        lhs = _op.cast(lhs, "bool") if input_types[0] == "bool" else _op.cast(lhs, "int")
+        rhs = _op.cast(rhs, "bool") if input_types[1] == "bool" else _op.cast(rhs, "int")
+
+        return _op.bitwise_xor(lhs, rhs)
+    return _impl
+
+
+def _logical_not():
+    def _impl(inputs, input_types):
+        data = inputs[0]
+
+        return _op.logical_not(_op.cast(data, "bool"))
+    return _impl
+
+
+def _logical_xor():
+    def _impl(inputs, input_types):
+        lhs = _op.cast(inputs[0], "bool")
+
+        import torch
+        if isinstance(inputs[1], _expr.Var):
+            rhs = inputs[1]
+        elif isinstance(inputs[1], torch.Tensor):
+            rhs = _wrap_const(inputs[1].numpy())
+        else:
+            msg = "Data type %s could not be parsed in logical_xor operator." % (type(inputs[1]))
+            raise AssertionError(msg)
+
+        rhs = _op.cast(rhs, "bool")
+
+        return _op.logical_xor(lhs, rhs)
     return _impl
 
 
@@ -1524,6 +1584,10 @@ def _get_convert_map(prelude):
         "aten::ge"                              : _elemwise("greater_equal"),
         "aten::ne"                              : _elemwise("not_equal"),
         "aten::eq"                              : _elemwise("equal"),
+        "aten::logical_not"                     : _logical_not(),
+        "aten::logical_xor"                     : _logical_xor(),
+        "aten::bitwise_not"                     : _bitwise_not(),
+        "aten::bitwise_xor"                     : _bitwise_xor(),
         "aten::isfinite"                        : _isfinite(),
         "aten::isnan"                           : _isnan(),
         "aten::Bool"                            : _Bool(),
