@@ -833,12 +833,11 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if(param->groups == 1 || is_depthwise_conv2d) {
+  if (param->groups == 1 || is_depthwise_conv2d) {
     auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
     auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) || //simple layout
-        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) //blocked layout
-      {
+    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) || //  simple layout
+        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) { //  blocked layout
         Array<Integer> arr{c_big_axis};
         if (c_small_axis >= 0) {
           arr.push_back(c_small_axis);
@@ -884,10 +883,10 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   } else {
     auto& wshape = weight->type_as<TensorTypeNode>()->shape;
     Array<Integer> arr;
-    for(size_t i=0; i<wshape.size(); i++){
-      if(i == static_cast<size_t>(small_ko_axis) || i == static_cast<size_t>(big_ko_axis)) {
+    for (size_t i = 0; i < wshape.size(); i++) {
+      if (i == static_cast<size_t>(small_ko_axis) || i == static_cast<size_t>(big_ko_axis)) {
         auto node = wshape[i].as<IntImmNode>();
-        if(!node) {
+        if (!node) {
           // if the shape is not a constant, use normal transform
           return transformer->NormalCallTransform(call.operator->());
         }
