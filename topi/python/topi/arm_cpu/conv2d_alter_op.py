@@ -59,6 +59,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
     data, kernel = tinfos
     out_dtype = out_type.dtype
 
+    # We only perform layout alteration for NCHW data layout.
+    if data_layout == "NHWC":
+        return None
+
     # Extract data types
     data_tensor, kernel_tensor = tinfos
     data_dtype = data_tensor.dtype
