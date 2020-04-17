@@ -32,20 +32,6 @@ from .util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
-# A note on tflite imports. Operator specific imports of modules
-# need to be with the operator. General imports that are common across
-# multiple operators and which are very common should be in the
-# block below.
-try:
-    from tflite.Operator import Operator as Operator
-    from tflite.TensorType import TensorType as TensorType
-    from tflite.BuiltinOperator import BuiltinOperator as BuiltinOperator
-    from tflite.BuiltinOptions import BuiltinOptions as BuiltinOptions
-    from tflite.ActivationFunctionType import ActivationFunctionType as ActivationFunctionType
-except ImportError:
-    raise ImportError("The tflite package must be installed")
-
-
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
@@ -60,6 +46,12 @@ class OperatorConverter(object):
     """Operator Converted for converting TFLite ops to Relay ops"""
     def __init__(self, model, subgraph, exp_tab):
 
+        try:
+            from tflite.BuiltinOperator import BuiltinOperator
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
 
         self.model = model
         self.subgraph = subgraph
@@ -167,6 +159,10 @@ class OperatorConverter(object):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
             output_tensors = self.get_output_tensors(op)
+            try:
+                from tflite.Operator import Operator
+            except ImportError:
+                raise ImportError("The tflite package must be installed")
 
             assert isinstance(op, Operator)
             ret = self.convert_map[op_code_str](op)
@@ -181,6 +177,10 @@ class OperatorConverter(object):
 
     def get_op_code_str(self, op):
         """Get TFLite ops string representation"""
+        try:
+            from tflite.BuiltinOperator import BuiltinOperator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
 
         op_code_list_idx = op.OpcodeIndex()
         op_code_id = self.model.OperatorCodes(op_code_list_idx).BuiltinCode()
@@ -236,6 +236,11 @@ class OperatorConverter(object):
         """Get tensor buffer value from given tensor wrapper"""
         assert isinstance(tensor_wrapper, TensorWrapper)
 
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         if tensor_wrapper.tensor.Type() == TensorType.UINT8:
             return np.frombuffer(tensor_wrapper.buffer.DataAsNumpy(), dtype=np.uint8).reshape(
                 tensor_wrapper.tensor.ShapeAsNumpy())
@@ -256,6 +261,11 @@ class OperatorConverter(object):
 
     def get_tensor_type_str(self, tensor_type):
         """Get tensor type string representation when given TFLite tensor type"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
         if tensor_type == TensorType.UINT8:
             return "uint8"
         if tensor_type == TensorType.FLOAT32:
@@ -283,7 +293,6 @@ class OperatorConverter(object):
 
     def is_quantized(self, op):
         """Check if an input tensor is quantized."""
-
         input_tensors = self.get_input_tensors(op)
         first_tensor = input_tensors[0]
         return first_tensor.qnn_params is not None
@@ -324,6 +333,7 @@ class OperatorConverter(object):
     def convert_reshape(self, op):
         """Convert TFLite reshape"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ReshapeOptions import ReshapeOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -354,6 +364,7 @@ class OperatorConverter(object):
     def _convert_resize(self, method, op):
         """Generic method to Convert TFLite RESIZE operators"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ResizeBilinearOptions import ResizeBilinearOptions
             # ResizeNearestNeighborOptions was added in tflite v1.13
             tflite_ver = 1120
@@ -405,7 +416,9 @@ class OperatorConverter(object):
     def convert_l2_normalization(self, op):
         """Convert TFLite L2_NORMALIZATION """
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.L2NormOptions import L2NormOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -447,6 +460,7 @@ class OperatorConverter(object):
     def convert_lrn(self, op):
         """Convert TFLite LOCAL_RESPONSE_NORMALIZATION """
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -583,6 +597,8 @@ class OperatorConverter(object):
         """Convert TFLite concatenation"""
         try:
             from tflite.ConcatenationOptions import ConcatenationOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -763,6 +779,8 @@ class OperatorConverter(object):
             from tflite.SubOptions import SubOptions
             from tflite.MulOptions import MulOptions
             from tflite.DivOptions import DivOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -979,6 +997,7 @@ class OperatorConverter(object):
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ReducerOptions import ReducerOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1042,6 +1061,9 @@ class OperatorConverter(object):
         """Convert TFLite fully connected"""
         try:
             from tflite.FullyConnectedOptions import FullyConnectedOptions
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.TensorType import TensorType
+            from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
@@ -1138,6 +1160,7 @@ class OperatorConverter(object):
     def convert_squeeze(self, op):
         """Convert TFLite squeeze"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.SqueezeOptions import SqueezeOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1162,6 +1185,10 @@ class OperatorConverter(object):
 
     def convert_fused_activation_function(self, in_expr, fused_activation_fn):
         """Convert TFLite fused activation function"""
+        try:
+            from tflite.ActivationFunctionType import ActivationFunctionType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
         assert fused_activation_fn != ActivationFunctionType.NONE
         if fused_activation_fn == ActivationFunctionType.RELU6:
             return _op.clip(in_expr, a_min=0, a_max=6)
@@ -1178,6 +1205,9 @@ class OperatorConverter(object):
     def convert_conv(self, op, conv_type):
         """convolution implementation."""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
+            from tflite.TensorType import TensorType
             from tflite.Conv2DOptions import Conv2DOptions
             from tflite.DepthwiseConv2DOptions import DepthwiseConv2DOptions
             from tflite.Padding import Padding
@@ -1343,6 +1373,7 @@ class OperatorConverter(object):
     def convert_split(self, op):
         """split implementation."""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.SplitOptions import SplitOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1419,6 +1450,7 @@ class OperatorConverter(object):
     def convert_cast(self, op):
         """Convert TFLite CAST"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.CastOptions import CastOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1469,6 +1501,8 @@ class OperatorConverter(object):
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ActivationFunctionType import ActivationFunctionType
             from tflite.Pool2DOptions import Pool2DOptions
             from tflite.Padding import Padding
         except ImportError:
@@ -1589,6 +1623,7 @@ class OperatorConverter(object):
     def convert_mirror_pad(self, op):
         """Convert TFLite MIRROR_PAD"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.MirrorPadOptions import MirrorPadOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1624,6 +1659,7 @@ class OperatorConverter(object):
     def convert_pack(self, op):
         """Convert TFLite pack"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.PackOptions import PackOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1648,6 +1684,7 @@ class OperatorConverter(object):
     def convert_unpack(self, op):
         """Convert TFLite unpack"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.UnpackOptions import UnpackOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1788,6 +1825,7 @@ class OperatorConverter(object):
     def convert_depth_to_space(self, op):
         """Convert TFLite DEPTH_TO_SPACE"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.DepthToSpaceOptions import DepthToSpaceOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1810,6 +1848,7 @@ class OperatorConverter(object):
     def convert_space_to_depth(self, op):
         """Convert TFLite SPACE_TO_DEPTH"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
             from tflite.SpaceToDepthOptions import SpaceToDepthOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
@@ -1848,6 +1887,8 @@ class OperatorConverter(object):
     def convert_transpose_conv(self, op):
         """Convert TFLite TRANSPOSE_CONV"""
         try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.TensorType import TensorType
             from tflite.TransposeConvOptions import TransposeConvOptions
             from tflite.Padding import Padding
         except ImportError:
@@ -2207,6 +2248,7 @@ def from_tflite(model, shape_dict, dtype_dict):
     try:
         import tflite.Model
         import tflite.SubGraph
+        import tflite.BuiltinOperator
     except ImportError:
         raise ImportError("The tflite package must be installed")
     assert isinstance(model, tflite.Model.Model)
