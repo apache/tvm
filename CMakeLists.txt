@@ -209,13 +209,6 @@ if(USE_VM_PROFILER)
   list(APPEND COMPILER_SRCS ${BACKEND_VM_PROFILER_SRCS})
 endif(USE_VM_PROFILER)
 
-if(BUILD_FOR_HEXAGON)
-  # Add file implementing posix_memalign.
-  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
-
-  add_definitions(-D_MACH_I32=int)
-endif()
-
 file(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
@@ -228,6 +221,13 @@ file(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
 )
+
+if(BUILD_FOR_HEXAGON)
+  # Add file implementing posix_memalign.
+  list(APPEND RUNTIME_SRCS src/runtime/hexagon/hexagon_posix.cc)
+
+  add_definitions(-D_MACH_I32=int)
+endif()
 
 # Package runtime rules
 if(NOT USE_RTTI)
