@@ -22,8 +22,12 @@ import topi
 from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
+import re
 
 logger = logging.getLogger('strategy')
+
+_NCHWc_matcher = re.compile("^NCHW[-+]?[0-9]+c$")
+_OIHWio_matcher = re.compile("^OIHW[-+]?[0-9]+i[-+]?[0-9]+o$")
 
 @schedule_injective.register("cpu")
 def schedule_injective_cpu(attrs, outs, target):
@@ -84,8 +88,13 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
         raise ValueError("dilation should be positive value")
 
     if groups == 1:
-        if layout == "NCHW":
-            assert kernel_layout == "OIHW"
+        if layout.startswith("NCHW"):
+            if layout != "NCHW":
+                #check if layout is NCHWxc
+                assert _NCHWc_matcher.match(layout)
+                assert _OIHWio_matcher.match(kernel_layout)
+            else:
+                assert kernel_layout == "OIHW"
             if topi.x86.is_int8_hw_support(data.dtype, kernel.dtype):
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.x86.conv2d_nchw_int8),
@@ -113,8 +122,13 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported conv2d layout {} for x86".format(layout))
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
-        if layout == "NCHW":
-            assert kernel_layout == "OIHW"
+        if layout.startswith("NCHW"):
+            if layout != "NCHW":
+                #check if layout is NCHWxc
+                assert _NCHWc_matcher.match(layout)
+                assert _OIHWio_matcher.match(kernel_layout)
+            else:
+                assert kernel_layout == "OIHW"
             channel_multiplier = get_const_tuple(inputs[1].shape)[1]
             if channel_multiplier == 1 and dilation_h == 1 and dilation_w == 1:
                 strategy.add_implementation(

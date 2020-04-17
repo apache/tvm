@@ -39,6 +39,10 @@ namespace relay {
  *
  * Use namespace to reduce potential naming conflict.
  */
+
+extern Expr MakeReshape(Expr data,
+                 Array<Integer> newshape);
+
 namespace fold_scale_axis {
 
 using runtime::TypedPackedFunc;
@@ -829,13 +833,20 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   // only handle depthwise or full conv2d.
   // TODO(tvm-team) handle grouped conv by reshape + bcast
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
-  if (kernel_layout.IndexOf(LayoutAxis::Get('o')) < 0 &&
-      kernel_layout.IndexOf(LayoutAxis::Get('i')) < 0 && c_small_axis < 0 &&
-      (param->groups == 1 || is_depthwise_conv2d)) {
-    return Message({c_big_axis}, false);
-  } else {
-    return NullValue<Message>();
+  if(param->groups == 1 || is_depthwise_conv2d) {
+    auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
+    auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
+    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) || //simple layout
+        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) //blocked layout
+      {
+        Array<Integer> arr{c_big_axis};
+        if (c_small_axis >= 0) {
+          arr.push_back(c_small_axis);
+        }
+        return Message(arr, false);
+      }
   }
+  return NullValue<Message>();
 }
 
 // Conv2D consumes the scale axis during transformation.
@@ -852,19 +863,41 @@ Expr Conv2DBackwardTransform(const Call& call, const Message& message, const Exp
   CHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)
   // TODO(tvm-team) support general data layout
-  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('o')), -1);
-  CHECK_EQ(kernel_layout.IndexOf(LayoutAxis::Get('i')), -1);
-  CHECK(message->axes.size() == 1 && c_big_axis == message->axes[0]->value);
-
-  int big_oc_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
+  int small_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
+  int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
+  int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
+  int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d = IsDepthwiseConv2D(call, param, kernel_layout);
   CHECK(param->groups == 1 || is_depthwise_conv2d);
+  bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
+  bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
+  CHECK(is_simple || is_blocking);
 
   Expr data = transformer->Transform(call->args[0], NullValue<Message>(), NullValue<Expr>());
   Expr weight = transformer->Transform(call->args[1], NullValue<Message>(), NullValue<Expr>());
   // scale on input for deptwise.
-  Expr wscale = ExpandBiasToMatchAxis(scale, kernel_layout.ndim(), {big_oc_axis});
+  Expr wscale;
+  if (is_simple) {
+    wscale = ExpandBiasToMatchAxis(
+      scale, kernel_layout.ndim(), {big_ko_axis});
+  } else {
+    auto& wshape = weight->type_as<TensorTypeNode>()->shape;
+    Array<Integer> arr;
+    for(size_t i=0; i<wshape.size(); i++){
+      if(i == static_cast<size_t>(small_ko_axis) || i == static_cast<size_t>(big_ko_axis)) {
+        auto node = wshape[i].as<IntImmNode>();
+        if(!node) {
+          // if the shape is not a constant, use normal transform
+          return transformer->NormalCallTransform(call.operator->());
+        }
+        arr.push_back(node->value);
+      } else {
+        arr.push_back(1);
+      }
+    }
+    wscale = MakeReshape(scale, std::move(arr));
+  }
   weight = Multiply(weight, wscale);
   return Call(call->op, {data, weight}, call->attrs, call->type_args);
 }
