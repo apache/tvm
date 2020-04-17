@@ -20,6 +20,20 @@ set -e
 set -u
 set -o pipefail
 
-python3 -m caffe2.python.models.download -i -f squeezenet
-python3 -m caffe2.python.models.download -i -f resnet50
-python3 -m caffe2.python.models.download -i -f vgg19
+# caffe2.python.module.download generates a progress bar. in non
+# interactive use this results in huge progress debris in the log
+# files.  There is no option to disable the progress bar so work
+# around it by stripping the progress bar output
+
+filter_progress_bar()
+{
+  # Progress bars are the 'goto start of line' escape sequence
+  # ESC[1000D[ repeated, the end of the progress bar is the end of
+  # line.  We can selectively remove progress bars by dropping lines
+  # that beging with the escape sequence.
+  sed "/^\x1b\[1000D/d"
+}
+
+python3 -m caffe2.python.models.download -i -f squeezenet | filter_progress_bar
+python3 -m caffe2.python.models.download -i -f resnet50 | filter_progress_bar
+python3 -m caffe2.python.models.download -i -f vgg19 | filter_progress_bar
