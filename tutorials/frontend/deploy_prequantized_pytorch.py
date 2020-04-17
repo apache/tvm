@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """
-Deploy a Framework-prequantized Model with TVM
+Deploy a Framework-prequantized Model with TVM - Part 1 (PyTorch)
 ==============================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
@@ -24,8 +24,11 @@ Pre-quantized model import is one of the quantization support we have in TVM. Mo
 the quantization story in TVM can be found
 `here <https://discuss.tvm.ai/t/quantization-story/3920>`_.
 
-Here, we demonstrate how to load and run models quantized by PyTorch, MXNet, and TFLite.
-Once loaded, we can run compiled, quantized models on any hardware TVM supports.
+In this series of tutorials, we demonstrate how to load and run models quantized by PyTorch (Part
+1), MXNet (Part 2), and TFLite (Part 3). Once loaded, we can run compiled, quantized models on any
+hardware TVM supports.
+
+This is part 1 of the tutorial, where we will focus on PyTorch-prequantized models.
 """
 
 #################################################################################
