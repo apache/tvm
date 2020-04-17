@@ -156,7 +156,7 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // if the data is a CallNode, use TupleGetItems
   if (data->IsInstance<CallNode>()) {
     auto call = Downcast<Call>(data);
-    for (size_t i=0;i<tuple_type->fields.size();i++) {
+    for (size_t i=0; i < tuple_type->fields.size(); i++) {
       tuple_exprs.push_back(TupleGetItem(call, i));
     }
   }
