@@ -60,10 +60,13 @@ namespace tir {
 //
 // Before rewrite,
 //
-//   alloc warp warp_mem[n * warp_size * m]
-//   store warp_mem[m * warp_index + (warp_size * m) * y + x]
-//   load warp_mem[m * z + (warp_size * m) * y + x]
+//   alloc warp warp_mem[n * width * m]
+//   store warp_mem[m * warp_index + (width * m) * y + x]
+//   load warp_mem[m * z + (width * m) * y + x]
 //   subject to x \in [0, m), y \in [0, n)
+//
+// where width equals to the extent of threadIdx.x, which should
+// be no larger than the warp size
 //
 // After rewrite:
 //
@@ -71,17 +74,31 @@ namespace tir {
 //   store warp_mem[m * y + x]
 //   warp_shuffle(load warp_mem[m * y + x], z)
 //   subject to (m * y + x) is invariant to warp_index
+//
+// If width == warp size, we are shuffling on full warps.
+// Otherwise, we are virtually shuffling on sub-warps,
+// whose size equals to width. In this case, you can imagine
+// a warp only consists of `width` threads. Width is passed
+// as an argument to the shuffle primitive, and will be
+// lowered to the device code if the target supports.
+//
+// A limitation of this sub-warp approach is that users
+// cannot shuffle across the sub-warp boundary (i.e. shuffle
+// with threadIdx.y or threadIdx.z indices). It can be solved
+// via fusing threadIdx.x to the warp size, or improving the
+// analyzer to detect both 3 thread axes, which is left for
+// future improvements.
 
 // Algorithm
 //
 // To implement this rewrite rule, we can do the follow step:
 // For each warp memory alloc
 // - Use linear pattern detector on load index to find m
-// - Deduce n given warp_size and alloc size
-// - Now that we have m, n, warp_size, we can proceed with the rewrite
+// - Deduce n given width and alloc size
+// - Now that we have m, n, width, we can proceed with the rewrite
 
 // Visitor to find m in pattern
-// store warp_mem[m * warp_index + (warp_size * m) * y + x]
+// store warp_mem[m * warp_index + (width * m) * y + x]
 class WarpStoreCoeffFinder : private StmtVisitor {
  public:
   WarpStoreCoeffFinder(const VarNode* buffer,
@@ -153,12 +170,12 @@ class WarpIndexFinder : private StmtVisitor {
   explicit WarpIndexFinder(int warp_size)
       : warp_size_(warp_size) {
   }
-  // find the warp co-efficient in the statement given the warp size
-  IterVar Find(const Stmt& stmt) {
+  // find the warp co-efficient and the shuffle width in the statement
+  std::pair<Var, int> Find(const Stmt& stmt) {
     this->VisitStmt(stmt);
     CHECK(warp_index_.defined())
         << "Cannot find warp index(threadIdx.x) within the scope of warp memory";
-    return warp_index_;
+    return std::make_pair(warp_index_->var, width_);
   }
 
  private:
@@ -167,11 +184,12 @@ class WarpIndexFinder : private StmtVisitor {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag == "threadIdx.x") {
-        int value;
+        int value = 0;
         CHECK(arith::GetConstInt(op->value, &value) &&
-              value == warp_size_)
-            << "Expect threadIdx.x 's size to be equal to warp size("
-            << warp_size_ << ")" << " to enable warp memory"
+              value <= warp_size_ &&
+              warp_size_ % value == 0)
+            << "Expect threadIdx.x 's size to be no larger than, and a factor of"
+            << " warp size(" << warp_size_ << ")" << " to enable warp memory"
             << " but get " << op->value << " instead";
         if (warp_index_.defined()) {
           CHECK(warp_index_.same_as(iv))
@@ -180,6 +198,7 @@ class WarpIndexFinder : private StmtVisitor {
               << "Please create it using thread_axis once and reuse the axis "
               << "across multiple binds in the same kernel";
         } else {
+          width_ = value;
           warp_index_ = iv;
         }
       }
@@ -188,6 +207,8 @@ class WarpIndexFinder : private StmtVisitor {
   }
   // warp size
   int warp_size_{0};
+  // number of threads involved in one shuffle
+  int width_{0};
   // the warp index
   IterVar warp_index_{nullptr};
 };
@@ -204,16 +225,16 @@ class WarpAccessRewriter : protected StmtExprMutator {
     CHECK_GT(alloc_size, 0)
         << "warp memory only support constant alloc size";
     alloc_size *= op->dtype.lanes();
-    warp_index_ = WarpIndexFinder(warp_size_).Find(op->body)->var;
+    std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
     warp_coeff_ = WarpStoreCoeffFinder(
         buffer_, warp_index_, analyzer_).Find(op->body);
-    CHECK_EQ(alloc_size % (warp_size_ * warp_coeff_), 0)
-        << "Warp memory must be multiple of warp size";
-    warp_group_ = alloc_size / (warp_size_ * warp_coeff_);
+    CHECK_EQ(alloc_size % (width_ * warp_coeff_), 0)
+        << "Warp memory must be multiple of the extent of threadIdx.x";
+    warp_group_ = alloc_size / (width_ * warp_coeff_);
     return AllocateNode::make(
         op->buffer_var,
         op->dtype,
-        {make_const(DataType::Int(32), alloc_size / warp_size_)},
+        {make_const(DataType::Int(32), alloc_size / width_)},
         op->condition,
         this->VisitStmt(op->body));
   }
@@ -247,7 +268,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
           op->dtype, op->buffer_var, local_index, op->predicate);
       return CallNode::make(load_value.dtype(),
                         intrinsic::tvm_warp_shuffle,
-                        {load_value, group},
+                        {load_value, group, width_, warp_size_},
                         CallNode::Intrinsic);
     } else {
       return StmtExprMutator::VisitExpr_(op);
@@ -276,9 +297,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return std::make_pair(x, z);
     } else {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
-      PrimExpr y = index / make_const(index.dtype(), warp_coeff_ * warp_size_);
+      PrimExpr y = index / make_const(index.dtype(), warp_coeff_ * width_);
       y = y * m + x;
-      PrimExpr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * warp_size_)),
+      PrimExpr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * width_)),
                         m);
       return std::make_pair(analyzer_->canonical_simplify(y),
                             analyzer_->canonical_simplify(z));
@@ -290,6 +311,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
   int warp_size_{0};
   // The buffer variable
   const VarNode* buffer_;
+  // number of threads involved in one shuffle
+  int width_{0};
   // Warp index
   Var warp_index_;
   // the coefficient m
