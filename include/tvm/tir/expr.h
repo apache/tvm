@@ -1228,9 +1228,17 @@ constexpr const char* tvm_storage_sync = "tvm_storage_sync";
 /*!
  * \brief See pseudo code
  *
- *  Type tvm_warp_shuffle(Type value, warp_id) {
+ *  Type tvm_warp_shuffle(Type value, warp_id, width, warp_size) {
  *     return (value passed in by warp indicated by warp_id);
  *  }
+ *
+ *  Parameter warp_id indicates the source thread ID in a warp.
+ *
+ *  Parameter width indicates the number of threads involved in one
+ *  shuffle. See CUDA document for __shfl.
+ *
+ *  Parameter warp_size is the size of a warp, which helps a backend
+ *  to determine wheter the width paramter is legal.
  */
 constexpr const char* tvm_warp_shuffle = "tvm_warp_shuffle";
 /*!
