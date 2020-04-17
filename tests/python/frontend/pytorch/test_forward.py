@@ -717,6 +717,28 @@ def test_forward_layernorm():
         init_weight(ln.eval())
         verify_model(ln.eval(), input_data=inp)
 
+
+def test_forward_groupnorm():
+    input_shape = [10, 6, 5, 5]
+    input_data = torch.rand(input_shape).float()
+
+    # Separate 6 channels into 3 groups
+    verify_model(torch.nn.GroupNorm(3, 6).eval(), input_data=input_data)
+
+    # Put all 6 channels into a single group (equivalent with LayerNorm)
+    verify_model(torch.nn.GroupNorm(1, 6).eval(), input_data=input_data)
+
+    # Separate 6 channels into 6 groups (equivalent with InstanceNorm)
+    verify_model(torch.nn.GroupNorm(6, 6).eval(), input_data=input_data)
+
+    input_shape = [1, 10, 4, 7]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.GroupNorm(1, 10).eval(), input_data=input_data)
+    verify_model(torch.nn.GroupNorm(2, 10).eval(), input_data=input_data)
+    verify_model(torch.nn.GroupNorm(5, 10).eval(), input_data=input_data)
+    verify_model(torch.nn.GroupNorm(10, 10).eval(), input_data=input_data)
+
+
 def test_forward_reshape():
     torch.set_grad_enabled(False)
     input_shape = [2, 1, 10, 1, 10]
@@ -1865,6 +1887,7 @@ if __name__ == "__main__":
     test_forward_batchnorm()
     test_forward_instancenorm()
     test_forward_layernorm()
+    test_forward_groupnorm()
     test_forward_transpose()
     test_forward_size()
     test_forward_view()

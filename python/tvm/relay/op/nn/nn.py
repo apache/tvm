@@ -1708,6 +1708,75 @@ def layer_norm(data,
     return _make.layer_norm(data, gamma, beta, axis, epsilon, center, scale)
 
 
+def group_norm(data,
+               gamma,
+               beta,
+               num_groups,
+               axis=1,
+               epsilon=1e-5,
+               center=True,
+               scale=True):
+    r"""
+    Group normalization normalizes over group of channels for each training examples.
+    We can say that, Group Norm is in between Instance Norm and Layer Norm. When we put
+    all the channels into a single group, group normalization becomes Layer normalization.
+    And, when we put each channel into different groups it becomes Instance normalization
+
+    https://arxiv.org/pdf/1803.08494.pdf
+
+    Applies group normalization to the n-dimensional input array by seperating the input channels
+    into 'num_groups' groups, each containing 'num_channels / num_groups' channels.
+    The mean and standard-deviation are calculated separately over the each group. gamma and
+    beta are learnable per-channel affine transform parameter vectors of size num_channels.
+
+    .. math::
+
+        out = \frac{data - mean(data, axis)}{\sqrt{var(data, axis)+\epsilon}}
+            * gamma + beta
+
+    Unlike batch normalization, the mean and var are computed along a group of channels.
+
+    If the input has size k on axis 1, then both gamma and beta have shape (k,).
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        Input to which group_norm will be applied.
+
+    gamma : tvm.relay.Expr
+        The gamma scale factor.
+
+    beta : tvm.relay.Expr
+        The beta offset factor.
+
+    num_groups : int
+        The number of groups to separate the channels into.
+
+    axis : int, optional, default=1
+        The axis of the channels.
+
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid dividing by zero.
+
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+
+    scale : boolean, optional, default=True
+        If True, multiply by gamma. If False, gamma is not used.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The normalized data.
+    """
+    return _make.group_norm(data, gamma, beta, num_groups, axis, epsilon, center, scale)
+
+
 def batch_matmul(x, y):
     r"""
     Computes batch matrix multiplication of `x` and `y` when `x` and `y` are data
