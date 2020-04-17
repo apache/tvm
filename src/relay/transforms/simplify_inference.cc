@@ -64,6 +64,66 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
+
+Expr GroupNormToInferUnpack(const Attrs attrs,
+                            Expr data,
+                            Expr gamma,
+                            Expr beta,
+                            Type tdata) {
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
+  const auto param = attrs.as<GroupNormAttrs>();
+  CHECK(param);
+
+  int ndim = ttype->shape.size();
+  int axis = (param->axis < 0) ? param->axis + ndim : param->axis;
+  Array<Integer> reduced_axes;
+  Array<Integer> new_shape;
+  Array<Integer> old_shape;
+
+  int num_groups = param->num_groups;
+  int channel = ttype->shape[axis].as<IntImmNode>()->value;
+
+  // old_shape = N, C, H, W
+  // new shape = N, num_groups, C/num_groups, H, W
+  // reduce_axes = axis of (C/num_groups, H, W)
+  for (int i = 0; i < ndim; ++i) {
+      auto val = ttype->shape[i].as<IntImmNode>()->value;
+
+      // Save the old shape to reshape later
+      old_shape.push_back(val);
+      if (i == axis) {
+          new_shape.push_back(num_groups);
+          new_shape.push_back(channel / num_groups);
+          reduced_axes.push_back(i + 1);
+          continue;
+      }
+      if (i >= axis) {
+          reduced_axes.push_back(i + 1);
+      }
+      new_shape.push_back(val);
+  }
+
+  data = Reshape(data, new_shape);
+
+  Expr epsilon = MakeConstantScalar(ttype->dtype, static_cast<float>(param->epsilon));
+  Expr mean = Mean(data, {reduced_axes}, true, false);
+  Expr var = Variance(data, mean, {reduced_axes}, true, false);
+  Expr denom = Sqrt(Add(var, epsilon));
+  Expr out = Divide(Subtract(data, mean), denom);
+
+  out = Reshape(out, old_shape);
+
+  if (param->scale) {
+    out = Multiply(out, ExpandBiasToMatchAxis(gamma, ndim, {axis}));
+  }
+  if (param->center) {
+    out = Add(out, ExpandBiasToMatchAxis(beta, ndim, {axis}));
+  }
+
+  return out;
+}
+
 Expr LayerNormToInferUnpack(const Attrs attrs,
                             Expr data,
                             Expr gamma,
@@ -143,6 +203,7 @@ class InferenceSimplifier : public ExprMutator {
         dropout_op_(Op::Get("nn.dropout")),
         instance_norm_op_(Op::Get("nn.instance_norm")),
         layer_norm_op_(Op::Get("nn.layer_norm")),
+        group_norm_op_(Op::Get("nn.group_norm")),
         l2_norm_op_(Op::Get("nn.l2_normalize")) {}
 
   Expr VisitExpr_(const TupleGetItemNode* n) final {
@@ -170,6 +231,10 @@ class InferenceSimplifier : public ExprMutator {
       const auto* call = new_n.as<CallNode>();
       return LayerNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
                                     n->args[0]->checked_type());
+    } else if (n->op == group_norm_op_) {
+      const auto* call = new_n.as<CallNode>();
+      return GroupNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
+                                    n->args[0]->checked_type());
     } else if (n->op == instance_norm_op_) {
       const auto* call = new_n.as<CallNode>();
       return InstanceNormToInferUnpack(call->attrs, call->args[0], call->args[1], call->args[2],
@@ -189,6 +254,7 @@ class InferenceSimplifier : public ExprMutator {
   const Op& dropout_op_;
   const Op& instance_norm_op_;
   const Op& layer_norm_op_;
+  const Op& group_norm_op_;
   const Op& l2_norm_op_;
   std::unordered_map<Expr, Type, ObjectHash, ObjectEqual> ty_map_;
 };
