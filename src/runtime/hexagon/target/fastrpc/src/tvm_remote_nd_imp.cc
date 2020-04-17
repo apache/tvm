@@ -48,6 +48,13 @@ __attribute__((naked)) uint32_t launcher(volatile msg_call* mc,
       "// rather than fast.                                           \n"
       "// r0 = value of 'volatile msg_call *mc'                       \n"
       "// r1 = address where to store the program cycle count         \n"
+
+      "// In this packet the store happens before the allocframe so   \n"
+      "// the offset added to r29 must reflect that the r29 has not   \n"
+      "// yet been updated (stack grows towards decreasing addresses):\n"
+      "//                    r29 before allocframe --.                \n"
+      "//   [ r17:16 ] [ r19:18 ] [ r21:20 ] [ FP/LR ]                \n"
+      "//   `-- r29 after allocframe      increasing addresses -->    \n"
       "{ memd(r29+#-16) = r21:20                                      \n"
       "  allocframe(#24)          }                                   \n"
       "{ memd(r29+#0) = r17:16                                        \n"
