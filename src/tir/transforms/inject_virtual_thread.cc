@@ -20,8 +20,10 @@
 /*!
  * \file inject_virtual_thread.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/ir_pass.h>
 #include <unordered_set>
 #include "../../arith/compute_expr.h"
@@ -499,6 +501,25 @@ Stmt InjectVirtualThread(Stmt stmt) {
   stmt = VirtualThreadInjector()(std::move(stmt));
   return ConvertSSA(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.InjectVirtualThread")
+.set_body_typed(InjectVirtualThread);
+
+namespace transform {
+
+Pass InjectVirtualThread() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = ConvertSSA(VirtualThreadInjector()(std::move(n->body)));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.InjectVirtualThread", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.InjectVirtualThread")
+.set_body_typed(InjectVirtualThread);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

@@ -37,7 +37,10 @@ def test_coproc_sync():
                 ib.scope_attr(cp, "coproc_scope", 1)
                 A[j] = A[j + k * 10] + 2
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.CoProcSync(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
+    stmt = tvm.tir.transform.CoProcSync()(mod)["main"].body
+
     body = stmt.body.body.body
     blist = tvm.tir.stmt_list(body)
     assert(blist[1].value.name == "cop.coproc_read_barrier")
@@ -65,7 +68,10 @@ def test_coproc_sync2():
             ib.scope_attr(cp, "coproc_scope", 2)
             A[ty] = 1.0
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.CoProcSync(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
+    stmt = tvm.tir.transform.CoProcSync()(mod)["main"].body
+
 
 def test_coproc_sync3():
     def __check_list(tvm_array, py_list):
@@ -91,7 +97,10 @@ def test_coproc_sync3():
         A[0] = 0.0
 
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.CoProcSync(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
+    stmt = tvm.tir.transform.CoProcSync()(mod)["main"].body
+
     slist = tvm.tir.stmt_list(stmt[0].body.body)
     push_st = slist[2]
     slist = tvm.tir.stmt_list(slist[-1])

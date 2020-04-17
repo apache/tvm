@@ -21,10 +21,12 @@
  * \brief Inject double buffering optimization for data fetch.
  * \file inject_double_buffer.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/op.h>
-#include "ir_util.h"
+#include "../pass/ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
@@ -273,5 +275,26 @@ class DoubleBufferInjector : public StmtExprMutator {
 Stmt InjectDoubleBuffer(Stmt stmt, int split_loop) {
   return DoubleBufferInjector(split_loop).Inject(stmt);
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.InjectDoubleBuffer")
+.set_body_typed(InjectDoubleBuffer);
+
+
+namespace transform {
+
+Pass InjectDoubleBuffer(int split_loop) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = DoubleBufferInjector(split_loop).Inject(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.InjectDoubleBuffer")
+.set_body_typed(InjectDoubleBuffer);
+
+}  // namespace transform
+
 }  // namespace tir
 }  // namespace tvm

@@ -203,142 +203,11 @@ Stmt RewriteForTensorCore(Stmt stmt,
 bool VerifyCompactBuffer(Stmt stmt);
 
 /*!
- * \brief Remove No Op from the Stmt.
- * \param stmt The stmt to be trasnformed
- * \return Transformed stmt.
- */
-Stmt RemoveNoOp(Stmt stmt);
-
-/*!
- * \brief unroll the constant loop marked by unroll.
- * This pass also automatically attach pragma unroll tag to loops which meets the standard.
- *
- * \param stmt The statment to be unrolled.
- * \param auto_max_step The maximum step before stop attach automatic unroll
- * \param auto_max_depth The maximum depth before stop attach automatic unroll
- * \param auto_max_extent The maximum extent of the loop we can unroll,
- *                     this is an legacy option that do not take the loop total steps into account.
- * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
- * \return Transformed stmt.
- */
-Stmt UnrollLoop(Stmt stmt,
-                int auto_max_step,
-                int auto_max_depth,
-                int auto_max_extent,
-                bool explicit_unroll);
-
-/*!
- * \brief vectorize the constant loops
- * \param stmt The statement to be vectorized.
- * \return Transformed stmt.
- */
-Stmt VectorizeLoop(Stmt stmt);
-
-/*!
- * \brief convert vectorized loops into serialized loops
- * \param stmt The statement to skip vectorization on.
- * \return Transformed stmt.
- */
-Stmt SkipVectorize(Stmt stmt);
-
-/*!
-* \brief instruments bound checkers.
-* \param stmt The statement to be instrumented.
-* \return Instrumented stmt.
-*/
-Stmt InstrumentBoundCheckers(Stmt stmt);
-
-/*!
- * \brief Inject virtual thread loops into stmt.
- * \param stmt The statement to be transformed.
- * \return Transformed stmt.
- */
-Stmt InjectVirtualThread(Stmt stmt);
-
-/*!
  * \brief Inject prefetch instructions into stmt.
  * \param stmt The statement to be transformed.
  * \return Transformed stmt.
  */
 Stmt InjectPrefetch(Stmt stmt);
-
-/*!
- * \brief Inject double buffer into stmt.
- * \param stmt The statement to be transformed.
- * \param split_loop Loop splitting factor.
- * \return Transformed stmt.
- */
-Stmt InjectDoubleBuffer(Stmt stmt, int split_loop);
-
-/*!
- * \brief Inject copy intrinsics with optional pad.
- *
- * \param stmt The statement to be transformed.
- * \param pragma_key The pragma key for hint of copy.
- * \param fintrin The function with signature
- *
- *   Stmt fintrin(Buffer src,
- *                Buffer dst,
- *                Array<Expr> pad_before,
- *                Array<Expr> pad_after,
- *                Expr pad_value)
- * \return Transformed stmt.
- */
-Stmt InjectCopyIntrin(Stmt stmt,
-                      const std::string& pragma_key,
-                      const runtime::PackedFunc& fintrin);
-
-/*!
- * \brief Rewrite storage allocation pattern.
- *  Moves the allocation to outer most possible scope.
- *  Trying to share space between allocations to make
- *  a static allocation plan when possible.
- *
- * \param stmt The stmt to be transformed
- * \return Transformed stmt.
- */
-Stmt StorageRewrite(Stmt stmt);
-
-/*!
- * \brief partition loops in the stmt
- * \param stmt The stmt to do loop partition
- * \param split_const_loop flag to enable partition for const loop
- * \return Transformed stmt.
- */
-Stmt LoopPartition(Stmt stmt, bool split_const_loop);
-
-/*!
- * \brief Detect and insert sync points to co-processor.
- *
- * \param stmt The stmt to be transformed
- * \return Transformed stmt.
- */
-Stmt CoProcSync(Stmt stmt);
-
-/*!
- * \brief Lift common attrs with attr_key to outer scope.
- *
- * \param stmt The stmt to be transformed
- * \param attr_key The attribute key to be checked.
- * \return Transformed stmt.
- */
-Stmt LiftAttrScope(Stmt stmt, std::string attr_key);
-
-/*!
- * \brief Detect and rewrite unsafe select that contains memory access.
- * \param stmt The statement to be rewritten.
- * \return Transformed stmt.
- */
-Stmt RewriteUnsafeSelect(Stmt stmt);
-
-/*!
- * \brief Lower attached storage access information.
- * Do this pass after all storage access analysis finish.
- *
- * \param stmt The stmt to be transformed
- * \return Transformed stmt.
- */
-Stmt LowerStorageAccessInfo(Stmt stmt);
 
 /*!
  * \brief Decorate the stmt with a device scope, this is helpful for
@@ -355,15 +224,6 @@ Stmt DecorateDeviceScope(Stmt stmt);
  * \return Transformed stmt.
  */
 Stmt HoistIfThenElse(Stmt stmt);
-
-/*!
- * \brief Narrow down PrimExpr datatype in stmt to target_bits.
- * \note  Run this pass after StorageFlatten.
- * \param stmt The stmt to do datatype rewrite
- * \param target_bits the bit of target datatype
- * \return Transformed stmt.
- */
-Stmt NarrowDataType(Stmt stmt, int target_bits);
 
 /*!
  * \brief Rewrite the pointer content type of arguments,
