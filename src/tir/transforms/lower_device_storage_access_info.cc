@@ -143,6 +143,8 @@ Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower()(std::move(stmt));
 }
 
+TVM_REGISTER_GLOBAL("ir_pass.LowerStorageAccessInfo")
+.set_body_typed(LowerStorageAccessInfo);
 
 namespace transform {
 

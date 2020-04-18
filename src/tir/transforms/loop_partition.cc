@@ -20,9 +20,11 @@
 /*!
  * \file loop_partition.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_map>
 #include <unordered_set>
@@ -500,7 +502,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
   Stmt pre_stmt;
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
-    body_begin = tir::Simplify(middle_interval.min());
+    body_begin = analyzer_.Simplify(middle_interval.min());
     if (!analyzer_.CanProve(body_begin == min)) {
       PrimExpr cond = (body_begin - min >= 0);
       if (!analyzer_.CanProve(cond)) {
@@ -525,7 +527,7 @@ Stmt LoopPartitioner::TryPartition(const Object* node,
   Stmt post_stmt;
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
-    post_doubt_begin = tir::Simplify(middle_interval.max() + 1);
+    post_doubt_begin = analyzer_.Simplify(middle_interval.max() + 1);
     if (!analyzer_.CanProve(middle_interval.max() == max)) {
       // require the extent to be non-negative
       PrimExpr cond = (max - post_doubt_begin + 1 >= 0);
@@ -588,7 +590,7 @@ inline Stmt LoopPartitioner::MakeFor(const Object *node, PrimExpr extent, Stmt b
     return Substitute(body, {{Var{for_node->loop_var}, make_const(DataType::Int(32), 0)}});
   } else {
     return ForNode::make(for_node->loop_var, IntImm(for_node->min.dtype(), 0), extent,
-                     for_node->for_type, for_node->device_api, body);
+                         for_node->for_type, for_node->device_api, body);
   }
 }
 
@@ -609,6 +611,26 @@ Stmt LoopPartition(Stmt stmt, bool split_const_loop) {
   stmt = RemoveLikelyTags()(std::move(stmt));
   return stmt;
 }
+
+
+TVM_REGISTER_GLOBAL("ir_pass.LoopPartition")
+.set_body_typed(LoopPartition);
+
+namespace transform {
+
+Pass LoopPartition(bool split_const_loop) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = LoopPartition(std::move(n->body), split_const_loop);
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LoopPartition", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.LoopPartition")
+.set_body_typed(LoopPartition);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

@@ -21,10 +21,11 @@
  * \brief Replace certain copy with copy intrinsics.
  * \file copy_intrin_rewrite.cc
  */
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/transform.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
 #include "../../arith/pattern_match.h"
 
 namespace tvm {
@@ -195,6 +196,27 @@ Stmt InjectCopyIntrin(Stmt stmt,
                       const PackedFunc& flower_copy_fromto) {
   return CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.InjectCopyIntrin")
+.set_body_typed(InjectCopyIntrin);
+
+namespace transform {
+
+Pass InjectCopyIntrin(std::string pragma_key,
+                      PackedFunc flower_copy_fromto) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = CopyIntrinInjector(
+        pragma_key, flower_copy_fromto)(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.InjectCopyIntrin", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.InjectCopyIntrin")
+.set_body_typed(InjectCopyIntrin);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

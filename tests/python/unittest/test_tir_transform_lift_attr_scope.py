@@ -35,7 +35,10 @@ def test_coproc_lift():
                 A[j] = A[j] + 3
                 A[j] = A[j] + 3
     body = ib.get()
-    body = tvm.tir.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.LiftAttrScope("coproc_uop_scope")(mod)["main"].body
+
     assert body.body.body.node == cp
 
     # only able to lift to the common pattern of the last two fors.
@@ -52,7 +55,10 @@ def test_coproc_lift():
             A[i] = A[i] + 2
 
     body = ib.get()
-    body = tvm.tir.ir_pass.LiftAttrScope(body, "coproc_uop_scope")
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.LiftAttrScope("coproc_uop_scope")(mod)["main"].body
+
     assert body.body.body.body[1].node == cp
     assert len(body.body.body.body) == 2
 

@@ -23,9 +23,10 @@
  *   the body contains the same scope.
  * \file lift_attr_scope.cc
  */
-#include <tvm/tir/ir_pass.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
-#include "ir_util.h"
+#include "../pass/ir_util.h"
 
 namespace tvm {
 namespace tir {
@@ -190,6 +191,25 @@ class AttrScopeLifter : public StmtMutator {
 Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {
   return AttrScopeLifter(attr_key).Lift(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.LiftAttrScope")
+.set_body_typed(LiftAttrScope);
+
+namespace transform {
+
+Pass LiftAttrScope(std::string attr_key) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = AttrScopeLifter(attr_key).Lift(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.LiftAttrScope", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.LiftAttrScope")
+.set_body_typed(LiftAttrScope);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

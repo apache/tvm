@@ -22,16 +22,18 @@
  * \brief Memory access pattern analysis and optimization.
  *  Re-write data access to enable memory sharing when possible.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target_info.h>
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
-#include "ir_util.h"
+#include "../pass/ir_util.h"
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -1039,5 +1041,26 @@ Stmt StorageRewrite(Stmt stmt) {
   stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
   return VectorAllocRewriter()(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.StorageRewrite")
+.set_body_typed(StorageRewrite);
+
+namespace transform {
+
+Pass StorageRewrite() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
+    n->body = VectorAllocRewriter()(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.StorageRewrite")
+.set_body_typed(StorageRewrite);
+
+}  // namespace transform
+
 }  // namespace tir
 }  // namespace tvm

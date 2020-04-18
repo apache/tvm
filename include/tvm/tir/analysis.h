@@ -53,7 +53,6 @@ struct ExprDeepEqual {
   TVM_DLL bool operator()(const PrimExpr& lhs, const PrimExpr& rhs) const;
 };
 
-
 /*!
  * \brief Find undefined vars in the statment.
  * \param stmt The function to be checked.

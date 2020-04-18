@@ -40,9 +40,14 @@ def test_vthread():
             C[i * nthread + tx] = B[i] + 1
         return ib.get()
 
-    stmt = tvm.tir.ir_pass.InjectVirtualThread(get_vthread("vthread"))
+    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([], get_vthread("vthread"))))["main"].body
+
     assert stmt.body.body.extents[0].value == 2
-    stmt = tvm.tir.ir_pass.InjectVirtualThread(get_vthread("cthread"))
+
+    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([], get_vthread("cthread"))))["main"].body
+
     assert len(stmt.body.body.extents) == 3
 
 
@@ -67,15 +72,19 @@ def test_vthread_extern():
             A[tx] = tx + 1.0
             B[ty] = ty + 1.0
             ib.emit(tvm.tir.call_extern("int32", "Run",
-                                    abuffer.access_ptr("r"),
-                                    bbuffer.access_ptr("r"),
-                                    cbuffer.access_ptr("rw")))
+                                        abuffer.access_ptr("r"),
+                                        bbuffer.access_ptr("r"),
+                                        cbuffer.access_ptr("rw")))
         return ib.get()
 
-    stmt = tvm.tir.ir_pass.InjectVirtualThread(get_vthread("vthread"))
+
+    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([], get_vthread("cthread"))))["main"].body
+
     assert stmt.body.body.extents[0].value == 2
     assert stmt.body.body.body.body.body.body.extents[0].value == 2
     assert len(stmt.body.body.body.body.body.body.extents) == 3
+
 
 def test_vthread_if_then_else():
     nthread = 2
@@ -92,7 +101,10 @@ def test_vthread_if_then_else():
         with ib.if_scope(i == 0):
             B[i] = A[i * nthread + tx] + 2
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.InjectVirtualThread(stmt)
+
+    stmt = tvm.tir.transform.InjectVirtualThread()(tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([], stmt)))["main"].body
+
     assert stmt.body.body.body[0].else_case != None
     assert stmt.body.body.body[1].else_case == None
 

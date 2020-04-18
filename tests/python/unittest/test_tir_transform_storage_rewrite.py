@@ -33,9 +33,12 @@ def test_storage_share():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    stmt = tvm.tir.ir_pass.StorageRewrite(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    stmt = mod["main"].body
+
     # verify only have one allocations.
     # verify inplace folding works
     num_alloc = [0]
@@ -72,7 +75,10 @@ def test_alloc_seq():
             A[j] = 1.3
 
     body = ib.get()
-    body = tvm.tir.ir_pass.StorageRewrite(body)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
@@ -129,7 +135,10 @@ def test_alloc_different_dtypes():
 
         body = stmt_generater(dtype_list, length)
         offset = offset_generater(dtype_list, length)
-        body = tvm.tir.ir_pass.StorageRewrite(body)
+
+        mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], body))
+        body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+
         tvm.tir.ir_pass.PostOrderVisit(body, verify)
 
     length = 1024
@@ -160,9 +169,12 @@ def test_inplace_rule():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    stmt = tvm.tir.ir_pass.StorageRewrite(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    stmt = mod["main"].body
+
     # verify only have one allocations.
     # verify inplace folding works
     num_alloc = [0]
@@ -192,9 +204,12 @@ def test_storage_combine():
     Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    stmt = tvm.tir.ir_pass.StorageRewrite(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    stmt = mod["main"].body
+
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
@@ -226,9 +241,12 @@ def test_storage_share_gpu():
     Ab = tvm.tir.decl_buffer(A[0].shape, A[0].dtype, name='A')
     Bb = tvm.tir.decl_buffer(A[0].shape, A[0].dtype, name='B')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A[0]: Ab, A[-1]: Bb}, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    stmt = tvm.tir.ir_pass.StorageRewrite(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    stmt = mod["main"].body
+
     alloc_stats = {"global": 0, "shared": 0}
 
     def verify(n):
@@ -248,7 +266,9 @@ def test_parallel_alloc():
             A[j] = A[j] + 2
 
     body = ib.get()
-    body = tvm.tir.ir_pass.StorageRewrite(body)
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+
     assert (isinstance(body.body.body, tvm.tir.Allocate))
 
     ib = tvm.tir.ir_builder.create()
@@ -262,7 +282,9 @@ def test_parallel_alloc():
                 A = ib.allocate("float32", n, name="A", scope="global")
                 A[j] = A[j] + 2
     body = ib.get()
-    body = tvm.tir.ir_pass.StorageRewrite(body)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
 
     assert(isinstance(body.body.body.body.body, tvm.tir.Allocate))
 
@@ -289,9 +311,12 @@ def test_inplace_rule2(scope_tb = "local_TB2", max_bits = 1024 * 1024 * 1024):
     Cc = tvm.tir.decl_buffer(C.shape, B.dtype, name='C')
     Dd = tvm.tir.decl_buffer(D.shape, B.dtype, name='D')
     stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb, C: Cc, D:Dd}, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    stmt = tvm.tir.ir_pass.StorageRewrite(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb, Cc, Dd], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    stmt = mod["main"].body
+
     # verify only have one allocations.
     # verify inplace folding works
     num_alloc = [0]
@@ -381,10 +406,13 @@ def test_inplace_rule3():
     B5a = tvm.tir.decl_buffer(B5.shape, B5.dtype, name='B5')
 
     Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {B0: B0a, B1: B1a, B2: B2a, B3: B2a, B4: B4a, B5: B5a, B: Bb}, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    stmt = tvm.tir.ir_pass.StorageRewrite(stmt)
+    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {B0: B0a, B1: B1a, B2: B2a, B3: B3a, B4: B4a, B5: B5a, B: Bb}, 64)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([B0a, B1a, B2a, B3a, B4a, B5a, Bb], stmt))
+    mod = tvm.tir.transform.Simplify()(mod)
+    mod = tvm.tir.transform.StorageRewrite()(mod)
+    stmt = mod["main"].body
+
     # verify only have one allocations.
     # verify inplace folding works
     def verify(n):
@@ -411,7 +439,10 @@ def test_alloc_seq_type():
             A2[j] = A[j]
 
     body = ib.get()
-    body = tvm.tir.ir_pass.StorageRewrite(body)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
@@ -440,7 +471,10 @@ def test_alloc_seq_type2():
             C[j] = 1.2
 
     body = ib.get()
-    body = tvm.tir.ir_pass.StorageRewrite(body)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
+
     num_alloc = [0]
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
@@ -469,7 +503,9 @@ def test_reuse_small_buffer():
             E[j] = C[j]
 
     body = ib.get()
-    body = tvm.tir.ir_pass.StorageRewrite(body)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], body))
+    body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
 
     num_alloc = [0]
 
@@ -519,14 +555,15 @@ def test_large_input():
 
 
 if __name__ == "__main__":
+    test_storage_share()
     test_alloc_seq()
     test_alloc_different_dtypes()
     test_inplace_rule()
-    test_storage_share()
     test_parallel_alloc()
     test_storage_combine()
     test_storage_share_gpu()
     test_inplace_rule2()
+
     test_exceed_mem()
     test_inplace_rule3()
     test_alloc_seq_type()

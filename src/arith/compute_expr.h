@@ -25,6 +25,7 @@
 #define TVM_ARITH_COMPUTE_EXPR_H_
 
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <limits>
 #include <algorithm>
 

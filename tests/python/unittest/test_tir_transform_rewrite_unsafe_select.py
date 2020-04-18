@@ -23,14 +23,22 @@ def test_rewrite_Select():
     A = ib.allocate("float32", 100, name="A", scope="global")
     i = te.var("i")
     y = tvm.tir.Select(i > 1, A[i-1], 1.0)
-    yy = tvm.tir.ir_pass.RewriteUnsafeSelect(tvm.tir.Evaluate(y)).value
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([i], tvm.tir.Evaluate(y)))
+    yy = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
 
     z = tvm.tir.Select(
         tvm.tir.Select(i > 1, A[i-1], 1.0) > 0.0, A[i], 0.1)
-    zz = tvm.tir.ir_pass.RewriteUnsafeSelect(tvm.tir.Evaluate(z)).value
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([i], tvm.tir.Evaluate(z)))
+    zz = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
 
-    a = tvm.tir.Select(tvm.te.floordiv(i, 4) > 10, y, z)
-    aa = tvm.tir.ir_pass.RewriteUnsafeSelect(tvm.tir.Evaluate(a)).value
+    a = tvm.tir.Select(tvm.tir.floordiv(i, 4) > 10, y, z)
+
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([i], tvm.tir.Evaluate(a)))
+    aa = tvm.tir.transform.RewriteUnsafeSelect()(mod)["main"].body.value
     assert yy.name == "tvm_if_then_else"
     assert zz.name == "tvm_if_then_else"
     assert isinstance(aa, tvm.tir.Select)

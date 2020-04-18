@@ -20,13 +20,14 @@
 /*!
  * \file coproc_sync.cc
  */
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "ir_util.h"
-#include "storage_access.h"
+#include "../pass/ir_util.h"
+#include "../pass/storage_access.h"
 
 namespace tvm {
 namespace tir {
@@ -676,6 +677,25 @@ class CoProcSyncInserter : public StmtMutator {
 Stmt CoProcSync(Stmt stmt) {
   return CoProcSyncInserter().Insert(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.CoProcSync")
+.set_body_typed(CoProcSync);
+
+namespace transform {
+
+Pass CoProcSync() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = CoProcSyncInserter().Insert(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.CoProcSync", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.CoProcSync")
+.set_body_typed(CoProcSync);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

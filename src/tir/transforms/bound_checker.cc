@@ -22,8 +22,11 @@
  */
 // Instrument checkers for out of the bounds access.
 
+#include <tvm/runtime/registry.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <vector>
 #include <unordered_map>
@@ -173,8 +176,8 @@ class BoundChecker : public StmtExprMutator {
       }
 
       // Try to simplify index and bound.
-      index = tir::Simplify(index);
-      upper_bound = tir::Simplify(upper_bound);
+      index = analyzer_.Simplify(index);
+      upper_bound = analyzer_.Simplify(upper_bound);
 
       // Cast to the same type - signed, to be able to check lower bound.
       index = CastNode::make(DataType::Int(64), index);
@@ -201,6 +204,8 @@ class BoundChecker : public StmtExprMutator {
   const char *const error_message_ = "OUT OF THE BOUNDS";
   // Hashtable which maps buffer_var to shape.
   std::unordered_map<const VarNode *, PrimExpr> mem_to_shape_;
+  // internal analyzer
+  arith::Analyzer analyzer_;
 };
 
 Stmt InstrumentBoundCheckers(Stmt stmt) {
@@ -209,5 +214,29 @@ Stmt InstrumentBoundCheckers(Stmt stmt) {
   bound_collector(stmt);
   return BoundChecker(bound_collector.mem_to_shape)(std::move(stmt));
 }
+
+
+TVM_REGISTER_GLOBAL("ir_pass.InstrumentBoundCheckers")
+.set_body_typed(InstrumentBoundCheckers);
+
+namespace transform {
+
+Pass InstrumentBoundCheckers() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    BoundCollector bound_collector;
+    // At first walk recursively and collect bound attributes.
+    bound_collector(n->body);
+    n->body = BoundChecker(bound_collector.mem_to_shape)(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.InstrumentBoundCheckers", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.InstrumentBoundCheckers")
+.set_body_typed(InstrumentBoundCheckers);
+
+}  // namespace transform
+
 }  // namespace tir
 }  // namespace tvm

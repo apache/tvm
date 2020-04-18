@@ -18,32 +18,12 @@ import pytest
 import tvm
 from tvm import te
 import numpy as np
+
 def collect_visit(stmt, f):
     ret = []
     tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
     return ret
 
-def lower(sch, args):
-    binds = {}
-    arg_list = []
-    for x in args:
-        if isinstance(x, te.tensor.Tensor):
-            buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
-            assert x not in binds
-            binds[x] = buf
-            arg_list.append(buf)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
-    sch = sch.normalize()
-    bounds = tvm.te.schedule.InferBound(sch)
-    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.RemoveNoOp(stmt)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, True)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    return stmt
 
 @pytest.mark.xfail
 def test_out_of_bounds_llvm(index_a, index_b):
@@ -72,7 +52,6 @@ def test_in_bounds_llvm():
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower (s, [A, B, C], simple_mode=True)
-    print (stmt)
     fadd = tvm.build (s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
     ctx = tvm.context(tgt, 0)
     a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
@@ -93,7 +72,6 @@ def test_out_of_bounds_vectorize_llvm(nn, index_a, index_b):
     tgt = "llvm"
     tgt_host = "llvm"
     stmt = tvm.lower (s, [a, b, c], simple_mode=True)
-    print (stmt)
     f = tvm.build(s, [a, b, c], tgt, target_host=tgt_host, name="myaddvec")
     ctx = tvm.cpu(0)
     n = nn
@@ -192,13 +170,11 @@ def test_in_bounds_const_loop_partition_ir():
     s = te.create_schedule(T.op)
     xo, xi = s[T].split(T.op.axis[0], factor=4)
 
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = lower (s, [A, B, T])
-    # num_attributes = num_buffers * num_splits = 2 * 3
-    # before instrumentation
-    assert_bound_instrumentation(stmt, check_attr_stmt, 2 * 3)
-    assert_bound_instrumentation(stmt, check_branch_stmt, 0)
-    stmt = tvm.tir.ir_pass.InstrumentBoundCheckers(stmt)
+    with tvm.target.build_config(instrument_bound_checkers=True,
+                                 partition_const_loop=True):
+        mod = tvm.driver.lower(s, [A, B, T], name="main")
+
+    stmt = mod["main"].body
     # after instrumentation
     assert_bound_instrumentation(stmt, check_attr_stmt, 2 * 3)
     assert_bound_instrumentation(stmt, check_branch_stmt, 2)
@@ -209,7 +185,8 @@ def test_in_bounds_const_loop_partition_ir():
 
 
 def test_in_bounds_const_loop_partition_llvm():
-    with tvm.target.build_config(instrument_bound_checkers=True, partition_const_loop=True):
+    with tvm.target.build_config(instrument_bound_checkers=True,
+                                 partition_const_loop=True):
         n = 21
         A = te.placeholder((n, ), name='A')
         B = te.placeholder((n, ), name='B')

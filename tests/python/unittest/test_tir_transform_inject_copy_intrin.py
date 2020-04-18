@@ -35,7 +35,10 @@ def test_copy2d():
         assert src.strides[0] == l
         assert tuple(src.shape) == (m, l)
         return tvm.tir.Evaluate(0)
-    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body
+
 
 def test_copy_pad():
     m = te.var('m')
@@ -59,7 +62,10 @@ def test_copy_pad():
         assert pad_after[1].value == 0
         assert pad_value.value == 1.0
         return tvm.tir.Evaluate(0)
-    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body
+
 
 def test_single_point_test():
     A = te.placeholder((1,), name='A')
@@ -78,7 +84,10 @@ def test_single_point_test():
         assert tvm.tir.ir_pass.Simplify(src.strides[0]).value == 1
         assert tvm.tir.ir_pass.Simplify(dst.strides[0]).value == 1
         return tvm.tir.Evaluate(0)
-    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body
+
 
 def assert_expr_equal(a, b):
     assert tvm.tir.ir_pass.Simplify(a - b).value == 0
@@ -111,7 +120,11 @@ def test_copy_pad_split():
         assert_expr_equal(pad_after[0], rpad_after)
         assert_expr_equal(src.shape[0], 6 - rpad_before - rpad_after)
         return tvm.tir.Evaluate(0)
-    stmt = tvm.tir.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body
+
+
 
 
 if __name__ == "__main__":

@@ -114,27 +114,12 @@ TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
 
 REGISTER_PASS(ConvertSSA);
 REGISTER_PASS(VerifySSA);
-REGISTER_PASS(RewriteUnsafeSelect);
 REGISTER_PASS(Inline);
 REGISTER_PASS(IRTransform);
-REGISTER_PASS(VectorizeLoop);
-REGISTER_PASS(SkipVectorize);
-REGISTER_PASS(UnrollLoop);
-REGISTER_PASS(InjectCopyIntrin);
-REGISTER_PASS(StorageRewrite);
-REGISTER_PASS(CoProcSync);
-REGISTER_PASS(LowerStorageAccessInfo);
-REGISTER_PASS(InjectVirtualThread);
 REGISTER_PASS(InjectPrefetch);
-REGISTER_PASS(InjectDoubleBuffer);
-REGISTER_PASS(LoopPartition);
-REGISTER_PASS(RemoveNoOp);
-REGISTER_PASS(LiftAttrScope);
 REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
-REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
 REGISTER_PASS(HoistIfThenElse);
-REGISTER_PASS(NarrowDataType);
 }  // namespace tir
 }  // namespace tvm

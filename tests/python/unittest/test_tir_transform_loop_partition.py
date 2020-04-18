@@ -23,26 +23,6 @@ def collect_visit(stmt, f):
     tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x : ret.append(f(x)))
     return ret
 
-def lower(sch, args):
-    binds = {}
-    arg_list = []
-    for x in args:
-        if isinstance(x, te.tensor.Tensor):
-            buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
-            assert x not in binds
-            binds[x] = buf
-            arg_list.append(buf)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
-    sch = sch.normalize()
-    bounds = tvm.te.schedule.InferBound(sch)
-    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64)
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    return stmt
 
 def test_basic():
     n = te.size_var('n')
@@ -55,10 +35,16 @@ def test_basic():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body[0]))
-    assert('if' in str(stmt.body.body[1]))
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt))
+    mod = tvm.tir.transform.LoopPartition(False)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
+    assert(not any(
+        collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse))))
+    assert(any(
+        collect_visit(stmt.body.body[1], lambda x: isinstance(x, tvm.tir.IfThenElse))))
+
 
 def test_const_loop():
     n = 21
@@ -71,9 +57,12 @@ def test_const_loop():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body[0]))
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
+    assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 def test_multi_loop():
     ib = tvm.tir.ir_builder.create()
@@ -87,8 +76,11 @@ def test_multi_loop():
                 with ib.else_scope():
                     ib.emit(tvm.tir.Evaluate(n))
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n, m], stmt))
+    mod = tvm.tir.transform.LoopPartition(False)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 def test_multi_if():
@@ -107,9 +99,14 @@ def test_multi_if():
                 with ib.else_scope():
                     ib.emit(tvm.tir.Evaluate(n))
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body[0]))
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(False)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
+    assert(not any(
+        collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse))))
+
 
 def test_thread_axis():
     m = te.size_var('m')
@@ -126,9 +123,14 @@ def test_thread_axis():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert('if' not in str(stmt.body.body[0]))
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(False)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
+    assert(not any(
+        collect_visit(stmt.body. body[0], lambda x: isinstance(x, tvm.tir.IfThenElse))))
+
 
 def test_vectorize():
     n = te.size_var('n')
@@ -147,10 +149,11 @@ def test_vectorize():
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
-    stmt = lower(s, [A, B])
+    stmt = tvm.lower(s, [A, B], name="main")["main"].body
     body = stmt.body.body.body.body
     assert(x.var.name not in str(body.condition))
     assert(any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp))))
+
 
 def test_condition():
     ib = tvm.tir.ir_builder.create()
@@ -161,9 +164,13 @@ def test_condition():
         ib.emit(tvm.tir.Evaluate(
           tvm.tir.Select(ib.likely(i*4+j<n), m, n)))
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt))
+    mod = tvm.tir.transform.LoopPartition(False)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tir.Select))))
+
 
 def test_condition_EQ():
     ib = tvm.tir.ir_builder.create()
@@ -173,9 +180,13 @@ def test_condition_EQ():
             ib.emit(tvm.tir.Evaluate(
                 tvm.tir.Select(ib.likely(tvm.tir.EQ(i, 5)), m, n)))
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tir.Select))))
+
 
 def test_thread_axis2():
     n = tvm.runtime.convert(4096)
@@ -190,7 +201,7 @@ def test_thread_axis2():
     _,  x = s[C].split(x, factor=m)
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    stmt = lower(s, [A, B])
+    stmt = tvm.lower(s, [A, B], name="main")["main"].body
     for_body = stmt.body.body.body.body[0]
     assert('threadIdx' not in str(for_body.extent))
 
@@ -204,8 +215,12 @@ def test_everything_during_deduction():
                 # this guard will produce everything during deduction
                 ib.emit(tvm.tir.Evaluate(m))
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, False)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, n], stmt))
+    mod = tvm.tir.transform.LoopPartition(False)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
+
     assert(isinstance(stmt.body.body, tvm.tir.IfThenElse))
 
 def test_single_likely():
@@ -220,8 +235,11 @@ def test_single_likely():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 def test_multi_likely():
@@ -241,9 +259,13 @@ def test_multi_likely():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
+
 
 def test_oneD_pool():
     m = te.size_var('m')
@@ -268,9 +290,13 @@ def test_oneD_pool():
                     out[ow] = tvm.te.max(out[ow], data[ow + kw - 1])
 
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([m, data, out], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
+
 
 def test_cce_loop_1():
   ib = tvm.tir.ir_builder.create()
@@ -289,8 +315,11 @@ def test_cce_loop_1():
           with ib.if_scope(ib.likely(((i*160) + j) < 1600)):
                A[(i+1)*m+j+1] = B[(i)*m+j+1] + B[(i+1)*m+j+1] + B[(i+2)*m+j+1]
   stmt = ib.get()
-  stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-  stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+  mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+  mod = tvm.tir.transform.LoopPartition(True)(mod)
+  stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
   assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 def test_cce_loop_2():
@@ -308,8 +337,12 @@ def test_cce_loop_2():
       ib.emit(tvm.tir.call_extern('float32', "cce_intrisic", head, tail))
 
   stmt = ib.get()
-  stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-  stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+
+  mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+  mod = tvm.tir.transform.LoopPartition(True)(mod)
+  stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
   assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 
@@ -326,9 +359,13 @@ def test_cce_loop_3():
                 ib.emit(tvm.tir.call_extern('float16',"cce_intrisic",head1))
 
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt,True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
+
 
 def test_conv_tiling():
     HSTR = WSTR = 1
@@ -355,8 +392,11 @@ def test_conv_tiling():
     oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt = tvm.tir.ir_pass.LoopPartition(stmt, True)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    mod = tvm.tir.transform.LoopPartition(True)(mod)
+    stmt = tvm.tir.transform.Simplify()(mod)["main"].body
+
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
 
@@ -426,14 +466,15 @@ def test_simple_rfactor():
 
     s.normalize()
     bounds = tvm.te.schedule.InferBound(s)
-
     stmt1 = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt1 = tvm.tir.ir_pass.Simplify(stmt1)
 
-    stmt2 = tvm.tir.ir_pass.LoopPartition(stmt1, True)
-    stmt2 = tvm.tir.ir_pass.Simplify(stmt2)
+    mod1 = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt1))
+    stmt1 = tvm.tir.transform.Simplify()(mod1)["main"].body
 
-    #make sure loop partition actually did something
+    mod2 = tvm.tir.transform.LoopPartition(True)(mod1)
+    stmt2 = tvm.tir.transform.Simplify()(mod2)["main"].body
+
+    # make sure loop partition actually did something
     assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
 
 

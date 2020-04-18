@@ -21,8 +21,11 @@
  * \file remove_no_op.cc
  * \brief Remove no op from the stmt
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_map>
 
@@ -147,5 +150,25 @@ class NoOpRemover : public StmtMutator {
 Stmt RemoveNoOp(Stmt stmt) {
   return NoOpRemover()(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.RemoveNoOp")
+.set_body_typed(RemoveNoOp);
+
+namespace transform {
+
+Pass RemoveNoOp() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = NoOpRemover()(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp")
+.set_body_typed(RemoveNoOp);
+
+}  // namespace transform
+
 }  // namespace tir
 }  // namespace tvm

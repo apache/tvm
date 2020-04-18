@@ -36,13 +36,19 @@ def test_double_buffer():
             C[j] = B[j] + 1
 
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.InjectDoubleBuffer(stmt, 2)
-    stmt = tvm.tir.ir_pass.Simplify(stmt)
-    assert isinstance(stmt.body.body, tvm.tir.Allocate)
-    assert stmt.body.body.extents[0].value == 2
     mod = tvm.IRModule({
         "db" : tvm.tir.PrimFunc([A.asobject(), C.asobject()], stmt)
     })
+
+    opt = tvm.transform.Sequential(
+        [tvm.tir.transform.InjectDoubleBuffer(2),
+         tvm.tir.transform.Simplify()])
+    mod = opt(mod)
+    stmt = mod["db"].body
+
+    assert isinstance(stmt.body.body, tvm.tir.Allocate)
+    assert stmt.body.body.extents[0].value == 2
+
     f = tvm.tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
     def count_sync(op):
