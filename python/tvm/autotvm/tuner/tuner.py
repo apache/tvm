@@ -21,6 +21,7 @@ import logging
 import numpy as np
 
 from ..measure import MeasureInput, create_measure_batch
+from ..util import format_si_prefix
 
 from ..env import GLOBAL_SCOPE
 
@@ -87,7 +88,7 @@ class Tuner(object):
         """
 
 
-    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=()):
+    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=(), si_prefix='G'):
         """Begin tuning
 
         Parameters
@@ -104,12 +105,17 @@ class Tuner(object):
             (Tuner, List of MeasureInput, List of MeasureResult)
             with no return value. These callback functions will be called on
             every measurement pair. See autotvm/tuner/callback.py for some examples.
+        si_prefix: str
+            One of tvm.autotvm.util.SI_PREFIXES. The SI prefix to use when reporting FLOPS.
         """
         measure_batch = create_measure_batch(self.task, measure_option)
         n_parallel = getattr(measure_batch, 'n_parallel', 1)
         early_stopping = early_stopping or 1e9
         self.n_trial = n_trial
         self.early_stopping = early_stopping
+
+        # Validate si_prefix arg
+        format_si_prefix(0, si_prefix)
 
         old_level = logger.level
 
@@ -140,9 +146,9 @@ class Tuner(object):
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
-                logger.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
-                             i + k + 1, flops / 1e9, self.best_flops / 1e9,
-                             res, config)
+                logger.debug("No: %d\t%sFLOPS: %.2f/%.2f\tresult: %s\t%s",
+                             i + k + 1, si_prefix, format_si_prefix(flops, si_prefix),
+                             format_si_prefix(self.best_flops, si_prefix), res, config)
 
             i += len(results)
             self.ttl = min(early_stopping + self.best_iter, n_trial) - i
