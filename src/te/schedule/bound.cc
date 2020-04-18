@@ -199,13 +199,13 @@ void InferRootBound(const Stage& stage,
         r = iv->dom;
       }
       if (relax_set.size() != 0) {
-        dom_map[iv->var.get()] = EvalSet(r, relax_set);
+        dom_map[iv->var.get()] = EvalSet(r, relax_set, *rmap);
       } else {
         dom_map[iv->var.get()] = IntSet::range(r);
       }
       analyzer.Bind(iv->var, r);
     }
-    op->PropBoundToInputs(op, &analyzer, dom_map, &tmap);
+    op->PropBoundToInputs(op, &analyzer, dom_map, *rmap, &tmap);
   }
   stage->op->GatherBound(stage->op, tmap, rmap);
 }

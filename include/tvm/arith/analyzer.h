@@ -443,6 +443,19 @@ class TVM_DLL Analyzer {
    */
   bool CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound);
   /*!
+   * \brief Whether can we prove expr < val.
+
+   *  Non-negative proof is very useful in integer analysis
+   *  to lower divisions and mods given difference in trunc and ceil mode.
+   *
+   * \param expr The expression.
+   * \param upper_bound The upper bound.
+   * \return Whether we can prove it.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  bool CanProveLess(const PrimExpr& expr, int64_t upper_bound);
+  /*!
    * \brief Whether can we prove condition.
    *
    * \param cond The expression to be proved.

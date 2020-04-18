@@ -604,7 +604,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !IsRangeSame(iv->dom, dom)) {
       PrimExpr value = value_map.at(iv) - iv->dom->min;
-      IntSet s = EvalSet(value, iset_dmap);
+      IntSet s = EvalSet(value, iset_dmap, dom_map);
       PrimExpr vmin = s.min();
       PrimExpr vmax = s.max();
       // The range of `value` resides in [vmin, vmax]

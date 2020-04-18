@@ -136,6 +136,7 @@ void HybridOpNode::PropBoundToInputs(
     const Operation &self,
     arith::Analyzer* analyzer,
     const std::unordered_map<const VarNode*, IntSet> &dom_map,
+    const std::unordered_map<IterVar, Range>& rmap,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   auto curr_inputs = InputTensors();
   for (Tensor t : curr_inputs) {

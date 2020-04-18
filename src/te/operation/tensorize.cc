@@ -99,7 +99,8 @@ size_t InferTensorizeRegion(
     temp_dmap[iv->var.get()] = iset;
   }
   // Input domains
-  self->PropBoundToInputs(stage->op, &analyzer, temp_dmap, &in_dom);
+  self->PropBoundToInputs(stage->op, &analyzer, temp_dmap, std::unordered_map<IterVar, Range>(),
+                          &in_dom);
   Range none;
   for (const auto& kv : in_dom) {
     Array<Range> vec;
