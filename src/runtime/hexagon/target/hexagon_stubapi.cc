@@ -41,8 +41,8 @@ StubAPI::StubAPI() {
     TVM_LOGD("ADSP subsystem present");
   }
 
-  constexpr auto domain_lib_name = "libtvm_hexagon_remote_stub.so";
-  constexpr auto nondomain_lib_name = "libtvm_hexagon_remote_nd_stub.so";
+  constexpr auto domain_lib_name = "libtvm_remote_stub.so";
+  constexpr auto nondomain_lib_name = "libtvm_remote_nd_stub.so";
 
   const char* lib_name =
       enable_domains_ ? domain_lib_name : nondomain_lib_name;
@@ -50,22 +50,22 @@ StubAPI::StubAPI() {
 
 #define RESOLVE(fn) p##fn##_ = GetSymbol<fn##_t*>(#fn)
   if (enable_domains_) {
-    RESOLVE(tvm_hexagon_remote_load_library);
-    RESOLVE(tvm_hexagon_remote_release_library);
-    RESOLVE(tvm_hexagon_remote_get_symbol);
-    RESOLVE(tvm_hexagon_remote_kernel);
-    RESOLVE(tvm_hexagon_remote_open);
-    RESOLVE(tvm_hexagon_remote_close);
-    RESOLVE(tvm_hexagon_remote_alloc_vtcm);
-    RESOLVE(tvm_hexagon_remote_free_vtcm);
-    RESOLVE(tvm_hexagon_remote_call_mmap64);
+    RESOLVE(tvm_remote_load_library);
+    RESOLVE(tvm_remote_release_library);
+    RESOLVE(tvm_remote_get_symbol);
+    RESOLVE(tvm_remote_kernel);
+    RESOLVE(tvm_remote_open);
+    RESOLVE(tvm_remote_close);
+    RESOLVE(tvm_remote_alloc_vtcm);
+    RESOLVE(tvm_remote_free_vtcm);
+    RESOLVE(tvm_remote_call_mmap64);
   } else {
-    RESOLVE(tvm_hexagon_remote_nd_load_library);
-    RESOLVE(tvm_hexagon_remote_nd_release_library);
-    RESOLVE(tvm_hexagon_remote_nd_get_symbol);
-    RESOLVE(tvm_hexagon_remote_nd_kernel);
-    RESOLVE(tvm_hexagon_remote_nd_open);
-    RESOLVE(tvm_hexagon_remote_nd_call_mmap64);
+    RESOLVE(tvm_remote_nd_load_library);
+    RESOLVE(tvm_remote_nd_release_library);
+    RESOLVE(tvm_remote_nd_get_symbol);
+    RESOLVE(tvm_remote_nd_kernel);
+    RESOLVE(tvm_remote_nd_open);
+    RESOLVE(tvm_remote_nd_call_mmap64);
   }
 
   RESOLVE(rpcmem_init);

@@ -1,0 +1,49 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/*
+ * IDL to offload TVM kernels to Hexagon from APPS for non-domains.
+ */
+#include "remote.idl"
+#include "AEEStdDef.idl"
+
+interface tvm_remote_nd {
+   typedef sequence<octet> buffer;
+   typedef unsigned long handle_t;
+
+   long open();
+   long close();
+   long load_library(in sequence<char> soname,
+                     rout handle_t mod_ptr);
+   long get_symbol(in handle_t mod,
+                   in sequence<char> name,
+                   rout handle_t sym_ptr);
+   long kernel(in handle_t mod,
+               in handle_t symbol,
+               inrout sequence <long> scalar,
+               inrout sequence <long> stack,
+               in sequence<buffer> scalar_in_octet,
+               rout sequence<buffer> scalar_out_octet,
+               in sequence<buffer> stack_in_octet,
+               rout sequence<buffer> stack_out_octet,
+               rout unsigned long long pcycles,
+               rout unsigned long long time_usec);
+   long release_library(in handle_t mod);
+   long call_mmap64();
+};
