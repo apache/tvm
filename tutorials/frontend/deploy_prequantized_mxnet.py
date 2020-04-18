@@ -19,14 +19,18 @@ Deploy a Framework-prequantized Model with TVM - Part 2 (MXNet)
 ===============================================================
 **Author**: `Animesh Jain <https://github.com/anijain2305>`_
 
-Welcome to Part 2 of Deploy Framework-Prequantized Model with TVM. In this tutorial, we will start
-with a FP32 MXNet graph, quantize it using MXNet, and then compile and execute it via TVM.
+Welcome to part 2 of the Deploy Framework-Prequantized Model with TVM tutorial.
+In this part, we will start with a FP32 MXNet graph, quantize it using
+MXNet, and then compile and execute it via TVM.
 
-For more details on quantizing the model using MXNet, readers are encouraged to go through `Model
-Quantization with Calibration Examples
+For more details on quantizing the model using MXNet, readers are encouraged to
+go through `Model Quantization with Calibration Examples
 <https://github.com/apache/incubator-mxnet/tree/master/example/quantization>`_.
 
-Pre-requisites
+To get started, we need mxnet-mkl and gluoncv package. They can be installed as follows.
+
+.. code-block:: bash
+
     pip3 install mxnet-mkl --user
     pip3 install gluoncv --user
 """
@@ -39,7 +43,9 @@ import os
 
 import mxnet as mx
 from gluoncv.model_zoo import get_model
-from mxnet.contrib.quantization import *
+from mxnet.contrib.quantization import quantize_model_mkldnn
+
+import numpy as np
 
 import tvm
 from tvm import relay
@@ -48,20 +54,30 @@ from tvm import relay
 ###############################################################################
 # Helper functions
 # ----------------
-def download_calib_dataset(dataset_url, calib_dataset):
-    """ Download calibration dataset. """
-    print('Downloading calibration dataset from %s to %s' % (dataset_url, calib_dataset))
-    mx.test_utils.download(dataset_url, calib_dataset)
+
+###############################################################################
+# We need to download the calibration dataset. This dataset is used to find minimum and maximum
+# values of intermediate tensors while post-training MXNet quantization. MXNet quantizer, using
+# these min/max values, finds outs a suitable scale for the quantized tensors.
+def download_calib_dataset(dataset_url, calib_dataset_fname):
+    print('Downloading calibration dataset from %s to %s' % \
+            (dataset_url, calib_dataset_fname))
+    mx.test_utils.download(dataset_url, calib_dataset_fname)
 
 
-def prepare_calib_dataset(data_shape, label_name):
+###############################################################################
+# Lets preprare the calibration dataset by pre-processing. In this tutorial, we follow the
+# pre-processing used the MXNet quantization `tutorial
+# <https://github.com/apache/incubator-mxnet/tree/master/example/quantization>`_. Please replace it
+# with your pre-processing if needed.
+def prepare_calib_dataset(data_shape, label_name, calib_dataset_fname):
     """ Preprocess the dataset and set up the data iterator. """
     mean_args = {'mean_r': 123.68, 'mean_g': 116.779, 'mean_b': 103.939}
     std_args = {'std_r': 58.393, 'std_g': 57.12, 'std_b': 57.375}
     combine_mean_std = {}
     combine_mean_std.update(mean_args)
     combine_mean_std.update(std_args)
-    data = mx.io.ImageRecordIter(path_imgrec='data/val_256_q90.rec',
+    data = mx.io.ImageRecordIter(path_imgrec=calib_dataset_fname,
                                  label_width=1,
                                  preprocess_threads=60,
                                  batch_size=1,
@@ -74,10 +90,13 @@ def prepare_calib_dataset(data_shape, label_name):
     return data
 
 
+###############################################################################
+# The following function reads the FP32 MXNet model. In this example, we use resnet50-v1 model. The
+# readers are encouraged to go through MXNet quantization tutorial to get more models. We convert
+# the MXNet model to its symbol format.
 def get_mxnet_fp32_model():
     """ Read the MXNet symbol. """
     model_name = 'resnet50_v1'
-    dir_path = os.path.dirname(os.path.realpath(__file__))
     block = get_model(name=model_name, pretrained=True)
 
     # Convert the model to symbol format.
@@ -98,8 +117,11 @@ def get_mxnet_fp32_model():
     return sym, args, auxs
 
 
+###############################################################################
+# Lets now quantize the model using MXNet. MXNet works in concert with MKLDNN to quantize the
+# model. Note that MKLDNN is used only for quantizing. Once we get a quantized model, we can compile
+# and execute it on any supported hardware platform in TVM.
 def quantize_model(sym, arg_params, aux_params, data, ctx, label_name):
-    """ Quantize the model using MXNet. """
     return quantize_model_mkldnn(sym=sym,
                                  arg_params=arg_params,
                                  aux_params=aux_params,
@@ -110,10 +132,12 @@ def quantize_model(sym, arg_params, aux_params, data, ctx, label_name):
                                  label_names=(label_name,))
 
 
+###############################################################################
+# Lets run MXNet pre-quantized model inference and get the MXNet prediction.
 def run_mxnet(qsym, data, batch, ctx, label_name):
-    """ Run MXNet pre-quantized model inference. """
     mod = mx.mod.Module(symbol=qsym, context=[ctx], label_names=[label_name, ])
-    mod.bind(for_training=False, data_shapes=data.provide_data, label_shapes=data.provide_label)
+    mod.bind(for_training=False, data_shapes=data.provide_data,
+             label_shapes=data.provide_label)
     mod.set_params(qarg_params, qaux_params)
     mod.forward(batch, is_train=False)
     mxnet_res = mod.get_outputs()[0].asnumpy()
@@ -121,8 +145,9 @@ def run_mxnet(qsym, data, batch, ctx, label_name):
     return mxnet_pred
 
 
+###############################################################################
+# Lets run TVM compiled pre-quantized model inference and get the TVM prediction.
 def run_tvm(graph, lib, params, batch):
-    """ Run TVM compiler model inference. """
     from tvm.contrib import graph_runtime
     rt_mod = graph_runtime.create(graph, lib, ctx=tvm.cpu(0))
     rt_mod.set_input(**params)
@@ -133,40 +158,49 @@ def run_tvm(graph, lib, params, batch):
     return tvm_pred, rt_mod
 
 
+###############################################################################
 # Initialize variables.
 label_name = 'softmax_label'
 data_shape = (3, 224, 224)
 ctx = mx.cpu(0)
 
+###############################################################################
+# MXNet quantization and inference
+# --------------------------------
 
 ###############################################################################
-# MXNet quantization and inference.
-# ---------------------------------
-
 # Download and prepare calibrarion dataset.
-download_calib_dataset('http://data.mxnet.io/data/val_256_q90.rec', 'data/val_256_q90.rec')
-data = prepare_calib_dataset(data_shape, label_name)
+calib_dataset_fname = '/tmp/val_256_q90.rec'
+download_calib_dataset(dataset_url='http://data.mxnet.io/data/val_256_q90.rec',
+                       calib_dataset_fname=calib_dataset_fname )
+data = prepare_calib_dataset(data_shape, label_name, calib_dataset_fname)
 
+###############################################################################
 # Get a FP32 Resnet 50 MXNet model.
 sym, arg_params, aux_params = get_mxnet_fp32_model()
 
+###############################################################################
 # Quantize the MXNet model using MXNet quantizer.
 qsym, qarg_params, qaux_params = quantize_model(sym, arg_params, aux_params,
                                                 data, ctx, label_name)
 
+###############################################################################
 # Get the testing image from the MXNet data iterator.
 batch = data.next()
 
+###############################################################################
 # Run MXNet inference on the quantized model.
 mxnet_pred = run_mxnet(qsym, data, batch, ctx, label_name)
 
+###############################################################################
+# TVM compilation and inference
+# ----------------------------------------------------
 
 ###############################################################################
-# TVM compilation of pre-quantized model and inference.
-# -----------------------------------------------------
-
-# Use MXNet-Relay parser. Note that the frontend parser call is exactly same as frontend parser call
-# for a FP32 model.
+# We use the MXNet-Relay parser to conver the MXNet pre-quantized graph into Relay IR. Note that the
+# frontend parser call for a pre-quantized model is exactly same as frontend parser call for a FP32
+# model. We encourage you to remove the comment from print(mod) and inspect the Relay module. You
+# will see many QNN operators, like, Requantize, Quantize and QNN Conv2D.
 input_shape = [1] + list(data_shape)
 input_dict = {'data': input_shape}
 mod, params = relay.frontend.from_mxnet(qsym,
@@ -174,36 +208,35 @@ mod, params = relay.frontend.from_mxnet(qsym,
                                         shape=input_dict,
                                         arg_params=qarg_params,
                                         aux_params=qaux_params)
-
-# Please inspect the module. You will have QNN operators like requantize, quantize, conv2d.
 # print(mod)
 
-# Compile Relay module. Set the target platform. Replace the target with the your target type.
+###############################################################################
+# Lets now the compile the Relay module. We use the "llvm" target here. Please replace it with the
+# target platform that you are interested in.
 target = 'llvm'
 with relay.build_config(opt_level=3):
-    graph, lib, params = relay.build_module.build(mod, target=target, params=params)
-
-# Call inference on the compiled module.
-tvm_pred, rt_mod = run_tvm(graph, lib, params, batch)
-
+    graph, lib, params = relay.build_module.build(mod, target=target,
+                                                  params=params)
 
 ###############################################################################
-# Accuracy comparison.
-# --------------------
+# Finally, lets call inference on the TVM compiled module.
+tvm_pred, rt_mod = run_tvm(graph, lib, params, batch)
 
+###############################################################################
+# Accuracy comparison
+# -------------------
+
+###############################################################################
 # Print the top-5 labels for MXNet and TVM inference. Note that final tensors can slightly differ
 # between MXNet and TVM quantized inference, but the classification accuracy is not significantly
-# affected. Output of the following code is as follows
-#
-# TVM Top-5 labels: [236 211 178 165 168]
-# MXNet Top-5 labels: [236 211 178 165 168]
+# affected.
 print("TVM Top-5 labels:", tvm_pred)
 print("MXNet Top-5 labels:", mxnet_pred)
 
 
 ##########################################################################
-# Measure performance.
-# --------------------
+# Measure performance
+# -------------------
 # Here we give an example of how to measure performance of TVM compiled models.
 n_repeat = 100  # should be bigger to make the measurement more accurate
 ctx = tvm.cpu(0)
@@ -228,5 +261,5 @@ print("Elapsed average ms:", np.mean(prof_res))
 #    * Set the environment variable TVM_NUM_THREADS to the number of physical cores
 #    * Choose the best target for your hardware, such as "llvm -mcpu=skylake-avx512" or
 #      "llvm -mcpu=cascadelake" (more CPUs with AVX512 would come in the future)
-#    * Perform autotuning - `Auto-tuning a convolution network for x86 CPU 
+#    * Perform autotuning - `Auto-tuning a convolution network for x86 CPU
 #      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_.
