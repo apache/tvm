@@ -172,10 +172,10 @@ IntSet EvalSet(PrimExpr e,
  */
 IntSet EvalSet(PrimExpr e,
                const std::unordered_map<const tir::VarNode*, IntSet>& dom_map);
-IntSet EvalSet(PrimExpr e,
-               const std::unordered_map<const tir::VarNode*, IntSet>& dom_map, const std::unordered_map<IterVar, Range>& rmap);
-IntSet EvalSet(PrimExpr e,
-               const std::unordered_map<const tir::VarNode*, IntSet>& dom_map, const Map<IterVar, Range>& rmap);
+IntSet EvalSet(PrimExpr e, const std::unordered_map<const tir::VarNode*, IntSet>& dom_map,
+               const std::unordered_map<IterVar, Range>& rmap);
+IntSet EvalSet(PrimExpr e, const std::unordered_map<const tir::VarNode*, IntSet>& dom_map,
+               const Map<IterVar, Range>& rmap);
 
 /*!
  * \brief Find an symbolic integer set that contains is union over
@@ -208,8 +208,8 @@ IntSet EvalSet(IntSet s,
  */
 IntSet EvalSet(Range r,
                const std::unordered_map<const VarNode*, IntSet>& dom_map);
-IntSet EvalSet(Range r,
-               const std::unordered_map<const VarNode*, IntSet>& dom_map, const std::unordered_map<IterVar, Range>& rmap);
+IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map,
+               const std::unordered_map<IterVar, Range>& rmap);
 
 /*! \brief Map from Expr to IntSet */
 using ExprIntSetMap = std::unordered_map<PrimExpr, IntSet, ObjectHash, ObjectEqual>;

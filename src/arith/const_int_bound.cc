@@ -152,10 +152,9 @@ class ConstIntBoundAnalyzer::Impl :
       if (val != bound_->end()) {
         auto everything = Everything(op->dtype);
         CHECK(
-            (val->second->min_value == res.min_value && 
-            val->second->max_value == res.max_value) ||
+            (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
-            val->second->max_value == everything.max_value))
+             val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
       (*bound_)[op] = ConstIntBound(res.min_value, res.max_value);
