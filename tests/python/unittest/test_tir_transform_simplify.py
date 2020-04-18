@@ -27,7 +27,9 @@ def test_stmt_simplify():
             A[i] = C[i]
 
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    body = tvm.tir.ir_pass.CanonicalSimplify(body)
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C, n], body))
+    body = tvm.tir.transform.Simplify()(mod)["main"].body
     assert isinstance(body.body, tvm.tir.Store)
 
 
@@ -44,7 +46,9 @@ def test_thread_extent_simplify():
     with ib.if_scope(tx + ty < 12):
         A[tx] = C[tx + ty]
     body = tvm.tir.LetStmt(n, 10, ib.get())
-    body = tvm.tir.ir_pass.CanonicalSimplify(body)
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A, C, n], body))
+    body = tvm.tir.transform.Simplify()(mod)["main"].body
     assert isinstance(body.body.body.body, tvm.tir.Store)
 
 

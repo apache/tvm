@@ -21,9 +21,11 @@
  * \file vectorize_loop.cc
  */
 // Loop vectorizer as in Halide pipeline.
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_set>
 #include <unordered_map>
@@ -539,8 +541,9 @@ class VectorizeSkipper : public StmtMutator {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<ForNode>();
     if (op->for_type == ForType::Vectorized) {
-      return ForNode::make(op->loop_var, op->min, op->extent, ForType::Serial, op->device_api,
-                       op->body);
+      return ForNode::make(op->loop_var, op->min, op->extent,
+                           ForType::Serial, op->device_api,
+                           op->body);
     } else {
        return stmt;
     }
@@ -550,6 +553,33 @@ class VectorizeSkipper : public StmtMutator {
 Stmt SkipVectorize(Stmt stmt) {
   return VectorizeSkipper()(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.VectorizeLoop")
+.set_body_typed(VectorizeLoop);
+
+TVM_REGISTER_GLOBAL("ir_pass.SkipVectorize")
+.set_body_typed(SkipVectorize);
+
+namespace transform {
+
+// TODO(tvm-team): Make it as a target property.
+Pass VectorizeLoop(bool enable_vectorize) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    if (enable_vectorize) {
+      n->body = LoopVectorizer()(std::move(n->body));
+    } else {
+      n->body = VectorizeSkipper()(std::move(n->body));
+    }
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.VectorizeLoop", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.VectorizeLoop")
+.set_body_typed(VectorizeLoop);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

@@ -18,17 +18,19 @@
  */
 
 /*!
- * \file stmt_simplify.cc
+ * \file simplify.cc
  * \brief Statement simplifier based on analyzer
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/arith/analyzer.h>
 
 #include <tvm/tir/op.h>
 #include <tvm/arith/analyzer.h>
-#include "ir_mutator_with_analyzer.h"
+#include "../../arith/ir_mutator_with_analyzer.h"
 
 namespace tvm {
 namespace arith {
@@ -125,5 +127,23 @@ PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange) {
 Stmt Simplify(Stmt stmt, Map<Var, Range> vrange) {
   return CanonicalSimplify(std::move(stmt), vrange);
 }
+
+namespace transform {
+
+Pass Simplify() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    arith::Analyzer analyzer;
+    n->body = arith::StmtSimplifier(&analyzer).Simplify(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.Simplify", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.Simplify")
+.set_body_typed(Simplify);
+
+}  // namespace transform
+
 }  // namespace tir
 }  // namespace tvm
