@@ -379,7 +379,7 @@ class WarpMemoryRewriter : private StmtMutator {
   Stmt VisitStmt_(const AllocateNode* op) {
     if (warp_buffer_.count(op->buffer_var.get())) {
       WarpAccessRewriter rewriter(warp_size_, &analyzer_);
-      return rewriter.Rewrite(op);
+      return StmtMutator::VisitStmt_(rewriter.Rewrite(op).as<AllocateNode>());
     } else {
       return StmtMutator::VisitStmt_(op);
     }
