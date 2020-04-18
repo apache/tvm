@@ -16,7 +16,7 @@
 # under the License.
 """
 Deploy a Framework-prequantized Model with TVM - Part 2 (MXNet)
-==============================================
+===============================================================
 **Author**: `Animesh Jain <https://github.com/anijain2305>`_
 
 Welcome to Part 2 of Deploy Framework-Prequantized Model with TVM. In this tutorial, we will start
@@ -163,7 +163,7 @@ mxnet_pred = run_mxnet(qsym, data, batch, ctx, label_name)
 
 ###############################################################################
 # TVM compilation of pre-quantized model and inference.
-# ---------------------------------
+# -----------------------------------------------------
 
 # Use MXNet-Relay parser. Note that the frontend parser call is exactly same as frontend parser call
 # for a FP32 model.
@@ -179,7 +179,7 @@ mod, params = relay.frontend.from_mxnet(qsym,
 # print(mod)
 
 # Compile Relay module. Set the target platform. Replace the target with the your target type.
-target = 'llvm -mcpu=cascadelake'
+target = 'llvm'
 with relay.build_config(opt_level=3):
     graph, lib, params = relay.build_module.build(mod, target=target, params=params)
 
@@ -211,10 +211,22 @@ ftimer = rt_mod.module.time_evaluator("run", ctx, number=1, repeat=n_repeat)
 prof_res = np.array(ftimer().results) * 1e3
 print("Elapsed average ms:", np.mean(prof_res))
 
-##########################################################################
-# Notes
-# -----
-# 1) On Intel Cascadelake server, the performance is 2.01 ms.
-# 2) Auto-tuning can potentially improve this performance. Please follow the tutorial at
-# `Auto-tuning a convolution network for x86 CPU
-# <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_.
+######################################################################
+# .. note::
+#
+#   Unless the hardware has special support for fast 8 bit instructions, quantized models are
+#   not expected to be any faster than FP32 models. Without fast 8 bit instructions, TVM does
+#   quantized convolution in 16 bit, even if the model itself is 8 bit.
+#
+#   For x86, the best performance can be achieved on CPUs with AVX512 instructions set.
+#   In this case, TVM utilizes the fastest available 8 bit instructions for the given target.
+#   This includes support for the VNNI 8 bit dot product instruction (CascadeLake or newer).
+#   For EC2 C5.12x large instance, TVM latency for this tutorial is ~2 ms.
+#
+#   Moreover, the following general tips for CPU performance equally applies:
+#
+#    * Set the environment variable TVM_NUM_THREADS to the number of physical cores
+#    * Choose the best target for your hardware, such as "llvm -mcpu=skylake-avx512" or
+#      "llvm -mcpu=cascadelake" (more CPUs with AVX512 would come in the future)
+#    * Perform autotuning - `Auto-tuning a convolution network for x86 CPU 
+#      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_.

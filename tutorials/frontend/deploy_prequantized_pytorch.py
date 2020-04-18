@@ -16,7 +16,7 @@
 # under the License.
 """
 Deploy a Framework-prequantized Model with TVM - Part 1 (PyTorch)
-==============================================
+=================================================================
 **Author**: `Masahiro Masuda <https://github.com/masahi>`_
 
 This is a tutorial on loading models quantized by deep learning frameworks into TVM.
@@ -227,14 +227,5 @@ print("Elapsed average ms:", np.mean(prof_res))
 #    * Set the environment variable TVM_NUM_THREADS to the number of physical cores
 #    * Choose the best target for your hardware, such as "llvm -mcpu=skylake-avx512" or
 #      "llvm -mcpu=cascadelake" (more CPUs with AVX512 would come in the future)
-
-
-###############################################################################
-# Deploy a quantized MXNet Model
-# ------------------------------
-# TODO
-
-###############################################################################
-# Deploy a quantized TFLite Model
-# -------------------------------
-# TODO
+#    * Perform autotuning - `Auto-tuning a convolution network for x86 CPU
+#      <https://tvm.apache.org/docs/tutorials/autotvm/tune_relay_x86.html>`_.
