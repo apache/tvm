@@ -179,6 +179,7 @@ def lower(sch,
         cfg.auto_unroll_max_depth,
         cfg.auto_unroll_max_extent,
         cfg.unroll_explicit)
+
     for f in lower_phase2:
         stmt = f(stmt)
 
@@ -187,11 +188,14 @@ def lower(sch,
     stmt = ir_pass.RemoveNoOp(stmt)
     if not cfg.disable_select_rewriting:
         stmt = ir_pass.RewriteUnsafeSelect(stmt)
+
     for f in lower_phase3:
         stmt = f(stmt)
+
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
         stmt = ir_pass.InstrumentBoundCheckers(stmt)
+
     if simple_mode:
         return stmt
 

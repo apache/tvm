@@ -22,8 +22,11 @@
  * \file unroll_loop.cc
  */
 // Unrolls the loop as in Halide pipeline.
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_set>
 #include <unordered_map>
@@ -201,13 +204,31 @@ Stmt UnrollLoop(Stmt stmt,
   }
 }
 
-Stmt UnrollLoopExplicitly(Stmt stmt) {
-  const ForNode* op = stmt.as<ForNode>();
-  if (!op) {
-    LOG(FATAL) << "attempted to unroll a non-loop statement";
-  }
-  return LoopUnroller(0, 0, 0, false).Unroll(op);
+TVM_REGISTER_GLOBAL("ir_pass.UnrollLoop")
+.set_body_typed(UnrollLoop);
+
+namespace transform {
+
+Pass UnrollLoop(int auto_max_step,
+                int auto_max_depth,
+                int auto_max_extent,
+                bool explicit_unroll) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = UnrollLoop(std::move(f->body),
+                         auto_max_step,
+                         auto_max_depth,
+                         auto_max_extent,
+                         explicit_unroll);
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.UnrollLoop", {});
 }
+
+TVM_REGISTER_GLOBAL("tir.transform.UnrollLoop")
+.set_body_typed(UnrollLoop);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

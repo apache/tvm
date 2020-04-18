@@ -109,64 +109,6 @@ void GetBinds(const Array<te::Tensor>& args,
   }
 }
 
-/*!
-* \brief Build a Stmt given a schedule, args and binds. This function runs the IR passes.
-* \param sch The schedule to build.
-* \param args The arguments for the schedule.
-* \param binds Buffer assignments.
-* \param loop_partition True if the LoopPartition pass should be included.
-* \param out_arg_list Returns the arguments for the Stmt.
-* \param config The build configuration.
-* \return The built Stmt.
-*/
-tir::Stmt BuildStmt(te::Schedule sch,
-                    const Array<te::Tensor>& args,
-                    const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                    bool loop_partition,
-                    Array<ObjectRef> *out_arg_list,
-                    const BuildConfig& config) {
-  sch = sch.normalize();
-
-  // Phase 0
-  auto bounds = te::InferBound(sch);
-  auto stmt = te::ScheduleOps(sch, bounds, false);
-  stmt = tir::InjectPrefetch(stmt);
-
-  bool compact = tir::VerifyCompactBuffer(stmt);
-  Map<te::Tensor, tir::Buffer> out_binds;
-  GetBinds(args, compact, binds, &out_binds, out_arg_list, config);
-
-  // Phase 1
-  stmt = tir::StorageFlatten(stmt, out_binds, 64,
-                            config->instrument_bound_checkers);
-  stmt = tir::CanonicalSimplify(stmt);
-  if (loop_partition) {
-    stmt = tir::LoopPartition(stmt, config->partition_const_loop);
-  }
-  if (config->disable_vectorize) {
-    stmt = tir::SkipVectorize(stmt);
-  } else {
-    stmt = tir::VectorizeLoop(stmt);
-  }
-  stmt = tir::InjectVirtualThread(stmt);
-  stmt = tir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
-  stmt = tir::StorageRewrite(stmt);
-  stmt = tir::UnrollLoop(stmt, config->auto_unroll_max_step, config->auto_unroll_max_depth,
-    config->auto_unroll_max_extent, config->unroll_explicit);
-
-  // Phase 2
-  stmt = tir::Simplify(stmt);
-  stmt = tir::RemoveNoOp(stmt);
-
-  if (!(config->disable_select_rewriting))
-    stmt = tir::RewriteUnsafeSelect(stmt);
-
-  if (config->instrument_bound_checkers)
-    stmt = tir::InstrumentBoundCheckers(stmt);
-
-  return stmt;
-}
-
 transform::Pass BindTarget(Target target) {
   auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     return WithAttr(std::move(f), tvm::attr::kTarget, target);
@@ -176,7 +118,7 @@ transform::Pass BindTarget(Target target) {
 
 
 template<typename FCond>
-transform::Pass FilterBy(FCond fcond) {
+transform::Pass Filter(FCond fcond) {
   auto fpass = [fcond](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     if (fcond(f)) {
       return f;
@@ -184,18 +126,14 @@ transform::Pass FilterBy(FCond fcond) {
       return tir::PrimFunc(nullptr);
     }
   };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "FilterBy", {});
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "Filter", {});
 }
 
 
-IRModule lower(te::Schedule sch,
-               const Array<te::Tensor>& args,
-               const std::string& name,
-               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-               const BuildConfig& config) {
-  Array<ObjectRef> out_arg_list;
-  auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
-
+IRModule BuildIRModule(const Array<ObjectRef>& out_arg_list,
+                       tir::Stmt stmt,
+                       const std::string& name,
+                       const BuildConfig& config) {
   Array<tir::Var> params;
   Map<tir::Var, tir::Buffer> buffer_map;
 
@@ -216,7 +154,61 @@ IRModule lower(te::Schedule sch,
   if (config->restricted_func) {
     f = WithAttr(std::move(f), "tir.noalias", Integer(1));
   }
+
   return IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(name), f}}));
+}
+
+
+IRModule lower(te::Schedule sch,
+               const Array<te::Tensor>& args,
+               const std::string& name,
+               const std::unordered_map<te::Tensor, tir::Buffer>& binds,
+               const BuildConfig& config) {
+  Array<ObjectRef> out_arg_list;
+
+  sch = sch.normalize();
+
+  // Phase 0
+  auto bounds = te::InferBound(sch);
+  auto stmt = te::ScheduleOps(sch, bounds, false);
+  stmt = tir::InjectPrefetch(stmt);
+
+  bool compact = tir::VerifyCompactBuffer(stmt);
+  Map<te::Tensor, tir::Buffer> out_binds;
+  GetBinds(args, compact, binds, &out_binds, &out_arg_list, config);
+
+  // Phase 1
+  stmt = tir::StorageFlatten(stmt, out_binds, 64,
+                             config->instrument_bound_checkers);
+
+  // convert to IRModule.
+  auto mod = BuildIRModule(out_arg_list, stmt, name, config);
+  auto pass_list = Array<tvm::transform::Pass>();
+
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::LoopPartition(config->partition_const_loop));
+  pass_list.push_back(tir::transform::VectorizeLoop(!config->disable_vectorize));
+  pass_list.push_back(tir::transform::InjectVirtualThread());
+  pass_list.push_back(tir::transform::InjectDoubleBuffer(config->double_buffer_split_loop));
+  pass_list.push_back(tir::transform::StorageRewrite());
+  pass_list.push_back(
+      tir::transform::UnrollLoop(config->auto_unroll_max_step,
+                                 config->auto_unroll_max_depth,
+                                 config->auto_unroll_max_extent,
+                                 config->unroll_explicit));
+  // Phase 2
+  pass_list.push_back(tir::transform::Simplify());
+  pass_list.push_back(tir::transform::RemoveNoOp());
+  if (!(config->disable_select_rewriting)) {
+    pass_list.push_back(tir::transform::RewriteUnsafeSelect());
+  }
+  if (config->instrument_bound_checkers) {
+    pass_list.push_back(tir::transform::InstrumentBoundCheckers());
+  }
+  // run
+  auto optimize = transform::Sequential(pass_list);
+  mod = optimize(std::move(mod));
+  return mod;
 }
 
 
@@ -242,7 +234,7 @@ split_dev_host_funcs(IRModule mod_mixed,
   mod_mixed = opt_mixed(std::move(mod_mixed));
 
   auto host_pass_list = {
-    FilterBy([](const tir::PrimFunc& f) {
+    Filter([](const tir::PrimFunc& f) {
       return f->GetAttr<Integer>(
           tvm::attr::kCallingConv,
           Integer(CallingConv::kDefault)) != CallingConv::kDeviceKernelLaunch;
@@ -258,7 +250,7 @@ split_dev_host_funcs(IRModule mod_mixed,
 
   // device pipeline
   auto device_pass_list = {
-    FilterBy([](const tir::PrimFunc& f) {
+    Filter([](const tir::PrimFunc& f) {
       return f->GetAttr<Integer>(
           tvm::attr::kCallingConv,
           Integer(CallingConv::kDefault)) == CallingConv::kDeviceKernelLaunch;

@@ -21,9 +21,10 @@
  * \file unsafe_select_rewrite.cc
  * \brief Rewrite uinsafe select expression.
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace tir {
@@ -131,6 +132,25 @@ class UnsafeSelectRewriter : public StmtExprMutator {
 Stmt RewriteUnsafeSelect(Stmt stmt) {
   return UnsafeSelectRewriter()(std::move(stmt));
 }
+
+TVM_REGISTER_GLOBAL("ir_pass.RewriteUnsafeSelect")
+.set_body_typed(RewriteUnsafeSelect);
+
+namespace transform {
+
+Pass RewriteUnsafeSelect() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = UnsafeSelectRewriter()(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.RewriteUnsafeSelect", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.RewriteUnsafeSelect")
+.set_body_typed(RewriteUnsafeSelect);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

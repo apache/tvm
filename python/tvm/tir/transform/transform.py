@@ -60,6 +60,203 @@ def Filter(fcond):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")
 
 
+def InjectCopyIntrin(pragma_key, fintrin):
+    """Inject virtual thread loops.
+
+    Parameters
+    ----------
+    pragma_key : str
+        The pragma key for hint of copy.
+
+    fintrin : function
+        The function with signature copyintrin(src, dst, pad_before, pad_after, pad_value)
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectCopyIntrin(pragma_key, fintrin)
+
+
+def CoProcSync():
+    """Detect and insert sync points to co-processor.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.CoProcSync()
+
+
+def LiftAttrScope(attr_key):
+    """Lift common attrs with attr_key to outer scope.
+
+    Parameters
+    ----------
+    attr_key : str
+        The attribute key to be checked.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LiftAttrScope(attr_key)
+
+
+def LoopPartition(split_const_loop):
+    """Inject virtual thread loops.
+
+    Parameters
+    ----------
+    split_const_loop : bool
+        Flag to enable partition for const loop.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LoopPartition(split_const_loop)
+
+
+def VectorizeLoop(enable_vectorize=True):
+    """Lower vectorization loops.
+
+    Parameters
+    ----------
+    enable_vectorize : bool
+        Whether vectorization is enabled.
+        Will lower to scalar loop when it is turned off.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.VectorizeLoop(enable_vectorize)
+
+
+def InjectVirtualThread():
+    """Inject virtual thread loops.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectVirtualThread()
+
+
+def InjectDoubleBuffer(split_loop_factor):
+    """Inject double buffer statements.
+
+    Parameters
+    ----------
+    split_loop_factor : int
+        Loop splitting factor.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectDoubleBuffer(split_loop_factor)
+
+
+def StorageRewrite():
+    """Rewrite storage allocation pattern.
+
+    Moves the allocation to outer most possible scope.
+    Trying to share space between allocations to make
+    a static allocation plan when possible.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.StorageRewrite()
+
+
+def UnrollLoop(auto_max_step,
+               auto_max_depth,
+               auto_max_extent,
+               explicit_unroll):
+    """Unroll the constant loop marked by unroll.
+
+    This pass also automatically attach pragma unroll tag to loops which meets the standard.
+
+    Parameters
+    ----------
+    auto_max_step : int
+        The maximum step before stop attach automatic unroll
+
+    auto_max_depth : int
+        The maximum depth before stop attach automatic unroll
+
+     auto_max_extent : int
+        The maximum extent of the loop we can unroll.
+        This is an legacy option that do not take the loop total steps into account.
+
+    explicit_unroll : bool
+        Whether explicitly unroll the loop, or leave unroll annotation to codegen.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.UnrollLoop(
+        auto_max_step, auto_max_depth, auto_max_extent, explicit_unroll)
+
+
+def RemoveNoOp():
+    """Remove No Op from the Stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RemoveNoOp()
+
+
+def RewriteUnsafeSelect():
+    """Detect and rewrite unsafe select that contains memory access.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.RewriteUnsafeSelect()
+
+
+def Simplify():
+    """Run arithmetic simplifications on the statements and expressions.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.Simplify()
+
+
+def InstrumentBoundCheckers():
+    """Instruments bound checkers.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InstrumentBoundCheckers()
+
+
 def LowerCustomDatatypes():
     """Lower custom datatypes.
 

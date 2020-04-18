@@ -395,6 +395,10 @@ Stmt NarrowDataType(Stmt stmt, int target_bits) {
   return DataTypeRewriter(target_bits)(stmt);
 }
 
+TVM_REGISTER_GLOBAL("ir_pass.NarrowDataType")
+.set_body_typed(NarrowDataType);
+
+
 namespace transform {
 
 Pass NarrowDataType(int target_bits) {

@@ -28,11 +28,15 @@ def test_vectorize_loop():
     stmt = ib.get()
 
     assert isinstance(stmt.body, tvm.tir.For)
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert isinstance(stmt, tvm.tir.For)
     assert not isinstance(stmt.body, tvm.tir.For)
     assert isinstance(stmt.body.index, tvm.tir.Ramp)
     assert isinstance(stmt.body.value, tvm.tir.Broadcast)
+
 
 def test_vectorize_vector():
     dtype = 'int64'
@@ -44,7 +48,10 @@ def test_vectorize_vector():
             A[j] = tvm.tir.const(1, A.dtype)
     stmt = ib.get()
     assert isinstance(stmt.body, tvm.tir.For)
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert isinstance(stmt, tvm.tir.For)
     assert not isinstance(stmt.body, tvm.tir.For)
     assert isinstance(stmt.body.index, tvm.tir.Ramp)
@@ -63,12 +70,16 @@ def test_vectorize_with_if():
             with ib.if_scope(i < n):
                 A[i] = 2.0
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n, x], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert isinstance(stmt, tvm.tir.IfThenElse)
     assert isinstance(stmt.then_case.index, tvm.tir.Ramp)
     assert isinstance(stmt.then_case.value, tvm.tir.Add)
     assert stmt.then_case.value.dtype == "float32x4"
     assert isinstance(stmt.else_case, tvm.tir.For)
+
 
 def test_vectorize_with_le_cond():
     n = te.var('n')
@@ -78,8 +89,12 @@ def test_vectorize_with_le_cond():
         with ib.if_scope(i <= n):
             A[i] = A[i] + 1
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert isinstance(stmt, tvm.tir.For)
+
 
 def test_vectorize_with_ge_cond():
     n = te.var('n')
@@ -89,8 +104,12 @@ def test_vectorize_with_ge_cond():
         with ib.if_scope(i >= n):
             A[i] = A[i] + 1
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert isinstance(stmt, tvm.tir.For)
+
 
 def test_vectorize_if_then_else():
     n = te.var('n')
@@ -102,7 +121,10 @@ def test_vectorize_if_then_else():
                                i > 0,
                                A[i] + 1, A[i])
     stmt = ib.get()
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n, x], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert isinstance(stmt, tvm.tir.For)
 
 
@@ -114,8 +136,12 @@ def test_vectorize_if_then_else():
                                            k > 0,
                                            A[k * 4 + i], 0)
     stmt = ib.get()
+
     assert isinstance(stmt.body, tvm.tir.For)
-    stmt = tvm.tir.ir_pass.VectorizeLoop(stmt)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
+    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
     assert not isinstance(stmt.body, tvm.tir.For)
     assert isinstance(stmt.body.value.args[2], tvm.tir.Broadcast)
 

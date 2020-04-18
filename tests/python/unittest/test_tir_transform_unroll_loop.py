@@ -46,7 +46,11 @@ def test_unroll_loop():
     wrapped = ib.get()
     wrapped = tvm.tir.SeqStmt([wrapped, stmt])
     assert isinstance(ret, tvm.tir.For)
-    ret = tvm.tir.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], wrapped))
+    ret = tvm.tir.transform.UnrollLoop(0, 8, 0, False)(mod)["main"].body
+
+    # ret = tvm.tir.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
     assert isinstance(ret[0], tvm.tir.For)
     assert ret[0].for_type == tvm.tir.For.Unrolled
     assert isinstance(ret[1], tvm.tir.For)
@@ -65,7 +69,11 @@ def test_unroll_fake_loop():
             Aptr[j + 1] = Aptr[i] + 1
 
     stmt = ib.get()
-    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
+
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
+    ret = tvm.tir.transform.UnrollLoop(8, 0, 1, False)(mod)["main"].body
+
+    # ret = tvm.tir.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
     assert isinstance(ret[0], tvm.tir.Store)
 
 def test_unroll_single_count_loops():
@@ -78,8 +86,10 @@ def test_unroll_single_count_loops():
     stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
     # all parameters to UnrolLoops are default values except for
     # auto_unroll_max_extent which has been set to 1 (default:0)
-    after_unroll_stmt = tvm.tir.ir_pass.UnrollLoop(stmt, 0, 8, 1, True)
-    assert after_unroll_stmt == stmt
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
+    ret = tvm.tir.transform.UnrollLoop(0, 8, 1, True)(mod)["main"].body
+
+    assert ret == stmt
 
 if __name__ == "__main__":
     test_unroll_loop()
