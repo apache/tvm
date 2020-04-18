@@ -20,4 +20,4 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install tensorflow==1.13.1 keras h5py
+pip3 install tensorflow==1.15.2 keras h5py
