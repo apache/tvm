@@ -156,6 +156,7 @@ setup(name='tvm',
       zip_safe=False,
       install_requires=[
         'numpy',
+        'scipy',
         'decorator',
         'attrs',
         'psutil',

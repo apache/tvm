@@ -53,6 +53,7 @@ from .op.algorithm import *
 from . import frontend
 from . import backend
 from . import quantize
+from . import data_dep_optimization
 
 # Dialects
 from . import qnn

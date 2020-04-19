@@ -333,3 +333,21 @@ def extract_fused_functions(mod):
     for hash_, func in ret_mod.functions.items():
         ret[hash_] = func
     return ret
+
+
+def search_fc_transpose(expr):
+    """Search fc weight name in the patten: y = nn.dense(x, transpose(w, [1, 0]))
+
+    This function is used in the data_dep_optimization.simplify_fc_transpose method
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+
+    Returns
+    -------
+    ret : Array[String]
+        Array of weight variable name in pattern y = nn.dense(x, transpose(w, [1, 0]))
+    """
+    ret = _ffi_api.search_fc_transpose(expr)
+    return ret
