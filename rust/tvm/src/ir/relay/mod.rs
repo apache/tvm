@@ -5,6 +5,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use tvm_rt::TVMRetValue;
 use super::array::Array;
+use tvm_macros::Object;
 
 #[repr(C)]
 pub struct IdNode {
@@ -138,53 +139,11 @@ impl Constant {
 }
 
 #[repr(C)]
+#[derive(Object)]
 pub struct VarNode {
     pub base: RelayExpr,
     pub vid: Id,
     pub type_annotation: ObjectRef,
-}
-
-unsafe impl IsObject for VarNode {
-    const TYPE_KEY: &'static str = "relay.Var";
-
-    fn as_object<'s>(&'s self) -> &'s Object {
-        &self.base.base.base
-    }
-}
-
-pub struct Var(Option<ObjectPtr<VarNode>>);
-
-impl Var {
-    pub fn new(name_hint: String, _span: ObjectRef) -> Var {
-        let node = VarNode {
-            base: RelayExpr::base::<VarNode>(),
-            vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
-            type_annotation: ObjectRef::null(),
-        };
-        Var(Some(ObjectPtr::new(node)))
-    }
-
-    pub fn upcast(&self) -> ObjectRef {
-        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
-    }
-
-    pub fn name_hint(&self) -> &TString {
-        &self.vid.0.as_ref().unwrap().name_hint
-    }
-}
-
-impl ToObjectRef for Var {
-    fn to_object_ref(&self) -> ObjectRef {
-        self.upcast()
-    }
-}
-
-impl std::ops::Deref for Var {
-    type Target = VarNode;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref().unwrap()
-    }
 }
 
 use anyhow::anyhow;
