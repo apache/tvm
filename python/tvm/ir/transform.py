@@ -157,11 +157,6 @@ class Sequential(Pass):
     """A pass that works on a sequence of pass objects. Multiple passes can be
     executed sequentially using this class.
 
-    Some typical usage of the sequential pass are:
-    1. Users provide a list of passes for optimization.
-    2. Only an optimization level is provided so that the backend system has
-    to glob all passes at this level and below to perform the optimizations.
-
     Note that users can also provide a series of passes that they don't want to
     apply when running a sequential pass. Pass dependency will be resolved in
     the backend as well.
@@ -173,6 +168,9 @@ class Sequential(Pass):
 
     opt_level : Optional[int]
         The optimization level of this sequential pass.
+        The opt_level of a default sequential pass is set to 0.
+        Note that some of the passes within the Sequantial may still not be executed
+        if their opt_level is higher than the provided opt_level.
 
     name : Optional[str]
         The name of the sequential pass.

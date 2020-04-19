@@ -365,7 +365,7 @@ def test_bind():
     a = te.placeholder((8, 4), 'float32')
     c = foo(a)
     s = te.create_schedule(c.op)
-    ir = tvm.lower(s, [a, c], simple_mode=True)
+    ir = tvm.lower(s, [a, c])
 
     func, ins, outs = run_and_check(foo, [a], target='cuda')
     run_and_check(func, ins, outs=outs, target='cuda')
@@ -517,7 +517,7 @@ def test_upstream():
     c = te.compute((20, ), lambda x: a[x] + b[x])
     d = upstream(c)
     sch = te.create_schedule([c.op, d.op])
-    ir = tvm.lower(sch, [a, b, d], simple_mode=True)
+    ir = tvm.lower(sch, [a, b, d])
     func = tvm.build(sch, [a, b, d])
     assert(func)
 
@@ -730,7 +730,7 @@ def test_schedule():
     joo, joi = sch[c].split(jo, 4)
     sch[c].vectorize(ji)
     sch[c].reorder(ii, io, joo, joi, ji)
-    ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+    ir = tvm.lower(sch, [a, b, c])["main"].body
     assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
     assert isinstance(ir, tvm.tir.For)
@@ -751,7 +751,7 @@ def test_schedule():
     # Test fuse
     sch = te.create_schedule(c.op)
     sch[c].fuse(c.op.axis[0], c.op.axis[1])
-    ir = tvm.lower(sch, [a, b, c], simple_mode=True)
+    ir = tvm.lower(sch, [a, b, c])["main"].body
     assert isinstance(ir, tvm.tir.AttrStmt)
     ir = ir.body
     assert isinstance(ir, tvm.tir.For)

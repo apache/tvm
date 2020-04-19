@@ -30,11 +30,11 @@ def test_storage_share():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
     stmt = mod["main"].body
@@ -166,11 +166,11 @@ def test_inplace_rule():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
     stmt = mod["main"].body
@@ -201,11 +201,10 @@ def test_storage_combine():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb}, 64)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
     stmt = mod["main"].body
@@ -238,11 +237,9 @@ def test_storage_share_gpu():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A[0].shape, A[0].dtype, name='A')
-    Bb = tvm.tir.decl_buffer(A[0].shape, A[0].dtype, name='B')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A[0]: Ab, A[-1]: Bb}, 64)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb], stmt))
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A[0], A[-1]], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
     stmt = mod["main"].body
@@ -306,13 +303,11 @@ def test_inplace_rule2(scope_tb = "local_TB2", max_bits = 1024 * 1024 * 1024):
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    Cc = tvm.tir.decl_buffer(C.shape, B.dtype, name='C')
-    Dd = tvm.tir.decl_buffer(D.shape, B.dtype, name='D')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B: Bb, C: Cc, D:Dd}, 64)
 
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab, Bb, Cc, Dd], stmt))
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B, C, D], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
     stmt = mod["main"].body
@@ -398,17 +393,11 @@ def test_inplace_rule3():
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
 
-    B0a = tvm.tir.decl_buffer(B0.shape, B0.dtype, name='B0')
-    B1a = tvm.tir.decl_buffer(B1.shape, B1.dtype, name='B1')
-    B2a = tvm.tir.decl_buffer(B2.shape, B2.dtype, name='B2')
-    B3a = tvm.tir.decl_buffer(B3.shape, B3.dtype, name='B3')
-    B4a = tvm.tir.decl_buffer(B4.shape, B4.dtype, name='B4')
-    B5a = tvm.tir.decl_buffer(B5.shape, B5.dtype, name='B5')
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(
+        [B0, B1, B2, B3, B4, B5, B], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {B0: B0a, B1: B1a, B2: B2a, B3: B3a, B4: B4a, B5: B5a, B: Bb}, 64)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([B0a, B1a, B2a, B3a, B4a, B5a, Bb], stmt))
     mod = tvm.tir.transform.Simplify()(mod)
     mod = tvm.tir.transform.StorageRewrite()(mod)
     stmt = mod["main"].body
@@ -547,7 +536,7 @@ def test_large_input():
     c = te.compute(shape, lambda i, j: compute(a, b)[i, j])
     c = te.compute(shape, lambda i, j: 1 + c[i, j])
     s = te.create_schedule(c.op)
-    stmt = tvm.lower(s, [a, b, c], simple_mode=True)
+    stmt = tvm.lower(s, [a, b, c])["main"].body
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
             assert n.extents[0].value == 268435456

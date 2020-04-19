@@ -194,9 +194,9 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
-    x = tvm.tir.Prefetch(None, 1, "float32", [])
+    b = tvm.tir.decl_buffer((1, 2))
+    x = tvm.tir.Prefetch(b, [])
     assert isinstance(x, tvm.tir.Prefetch)
-    assert x.value_index == 1
 
 
 if __name__ == "__main__":

@@ -70,7 +70,7 @@ class ObjAllocatorBase {
     static_assert(std::is_base_of<Object, T>::value,
                   "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this),
-                         std::forward<Args>(args)...);
+                          std::forward<Args>(args)...);
     ptr->type_index_ = T::RuntimeTypeIndex();
     ptr->deleter_ = Handler::Deleter();
     return ObjectPtr<T>(ptr);

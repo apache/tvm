@@ -21,9 +21,12 @@
  * \file inject_prefetch.cc
  */
 // Inject prefetch op in HalideIR
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
+#include <tvm/arith/bound.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_set>
 
@@ -39,9 +42,9 @@ class PrefetchInjector : public StmtMutator {
     Stmt ret = StmtMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     if (op && op->attr_key == attr::prefetch_scope) {
-      te::Tensor ts = Downcast<te::Tensor>(op->node);
+      Buffer buffer = Downcast<Buffer>(op->node);
       CHECK_NE(loop_nest_.size(), 0U);
-      Domain domain = DomainTouched(op->body, ts, true, false);
+      Domain domain = DomainTouched(op->body, buffer, true, false);
       Region region;
 
       auto iter_var = loop_nest_.back().get();
@@ -49,7 +52,7 @@ class PrefetchInjector : public StmtMutator {
 
       for (Range r : domain) {
         if (!r.defined()) {
-          LOG(WARNING) << "Cannot decide prefetch region for " << ts;
+          LOG(WARNING) << "Cannot decide prefetch region for " << buffer;
           return op->body;
         }
         Range res(EvalSet(r, vectorized_).cover_range(none));
@@ -58,7 +61,7 @@ class PrefetchInjector : public StmtMutator {
 
       vectorized_.erase(iter_var);
 
-      Stmt prefetch = PrefetchNode::make(ts->op, ts->value_index, ts->dtype, region);
+      Stmt prefetch = Prefetch(buffer, region);
       return SeqStmt({prefetch, op->body});
     }
     return ret;
@@ -89,6 +92,23 @@ const Range PrefetchInjector::none;
 Stmt InjectPrefetch(Stmt stmt) {
   return PrefetchInjector()(std::move(stmt));
 }
+
+
+namespace transform {
+
+Pass InjectPrefetch() {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = PrefetchInjector()(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.InjectPrefetch", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.InjectPrefetch")
+.set_body_typed(InjectPrefetch);
+
+}  // namespace transform
 
 }  // namespace tir
 }  // namespace tvm

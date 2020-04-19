@@ -40,8 +40,6 @@ Before reading this tutorial, we assume readers have already known these topics 
   take a look at ``python/tvm/build_module.py`` to get some basics.
 
 """
-
-from __future__ import absolute_import, print_function
 import tvm
 from tvm import te
 import numpy as np
@@ -57,7 +55,7 @@ b = te.placeholder((n, ), name="b")
 c = te.compute((n, ), lambda i: a[i] + b[i], name='c')
 
 sch = te.create_schedule(c.op)
-ir  = tvm.lower(sch, [a, b, c], simple_mode=True)
+ir  = tvm.lower(sch, [a, b, c])
 print(ir)
 
 ######################################################################
@@ -137,12 +135,8 @@ def vectorize(stmt):
 # Glue to Lowering
 # ----------------
 # So far, we are done with writing this IR transformation pass. What we need to do next is to glue
-# this pass to TVM's lower pass. We can first call this function directly as a sanity check.
+# this pass to TVM's lower pass.
 #
-
-print(vectorize(ir))
-
-#####################################################################
 # In TVM, there is a property called ``BuildConfig``. You can use this property to customize your
 # own lowering options. In this case, we inject the pass written above into the TVM standard lowering
 # pass by feeding **a list of tuple** as argument to ``add_lower_pass``. "Tuple" indicates different
@@ -160,7 +154,7 @@ print(vectorize(ir))
 #
 
 with tvm.target.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
-    print(tvm.lower(sch, [a, b, c], simple_mode=True))
+    print(tvm.lower(sch, [a, b, c]))
 
 #####################################################################
 # Quick View

@@ -75,15 +75,6 @@ TVM_REGISTER_GLOBAL("ir_pass.Substitute")
     }
   });
 
-TVM_REGISTER_GLOBAL("ir_pass.StorageFlatten")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args.size() <= 3) {
-      *ret = StorageFlatten(args[0], args[1], args[2]);
-    } else {
-      *ret = StorageFlatten(args[0], args[1], args[2], args[3]);
-    }
-  });
-
 TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
 .set_body_typed
   ([](const Stmt& stmt,
@@ -116,7 +107,6 @@ REGISTER_PASS(ConvertSSA);
 REGISTER_PASS(VerifySSA);
 REGISTER_PASS(Inline);
 REGISTER_PASS(IRTransform);
-REGISTER_PASS(InjectPrefetch);
 REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(VerifyCompactBuffer);

@@ -22,21 +22,25 @@ def test_domain_touched():
     j = te.var('j')
     n = tvm.runtime.convert(100)
     m = te.var('m')
-    a = te.placeholder((n, m), name = 'a')
-    b = te.placeholder((n, m), name = 'b')
+
+    a = tvm.tir.decl_buffer((n, m), name='a')
+    b = tvm.tir.decl_buffer((n, m), name='b')
+
+
     ir = tvm.tir.For(
             i, 0, n, 0, 0,
             tvm.tir.For(j, 0, m, 0, 0,
-                tvm.tir.Provide(
-                    a.op,
-                    0,
-                    tvm.tir.Call(b.dtype, 'b', [i - 1, j + 1], 3, b.op, 0) +
-                    tvm.tir.Call(a.dtype, 'a', [i - 1, j - 1], 3, a.op, 0),
+                tvm.tir.BufferStore(
+                    a,
+                    tvm.tir.BufferLoad(b, [i - 1, j + 1]) +
+                    tvm.tir.BufferLoad(a, [i - 1, j - 1]),
                     [i, j]
                 )
             )
     )
+
     a_domain_r = tvm.arith._ffi_api.DomainTouched(ir, a, True, False)
+
     assert a_domain_r[0].min.value == -1
     assert a_domain_r[0].extent.value == 100
     assert a_domain_r[1].min.value == -1
