@@ -128,7 +128,6 @@ impl_pod_tvm_value!(v_float64, f64, f32, f64);
 impl_pod_tvm_value!(v_type, DLDataType);
 impl_pod_tvm_value!(v_ctx, TVMContext);
 
-
 #[derive(Debug, Error)]
 #[error("unsupported device: {0}")]
 pub struct UnsupportedDeviceError(String);

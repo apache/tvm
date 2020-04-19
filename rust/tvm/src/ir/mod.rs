@@ -1,6 +1,5 @@
-
-use crate::{DataType};
-use crate::runtime::{Object};
+use crate::runtime::Object;
+use crate::DataType;
 
 pub mod array;
 pub mod relay;

@@ -48,12 +48,12 @@ pub use tvm_sys::{
 pub type DataType = DLDataType;
 
 pub use tvm_rt::context;
-pub use tvm_rt::function;
 pub use tvm_rt::errors;
+pub use tvm_rt::function;
 pub use tvm_rt::module;
 pub use tvm_rt::ndarray;
 pub use tvm_rt::value;
-pub mod runtime;
 pub mod ir;
+pub mod runtime;
 
 pub use runtime::version;

@@ -1,7 +1,7 @@
 use std::ffi::{CString, NulError};
-use std::os::raw::{c_char};
+use std::os::raw::c_char;
 
-use super::{Object, IsObject, ObjectRef, ObjectPtr};
+use super::{IsObject, Object, ObjectPtr, ObjectRef};
 
 #[repr(C)]
 pub struct StringObj {
@@ -9,7 +9,6 @@ pub struct StringObj {
     data: *const c_char,
     size: u64,
 }
-
 
 unsafe impl IsObject for StringObj {
     const TYPE_KEY: &'static str = "runtime.String";
@@ -70,11 +69,14 @@ impl String {
 #[cfg(test)]
 mod tests {
     use super::String;
-    use super::{Object, IsObject, ObjectRef, ObjectPtr, debug_print};
+    use super::{debug_print, IsObject, Object, ObjectPtr, ObjectRef};
 
     #[test]
     fn test_string_debug() {
         let s = String::new("foo".to_string()).unwrap();
-        assert!(debug_print(&s.upcast()).into_string().expect("is cstring").contains("foo"))
+        assert!(debug_print(&s.upcast())
+            .into_string()
+            .expect("is cstring")
+            .contains("foo"))
     }
 }

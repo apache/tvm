@@ -49,7 +49,7 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
-use anyhow::{Result, ensure, bail};
+use anyhow::{bail, ensure, Result};
 use num_traits::Num;
 use rust_ndarray::{Array, ArrayD};
 use std::convert::TryInto;

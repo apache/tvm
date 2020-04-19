@@ -34,8 +34,8 @@ use std::{
     sync::Mutex,
 };
 
+use anyhow::{ensure, Result};
 use lazy_static::lazy_static;
-use anyhow::{Result, ensure};
 
 use crate::{errors, ffi, Module, TVMArgValue, TVMRetValue};
 
@@ -253,8 +253,7 @@ unsafe extern "C" fn tvm_callback(
     let mut local_args: Vec<TVMArgValue> = Vec::new();
     let mut value = MaybeUninit::uninit().assume_init();
     let mut tcode = MaybeUninit::uninit().assume_init();
-    let rust_fn =
-        mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
+    let rust_fn = mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
     for i in 0..len {
         value = args_list[i];
         tcode = type_codes_list[i];

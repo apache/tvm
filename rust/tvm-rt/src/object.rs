@@ -1,11 +1,11 @@
-use std::ffi::{CString};
-use tvm_sys::{TVMRetValue, TVMArgValue};
-use tvm_sys::ffi::{self, TVMObjectRetain, TVMObjectFree, TVMObjectTypeKey2Index};
-use std::ptr::NonNull;
 use std::convert::TryFrom;
 use std::convert::TryInto;
+use std::ffi::CString;
+use std::ptr::NonNull;
+use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index};
+use tvm_sys::{TVMArgValue, TVMRetValue};
 
-type Deleter<T> = unsafe extern fn(object: *mut T) -> ();
+type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
 
 #[derive(Debug)]
 #[repr(C)]
@@ -15,20 +15,23 @@ pub struct Object {
     pub fdeleter: Deleter<Object>,
 }
 
-unsafe extern fn delete<T: IsObject>(object: *mut Object) {
-    let typed_object: *mut T =
-        std::mem::transmute(object);
+unsafe extern "C" fn delete<T: IsObject>(object: *mut Object) {
+    let typed_object: *mut T = std::mem::transmute(object);
     T::typed_delete(typed_object);
 }
 
 fn derived_from(child_type_index: u32, parent_type_index: u32) -> bool {
-        let mut is_derived = 0;
-        crate::check_call!(
-            ffi::TVMObjectDerivedFrom(
-                child_type_index,
-                parent_type_index,
-                &mut is_derived));
-        if is_derived == 0 { false } else { true }
+    let mut is_derived = 0;
+    crate::check_call!(ffi::TVMObjectDerivedFrom(
+        child_type_index,
+        parent_type_index,
+        &mut is_derived
+    ));
+    if is_derived == 0 {
+        false
+    } else {
+        true
+    }
 }
 
 impl Object {
@@ -72,7 +75,7 @@ pub unsafe trait IsObject {
 
     fn as_object<'s>(&'s self) -> &'s Object;
 
-    unsafe extern fn typed_delete(object: *mut Self) {
+    unsafe extern "C" fn typed_delete(object: *mut Self) {
         // let object = Box::from_raw(object);
         // drop(object)
     }
@@ -141,7 +144,9 @@ impl<T: IsObject> ObjectPtr<T> {
     }
 
     pub fn upcast(&self) -> ObjectPtr<Object> {
-        ObjectPtr { ptr: self.ptr.cast() }
+        ObjectPtr {
+            ptr: self.ptr.cast(),
+        }
     }
 
     pub fn downcast<U: IsObject>(&self) -> anyhow::Result<ObjectPtr<U>> {
@@ -155,7 +160,9 @@ impl<T: IsObject> ObjectPtr<T> {
         };
 
         if is_derived {
-            Ok(ObjectPtr { ptr: self.ptr.cast() })
+            Ok(ObjectPtr {
+                ptr: self.ptr.cast(),
+            })
         } else {
             Err(anyhow::anyhow!("failed to downcast to object subtype"))
         }
@@ -199,8 +206,8 @@ impl TryFrom<TVMRetValue> for ObjectRef {
             unsafe {
                 let handle = std::mem::transmute(handle);
                 Ok(ObjectRef(ObjectPtr::from_raw(handle)))
-            },
-            _ => Err(anyhow::anyhow!("unable to convert the result to an Object"))
+            }
+            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
         }
     }
 }
@@ -208,7 +215,10 @@ impl TryFrom<TVMRetValue> for ObjectRef {
 impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
     fn from(object_ref: &ObjectRef) -> TVMArgValue<'a> {
         let object_ptr = &object_ref.0;
-        let raw_object_ptr = object_ptr.as_ref().map(|p| p.ptr.as_ptr()).unwrap_or(std::ptr::null_mut());
+        let raw_object_ptr = object_ptr
+            .as_ref()
+            .map(|p| p.ptr.as_ptr())
+            .unwrap_or(std::ptr::null_mut());
         // Should be able to hide this unsafety in raw bindings.
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
         TVMArgValue::ObjectHandle(void_ptr)
@@ -218,7 +228,10 @@ impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
 impl From<ObjectRef> for TVMArgValue<'static> {
     fn from(object_ref: ObjectRef) -> TVMArgValue<'static> {
         let object_ptr = &object_ref.0;
-        let raw_object_ptr = object_ptr.as_ref().map(|p| p.ptr.as_ptr()).unwrap_or(std::ptr::null_mut());
+        let raw_object_ptr = object_ptr
+            .as_ref()
+            .map(|p| p.ptr.as_ptr())
+            .unwrap_or(std::ptr::null_mut());
         // Should be able to hide this unsafety in raw bindings.
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
         TVMArgValue::ObjectHandle(void_ptr)

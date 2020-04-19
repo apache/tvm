@@ -1,11 +1,10 @@
-
-use crate::runtime::{Object, IsObject, ObjectPtr, ObjectRef, ToObjectRef, String as TString};
+use super::array::Array;
+use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString, ToObjectRef};
 use crate::DataType;
 use std::convert::TryFrom;
 use std::convert::TryInto;
-use tvm_rt::TVMRetValue;
-use super::array::Array;
 use tvm_macros::Object;
+use tvm_rt::TVMRetValue;
 
 #[repr(C)]
 pub struct IdNode {
@@ -41,27 +40,33 @@ impl Id {
 // define_ref!(Id, IdNode);
 
 #[repr(C)]
-pub struct BaseExpr {
+#[derive(Object)]
+#[ref_name = "BaseExpr"]
+#[type_key = "Expr"]
+pub struct BaseExprNode {
     pub base: Object,
 }
 
 #[repr(C)]
 pub struct PrimExprNode {
-    pub base: BaseExpr,
+    pub base: BaseExprNode,
     pub datatype: DataType,
 }
 
-impl BaseExpr {
-    fn base<T: IsObject>() -> BaseExpr {
-        BaseExpr {
+impl BaseExprNode {
+    fn base<T: IsObject>() -> BaseExprNode {
+        BaseExprNode {
             base: Object::base_object::<T>(),
         }
     }
 }
 
 #[repr(C)]
+#[derive(Object)]
+#[ref_name = "Expr"]
+#[type_key = "relay.Expr"]
 pub struct RelayExpr {
-    pub base: BaseExpr,
+    pub base: BaseExprNode,
     pub span: ObjectRef,
     pub checked_type: ObjectRef,
 }
@@ -69,7 +74,7 @@ pub struct RelayExpr {
 impl RelayExpr {
     fn base<T: IsObject>() -> RelayExpr {
         RelayExpr {
-            base: BaseExpr::base::<T>(),
+            base: BaseExprNode::base::<T>(),
             span: ObjectRef::null(),
             checked_type: ObjectRef::null(),
         }
@@ -77,20 +82,13 @@ impl RelayExpr {
 }
 
 #[repr(C)]
+#[derive(Object)]
+#[ref_name = "GlobalVar"]
+#[type_key = "relay.GlobalVar"]
 pub struct GlobalVarNode {
     pub base: RelayExpr,
     pub name_hint: TString,
 }
-
-unsafe impl IsObject for GlobalVarNode {
-    const TYPE_KEY: &'static str = "GlobalVar";
-
-    fn as_object<'s>(&'s self) -> &'s Object {
-        &self.base.base.base
-    }
-}
-
-pub struct GlobalVar(Option<ObjectPtr<GlobalVarNode>>);
 
 impl GlobalVar {
     pub fn new(name_hint: String, _span: ObjectRef) -> GlobalVar {
@@ -109,20 +107,13 @@ impl GlobalVar {
 }
 
 #[repr(C)]
+#[derive(Object)]
+#[ref_name = "Constant"]
+#[type_key = "relay.Constant"]
 pub struct ConstantNode {
     pub base: RelayExpr,
     pub data: ObjectRef, // make this NDArray.
 }
-
-unsafe impl IsObject for ConstantNode {
-    const TYPE_KEY: &'static str = "relay.Constant";
-
-    fn as_object<'s>(&'s self) -> &'s Object {
-        &self.base.base.base
-    }
-}
-
-pub struct Constant(Option<ObjectPtr<ConstantNode>>);
 
 impl Constant {
     pub fn new(data: ObjectRef, _span: ObjectRef) -> Constant {
@@ -132,38 +123,40 @@ impl Constant {
         };
         Constant(Some(ObjectPtr::new(node)))
     }
-
-    pub fn upcast(&self) -> ObjectRef {
-        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
-    }
 }
 
 #[repr(C)]
 #[derive(Object)]
+#[ref_name = "Var"]
+#[type_key = "relay.Var"]
 pub struct VarNode {
     pub base: RelayExpr,
     pub vid: Id,
     pub type_annotation: ObjectRef,
 }
 
-use anyhow::anyhow;
+impl Var {
+    pub fn new(name_hint: String, _span: ObjectRef) -> Var {
+       let node = VarNode {
+          base: RelayExpr::base::<VarNode>(),
+          vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
+          type_annotation: ObjectRef::null(),
+       };
+       Var(Some(ObjectPtr::new(node)))
+    }
 
-impl TryFrom<TVMRetValue> for Var {
-    type Error = anyhow::Error;
-
-    fn try_from(ret_val: TVMRetValue) -> Result<Var, Self::Error> {
-        let oref: ObjectRef = ret_val.try_into()?;
-        let var_ptr = oref.0.ok_or(anyhow!("null ptr"))?;
-        let var_ptr = var_ptr.downcast::<VarNode>()?;
-        Ok(Var(Some(var_ptr)))
+    pub fn name_hint(&self) -> &TString {
+       &self.vid.0.as_ref().unwrap().name_hint
     }
 }
 
-type Expr = ObjectRef;
 type Type = ObjectRef;
 type Attrs = ObjectRef;
 
 #[repr(C)]
+#[derive(Object)]
+#[ref_name = "Call"]
+#[type_key = "relay.Call"]
 pub struct CallNode {
     pub base: RelayExpr,
     pub op: Expr,
@@ -172,18 +165,14 @@ pub struct CallNode {
     pub type_args: Array<ObjectRef>,
 }
 
-unsafe impl IsObject for CallNode {
-    const TYPE_KEY: &'static str = "relay.Call";
-
-    fn as_object<'s>(&'s self) -> &'s Object {
-        &self.base.base.base
-    }
-}
-
-pub struct Call(Option<ObjectPtr<CallNode>>);
-
 impl Call {
-    pub fn new(op: Expr, args: Array<Expr>, attrs: Attrs, type_args: Array<ObjectRef>, _span: ObjectRef) -> Call {
+    pub fn new(
+        op: Expr,
+        args: Array<Expr>,
+        attrs: Attrs,
+        type_args: Array<ObjectRef>,
+        _span: ObjectRef,
+    ) -> Call {
         let node = CallNode {
             base: RelayExpr::base::<VarNode>(),
             op: op,
@@ -193,36 +182,8 @@ impl Call {
         };
         Call(Some(ObjectPtr::new(node)))
     }
-
-    pub fn upcast(&self) -> ObjectRef {
-        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
-    }
 }
 
-impl ToObjectRef for Call {
-    fn to_object_ref(&self) -> ObjectRef {
-        self.upcast()
-    }
-}
-
-impl std::ops::Deref for Call {
-    type Target = CallNode;
-
-    fn deref(&self) -> &Self::Target {
-        self.0.as_ref().unwrap()
-    }
-}
-
-impl TryFrom<TVMRetValue> for Call {
-    type Error = anyhow::Error;
-
-    fn try_from(ret_val: TVMRetValue) -> Result<Call, Self::Error> {
-        let oref: ObjectRef = ret_val.try_into()?;
-        let var_ptr = oref.0.ok_or(anyhow!("null ptr"))?;
-        let var_ptr = var_ptr.downcast::<CallNode>()?;
-        Ok(Call(Some(var_ptr)))
-    }
-}
 
 #[cfg(test)]
 mod tests {

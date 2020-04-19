@@ -26,7 +26,7 @@ pub fn import_module(input: TokenStream) -> TokenStream {
     import_module::macro_impl(input)
 }
 
-#[proc_macro_derive(Object, attributes(base, type_key))]
+#[proc_macro_derive(Object, attributes(base, ref_name, type_key))]
 pub fn macro_impl(input: TokenStream) -> TokenStream {
     // let input = proc_macro2::TokenStream::from(input);
     TokenStream::from(object::macro_impl(input))

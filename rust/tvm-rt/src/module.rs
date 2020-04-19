@@ -90,15 +90,14 @@ impl Module {
                 .extension()
                 .unwrap_or_else(|| std::ffi::OsStr::new(""))
                 .to_str()
-                .ok_or_else(|| {
-                    anyhow!("Bad module load path: `{}`.", path.as_ref().display())
-                })?,
+                .ok_or_else(|| anyhow!("Bad module load path: `{}`.", path.as_ref().display()))?,
         )?;
         let func = Function::get("runtime.ModuleLoadFromFile").expect("API function always exists");
-        let cpath =
-            CString::new(path.as_ref().to_str().ok_or_else(|| {
-                anyhow!("Bad module load path: `{}`.", path.as_ref().display())
-            })?)?;
+        let cpath = CString::new(
+            path.as_ref()
+                .to_str()
+                .ok_or_else(|| anyhow!("Bad module load path: `{}`.", path.as_ref().display()))?,
+        )?;
         let ret: Module = call_packed!(func, cpath.as_c_str(), ext.as_c_str())?.try_into()?;
         Ok(ret)
     }
