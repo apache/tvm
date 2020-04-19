@@ -253,24 +253,14 @@ TVM_REGISTER_GLOBAL("tir.Realize")
 .set_body_typed(RealizeNode::make);
 
 
-Stmt PrefetchNode::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
-  for (size_t i = 0; i < bounds.size(); ++i) {
-    CHECK(bounds[i]->min.defined());
-    CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.dtype().is_scalar());
-    CHECK(bounds[i]->extent.dtype().is_scalar());
-  }
-
-  ObjectPtr<PrefetchNode> node = make_object<PrefetchNode>();
-  node->func = std::move(func);
-  node->value_index = value_index;
-  node->dtype = dtype;
-  node->bounds = std::move(bounds);
-  return Stmt(node);
+Prefetch::Prefetch(Buffer buffer, Array<Range> bounds) {
+  data_ = make_object<PrefetchNode>(buffer, bounds);
 }
 
 TVM_REGISTER_GLOBAL("tir.Prefetch")
-.set_body_typed(PrefetchNode::make);
+.set_body_typed([](Buffer buffer, Array<Range> bounds) {
+  return Prefetch(buffer, bounds);
+});
 
 
 SeqStmt::SeqStmt(Array<Stmt> seq) {
@@ -325,6 +315,25 @@ TVM_REGISTER_GLOBAL("tir.BufferStore")
 });
 
 TVM_REGISTER_NODE_TYPE(BufferStoreNode);
+
+
+BufferRealize::BufferRealize(Buffer buffer,
+                             Array<Range> bounds,
+                             PrimExpr condition,
+                             Stmt body) {
+  data_ = make_object<BufferRealizeNode>(
+      buffer, bounds, condition, body);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferRealize")
+.set_body_typed([](Buffer buffer,
+                   Array<Range> bounds,
+                   PrimExpr condition,
+                   Stmt body) {
+  return BufferRealize(buffer, bounds, condition, body);
+});
+
+TVM_REGISTER_NODE_TYPE(BufferRealizeNode);
 
 // Printers
 
@@ -433,6 +442,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<BufferStoreNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const BufferStoreNode*>(node.get());
+    p->PrintIndent();
+    p->stream << op->buffer->name << "[";
+    for (size_t i = 0; i < op->indices.size(); ++i) {
+      p->Print(op->indices[i]);
+      if (i < op->indices.size() - 1) p->stream << ", ";
+    }
+    p->stream << "]";
+    p->stream << " = ";
+    p->Print(op->value);
+    p->stream << '\n';
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<AllocateNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const AllocateNode*>(node.get());
     p->PrintIndent();
@@ -456,6 +480,34 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->PrintIndent();
     p->stream << "free " << op->buffer_var;
     p->stream << '\n';
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<BufferRealizeNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const BufferRealizeNode*>(node.get());
+    p->PrintIndent();
+    p->stream << "buffer_realize " << op->buffer->name << "(";
+    for (size_t i = 0; i < op->bounds.size(); ++i) {
+      p->stream << "[";
+      p->Print(op->bounds[i]->min);
+      p->stream << ", ";
+      p->Print(op->bounds[i]->extent);
+      p->stream << "]";
+      if (i < op->bounds.size() - 1) p->stream << ", ";
+    }
+    p->stream << ")";
+    if (!is_one(op->condition)) {
+      p->stream << " if ";
+      p->Print(op->condition);
+    }
+    p->stream << " {\n";
+
+    p->indent += 2;
+    p->Print(op->body);
+    p->indent -= 2;
+
+    p->PrintIndent();
+    p->stream << "}\n";
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -493,7 +545,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<PrefetchNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const PrefetchNode*>(node.get());
     p->PrintIndent();
-    p->stream << "prefetch " << op->func->func_name() << "(";
+    p->stream << "prefetch " << op->buffer << "(";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
       p->stream << "[";
       p->Print(op->bounds[i]->min);
@@ -503,9 +555,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       if (i < op->bounds.size() - 1) p->stream << ", ";
     }
     p->stream << ")";
-    if (op->func->num_outputs() != 1) {
-      p->stream << ".value[" << op->value_index << "]";
-    }
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

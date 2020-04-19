@@ -58,6 +58,27 @@ TVM_DLL Pass CreatePrimFuncPass(const runtime::TypedPackedFunc<
                                 const std::string& name,
                                 const tvm::Array<runtime::String>& required);
 
+
+/*!
+ * \brief Inject prefetch instructions into stmt.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPrefetch();
+
+// TODO(tvm-team): consolidate configs to the PassContext
+/*!
+ * \brief Flatten the multi-dimensional read/write
+ *  to single dimensional Load/Store
+ *
+ * \param cache_line_size The size of CPU cache line.
+ * \param create_bound_attribute Whether to create bound attributes.
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass StorageFlatten(int cache_line_size,
+                            bool create_bound_attribute = false);
+
 /*!
  * \brief Inject copy intrinsics with optional pad.
  *

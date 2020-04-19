@@ -60,6 +60,38 @@ def Filter(fcond):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Filter")
 
 
+def InjectPrefetch():
+    """Inject prefetch instructions into stmt.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectPrefetch()
+
+
+def StorageFlatten(cache_line_size, create_bound_attribute=False):
+    """Flatten the multi-dimensional read/write to 1D.
+
+
+    Parameters
+    ----------
+    cache_line_size: int
+        The size of CPU cache line.
+
+    create_bound_attribute:
+        Whether to create bound attributes.
+
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)
+
+
 def InjectCopyIntrin(pragma_key, fintrin):
     """Inject virtual thread loops.
 
