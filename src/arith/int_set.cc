@@ -312,9 +312,9 @@ inline IntervalSet Combine<tir::FloorModNode>(Analyzer* analyzer,
     }
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
       if (const auto* ptr = b->min_value.as<tir::IntImmNode>()) {
-        // a % b = a - b * (a/b) if
-        // (a) a_max - a_min < b, i.e. that before mod, a's range doesn't cover [0, b)
-        // and (b) a_min % b <= a_max % b, i.e. that a's range is still continuous after mod
+        // a mod b = a - b * (a/b) if
+        // (i) a_max - a_min < b, i.e. that before mod, a's range doesn't cover [0, b)
+        // and (ii) a_min mod b <= a_max mod b, i.e. that a's range is still continuous after mod
         auto tmax = a->max_value - b->min_value * floordiv(a->max_value, b->min_value);
         tmax = analyzer->Simplify(tmax);
         auto tmin = a->min_value - b->min_value * floordiv(a->min_value, b->min_value);

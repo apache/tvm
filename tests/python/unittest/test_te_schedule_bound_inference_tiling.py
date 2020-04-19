@@ -18,51 +18,38 @@ import tvm
 from tvm import te
 
 def test_bound_tile_mod():
-    def compute(M_tiles, N_tiles, L, factor, dtype):
+    def compute(M_tiles, N_tiles, factor, dtype):
         # Algo
         M = M_tiles * factor
         N = N_tiles * factor
 
-        A = tvm.te.placeholder((M, L), name='A', dtype=dtype)
+        A = tvm.te.placeholder((N, M), name='A', dtype=dtype)
         C = tvm.te.compute((N, M), lambda n, m: A[n, m], name='C')
         s = tvm.te.create_schedule(C.op)
 
         return s, A, C
 
-    def schedule(s, L, factor, padding, A, C):
-        switch = True
+    def schedule(s, factor, padding, A, C):
         C_local = s.cache_write(C, "local")
 
-
         n, m = C.op.axis
-        if switch:
-            bn, bm, ni, mi = s[C].tile(n, m, factor, factor)
-        else:
-            ni, mi = C.op.axis
+        bn, bm, ni, mi = s[C].tile(n, m, factor, factor)
         nio, nii = s[C].split(ni, 2)
         n = s[C].fuse(nii, mi)
         C_shared = s.cache_write(C, "shared")
-        if switch:
-            bn, bm, ni, mi = C_shared.op.axis
-        else:
-            ni, mi = C_shared.op.axis
-        
+        bn, bm, ni, mi = C_shared.op.axis       
         s[C_shared].storage_align(ni, factor * 2, padding)
 
         n, m = s[C].op.axis
         bn, bm, ni, mi = s[C].tile(n, m, factor, factor)
         s[C].set_scope("global")
         niio, niii = s[C].split(ni, 32)
-
-
         s[C_shared].compute_at(s[C], niio)
-
 
         return s
 
-    s, A, C = compute(2, 2, 64, 128, "float16")
-    s = schedule(s, 64, 128, 8, A, C)
-
+    s, A, C = compute(2, 2, 128, "float16")
+    s = schedule(s, 128, 8, A, C)
     bounds = tvm.te.schedule.InferBound(s)
     check = (bounds[s.stages[2].op.axis[2]].extent == 16)
     if(not check):
