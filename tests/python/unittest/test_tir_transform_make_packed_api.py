@@ -28,18 +28,16 @@ def test_makeapi():
 
     bounds = tvm.te.schedule.InferBound(s)
     stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name='A')
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name='B')
-    Cb = tvm.tir.decl_buffer(C.shape, C.dtype, name='C')
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, {A: Ab, B:Bb, C:Cb}, 64)
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc([n, A, B, C], stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    mod = tvm.tir.transform.Apply(
+        lambda f: f.with_attr({
+            "target": tvm.target.create("llvm"),
+            "global_symbol": "main",
+        }))(mod)
 
     num_unpacked_args = 2
-    mod = tvm.IRModule.from_expr(
-        tvm.tir.PrimFunc([n, Ab, Bb, Cb], stmt).with_attr({
-            "global_symbol": "main",
-            "target": tvm.target.create("llvm")
-        }))
     f = tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)["main"]
     assert(len(f.params) == 7)
 

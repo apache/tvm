@@ -165,22 +165,6 @@ Stmt Inline(Stmt stmt,
             PrimExpr body);
 
 /*!
- * \brief Flatten the multi-dimensional read/write
- *  to single dimensional Load/Store
- *
- * \param stmt The stmt to be trasnformed.
- * \param extern_buffer Map specifies external
- *    buffer assignment of input and outputs.
- * \param cache_line_size The size of CPU cache line.
- * \param create_bound_attribute Whether to create bound attributes.
- * \return Transformed stmt.
- */
-Stmt StorageFlatten(Stmt stmt,
-                    Map<te::Tensor, Buffer> extern_buffer,
-                    int cache_line_size,
-                    bool create_bound_attribute = false);
-
-/*!
  * \brief Try to modify the AST to support TensorCore
  *
  * \param stmt The stmt to be trasnformed.
@@ -201,13 +185,6 @@ Stmt RewriteForTensorCore(Stmt stmt,
  *        otherwise, false.
  */
 bool VerifyCompactBuffer(Stmt stmt);
-
-/*!
- * \brief Inject prefetch instructions into stmt.
- * \param stmt The statement to be transformed.
- * \return Transformed stmt.
- */
-Stmt InjectPrefetch(Stmt stmt);
 
 /*!
  * \brief Decorate the stmt with a device scope, this is helpful for

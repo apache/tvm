@@ -161,6 +161,29 @@ class BufferStore(Stmt):
 
 
 @tvm._ffi.register_object
+class BufferRealize(Stmt):
+    """Buffer realize node.
+
+    Parameters
+    ----------
+    buffer : Buffer
+        The buffer.
+
+    bounds : List[Range]
+        The value we to be stored.
+
+    condition : PrimExpr
+        The realize condition.
+
+    body : Stmt
+        The body of the statement.
+    """
+    def __init__(self, buffer, bounds, condition, body):
+        self.__init_handle_by_constructor__(
+            _ffi_api.BufferRealize, buffer, bounds, condition, body)
+
+
+@tvm._ffi.register_object
 class Provide(Stmt):
     """Provide node.
 
@@ -348,21 +371,15 @@ class Prefetch(Stmt):
 
     Parameters
     ----------
-    func : Operation
-        The operation to create the function.
-
-    value_index : int
-        The output value index
-
-    dtype : str
-        The data type to be prefetched.
+    buffer : Buffer
+        The buffer to be prefetched.
 
     bounds : list of Range
         The bounds to be prefetched.
     """
-    def __init__(self, func, value_index, dtype, bounds):
+    def __init__(self, buffer, bounds):
         self.__init_handle_by_constructor__(
-            _ffi_api.Prefetch, func, value_index, dtype, bounds)
+            _ffi_api.Prefetch, buffer, bounds)
 
 
 def stmt_seq(*args):

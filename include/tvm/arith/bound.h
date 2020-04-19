@@ -78,15 +78,15 @@ IntSet DeduceBound(PrimExpr v, PrimExpr cond,
 /*!
  * \brief Infer a regular domain that covers all the calls or provides within the given statement.
  * \param body The given statement.
- * \param tensor The name of the calls or provides.
- * \param consider_calls If calls (read) are considered.
- * \param consider_provides If provides (write) are considered.
+ * \param buffer The buffer to check the access info.
+ * \param consider_loads If loads are considered.
+ * \param consider_stores If stores are considered.
  * \return The domain that covers all the calls or provides within the given statement.
  */
-Domain DomainTouched(Stmt body,
-                     const te::Tensor &tensor,
-                     bool consider_calls,
-                     bool consider_provides);
+Domain DomainTouched(const Stmt& body,
+                     const tir::Buffer& buffer,
+                     bool consider_loads,
+                     bool consider_stores);
 
 }  // namespace arith
 }  // namespace tvm
