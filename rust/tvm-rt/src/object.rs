@@ -1,7 +1,6 @@
 use std::ffi::{CString};
-use crate::Function;
 use tvm_sys::{TVMRetValue, TVMArgValue};
-use tvm_sys::ffi::{TVMObjectRetain, TVMObjectFree, TVMObjectTypeKey2Index};
+use tvm_sys::ffi::{self, TVMObjectRetain, TVMObjectFree, TVMObjectTypeKey2Index};
 use std::ptr::NonNull;
 use std::convert::TryFrom;
 use std::convert::TryInto;
@@ -22,6 +21,16 @@ unsafe extern fn delete<T: IsObject>(object: *mut Object) {
     T::typed_delete(typed_object);
 }
 
+fn derived_from(child_type_index: u32, parent_type_index: u32) -> bool {
+        let mut is_derived = 0;
+        crate::check_call!(
+            ffi::TVMObjectDerivedFrom(
+                child_type_index,
+                parent_type_index,
+                &mut is_derived));
+        if is_derived == 0 { false } else { true }
+}
+
 impl Object {
     fn new(type_index: u32, deleter: Deleter<Object>) -> Object {
         Object {
@@ -35,7 +44,8 @@ impl Object {
         }
     }
 
-    fn get_type_index(type_key: &'static str) -> u32 {
+    fn get_type_index<T: IsObject>() -> u32 {
+        let type_key = T::TYPE_KEY;
         let cstring = CString::new(type_key).expect("type key must not contain null characters");
         if type_key == "Object" {
             return 0;
@@ -52,7 +62,7 @@ impl Object {
     }
 
     pub fn base_object<T: IsObject>() -> Object {
-        let index = Object::get_type_index(T::TYPE_KEY);
+        let index = Object::get_type_index::<T>();
         Object::new(index, delete::<T>)
     }
 }
@@ -134,8 +144,21 @@ impl<T: IsObject> ObjectPtr<T> {
         ObjectPtr { ptr: self.ptr.cast() }
     }
 
-    pub downcast(&self) -> Result<ObjectPtr<Object>> {
-        panic!("figured out downcast")
+    pub fn downcast<U: IsObject>(&self) -> anyhow::Result<ObjectPtr<U>> {
+        let child_index = Object::get_type_index::<U>();
+        let object_index = self.as_object().type_index;
+
+        let is_derived = if child_index == object_index {
+            true
+        } else {
+            derived_from(child_index, object_index)
+        };
+
+        if is_derived {
+            Ok(ObjectPtr { ptr: self.ptr.cast() })
+        } else {
+            Err(anyhow::anyhow!("failed to downcast to object subtype"))
+        }
     }
 }
 
@@ -158,6 +181,12 @@ impl ObjectRef {
 
 pub trait ToObjectRef {
     fn to_object_ref(&self) -> ObjectRef;
+}
+
+impl ToObjectRef for ObjectRef {
+    fn to_object_ref(&self) -> ObjectRef {
+        self.clone()
+    }
 }
 
 impl TryFrom<TVMRetValue> for ObjectRef {

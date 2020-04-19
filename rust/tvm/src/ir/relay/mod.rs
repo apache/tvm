@@ -2,7 +2,9 @@
 use crate::runtime::{Object, IsObject, ObjectPtr, ObjectRef, ToObjectRef, String as TString};
 use crate::DataType;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use tvm_rt::TVMRetValue;
+use super::array::Array;
 
 #[repr(C)]
 pub struct IdNode {
@@ -185,13 +187,81 @@ impl std::ops::Deref for Var {
     }
 }
 
+use anyhow::anyhow;
 
 impl TryFrom<TVMRetValue> for Var {
     type Error = anyhow::Error;
 
     fn try_from(ret_val: TVMRetValue) -> Result<Var, Self::Error> {
         let oref: ObjectRef = ret_val.try_into()?;
-        oref.downcast::<Var>()
+        let var_ptr = oref.0.ok_or(anyhow!("null ptr"))?;
+        let var_ptr = var_ptr.downcast::<VarNode>()?;
+        Ok(Var(Some(var_ptr)))
+    }
+}
+
+type Expr = ObjectRef;
+type Type = ObjectRef;
+type Attrs = ObjectRef;
+
+#[repr(C)]
+pub struct CallNode {
+    pub base: RelayExpr,
+    pub op: Expr,
+    pub args: Array<Expr>,
+    pub attrs: ObjectRef,
+    pub type_args: Array<ObjectRef>,
+}
+
+unsafe impl IsObject for CallNode {
+    const TYPE_KEY: &'static str = "relay.Call";
+
+    fn as_object<'s>(&'s self) -> &'s Object {
+        &self.base.base.base
+    }
+}
+
+pub struct Call(Option<ObjectPtr<CallNode>>);
+
+impl Call {
+    pub fn new(op: Expr, args: Array<Expr>, attrs: Attrs, type_args: Array<ObjectRef>, _span: ObjectRef) -> Call {
+        let node = CallNode {
+            base: RelayExpr::base::<VarNode>(),
+            op: op,
+            args: args,
+            attrs: attrs,
+            type_args: type_args,
+        };
+        Call(Some(ObjectPtr::new(node)))
+    }
+
+    pub fn upcast(&self) -> ObjectRef {
+        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
+    }
+}
+
+impl ToObjectRef for Call {
+    fn to_object_ref(&self) -> ObjectRef {
+        self.upcast()
+    }
+}
+
+impl std::ops::Deref for Call {
+    type Target = CallNode;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().unwrap()
+    }
+}
+
+impl TryFrom<TVMRetValue> for Call {
+    type Error = anyhow::Error;
+
+    fn try_from(ret_val: TVMRetValue) -> Result<Call, Self::Error> {
+        let oref: ObjectRef = ret_val.try_into()?;
+        let var_ptr = oref.0.ok_or(anyhow!("null ptr"))?;
+        let var_ptr = var_ptr.downcast::<CallNode>()?;
+        Ok(Call(Some(var_ptr)))
     }
 }
 

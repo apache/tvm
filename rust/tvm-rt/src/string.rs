@@ -1,7 +1,7 @@
 use std::ffi::{CString, NulError};
 use std::os::raw::{c_char};
 
-use super::{Object, IsObject, ObjectRef, ObjectPtr, debug_print};
+use super::{Object, IsObject, ObjectRef, ObjectPtr};
 
 #[repr(C)]
 pub struct StringObj {
@@ -44,7 +44,28 @@ impl String {
         let object_ptr = ObjectPtr::new(string_obj);
         Ok(String(Some(object_ptr)))
     }
+
+    pub fn to_cstring(&self) -> Result<std::ffi::CString, NulError> {
+        use std::slice;
+        let ptr = self.0.as_ref().unwrap().data;
+        let size = self.0.as_ref().unwrap().size;
+        unsafe {
+            let slice: &[u8] = slice::from_raw_parts(ptr as *const u8, size as usize);
+            CString::new(slice)
+        }
+    }
+
+    pub fn to_string(&self) -> anyhow::Result<std::string::String> {
+        let string = self.to_cstring()?.into_string()?;
+        Ok(string)
+    }
 }
+
+// impl std::convert::From<String> for std::string::String {
+//     fn from(string: String) -> std::string::String {
+//         u
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

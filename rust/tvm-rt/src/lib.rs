@@ -62,6 +62,7 @@ pub use tvm_sys::{
 pub type DataType = DLDataType;
 
 // Macro to check the return call to TVM runtime shared library.
+#[macro_export]
 macro_rules! check_call {
     ($e:expr) => {{
         if unsafe { $e } != 0 {

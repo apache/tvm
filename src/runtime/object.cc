@@ -257,6 +257,13 @@ int TVMObjectFree(TVMObjectHandle obj) {
 }
 
 
+int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived) {
+  API_BEGIN();
+  *is_derived = tvm::runtime::TypeContext::Global()->
+    DerivedFrom(child_type_index, parent_type_index);
+  API_END();
+}
+
 int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex) {
   API_BEGIN();
   out_tindex[0] = tvm::runtime::ObjectInternal::ObjectTypeKey2Index(

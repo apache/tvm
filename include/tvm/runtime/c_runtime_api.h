@@ -559,6 +559,8 @@ TVM_DLL int TVMObjectRetain(TVMObjectHandle obj);
  */
 TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
 
+TVM_DLL int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived);
+
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif

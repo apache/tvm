@@ -1,6 +1,5 @@
-use crate::runtime::object::{ObjectPtr, Object, ObjectRef, ToObjectRef};
-use tvm_sys::{TVMArgValue, TVMRetValue};
-use crate::runtime::external_func;
+use crate::runtime::object::{ObjectRef, ToObjectRef};
+use tvm_sys::{TVMRetValue};
 use std::convert::{TryFrom, TryInto};
 use crate::runtime::function::Builder;
 use std::marker::PhantomData;
@@ -14,7 +13,6 @@ pub struct Array<T: ToObjectRef> {
 
 impl<T: ToObjectRef> Array<T> {
     pub fn from_vec(data: Vec<T>) -> Result<Array<T>> {
-        let mut args: Vec<TVMArgValue> = vec![];
         let iter = data.iter().map(|element| element.to_object_ref());
 
         let array_data =
@@ -61,8 +59,8 @@ mod tests {
             Var::new("bar".into(), ObjectRef::null()),
         ];
         let array = Array::from_vec(vec)?;
-        assert_eq!(array.get(0)?.name_hint.into(), "foo");
-        assert_eq!(array.get(1)?.name_hint.into(), "bar");
+        assert_eq!(array.get(0)?.name_hint().to_string()?, "foo");
+        assert_eq!(array.get(1)?.name_hint().to_string()?, "bar");
         Ok(())
     }
 }
