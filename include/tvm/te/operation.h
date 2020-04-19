@@ -104,6 +104,7 @@ class OperationNode : public tir::FunctionBaseNode {
    * \param self The reference to self.
    * \param analyzer The analyzer to be used in the function.
    * \param dom_map the domain map of Variables(corresponds to root_iter_vars)
+   * \param rmap The range of variables (not only root_iter_vars) to improve propagation accuracy.
    * \param out_dom_map The output domain.
    *  The function is only asked to fill the bounds for Tensors that
    *  is already in the out_dom_map
