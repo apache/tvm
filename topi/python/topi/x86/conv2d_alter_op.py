@@ -19,6 +19,7 @@
 
 import logging
 
+import re
 import tvm
 from tvm import te
 from tvm import relay
@@ -28,7 +29,6 @@ from .conv2d_int8 import is_int8_hw_support, _get_default_config_int8
 from ..util import get_const_tuple
 from ..nn import conv2d_legalize, conv2d_alter_layout
 from ..nn.util import get_pad_tuple
-import re
 
 logger = logging.getLogger('topi')
 

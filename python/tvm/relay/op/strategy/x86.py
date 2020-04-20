@@ -18,11 +18,11 @@
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import logging
 
+import re
 import topi
 from tvm.te import SpecializedCondition
 from .generic import *
 from .. import op as _op
-import re
 
 logger = logging.getLogger('strategy')
 
@@ -90,7 +90,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     if groups == 1:
         if layout.startswith("NCHW"):
             if layout != "NCHW":
-                #check if layout is NCHWxc
+                # check if layout is NCHWxc
                 assert _NCHWc_matcher.match(layout)
                 assert _OIHWio_matcher.match(kernel_layout)
             else:
@@ -124,7 +124,7 @@ def conv2d_strategy_cpu(attrs, inputs, out_type, target):
     elif is_depthwise_conv2d(data.shape, layout, kernel.shape, kernel_layout, groups):
         if layout.startswith("NCHW"):
             if layout != "NCHW":
-                #check if layout is NCHWxc
+                # check if layout is NCHWxc
                 assert _NCHWc_matcher.match(layout)
                 assert _OIHWio_matcher.match(kernel_layout)
             else:
