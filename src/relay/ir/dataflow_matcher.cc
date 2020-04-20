@@ -40,6 +40,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   explicit DFPatternMatcher(const Expr& root_expr) : expr_graph_(CreateIndexedGraph(root_expr)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
+
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
   bool VisitDFPattern_(const AltPatternNode* op, const Expr& expr) override;
@@ -214,27 +215,24 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       // associate divide/multiply
       if (is_pattern_op(op, "divide")) {
         if (const auto* arg_node = op->args[0].as<CallPatternNode>()) {
-          if (is_pattern_op(arg_node, "multiply")) {
-            if (is_expr_op(expr, "multiply")) {
-              if (is_expr_op(call_node->args[0], "divide") ||
-                  is_expr_op(call_node->args[1], "divide")) {
-                bool out = false;
-                for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
-                  auto div = CallPatternNode::make(op->op, {arg_node->args[arg_id], op->args[1]},
-                                                   op->attrs, op->type_args);
-                  auto mul =
-                      CallPatternNode::make(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div},
-                                            arg_node->attrs, arg_node->type_args);
-                  out = VisitDFPattern(mul, expr);
-                  if (out) {
-                    return out;
-                  } else {
-                    ClearMap(watermark);
-                  }
-                }
-                return out;
+          if (is_pattern_op(arg_node, "multiply") && is_expr_op(expr, "multiply") &&
+                 (is_expr_op(call_node->args[0], "divide") ||
+                  is_expr_op(call_node->args[1], "divide"))) {
+            bool out = false;
+            for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
+              auto div = CallPatternNode::make(op->op, {arg_node->args[arg_id], op->args[1]},
+                                               op->attrs, op->type_args);
+              auto mul =
+                  CallPatternNode::make(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div},
+                                        arg_node->attrs, arg_node->type_args);
+              out = VisitDFPattern(mul, expr);
+              if (out) {
+                return true;
+              } else {
+                ClearMap(watermark);
               }
             }
+            return out;
           }
         }
       }
@@ -242,18 +240,15 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
         // associate multiply/divide
         for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
           if (auto* arg_node = op->args[arg_id].as<CallPatternNode>()) {
-            if (is_pattern_op(arg_node, "divide")) {
-              if (is_expr_op(expr, "divide")) {
-                if (is_expr_op(call_node->args[0], "multiply") ||
-                    is_expr_op(call_node->args[1], "multiply")) {
-                  auto mul =
-                      CallPatternNode::make(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
-                                            op->attrs, op->type_args);
-                  auto div = CallPatternNode::make(arg_node->op, {mul, arg_node->args[1]},
-                                                   arg_node->attrs, arg_node->type_args);
-                  return VisitDFPattern(div, expr);
-                }
-              }
+            if (is_pattern_op(arg_node, "divide") && is_expr_op(expr, "divide") &&
+                   (is_expr_op(call_node->args[0], "multiply") ||
+                    is_expr_op(call_node->args[1], "multiply"))) {
+              auto mul =
+                  CallPatternNode::make(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
+                                        op->attrs, op->type_args);
+              auto div = CallPatternNode::make(arg_node->op, {mul, arg_node->args[1]},
+                                               arg_node->attrs, arg_node->type_args);
+              return VisitDFPattern(div, expr);
             }
           }
         }
@@ -294,13 +289,14 @@ bool DFPatternMatcher::FindParent(
           auto new_dominated_exprs = FindDominated(op->path);
           out &= FindParent(node->ref_, new_dominated_exprs, op);
         } else {
-          out = false;
+          return false;
         }
       }
     }
   }
   return out;
 }
+
 bool DFPatternMatcher::VisitDFPattern_(const DominatorPatternNode* op, const Expr& expr) {
   pattern_graph_ = CreateIndexedGraph(GetRef<DFPattern>(op));
   if (VisitDFPattern(op->child, expr)) {
