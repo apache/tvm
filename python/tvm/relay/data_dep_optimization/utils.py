@@ -14,18 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin, invalid-name
-"""The Relay IR namespace containing the analysis passes."""
-# Analysis passes
-from .analysis import *
+#pylint: disable=unused-argument, not-context-manager
+"""Utils functions for optimizations"""
 
-# Annotations
-from .annotated_regions import AnnotatedRegionSet
+import tvm
 
-# Call graph
-from . import call_graph
-from .call_graph import CallGraph
+def _run_opt_pass(expr, opt_pass):
+    """Helper function to run pass
 
-# Feature
-from . import feature
-from . import sparse_dense
+    Parameters
+    ----------
+    expr : relay.Expr
+        Expr will be optimized
+    opt_pass : relay.Pass
+        Optimization pass
+
+    Returns
+    -------
+    ret: relay.Expr
+        Optimized Expr by running opt_pass
+    """
+    assert isinstance(opt_pass, tvm.transform.Pass)
+    mod = tvm.IRModule.from_expr(expr)
+    mod = opt_pass(mod)
+    return mod["main"]

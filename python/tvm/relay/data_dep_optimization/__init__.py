@@ -14,18 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import, redefined-builtin, invalid-name
-"""The Relay IR namespace containing the analysis passes."""
-# Analysis passes
-from .analysis import *
+#pylint: disable=unused-argument, not-context-manager
+"""Optimizations involves changing of paramters"""
 
-# Annotations
-from .annotated_regions import AnnotatedRegionSet
-
-# Call graph
-from . import call_graph
-from .call_graph import CallGraph
-
-# Feature
-from . import feature
-from . import sparse_dense
+from . import bsr_dense
+from . import simplify_fc_transpose
