@@ -25,7 +25,7 @@
 #define TOPI_NN_DILATE_H_
 
 #include <tvm/te/operation.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/arith/analyzer.h>
 #include <topi/tags.h>
 
 #include <string>
@@ -75,8 +75,9 @@ inline Tensor dilate(const Tensor& x,
     << ") must match dimension of x (" << n << ")";
 
   Array<PrimExpr> out_shape;
+  arith::Analyzer analyzer;
   for (size_t i = 0; i < n; ++i) {
-    out_shape.push_back(tvm::tir::Simplify(
+    out_shape.push_back(analyzer.Simplify(
       (x->shape[i] - 1) * cast(DataType::Int(32), strides[i] + 1)));
   }
 

@@ -24,7 +24,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/runtime/registry.h>
 
@@ -313,20 +313,20 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
     return ret;
   }
+  // The local buffer index.
+  PrimExpr BufIndex(PrimExpr reduce_index, PrimExpr group_index, int reduce_extent) {
+    if (!is_zero(group_index)) {
+      return analyzer_.Simplify(group_index * reduce_extent + reduce_index);
+    } else {
+      return reduce_index;
+    }
+  }
   // sync thread op.
   static Stmt SyncThread(const std::string& sync) {
     return EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImmNode::make(sync)},
                    CallNode::Intrinsic));
-  }
-  // The local buffer index.
-  static PrimExpr BufIndex(PrimExpr reduce_index, PrimExpr group_index, int reduce_extent) {
-    if (!is_zero(group_index)) {
-      return tir::Simplify(group_index * reduce_extent + reduce_index);
-    } else {
-      return reduce_index;
-    }
   }
   // The warp size of the device.
   int warp_size_{1};
@@ -338,6 +338,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   std::unordered_map<const VarNode *, PrimExpr> load_remap_;
   // Allocate remap
   std::unordered_map<const VarNode *, Stmt> alloc_remap_;
+  // Internal analyzer
+  arith::Analyzer analyzer_;
 };
 
 namespace transform {

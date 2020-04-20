@@ -41,39 +41,6 @@
 namespace tvm {
 namespace tir {
 
-/*!
- * \brief Simplify the expression.
- * \param expr The expression to be simplifed.
- * \param vrange The range information about the variable.
- * \return Canonicalized statement.
- */
-TVM_DLL PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange = Map<Var, Range>());
-
-/*!
- * \brief Simplify the statement.
- * \param stmt The statement to be simplifed.
- * \param vrange The range information about the variable.
- * \return Canonicalized statement.
- */
-Stmt Simplify(Stmt stmt, Map<Var, Range> vrange = Map<Var, Range>());
-
-/*!
- * \brief Simplify by applying canonical form.
- * \param stmt The statement to be canonically simplifed.
- * \param vrange The range information about the variable.
- * \return Canonicalized statement.
- */
-Stmt CanonicalSimplify(Stmt stmt,
-                       Map<Var, Range> vrange = Map<Var, Range>());
-
-/*!
- * \brief Simplify by applying canonical form.
- * \param expr The statement to be canonically simplifed.
- * \param vrange The range information about the variable.
- * \return Canonicalized expression.
- */
-TVM_DLL PrimExpr CanonicalSimplify(PrimExpr expr,
-                                   Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief verifies whether the IR stmt or Expr is in SSA form.

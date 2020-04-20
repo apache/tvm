@@ -31,8 +31,7 @@ def test_decorate_device():
     s[A1].set_scope("shared")
 
     bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    stmt1 = tvm.tir.ir_pass.Simplify(stmt)
+    stmt1 = tvm.te.schedule.ScheduleOps(s, bounds)
     stmt2 = tvm.tir.ir_pass.DecorateDeviceScope(stmt1)
     assert isinstance(stmt2, tvm.tir.AttrStmt)
     assert stmt2.attr_key == "device_scope"

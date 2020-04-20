@@ -625,7 +625,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           if (!divided) {
             combo_size = combo_size + make_const(DataType::Int(32), 1);
           }
-          combo_size = tir::Simplify(combo_size);
+          combo_size = analyzer_.Simplify(combo_size);
           e->new_alloc = AllocateNode::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
               EvaluateNode::make(0));

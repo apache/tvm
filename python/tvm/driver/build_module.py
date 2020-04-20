@@ -287,6 +287,7 @@ def _build_for_device(input_mod, target, target_host):
             lambda f: "calling_conv" in f.attrs and
             f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
          tvm.tir.transform.LowerWarpMemory(),
+         tvm.tir.transform.Simplify(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin()])
     mod_dev = opt_device(mod_mixed)

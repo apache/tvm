@@ -32,40 +32,6 @@
 namespace tvm {
 namespace tir {
 
-TVM_REGISTER_GLOBAL("ir_pass.Simplify")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsObjectRef<Stmt>()) {
-      if (args.size() > 1) {
-        *ret = Simplify(args[0].operator Stmt(), args[1]);
-      } else {
-        *ret = Simplify(args[0].operator Stmt());
-      }
-    } else {
-      if (args.size() > 1) {
-        *ret = Simplify(args[0].operator PrimExpr(), args[1]);
-      } else {
-        *ret = Simplify(args[0].operator PrimExpr());
-      }
-    }
-  });
-
-TVM_REGISTER_GLOBAL("ir_pass.CanonicalSimplify")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsObjectRef<Stmt>()) {
-      if (args.size() > 1) {
-        *ret = CanonicalSimplify(args[0].operator Stmt(), args[1]);
-      } else {
-        *ret = CanonicalSimplify(args[0].operator Stmt());
-      }
-    } else {
-      if (args.size() > 1) {
-        *ret = CanonicalSimplify(args[0].operator PrimExpr(), args[1]);
-      } else {
-        *ret = CanonicalSimplify(args[0].operator PrimExpr());
-      }
-    }
-  });
-
 TVM_REGISTER_GLOBAL("ir_pass.Substitute")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsObjectRef<Stmt>()) {

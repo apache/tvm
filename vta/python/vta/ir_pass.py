@@ -364,6 +364,7 @@ def inject_dma_intrin(stmt_in):
             shape.append(1)
             strides.append(elem_block)
 
+        analyzer = tvm.arith.Analyzer()
         while base < ndim + 1:
             x_size = 1
             x_stride = buf.strides[ndim - base]
@@ -378,7 +379,7 @@ def inject_dma_intrin(stmt_in):
                     break
                 x_size = x_size * buf.shape[k]
                 next_base = i + 1
-            shape.append(tvm.tir.ir_pass.Simplify(x_size))
+            shape.append(analyzer.simplify(x_size))
             strides.append(x_stride)
             assert next_base != base
             base = next_base
@@ -769,10 +770,11 @@ def inject_alu_intrin(stmt_in):
     """
     env = get_env()
     idxm = tvm.tir.indexmod
+    analyzer = tvm.arith.Analyzer()
 
     def _do_fold(stmt):
         def _equal(x, y):
-            return tvm.ir.structural_equal(tvm.tir.ir_pass.Simplify(x - y), 0)
+            return tvm.ir.structural_equal(analyzer.simplify(x - y), 0)
 
         def _flatten_loop(src_coeff, dst_coeff, extents):
             src_coeff = list(src_coeff)
@@ -791,7 +793,7 @@ def inject_alu_intrin(stmt_in):
                 next_ext = extents.pop()
 
                 if _equal(next_src, vsrc * vext) and _equal(next_dst, vdst * vext):
-                    vext = tvm.tir.ir_pass.Simplify(vext * next_ext)
+                    vext = analyzer.simplify(vext * next_ext)
                 else:
                     rev_src_coeff.append(vsrc)
                     rev_dst_coeff.append(vdst)
@@ -851,7 +853,7 @@ def inject_alu_intrin(stmt_in):
                 if loop_body.value.name == 'shift_left':
                     alu_opcode = env.dev.ALU_OPCODE_SHR
                     lhs = loop_body.value.args[0]
-                    rhs = tvm.tir.ir_pass.Simplify(-loop_body.value.args[1])
+                    rhs = analyzer.simplify(-loop_body.value.args[1])
                 elif loop_body.value.name == 'shift_right':
                     alu_opcode = env.dev.ALU_OPCODE_SHR
                     lhs = loop_body.value.args[0]
@@ -914,10 +916,10 @@ def inject_alu_intrin(stmt_in):
             assert len(dst_coeff) > 1
             assert len(extents) != 0
             assert tvm.ir.structural_equal(
-                tvm.tir.ir_pass.Simplify(
+                analyzer.simplify(
                     idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
             assert tvm.ir.structural_equal(
-                tvm.tir.ir_pass.Simplify(
+                analyzer.simplify(
                     idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT)), 0)
             assert tvm.ir.structural_equal(src_coeff[-2], 1)
             assert tvm.ir.structural_equal(dst_coeff[-2], 1)
@@ -942,9 +944,9 @@ def inject_alu_intrin(stmt_in):
             src_coeff.append(src_offset)
             dst_coeff.append(dst_offset)
             src_coeff = [
-                tvm.tir.ir_pass.Simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in src_coeff]
+                analyzer.simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in src_coeff]
             dst_coeff = [
-                tvm.tir.ir_pass.Simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in dst_coeff]
+                analyzer.simplify(c // (env.BATCH * env.BLOCK_OUT)) for c in dst_coeff]
 
             # Flatten the outer loops
             if extents:

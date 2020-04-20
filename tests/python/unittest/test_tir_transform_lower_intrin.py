@@ -22,10 +22,13 @@ def lower_intrin(params, stmt):
     """wrapper to call transformation in stmt"""
     lower_expr = isinstance(stmt, tvm.tir.PrimExpr)
     stmt = tvm.tir.Evaluate(stmt) if lower_expr else stmt
-    stmt = tvm.tir.ir_pass.CanonicalSimplify(stmt)
-    func = tvm.tir.PrimFunc(params, stmt).with_attr(
-        "target", tvm.target.create("llvm"))
-    func = tvm.tir.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"]
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc(params, stmt).with_attr(
+        "target", tvm.target.create("llvm")))
+    mod = tvm.transform.Sequential([
+        tvm.tir.transform.Simplify(),
+        tvm.tir.transform.LowerIntrin()
+    ])(mod)
+    func = mod["main"]
     stmt = func.body
     return stmt.value if lower_expr else stmt.body
 
