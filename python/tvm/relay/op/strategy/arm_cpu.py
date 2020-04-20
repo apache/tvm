@@ -69,11 +69,12 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 # check if winograd algorithm is applicable
                 _, _, kh, kw = get_const_tuple(kernel.shape)
                 pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
-                is_dtype_fp32 = data.dtype == "float32" and kernel.dtype == "float32"
-                is_winograd_applicable = kh == 3 and kw == 3 and \
+                is_winograd_applicable = "float" in data.dtype and \
+                                         "float" in kernel.dtype and \
+                                         kh == 3 and kw == 3 and \
                                          stride_h == 1 and stride_w == 1 and \
                                          dilation_h == 1 and dilation_w == 1
-                if is_dtype_fp32 and is_winograd_applicable:
+                if is_winograd_applicable:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),
