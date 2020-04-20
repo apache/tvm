@@ -159,6 +159,15 @@ TEST(Relay, BuildModule) {
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY3[i] - (i + (i + 3) + (i + 4))), 1e-4);
   }
+  // attach an output and run it again
+  auto D = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
+  auto pD = (float*)D.ToDLPack()->dl_tensor.data;
+  auto set_output_f = run_mod.GetFunction("set_output", false);
+  set_output_f(0, &D.ToDLPack()->dl_tensor);
+  run_f();
+  for (int i = 0; i < 6; ++i) {
+    CHECK_LT(fabs(pD[i] - (i + (i + 3) + (i + 4))), 1e-4);
+  }
 }
 
 int main(int argc, char ** argv) {
