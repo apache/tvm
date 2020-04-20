@@ -836,8 +836,8 @@ Message Conv2DBackwardPrep(const Call& call, const Array<Message>& in_messages) 
   if (param->groups == 1 || is_depthwise_conv2d) {
     auto ko_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('o'));
     auto ki_small_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
-    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) || //  simple layout
-        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) { //  blocked layout
+    if ( (ko_small_axis < 0 && ki_small_axis < 0 && c_small_axis < 0) ||  // simple layout
+        (ko_small_axis >= 0 && ki_small_axis >= 0 && c_small_axis >= 0)) {  // blocked layout
         Array<Integer> arr{c_big_axis};
         if (c_small_axis >= 0) {
           arr.push_back(c_small_axis);
