@@ -1756,6 +1756,7 @@ def test_forward_qnn_mobilenet_v2_net():
 # Mobilenet V3 Quantized
 # ----------------------
 
+@pytest.mark.skip(reason="This segfaults with tensorflow 2.1.0")
 def test_forward_qnn_mobilenet_v3_net():
     """Test the Quantized TFLite Mobilenet V3 model."""
     # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
@@ -1900,4 +1901,4 @@ if __name__ == '__main__':
     test_forward_qnn_mobilenet_v2_net()
     #This also fails with a segmentation fault in my run
     #with Tflite 1.15.2
-    #test_forward_qnn_mobilenet_v3_net()
+    test_forward_qnn_mobilenet_v3_net()
