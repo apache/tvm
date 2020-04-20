@@ -133,12 +133,12 @@ be in the format of [class_id, score, left, top, right, bottom]
 or [score, left, top, right, bottom]. Set id_index to be -1 to
 ignore class_id axis.
 )doc" TVM_ADD_FILELINE)
-.set_num_inputs(3)
-.add_argument("data", "Tensor", "Input data.")
-.add_argument("valid_count", "Tensor", "Number of valid anchor boxes.")
-.add_argument("indices", "Tensor", "Corresponding indices in original input tensor.")
-.set_support_level(5)
-.add_type_rel("NMS", NMSRel);
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "Input data.")
+    .add_argument("valid_count", "Tensor", "Number of valid anchor boxes.")
+    .add_argument("indices", "Tensor", "Corresponding indices in original input tensor.")
+    .set_support_level(5)
+    .add_type_rel("NMS", NMSRel);
 
 }  // namespace relay
 }  // namespace tvm

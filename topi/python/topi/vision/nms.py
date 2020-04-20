@@ -23,7 +23,7 @@ from tvm.te import hybrid
 from ..sort import argsort
 
 @hybrid.script
-def hybrid_rearrange_box_out(data, one, batch_size):
+def hybrid_rearrange_box_out(data, one, batch_size, num_anchors):
     """Hybrid routine to rearrange nms output to
     move all valid entries to top.
 
@@ -40,13 +40,15 @@ def hybrid_rearrange_box_out(data, one, batch_size):
         Batch size. We need to pass it in since hybrid script doesn't support
         binding variable to symbolic dim.
 
+    num_anchors: tvm.tir.IntImm or tvm.tir.Var
+        Number of anchors.
+
     Returns
     -------
     output : tvm.te.Tensor or numpy NDArray
         Transformed NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
     """
-    num_anchors = data.shape[1]
     elem_length = data.shape[2]
     output = output_tensor((batch_size,
                             num_anchors,
@@ -67,7 +69,7 @@ def hybrid_rearrange_box_out(data, one, batch_size):
 
 
 @hybrid.script
-def hybrid_rearrange_indices_out(data, one, batch_size):
+def hybrid_rearrange_indices_out(data, one, batch_size, num_anchors):
     """Hybrid routine to rearrange nms output to
     move all valid entries to top.
 
@@ -86,6 +88,9 @@ def hybrid_rearrange_indices_out(data, one, batch_size):
         Batch size. We need to pass it in since hybrid script doesn't support
         binding variable to symbolic dim.
 
+    num_anchors: tvm.tir.IntImm or tvm.tir.Var
+        Number of anchors.
+
     Returns
     -------
     output : tvm.te.Tensor or numpy NDArray
@@ -95,7 +100,6 @@ def hybrid_rearrange_indices_out(data, one, batch_size):
         Tensor with shape [batch_size, 1], indicates
         the valid number of boxes.
     """
-    num_anchors = data.shape[1]
     valid_box_count = output_tensor((batch_size, 1), "int32")
     output = output_tensor((batch_size, num_anchors), data.dtype)
 
@@ -116,7 +120,8 @@ def hybrid_rearrange_indices_out(data, one, batch_size):
 
 
 @hybrid.script
-def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one, batch_size):
+def hybrid_get_valid_counts(data, score_threshold, id_index, score_index,
+                            one, batch_size, num_anchors):
     """Hybrid routine to get valid count of bounding boxes
     given a score threshold. Also moves valid boxes to the
     top of input data.
@@ -143,6 +148,9 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one, b
         Batch size. We need to pass it in since hybrid script doesn't support
         binding variable to symbolic dim.
 
+    num_anchors: tvm.tir.IntImm or tvm.tir.Var
+        Number of anchors.
+
     Returns
     -------
     valid_count : tvm.te.Tensor or numpy NDArray
@@ -154,7 +162,6 @@ def hybrid_get_valid_counts(data, score_threshold, id_index, score_index, one, b
     out_indices: tvm.te.Tensor or numpy NDArray
         Related index in input data.
     """
-    num_anchors = data.shape[1]
     box_data_length = data.shape[2]
     valid_count = output_tensor((batch_size,), "int32")
     out_tensor = output_tensor((batch_size,
@@ -215,13 +222,13 @@ def get_valid_counts(data, score_threshold=0, id_index=0, score_index=1):
     return hybrid_get_valid_counts(data, score_threshold_const,
                                    id_index_const, score_index_const,
                                    tvm.tir.const(1, data.dtype),
-                                   data.shape[0])
+                                   data.shape[0], data.shape[1])
 
 
 @hybrid.script
-def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, max_output_size,
-               iou_threshold, force_suppress, top_k, coord_start, score_index,
-               id_index, return_indices, zero, one):
+def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, num_anchors,
+               max_output_size, iou_threshold, force_suppress, top_k, coord_start,
+               score_index, id_index, return_indices, zero, one):
     """Hybrid routing for non-maximum suppression.
 
     Parameters
@@ -285,7 +292,6 @@ def hybrid_nms(data, sorted_index, valid_count, indices, batch_size, max_output_
         2-D tensor with shape [batch_size, num_anchors].
     """
 
-    num_anchors = data.shape[1]
     box_data_length = data.shape[2]
 
     # box_indices is the expected value, similar to TF & ONNX
@@ -491,6 +497,7 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   valid_count,
                                   indices,
                                   batch_size,
+                                  num_anchors,
                                   tvm.tir.const(max_output_size, dtype="int32"),
                                   tvm.tir.const(iou_threshold, dtype=data.dtype),
                                   tvm.tir.const(force_suppress, dtype="bool"),
@@ -503,9 +510,9 @@ def non_max_suppression(data, valid_count, indices, max_output_size=-1,
                                   one=tvm.tir.const(1, dtype=data.dtype))
     if return_indices:
         return hybrid_rearrange_indices_out(box_indices, one=tvm.tir.const(1, dtype="int32"),
-                                            batch_size=batch_size)
+                                            batch_size=batch_size, num_anchors=num_anchors)
 
     if invalid_to_bottom:
         out = hybrid_rearrange_box_out(out, one=tvm.tir.const(1, dtype=data.dtype),
-                                       batch_size=batch_size)
+                                       batch_size=batch_size, num_anchors=num_anchors)
     return out

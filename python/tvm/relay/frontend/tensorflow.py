@@ -96,9 +96,6 @@ def _get_tuple_param(params, input_node):
 def _need_prelude_for_shape_inference(op):
     return "TensorArray" in op
 
-def _need_module_for_shape_inference(op):
-    return op in ['StridedSlice', 'NonMaxSuppressionV3']
-
 def _rsqrt():
     def _impl(inputs, attr, params, mod):
         inputs.append(tvm.relay.const(-0.5, attr['T'].name))
@@ -622,7 +619,7 @@ def _nms():
         max_output_size = int(np.atleast_1d(inputs[2].data.asnumpy().astype("int64"))[0])
         iou_threshold = np.atleast_1d(inputs[3].data.asnumpy())[0]
         # score_threshold was introduced from V3
-        score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else None
+        score_threshold = np.atleast_1d(inputs[4].data.asnumpy())[0] if len(inputs) > 4 else 0.0
 
         # Generate data with shape (1, num_anchors, 5)
         scores = AttrCvt(op_name="expand_dims",

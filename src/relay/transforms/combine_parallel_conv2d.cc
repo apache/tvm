@@ -167,6 +167,7 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
   void UpdateGroupOutput(const Expr& data, const Group& branches, size_t depth,
                          ExprSubstMap* subst_map) {
     int64_t index = 0;
+
     for (const auto& branch : branches) {
       const CallNode* conv2d = branch[0];
       int64_t channels = GetConv2DSuperChannelsDim(conv2d);
@@ -174,13 +175,11 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
       Array<Integer> end;
       for (size_t i = 0; i < channel_pos_; i++) {
         begin.push_back(0);
-        end.push_back(NullValue<Integer>());
+        end.push_back(channels);
       }
       begin.push_back(index);
       index += channels;
       end.push_back(index);
-
-
       DLContext ctx;
       ctx.device_type = kDLCPU;
       ctx.device_id = 0;
@@ -190,18 +189,22 @@ class ParallelConv2DCombiner : public ParallelOpCombiner {
                                                  DataType::Int(64), ctx);
       auto strides_ndarray = runtime::NDArray::Empty({int64_t(begin.size())},
                                                      DataType::Int(64), ctx);
-      int64_t* begin_data = static_cast<int64_t*>(begin_ndarray->data);
-      int64_t* end_data = static_cast<int64_t*>(end_ndarray->data);
+
+      auto* begin_data = static_cast<int64_t*>(begin_ndarray->data);
+      auto* end_data = static_cast<int64_t*>(end_ndarray->data);
+      auto* strides_data = static_cast<int64_t*>(strides_ndarray->data);
 
       for (size_t i = 0; i < begin.size(); ++i) {
         begin_data[i] = begin[i];
         end_data[i] = end[i];
+        strides_data[i] = 1;
       }
 
       auto slice = MakeStridedSlice(data,
                                     Constant(begin_ndarray),
                                     Constant(end_ndarray),
-                                    Constant(strides_ndarray));
+                                    Constant(strides_ndarray),
+                                    false);
       subst_map->insert({GetRef<Expr>(branch[depth]), slice});
     }
   }

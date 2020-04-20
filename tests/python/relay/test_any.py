@@ -644,13 +644,13 @@ def test_arange_with_dynamic_shape():
         tvm.testing.assert_allclose(result.asnumpy(), np.array(range(10)).astype("int32")+1)
 
 def verify_any_strided_slice(data_shape, begin_shape, end_shape,
-                             strides_shape, data_np_shape):
+                             strides_shape, data_np_shape, ignore_end=False):
     mod = tvm.IRModule()
     data = relay.var('data', shape=data_shape, dtype='float32')
     begin = relay.var('begin', shape=begin_shape, dtype="int32")
     end = relay.var('end', shape=end_shape, dtype="int32")
     strides = relay.var('strides', shape=strides_shape, dtype="int32")
-    y = relay.strided_slice(data, begin, end, strides)
+    y = relay.strided_slice(data, begin, end, strides, ignore_end)
     mod["main"] = relay.Function([data, begin, end, strides], y)
 
     # Generate random numpy input data
@@ -670,6 +670,7 @@ def test_any_strided_slice():
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (15, 17, 21))
     verify_any_strided_slice(any_dims(3), (3,), (3,), (3,), (23, 29, 41))
     verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70))
+    verify_any_strided_slice(any_dims(4), (4,), (4,), (4,), (40, 50, 60, 70), ignore_end=True)
 
 
 def test_recursive_concat():

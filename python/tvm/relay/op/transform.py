@@ -611,7 +611,7 @@ def split(data, indices_or_sections, axis=0):
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
 
-def strided_slice(data, begin, end, strides=None):
+def strided_slice(data, begin, end, strides=None, ignore_end=False):
     """Strided slice of an array.
 
     Parameters
@@ -619,15 +619,18 @@ def strided_slice(data, begin, end, strides=None):
     data : relay.Expr
         The source array to be sliced.
 
-    begin: relay.Expr
+    begin: relay.Expr or List[int]
         The indices to begin with in the slicing.
 
-    end: relay.Expr
+    end: relay.Expr or List[int]
         Indices indicating end of the slice.
 
-    strides: relay.Expr, optional
+    strides: relay.Expr or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
+
+    ignore_end: boolean, optional
+        Whether to ignore input end.
 
     Returns
     -------
@@ -635,7 +638,13 @@ def strided_slice(data, begin, end, strides=None):
         The computed result.
     """
     strides = strides or const([1], dtype="int32")
-    return _make.strided_slice(data, begin, end, strides)
+    if isinstance(begin, list):
+        begin = const(list(begin))
+    if isinstance(end, list):
+        end = const(list(end))
+    if isinstance(strides, list):
+        strides = const(list(strides))
+    return _make.strided_slice(data, begin, end, strides, ignore_end)
 
 
 def strided_set(data, v, begin, end, strides=None):
@@ -649,13 +658,13 @@ def strided_set(data, v, begin, end, strides=None):
     v : relay.Expr
         The data to be set.
 
-    begin: relay.Expr
+    begin: relay.Expr or List[int]
         The indices to begin with in the slicing.
 
-    end: relay.Expr
+    end: relay.Expr or List[int]
         Indices indicating end of the slice.
 
-    strides: relay.Expr, optional
+    strides: relay.Expr or List[int], optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
@@ -665,6 +674,12 @@ def strided_set(data, v, begin, end, strides=None):
         The computed result.
     """
     strides = strides or const([1], dtype="int32")
+    if isinstance(begin, list):
+        begin = const(list(begin))
+    if isinstance(end, list):
+        end = const(list(end))
+    if isinstance(strides, list):
+        strides = const(list(strides))
     return _make.strided_set(data, v, begin, end, strides)
 
 

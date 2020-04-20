@@ -17,7 +17,7 @@
 """strided_slice/set in python"""
 
 
-def strided_slice_python(data, begin, end, strides):
+def strided_slice_python(data, begin, end, strides, ignore_end=False):
     """Python version of strided slice operator.
 
     Parameters
@@ -34,6 +34,9 @@ def strided_slice_python(data, begin, end, strides):
     strides : list
         The stride of each slice.
 
+    ignore_end : boolean
+        Whether to ignore input end
+
     Returns
     -------
     result : numpy.ndarray
@@ -44,7 +47,7 @@ def strided_slice_python(data, begin, end, strides):
     for i in range(len(data.shape)):
         slices.append(slice(
             begin[i] if i < len(begin) else None,
-            end[i] if i < len(end) else None,
+            end[i] if i < len(end) and not ignore_end else None,
             strides[i] if i < len(strides) else None))
     return data[tuple(slices)]
 

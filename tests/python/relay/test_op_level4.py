@@ -58,11 +58,11 @@ def test_binary_op():
 
 def test_cmp_type():
     for op, ref in ((relay.greater, np.greater),
-               (relay.greater_equal, np.greater_equal),
-               (relay.less, np.less),
-               (relay.less_equal, np.less_equal),
-               (relay.equal, np.equal),
-               (relay.not_equal, np.not_equal)):
+                    (relay.greater_equal, np.greater_equal),
+                    (relay.less, np.less),
+                    (relay.less_equal, np.less_equal),
+                    (relay.equal, np.equal),
+                    (relay.not_equal, np.not_equal)):
         x = relay.var("x", relay.TensorType((10, 4), "float32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "float32"))
         z = op(x, y)
@@ -296,7 +296,8 @@ def test_mean_var_std():
 
 
 def test_strided_slice():
-    def verify(dshape, begin, end, strides, output, test_ref=True, dtype="int32"):
+    def verify(dshape, begin, end, strides, output,
+               ignore_end=False, test_ref=True, dtype="int32"):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
         ndim = len(dshape)
         begin = begin if begin else [0] * ndim
@@ -308,17 +309,20 @@ def test_strided_slice():
             z = relay.strided_slice(x,
                                     begin=begin_expr,
                                     end=end_expr,
-                                    strides=strides_expr)
+                                    strides=strides_expr,
+                                    ignore_end=ignore_end)
         else:
             z = relay.strided_slice(x,
                                     begin=begin_expr,
-                                    end=end_expr)
+                                    end=end_expr,
+                                    ignore_end=ignore_end)
         func = relay.Function([x], z)
 
         func = run_infer_type(func)
         text = func.astext()
         assert "begin=" in text
         assert "end=" in text
+
 
         if output:
             assert func.body.checked_type == relay.ty.TensorType(output, "float32")
@@ -333,10 +337,12 @@ def test_strided_slice():
             op_res = intrp.evaluate(func)(x_data)
             tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
-    verify((1, 224, 224, 3), [0, 20, 20, 0], [1, 140, 140, 3], [1, 1, 1, 1], (1, 120, 120, 3), dtype="int64")
+    verify((1, 224, 224, 3), [0, 20, 20, 0], [1, 140, 140, 3], [1, 1, 1, 1],
+           (1, 120, 120, 3), dtype="int64")
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3), dtype="int16")
     verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
-    verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (1, 2, 2))
+    verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (2, 4, 2),
+           ignore_end=True, test_ref=False)
     verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
     verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))

@@ -102,18 +102,18 @@ def arange_shape_func(attrs, inputs, _):
     return [_arange_shape_func(*inputs)]
 
 @script
-def _strided_slice_shape_func(data, begin, end, strides):
+def _strided_slice_shape_func(data, begin, end, strides, ignore_end):
     ndim = len(data.shape)
     out = output_tensor((ndim,), "int64")
     for i in const_range(ndim):
         cbegin = 0
         cend = data.shape[i]
         cstride = 1
-        if len(begin) > i:
+        if begin.shape[0] > i:
             cbegin = begin[i]
-        if len(end) > i:
+        if ignore_end != 0 or end.shape[0] > i:
             cend = end[i]
-        if len(strides) > i:
+        if strides.shape[0] > i:
             cstride = strides[i]
         assert cstride != 0, "Strides can't be zero."
         out[i] = int64(ceil_div((int64(cend) - int64(cbegin)), int64(cstride)))
@@ -121,7 +121,8 @@ def _strided_slice_shape_func(data, begin, end, strides):
 
 @_reg.register_shape_func("strided_slice", True)
 def strided_slice_shape_func(attrs, inputs, _):
-    return [_strided_slice_shape_func(*inputs)]
+    ignore_end = attrs.ignore_end
+    return [_strided_slice_shape_func(*inputs, convert(get_const_int(ignore_end)))]
 
 @script
 def _concatenate_shape_func(inputs, axis):

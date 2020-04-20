@@ -1096,11 +1096,11 @@ bool ArangeRel(const Array<Type>& types, int num_inputs, const Attrs& raw_attrs,
 }
 
 inline te::Tensor DynamicArange(const te::Tensor& start,
-                                 const te::Tensor& stop,
-                                 const te::Tensor& step,
-                                 tvm::DataType dtype,
-                                 std::string name = "T_arange_dynamic",
-                                 std::string tag = topi::kInjective) {
+                                const te::Tensor& stop,
+                                const te::Tensor& step,
+                                tvm::DataType dtype,
+                                std::string name = "T_arange_dynamic",
+                                std::string tag = topi::kInjective) {
   tvm::PrimExpr num_elem = tvm::tir::Var("num_elem");
   return te::compute(
       {num_elem},
@@ -1774,10 +1774,18 @@ bool StridedSliceRel(const Array<Type>& types,
     std::vector<int64_t> end_vec;
     int64_t* end_val = ToVector(cend->data);
     for (int64_t i = 0; i < cend->data.Shape().front(); ++i) {
-      end_vec.push_back(end_val[i]);
+      if (param->ignore_end) {
+        end_vec.push_back(max_range);
+      } else {
+        end_vec.push_back(end_val[i]);
+      }
     }
     for (int64_t i = end_vec.size(); i < num_axis; ++i) {
-      end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+      if (param->ignore_end) {
+        end_vec.push_back(max_range);
+      } else {
+        end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+      }
     }
 
     for (int64_t i = 0; i < num_axis; ++i) {
@@ -1810,7 +1818,7 @@ bool StridedSliceRel(const Array<Type>& types,
       int64_t slice_range, step;
       if (stride_v < 0) {
         if (end_v < -1) end_v = -1;
-        CHECK_LT(end_v, begin_v)
+        CHECK_LE(end_v, begin_v)
             << "strided_slice get empty slice at axis " << i;
         begin_v = std::min(dim_size - 1, begin_v);
         slice_range = begin_v - end_v;
@@ -1861,9 +1869,10 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
     CHECK(params != nullptr);
     Array<Integer> begin, end, strides;
     const ConstantNode *cbegin, *cend, *cstrides;
-    if ((cbegin = params->begin.as<ConstantNode>()) &&
-        (cend = params->end.as<ConstantNode>()) &&
-        (cstrides = params->strides.as<ConstantNode>())) {
+    cbegin = params->begin.as<ConstantNode>();
+    cend = params->end.as<ConstantNode>();
+    cstrides = params->strides.as<ConstantNode>();
+    if (cbegin && cend && cstrides) {
       int64_t* strides_val = ToVector(cstrides->data);
       for (int64_t i = 0; i < cstrides->data.Shape().front(); ++i) {
         strides.push_back(strides_val[i]);
@@ -1923,22 +1932,25 @@ Array<Array<Layout>> StridedSliceInferCorrectLayout(const Attrs& attrs,
                                                    DataType::Int(64), ctx);
     int64_t* begin_data = static_cast<int64_t*>(begin_ndarray->data);
     int64_t* end_data = static_cast<int64_t*>(end_ndarray->data);
+    int64_t* strides_data = static_cast<int64_t*>(strides_ndarray->data);
     for (size_t i = 0; i < new_begin.size(); ++i) {
       begin_data[i] = new_begin[i];
       end_data[i] = new_end[i];
+      strides_data[i] = 1;
     }
     params->begin = Constant(begin_ndarray);
     params->end = Constant(end_ndarray);
+    params->strides = Constant(strides_ndarray);
   }
   return {{layout, Layout("C"), Layout("C"), Layout("C")}, {layout}};
 }
 
 inline te::Tensor DynamicStridedSlice(const te::Tensor& input,
-                                  const te::Tensor& begin,
-                                  const te::Tensor& end,
-                                  const te::Tensor& strides,
-                                  std::string name = "T_strided_slice_dynamic",
-                                  std::string tag = topi::kInjective) {
+                                      const te::Tensor& begin,
+                                      const te::Tensor& end,
+                                      const te::Tensor& strides,
+                                      std::string name = "T_strided_slice_dynamic",
+                                      std::string tag = topi::kInjective) {
   int64_t src_tensor_dim = input->shape.size();
   Array<IndexExpr> out_shape;
   for (int64_t i = 0; i < src_tensor_dim; ++i) {
@@ -1984,6 +1996,11 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
     te::Tensor end = inputs[2];
     te::Tensor strides = inputs[3];
     // Dynamic computation
+    CHECK(begin->shape[0].as<IntImmNode>()->value == data->shape.size()
+          && end->shape[0].as<IntImmNode>()->value == data->shape.size()
+          && strides->shape[0].as<IntImmNode>()->value == data->shape.size())
+          << "begin, end, and strides are required to have the same length"
+          << " if they are non-constant.";
     return Array<te::Tensor>{
       DynamicStridedSlice(data, begin, end, strides)
     };
@@ -1994,11 +2011,13 @@ Array<te::Tensor> StridedSliceCompute(const Attrs& attrs, const Array<te::Tensor
 Expr MakeStridedSlice(Expr data,
                       Expr begin,
                       Expr end,
-                      Expr strides) {
+                      Expr strides,
+                      bool ignore_end) {
   auto attrs = make_object<StridedSliceAttrs>();
   attrs->begin = begin;
   attrs->end = end;
   attrs->strides = strides;
+  attrs->ignore_end = ignore_end;
   static const Op& op = Op::Get("strided_slice");
   return Call(op, {data, begin, end, strides}, Attrs(attrs), {});
 }
@@ -2031,19 +2050,19 @@ Examples::
                                                 [[ 5.,  6.],
                                                  [ 7.,  8.]]]
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(4)
-.add_argument("data", "Tensor", "The input tensor.")
-.add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
-.add_argument("end", "Tensor", "Indices indicating end of the slice.")
-.add_argument("strides", "Tensor", "The stride values.")
-.set_support_level(4)
-.set_attrs_type<StridedSliceAttrs>()
-.add_type_rel("StridedSlice", StridedSliceRel)
-.set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
-// TODO(@icemelon, @yongwww): Change to kOpaque because FuseOps doesn't consider dynamic shape
-.set_attr<TOpPattern>("TOpPattern", kOpaque)
-.set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
+    .set_num_inputs(4)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("begin", "Tensor", "The indices to begin with in the slicing.")
+    .add_argument("end", "Tensor", "Indices indicating end of the slice.")
+    .add_argument("strides", "Tensor", "The stride values.")
+    .add_argument("ignore_end", "Tensor", "Whether to ignore end.")
+    .set_support_level(4)
+    .set_attrs_type<StridedSliceAttrs>()
+    .add_type_rel("StridedSlice", StridedSliceRel)
+    .set_attr<FTVMCompute>("FTVMCompute", StridedSliceCompute)
+    .set_attr<TOpPattern>("TOpPattern", kInjective)
+    .set_attr<AnyCodegenStrategy>("AnyCodegenStrategy", kVariableDimensions)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", StridedSliceInferCorrectLayout);
 
 // strided_set
 bool StridedSetRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
