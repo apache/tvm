@@ -84,23 +84,43 @@ def get_binds(args, compact=False, binds=None):
     return binds, arg_list
 
 
-def form_body(sch):
+def form_irmodule(sch, args, name, binds):
     """According to the given schedule, form a function.
 
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
-    The given scheduler to form the raw body
+        The given scheduler to form the raw body
+
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+
+    name : str
+        The name of result function.
+
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        The binds information
 
     Returns
     -------
     The body formed according to the given schedule
     """
     # normalize schedule first
+    cfg = BuildConfig.current()
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
-    return stmt
+
+    compact = ir_pass.VerifyCompactBuffer(stmt)
+    binds, arg_list = get_binds(args, compact, binds)
+
+    stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
+    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
+
+    func = func.with_attr("global_symbol", name)
+    if cfg.restricted_func:
+        func = func.with_attr("tir.noalias", True)
+    return tvm.IRModule({name: func})
 
 
 def _wrap_as_prim_func_pass(flist, name):
@@ -166,24 +186,13 @@ def lower(sch,
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
-        stmt = form_body(sch)
-
-    for f in lower_phase0:
-        stmt = f(stmt)
-
-    compact = ir_pass.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, binds)
-    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
-
-    # Start the new style pass manager.
-    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
-    func = func.with_attr("global_symbol", name)
-    if cfg.restricted_func:
-        func = func.with_attr("tir.noalias", True)
-    mod = tvm.IRModule({name: func})
+        mod = form_irmodule(sch, args, name, binds)
+    else:
+        mod = sch
 
     # Phase 1
     pass_list = [
+        _wrap_as_prim_func_pass(lower_phase0, "Custom-Phase0"),
         tvm.tir.transform.InjectPrefetch(),
         tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
         tvm.tir.transform.NarrowDataType(32),

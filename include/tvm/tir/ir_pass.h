@@ -165,19 +165,6 @@ Stmt Inline(Stmt stmt,
             PrimExpr body);
 
 /*!
- * \brief Try to modify the AST to support TensorCore
- *
- * \param stmt The stmt to be trasnformed.
- * \param schedule The original schedule.
- * \param extern_buffer Map specifies external
- *    buffer assignment of input and outputs.
- * \return Transformed stmt.
- */
-Stmt RewriteForTensorCore(Stmt stmt,
-                          te::Schedule schedule,
-                          Map<te::Tensor, Buffer> extern_buffer);
-
-/*!
  * \brief Verify if there is any argument bound to compact buffer.
  *
  * \param stmt The stmt to be verified.

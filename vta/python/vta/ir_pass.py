@@ -638,7 +638,7 @@ def inject_conv2d_transpose_skip(stmt_in):
     selects = []
 
     def _find_basics(op):
-        if isinstance(op, tvm.tir.Call):
+        if isinstance(op, tvm.tir.BufferLoad):
             calls.append(op)
         elif isinstance(op, tvm.tir.Select):
             selects.append(op)
@@ -664,18 +664,18 @@ def inject_conv2d_transpose_skip(stmt_in):
                 body = op.body.body
                 while isinstance(body, tvm.tir.IfThenElse):
                     body = body.then_case
-                args = body.args
-                res_tensor = body.func.output(0)
+                args = body.indices
+                res_buffer = body.buffer
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3], 1, 0, 1, 0, env.BLOCK_OUT)
                 inner = tvm.tir.AttrStmt(
-                    [dout, res_tensor], 'buffer_bind_scope',
+                    [dout, res_buffer], 'buffer_bind_scope',
                     tvm.tir.call_intrin('handle', 'tvm_tuple', *tpl), inner)
                 return inner
             else:
                 conv_call, data_call, kernel_call = calls[-3:]
-                pad_data_tensor = data_call.func.output(0)
-                kernel_tensor = kernel_call.func.output(0)
-                res_tensor = conv_call.func.output(0)
+                pad_data_tensor = data_call.buffer
+                kernel_tensor = kernel_call.buffer
+                res_tensor = conv_call.buffer
 
                 if selects:
                     condition = selects[0].condition
@@ -696,19 +696,19 @@ def inject_conv2d_transpose_skip(stmt_in):
                                                  0, 0, 0))
                 inner = irb.get()
 
-                args = conv_call.args
+                args = conv_call.indices
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
                        1, 0, 1, 0, env.BLOCK_OUT)
                 inner = tvm.tir.AttrStmt(
                     [dout, res_tensor], 'buffer_bind_scope',
                     tvm.tir.call_intrin('handle', 'tvm_tuple', *tpl), inner)
-                args = kernel_call.args
+                args = kernel_call.indices
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
                        1, 0, env.BLOCK_OUT, 0, env.BLOCK_IN)
                 inner = tvm.tir.AttrStmt(
                     [dwgt, kernel_tensor], 'buffer_bind_scope',
                     tvm.tir.call_intrin('handle', 'tvm_tuple', *tpl), inner)
-                args = data_call.args
+                args = data_call.indices
                 tpl = (args[0], 1, args[1], 1, args[2], 1, args[3],
                        1, 0, 1, 0, env.BLOCK_IN)
                 inner = tvm.tir.AttrStmt(
