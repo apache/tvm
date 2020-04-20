@@ -85,6 +85,8 @@ class LocalBuilder(Builder):
         If is callable, use it as custom build function, expect lib_format field.
     """
     def __init__(self, timeout=10, n_parallel=None, build_func='default'):
+        # FIXME(zhanghao): quickfix - use single thread. otherwise may cause seg fault
+        n_parallel = 1
         super(LocalBuilder, self).__init__(timeout, n_parallel)
 
         if isinstance(build_func, str):
