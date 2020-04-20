@@ -548,29 +548,118 @@ def test_algebraic_simplify():
 
     assert tvm.ir.structural_equal(algebraic_simplify((x + zero * y) / one + (y * one) - zero / x), x + y)
 
+def test_partition_dominator():
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard())
+    reduction = is_op('add')(wildcard(), wildcard())
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+    # Classic Diamond
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    conv2d = relay.op.nn.conv2d(inp*inp, weight*weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Check
+    print(str(diamond.partition(out)))
+
+def test_quadruple_partition_dominator():
+    # Pattern
+    is_conv2d = is_op('nn.conv2d')(wildcard(), wildcard())
+    is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard()) | is_op('add')(wildcard(), wildcard())
+    reduction = is_op('add')(wildcard(), wildcard())
+    diamond = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    # Classic Diamond
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Deeper Branch
+    conv2d = relay.op.nn.conv2d(out, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    relu = relay.op.tanh(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Single Branch
+    conv2d = relay.op.nn.conv2d(out, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    tanh = relay.op.tanh(relu)
+    out = relu + tanh
+
+    # Fuzzy path/nested Diamond
+    conv2d = relay.op.nn.conv2d(out, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relu + relu
+    tanh = relay.op.tanh(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = tanh + leaky_relu
+
+    print(str(diamond.partition(out)))
+
+def test_parition_batchnorm():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+
+    print(str(BatchnormCallback().pattern.partition(BN)))
+
+def test_parition_double_batchnorm():
+    x = relay.var('x')
+    var = relay.var('var')
+    mean = relay.var('mean')
+    beta = relay.var('beta')
+    gamma = relay.var('gamma')
+    
+    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+    BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+
+    print(str(BatchnormCallback().pattern.partition(BN2)))
+
 if __name__ == "__main__":
-    #test_match_op()
-    #test_no_match_op()
-    #test_match_op_or()
-    #test_match_call()
-    #test_no_match_call()
-    #test_match_call_commutive()
-    #test_no_match_call_commutive()
-    #test_match_tuple()
-    #test_no_match_tuple()
-    #test_match_type()
-    #test_no_match_type()
-    #test_match_attr()
-    #test_no_match_attr()
-    #test_match_diamond()
-    #test_no_match_diamond()
-    #test_match_fake_diamond()
-    #test_rewrite()
-    #test_fuse_batchnorm()
-    #test_no_fuse_batchnorm()
-    #test_fuse_double_batchnorm()
-    #test_partial_fuse_double_batchnorm()
-    #test_fuse_batchnorm_commutation()
-    #test_match_dominator()
-    #test_not_match_dominator()
+    test_match_op()
+    test_no_match_op()
+    test_match_op_or()
+    test_match_call()
+    test_no_match_call()
+    test_match_call_commutive()
+    test_no_match_call_commutive()
+    test_match_tuple()
+    test_no_match_tuple()
+    test_match_type()
+    test_no_match_type()
+    test_match_attr()
+    test_no_match_attr()
+    test_match_diamond()
+    test_no_match_diamond()
+    test_match_fake_diamond()
+    test_rewrite()
+    test_fuse_batchnorm()
+    test_no_fuse_batchnorm()
+    test_fuse_double_batchnorm()
+    test_partial_fuse_double_batchnorm()
+    test_fuse_batchnorm_commutation()
+    test_match_dominator()
+    test_not_match_dominator()
     test_algebraic_simplify()
+    test_partition_dominator()
+    test_quadruple_partition_dominator()
+    test_parition_batchnorm()
+    test_parition_double_batchnorm()
+

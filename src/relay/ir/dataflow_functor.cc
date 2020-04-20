@@ -268,6 +268,7 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern) {
       auto current = graph_.node_map_[pattern];
       if (parent) {
         current->outputs_.push_back(parent.get());
+        parent->inputs_.push_back(current.get());
       }
     }
 

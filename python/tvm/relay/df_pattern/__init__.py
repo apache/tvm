@@ -96,6 +96,17 @@ class DFPattern(Node):
         """
         return match(self, expr)
 
+    def partition(self, expr: Expr) -> bool:
+        """
+        Parition the expression into functions defined by this pattern
+
+        Parameters
+        ----------
+        expr : tvm.relay.Expr
+            The expression to match.
+        """
+        return partition(self, expr)
+
     def dominates(self, parent, path=None):
         """
         Create a dominator for this partern
@@ -462,3 +473,16 @@ def rewrite(callbacks, expr: Expr) -> Expr:
             tmp.append(_DFPatternCallback(callback.pattern, callback.callback))
 
     return ffi.rewrite(tmp, expr)
+
+def partition(pattern: DFPattern, expr: Expr) -> Expr:
+    """
+    Rewrite expression with the given callbacks
+
+    Parameters
+    ----------
+    partion: tvm.relay.df_pattern.DFPattern
+        The pattern to separate into functions
+    expr : tvm.relay.Expr
+        The expression to rewrite.
+    """
+    return ffi.partition(pattern, expr)
