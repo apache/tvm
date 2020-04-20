@@ -347,9 +347,12 @@ def test_rewrite():
     y = relay.var('y')
     add_pattern = is_op('add')(wildcard(), wildcard())
     sub_pattern = is_op('subtract')(wildcard(), wildcard())
-    def add_to_sub(pre, post):
-        return post.args[0] - post.args[1]
-    out = rewrite([DFPatternCallback(add_pattern, add_to_sub)], x + y)
+    class TestRewrite(DFPatternCallback):
+        def __init__(self):
+            self.pattern = add_pattern
+        def callback(self, pre, post, node_map):
+            return post.args[0] - post.args[1]
+    out = rewrite(TestRewrite(), x + y)
     assert sub_pattern.match(out)
 
 def test_not_fuse_multi_diamond():
@@ -370,35 +373,25 @@ def test_not_fuse_multi_diamond():
     # Check
     assert not diamond.match(out)
 
-def fuse_batchnorm(pre, post):
-    def left_right_call(post):
-        if isinstance(post.args[0], relay.Call):
-            return (post.args[1], post.args[0])
-        else:
-            return (post.args[0], post.args[1])
-    
-    beta, post = left_right_call(post)
-    assert isinstance(post, relay.Call)
-    
-    if post.op == relay.op.get("divide"):
-        numerator = post.args[0]
-        denominator = post.args[1]
-        gamma, numerator = left_right_call(numerator)
-    elif post.op == relay.op.get("multiply"):
-        gamma, quotient = left_right_call(post)
-        numerator = quotient.args[0]
-        denominator = quotient.args[1]
-    else:
-        raise "Found unexcepted op"
+class BatchnormCallback(DFPatternCallback):
+    def __init__(self):
+        self.x = wildcard()
+        self.var = wildcard()
+        self.mean = wildcard()
+        self.beta = wildcard()
+        self.gamma = wildcard()
+        self.eps = wildcard()
+        
+        self.pattern = self.gamma * (self.x - self.mean)/is_op("sqrt")(self.var + self.eps) + self.beta
 
-    x = numerator.args[0]
-    mean = numerator.args[1]
-
-    var = denominator.args[0].args[0]
-    eps = denominator.args[0].args[1]
-    
-    out = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = eps.data.asnumpy().item())
-    return out[0]
+    def callback(self, pre, post, node_map):
+        x = node_map[self.x][0]
+        var = node_map[self.var][0]
+        mean = node_map[self.mean][0]
+        beta = node_map[self.beta][0]
+        gamma = node_map[self.gamma][0]
+        eps = node_map[self.eps][0]
+        return relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = eps.data.asnumpy().item())[0]
 
 def test_fuse_batchnorm():
     x = relay.var('x')
@@ -407,10 +400,9 @@ def test_fuse_batchnorm():
     beta = relay.var('beta')
     gamma = relay.var('gamma')
     
-    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
     BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
 
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    out = rewrite(BatchnormCallback(), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
 def test_no_fuse_batchnorm():
@@ -420,10 +412,9 @@ def test_no_fuse_batchnorm():
     beta = relay.var('beta')
     gamma = relay.var('gamma')
     
-    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
     fake_BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) - beta
 
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), fake_BN)
+    out = rewrite(BatchnormCallback(), fake_BN)
     assert tvm.ir.structural_equal(out, fake_BN)
 
 def test_fuse_double_batchnorm():
@@ -433,11 +424,10 @@ def test_fuse_double_batchnorm():
     beta = relay.var('beta')
     gamma = relay.var('gamma')
     
-    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
     BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
     BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
 
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN2)
+    out = rewrite(BatchnormCallback(), BN2)
 
     bn = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0]
     bn2 = relay.op.nn.batch_norm(bn, gamma, beta, mean, var, epsilon = 1e-5)[0]
@@ -451,11 +441,10 @@ def test_partial_fuse_double_batchnorm():
     beta = relay.var('beta')
     gamma = relay.var('gamma')
     
-    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
     BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) - beta
     BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
 
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN2)
+    out = rewrite(BatchnormCallback(), BN2)
 
     bn2 = relay.op.nn.batch_norm(BN, gamma, beta, mean, var, epsilon = 1e-5)[0]
 
@@ -468,74 +457,70 @@ def test_fuse_batchnorm_commutation():
     beta = relay.var('beta')
     gamma = relay.var('gamma')
     
-    BN_pattern = wildcard() * (wildcard() - wildcard())/is_op("sqrt")(wildcard() + wildcard()) + wildcard()
     #commute add
     BN = beta + gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5))
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    out = rewrite(BatchnormCallback(), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
     # associate divide/multiply
     BN = (gamma * (x - mean)) /relay.op.sqrt(var + relay.const(1e-5))  + beta
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    out = rewrite(BatchnormCallback(), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
     # associate multiply/divide
     BN = gamma * ((x - mean)/relay.op.sqrt(var + relay.const(1e-5))) + beta
-    out = rewrite(DFPatternCallback(BN_pattern, fuse_batchnorm), BN)
+    out = rewrite(BatchnormCallback(), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
 def algebraic_simplify(expr):
-    pattern_callbacks = []
-
-    def elwise_zero_callback(pre, post):
-        if (tvm.ir.structural_equal(post.args[0], relay.const(0)) | 
-            tvm.ir.structural_equal(post.args[0], relay.const(0.0))):
-            return post.args[1]
-        else:
-            return post.args[0]
-
-    def elwise_one_callback(pre, post):
-        if (tvm.ir.structural_equal(post.args[0], relay.const(1)) | 
-            tvm.ir.structural_equal(post.args[0], relay.const(1.0))):
-            return post.args[1]
-        else:
-            return post.args[0]
-
-    def return_zero_callback(pre, post):
-        if (tvm.ir.structural_equal(post.args[0], relay.const(0)) | 
-            tvm.ir.structural_equal(post.args[0], relay.const(0.0))):
-            return post.args[0]
-        else:
-            return post.args[1]
-
     zero = (ExprPattern(relay.const(0)) | ExprPattern(relay.const(0.0)))
     one = (ExprPattern(relay.const(1)) | ExprPattern(relay.const(1.0)))
-    add_pattern = wildcard() + zero
-    pattern_callbacks.append(DFPatternCallback(add_pattern, elwise_zero_callback))
+    class ElwiseNullCallback(DFPatternCallback):
+        def callback(self, pre, post, node_map):
+            return node_map[self.x][0]
 
-    sub_pattern = wildcard() - zero
-    pattern_callbacks.append(DFPatternCallback(sub_pattern, elwise_zero_callback))
-
-    mul_pattern = wildcard() * one
-    pattern_callbacks.append(DFPatternCallback(mul_pattern, elwise_one_callback))
+    class AddCallback(ElwiseNullCallback):
+        def __init__(self):
+            self.x = wildcard()
+            self.pattern = self.x + zero
     
-    mul_zero_pattern = wildcard() * zero
-    pattern_callbacks.append(DFPatternCallback(mul_zero_pattern, return_zero_callback))
+    class SubCallback(ElwiseNullCallback):
+        def __init__(self):
+            self.x = wildcard()
+            self.pattern = self.x - zero
 
-    div_pattern = wildcard() / one
-    pattern_callbacks.append(DFPatternCallback(div_pattern, elwise_one_callback))
+    class MulCallback(ElwiseNullCallback):
+        def __init__(self):
+            self.x = wildcard()
+            self.pattern = self.x * one
 
-    zero_div_pattern = zero / wildcard()
-    pattern_callbacks.append(DFPatternCallback(zero_div_pattern, return_zero_callback))
+    class DivCallback(ElwiseNullCallback):
+        def __init__(self):
+            self.x = wildcard()
+            self.pattern = self.x / one
 
-    return rewrite(pattern_callbacks, expr);
+    class MulZeroCallback(ElwiseNullCallback):
+        def __init__(self):
+            self.x = zero
+            self.pattern = self.x * wildcard()
+
+    class ZeroDivCallback(ElwiseNullCallback):
+        def __init__(self):
+            self.x = zero
+            self.pattern = self.x / wildcard()
+
+    return rewrite([AddCallback(),
+                    SubCallback(),
+                    MulCallback(),
+                    DivCallback(),
+                    MulZeroCallback(),
+                    ZeroDivCallback()
+                    ], expr);
 
 def test_algebraic_simplify():
     x = relay.Var('x')
     y = relay.Var('y')  
 
-    print(x + relay.const(0))
-    
     one = relay.const(1)
     zero = relay.const(0)
     onef = relay.const(1.0)
@@ -564,27 +549,28 @@ def test_algebraic_simplify():
     assert tvm.ir.structural_equal(algebraic_simplify((x + zero * y) / one + (y * one) - zero / x), x + y)
 
 if __name__ == "__main__":
-    test_match_op()
-    test_no_match_op()
-    test_match_op_or()
-    test_match_call()
-    test_no_match_call()
-    test_match_call_commutive()
-    test_no_match_call_commutive()
-    test_match_tuple()
-    test_no_match_tuple()
-    test_match_type()
-    test_no_match_type()
-    test_match_attr()
-    test_no_match_attr()
-    test_match_diamond()
-    test_no_match_diamond()
-    test_match_fake_diamond()
-    test_rewrite()
-    test_fuse_batchnorm()
-    test_no_fuse_batchnorm()
-    test_fuse_double_batchnorm()
-    test_partial_fuse_double_batchnorm()
-    test_fuse_batchnorm_commutation()
-    test_match_dominator()
-    test_not_match_dominator()
+    #test_match_op()
+    #test_no_match_op()
+    #test_match_op_or()
+    #test_match_call()
+    #test_no_match_call()
+    #test_match_call_commutive()
+    #test_no_match_call_commutive()
+    #test_match_tuple()
+    #test_no_match_tuple()
+    #test_match_type()
+    #test_no_match_type()
+    #test_match_attr()
+    #test_no_match_attr()
+    #test_match_diamond()
+    #test_no_match_diamond()
+    #test_match_fake_diamond()
+    #test_rewrite()
+    #test_fuse_batchnorm()
+    #test_no_fuse_batchnorm()
+    #test_fuse_double_batchnorm()
+    #test_partial_fuse_double_batchnorm()
+    #test_fuse_batchnorm_commutation()
+    #test_match_dominator()
+    #test_not_match_dominator()
+    test_algebraic_simplify()

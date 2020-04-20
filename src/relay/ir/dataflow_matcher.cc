@@ -400,7 +400,7 @@ class PatternRewriter : protected MixedModeMutator {
     auto post = MixedModeMutator::DispatchVisitExpr(pre);
     if (auto* callback_node = callback_->as<DFPatternCallbackNode>()) {
       if (matcher_->Match(callback_node->pattern_, post)) {
-        return callback_node->function_(pre, post);
+        return callback_node->function_(pre, post, matcher_->GetMemo());
       }
     }
     return post;

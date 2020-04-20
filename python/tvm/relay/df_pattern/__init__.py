@@ -400,24 +400,15 @@ class DominatorPattern(DFPattern):
             ffi.DominatorPattern, parent, path, child)
 
 
-class DFPatternCallback(Object):
+class DFPatternCallback:
     """A Callback for Pattern Rewriting
 
     When rewrite is called on this DFPatternCallback, the backend will find matches for the
     pattern, call the callback function, and replace the matched expression with whatever
     the callback returns.
 
-    Parameters
-    ----------
-    pattern: tvm.relay.df_pattern.DFPattern
-        The Pattern to match
-    callback: PackedFunc
-        The callback function.
+    Users are expect to inherit from this class and provide a "self.pattern" to match
     """
-
-    def __init__(self, pattern: DFPattern, callback):
-        self.__init_handle_by_constructor__(
-            ffi.DFPatternCallback, pattern, callback)
 
     def rewrite(self, expr: Expr) -> Expr:
         """
@@ -429,6 +420,27 @@ class DFPatternCallback(Object):
             The expression to rewrite.
         """
         return rewrite(self, expr)
+
+    def callback(self, pre, post, node_map):
+        """
+        Callback function to use when we found a match to the pattern
+
+        Parameters
+        ----------
+        pre : tvm.relay.Expr
+            The matching expression from the original graph.
+        post : tvm.relay.Expr
+            The matching expression with rewritten inputs
+        node_map : Map(DFPattern, List(Expr))
+            The map between patterns and matched expressions
+        """
+        raise "Unimplemented"
+
+class _DFPatternCallback(Object):
+    """C++ implemenation"""
+    def __init__(self, pattern, callback):
+        self.__init_handle_by_constructor__(
+            ffi.DFPatternCallback, pattern, callback)
 
 
 def rewrite(callbacks, expr: Expr) -> Expr:
@@ -443,5 +455,10 @@ def rewrite(callbacks, expr: Expr) -> Expr:
         The expression to rewrite.
     """
     if isinstance(callbacks, DFPatternCallback):
-        callbacks = [callbacks]
-    return ffi.rewrite(callbacks, expr)
+        tmp = [_DFPatternCallback(callbacks.pattern, callbacks.callback)]
+    else:
+        tmp = []
+        for callback in callbacks:
+            tmp.append(_DFPatternCallback(callback.pattern, callback.callback))
+
+    return ffi.rewrite(tmp, expr)
