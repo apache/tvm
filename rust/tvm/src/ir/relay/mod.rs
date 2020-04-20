@@ -1,27 +1,16 @@
 use super::array::Array;
 use crate::runtime::{IsObject, Object, ObjectPtr, ObjectRef, String as TString, ToObjectRef};
 use crate::DataType;
-use std::convert::TryFrom;
-use std::convert::TryInto;
 use tvm_macros::Object;
-use tvm_rt::TVMRetValue;
 
 #[repr(C)]
+#[derive(Object)]
+#[ref_name = "Id"]
+#[type_key = "Id"]
 pub struct IdNode {
     pub base: Object,
     pub name_hint: TString,
 }
-
-unsafe impl IsObject for IdNode {
-    const TYPE_KEY: &'static str = "relay.Id";
-
-    fn as_object<'s>(&'s self) -> &'s Object {
-        &self.base
-    }
-}
-
-#[repr(C)]
-pub struct Id(Option<ObjectPtr<IdNode>>);
 
 impl Id {
     fn new(name_hint: TString) -> Id {
@@ -30,10 +19,6 @@ impl Id {
             name_hint: name_hint,
         };
         Id(Some(ObjectPtr::new(node)))
-    }
-
-    fn upcast(&self) -> ObjectRef {
-        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
     }
 }
 

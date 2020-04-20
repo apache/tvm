@@ -21,7 +21,7 @@ use std::{convert::TryFrom, mem, os::raw::c_void, ptr, slice};
 
 use anyhow::Error;
 use ndarray;
-use tvm_common::{
+use tvm_sys::{
     array::{DataType, TVMContext},
     ffi::{
         DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt,

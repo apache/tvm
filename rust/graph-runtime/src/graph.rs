@@ -26,7 +26,7 @@ use nom::{
 };
 use serde;
 use serde_json;
-use tvm_common::{
+use tvm_sys::{
     array::{DataType, TVMContext},
     ffi::{DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLTensor},
     TVMArgValue,

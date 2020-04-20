@@ -179,7 +179,7 @@ impl_tvm_context!(
 ///
 /// ```
 /// let v = b"hello";
-/// let barr = tvm_common::TVMByteArray::from(&v);
+/// let barr = tvm_sys::TVMByteArray::from(&v);
 /// assert_eq!(barr.len(), v.len());
 /// assert_eq!(barr.data(), &[104u8, 101, 108, 108, 111]);
 /// ```

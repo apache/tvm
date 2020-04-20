@@ -31,7 +31,7 @@
 //! Checkout the `examples` repository for more details.
 
 extern crate ndarray as rust_ndarray;
-
+pub use crate as tvm_rt;
 pub mod object;
 pub mod string;
 

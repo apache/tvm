@@ -2,28 +2,17 @@ use std::ffi::{CString, NulError};
 use std::os::raw::c_char;
 
 use super::{IsObject, Object, ObjectPtr, ObjectRef};
+use tvm_macros::Object;
+use crate as tvm_rt;
 
 #[repr(C)]
+#[derive(Object)]
+#[ref_name = "String"]
+#[type_key = "runtime.String"]
 pub struct StringObj {
     base: Object,
     data: *const c_char,
     size: u64,
-}
-
-unsafe impl IsObject for StringObj {
-    const TYPE_KEY: &'static str = "runtime.String";
-
-    fn as_object<'s>(&'s self) -> &'s Object {
-        &self.base
-    }
-}
-
-pub struct String(Option<ObjectPtr<StringObj>>);
-
-impl String {
-    fn upcast(&self) -> ObjectRef {
-        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
-    }
 }
 
 impl String {
@@ -59,12 +48,6 @@ impl String {
         Ok(string)
     }
 }
-
-// impl std::convert::From<String> for std::string::String {
-//     fn from(string: String) -> std::string::String {
-//         u
-//     }
-// }
 
 #[cfg(test)]
 mod tests {

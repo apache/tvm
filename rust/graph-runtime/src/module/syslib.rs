@@ -21,7 +21,7 @@ use std::{
     collections::HashMap, convert::AsRef, ffi::CStr, os::raw::c_char, string::String, sync::Mutex,
 };
 
-use tvm_common::{ffi::BackendPackedCFunc, packed_func::PackedFunc};
+use tvm_sys::{ffi::BackendPackedCFunc, packed_func::PackedFunc};
 
 use super::Module;
 

@@ -28,7 +28,7 @@ use std::{
 };
 
 use crossbeam::channel::{bounded, Receiver, Sender};
-use tvm_common::ffi::TVMParallelGroupEnv;
+use tvm_sys::ffi::TVMParallelGroupEnv;
 
 pub(crate) type FTVMParallelLambda =
     extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;

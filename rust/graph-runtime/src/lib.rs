@@ -42,7 +42,6 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-extern crate tvm_common;
 
 mod allocator;
 mod array;
@@ -52,7 +51,7 @@ mod module;
 mod threading;
 mod workspace;
 
-pub use tvm_common::{
+pub use tvm_sys::{
     call_packed,
     errors::*,
     ffi::{self, DLTensor},

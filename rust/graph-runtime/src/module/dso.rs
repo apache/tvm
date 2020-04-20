@@ -25,7 +25,7 @@ use std::{
     pin::Pin,
 };
 
-use tvm_common::{ffi::BackendPackedCFunc, packed_func::PackedFunc};
+use tvm_sys::{ffi::BackendPackedCFunc, packed_func::PackedFunc};
 
 use crate::{
     threading::{TVMBackendParallelBarrier, TVMBackendParallelLaunch},
@@ -83,7 +83,7 @@ impl<'a> DsoModule<'a> {
             ),
             (
                 TVMBackendParallelBarrier,
-                unsafe extern "C" fn(usize, *const tvm_common::ffi::TVMParallelGroupEnv)
+                unsafe extern "C" fn(usize, *const tvm_sys::ffi::TVMParallelGroupEnv)
             ),
         );
 

@@ -174,10 +174,10 @@ TVMPODValue! {
     ///
     /// ```
     /// use std::convert::{TryFrom, TryInto};
-    /// use tvm_common::TVMRetValue;
+    /// use tvm_sys::TVMRetValue;
     ///
     /// let a = 42u32;
-    /// let b: u32 = tvm_common::TVMRetValue::from(a).try_into().unwrap();
+    /// let b: u32 = tvm_sys::TVMRetValue::from(a).try_into().unwrap();
     ///
     /// let s = "hello, world!";
     /// let t: TVMRetValue = s.to_string().into();

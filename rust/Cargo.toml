@@ -26,5 +26,6 @@ members = [
 	"tvm",
 	"tvm/tests/basics",
 	"tvm/tests/callback",
-	"tvm/examples/resnet"
+	"tvm/examples/resnet",
+	"out-of-tree"
 ]

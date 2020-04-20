@@ -196,6 +196,12 @@ impl ToObjectRef for ObjectRef {
     }
 }
 
+impl<T: ToObjectRef> ToObjectRef for &T {
+    fn to_object_ref(&self) -> ObjectRef {
+        (*self).to_object_ref()
+    }
+}
+
 impl TryFrom<TVMRetValue> for ObjectRef {
     type Error = anyhow::Error;
 
@@ -212,29 +218,31 @@ impl TryFrom<TVMRetValue> for ObjectRef {
     }
 }
 
-impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
-    fn from(object_ref: &ObjectRef) -> TVMArgValue<'a> {
-        let object_ptr = &object_ref.0;
-        let raw_object_ptr = object_ptr
-            .as_ref()
-            .map(|p| p.ptr.as_ptr())
-            .unwrap_or(std::ptr::null_mut());
+impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMArgValue<'a> {
+    fn from(object_ptr: ObjectPtr<T>) -> TVMArgValue<'a> {
+        let raw_object_ptr = object_ptr.ptr.as_ptr();
         // Should be able to hide this unsafety in raw bindings.
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
         TVMArgValue::ObjectHandle(void_ptr)
     }
 }
 
-impl From<ObjectRef> for TVMArgValue<'static> {
-    fn from(object_ref: ObjectRef) -> TVMArgValue<'static> {
+impl<'a> From<ObjectRef> for TVMArgValue<'a> {
+    fn from(object_ref: ObjectRef) -> TVMArgValue<'a> {
+        use std::ffi::c_void;
         let object_ptr = &object_ref.0;
-        let raw_object_ptr = object_ptr
-            .as_ref()
-            .map(|p| p.ptr.as_ptr())
-            .unwrap_or(std::ptr::null_mut());
-        // Should be able to hide this unsafety in raw bindings.
-        let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
-        TVMArgValue::ObjectHandle(void_ptr)
+        match object_ptr {
+            None => {
+                TVMArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
+            }
+            Some(value) => value.clone().into()
+        }
+    }
+}
+
+impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
+    fn from(object_ref: &ObjectRef) -> TVMArgValue<'a> {
+        object_ref.into()
     }
 }
 
@@ -251,6 +259,7 @@ macro_rules! external_func {
         }
 
         pub fn $name($($arg : $ty),*) -> Result<$ret_type, anyhow::Error> {
+            use std::convert::TryInto;
             let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
             let res = $crate::call_packed!(func_ref,$($arg),*)?;
             let res = res.try_into()?;

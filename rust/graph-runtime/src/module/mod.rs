@@ -21,7 +21,7 @@
 mod dso;
 mod syslib;
 
-use tvm_common::{
+use tvm_sys::{
     ffi::BackendPackedCFunc,
     packed_func::{PackedFunc, TVMArgValue, TVMRetValue, TVMValue},
 };
@@ -48,7 +48,7 @@ fn wrap_backend_packed_func(func_name: String, func: BackendPackedCFunc) -> Box<
         if exit_code == 0 {
             Ok(TVMRetValue::default())
         } else {
-            Err(tvm_common::errors::FuncCallError::get_with_context(
+            Err(tvm_sys::errors::FuncCallError::get_with_context(
                 func_name.clone(),
             ))
         }

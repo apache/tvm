@@ -55,5 +55,6 @@ pub use tvm_rt::ndarray;
 pub use tvm_rt::value;
 pub mod ir;
 pub mod runtime;
+pub mod transform;
 
 pub use runtime::version;
