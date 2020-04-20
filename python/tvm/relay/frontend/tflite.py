@@ -86,6 +86,7 @@ class OperatorConverter(object):
             'GREATER': self.convert_greater,
             'HARD_SWISH': self.convert_hard_swish,
             'L2_NORMALIZATION': self.convert_l2_normalization,
+            'L2_POOL_2D': self.convert_l2_pool2d,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
             'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
@@ -330,6 +331,10 @@ class OperatorConverter(object):
     def convert_max_pool2d(self, op):
         """Convert TFLite max pool2d"""
         return self.convert_pool2d(op, "max")
+
+    def convert_l2_pool2d(self, op):
+        """Convert TFLite l2 pool2d"""
+        return self.convert_pool2d(op, "l2")
 
     def convert_reshape(self, op):
         """Convert TFLite reshape"""
@@ -1674,6 +1679,12 @@ class OperatorConverter(object):
                 assert self.has_same_qnn_params(input_tensor, output_tensor), \
                         "qnn.op.max_pool2d requires input and output qnn params to be same"
             out = _op.nn.max_pool2d(in_expr, **params)
+        elif pool_type == "l2":
+            # l2_pool_2d is equivalent to sqrt(avg_pool(sqr(in_data)))
+            exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
+            square_exp = _op.power(in_expr, relay.const(2, exp_type))
+            avg_pool_exp = _op.nn.avg_pool2d(square_exp, **params)
+            out = _op.sqrt(avg_pool_exp)
         else:
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(pool_type + ' pool'))
