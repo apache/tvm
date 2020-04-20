@@ -68,7 +68,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
     if topi_tmpl == "conv2d_NCHWc.x86":
         # we only convert conv2d_NCHW to conv2d_NCHWc for x86
-        if data_layout=="NCHW" and kernel_layout=="OIHW":
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
             if cfg.is_fallback:
                 _get_default_config(cfg, data_tensor, kernel_tensor, strides, padding,
                                     out_dtype, False, data_layout)
@@ -85,12 +85,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
             # Store altered operator's config
             new_data = te.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
-                                    dtype=data_dtype)
+                                      dtype=data_dtype)
             new_kernel = te.placeholder((out_channel//oc_bn, in_channel//ic_bn,
-                                        kh, kw, ic_bn, oc_bn), dtype=kernel_tensor.dtype)
+                                         kh, kw, ic_bn, oc_bn), dtype=kernel_tensor.dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_kernel, strides, padding, dilation, new_attrs["data_layout"],
-                new_attrs["out_layout"], out_dtype], topi_tmpl)
+                 new_attrs["out_layout"], out_dtype], topi_tmpl)
             dispatch_ctx.update(target, new_workload, cfg)
         else:
             assert _NCHWc_matcher.match(data_layout)
@@ -143,7 +143,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.contrib_conv2d_nchwc(data_expr, kernel_OIHWioe, **new_attrs)
 
     if topi_tmpl == "depthwise_conv2d_NCHWc.x86":
-        if data_layout=="NCHW" and kernel_layout=="OIHW":
+        if data_layout == "NCHW" and kernel_layout == "OIHW":
             if cfg.is_fallback:
                 _get_default_config(cfg, data_tensor, kernel_tensor, strides, padding,
                                     out_dtype, True, data_layout)
@@ -161,11 +161,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
 
             # Store altered operator's config.
             new_data = te.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
-                                    dtype=data_dtype)
-            new_kernel = te.placeholder((out_channel//oc_bn, 1, kh, kw, 1, oc_bn), dtype=kernel_dtype)
+                                      dtype=data_dtype)
+            new_kernel = te.placeholder((out_channel//oc_bn, 1, kh, kw, 1, oc_bn),
+                                        dtype=kernel_dtype)
             new_workload = autotvm.task.args_to_workload(
                 [new_data, new_kernel, strides, padding, dilation, new_attrs['data_layout'],
-                new_attrs['out_layout'], out_dtype], topi_tmpl)
+                 new_attrs['out_layout'], out_dtype], topi_tmpl)
             dispatch_ctx.update(target, new_workload, cfg)
         else:
             assert _NCHWc_matcher.match(data_layout)
