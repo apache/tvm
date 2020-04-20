@@ -162,7 +162,6 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
     }
     return false;
   };
-
   auto is_expr_op = [](const Expr& expr, std::string op_type) {
     if (const auto* call_node = expr.as<CallNode>()) {
       if (const auto* op_node = call_node->op.as<OpNode>()) {
