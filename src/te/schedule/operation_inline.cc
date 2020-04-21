@@ -18,29 +18,31 @@
  */
 
 /*!
- * \file inline.cc
+ * \file operation_inline.cc
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
+#include <utility>
+#include "operation_inline.h"
 
 namespace tvm {
-namespace tir {
+namespace te {
 
 // inliner to inline a function
 // the result may not be SSA,
 // ConvertSSA need to be applied after this pass
-class IRInline final : public StmtExprMutator {
+class OperationInliner final : public StmtExprMutator {
  public:
-  IRInline(FunctionRef f, Array<Var> args, PrimExpr body)
-      : f_(f), args_(args), body_(body) {}
+  OperationInliner(Operation op, Array<Var> args, PrimExpr body)
+      : operation_(op), args_(args), body_(body) {}
 
   PrimExpr VisitExpr_(const CallNode* op) final {
     PrimExpr expr = StmtExprMutator::VisitExpr_(op);
     op = expr.as<CallNode>();
 
-    if (op->func == f_) {
+    if (op->func.same_as(operation_)) {
       CHECK_EQ(op->value_index, 0);
       expr = body_;
       CHECK_EQ(args_.size(), op->args.size());
@@ -68,20 +70,20 @@ class IRInline final : public StmtExprMutator {
   }
 
  private:
-  FunctionRef f_;
+  Operation operation_;
   Array<Var> args_;
   PrimExpr body_;
 };
 
 Stmt Inline(Stmt stmt,
-            FunctionRef f,
+            Operation f,
             Array<Var> args,
             PrimExpr body) {
   CHECK_EQ(f->num_outputs(), 1)
       << "can only inline output single value operation";
-  Stmt ret = IRInline(f, args, body)(std::move(stmt));
+  Stmt ret = OperationInliner(f, args, body)(std::move(stmt));
   if (ret.same_as(stmt)) return ret;
   return ConvertSSA(ret);
 }
-}  // namespace tir
+}  // namespace te
 }  // namespace tvm

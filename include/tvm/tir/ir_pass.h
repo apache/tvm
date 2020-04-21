@@ -149,22 +149,6 @@ Stmt Substitute(Stmt stmt, const Map<Var, PrimExpr>& value_map);
 PrimExpr Substitute(PrimExpr expr, const Map<Var, PrimExpr>& value_map);
 
 /*!
- * \brief inline all calls of f in stmt.
- *
- * \param stmt The statement to apply inline optimization.
- * \param f The function reference to be inlined
- * \param args The arguments variable of the function.
- * \param body The definition body of the function.
- * \return The result stmt
- *
- * \note All the passes in this file uses SSA form and outputs SSA form.
- */
-Stmt Inline(Stmt stmt,
-            FunctionRef f,
-            Array<Var> args,
-            PrimExpr body);
-
-/*!
  * \brief Verify if there is any argument bound to compact buffer.
  *
  * \param stmt The stmt to be verified.

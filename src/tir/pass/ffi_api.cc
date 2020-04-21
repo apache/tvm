@@ -97,7 +97,6 @@ TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
 
 REGISTER_PASS(ConvertSSA);
 REGISTER_PASS(VerifySSA);
-REGISTER_PASS(Inline);
 REGISTER_PASS(IRTransform);
 REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
