@@ -72,7 +72,7 @@ def test_func_type():
 
 def test_tuple_type():
     tp = tvm.ir.TypeVar('tp', tvm.ir.TypeKind.Type)
-    tf = tvm.ir.FuncType([], None, [], [])
+    tf = tvm.ir.FuncType([], tvm.ir.TupleType([]), [], [])
     tt = tvm.ir.TensorType(tvm.runtime.convert([1, 2, 3]), 'float32')
     fields = tvm.runtime.convert([tp, tf, tt])
 
