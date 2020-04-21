@@ -27,12 +27,14 @@ from .op import register_gradient
 from .reduce import sum as _sum
 from .tensor import (
     cos,
+    cosh,
     exp,
     less,
     negative,
     ones_like,
     power,
     sin,
+    sinh,
     zeros_like,
     equal,
     shape_of,
@@ -75,7 +77,7 @@ def log10_grad(orig, grad):
     """Returns [grad * 1 / (log(10) * x)]"""
     x = orig.args[0]
     ones = ones_like(x)
-    ten = const(2.0)
+    ten = const(10.0)
     return [grad * ones / (log(ten) * x)]
 
 
