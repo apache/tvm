@@ -218,6 +218,28 @@ impl TryFrom<TVMRetValue> for ObjectRef {
     }
 }
 
+impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMRetValue {
+    fn from(object_ptr: ObjectPtr<T>) -> TVMRetValue {
+        let raw_object_ptr = object_ptr.ptr.as_ptr();
+        // Should be able to hide this unsafety in raw bindings.
+        let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
+        TVMRetValue::ObjectHandle(void_ptr)
+    }
+}
+
+impl From<ObjectRef> for TVMRetValue {
+    fn from(object_ref: ObjectRef) -> TVMRetValue {
+        use std::ffi::c_void;
+        let object_ptr = &object_ref.0;
+        match object_ptr {
+            None => {
+                TVMRetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
+            }
+            Some(value) => value.clone().into()
+        }
+    }
+}
+
 impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMArgValue<'a> {
     fn from(object_ptr: ObjectPtr<T>) -> TVMArgValue<'a> {
         let raw_object_ptr = object_ptr.ptr.as_ptr();

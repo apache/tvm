@@ -119,6 +119,20 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
                 object_ref.into()
             }
         }
+
+        impl From<#ref_id> for tvm_rt::TVMRetValue {
+            fn from(object_ref: #ref_id) -> tvm_rt::TVMRetValue {
+                use std::ffi::c_void;
+                let object_ptr = &object_ref.0;
+                match object_ptr {
+                    None => {
+                        tvm_rt::TVMRetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
+                    }
+                    Some(value) => value.clone().into()
+                }
+            }
+        }
+
     };
 
     TokenStream::from(expanded)
