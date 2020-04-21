@@ -103,11 +103,11 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
-    int size = 0;
-    CHECK(arith::GetConstInt(extent, &size))
+    auto* sizeptr = extent.as<tir::IntImmNode>();
+    CHECK(sizeptr)
         << "SPIRV only allows constant thread group size " << " get " << extent;
     CHECK_LT(ts.dim_index, 3);
-    workgroup_size_[ts.dim_index] = static_cast<uint32_t>(size);
+    workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {
     v = builder_->GetWorkgroupID(ts.dim_index);
   }

@@ -574,6 +574,17 @@ ramp(const Pattern<TBase>& base,
       base.derived(), stride.derived(), lanes.derived());
 }
 
+template<typename TBase>
+inline PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>>
+ramp(const Pattern<TBase>& base,
+     int stride,
+     int lanes) {
+  return PRampExpr<TBase, PConstWithTypeLike<TBase>, PConst<int>>(
+      base.derived(),
+      PConstWithTypeLike<TBase>(base.derived(), stride),
+      PConst<int>(lanes));
+}
+
 /*!
  * \brief Pattern broadcast expression.
  * \tparam TA The pattern type of the value.

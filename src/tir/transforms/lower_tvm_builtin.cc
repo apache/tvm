@@ -30,7 +30,6 @@
 #include <unordered_set>
 
 #include "../pass/ir_util.h"
-#include "../../arith/compute_expr.h"
 
 namespace tvm {
 namespace tir {
@@ -94,11 +93,10 @@ class BuiltinLower : public StmtExprMutator {
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
     // Get constant allocation bound.
-    int64_t dev_type;
     int64_t nbytes = GetVectorBytes(op->dtype);
     if (device_type_.defined()) {
-      if (arith::GetConst(device_type_, &dev_type)) {
-        if (dev_type == kDLCPU) {
+      if (const auto* dev_type = device_type_.as<IntImmNode>()) {
+        if (dev_type->value == kDLCPU) {
           int32_t constant_size = op->constant_allocation_size();
           if (constant_size > 0 && constant_size * nbytes < runtime::kMaxStackAlloca) {
             return stmt;
