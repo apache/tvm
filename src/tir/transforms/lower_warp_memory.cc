@@ -37,7 +37,7 @@
 
 #include <unordered_set>
 
-#include "../pass/ir_util.h"
+#include "../../arith/pattern_match.h"
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -121,11 +121,11 @@ class WarpStoreCoeffFinder : private StmtVisitor {
       if (op->value.dtype().lanes() == 1) {
         UpdatePattern(op->index);
       } else {
-        PrimExpr base;
-        CHECK(GetRamp1Base(op->index, op->value.dtype().lanes(), &base))
+        arith::PVar<PrimExpr> base;
+        CHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(op->index))
             << "LowerWarpMemory failed due to store index=" << op->index
             << ", can only handle continuous store";
-        UpdatePattern(base);
+        UpdatePattern(base.Eval());
       }
     } else {
       StmtVisitor::VisitStmt_(op);
@@ -137,19 +137,18 @@ class WarpStoreCoeffFinder : private StmtVisitor {
         arith::DetectLinearEquation(index, {warp_index_});
     CHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed due to store index=" << index;
-    int coeff = 0;
     PrimExpr mcoeff = analyzer_->canonical_simplify(m[0]);
-
-    CHECK(arith::GetConstInt(mcoeff, &coeff) && coeff > 0)
+    const auto* mcoeff_as_int = mcoeff.as<IntImmNode>();
+    CHECK(mcoeff_as_int && mcoeff_as_int->value > 0)
         << "LowerWarpMemory failed due to store index=" << index
         << ", require positive constant coefficient on warp index " << warp_index_
         << " but get " << mcoeff;
 
     if (warp_coeff_ != 0) {
-      CHECK_EQ(warp_coeff_, coeff)
+      CHECK_EQ(warp_coeff_, mcoeff_as_int->value)
           << "LowerWarpMemory failed due to two different store coefficient to warp index";
     } else {
-      warp_coeff_ = coeff;
+      warp_coeff_ = mcoeff_as_int->value;
     }
   }
 
@@ -158,7 +157,7 @@ class WarpStoreCoeffFinder : private StmtVisitor {
   // the warp index
   Var warp_index_;
   // the coefficient
-  int warp_coeff_{0};
+  int64_t warp_coeff_{0};
   // analyzer.
   arith::Analyzer* analyzer_;
 };
@@ -184,10 +183,10 @@ class WarpIndexFinder : private StmtVisitor {
     if (op->attr_key == attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       if (iv->thread_tag == "threadIdx.x") {
-        int value = 0;
-        CHECK(arith::GetConstInt(op->value, &value) &&
-              value <= warp_size_ &&
-              warp_size_ % value == 0)
+        auto* value_as_int = op->value.as<IntImmNode>();
+        CHECK(value_as_int &&
+              value_as_int->value <= warp_size_ &&
+              warp_size_ % value_as_int->value == 0)
             << "Expect threadIdx.x 's size to be no larger than, and a factor of"
             << " warp size(" << warp_size_ << ")" << " to enable warp memory"
             << " but get " << op->value << " instead";
@@ -198,7 +197,7 @@ class WarpIndexFinder : private StmtVisitor {
               << "Please create it using thread_axis once and reuse the axis "
               << "across multiple binds in the same kernel";
         } else {
-          width_ = value;
+          width_ = value_as_int->value;
           warp_index_ = iv;
         }
       }
@@ -281,9 +280,12 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // in this access pattern.
   std::pair<PrimExpr, PrimExpr> SplitIndexByGroup(const PrimExpr& index) {
     if (index.dtype().lanes() != 1) {
-      PrimExpr base, local_index, group;
-      CHECK(GetRamp1Base(index, index.dtype().lanes(), &base));
-      std::tie(local_index, group) = SplitIndexByGroup(base);
+      PrimExpr local_index, group;
+
+      arith::PVar<PrimExpr> base;
+      CHECK(arith::ramp(base, 1, index.dtype().lanes()).Match(index));
+
+      std::tie(local_index, group) = SplitIndexByGroup(base.Eval());
       local_index =
           RampNode::make(local_index, make_const(local_index.dtype(), 1), index.dtype().lanes());
       return std::make_pair(local_index, group);

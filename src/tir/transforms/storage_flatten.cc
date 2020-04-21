@@ -326,13 +326,14 @@ class StorageFlattener : public StmtExprMutator {
       << "Prefetch dim should be the same as buffer dim";
 
     int block_size = 1,
-        elem_cnt = cache_line_size_ / e.buffer->dtype.bytes(),
-        shape = 0;
+        elem_cnt = cache_line_size_ / e.buffer->dtype.bytes();
 
     int starts = op->bounds.size() - 1;
-    while (starts > 0 && arith::GetConstInt(e.buffer->shape[starts], &shape)
-        && elem_cnt >= block_size * shape) {
-      block_size *= shape;
+
+    while (starts > 0) {
+      auto* shape_as_int = e.buffer->shape[starts].as<IntImmNode>();
+      if (shape_as_int == nullptr || block_size * shape_as_int->value > elem_cnt) break;
+      block_size *= static_cast<int>(shape_as_int->value);
       starts--;
     }
     PrimExpr stride(elem_cnt / block_size);
