@@ -163,8 +163,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       CHECK_GE(e.scope.dim_index, 0)
           << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
-        CHECK(arith::GetConstInt(attr->value, &(e.extent)))
+        const auto* ptr = attr->value.as<IntImmNode>();
+        CHECK(ptr)
             << "Need constant extent for reduce set " << iv;
+        e.extent = static_cast<int>(ptr->value);
         if (reduce_set.count(iv->var.get())) {
           vred.push_back(e);
           ++nmatch;

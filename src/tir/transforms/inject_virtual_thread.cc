@@ -57,15 +57,15 @@ class ExprTouched final : public StmtExprVisitor {
   }
   void VisitExpr_(const CallNode *op) final {
     if (op->is_intrinsic(intrinsic::tvm_access_ptr)) {
-      int rw_mask = 0;
-      CHECK(arith::GetConstInt(op->args[4], &rw_mask));
+      const auto* rw_mask = op->args[4].as<IntImmNode>();
       const VarNode* buffer_var = op->args[1].as<VarNode>();
       CHECK(buffer_var);
+      CHECK(rw_mask);
       // read
-      if (rw_mask & 1) {
+      if (rw_mask->value & 1) {
         HandleUseVar(buffer_var);
       }
-      if (rw_mask & 2) {
+      if (rw_mask->value & 2) {
         HandleWriteVar(buffer_var);
       }
       this->VisitExpr(op->args[2]);

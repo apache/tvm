@@ -30,6 +30,7 @@
 
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
+#include "../../arith/pattern_match.h"
 #include "../build_common.h"
 namespace tvm {
 namespace codegen {
@@ -363,27 +364,27 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
         md_builder_->createTBAAStructTagNode(meta, meta, 0));
     return;
   }
-  int base = 0, width = 0;
+
+  int64_t base = 0, width = 0;
+  arith::PVar<IntImm> pbase, pstride;
+  arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
   if (index.defined()) {
-    const RampNode* ramp = index.as<RampNode>();
-    if (ramp) {
-      int base, stride;
-      if (arith::GetConstInt(ramp->base, &base) &&
-          arith::GetConstInt(ramp->stride, &stride)) {
-        int xwith = ramp->lanes * stride;
-        width = 1;
-        while (width < xwith) {
-          width *= 2;
-        }
-        while (base % width) {
-          base -= base % width;
-          width *= 2;
-        }
+    if (arith::ramp(pbase, pstride, planes).Match(index)) {
+      base = pbase.Eval()->value;
+      int64_t xwith = planes.Eval() * pstride.Eval()->value;
+      width = 1;
+      while (width < xwith) {
+        width *= 2;
       }
-    } else {
-      if (arith::GetConstInt(index, &base)) width = 1;
+      while (base % width) {
+        base -= base % width;
+        width *= 2;
+      }
+    } else if (auto* ptr = index.as<tir::IntImmNode>()) {
+      width = 1;
+      base = ptr->value;
     }
   }
   llvm::MDNode* meta = md_tbaa_root_;
@@ -394,8 +395,8 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
   meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
   // create a tree-shape access structure.
   if (width != 0) {
-    for (int w = 1024; w >= width; w /= 2) {
-      int b = (base / w) * w;
+    for (int64_t w = 1024; w >= width; w /= 2) {
+      int64_t b = (base / w) * w;
       std::stringstream os;
       os << buffer << ".w" << w << ".b" << b;
       meta = md_builder_->createTBAAScalarTypeNode(os.str(), meta);

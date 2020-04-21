@@ -174,22 +174,6 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
   return align;
 }
 
-/*!
- * \brief Pattern match index to Ramp with stride=1
- *        This is a common pattern in continuous memory load.
- * \param index The index formula
- * \param lanes number of lanes in the ramp
- * \param base The result base.
- * \return true if pattern match success and store the base to base.
- */
-inline bool GetRamp1Base(PrimExpr index, int lanes, PrimExpr *base) {
-  const RampNode* r = index.as<RampNode>();
-  if (!r) return false;
-  if (!is_one(r->stride)) return false;
-  CHECK_EQ(r->lanes, lanes);
-  *base = r->base;
-  return true;
-}
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_PASS_IR_UTIL_H_

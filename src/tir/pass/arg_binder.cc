@@ -291,9 +291,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   }
   // Byte_offset field.
   int data_bytes = GetVectorBytes(buffer->dtype);
-  int64_t const_offset;
-  if (arith::GetConst(buffer->elem_offset, &const_offset)) {
-    Bind_(make_const(DataType::UInt(64), const_offset * data_bytes),
+
+  if (const auto* const_offset = buffer->elem_offset.as<IntImmNode>()) {
+    Bind_(make_const(DataType::UInt(64), const_offset->value * data_bytes),
                TVMArrayGet(DataType::UInt(64), handle, intrinsic::kArrByteOffset),
           arg_name + ".byte_offset", true);
   } else {
