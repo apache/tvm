@@ -1143,48 +1143,79 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
  * @param tag           The tag to mark the operation
  * @return              A Tensor whose op member is the cumsum operation
  */
-inline tvm::te::Tensor cumsum(const tvm::te::Tensor& A,
+inline tvm::te::Tensor cumsum(Tensor& A,
                               int axis,
                               bool exclusive = false,
                               bool reverse = false,
                               std::string name = "T_cumsum",
                               std::string tag = kCumsum) {
-    int totalSize = static_cast<int>(A->shape.size());
+    auto max_length = A->shape[axis];
+    int total_size = static_cast<int>(A->shape.size());
     if (axis < 0) {
-        axis = totalSize + axis;
+        axis = total_size + axis;
     }
-    auto maxLength = A->shape[axis];
-    auto l = [&](const Array<Var>& input_indices) {
-        tvm::Range range;
-        if (reverse) {
-            PrimExpr begin;
-            if (exclusive) {
-                begin = input_indices[axis] + 1;
-            } else {
-                begin = input_indices[axis];
-            }
-            range = tvm::Range{begin, maxLength};
-        } else {
-            PrimExpr end;
-            if (exclusive) {
-                end = input_indices[axis];
-            } else {
-                end = input_indices[axis] + 1;
-            }
-            range = tvm::Range{0, end};
+    //transpose to highest dimension
+    if (axis != 0) {
+        Array<Integer> axes;
+        axes.push_back(axis);
+        for (int i = 1; i < total_size; i++) {
+            axes.push_back(i == axis ? 0 : i);
         }
-        auto k = tvm::te::reduce_axis(range);
-        Array<PrimExpr> indices;
-        for (int i = 0; i < totalSize; ++i) {
-            if (i == axis) {
-                indices.push_back(k);
-                continue;
-            }
-            indices.push_back(input_indices[i]);
-        }
-        return tvm::sum(A(indices), {k});
+        A = transpose(A, axes);
+    }
+    //reverse need flip
+    if (reverse) {
+        A = flip(A, 0);
+    }
+    auto dtype = A->dtype;
+
+    Array<Tensor> state_array;
+    auto s_state = placeholder(A->shape, dtype);
+    state_array.push_back(s_state);
+
+    //init state
+    Array<PrimExpr> init_indices;
+    init_indices.push_back(1);
+    for (int i = 1; i < total_size; i++) {
+        init_indices.push_back(A->shape[axis == i ? 0 : axis]);
+    }
+    auto s_init_fn = [&](const Array<Var> &input_indices) {
+        return exclusive ? make_zero(dtype) : A(input_indices);
     };
-    return tvm::te::compute(A->shape, l, name, tag);
+    Array<Tensor> init_array;
+    init_array.push_back(compute(init_indices, s_init_fn));
+
+    //update state
+    auto l = [&](const Array<Var> &input_indices) {
+        Array<PrimExpr> last_indices;
+        last_indices.push_back(input_indices[0]);
+        for (size_t i = 1, total = input_indices.size(); i < total; i++) {
+            last_indices.push_back(input_indices[i]);
+        }
+        if (exclusive) {
+            return A(last_indices) + s_state(last_indices);
+        }
+        return A(input_indices) + s_state(last_indices);
+    };
+    Array<Tensor> update_array;
+    update_array.push_back(compute(A->shape, l));
+
+    auto res = scan(init_array, update_array, state_array);
+
+    A = res[0];
+    if (reverse) {
+        A = flip(A, 0);
+    }
+
+    if (axis != 0) {
+        Array<Integer> axes;
+        axes.push_back(axis);
+        for (int i = 1; i < total_size; i++) {
+            axes.push_back(i == axis ? 0 : i);
+        }
+        A = transpose(A, axes);
+    }
+    return A;
 }
 
 /*!
