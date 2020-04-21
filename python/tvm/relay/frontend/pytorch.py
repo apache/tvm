@@ -279,15 +279,7 @@ def _select():
 def _take():
     def _impl(inputs, input_types):
         data = inputs[0]
-        import torch
-
-        if isinstance(inputs[1], _expr.Var):
-            indices = _op.cast(inputs[1], "int32")
-        elif isinstance(inputs[1], torch.Tensor):
-            indices = _wrap_const(inputs[1].numpy())
-        else:
-            msg = "Data type %s could not be parsed in take operator." % (type(inputs[1]))
-            raise AssertionError(msg)
+        indices = _op.cast(inputs[1], "int32")
 
         return _op.transform.take(data, indices=indices)
     return _impl
@@ -338,27 +330,12 @@ def _repeat_interleave():
     return _impl
 
 
-def _parse_input_data(inp):
-    import torch
-    if isinstance(inp, _expr.Var):
-        data = inp
-    elif isinstance(inp, _expr.Call):
-        data = inp
-    elif isinstance(inp, torch.Tensor):
-        data = _wrap_const(inp.numpy())
-    else:
-        msg = "Data type %s could not be parsed." % (type(inp))
-        raise AssertionError(msg)
-
-    return data
-
-
 def _addcdiv():
     def _impl(inputs, input_types):
         data = inputs[0]
         c = _expr.const(inputs[3])
-        t1 = _parse_input_data(inputs[1])
-        t2 = _parse_input_data(inputs[2])
+        t1 = inputs[1]
+        t2 = inputs[2]
 
         return data + (c * (t1 / t2))
     return _impl
@@ -368,8 +345,8 @@ def _addcmul():
     def _impl(inputs, input_types):
         data = inputs[0]
         c = _expr.const(inputs[3])
-        t1 = _parse_input_data(inputs[1])
-        t2 = _parse_input_data(inputs[2])
+        t1 = inputs[1]
+        t2 = inputs[2]
 
         return data + (c * (t1 * t2))
     return _impl
@@ -378,8 +355,8 @@ def _addcmul():
 def _where():
     def _impl(inputs, input_types):
         cond = inputs[0]
-        x = _parse_input_data(inputs[1])
-        y = _parse_input_data(inputs[2])
+        x = inputs[1]
+        y = inputs[2]
 
         return _op.where(cond, x, y)
 
@@ -1431,16 +1408,7 @@ def _bitwise_not():
 def _bitwise_xor():
     def _impl(inputs, input_types):
         lhs = inputs[0]
-
-        import torch
-        if isinstance(inputs[1], _expr.Var):
-            rhs = inputs[1]
-        elif isinstance(inputs[1], torch.Tensor):
-            rhs = _wrap_const(inputs[1].numpy())
-        else:
-            msg = "Data type %s could not be parsed in bitwise_xor operator." % (type(inputs[1]))
-            raise AssertionError(msg)
-
+        rhs = inputs[1]
         lhs = _op.cast(lhs, "bool") if input_types[0] == "bool" else _op.cast(lhs, "int")
         rhs = _op.cast(rhs, "bool") if input_types[1] == "bool" else _op.cast(rhs, "int")
 
@@ -1459,17 +1427,7 @@ def _logical_not():
 def _logical_xor():
     def _impl(inputs, input_types):
         lhs = _op.cast(inputs[0], "bool")
-
-        import torch
-        if isinstance(inputs[1], _expr.Var):
-            rhs = inputs[1]
-        elif isinstance(inputs[1], torch.Tensor):
-            rhs = _wrap_const(inputs[1].numpy())
-        else:
-            msg = "Data type %s could not be parsed in logical_xor operator." % (type(inputs[1]))
-            raise AssertionError(msg)
-
-        rhs = _op.cast(rhs, "bool")
+        rhs = _op.cast(inputs[1], "bool")
 
         return _op.logical_xor(lhs, rhs)
     return _impl
@@ -1884,7 +1842,7 @@ def _get_constant(node):
             tensor = node.t(attr_name)
             if len(tensor.shape) == 0:  # tensor(0.1)
                 return float(tensor)
-            return tensor
+            return _wrap_const(tensor.numpy())
         elif ty == "DeviceObjType":
             return node.s(attr_name)
         elif ty == "FunctionType":
