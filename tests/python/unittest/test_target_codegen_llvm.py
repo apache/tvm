@@ -671,8 +671,7 @@ def test_llvm_shuffle():
     c = te.compute((8, ), lambda x: a[x] + b[7-x])
     sch = te.create_schedule(c.op)
 
-    def my_vectorize(stmt):
-
+    def my_vectorize():
         def vectorizer(op):
             store = op.body
             idx = tvm.tir.Ramp(tvm.tir.const(0, 'int32'), tvm.tir.const(1, 'int32'), 8)
@@ -684,9 +683,13 @@ def test_llvm_shuffle():
             value = new_a + new_b
             return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
 
-        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
+        def _transform(f, *_):
+            return f.with_body(
+                tvm.tir.ir_pass.IRTransform(f.body, None, vectorizer, ['For']))
 
-    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
+        return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
+
+    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize())]):
         ir = tvm.lower(sch, [a, b, c], simple_mode=True)
         module = tvm.build(sch, [a, b, c])
         a_ = tvm.nd.array(np.arange(1, 9, dtype='int32'))

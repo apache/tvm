@@ -117,19 +117,20 @@ def vectorize8(op):
         return body
     return None
 
-def vectorize(stmt):
+@tvm.tir.transform.prim_func_pass(opt_level=0)
+def vectorize(f, mod, ctx):
     global loops
 
-    tvm.tir.ir_pass.PostOrderVisit(stmt, find_width8)
+    tvm.tir.ir_pass.PostOrderVisit(f.body, find_width8)
 
     if not loops:
-        return stmt
+        return sf
 
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`
-    stmt = tvm.tir.ir_pass.IRTransform(stmt, None, vectorize8, ['For'])
+    return f.with_body(
+        tvm.tir.ir_pass.IRTransform(f.body, None, vectorize8, ['For']))
 
-    return stmt
 
 #####################################################################
 # Glue to Lowering
