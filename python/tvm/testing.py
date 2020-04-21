@@ -20,6 +20,8 @@
 import logging
 import numpy as np
 import tvm
+import tvm.arith
+import tvm.tir
 import tvm._ffi
 
 
@@ -166,6 +168,25 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         logging.info("Numerical grad test wrt '%s' of shape %s passes, "
                      "dist = %f, max_diff = %f, avg_diff = %f",
                      x_name, grad.shape, dist, max_diff, avg_diff)
+
+
+def assert_prim_expr_equal(lhs, rhs):
+    """Assert lhs and rhs equals to each iother.
+
+    Parameters
+    ----------
+    lhs : tvm.tir.PrimExpr
+        The left operand.
+
+    rhs : tvm.tir.PrimExpr
+        The left operand.
+    """
+    ana = tvm.arith.Analyzer()
+    res = ana.simplify(lhs - rhs)
+    equal = isinstance(res, tvm.tir.IntImm) and res.value == 0
+    if not equal:
+        raise ValueError("{} and {} are not equal".format(lhs, rhs))
+
 
 
 tvm._ffi._init_api("testing", __name__)

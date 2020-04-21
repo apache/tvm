@@ -207,8 +207,9 @@ bool DetectClipBound(
     return false;
   }
   LinearEqEntry ret;
+  Analyzer analyzer;
   if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
-  ret.coeff = Simplify(ret.coeff);
+  ret.coeff = analyzer.Simplify(ret.coeff);
   IntervalEntry& p = (*bmap)[var.get()];
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
@@ -254,14 +255,15 @@ Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   for (PrimExpr cond : splits) {
     if (!DetectClipBound(cond, &rmap)) return Array<PrimExpr>();
   }
+  Analyzer analyzer;
   Array<PrimExpr> ret;
   for (Var v : vars) {
     IntervalEntry e = rmap[v.get()];
     if (e.min_value.defined()) {
-      e.min_value = Simplify(e.min_value);
+      e.min_value = analyzer.Simplify(e.min_value);
     }
     if (e.max_value.defined()) {
-      e.max_value = Simplify(e.max_value);
+      e.max_value = analyzer.Simplify(e.max_value);
     }
     ret.push_back(e.min_value);
     ret.push_back(e.max_value);
