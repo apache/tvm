@@ -22,7 +22,10 @@ in TensorFlow frontend when mean and variance are not given.
 """
 import tvm
 import numpy as np
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 from tvm import relay
 from tensorflow.python.framework import graph_util
 

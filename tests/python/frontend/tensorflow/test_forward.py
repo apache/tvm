@@ -1901,7 +1901,9 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
 
 def test_forward_lstm():
     '''test LSTM block cell'''
-    _test_lstm_cell(1, 2, 1, 0.5, 'float32')
+    if package_version.parse(tf.VERSION) < package_version.parse('2.0.0'):
+        #in 2.0, tf.contrib.rnn.LSTMBlockCell is removed
+        _test_lstm_cell(1, 2, 1, 0.5, 'float32')
 
 
 #######################################################################
@@ -3308,9 +3310,7 @@ if __name__ == '__main__':
     test_forward_ptb()
 
     # RNN
-    if package_version.parse(tf.VERSION) < package_version.parse('2.0.0'):
-        #in 2.0, tf.contrib.rnn.LSTMBlockCell is removed
-        test_forward_lstm()
+    test_forward_lstm()
 
     # Elementwise
     test_forward_ceil()
