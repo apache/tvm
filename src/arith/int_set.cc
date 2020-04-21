@@ -570,11 +570,12 @@ IntSet IntSetAnalyzer::operator()(const PrimExpr& expr,
 // TODO(tqchen): revisit IntSet interface as well.
 Range IntSet::cover_range(Range max_range) const {
   IntSet temp;
+  Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
   CHECK(s_int != nullptr);
   if (s_int->HasUpperBound() && s_int->HasLowerBound()) {
     return Range::make_by_min_extent(
-        s_int->min_value, Simplify(s_int->max_value + 1 - s_int->min_value));
+        s_int->min_value, analyzer.Simplify(s_int->max_value + 1 - s_int->min_value));
   }
   return max_range;
 }
@@ -607,26 +608,30 @@ bool IntSet::is_single_point() const {
 }
 
 bool IntSet::can_prove_positive() const {
+  Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  return (s_int && is_positive_const(tir::Simplify(s_int->min_value)));
+  return (s_int && is_positive_const(analyzer.Simplify(s_int->min_value)));
 }
 
 bool IntSet::can_prove_negative() const {
+  Analyzer analyzer;
   const IntervalSetNode* s_int = (*this).as<IntervalSetNode>();
-  return (s_int && is_negative_const(tir::Simplify(s_int->max_value)));
+  return (s_int && is_negative_const(analyzer.Simplify(s_int->max_value)));
 }
 
 bool IntSet::can_prove_non_positive() const {
+  Analyzer analyzer;
   if (const auto* s_int = (*this).as<IntervalSetNode>()) {
-    auto max = tir::Simplify(s_int->max_value);
+    auto max = analyzer.Simplify(s_int->max_value);
     return is_zero(max) || is_negative_const(max);
   }
   return false;
 }
 
 bool IntSet::can_prove_non_negative() const {
+  Analyzer analyzer;
   if (const IntervalSetNode* s_int = (*this).as<IntervalSetNode>()) {
-    auto min = tir::Simplify(s_int->min_value);
+    auto min = analyzer.Simplify(s_int->min_value);
     return is_zero(min) || is_positive_const(min);
   }
   return false;
@@ -669,8 +674,8 @@ IntSet IntSet::interval(PrimExpr min, PrimExpr max) {
 }
 
 // Range related code
-inline bool ProveEqual(PrimExpr lhs, PrimExpr rhs) {
-  return is_zero(tir::Simplify(lhs - rhs));
+inline bool ProveEqual(Analyzer* analyzer, PrimExpr lhs, PrimExpr rhs) {
+  return is_zero(analyzer->Simplify(lhs - rhs));
 }
 
 IntSet IntSet::range(Range r) {
@@ -685,8 +690,9 @@ bool IntSet::match_range(const Range& b) const {
   const IntSet& a = *this;
   const IntervalSetNode* a_int = a.as<IntervalSetNode>();
   if (!a_int) return false;
-  return ProveEqual(a_int->min_value, b->min) &&
-      ProveEqual(a_int->max_value, b->extent + b->min - 1);
+  Analyzer ana;
+  return ProveEqual(&ana, a_int->min_value, b->min) &&
+      ProveEqual(&ana, a_int->max_value, b->extent + b->min - 1);
 }
 
 IntSet Union(const Array<IntSet>& sets) {
@@ -697,8 +703,8 @@ IntSet Union(const Array<IntSet>& sets) {
   for (size_t i = 1; i < sets.size(); ++i) {
     x = Union(&ana, x, ToIntervalSet(sets[i]));
   }
-  return IntervalSet(tir::Simplify(x->min_value),
-                     tir::Simplify(x->max_value));
+  return IntervalSet(ana.Simplify(x->min_value),
+                     ana.Simplify(x->max_value));
 }
 
 IntSet Intersect(const Array<IntSet>& sets) {
@@ -709,8 +715,8 @@ IntSet Intersect(const Array<IntSet>& sets) {
   for (size_t i = 1; i < sets.size(); ++i) {
     x = Intersect(&ana, x, ToIntervalSet(sets[i]));
   }
-  return IntervalSet(tir::Simplify(x->min_value),
-                     tir::Simplify(x->max_value));
+  return IntervalSet(ana.Simplify(x->min_value),
+                     ana.Simplify(x->max_value));
 }
 
 Map<Var, IntSet> ConvertDomMap(const Map<IterVar, IntSet>& dom_map) {
@@ -758,7 +764,7 @@ IntSet EvalSet(Range r,
   IntervalSetEvaluator m(&ana, dom_map);
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   PrimExpr sum = r->min + r->extent - 1;
-  auto res  = m.Eval(IntervalSet(r->min,  Simplify(sum)));
+  auto res  = m.Eval(IntervalSet(r->min,  ana.Simplify(sum)));
   return std::move(res);
 }
 
