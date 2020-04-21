@@ -519,12 +519,11 @@ class LoopVectorizer : public StmtMutator {
   Stmt VisitStmt_(const ForNode* op) final {
     if (op->for_type == ForType::Vectorized) {
       CHECK(is_zero(op->min));
-      int lanes = 0;
-      bool succ = arith::GetConstInt(op->extent, &lanes);
-      if (!succ || lanes < 1) {
+      auto* extent_as_int = op->extent.as<IntImmNode>();
+      if (!extent_as_int || extent_as_int->value < 1) {
         LOG(FATAL) << "Failed to vectorize loop with extent " << op->extent;
       }
-      return Vectorizer(op->loop_var, lanes)(op->body);
+      return Vectorizer(op->loop_var, static_cast<int>(extent_as_int->value))(op->body);
     } else {
       return StmtMutator::VisitStmt_(op);
     }
