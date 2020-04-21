@@ -55,12 +55,13 @@ def check_bruteforce(bool_expr, vranges, cond=None):
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
         raise AssertionError("Expression {}\nis not true on {}\n"
                              "Counterexample: {}"
-                             .format(tir.ir_pass.CanonicalSimplify(bool_expr), vranges, counterex))
+                             .format(tir.arith.Analyzer().simplify(bool_expr), vranges, counterex))
 
 
 def check_solution(solution, vranges={}):
     """Check that solution is a bijective transformation"""
     def _check_forward(constraints1, constraints2, varmap, backvarmap):
+        ana = tvm.arith.Analyzer()
         all_vranges = vranges.copy()
         all_vranges.update({v: r for v, r in constraints1.ranges.items()})
 
@@ -68,7 +69,7 @@ def check_solution(solution, vranges={}):
         cond_on_vars = tir.const(1, 'bool')
         for v in constraints1.variables:
             # variable mapping is consistent
-            v_back = tir.ir_pass.Simplify(tir.ir_pass.Substitute(varmap[v], backvarmap))
+            v_back = ana.simplify(tir.ir_pass.Substitute(varmap[v], backvarmap))
             cond_on_vars = te.all(cond_on_vars, v == v_back)
         # Also we have to check that the new relations are true when old relations are true
         cond_subst = tir.ir_pass.Substitute(
@@ -80,7 +81,7 @@ def check_solution(solution, vranges={}):
                 range_cond = te.all(v >= r.min, v < r.min + r.extent)
                 range_cond = tir.ir_pass.Substitute(range_cond, backvarmap)
                 cond_subst = te.all(cond_subst, range_cond)
-        cond_subst = tir.ir_pass.Simplify(cond_subst)
+        cond_subst = ana.simplify(cond_subst)
         check_bruteforce(te.all(cond_subst, cond_on_vars), all_vranges,
                          cond=te.all(tir.const(1, 'bool'), *constraints1.relations))
 

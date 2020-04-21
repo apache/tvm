@@ -17,16 +17,6 @@
 import tvm
 from tvm import te
 
-def test_simplify():
-  tdiv = tvm.tir.truncdiv
-  tmod = tvm.tir.truncmod
-  x = te.var('x')
-  e1 = tvm.tir.ir_pass.Simplify(x + 2 + 1)
-  assert(tvm.ir.structural_equal(e1, x + 3))
-  e2 = tvm.tir.ir_pass.Simplify(x * 3 + 5 * x)
-  assert(tvm.ir.structural_equal(e2, x * 8))
-  e3 = tvm.tir.ir_pass.Simplify(x - tdiv(x, 3) * 3)
-  assert(tvm.ir.structural_equal(e3, tmod(x, 3)))
 
 
 def test_verify_ssa():

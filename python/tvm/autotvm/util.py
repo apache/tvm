@@ -23,8 +23,8 @@ import time
 from random import randrange
 
 import numpy as np
-
-from tvm.tir import expr, ir_pass
+import tvm.arith
+from tvm.tir import expr
 
 logger = logging.getLogger('autotvm')
 
@@ -156,7 +156,8 @@ def get_const_int(exp):
     if isinstance(exp, int):
         return exp
     if not isinstance(exp, (expr.IntImm,)):
-        exp = ir_pass.Simplify(exp)
+        ana = tvm.arith.Analyzer()
+        exp = ana.simplify(exp)
     if not isinstance(exp, (expr.IntImm,)):
         raise ValueError("Expect value to be constant int")
     return exp.value
@@ -180,7 +181,8 @@ def get_const_tuple(in_tuple):
         if isinstance(elem, expr.Var):
             ret.append(elem)
         elif not isinstance(elem, (expr.IntImm, int)):
-            elem = ir_pass.Simplify(elem)
+            ana = tvm.arith.Analyzer()
+            elem = ana.simplify(elem)
             if not isinstance(elem, (expr.IntImm)):
                 ret.append(elem)
         else:

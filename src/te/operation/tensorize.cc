@@ -222,6 +222,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
         compute_intrin_iter_space->Set(iv->var, vrange);
       }
     }
+    analyzer_.Bind(*compute_intrin_iter_space);
 
     // input remap.
     Array<Tensor> inputs = self->InputTensors();
@@ -234,7 +235,7 @@ class TensorIntrinMatcher final : public StmtExprMutator {
       // Enable fuzzy matching, to match [1, n, m] to [n, m]
       e.start = e.region.size() - e.tensor.ndim();
       for (size_t j = 0; j < e.start; ++j) {
-        auto canonical_extent = Simplify(e.region[j]->extent, *compute_intrin_iter_space);
+        auto canonical_extent = analyzer_.Simplify(e.region[j]->extent);
         CHECK(is_one(canonical_extent))
             << "Tensorize " << intrin->name << ":"
             << " Input dimension mismatch with tensor intrin "
@@ -304,6 +305,8 @@ class TensorIntrinMatcher final : public StmtExprMutator {
   std::unordered_map<const VarNode*, PrimExpr> var_remap_;
   // IterVar remap.
   std::unordered_map<IterVar, IterVar> axis_remap_;
+  // arith analyzer
+  arith::Analyzer analyzer_;
 };
 
 // Try to match tensor dataflow of the stage with the intrinsic
@@ -339,11 +342,12 @@ void VerifyTensorizeBody(
   CHECK(intrin_compute) << "Only support compute intrinsic for now";
   CHECK_EQ(body.size(), intrin_compute->body.size())
       << "Tensorize failed: body size mismatch";
+  arith::Analyzer ana;
+  ana.Bind(compute_intrin_iter_space);
+
   for (size_t i = 0; i < body.size(); ++i) {
-    PrimExpr lhs = Simplify(body[i], compute_intrin_iter_space);
-    lhs = CanonicalSimplify(lhs, compute_intrin_iter_space);
-    PrimExpr rhs = Simplify(intrin_compute->body[i], compute_intrin_iter_space);
-    rhs = CanonicalSimplify(rhs, compute_intrin_iter_space);
+    PrimExpr lhs = ana.Simplify(body[i]);
+    PrimExpr rhs = ana.Simplify(intrin_compute->body[i]);
     if (lhs.dtype() != rhs.dtype()) {
       LOG(FATAL)
           << "Failed to match the data type with TensorIntrin "

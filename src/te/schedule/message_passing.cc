@@ -324,6 +324,7 @@ void PassUpDomain(const FuseNode* s,
   CHECK(dom_map.count(s->outer));
   CHECK(dom_map.count(s->inner));
   CHECK(dom_map.count(s->fused));
+  arith::Analyzer ana;
 
   if (fused.match_range(dom_map.at(s->fused))) {
     *outer = IntSet::range(dom_map.at(s->outer));
@@ -348,15 +349,15 @@ void PassUpDomain(const FuseNode* s,
     *outer = IntSet::interval(
         outer_min + indexdiv(fused.min(), inner_extent),
         outer_min + indexdiv(fused.max(), inner_extent));
-    if (is_zero(Simplify(indexmod(inner_extent, fused_extent))) &&
-        is_zero(Simplify(indexmod(fused.min(), fused_extent)))) {
+    if (is_zero(ana.Simplify(indexmod(inner_extent, fused_extent))) &&
+        is_zero(ana.Simplify(indexmod(fused.min(), fused_extent)))) {
       // fused never spans multiple rows, make a tight bounding box
       // there may be other cases when bounding box could be tightened
       *inner = IntSet::interval(inner_min + indexmod(fused.min(), inner_extent),
                                 inner_min + indexmod(fused.max(), inner_extent));
     } else {  // fused may span multiple rows, use full row widths
-      if (!is_zero(Simplify(indexmod(fused_extent, inner_extent))) ||
-          !is_zero(Simplify(indexmod(fused.min(), inner_extent)))) {
+      if (!is_zero(ana.Simplify(indexmod(fused_extent, inner_extent))) ||
+          !is_zero(ana.Simplify(indexmod(fused.min(), inner_extent)))) {
         LOG(WARNING) <<
           "fused and original axes are not aligned, this may cause redundant computations";
       }

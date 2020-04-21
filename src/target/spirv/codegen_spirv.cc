@@ -414,7 +414,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          PrimExpr vec_index = tir::Simplify(
+          PrimExpr vec_index = analyzer_->Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
@@ -492,7 +492,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          PrimExpr vec_index = tir::Simplify(
+          PrimExpr vec_index = analyzer_->Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));

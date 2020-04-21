@@ -25,9 +25,10 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/ir_pass.h>
+#include <tvm/arith/analyzer.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
@@ -160,7 +161,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    PrimExpr extent = tir::Simplify(op->extent);
+    PrimExpr extent = analyzer_.Simplify(op->extent);
     const IntImmNode  *v1 = extent.as<IntImmNode>();
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,
@@ -184,6 +185,8 @@ class LoopUnroller : public StmtExprMutator {
   int unroll_depth_{0};
   // Number of total steps unrolled
   int step_count_{0};
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 

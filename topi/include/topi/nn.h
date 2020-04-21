@@ -26,8 +26,8 @@
 
 #include <topi/tags.h>
 #include <topi/detail/constant_utils.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/op.h>
 #include <tvm/te/operation.h>
 
@@ -184,6 +184,7 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t,
       pad_after.push_back(pad_before[i]);
     }
   }
+  arith::Analyzer analyzer;
   CHECK_GE(pad_before.size(), 1);
   CHECK_EQ(pad_before.size(), pad_after.size());
   tvm::Array<tvm::PrimExpr> output_shape;
@@ -200,13 +201,14 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t,
       output_shape.push_back(t->shape[i]);
     } else {
       output_shape.push_back(
-          tvm::tir::Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
+          analyzer.Simplify(t->shape[i] + pad_before_int32[i] + pad_after_int32[i]));
     }
   }
 
   if (!pad_value.defined()) {
     pad_value = tvm::tir::make_const(t->dtype, 0);
   }
+
   auto l = [&](tvm::Array<tvm::tir::Var> ovars) {
     tvm::Array<tvm::PrimExpr> indices;
     tvm::Array<tvm::PrimExpr> sel;
@@ -223,7 +225,7 @@ inline tvm::te::Tensor pad(const tvm::te::Tensor& t,
         indices.push_back(ovars[i]);
       }
       if (!topi::detail::EqualCheck(pad_after_int32[i], 0)) {
-        sel.push_back(tvm::tir::Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
+        sel.push_back(analyzer.Simplify(ovars[i] < pad_before_int32[i] + t->shape[i]));
       }
       if (pad_mode == "edge") {
         pad_idx.push_back(tvm::if_then_else(

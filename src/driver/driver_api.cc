@@ -236,6 +236,7 @@ split_dev_host_funcs(IRModule mod_mixed,
     }),
     BindTarget(target),
     tir::transform::LowerWarpMemory(),
+    tir::transform::Simplify(),
     tir::transform::LowerIntrin(),
     tir::transform::LowerDeviceStorageAccessInfo(),
   };

@@ -39,10 +39,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
-inline bool prove_equal(PrimExpr lhs, PrimExpr rhs) {
-  return is_zero(tir::Simplify(lhs - rhs));
-}
-
 int ScanOpNode::num_outputs() const {
   return static_cast<int>(update.size());
 }
@@ -77,6 +73,10 @@ Operation ScanOpNode::make(std::string name,
   auto n = make_object<ScanOpNode>();
   CHECK_EQ(init.size(), update.size());
   CHECK_EQ(init.size(), state_placeholder.size());
+  arith::Analyzer analyzer;
+  auto prove_equal = [&](PrimExpr lhs, PrimExpr rhs) {
+    return is_zero(analyzer.Simplify(lhs - rhs));
+  };
 
   for (size_t i = 0; i < init.size(); ++i) {
     CHECK_EQ(init[i]->dtype, state_placeholder[i]->dtype);
@@ -232,10 +232,11 @@ void ScanOpNode::GatherBound(
     time_dom.insert(time_dom.end(), d.data[0].begin(), d.data[0].end());
   }
   CHECK(!out_dom_map->count(this->scan_axis));
+  arith::Analyzer analyzer;
   Range sdom = this->scan_axis->dom;
   Range r = arith::Union(time_dom).cover_range(sdom);
   (*out_dom_map)[this->scan_axis] = Range::make_by_min_extent(
-      sdom->min, tir::Simplify(r->extent + r->min - sdom->min));
+      sdom->min, analyzer.Simplify(r->extent + r->min - sdom->min));
   Map<IterVar, PrimExpr> fix_pt = ScanFixPointAnalysis(self);
   // Update for spatial axis.
   size_t sp_idx = 0;
@@ -260,10 +261,11 @@ Stmt ScanOpNode::BuildRealize(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
     const Stmt& body) const {
+  arith::Analyzer analyzer;
   CHECK_EQ(stage->op.get(), this);
   Range sdom = dom_map.at(this->scan_axis);
   Range tdom = Range::make_by_min_extent(
-      0, tir::Simplify(sdom->extent + sdom->min));
+      0, analyzer.Simplify(sdom->extent + sdom->min));
   Stmt ret = body;
   size_t sp_idx = 0;
   for (size_t i = 0; i < update.size(); ++i) {

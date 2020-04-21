@@ -28,7 +28,7 @@
 #include <topi/nn.h>
 #include <topi/reduction.h>
 #include <topi/tags.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/arith/analyzer.h>
 
 #include <algorithm>
 #include <string>
@@ -102,10 +102,10 @@ inline Tensor pool_impl(const Tensor& x,
   Array<PrimExpr> pad_after(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
-
-  auto out_height = tvm::tir::Simplify(
+  arith::Analyzer analyzer;
+  auto out_height = analyzer.Simplify(
       indexdiv(height - kernel_height + pad_top + pad_bottom, stride_height) + 1);
-  auto out_width = tvm::tir::Simplify(
+  auto out_width =  analyzer.Simplify(
       indexdiv(width - kernel_width + pad_left + pad_right, stride_width) + 1);
 
   auto dheight = tvm::te::reduce_axis(Range(0, kernel_height));
@@ -212,11 +212,11 @@ inline Tensor pool_grad_impl(const Tensor& out_grad,
   Array<PrimExpr> pad_after(std::vector<PrimExpr>(x->shape.size(), 0));
   pad_after.Set(height_axis, pad_bottom);
   pad_after.Set(width_axis, pad_right);
-
+  arith::Analyzer analyzer;
   auto out_height =
-      tvm::tir::Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
+      analyzer.Simplify((height - kernel_height + pad_top + pad_bottom) / stride_height + 1);
   auto out_width =
-      tvm::tir::Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
+      analyzer.Simplify((width - kernel_width + pad_left + pad_right) / stride_width + 1);
 
   auto dheight = tvm::te::reduce_axis(Range(0, kernel_height));
   auto dwidth = tvm::te::reduce_axis(Range(0, kernel_width));
@@ -711,7 +711,8 @@ inline Tensor pool_impl_nd(const Tensor& x,
     pad_before.Set(ii, pad_head[i]);
     pad_after.Set(ii, pad_tail[i]);
 
-    auto out_dim = tvm::tir::Simplify(
+    arith::Analyzer analyzer;
+    auto out_dim = analyzer.Simplify(
       indexdiv(x->shape[ii] - kernel[i] + pad_head[i] + pad_tail[i], stride[i]) + 1);
 
     out_shape.Set(ii, out_dim);

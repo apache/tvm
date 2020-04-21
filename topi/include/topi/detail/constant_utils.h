@@ -25,8 +25,9 @@
 #define TOPI_DETAIL_CONSTANT_UTILS_H_
 
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/te/operation.h>
 
 #include <string>
 #include <vector>
@@ -119,7 +120,7 @@ inline bool EqualCheck(PrimExpr lhs, PrimExpr rhs) {
   bool result = expr_equal(lhs, rhs);
   if (!result) {
     PrimExpr zero(0);
-    result = expr_equal(tvm::tir::CanonicalSimplify(lhs-rhs), zero);
+    result = expr_equal(tvm::arith::Analyzer().Simplify(lhs-rhs), zero);
   }
   return result;
 }

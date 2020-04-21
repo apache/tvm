@@ -371,7 +371,6 @@ class WarpMemoryRewriter : private StmtMutator {
     BindVarBoundInfo binder(&analyzer_);
     binder(stmt);
     stmt = operator()(std::move(stmt));
-    stmt = CanonicalSimplify(stmt);
     return stmt;
   }
 

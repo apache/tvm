@@ -24,6 +24,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/transform.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include "../../arith/pattern_match.h"
@@ -125,7 +126,7 @@ class CopyIntrinInjector : public StmtMutator {
         DataType t = loop_vars[i].dtype();
         PrimExpr svalue = src_shape[i];
         if (min_value.defined()) {
-          PrimExpr pbefore = Simplify(MaxNode::make(min_value, make_zero(t)));
+          PrimExpr pbefore = analyzer_.Simplify(MaxNode::make(min_value, make_zero(t)));
           src_elem_offset = src_elem_offset + pbefore * load_strides[i];
           svalue = svalue - pbefore;
           pad_before.push_back(pbefore);
@@ -133,16 +134,16 @@ class CopyIntrinInjector : public StmtMutator {
           pad_before.push_back(make_zero(t));
         }
         if (max_value.defined()) {
-          PrimExpr pafter = Simplify(MaxNode::make(loops[i]->extent - max_value - make_const(t, 1),
-                                           make_zero(t)));
+          PrimExpr pafter = analyzer_.Simplify(
+              max(loops[i]->extent - max_value - make_const(t, 1), make_zero(t)));
           svalue = svalue - pafter;
           pad_after.push_back(pafter);
         } else {
           pad_after.push_back(make_zero(t));
         }
-        src_shape.Set(i, Simplify(svalue));
+        src_shape.Set(i, analyzer_.Simplify(svalue));
       }
-      src_elem_offset = Simplify(src_elem_offset);
+      src_elem_offset = analyzer_.Simplify(src_elem_offset);
     }
     CHECK_EQ(load_strides.size(), store_strides.size());
     CHECK_EQ(load_strides.size(), loop_var_size + 1);
@@ -189,6 +190,8 @@ class CopyIntrinInjector : public StmtMutator {
   const PackedFunc& flower_copy_fromto_;
   // Storage scope
   std::unordered_map<const VarNode*, std::string> storage_scope_;
+  // arith analyzer
+  arith::Analyzer analyzer_;
 };
 
 Stmt InjectCopyIntrin(Stmt stmt,

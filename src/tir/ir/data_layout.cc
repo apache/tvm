@@ -24,6 +24,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/ir_pass.h>
+#include <tvm/arith/analyzer.h>
+
 #include <cctype>
 
 namespace tvm {
@@ -253,15 +255,16 @@ inline bool GetStoreRule(Array<PrimExpr>* rule,
 }
 
 inline Array<PrimExpr> TransformIndex(const Array<PrimExpr>& src_index,
-                                  const Array<IterVar>& src_axis,
-                                  const Array<PrimExpr>& transform_rule) {
+                                      const Array<IterVar>& src_axis,
+                                      const Array<PrimExpr>& transform_rule) {
+  arith::Analyzer ana;
   Array<PrimExpr> result;
   std::unordered_map<const tir::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
     bind_map[src_axis[i]->var.get()] = src_index[i];
   }
   for (PrimExpr rule : transform_rule) {
-    result.push_back(tir::Simplify(tir::Substitute(rule, bind_map)));
+    result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
   }
   return result;
 }
@@ -284,9 +287,10 @@ Array<PrimExpr> BijectiveLayout::BackwardIndex(const Array<PrimExpr>& dst_index)
 }
 
 inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
-                                  const Array<IterVar>& src_axis,
-                                  const Array<IterVar>& target_axis,
-                                  const Array<PrimExpr>& transform_rule) {
+                                      const Array<IterVar>& src_axis,
+                                      const Array<IterVar>& target_axis,
+                                      const Array<PrimExpr>& transform_rule) {
+  arith::Analyzer ana;
   CHECK_EQ(src_shape.size(), src_axis.size());
   // bind variables for original axes
   // for major-axis, bind the corresponding size
@@ -329,7 +333,7 @@ inline Array<PrimExpr> TransformShape(const Array<PrimExpr>& src_shape,
       if (symbolic_var_set.count(i)) {
         result.push_back(tir::AnyNode::make());
       } else {
-        result.push_back(tir::Simplify(tir::Substitute(rule, bind_map)));
+        result.push_back(ana.Simplify(tir::Substitute(rule, bind_map)));
       }
     }
   }
