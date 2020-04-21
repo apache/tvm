@@ -1155,7 +1155,7 @@ inline tvm::te::Tensor cumsum(const Tensor& A,
         axis = total_size + axis;
     }
     Tensor B = A;
-    //transpose to highest dimension
+    // transpose to highest dimension
     Array<Integer> axes;
     if (axis != 0) {
         axes.push_back(axis);
@@ -1164,7 +1164,7 @@ inline tvm::te::Tensor cumsum(const Tensor& A,
         }
         B = transpose(B, axes);
     }
-    //reverse need flip
+    // reverse need flip
     if (reverse) {
         B = flip(B, 0);
     }
@@ -1174,7 +1174,7 @@ inline tvm::te::Tensor cumsum(const Tensor& A,
     auto s_state = placeholder(B->shape, dtype);
     state_array.push_back(s_state);
 
-    //init state
+    // init state
     Array<PrimExpr> init_indices;
     init_indices.push_back(1);
     for (int i = 1; i < total_size; i++) {
@@ -1186,7 +1186,7 @@ inline tvm::te::Tensor cumsum(const Tensor& A,
     Array<Tensor> init_array;
     init_array.push_back(compute(init_indices, s_init_fn));
 
-    //update state
+    // update state
     auto l = [&](const Array<Var> &input_indices) {
         Array<PrimExpr> last_indices;
         last_indices.push_back(input_indices[0] - 1);
