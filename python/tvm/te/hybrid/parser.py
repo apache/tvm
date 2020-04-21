@@ -29,10 +29,10 @@ import tvm.runtime
 import tvm.tir
 import tvm.te
 import tvm.te._ffi_api
+import tvm.arith
 
 from tvm.tir import expr as _expr
 from tvm.tir import stmt as _stmt
-from tvm.tir import ir_pass as _ir_pass
 from tvm.te.tensor import Tensor, Operation
 from tvm.tir import all as _all
 from tvm.tir import any as _any
@@ -160,6 +160,7 @@ class HybridParser(ast.NodeVisitor):
         self.outputs = [] # Output tensors' name
         self.side_effect = set() # Tensors with side effects
         self.parsed_body = None # The parsed HalideIR body
+        self.analyzer = tvm.arith.Analyzer()
         self.returned = False # If this function has a valid return
 
 
@@ -326,7 +327,7 @@ class HybridParser(ast.NodeVisitor):
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
         lhs = node.targets[0]
         if isinstance(rhs, _expr.PrimExpr):
-            rhs = _ir_pass.Simplify(rhs)
+            rhs = self.analyzer.simplify(rhs)
         if isinstance(lhs, ast.Name):
             #TODO: support defined intermediate buffer later
             lhs_ = lhs
@@ -410,7 +411,7 @@ class HybridParser(ast.NodeVisitor):
 
 
     def visit_If(self, node):
-        cond = _ir_pass.CanonicalSimplify(self.visit(node.test))
+        cond = self.analyzer.simplify(self.visit(node.test))
 
         # Return no IfThenElse if proven
         if isinstance(cond, _expr.IntImm):
@@ -501,8 +502,8 @@ class HybridParser(ast.NodeVisitor):
         _name = node.target.id
 
         if isinstance(for_type, tuple):
-            low = _ir_pass.CanonicalSimplify(low)
-            ext = _ir_pass.CanonicalSimplify(ext)
+            low = self.analyzer.simplify(low)
+            ext = self.analyzer.simplify(ext)
             _internal_assert(isinstance(low, _expr.ConstExpr) and
                              isinstance(ext, _expr.ConstExpr), \
                              "Const range should start from a const " + \

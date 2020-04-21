@@ -24,9 +24,11 @@
  *        The result Jacobian shape will be (Y.shape, X.shape)
  */
 #include <tvm/te/autodiff.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt_functor.h>
-#include <topi/transform.h>
+#include <tvm/tir/ir_pass.h>
+
 #include <memory>
 #include "ad_util.h"
 
@@ -264,7 +266,7 @@ class JacobianMutator : public ExprMutator {
     CommReducer new_combiner = CommReducerNode::make(new_lhs, new_rhs, new_result, new_identity);
     // Also simplify the resulting combiner
     // (mostly to get rid of unused components, e.g., the original expressions)
-    return Simplify(
+    return analyzer_.Simplify(
         ReduceNode::make(new_combiner, new_source, new_op->axis,
                          new_op->condition, new_op->value_index));
   }
@@ -302,6 +304,7 @@ class JacobianMutator : public ExprMutator {
   Tensor input_;
   Array<PrimExpr> indices_;
   Var input_var_;
+  arith::Analyzer analyzer_;
 };
 
 PrimExpr Derivative(const PrimExpr& expr, const Var& var) {
@@ -341,11 +344,11 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
     // Differentiate wrt input[input_indices]
     input_indices.push_back(new_v);
   }
-
+  arith::Analyzer analzyer;
   // Compute Jacobian
   PrimExpr new_body = Jacobian(
       Substitute(op->body[output->value_index], vmap), input, input_indices);
-  new_body = Simplify(new_body);
+  new_body = analzyer.Simplify(new_body);
 
   int value_index = 0;
   Array<PrimExpr> new_bodies;

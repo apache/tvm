@@ -181,7 +181,7 @@ class SchedulePostProc : public StmtExprMutator {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {
-        CHECK(is_zero(tir::Simplify(it->second - op->value)));
+        CHECK(is_zero(analyzer_.Simplify(it->second - op->value)));
         return this->VisitStmt(op->body);
       } else {
         thread_extent_scope_[op->node.get()] = op->value;
@@ -335,6 +335,8 @@ class SchedulePostProc : public StmtExprMutator {
   std::unordered_map<TensorKey, Tensor> replace_realize_;
   // replace producer consumer.
   std::unordered_map<const Object*, Operation> replace_op_;
+  // integer analyzer
+  arith::Analyzer analyzer_;
 };
 
 Stmt ScheduleOps(

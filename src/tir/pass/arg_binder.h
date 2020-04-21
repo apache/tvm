@@ -26,6 +26,8 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/arith/analyzer.h>
+
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -153,6 +155,8 @@ class ArgBinder {
   Map<Var, PrimExpr> def_handle_dtype_;
   /*! \brief asserts generated */
   std::vector<Stmt> asserts_;
+  /*! \brief internal analyzer. */
+  arith::Analyzer analyzer_;
 };
 }  // namespace tir
 }  // namespace tvm

@@ -24,11 +24,9 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/target/target_info.h>
 #include <tvm/runtime/registry.h>
-
-#include <tvm/tir/ir_pass.h>
-
 #include "../pass/ir_util.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -123,8 +121,8 @@ class StorageAccessInfoLower : public StmtExprMutator {
     int dtype_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(info->unit_bits % dtype_bits, 0);
     return cast(ptr_type,
-                   tir::Simplify(offset / make_const(
-                       offset.dtype(), info->unit_bits / dtype_bits)));
+                analyzer_.Simplify(offset / make_const(
+                  offset.dtype(), info->unit_bits / dtype_bits)));
   }
   // The storage entry.
   struct StorageEntry {
@@ -137,6 +135,8 @@ class StorageAccessInfoLower : public StmtExprMutator {
   };
   // The storage scope of each buffer
   std::unordered_map<const VarNode*, StorageEntry> storage_info_;
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 Stmt LowerStorageAccessInfo(Stmt stmt) {

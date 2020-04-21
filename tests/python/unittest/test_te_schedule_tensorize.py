@@ -105,9 +105,10 @@ def test_tensorize_vadd():
         assert tvm.ir.structural_equal(in_dom.items()[0][1][0].extent, factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[z], out_dom, in_dom, vadd)
+        ana = tvm.arith.Analyzer()
         assert tvm.ir.structural_equal(
-            tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-            tvm.tir.ir_pass.CanonicalSimplify(vadd.op.body[0]))
+            ana.simplify(body[0]),
+            ana.simplify(vadd.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [x, y, z])
 
@@ -139,9 +140,11 @@ def test_tensorize_matmul():
         assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
+        ana = tvm.arith.Analyzer()
+
         assert tvm.ir.structural_equal(
-            tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-            tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -164,9 +167,10 @@ def test_tensorize_matmul():
         assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
+        ana = tvm.arith.Analyzer()
         assert tvm.ir.structural_equal(
-            tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-            tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -188,9 +192,10 @@ def test_tensorize_matmul():
         assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
+        ana = tvm.arith.Analyzer()
         assert tvm.ir.structural_equal(
-            tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-            tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
@@ -213,9 +218,10 @@ def test_tensorize_matmul():
         assert tvm.ir.structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
         body = fmatch(s[C], out_dom, in_dom, gemv)
+        ana = tvm.arith.Analyzer()
         assert tvm.ir.structural_equal(
-            tvm.tir.ir_pass.CanonicalSimplify(body[0]),
-            tvm.tir.ir_pass.CanonicalSimplify(gemv.op.body[0]))
+            ana.simplify(body[0]),
+            ana.simplify(gemv.op.body[0]))
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 

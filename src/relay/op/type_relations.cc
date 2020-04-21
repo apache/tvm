@@ -22,9 +22,10 @@
  * \brief A set of utilities and common functionality
  * for type relations.
  */
+#include <tvm/arith/analyzer.h>
+#include <tvm/tir/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
-#include <tvm/tir/ir_pass.h>
 #include <numeric>
 #include "./type_relations.h"
 
@@ -48,7 +49,8 @@ bool EqualCheck(const IndexExpr& lhs,
     return pdiff[0] == 0;
   }
   // symbolic
-  diff = tvm::tir::CanonicalSimplify(diff);
+  tvm::arith::Analyzer ana;
+  diff = ana.Simplify(diff);
   if (const int64_t* pdiff = tir::as_const_int(diff)) {
     return pdiff[0] == 0;
   }
