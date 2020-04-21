@@ -75,6 +75,7 @@ class OperatorConverter(object):
             'COS': self.convert_cos,
             'DEPTH_TO_SPACE': self.convert_depth_to_space,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
+            'DEQUANTIZE': self.convert_dequantize,
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'DIV': self.convert_div,
             'ELU': self.convert_elu,
@@ -112,6 +113,7 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
+            'QUANTIZE': self.convert_quantize,
             'REDUCE_ANY': self.convert_reduce_any,
             'REDUCE_MAX': self.convert_reduce_max,
             'REDUCE_MIN': self.convert_reduce_min,
@@ -277,6 +279,8 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
+        if tensor_type == TensorType.INT8:
+            return "int8"
         if tensor_type == TensorType.UINT8:
             return "uint8"
         if tensor_type == TensorType.FLOAT32:
@@ -2352,6 +2356,40 @@ class OperatorConverter(object):
                                       data_layout="NHWC",
                                       kernel_layout="OIHW",
                                       out_dtype=output_tensor_type_str)
+
+        return out
+
+    def convert_quantize(self, op):
+        """Convert TFLite Quantize"""
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+        output_tensor = output_tensors[0]
+
+        # The output must be quantized
+        assert output_tensor.qnn_params
+        # Quantize the input
+        out = self.quantize(in_expr, output_tensor)
+
+        return out
+
+    def convert_dequantize(self, op):
+        """Convert TFLite Dequantize"""
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        # The input must be quantized
+        assert input_tensor.qnn_params
+        # Dequantize the input.
+        out = self.dequantize(in_expr, input_tensor)
 
         return out
 
