@@ -1868,6 +1868,26 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.neg(args[0])
 
+    class Sinh1(Module):
+        def forward(self, *args):
+            return torch.sinh(args[0])
+
+    class Cosh1(Module):
+        def forward(self, *args):
+            return torch.cosh(args[0])
+
+    class Log2_1(Module):
+        def forward(self, *args):
+            return torch.log2(args[0])
+
+    class Log10_1(Module):
+        def forward(self, *args):
+            return torch.log10(args[0])
+
+    class Log1p_1(Module):
+        def forward(self, *args):
+            return torch.log1p(args[0])
+
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(Sqrt1().float().eval(), input_data=input_data)
@@ -1876,11 +1896,16 @@ def test_forward_unary():
     verify_model(Floor1().float().eval(), input_data=input_data)
     verify_model(Round1().float().eval(), input_data=input_data)
     verify_model(Cos1().float().eval(), input_data=input_data)
+    verify_model(Cosh1().float().eval(), input_data=input_data)
     verify_model(Sin1().float().eval(), input_data=input_data)
+    verify_model(Sinh1().float().eval(), input_data=input_data)
     verify_model(Tan1().float().eval(), input_data=input_data)
     verify_model(Tanh1().float().eval(), input_data=input_data)
     verify_model(ATanh1().float().eval(), input_data=input_data)
     verify_model(Log1().float().eval(), input_data=input_data)
+    verify_model(Log2_1().float().eval(), input_data=input_data)
+    verify_model(Log10_1().float().eval(), input_data=input_data)
+    verify_model(Log1p_1().float().eval(), input_data=input_data)
     verify_model(Exp1().float().eval(), input_data=input_data)
     verify_model(Erf1().float().eval(), input_data=input_data)
     verify_model(Trunc1().float().eval(), input_data=input_data)

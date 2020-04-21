@@ -142,6 +142,14 @@ def _unary(name):
     return _impl
 
 
+def _log1p():
+    def _impl(inputs, input_types):
+        # 1_plus_log x = log(x + 1)
+        one = _expr.const(1, dtype="float32")
+        return _op.log(inputs[0] + one)
+    return _impl
+
+
 def _arange():
     def _impl(inputs, input_types):
         if len(inputs) == 5:
@@ -1642,11 +1650,16 @@ def _get_convert_map(prelude):
         "aten::abs"                             : _unary("abs"),
         "aten::neg"                             : _unary("negative"),
         "aten::cos"                             : _unary("cos"),
+        "aten::cosh"                            : _unary("cosh"),
         "aten::sin"                             : _unary("sin"),
+        "aten::sinh"                            : _unary("sinh"),
         "aten::tan"                             : _unary("tan"),
         "aten::tanh"                            : _unary("tanh"),
         "aten::atan"                            : _unary("atan"),
         "aten::log"                             : _unary("log"),
+        "aten::log2"                            : _unary("log2"),
+        "aten::log10"                           : _unary("log10"),
+        "aten::log1p"                           : _log1p(),
         "aten::exp"                             : _unary("exp"),
         "aten::erf"                             : _unary("erf"),
         "aten::trunc"                           : _unary("trunc"),
