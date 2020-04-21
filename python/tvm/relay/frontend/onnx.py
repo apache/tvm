@@ -57,8 +57,7 @@ class onnx_input():
         if isinstance(item, int):
             self.input_dict[self.input_keys[item]] = value
         elif isinstance(item, str):
-            if item not in self.input_dict:
-                self.input_keys.append(item)
+            self.input_keys.append(item)
             self.input_dict[item] = value
         else:
             raise ValueError("Only integer and string indexed writes allowed.")
