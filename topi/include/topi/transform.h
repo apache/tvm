@@ -1143,7 +1143,7 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A,
  * @param tag           The tag to mark the operation
  * @return              A Tensor whose op member is the cumsum operation
  */
-inline tvm::te::Tensor cumsum(Tensor& A,
+inline tvm::te::Tensor cumsum(const Tensor& A,
                               int axis,
                               bool exclusive = false,
                               bool reverse = false,
@@ -1154,33 +1154,34 @@ inline tvm::te::Tensor cumsum(Tensor& A,
     if (axis < 0) {
         axis = total_size + axis;
     }
+    Tensor B = A;
     //transpose to highest dimension
-    if (axis != 0) {
-        Array<Integer> axes;
+    Array<Integer> axes;
+        if (axis != 0) {
         axes.push_back(axis);
         for (int i = 1; i < total_size; i++) {
             axes.push_back(i == axis ? 0 : i);
         }
-        A = transpose(A, axes);
+        B = transpose(B, axes);
     }
     //reverse need flip
     if (reverse) {
-        A = flip(A, 0);
+        B = flip(B, 0);
     }
     auto dtype = A->dtype;
 
     Array<Tensor> state_array;
-    auto s_state = placeholder(A->shape, dtype);
+    auto s_state = placeholder(B->shape, dtype);
     state_array.push_back(s_state);
 
     //init state
     Array<PrimExpr> init_indices;
     init_indices.push_back(1);
     for (int i = 1; i < total_size; i++) {
-        init_indices.push_back(A->shape[axis == i ? 0 : axis]);
+        init_indices.push_back(B->shape[axis]);
     }
     auto s_init_fn = [&](const Array<Var> &input_indices) {
-        return exclusive ? make_zero(dtype) : A(input_indices);
+        return exclusive ? make_zero(dtype) : B(input_indices);
     };
     Array<Tensor> init_array;
     init_array.push_back(compute(init_indices, s_init_fn));
@@ -1188,34 +1189,29 @@ inline tvm::te::Tensor cumsum(Tensor& A,
     //update state
     auto l = [&](const Array<Var> &input_indices) {
         Array<PrimExpr> last_indices;
-        last_indices.push_back(input_indices[0]);
+        last_indices.push_back(input_indices[0] - 1);
         for (size_t i = 1, total = input_indices.size(); i < total; i++) {
             last_indices.push_back(input_indices[i]);
         }
         if (exclusive) {
-            return A(last_indices) + s_state(last_indices);
+            return B(last_indices) + s_state(last_indices);
         }
-        return A(input_indices) + s_state(last_indices);
+        return B(input_indices) + s_state(last_indices);
     };
     Array<Tensor> update_array;
-    update_array.push_back(compute(A->shape, l));
+    update_array.push_back(compute(B->shape, l));
 
     auto res = scan(init_array, update_array, state_array);
 
-    A = res[0];
+    B = res[0];
     if (reverse) {
-        A = flip(A, 0);
+        B = flip(B, 0);
     }
 
     if (axis != 0) {
-        Array<Integer> axes;
-        axes.push_back(axis);
-        for (int i = 1; i < total_size; i++) {
-            axes.push_back(i == axis ? 0 : i);
-        }
-        A = transpose(A, axes);
+        B = transpose(B, axes);
     }
-    return A;
+    return B;
 }
 
 /*!
