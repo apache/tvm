@@ -1157,7 +1157,7 @@ inline tvm::te::Tensor cumsum(const Tensor& A,
     Tensor B = A;
     //transpose to highest dimension
     Array<Integer> axes;
-        if (axis != 0) {
+    if (axis != 0) {
         axes.push_back(axis);
         for (int i = 1; i < total_size; i++) {
             axes.push_back(i == axis ? 0 : i);

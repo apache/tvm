@@ -34,6 +34,8 @@ try:
     tf_compat_v1 = tf.compat.v1
 except ImportError:
     tf_compat_v1 = tf
+except AttributeError:
+    tf_compat_v1 = tf
 
 ######################################################################
 # Some helper functions
