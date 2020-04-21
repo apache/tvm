@@ -27,6 +27,7 @@
 #include <tvm/support/with.h>
 #include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/transform.h>
 
 #include <string>
 #include <vector>
@@ -225,8 +226,8 @@ class BuildConfigNode : public Object {
   /*! \brief Whether to partition const loop */
   bool partition_const_loop = false;
 
-  /*! \brief Whether to dump the IR of each pass (only when building from python) */
-  std::vector< std::pair<int, runtime::PackedFunc> > add_lower_pass;
+  /*! \brief List of passes to be injected into the low-level pipeline. */
+  std::vector<std::pair<int, transform::Pass>> add_lower_pass;
 
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
   bool dump_pass_ir = false;

@@ -434,12 +434,12 @@ TVM_REGISTER_GLOBAL("target.ExitBuildConfigScope")
 TVM_REGISTER_GLOBAL("target.BuildConfigSetAddLowerPass")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   BuildConfig cfg = args[0];
-  std::vector< std::pair<int, PackedFunc> > add_lower_pass;
+  std::vector<std::pair<int, transform::Pass>> add_lower_pass;
   CHECK_EQ(args.size() % 2, 1);
   for (int i = 1; i < args.size(); i += 2) {
     add_lower_pass.push_back(std::make_pair(
       args[i].operator int(),
-      args[i + 1].operator tvm::runtime::PackedFunc()));
+      args[i + 1].operator transform::Pass()));
   }
   cfg->add_lower_pass = add_lower_pass;
   });

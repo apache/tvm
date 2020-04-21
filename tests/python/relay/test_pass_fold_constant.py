@@ -51,11 +51,13 @@ def test_fold_const():
         z = relay.add(y, relay.const(c_data))
         return relay.Function([x], z)
 
-    def fail(x):
-        raise RuntimeError()
+    def FailPass():
+        def _transform(m, *args):
+            raise RuntimeError()
+        return tvm.transform.module_pass(_transform, opt_level=0)
 
     # the fold constant should work on any context.
-    with tvm.target.build_config(add_lower_pass=[(0, fail)]):
+    with tvm.target.build_config(add_lower_pass=[(0, FailPass())]):
         with tvm.target.create("cuda"):
             zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())

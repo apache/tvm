@@ -123,25 +123,6 @@ def form_irmodule(sch, args, name, binds):
     return tvm.IRModule({name: func})
 
 
-def _wrap_as_prim_func_pass(flist, name):
-    """Wrap flist as a function pass.
-
-    This is an temporary adapter before we fully
-    migrate to the new pass manager.
-    """
-    def _transform(func, *_):
-        stmt = func.body
-        for f in flist:
-            stmt = f(stmt)
-        # create a new function with updated body.
-        return tvm.tir.PrimFunc(func.params,
-                                stmt,
-                                func.ret_type,
-                                func.buffer_map,
-                                func.attrs)
-    return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name=name)
-
-
 def lower(sch,
           args,
           name="main",
@@ -190,15 +171,15 @@ def lower(sch,
     else:
         mod = sch
 
+    pass_list = lower_phase0
     # Phase 1
-    pass_list = [
-        _wrap_as_prim_func_pass(lower_phase0, "Custom-Phase0"),
+    pass_list += [
         tvm.tir.transform.InjectPrefetch(),
         tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
-        _wrap_as_prim_func_pass(lower_phase1, "Custom-Phase1"),
     ]
+    pass_list += lower_phase1
 
     # Phase 2
     if not simple_mode:
@@ -214,8 +195,8 @@ def lower(sch,
             cfg.auto_unroll_max_depth,
             cfg.auto_unroll_max_extent,
             cfg.unroll_explicit),
-        _wrap_as_prim_func_pass(lower_phase2, "Custom-Phase2"),
     ]
+    pass_list += lower_phase2
 
     # Phase 3
     pass_list += [
@@ -225,7 +206,7 @@ def lower(sch,
 
     if not cfg.disable_select_rewriting:
         pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
-    pass_list += [_wrap_as_prim_func_pass(lower_phase3, "Custom-Phase3")]
+    pass_list += lower_phase3
 
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
