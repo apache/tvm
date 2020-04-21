@@ -168,40 +168,4 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
                      x_name, grad.shape, dist, max_diff, avg_diff)
 
 
-def MakeAPILegacy(stmt, name, args, num_unpacked_args, noalias):
-    """Legacy adapter to build a Module from statement.
-
-    Used for migrating existing test cases only.
-
-    Parameters
-    ----------
-    stmt: Stmt
-        The input statement.
-
-    name: str
-        The name of the funciton.
-
-    args: list of Buffer or Vars
-        The function arguments
-
-    num_unpacked_args: int
-        Number of unpacked arguments.
-
-    nolias: bool
-        Whether allow noalias.
-
-    Returns
-    -------
-    mod : IRModule
-        The created IRModule.
-    """
-    f = tvm.tir.PrimFunc(args, stmt).with_attr(
-        "global_symbol", tvm.runtime.String(name))
-    f = f.with_attr("tir.is_entry_func", True)
-    if noalias:
-        f = f.with_attr("tir.noalias", True)
-    mod = tvm.IRModule({name: f})
-    return tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)
-
-
 tvm._ffi._init_api("testing", __name__)

@@ -153,7 +153,6 @@ class CodeGenC :
   void VisitStmt_(const AssertStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
-  void VisitStmt_(const ProducerConsumerNode* op) override;
   /*!
    * Print Type represetnation of type t.
    * \param t The type representation.
@@ -191,6 +190,8 @@ class CodeGenC :
       const std::string& vec, DataType t, int i, const std::string& value);
   // Get a cast type from to
   virtual std::string CastFromTo(std::string value, DataType from, DataType target);
+  // Get load of single element with expression
+  virtual void PrintVecElemLoadExpr(DataType t, int i, const std::string& value, std::ostream& os);
 
  protected:
   // Print reference to struct location

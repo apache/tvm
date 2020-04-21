@@ -17,7 +17,7 @@
 cmake_minimum_required(VERSION 3.2)
 project(tf_tvmdsoop C CXX)
 
-set(TFTVM_COMPILE_FLAGS -std=c++11)
+set(TFTVM_COMPILE_FLAGS -std=c++14)
 set(BUILD_TVMDSOOP_ONLY ON)
 set(CMAKE_CURRENT_SOURCE_DIR ${TVM_ROOT})
 set(CMAKE_CURRENT_BINARY_DIR ${TVM_ROOT}/build)

@@ -446,7 +446,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK_NE(func->GetAttr<Integer>(attr::kPrimitive, 0)->value, 0)
+    CHECK(func->GetAttr<Integer>(attr::kPrimitive, 0) != 0)
       << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
@@ -475,7 +475,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     Target target;
 
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
     } else {
       // Next generate the invoke instruction.
@@ -493,7 +493,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto cfunc = engine_->Lower(key);
 
     auto op_index = -1;
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
@@ -579,7 +579,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
           auto alignment_register = last_register_;
 
           // Get the dtype hint from the attributes.
-          auto alloc_attrs = attrs.as<AllocTensorAttrs>();
+          auto alloc_attrs = attrs.as<AllocStorageAttrs>();
           CHECK(alloc_attrs != nullptr)
               << "must be the alloc tensor attrs";
           auto dtype = alloc_attrs->dtype;
@@ -873,7 +873,7 @@ void VMCompiler::Lower(IRModule mod,
 
 IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
-  Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
+  Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -937,6 +937,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::FoldConstant());
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
+
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
 

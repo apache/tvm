@@ -36,8 +36,35 @@ def test_llvm_intrin():
             "int32", "prefetch", args, tvm.tir.Call.Intrinsic, None, 0)))
     body = ib.get()
 
-    func = tvm.testing.MakeAPILegacy(body, "prefetch", [A], 0, True)
-    fcode = tvm.build(func, None, "llvm")
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A], body).with_attr(
+            "global_symbol", "prefetch")
+    )
+    fcode = tvm.build(mod, None, "llvm")
+
+
+def test_llvm_overloaded_intrin():
+    # Name lookup for overloaded intrinsics in LLVM 4- requires a name
+    # that includes the overloaded types.
+    if tvm.target.codegen.llvm_version_major() < 5:
+        return
+
+    def use_llvm_intrinsic(A, C):
+        ib = tvm.tir.ir_builder.create()
+        L = A.vload((0,0))
+        I = tvm.tir.call_llvm_intrin('int32', 'llvm.ctlz',
+            tvm.tir.const(2, 'uint32'), L, tvm.tir.const(0, 'int1'))
+        S = C.vstore((0,0), I)
+        ib.emit(S)
+        return ib.get()
+
+    A = tvm.te.placeholder((1,1), dtype = 'int32', name = 'A')
+    C = tvm.te.extern((1,1), [A],
+        lambda ins, outs: use_llvm_intrinsic(ins[0], outs[0]),
+        name = 'C' , dtype = 'int32')
+
+    s = tvm.te.create_schedule(C.op)
+    f = tvm.build(s, [A, C], target = 'llvm')
 
 
 def test_llvm_import():
@@ -82,13 +109,14 @@ def test_llvm_import():
 
 def test_llvm_lookup_intrin():
     ib = tvm.tir.ir_builder.create()
-    m = te.size_var("m")
     A = ib.pointer("uint8x8", name="A")
-    x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.tir.const(1, 'uint32'), A)
+    z = tvm.tir.const(0, 'int32')
+    x = tvm.tir.call_llvm_intrin("uint8x8", "llvm.ctpop.v8i8", tvm.tir.const(1, 'uint32'), A[z])
     ib.emit(x)
     body = ib.get()
-    func = tvm.testing.MakeAPILegacy(body, "ctpop", [A], 1, True)
-    fcode = tvm.build(func, None, "llvm")
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
+    fcode = tvm.build(mod, None, "llvm")
 
 
 def test_llvm_large_uintimm():
@@ -680,6 +708,7 @@ if __name__ == "__main__":
     test_llvm_vadd_pipeline()
     test_llvm_add_pipeline()
     test_llvm_intrin()
+    test_llvm_overloaded_intrin()
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()
     test_llvm_temp_space()

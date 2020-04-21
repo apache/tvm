@@ -81,11 +81,15 @@ struct CUDAPopcount {
   }
 };
 
-struct CUDAShuffle {
-  std::string operator()(DataType t, std::string name) const {
-    return "__shfl";
-  }
-};
+static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
+  PrimExpr e = args[0];
+  const CallNode* call = e.as<CallNode>();
+  CHECK(call != nullptr);
+  CHECK_EQ(call->args.size(), 4);  // value, warp_id, width, warp_size
+  Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2]}};
+  *rv = CallNode::make(
+      call->dtype, "__shfl", cuda_args, CallNode::PureExtern);
+}
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor")
 .set_body(DispatchExtern<CUDAMath>);
@@ -154,7 +158,7 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
 .set_body(DispatchExtern<CUDAPopcount>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
-.set_body(DispatchExtern<CUDAShuffle>);
+.set_body(DispatchCUDAShuffle);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod")
 .set_body(DispatchExtern<CUDAMath>);

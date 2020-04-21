@@ -1177,7 +1177,6 @@ Array<te::Tensor> ArangeCompute(const Attrs& attrs,
   te::Tensor start = inputs[0];
   te::Tensor stop =  inputs[1];
   te::Tensor step = inputs[2];
-  Array<tvm::PrimExpr> empty = {0};
   return { DynamicArange(start, stop, step, param->dtype) };
 }
 

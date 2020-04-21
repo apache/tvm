@@ -178,42 +178,6 @@ class AssertStmtNode : public StmtNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertStmtNode, StmtNode);
 };
 
-// TODO(tvm-team): consider consolidate with AttrStmt.
-/*! \brief annotation node of producer/consumer relation. */
-class ProducerConsumerNode : public StmtNode {
- public:
-  /*! \brief The corresponding tensor. */
-  FunctionRef func;
-  /*! \brief Whether the relation is producer. */
-  bool is_producer;
-  /*! \brief Body to be executed. */
-  Stmt body;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("is_producer", &is_producer);
-    v->Visit("body", &body);
-  }
-
-  bool SEqualReduce(const ProducerConsumerNode* other, SEqualReducer equal) const {
-    return
-        equal(func, other->func) &&
-        equal(is_producer, other->is_producer) &&
-        equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(is_producer);
-    hash_reduce(body);
-  }
-
-  TVM_DLL static Stmt make(FunctionRef func, bool is_producer, Stmt body);
-
-  static constexpr const char* _type_key = "ProducerConsumer";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerConsumerNode, StmtNode);
-};
-
 /*!
  * \brief Store value to the buffer.
  *
@@ -284,7 +248,6 @@ class StoreNode : public StmtNode {
  * \endcode
  * \sa BufferLoad
  */
-class BufferStore;
 class BufferStoreNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
@@ -317,6 +280,10 @@ class BufferStoreNode : public StmtNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferStoreNode, StmtNode);
 };
 
+/*!
+ * \brief Managed reference to BufferStoreNode.
+ * \sa BufferStoreNode
+ */
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer,
@@ -326,7 +293,79 @@ class BufferStore : public Stmt {
 };
 
 /*!
+ * \brief Annotate the region where the buffer need to
+ *  be read and write in the body.
+ *  We only need to allocate the space for the corresponding region.
+ *
+ * \note There should be at most one BufferRealize for each buffer.
+ *       BufferRealize is not necessary for external buffers,
+ *       since they are assumed to be fully allocated.
+ *
+ * \sa BufferLoad, BufferStore
+ */
+class BufferRealizeNode : public StmtNode {
+ public:
+  /*! \brief The buffer variable. */
+  Buffer buffer;
+  /*! \brief Bounds to be realized */
+  Array<Range> bounds;
+  /*! \brief Only realize if condition holds. */
+  PrimExpr condition;
+  /*! \brief The body of realization. */
+  Stmt body;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("buffer", &buffer);
+    v->Visit("bounds", &bounds);
+    v->Visit("condition", &condition);
+    v->Visit("body", &body);
+  }
+
+  bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
+    return
+        equal(buffer, other->buffer) &&
+        equal(bounds, other->bounds) &&
+        equal(condition, other->condition) &&
+        equal(body, other->body);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce(buffer);
+    hash_reduce(bounds);
+    hash_reduce(condition);
+    hash_reduce(body);
+  }
+
+  BufferRealizeNode() = default;
+  BufferRealizeNode(Buffer buffer,
+                    Array<Range> bounds,
+                    PrimExpr condition,
+                    Stmt body)
+      : buffer(buffer), bounds(bounds),
+        condition(condition), body(body) {}
+
+  static constexpr const char* _type_key = "BufferRealize";
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRealizeNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to BufferRealizeNode.
+ * \sa BufferRealizeNode
+ */
+class BufferRealize : public Stmt {
+ public:
+  TVM_DLL explicit BufferRealize(Buffer buffer,
+                                 Array<Range> bounds,
+                                 PrimExpr condition,
+                                 Stmt body);
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
+};
+
+/*!
  * \brief Store value into mult-dimensional array defined by func.
+ *
+ * \note Deprecated, move to BufferStore in the future.
  */
 class ProvideNode : public StmtNode {
  public:
@@ -385,10 +424,6 @@ class AllocateNode : public StmtNode {
   PrimExpr condition;
   /*! \brief The body to be executed. */
   Stmt body;
-  // The following two fields are deprecated
-  // kept for backward compatibility and will be refactored later.
-  PrimExpr new_expr;
-  std::string free_function;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -419,9 +454,7 @@ class AllocateNode : public StmtNode {
                            DataType dtype,
                            Array<PrimExpr> extents,
                            PrimExpr condition,
-                           Stmt body,
-                           PrimExpr new_expr = PrimExpr(),
-                           std::string free_function = std::string());
+                           Stmt body);
 
   /*!
    * \brief If the buffer size is constant, return the size.
@@ -472,6 +505,8 @@ class FreeNode : public StmtNode {
 /*!
  * \brief Annotate the bounds where func need to be written and read in body.
  *  We will need to allocate space for the corresponding regions.
+ *
+ * \note Deprecated, move to BufferRealize in the future.
  */
 class RealizeNode : public StmtNode {
  public:
@@ -589,8 +624,6 @@ class SeqStmt : public Stmt {
    *
    * - When an argument is nullptr, it will be ignored.
    * - When an argument is an array or a SeqStmt, it will be flattened recursively.
-   * - When an argument is a consumer block in ProducerConsumer, the consumer
-   *   tag will be dropped as such information is not useful in lowering.
    * - A normal Stmt will be appended to the end of the sequence.
    *
    * \note This function can directly return an element
@@ -618,13 +651,6 @@ class SeqStmt : public Stmt {
       if (!stmt.defined()) return;
       if (auto* op = stmt.as<SeqStmtNode>()) {
         operator()(0, op->seq);
-      } else if (auto* op = stmt.as<ProducerConsumerNode>()) {
-        // NOTE: The consumer block annotation was not as useful and can be safely dropped.
-        if (!op->is_producer) {
-          operator()(0, op->body);
-        } else {
-          seq_->push_back(stmt);
-        }
       } else {
         seq_->push_back(stmt);
       }
@@ -798,48 +824,48 @@ class ForNode : public StmtNode {
 };
 
 /*!
- * \brief A prefetch hint of func.
+ * \brief A prefetch hint for abuffer
  */
 class PrefetchNode : public StmtNode {
  public:
   /*! \brief The function to be prefetched. */
-  FunctionRef func;
-  /*! \brief The output value index if func's value is a tuple. */
-  int value_index;
-  /*! \brief The data type of the array. */
-  DataType dtype;
+  Buffer buffer;
   /*! \brief Bounds to be prefetched. */
-  Region bounds;
+  Array<Range> bounds;
 
   void VisitAttrs(AttrVisitor* v) {
-    v->Visit("func", &func);
-    v->Visit("value_index", &value_index);
-    v->Visit("dtype", &dtype);
+    v->Visit("buffer", &buffer);
     v->Visit("bounds", &bounds);
   }
 
   bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
     return
-        equal(func, other->func) &&
-        equal(value_index, other->value_index) &&
-        equal(dtype, other->dtype) &&
+        equal(buffer, other->buffer) &&
         equal(bounds, other->bounds);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(func);
-    hash_reduce(value_index);
-    hash_reduce(dtype);
+    hash_reduce(buffer);
     hash_reduce(bounds);
   }
 
-  TVM_DLL static Stmt make(FunctionRef func,
-                           int value_index,
-                           DataType dtype,
-                           Region bounds);
+  PrefetchNode() = default;
+  PrefetchNode(Buffer buffer, Array<Range> bounds)
+      : buffer(buffer), bounds(bounds) {}
 
   static constexpr const char* _type_key = "Prefetch";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
+};
+
+/*!
+ * \brief Managed reference to PrefetchNode.
+ * \sa PrefetchNode
+ */
+class Prefetch : public Stmt {
+ public:
+  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds);
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
 };
 
 /*!

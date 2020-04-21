@@ -56,7 +56,146 @@ TVM_DLL Pass CreatePrimFuncPass(const runtime::TypedPackedFunc<
                                 PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
-                                const tvm::Array<tvm::PrimExpr>& required);
+                                const tvm::Array<runtime::String>& required);
+
+
+/*!
+ * \brief Inject prefetch instructions into stmt.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass InjectPrefetch();
+
+// TODO(tvm-team): consolidate configs to the PassContext
+/*!
+ * \brief Flatten the multi-dimensional read/write
+ *  to single dimensional Load/Store
+ *
+ * \param cache_line_size The size of CPU cache line.
+ * \param create_bound_attribute Whether to create bound attributes.
+ *
+ * \return The Pass
+ */
+TVM_DLL Pass StorageFlatten(int cache_line_size,
+                            bool create_bound_attribute = false);
+
+/*!
+ * \brief Inject copy intrinsics with optional pad.
+ *
+ * \param pragma_key The pragma key for hint of copy.
+ * \param fintrin The function with signature
+ *
+ *   Stmt fintrin(Buffer src,
+ *                Buffer dst,
+ *                Array<Expr> pad_before,
+ *                Array<Expr> pad_after,
+ *                Expr pad_value)
+ * \return The pass.
+ */
+TVM_DLL Pass InjectCopyIntrin(std::string pragma_key,
+                              runtime::PackedFunc fintrin);
+
+/*!
+ * \brief Detect and insert sync points to co-processor.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass CoProcSync();
+
+/*!
+ * \brief Lift common attrs with attr_key to outer scope.
+ *
+ * \param attr_key The attribute key to be checked.
+ * \return The pass.
+ */
+TVM_DLL Pass LiftAttrScope(std::string attr_key);
+
+/*!
+ * \brief partition loops in the stmt.
+ *
+ * \param split_const_loop flag to enable partition for const loop
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass LoopPartition(bool split_const_loop);
+
+/*!
+ * \brief Lower vectorization loops.
+ *
+ * \param enable_vectorize Whether vectorization is enabled.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass VectorizeLoop(bool enable_vectorize = true);
+
+/*!
+ * \brief Inject virtual thread loops.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass InjectVirtualThread();
+
+/*!
+ * \brief Inject double buffer statements.
+ *
+ * \param split_loop_factor Loop splitting factor.
+ * \return The pass.
+ */
+TVM_DLL Pass InjectDoubleBuffer(int split_loop_factor);
+
+/*!
+ * \brief Rewrite storage allocation pattern.
+ *  Moves the allocation to outer most possible scope.
+ *  Trying to share space between allocations to make
+ *  a static allocation plan when possible.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass StorageRewrite();
+
+/*!
+ * \brief unroll the constant loop marked by unroll.
+ * This pass also automatically attach pragma unroll tag to loops which meets the standard.
+ *
+ * \param auto_max_step The maximum step before stop attach automatic unroll
+ * \param auto_max_depth The maximum depth before stop attach automatic unroll
+ * \param auto_max_extent The maximum extent of the loop we can unroll,
+ *        this is an legacy option that do not take the loop total steps into account.
+ * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
+ * \return The pass.
+ */
+TVM_DLL Pass UnrollLoop(int auto_max_step,
+                        int auto_max_depth,
+                        int auto_max_extent,
+                        bool explicit_unroll);
+
+/*!
+ * \brief Remove No Op from the Stmt.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RemoveNoOp();
+
+/*!
+ * \brief Detect and rewrite unsafe select that contains memory access.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass RewriteUnsafeSelect();
+
+/*!
+* \brief Run arithmetic simplifications on the statements and expressions.
+*
+* \return The pass.
+*/
+TVM_DLL Pass Simplify();
+
+/*!
+* \brief Instruments bound checkers.
+*
+* \return The pass.
+*/
+TVM_DLL Pass InstrumentBoundCheckers();
 
 /*!
  * \brief Transform the high-level PrimFunc to a low-level version
@@ -100,7 +239,7 @@ TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(Map<PrimExpr, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(Map<runtime::String, IterVar> axis_map);
 
 
 /*!
@@ -111,15 +250,6 @@ TVM_DLL Pass RemapThreadAxis(Map<PrimExpr, IterVar> axis_map);
  * \return The pass.
  */
 TVM_DLL Pass LowerCustomDatatypes();
-
-
-/*!
- * \brief Bind the device type ofthe function to be
- *        the device_type specified in the target attribute.
- *
- * \return The pass.
- */
-TVM_DLL Pass BindDeviceType();
 
 /*!
  * \brief Split the function into a host function and device functions.
@@ -197,11 +327,12 @@ TVM_DLL Pass CombineContextCall();
 /*!
  * \brief Narrow down PrimExpr datatype in stmt to target_bits.
  *
- * \note Run this pass after StorageFlatten.
+ * \param target_bits The target bits
  *
+ * \note Run this pass after storage flatten.
  * \return The pass.
  */
-TVM_DLL Pass NarrowDataType();
+TVM_DLL Pass NarrowDataType(int target_bits);
 
 }  // namespace transform
 }  // namespace tir

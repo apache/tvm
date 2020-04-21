@@ -57,10 +57,12 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/support/with.h>
+#include <tvm/runtime/container.h>
 #include <tvm/node/container.h>
 #include <tvm/ir/error.h>
 #include <tvm/ir/module.h>
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace transform {
@@ -95,9 +97,9 @@ class PassContextNode : public Object {
   int fallback_device{static_cast<int>(kDLCPU)};
 
   /*! \brief The list of required passes. */
-  Array<PrimExpr> required_pass;
+  Array<runtime::String> required_pass;
   /*! \brief The list of disabled passes. */
-  Array<PrimExpr> disabled_pass;
+  Array<runtime::String> disabled_pass;
 
   TraceFunc trace_func;
 
@@ -197,7 +199,7 @@ class PassInfoNode : public Object {
   std::string name;
 
   /*! \brief The passes that are required to perform the current pass. */
-  Array<PrimExpr> required;
+  Array<runtime::String> required;
 
   PassInfoNode() = default;
 
@@ -226,7 +228,7 @@ class PassInfo : public ObjectRef {
    */
   TVM_DLL PassInfo(int opt_level,
                    std::string name,
-                   Array<PrimExpr> required);
+                   Array<runtime::String> required);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -250,8 +252,8 @@ class PassNode : public Object {
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod) const {
-    return this->operator()(mod, PassContext::Current());
+  IRModule operator()(IRModule mod) const {
+    return this->operator()(std::move(mod), PassContext::Current());
   }
 
   /*!
@@ -262,7 +264,7 @@ class PassNode : public Object {
    *
    * \return The transformed module.
    */
-  virtual IRModule operator()(const IRModule& mod,
+  virtual IRModule operator()(IRModule mod,
                               const PassContext& pass_ctx) const = 0;
 
   void VisitAttrs(AttrVisitor* v) {}
@@ -276,14 +278,22 @@ class Pass : public ObjectRef {
   /*!
    * \brief Transform mod using the default PassContext in the current scope.
    *
+   * \code
+   *
+   * // If you do no longer need the input module
+   * // it is recommended to use std::move to move your input module.
+   * mod = pass(std::move(mod));
+   *
+   * \endcode
+   *
    * \param mod The module that an optimization pass runs on.
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod) const {
+  IRModule operator()(IRModule mod) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
-    return node->operator()(mod);
+    return node->operator()(std::move(mod));
   }
   /*!
    * \brief Transform mod using a functor under a given pass context.
@@ -293,11 +303,11 @@ class Pass : public ObjectRef {
    *
    * \return The transformed module.
    */
-  IRModule operator()(const IRModule& mod,
+  IRModule operator()(IRModule mod,
                       const PassContext& pass_ctx) const {
     const PassNode* node = operator->();
     CHECK(node != nullptr);
-    return node->operator()(mod, pass_ctx);
+    return node->operator()(std::move(mod), pass_ctx);
   }
 
   TVM_DEFINE_OBJECT_REF_METHODS(Pass, ObjectRef, PassNode);
@@ -342,11 +352,20 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-Pass CreateModulePass(
+TVM_DLL Pass CreateModulePass(
     const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const Array<PrimExpr>& required);
+    const Array<runtime::String>& required);
+
+
+/*!
+ * \brief A special trace pass that prints the header and IR to LOG(INFO).
+ * \param header The header to be attached to the output.
+ * \param show_meta_data Whether should we show meta data.
+ * \return The pass.
+ */
+TVM_DLL Pass PrintIR(std::string header = "", bool show_meta_data = false);
 
 }  // namespace transform
 }  // namespace tvm

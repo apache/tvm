@@ -35,8 +35,8 @@ using namespace tvm::runtime;
 #define TOPI_REGISTER_BCAST_OP(OpName, Op)                              \
   TVM_REGISTER_GLOBAL(OpName)                                           \
   .set_body([](TVMArgs args, TVMRetValue *rv) {                         \
-      bool lhs_is_tensor = IsTensorType(args[0]);                       \
-      bool rhs_is_tensor = IsTensorType(args[1]);                       \
+      bool lhs_is_tensor = args[0].IsObjectRef<tvm::te::Tensor>();      \
+      bool rhs_is_tensor = args[1].IsObjectRef<tvm::te::Tensor>();      \
       if (lhs_is_tensor && rhs_is_tensor) {                             \
         *rv = Op(args[0].operator tvm::te::Tensor(),                    \
                  args[1].operator tvm::te::Tensor());                   \
@@ -65,6 +65,7 @@ TOPI_REGISTER_BCAST_OP("topi.power", topi::power);
 TOPI_REGISTER_BCAST_OP("topi.left_shift", topi::left_shift);
 TOPI_REGISTER_BCAST_OP("topi.logical_and", topi::logical_and);
 TOPI_REGISTER_BCAST_OP("topi.logical_or", topi::logical_or);
+TOPI_REGISTER_BCAST_OP("topi.logical_xor", topi::logical_xor);
 TOPI_REGISTER_BCAST_OP("topi.bitwise_and", topi::bitwise_and);
 TOPI_REGISTER_BCAST_OP("topi.bitwise_or", topi::bitwise_or);
 TOPI_REGISTER_BCAST_OP("topi.bitwise_xor", topi::bitwise_xor);

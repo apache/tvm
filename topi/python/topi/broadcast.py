@@ -420,6 +420,25 @@ def logical_or(lhs, rhs):
     return _cpp.logical_or(lhs, rhs)
 
 
+def logical_xor(lhs, rhs):
+    """Compute element-wise logical xor of data.
+
+    Parameters
+    ----------
+    lhs : tvm.te.Tensor or Expr
+          The left operand
+    rhs : tvm.te.Tensor or Expr
+          The right operand
+
+    Returns
+    -------
+    ret : tvm.te.Tensor or Expr
+          Returns Expr if both operands are Expr.
+          Otherwise returns Tensor.
+    """
+    return _cpp.logical_xor(lhs, rhs)
+
+
 def bitwise_and(lhs, rhs):
     """Compute element-wise bitwise and of data.
 

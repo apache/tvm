@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """A prelude containing useful global functions and ADT definitions."""
-from tvm.ir import IRModule
+from tvm.ir import IRModule, TypeCall
 
 from .ty import GlobalTypeVar, TensorType, Any, scalar_type
 from .expr import Var, GlobalVar, If, const
@@ -24,8 +24,51 @@ from .function import Function
 from .op.tensor import add, subtract, equal
 from .adt import Constructor, TypeData, Clause, Match
 from .adt import PatternConstructor, PatternVar, PatternWildcard
-from . import op
+from . import op, transform
 
+
+def get_tensor_array_shape(expr, dtype, prelude):
+    """Get the static shape of a tensor array if it has fixed rank shape.
+
+    By design, static ADT tensor in TVM has type name in the format
+    of static_tensor_dim0_dim1_..._dimN_t.
+
+    Parameters
+    ----------
+    expr : Relay Expr
+        Input expression.
+
+    dtype : str
+        Data type.
+
+    prelude : Prelude
+        Tensor array prelude
+
+    Returns
+    -------
+    shape : tuple of (int, Any) or None
+        The output shape. None if input tensor array
+        has dynamic shape.
+    """
+    mod = prelude.mod
+    mod["main"] = Function([], expr)
+    mod = transform.InferType()(mod)
+    checked_type = mod["main"].body.checked_type
+    assert isinstance(checked_type, TypeCall), "Input must be a tensor array."
+    ta_type_str = checked_type.args[0].func.name_hint
+    static_ta_ty_start = "static_tensor_{}".format(dtype)
+    if ta_type_str.startswith(static_ta_ty_start):
+        shape_str = ta_type_str.replace("{}_".format(static_ta_ty_start), '') \
+            .replace("_t", '')
+        shape = []
+        if "scalar" not in shape_str:
+            for dim_str in shape_str.split("_"):
+                if dim_str == "?":
+                    shape.append(Any())
+                else:
+                    shape.append(int(dim_str))
+        return tuple(shape)
+    return None
 
 def _get_name_static(canonical, dtype, shape):
     """Get name for static shape tensor array op corresponding

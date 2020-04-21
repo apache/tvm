@@ -84,8 +84,7 @@ class GraphRuntimeCodegen(object):
         lowered_func = self._get_irmodule()
         param_names = self._list_params_name()
         params = {}
-        for name in param_names:
-            key = name.value
+        for key in param_names:
             arr = self._get_param_by_name(key)
             param = empty(arr.shape, dtype=arr.dtype, ctx=arr.ctx)
             arr.copyto(param)

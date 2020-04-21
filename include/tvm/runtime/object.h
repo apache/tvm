@@ -477,6 +477,17 @@ class ObjectPtr {
       data_->IncRef();
     }
   }
+  /*!
+   * \brief Move an ObjectPtr from an RValueRef argument.
+   * \param ref The rvalue reference.
+   * \return the moved result.
+   */
+  static ObjectPtr<T> MoveFromRValueRefArg(Object** ref) {
+    ObjectPtr<T> ptr;
+    ptr.data_ = *ref;
+    *ref = nullptr;
+    return ptr;
+  }
   // friend classes
   friend class Object;
   friend class ObjectRef;
@@ -489,6 +500,7 @@ class ObjectPtr {
   friend class TVMArgsSetter;
   friend class TVMRetValue;
   friend class TVMArgValue;
+  friend class TVMMovableArgValue_;
   template <typename RelayRefType, typename ObjType>
   friend RelayRefType GetRef(const ObjType* ptr);
   template <typename BaseType, typename ObjType>
@@ -534,7 +546,9 @@ class ObjectRef {
   bool operator<(const ObjectRef& other) const {
     return data_.get() < other.data_.get();
   }
-  /*! \return whether the expression is null */
+  /*!
+   * \return whether the object is defined(not null).
+   */
   bool defined() const {
     return data_ != nullptr;
   }
@@ -549,6 +563,10 @@ class ObjectRef {
   /*! \return whether the reference is unique */
   bool unique() const {
     return data_.unique();
+  }
+  /*! \return The use count of the ptr, for debug purposes */
+  int use_count() const {
+    return data_.use_count();
   }
   /*!
    * \brief Try to downcast the internal Object to a
@@ -566,6 +584,8 @@ class ObjectRef {
 
   /*! \brief type indicate the container type. */
   using ContainerType = Object;
+  // Default type properties for the reference class.
+  static constexpr bool _type_is_nullable = true;
 
  protected:
   /*! \brief Internal pointer that backs the reference. */
@@ -704,6 +724,17 @@ struct ObjectEqual {
   TVM_STR_CONCAT(TVM_OBJECT_REG_VAR_DEF, __COUNTER__) =                 \
       TypeName::_GetOrAllocRuntimeTypeIndex()
 
+
+/*
+ * \brief Define the default copy/move constructor and assign opeator
+ * \param TypeName The class typename.
+ */
+#define TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)               \
+  TypeName(const TypeName& other) = default;                            \
+  TypeName(TypeName&& other) = default;                                 \
+  TypeName& operator=(const TypeName& other) = default;                 \
+  TypeName& operator=(TypeName&& other) = default;                      \
+
 /*
  * \brief Define object reference methods.
  * \param TypeName The object type name
@@ -711,13 +742,32 @@ struct ObjectEqual {
  * \param ObjectName The type name of the object.
  */
 #define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  TypeName() {}                                                         \
+  TypeName() = default;                                                 \
   explicit TypeName(                                                    \
       ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
       : ParentType(n) {}                                                \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                    \
   const ObjectName* operator->() const {                                \
     return static_cast<const ObjectName*>(data_.get());                 \
   }                                                                     \
+  using ContainerType = ObjectName;
+
+/*
+ * \brief Define object reference methods that is not nullable.
+ *
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  explicit TypeName(                                                    \
+      ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
+      : ParentType(n) {}                                                \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                    \
+  const ObjectName* operator->() const {                                \
+    return static_cast<const ObjectName*>(data_.get());                 \
+  }                                                                     \
+  static constexpr bool _type_is_nullable = false;                      \
   using ContainerType = ObjectName;
 
 /*
@@ -729,7 +779,8 @@ struct ObjectEqual {
  *       This macro is only reserved for objects that stores runtime states.
  */
 #define TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  TypeName() {}                                                         \
+  TypeName() = default;                                                 \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                    \
   explicit TypeName(                                                    \
       ::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n)              \
       : ParentType(n) {}                                                \
@@ -853,11 +904,14 @@ inline const ObjectType* ObjectRef::as() const {
   }
 }
 
-template <typename RelayRefType, typename ObjType>
-inline RelayRefType GetRef(const ObjType* ptr) {
-  static_assert(std::is_base_of<typename RelayRefType::ContainerType, ObjType>::value,
+template <typename RefType, typename ObjType>
+inline RefType GetRef(const ObjType* ptr) {
+  static_assert(std::is_base_of<typename RefType::ContainerType, ObjType>::value,
                 "Can only cast to the ref of same container type");
-  return RelayRefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
+  if (!RefType::_type_is_nullable) {
+    CHECK(ptr != nullptr);
+  }
+  return RefType(ObjectPtr<Object>(const_cast<Object*>(static_cast<const Object*>(ptr))));
 }
 
 template <typename BaseType, typename ObjType>
@@ -869,9 +923,15 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr) {
 
 template <typename SubRef, typename BaseRef>
 inline SubRef Downcast(BaseRef ref) {
-  CHECK(ref->template IsInstance<typename SubRef::ContainerType>())
-      << "Downcast from " << ref->GetTypeKey() << " to "
-      << SubRef::ContainerType::_type_key << " failed.";
+  if (ref.defined()) {
+    CHECK(ref->template IsInstance<typename SubRef::ContainerType>())
+        << "Downcast from " << ref->GetTypeKey() << " to "
+        << SubRef::ContainerType::_type_key << " failed.";
+  } else {
+    CHECK(SubRef::_type_is_nullable)
+        << "Downcast from nullptr to not nullable reference of "
+        << SubRef::ContainerType::_type_key;
+  }
   return SubRef(std::move(ref.data_));
 }
 

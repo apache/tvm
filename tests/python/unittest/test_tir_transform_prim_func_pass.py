@@ -46,5 +46,25 @@ def test_prim_func_pass():
     assert tvm.ir.structural_equal(mod["main"].body, new_func.body)
 
 
+def test_cow_pass():
+    def fapply(f):
+        assert tvm.testing.object_use_count(f) == 1
+        return f
+
+    pidentity = tvm.tir.transform.Apply(fapply)
+    x = te.var('x')
+    func = tvm.tir.PrimFunc(
+        [x], tvm.tir.Evaluate(x)).with_attr("target_bits", 32)
+    func_hash = func.__hash__()
+    mod = tvm.IRModule({"main": func})
+    del func
+    # copy on write
+    mod_hash = mod.__hash__()
+    mod = tvm.transform.Sequential(
+        [pidentity, tvm.tir.transform.NarrowDataType(32)])(mod._move())
+    assert mod_hash == mod.__hash__()
+    assert func_hash == mod["main"].__hash__()
+
 if __name__ == "__main__":
+    test_cow_pass()
     test_prim_func_pass()

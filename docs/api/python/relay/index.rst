@@ -16,32 +16,13 @@
     under the License.
 
 tvm.relay
-=========
-
-This document contains the Python API for the Relay frontend, optimizer, and
-compiler toolchain.
-
-Relay is the second-generation, high-level intermediate representation (IR) for the TVM
-compiler stack.
-
-.. toctree::
-   :maxdepth: 2
-
-   analysis
-   backend
-   frontend
-   image
-   transform
-   nn
-   op
-   vision
-   testing
+---------
 
 .. automodule:: tvm.relay
     :members:
     :imported-members:
-    :exclude-members: RelayExpr, Pass, PassInfo, function_pass, PassContext,
-      ModulePass, FunctionPass, Sequential, module_pass, Type, TypeKind,
+    :exclude-members: RelayExpr,
+      Type, TypeKind,
       TypeVar, GlobalTypeVar, TypeConstraint, FuncType, TupleType, IncompleteType,
       TypeCall, TypeRelation, TensorType, RelayRefType, GlobalVar, SourceName,
       Span, Var, Op, Constructor

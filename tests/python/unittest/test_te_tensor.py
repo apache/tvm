@@ -128,8 +128,8 @@ def test_tensor_compute1():
           lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
 
     s = te.create_schedule(C.op)
-    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body, tvm.tir.Evaluate)
+    stmt = tvm.lower(s, [A, B, C])["main"].body
+    assert isinstance(stmt.body, tvm.tir.Evaluate)
 
 def test_tensor_compute2():
     M = 2048
@@ -171,9 +171,9 @@ def test_tensor_compute2():
           lambda i, j: vgemm(A[i, k, 0:factor1, 0:factor], B[j, k, 0:factor2, 0:factor], reduce_axis=k))
 
     s = te.create_schedule(C.op)
-    stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    assert isinstance(stmt.body.body.body[0], tvm.tir.Evaluate)
-    assert isinstance(stmt.body.body.body[1].body, tvm.tir.Evaluate)
+    stmt = tvm.lower(s, [A, B, C])["main"].body
+    assert isinstance(stmt.body.body[0], tvm.tir.Evaluate)
+    assert isinstance(stmt.body.body[1].body, tvm.tir.Evaluate)
 
 def test_tensor_scan():
     m = te.size_var("m")

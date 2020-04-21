@@ -926,8 +926,7 @@ class OperatorConverter(object):
         """Convert TFLite SUB"""
         # Check if the input tensor is quantized, call QNN op
         if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized SUB operator is not supported yet.')
+            return self._convert_elemwise(_qnn.op.subtract, op)
         return self._convert_elemwise(_op.subtract, op)
 
     def convert_mul(self, op):
@@ -1355,7 +1354,9 @@ class OperatorConverter(object):
         if is_depthwise_conv:
             params['channels'] = int(in_channels)
             params['groups'] = int(input_c)
-            params['kernel_layout'] = 'HWOI'
+            # If number of input channels is 1, treat as normal
+            # convolution.
+            params['kernel_layout'] = 'HWIO' if input_c == 1 else 'HWOI'
         else:
             params['channels'] = int(output_channels)
             params['kernel_layout'] = 'HWIO'

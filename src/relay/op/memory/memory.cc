@@ -23,18 +23,19 @@
  */
 
 #include <topi/elemwise.h>
+#include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/relay/attrs/memory.h>
 
-#include "../op_common.h"
 #include "../../transforms/infer_layout_util.h"
+#include "../op_common.h"
 #include "../type_relations.h"
 
 namespace tvm {
 namespace relay {
 
+TVM_REGISTER_NODE_TYPE(AllocStorageAttrs);
 TVM_REGISTER_NODE_TYPE(AllocTensorAttrs);
 TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 
@@ -42,9 +43,11 @@ TVM_REGISTER_NODE_TYPE(ShapeFuncAttrs);
 // We should consider a better solution, i.e the type relation
 // being able to see the arguments as well?
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_storage")
-    .set_body_typed([](Expr size, Expr alignment, DataType dtype) {
-      auto attrs = make_object<AllocTensorAttrs>();
-      attrs->dtype = dtype;
+    .set_body_typed([](Expr size, Expr alignment, TVMContext ctx, DataType dtype_hint) {
+      auto attrs = make_object<AllocStorageAttrs>();
+      attrs->dtype = dtype_hint;
+      attrs->device_id = ctx.device_id;
+      attrs->device_type = ctx.device_type;
       static const Op& op = Op::Get("memory.alloc_storage");
       return Call(op, {size, alignment}, Attrs(attrs), {});
     });
@@ -88,29 +91,28 @@ RELAY_REGISTER_OP("memory.alloc_storage")
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
-    .set_body_typed(
-        [](Expr storage, tvm::relay::Expr shape, DataType dtype, Array<IndexExpr> assert_shape) {
-          auto attrs = make_object<AllocTensorAttrs>();
-          attrs->dtype = dtype;
-          if (assert_shape.defined()) {
-            attrs->assert_shape = assert_shape;
-          } else {
-            attrs->const_shape = Downcast<Constant>(shape);
-          }
-          static const Op& op = Op::Get("memory.alloc_tensor");
-          return Call(op, {storage, shape}, Attrs(attrs), {});
-        });
+    .set_body_typed([](Expr storage, tvm::relay::Expr shape, DataType dtype,
+                       Array<IndexExpr> assert_shape) {
+      auto attrs = make_object<AllocTensorAttrs>();
+      attrs->dtype = dtype;
+      if (assert_shape.defined()) {
+        attrs->assert_shape = assert_shape;
+      } else {
+        attrs->const_shape = Downcast<Constant>(shape);
+      }
+      static const Op& op = Op::Get("memory.alloc_tensor");
+      return Call(op, {storage, shape}, Attrs(attrs), {});
+    });
 
 std::vector<int64_t> FromConstShape(Constant konst) {
   runtime::NDArray shape = konst->data;
   std::vector<int64_t> raw_shape;
   DLTensor tensor = shape.ToDLPack()->dl_tensor;
   CHECK_EQ(tensor.ndim, 1u);
-  CHECK_EQ(tensor.dtype.code, 0U)
-    << "found " << tensor.dtype.code;
+  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
 
   CHECK(tensor.dtype.bits == 64 || tensor.dtype.bits == 32)
-    << "found " << static_cast<int>(tensor.dtype.bits);
+      << "found " << static_cast<int>(tensor.dtype.bits);
 
   if (tensor.dtype.bits == 32) {
     const int32_t* int_ptr = reinterpret_cast<int32_t*>(tensor.data);
@@ -209,10 +211,9 @@ bool InvokeTVMOPRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
 }
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.invoke_tvm_op")
-    .set_body_typed(
-        [](Expr func, Expr inputs, Expr outputs) {
-          return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
-        });
+    .set_body_typed([](Expr func, Expr inputs, Expr outputs) {
+      return Call(Op::Get("memory.invoke_tvm_op"), {func, inputs, outputs}, Attrs());
+    });
 
 RELAY_REGISTER_OP("memory.invoke_tvm_op")
     .describe(R"code(Invoke an operation compiled by TVM.)code" TVM_ADD_FILELINE)
@@ -257,36 +258,93 @@ RELAY_REGISTER_OP("memory.kill")
                            });
 
 TVM_REGISTER_GLOBAL("relay.op.memory._make.shape_func")
-    .set_body_typed(
-      [](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
+    .set_body_typed([](Expr func, Expr inputs, Expr outputs, Array<tvm::Integer> is_input) {
       static const Op& op = Op::Get("memory.shape_func");
       auto attrs = make_object<ShapeFuncAttrs>();
       attrs->is_input = is_input;
       return Call(op, {func, inputs, outputs}, Attrs(attrs), {});
     });
 
-static void FlattenTypeAux(const Type& type, std::vector<TensorType>* out) {
+static void FlattenTupleTypeAux(const Type& type, std::vector<TensorType>* out) {
   if (auto tt = type.as<TensorTypeNode>()) {
     out->push_back(GetRef<TensorType>(tt));
   } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
     for (auto field : tuple_ty->fields) {
-      FlattenTypeAux(field, out);
+      FlattenTupleTypeAux(field, out);
     }
   } else {
     LOG(FATAL) << "unsupported " << type;
   }
 }
 
-std::vector<TensorType> FlattenType(const Type& type) {
+std::vector<TensorType> FlattenTupleType(const Type& type) {
   std::vector<TensorType> out;
-  FlattenTypeAux(type, &out);
+  FlattenTupleTypeAux(type, &out);
   return out;
 }
 
-Expr PackByType(const Type& t, const Array<Expr>& exprs) {
-  LOG(FATAL) << "NYI";
-  return Expr();
+static void FromTupleTypeAux(const Type& type, const Expr& expr, std::vector<Expr>* out) {
+  if (type.as<TensorTypeNode>()) {
+    out->push_back(expr);
+  } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
+    for (size_t i = 0; i < tuple_ty->fields.size(); i++) {
+      FromTupleTypeAux(tuple_ty->fields[i], TupleGetItem(expr, i), out);
+    }
+  } else {
+    LOG(FATAL) << "unsupported " << type;
+  }
 }
+
+std::vector<Expr> FromTupleType(const Type& type, const Expr& expr) {
+  std::vector<Expr> out;
+  FromTupleTypeAux(type, expr, &out);
+  return out;
+}
+
+static void ToTupleTypeAux(const Type& type, const std::vector<Expr>& exprs, int* index,
+                           std::vector<Expr>* out) {
+  if (type.as<TensorTypeNode>()) {
+    out->push_back(exprs[*index]);
+    *index += 1;
+  } else if (auto tuple_ty = type.as<TupleTypeNode>()) {
+    std::vector<Expr> tuple_out;
+    for (size_t i = 0; i < tuple_ty->fields.size(); i++) {
+      ToTupleTypeAux(tuple_ty->fields[i], exprs, index, &tuple_out);
+    }
+    out->push_back(Tuple(tuple_out));
+  } else {
+    LOG(FATAL) << "unsupported " << type;
+  }
+}
+
+// Pack the sequence of expressions according to the provided TupleType.
+Expr ToTupleType(const Type& t, const std::vector<Expr>& exprs) {
+  if (t.as<TensorTypeNode>() && exprs.size() == 1) {
+    return exprs[0];
+  } else {
+    std::vector<Expr> out;
+    int index = 0;
+    ToTupleTypeAux(t, exprs, &index, &out);
+    return out[0];
+  }
+}
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FlattenTupleType")
+.set_body_typed([](Type type) {
+  auto types = FlattenTupleType(type);
+  return Array<Type>(types.begin(), types.end());
+});
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.FromTupleType")
+.set_body_typed([](Type type, Expr expr) {
+  auto exprs = FromTupleType(type, expr);
+  return Array<Expr>(exprs.begin(), exprs.end());
+});
+
+TVM_REGISTER_GLOBAL("relay.op.memory._make.ToTupleType")
+    .set_body_typed([](Type t, Array<Expr> array) {
+      return ToTupleType(t, std::vector<Expr>(array.begin(), array.end()));
+    });
 
 bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
                   const TypeReporter& reporter) {
@@ -298,8 +356,8 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK(func_type != nullptr);
 
   auto tuple = TupleType(func_type->arg_types);
-  auto in_types = FlattenType(tuple);
-  auto out_types = FlattenType(func_type->ret_type);
+  auto in_types = FlattenTupleType(tuple);
+  auto out_types = FlattenTupleType(func_type->ret_type);
 
   Array<Type> shape_func_ins, shape_func_outs;
   for (size_t i = 0; i < in_types.size(); i++) {

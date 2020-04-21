@@ -28,6 +28,7 @@
 #include <memory>
 #include <limits>
 #include "../pass/ir_util.h"
+#include "../../support/str_escape.h"
 
 namespace tvm {
 namespace tir {
@@ -46,7 +47,6 @@ Var::Var(std::string name_hint, Type type_annotation) {
   n->type_annotation = std::move(type_annotation);
   data_ = std::move(n);
 }
-
 
 Var Var::copy_with_suffix(const std::string& suffix) const {
   const VarNode* node = get();
@@ -426,38 +426,8 @@ TVM_REGISTER_NODE_TYPE(BufferLoadNode);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<StringImmNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const StringImmNode*>(node.get());
-    auto& stream = p->stream;
-    stream << '"';
-    for (size_t i = 0; i < op->value.size(); ++i) {
-      unsigned char c = op->value[i];
-      if (c >= ' ' && c <= '~' && c != '\\' && c != '"') {
-        stream << c;
-      } else {
-        stream << '\\';
-        switch (c) {
-          case '"':
-            stream << '"';
-            break;
-          case '\\':
-            stream << '\\';
-            break;
-          case '\t':
-            stream << 't';
-            break;
-          case '\r':
-            stream << 'r';
-            break;
-          case '\n':
-            stream << 'n';
-            break;
-          default:
-            const char* hex_digits = "0123456789ABCDEF";
-            stream << 'x' << hex_digits[c >> 4] << hex_digits[c & 0xf];
-        }
-      }
-    }
-    stream << '"';
-  });
+    p->stream << '\"' << support::StrEscape(op->value) << '\"';
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<CastNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -676,6 +646,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<BufferLoadNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const BufferLoadNode*>(node.get());
+    p->stream << op->buffer->name << "[";
+    for (size_t i = 0; i < op->indices.size(); ++i) {
+      p->Print(op->indices[i]);
+      if (i < op->indices.size() - 1) {
+        p->stream << ", ";
+      }
+    }
+    p->stream << "]";
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<LetNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const LetNode*>(node.get());
     p->stream << "(let " << op->var << " = ";
@@ -826,20 +809,28 @@ TVM_REGISTER_GLOBAL("tir.Load")
     }
   });
 
-
-
 TVM_REGISTER_GLOBAL("tir.Call")
 .set_body_typed([](
   DataType type, std::string name,
-  Array<PrimExpr> args, int call_type,
+  Array<ObjectRef> args, int call_type,
   FunctionRef func, int value_index
 ) {
+  Array<PrimExpr> prim_expr_args;
+  for (const auto& it : args) {
+    CHECK(it->IsInstance<runtime::StringObj>() ||
+          it->IsInstance<PrimExprNode>());
+    if (const auto* str = it.as<runtime::StringObj>()) {
+      prim_expr_args.push_back(StringImmNode::make(str->data));
+    } else {
+      prim_expr_args.push_back(Downcast<PrimExpr>(it));
+    }
+  }
   return CallNode::make(type,
-                    name,
-                    args,
-                    static_cast<CallNode::CallType>(call_type),
-                    func,
-                    value_index);
+                        name,
+                        prim_expr_args,
+                        static_cast<CallNode::CallType>(call_type),
+                        func,
+                        value_index);
 });
 
 }  // namespace tir

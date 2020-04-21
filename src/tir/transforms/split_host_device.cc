@@ -173,7 +173,7 @@ Array<Var> UndefinedVars(const Stmt& stmt, const Array<Var>& args) {
 
 class HostDeviceSplitter : public StmtMutator {
  public:
-  explicit HostDeviceSplitter(IRModuleNode* device_mod,
+  explicit HostDeviceSplitter(IRModule* device_mod,
                               Target device_target,
                               std::string name_prefix)
       : device_mod_(device_mod),
@@ -240,7 +240,7 @@ class HostDeviceSplitter : public StmtMutator {
                            runtime::String(kernel_symbol));
     device_func = WithAttr(std::move(device_func), tir::attr::kNoAlias, Integer(1));
     device_func = WithAttr(std::move(device_func), tvm::attr::kTarget, device_target_);
-    device_mod_->Add(GlobalVar(kernel_symbol), device_func);
+    (*device_mod_)->Add(GlobalVar(kernel_symbol), device_func);
 
     // generate calls to the device function
     Array<PrimExpr> call_args;
@@ -257,7 +257,7 @@ class HostDeviceSplitter : public StmtMutator {
   }
 
   // target ir module
-  IRModuleNode* device_mod_;
+  IRModule* device_mod_;
   // Device target
   Target device_target_;
   // function name hint
@@ -268,16 +268,18 @@ class HostDeviceSplitter : public StmtMutator {
 };
 
 
-PrimFunc SplitHostDevice(PrimFunc&& func, IRModuleNode* device_mod) {
+PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   CHECK(target.defined())
       << "SplitHostDevice: Require the target attribute";
-  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "SplitHostDevice: Expect PrimFunc to have the global_symbol attribute";
 
   HostDeviceSplitter splitter(
-      device_mod, target, static_cast<std::string>(global_symbol));
+      device_mod,
+      target.value(),
+      static_cast<std::string>(global_symbol.value()));
 
   auto* n = func.CopyOnWrite();
   n->body = splitter(std::move(n->body));
@@ -287,26 +289,22 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModuleNode* device_mod) {
 }
 
 
-
 namespace transform {
 
 Pass SplitHostDevice() {
-  auto pass_func = [](IRModule m, PassContext ctx) {
-    IRModuleNode* mptr = m.CopyOnWrite();
-    std::vector<std::pair<GlobalVar, PrimFunc> > updates;
+  auto pass_func = [](IRModule mod, PassContext ctx) {
+    IRModuleNode* mod_ptr = mod.CopyOnWrite();
+    auto* func_dict = mod_ptr->functions.CopyOnWrite();
+    IRModule device_mod = IRModule::Empty();
 
-    for (const auto& kv : mptr->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        PrimFunc func = GetRef<PrimFunc>(n);
-        auto updated_func = SplitHostDevice(std::move(func), mptr);
-        updates.push_back({kv.first, updated_func});
+    for (auto& kv : func_dict->data) {
+      if (kv.second->IsInstance<PrimFuncNode>()) {
+        PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
+        kv.second = SplitHostDevice(std::move(func), &device_mod);
       }
     }
-
-    for (const auto& pair : updates) {
-      mptr->Add(pair.first, pair.second, true);
-    }
-    return m;
+    mod->Update(device_mod);
+    return mod;
   };
 
   return tvm::transform::CreateModulePass(

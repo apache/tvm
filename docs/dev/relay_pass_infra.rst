@@ -582,7 +582,7 @@ using ``Sequential`` associated with other types of passes.
     func = relay.Function([x], z2)
 
     # Customize the optimization pipeline.
-    seq = _transform.Sequential([
+    seq = tvm.transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
         relay.transform.EliminateCommonSubexpr(),
@@ -609,10 +609,10 @@ sequential pass example could be like the following to enable IR dumping for
 
 .. code:: python
 
-    seq = _transform.Sequential([
+    seq = tvm.transform.Sequential([
         relay.transform.InferType(),
         relay.transform.FoldConstant(),
-        relay.transform.PrintIR(),
+        transform.PrintIR(),
         relay.transform.EliminateCommonSubexpr(),
         relay.transform.AlterOpLayout()
     ])

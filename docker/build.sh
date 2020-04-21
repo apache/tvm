@@ -60,6 +60,7 @@ fi
 
 if [[ "$1" == "--net=host" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('--net=host')
+    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--network=host")
     shift 1
 fi
 

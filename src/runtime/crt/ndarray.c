@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -68,15 +68,15 @@ int TVMNDArray_Load(TVMNDArray * ret, const char ** strm) {
   ctx = ((DLContext*)*strm)[0]; *strm += sizeof(ctx);  // NOLINT(*)
   ndim = ((uint32_t*)*strm)[0]; *strm += sizeof(ndim);  // NOLINT(*)
   dtype = ((DLDataType*)*strm)[0]; *strm += sizeof(dtype);  // NOLINT(*)
-  if ((ndim <= 0) || (ndim > TVM_CRT_MAX_NDIM)) {
-    fprintf(stderr, "Invalid ndim=%d: expected to be 1 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
+  if ((ndim < 0) || (ndim > TVM_CRT_MAX_NDIM)) {
+    fprintf(stderr, "Invalid ndim=%d: expected to be 0 ~ %d.\n", ndim, TVM_CRT_MAX_NDIM);
     status = -1;
   }
   if (ctx.device_type != kDLCPU) {
     fprintf(stderr, "Invalid DLTensor context: can only save as CPU tensor\n");
     status = -1;
   }
-  int64_t shape[TVM_CRT_MAX_NDIM];
+  int64_t shape[TVM_CRT_MAX_NDIM] = {0};
   uint32_t idx;
   if (ndim != 0) {
     for (idx = 0; idx < ndim; idx++) {
@@ -92,8 +92,8 @@ int TVMNDArray_Load(TVMNDArray * ret, const char ** strm) {
   int64_t data_byte_size;
   data_byte_size = ((int64_t*)*strm)[0]; *strm += sizeof(data_byte_size);  // NOLINT(*)
   if (!(data_byte_size == num_elems * elem_bytes)) {
-    fprintf(stderr, "invalid DLTensor file format: data_byte_size=%ld, "
-            "while num_elems*elem_bytes=%ld\n",
+    fprintf(stderr, "invalid DLTensor file format: data_byte_size=%jd, "
+            "while num_elems*elem_bytes=%jd\n",
             data_byte_size, (num_elems * elem_bytes));
     status = -1;
   }

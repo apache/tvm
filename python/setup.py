@@ -96,7 +96,7 @@ def config_cython():
                               "../3rdparty/dmlc-core/include",
                               "../3rdparty/dlpack/include",
                 ],
-                extra_compile_args=["-std=c++11"],
+                extra_compile_args=["-std=c++14"],
                 library_dirs=library_dirs,
                 libraries=libraries,
                 language="c++"))
@@ -156,6 +156,7 @@ setup(name='tvm',
       zip_safe=False,
       install_requires=[
         'numpy',
+        'scipy',
         'decorator',
         'attrs',
         'psutil',

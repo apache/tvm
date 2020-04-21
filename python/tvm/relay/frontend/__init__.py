@@ -24,10 +24,6 @@ for Relay.
 from __future__ import absolute_import
 
 from .mxnet import from_mxnet
-from .mxnet_qnn_op_utils import dequantize_mxnet_min_max
-from .mxnet_qnn_op_utils import quantize_mxnet_min_max
-from .mxnet_qnn_op_utils import get_mkldnn_int8_scale
-from .mxnet_qnn_op_utils import get_mkldnn_uint8_scale
 from .mxnet_qnn_op_utils import quantize_conv_bias_mkldnn_from_var
 from .keras import from_keras
 from .onnx import from_onnx

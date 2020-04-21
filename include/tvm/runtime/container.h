@@ -27,6 +27,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <initializer_list>
@@ -353,6 +354,10 @@ class StringObj : public Object {
 class String : public ObjectRef {
  public:
   /*!
+   * \brief Construct an empty string.
+   */
+  String() : String(std::string()) {}
+  /*!
    * \brief Construct a new String object
    *
    * \param other The moved/copied std::string object
@@ -360,7 +365,15 @@ class String : public ObjectRef {
    * \note If user passes const reference, it will trigger copy. If it's rvalue,
    * it will be moved into other.
    */
-  explicit String(std::string other);
+  String(std::string other);  // NOLINT(*)
+
+  /*!
+   * \brief Construct a new String object
+   *
+   * \param other a char array.
+   */
+  String(const char* other)  // NOLINT(*)
+      : String(std::string(other)) {}
 
   /*!
    * \brief Change the value the reference object points to.
@@ -458,9 +471,6 @@ class String : public ObjectRef {
    */
   size_t size() const {
     const auto* ptr = get();
-    if (ptr == nullptr) {
-      return 0;
-    }
     return ptr->size;
   }
 
@@ -515,7 +525,7 @@ class String : public ObjectRef {
   /*! \return the internal StringObj pointer */
   const StringObj* get() const { return operator->(); }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
 
  private:
   /*!
@@ -582,7 +592,165 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,
   }
 }
 
+template<>
+struct PackedFuncValueConverter<::tvm::runtime::String> {
+  static String From(const TVMArgValue& val) {
+    if (val.IsObjectRef<tvm::runtime::String>()) {
+      return val.AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(val.operator std::string());
+    }
+  }
+
+  static String From(const TVMRetValue& val) {
+    if (val.IsObjectRef<tvm::runtime::String>()) {
+      return val.AsObjectRef<tvm::runtime::String>();
+    } else {
+      return tvm::runtime::String(val.operator std::string());
+    }
+  }
+};
+
+/*!
+ * \brief Optional container that to represent to a Nullable variant of T.
+ * \tparam T The original ObjectRef.
+ *
+ * \code
+ *
+ *  Optional<String> opt0 = nullptr;
+ *  Optional<String> opt1 = String("xyz");
+ *  CHECK(opt0 == nullptr);
+ *  CHECK(opt1 == "xyz");
+ *
+ * \endcode
+ */
+template<typename T>
+class Optional : public ObjectRef {
+ public:
+  using ContainerType = typename T::ContainerType;
+  static_assert(std::is_base_of<ObjectRef, T>::value,
+                "Optional is only defined for ObjectRef.");
+  // default constructors.
+  Optional() = default;
+  Optional(const Optional<T>&) = default;
+  Optional(Optional<T>&&) = default;
+  Optional<T>& operator=(const Optional<T>&) = default;
+  Optional<T>& operator=(Optional<T>&&) = default;
+  /*!
+   * \brief Construct from an ObjectPtr
+   *        whose type already matches the ContainerType.
+   * \param ptr
+   */
+  explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
+  // nullptr handling.
+  // disallow implicit conversion as 0 can be implicitly converted to nullptr_t
+  explicit Optional(std::nullptr_t) {}
+  Optional<T>& operator=(std::nullptr_t) {
+    data_ = nullptr;
+    return *this;
+  }
+  // normal value handling.
+  Optional(T other)             // NOLINT(*)
+      : ObjectRef(std::move(other)) {
+  }
+  Optional<T>& operator=(T other) {
+    ObjectRef::operator=(std::move(other));
+    return *this;
+  }
+  // delete the int constructor
+  // since Optional<Integer>(0) is ambiguious
+  // 0 can be implicitly casted to nullptr_t
+  explicit Optional(int val) = delete;
+  Optional<T>& operator=(int val) = delete;
+  /*!
+   * \return A not-null container value in the optional.
+   * \note This function performs not-null checking.
+   */
+  T value() const {
+    CHECK(data_ != nullptr);
+    return T(data_);
+  }
+  /*!
+   * \return The contained value if the Optional is not null
+   *         otherwise return the default_value.
+   */
+  T value_or(T default_value) const {
+    return data_ != nullptr ? T(data_) : default_value;
+  }
+  /*! \return Whether the container is not nullptr.*/
+  explicit operator bool() const {
+    return *this != nullptr;
+  }
+  // operator overloadings
+  bool operator==(std::nullptr_t) const {
+    return data_ == nullptr;
+  }
+  bool operator!=(std::nullptr_t) const {
+    return data_ != nullptr;
+  }
+  auto operator==(const Optional<T>& other) const {
+    // support case where sub-class returns a symbolic ref type.
+    using RetType = decltype(value() == other.value());
+    if (same_as(other)) return RetType(true);
+    if (*this != nullptr && other != nullptr) {
+      return value() == other.value();
+    } else {
+      // one of them is nullptr.
+      return RetType(false);
+    }
+  }
+  auto operator!=(const Optional<T>& other) const {
+    // support case where sub-class returns a symbolic ref type.
+    using RetType = decltype(value() != other.value());
+    if (same_as(other)) return RetType(false);
+    if (*this != nullptr && other != nullptr) {
+      return value() != other.value();
+    } else {
+      // one of them is nullptr.
+      return RetType(true);
+    }
+  }
+  auto operator==(const T& other) const {
+    using RetType = decltype(value() == other);
+    if (same_as(other)) return RetType(true);
+    if (*this != nullptr) return value() == other;
+    return RetType(false);
+  }
+  auto operator!=(const T& other) const {
+    return !(*this == other);
+  }
+  template<typename U>
+  auto operator==(const U& other) const {
+    using RetType = decltype(value() == other);
+    if (*this == nullptr) return RetType(false);
+    return value() == other;
+  }
+  template<typename U>
+  auto operator!=(const U& other) const {
+    using RetType = decltype(value() != other);
+    if (*this == nullptr) return RetType(true);
+    return value() != other;
+  }
+  static constexpr bool _type_is_nullable = true;
+};
+
+template<typename T>
+struct PackedFuncValueConverter<Optional<T>> {
+  static Optional<T> From(const TVMArgValue& val) {
+    if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
+    return PackedFuncValueConverter<T>::From(val);
+  }
+  static Optional<T> From(const TVMRetValue& val) {
+    if (val.type_code() == kTVMNullptr) return Optional<T>(nullptr);
+    return PackedFuncValueConverter<T>::From(val);
+  }
+};
+
 }  // namespace runtime
+
+// expose the functions to the root namespace.
+using runtime::String;
+using runtime::Optional;
 }  // namespace tvm
 
 namespace std {

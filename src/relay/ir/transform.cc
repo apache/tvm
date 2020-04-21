@@ -68,7 +68,7 @@ class FunctionPassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -113,7 +113,7 @@ FunctionPass::FunctionPass(
 }
 
 // Perform Module -> Module optimizations at the Function level.
-IRModule FunctionPassNode::operator()(const IRModule& mod,
+IRModule FunctionPassNode::operator()(IRModule mod,
                                       const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
@@ -122,6 +122,7 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
              << " with opt level: "
              << pass_info->opt_level;
   pass_ctx.Trace(mod, pass_info, true);
+
   // Execute the pass function and return a new module.
   IRModule updated_mod = IRModule(mod->functions, mod->type_definitions, mod->Imports());
   std::vector<std::pair<GlobalVar, Function> > updates;
@@ -144,15 +145,15 @@ IRModule FunctionPassNode::operator()(const IRModule& mod,
 }
 
 bool FunctionPassNode::SkipFunction(const Function& func) const {
-  return func->GetAttr<Integer>(attr::kSkipOptimization, 0)->value != 0 ||
-    (func->GetAttr<tir::StringImm>(attr::kCompiler).defined());
+  return (func->GetAttr<String>(attr::kCompiler).defined()) ||
+  func->GetAttr<Integer>(attr::kSkipOptimization, 0) != 0;
 }
 
 Pass CreateFunctionPass(
     const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
+    const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return FunctionPass(pass_func, pass_info);
 }

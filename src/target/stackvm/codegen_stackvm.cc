@@ -58,6 +58,8 @@ StackVM::StructFieldKind MapFieldKind(int64_t kind) {
 }
 
 StackVM CodeGenStackVM::Compile(const PrimFunc& f) {
+  CHECK_EQ(f->buffer_map.size(), 0U)
+      << "Cannot codegen function with buffer_map, please lower them first";
   for (size_t i = 0; i < f->params.size(); ++i) {
     Var v = f->params[i];
     int vid = AllocVarID(v.get());
@@ -154,16 +156,7 @@ void CodeGenStackVM::VisitStmt_(const StoreNode* op) {
 }
 
 void CodeGenStackVM::VisitStmt_(const AllocateNode* op) {
-  CHECK(!is_zero(op->condition));
-  int vid = AllocVarID(op->buffer_var.get());
-  if (op->new_expr.defined()) {
-    // Prefer global static allocation for the program
-    CHECK_EQ(op->free_function, "nop");
-    this->Push(op->new_expr);
-    this->PushOp(StackVM::STORE_HEAP, vid);
-  } else {
-    LOG(FATAL) << "Dynamic allocation not supported";
-  }
+  LOG(FATAL) << "Dynamic allocation not supported";
 }
 
 void CodeGenStackVM::VisitExpr_(const CallNode* op) {
@@ -408,10 +401,6 @@ void CodeGenStackVM::VisitExpr_(const NotNode* op) {
   this->PushOp(StackVM::NOT);
 }
 
-void CodeGenStackVM::VisitStmt_(const ProducerConsumerNode* op) {
-  this->Push(op->body);
-}
-
 void CodeGenStackVM::VisitStmt_(const ForNode* op) {
   CHECK(is_zero(op->min));
   int vid = this->AllocVarID(op->loop_var.get());
@@ -536,10 +525,10 @@ runtime::Module BuildStackVM(const IRModule& mod) {
     CHECK(kv.second->IsInstance<PrimFuncNode>())
         << "CodeGenStackVM: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenStackVM: Expect PrimFunc to have the global_symbol attribute";
-    std::string f_name = global_symbol;
+    std::string f_name = global_symbol.value();
     StackVM vm = codegen::CodeGenStackVM().Compile(f);
     CHECK(!fmap.count(f_name))
         << "Function name " << f_name << "already exist in list";

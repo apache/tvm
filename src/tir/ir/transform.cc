@@ -55,7 +55,7 @@ class PrimFuncPassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -90,41 +90,42 @@ PrimFuncPass::PrimFuncPass(
 }
 
 // Perform Module -> Module optimizations at the PrimFunc level.
-IRModule PrimFuncPassNode::operator()(const IRModule& mod,
+IRModule PrimFuncPassNode::operator()(IRModule mod,
                                       const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   CHECK(mod.defined());
   pass_ctx.Trace(mod, pass_info, true);
-  // Execute the pass function and return a new module.
-  IRModule updated_mod = IRModule(
-      mod->functions, mod->type_definitions, mod->Imports());
-  std::vector<std::pair<GlobalVar, PrimFunc> > updates;
-  for (const auto& it : updated_mod->functions) {
-    // only picks up relay::PrimFunc
-    if (auto* n = it.second.as<PrimFuncNode>()) {
-      PrimFunc func = GetRef<PrimFunc>(n);
-      auto updated_func =
-          pass_func(func, updated_mod, pass_ctx);
-      updates.push_back({it.first, updated_func});
+  std::vector<ObjectRef> deleted_list;
+  IRModuleNode* mod_ptr = mod.CopyOnWrite();
+  auto* func_dict = mod_ptr->functions.CopyOnWrite();
+  // directly loop over the underlying dict
+  for (auto& kv : func_dict->data) {
+    // only picks up tir::PrimFunc
+    if (kv.second->IsInstance<PrimFuncNode>()) {
+      // move out the function so that it is the only copy.
+      PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
+      func = pass_func(std::move(func), mod, pass_ctx);
+      kv.second = std::move(func);
+
+      if (!kv.second.defined()) {
+        deleted_list.push_back(kv.first);
+      }
     }
   }
+
   // automatic removal of None
-  for (const auto& pair : updates) {
-    if (pair.second.defined()) {
-      updated_mod->Add(pair.first, pair.second, true);
-    } else {
-      updated_mod->Remove(pair.first);
-    }
+  for (const auto& gv : deleted_list) {
+    func_dict->data.erase(gv);
   }
-  pass_ctx.Trace(updated_mod, pass_info, false);
-  return updated_mod;
+  pass_ctx.Trace(mod, pass_info, false);
+  return mod;
 }
 
 Pass CreatePrimFuncPass(
     const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
+    const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return PrimFuncPass(pass_func, pass_info);
 }

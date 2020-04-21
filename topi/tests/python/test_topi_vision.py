@@ -106,8 +106,8 @@ def verify_get_valid_counts(dshape, score_threshold, id_index, score_index):
     """ Skip this test as it is intermittent
         see https://github.com/apache/incubator-tvm/pull/4901#issuecomment-595040094
     for device in ['llvm', 'cuda', 'opencl']:
-        # Disable opencl test for now
-        if device != "llvm" and device != "cuda":
+        # Disable gpu test for now
+        if device != "llvm":
             continue
         check_device(device)
     """

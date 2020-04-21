@@ -34,8 +34,12 @@ class SockChannel final : public RPCChannel {
   explicit SockChannel(support::TCPSocket sock)
       : sock_(sock) {}
   ~SockChannel() {
-    if (!sock_.BadSocket()) {
-      sock_.Close();
+    try {
+      // BadSocket can throw
+      if (!sock_.BadSocket()) {
+        sock_.Close();
+      }
+    } catch (...) {
     }
   }
   size_t Send(const void* data, size_t size) final {
@@ -100,7 +104,8 @@ Module RPCClientConnect(std::string url, int port, std::string key) {
   return CreateRPCModule(RPCConnect(url, port, "client:" + key));
 }
 
-void RPCServerLoop(int sockfd) {
+// TVM_DLL needed for MSVC
+TVM_DLL void RPCServerLoop(int sockfd) {
   support::TCPSocket sock(
       static_cast<support::TCPSocket::SockType>(sockfd));
   RPCSession::Create(

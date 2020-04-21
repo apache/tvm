@@ -88,8 +88,8 @@ img = np.expand_dims(img, 0)
 ######################################################################
 # Import the graph to Relay
 # -------------------------
-# Convert PyTorch graph to Relay graph.
-input_name = 'input0'  # only one input, set it to this name
+# Convert PyTorch graph to Relay graph. The input name can be arbitrary.
+input_name = 'input0'
 shape_list = [(input_name, img.shape)]
 mod, params = relay.frontend.from_pytorch(scripted_model,
                                           shape_list)

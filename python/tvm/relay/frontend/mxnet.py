@@ -127,6 +127,17 @@ def _mx_unravel_index(inputs, attrs):
     return _op.unravel_index(inputs[0], shape_expr)
 
 
+def _mx_swap_axis(inputs, attrs):
+    assert len(inputs) == 1
+    dim1 = attrs.get_int('dim1')
+    dim2 = attrs.get_int('dim2')
+    shape = _infer_type(inputs[0]).checked_type.shape
+    axes = list(range(len(shape)))
+    axes[dim1] = dim2
+    axes[dim2] = dim1
+    return _op.transpose(inputs[0], axes=axes)
+
+
 def _mx_zeros(inputs, attrs):
     assert len(inputs) == 0
     shape = attrs.get_int_tuple("shape")
@@ -842,7 +853,6 @@ def _mx_smooth_l1(inputs, attrs):
 
 def _mx_deformable_convolution(inputs, attrs):
     new_attrs = {}
-    assert attrs.get_bool("no_bias")
     new_attrs["kernel_size"] = attrs.get_int_tuple("kernel")
     new_attrs["strides"] = attrs.get_int_tuple("stride")
     new_attrs["padding"] = attrs.get_int_tuple("pad")
@@ -1813,6 +1823,7 @@ _convert_map = {
     "slice_axis"    : _mx_slice_axis,
     "SliceChannel"  : _mx_split,
     "split"         : _mx_split,
+    "SwapAxis"      : _mx_swap_axis,
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
     "concat"        : _mx_concat,

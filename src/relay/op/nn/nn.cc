@@ -852,6 +852,80 @@ RELAY_REGISTER_OP("nn.layer_norm")
 .set_support_level(1)
 .add_type_rel("LayerNorm", LayerNormRel);
 
+// group_norm
+TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
+
+bool GroupNormRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 4);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  const GroupNormAttrs* param = attrs.as<GroupNormAttrs>();
+  int axis = param->axis >= 0 ? param->axis : param->axis + data->shape.size();
+  CHECK(axis >= 0 && axis < (int)data->shape.size());
+  reporter->Assign(types[1], TensorType({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[2], TensorType({data->shape[axis]}, data->dtype));
+  reporter->Assign(types[3], TensorType(data->shape, data->dtype));
+
+  return true;
+}
+
+Expr MakeGroupNorm(Expr data, Expr gamma, Expr beta, int num_groups,
+                   int axis, double epsilon, bool center, bool scale) {
+  auto attrs = make_object<GroupNormAttrs>();
+  attrs->num_groups =  num_groups;
+  attrs->axis = axis;
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+  static const Op& op = Op::Get("nn.group_norm");
+  return Call(op, {data, gamma, beta}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.group_norm")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 8>(MakeGroupNorm, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.group_norm")
+.describe(R"code(
+Group normalization normalizes over group of channels for each training examples.
+We can say that, Group Norm is in between Instance Norm and Layer Norm. When we put
+all the channels into a single group, group normalization becomes Layer normalization.
+And, when we put each channel into different groups it becomes Instance normalization
+
+https://arxiv.org/pdf/1803.08494.pdf
+
+Applies group normalization to the n-dimensional input array by seperating the input channels
+into 'num_groups' groups, each containing 'num_channels / num_groups' channels.
+The mean and standard-deviation are calculated separately over the each group. gamma and
+beta are learnable per-channel affine transform parameter vectors of size num_channels.
+
+.. math::
+
+    out = \frac{data - mean(data, axis)}{\sqrt{var(data, axis)+\epsilon}}
+        * gamma + beta
+
+Unlike batch normalization, the mean and var are computed along a group of channels.
+
+If the input has size k on axis 1, then both gamma and beta have shape (k,).
+
+.. note::
+
+    This operator can be optimized away for inference.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type<GroupNormAttrs>()
+.set_num_inputs(3)
+.add_argument("data", "Tensor", "Input to which group_norm will be applied.")
+.add_argument("gamma", "Tensor", "The gamma scale factor.")
+.add_argument("beta", "Tensor", "The beta offset factor.")
+.set_support_level(1)
+.add_type_rel("GroupNorm", GroupNormRel);
+
+
 // relay.nn.batch_matmul
 bool BatchMatmulRel(const Array<Type>& types,
                     int num_inputs,

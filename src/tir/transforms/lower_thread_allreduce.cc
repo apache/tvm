@@ -348,7 +348,7 @@ Pass LowerThreadAllreduce() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     CHECK(target.defined())
         << "LowerThreadAllreduce: Require the target attribute";
-    n->body = ThreadAllreduceBuilder(target->thread_warp_size)(n->body);
+    n->body = ThreadAllreduceBuilder(target.value()->thread_warp_size)(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});

@@ -71,7 +71,8 @@ def test_cps_pe():
         x = run_infer_type(x)
         y = un_cps(x)
         y = run_infer_type(y)
-        x = run_opt_pass(x, transform.Sequential([transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]))
+        x = run_opt_pass(x, tvm.transform.Sequential(
+            [transform.PartialEvaluate(), transform.DeadCodeElimination(inline_once=True)]))
         assert Feature.fRefCreate not in detect_feature(x)
     unit = relay.Function([], relay.const(0., dtype='float32'))
     f_ref = relay.Var("f_ref")

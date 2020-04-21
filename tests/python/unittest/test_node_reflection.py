@@ -89,7 +89,20 @@ def test_env_func():
     assert x.func(10) == 11
 
 
+def test_string():
+    # non printable str, need to store by b64
+    s1 = tvm.runtime.String("xy\x01z")
+    s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
+    tvm.ir.assert_structural_equal(s1, s2)
+
+    # printable str, need to store by repr_str
+    s1 = tvm.runtime.String("xyz")
+    s2 = tvm.ir.load_json(tvm.ir.save_json(s1))
+    tvm.ir.assert_structural_equal(s1, s2)
+
+
 if __name__ == "__main__":
+    test_string()
     test_env_func()
     test_make_node()
     test_make_smap()

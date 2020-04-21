@@ -87,14 +87,13 @@ runtime::Module BuildSPIRV(IRModule mod) {
         << "CodeGenSPIRV: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
-    std::string f_name = global_symbol;
+    std::string f_name = global_symbol.value();
     f = PointerValueTypeRewrite(std::move(f));
     VulkanShader shader;
     shader.data = cg.BuildFunction(f);

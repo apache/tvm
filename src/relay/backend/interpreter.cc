@@ -244,11 +244,6 @@ class Interpreter :
     return VisitExpr(expr);
   }
 
-  ObjectRef VisitExpr(const Expr& expr) final {
-    auto ret = ExprFunctor<ObjectRef(const Expr& n)>::VisitExpr(expr);
-    return ret;
-  }
-
   ObjectRef VisitExpr_(const VarNode* var_node) final {
     return Lookup(GetRef<Var>(var_node));
   }

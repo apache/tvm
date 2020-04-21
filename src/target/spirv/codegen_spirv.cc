@@ -78,11 +78,12 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const PrimFunc& f) {
   builder_->MakeInst(spv::OpReturn);
   builder_->MakeInst(spv::OpFunctionEnd);
 
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
-  builder_->CommitKernelFunction(func_ptr, static_cast<std::string>(global_symbol));
+  builder_->CommitKernelFunction(
+    func_ptr, static_cast<std::string>(global_symbol.value()));
 
   return builder_->Finalize();
 }
@@ -585,7 +586,6 @@ void CodeGenSPIRV::VisitStmt_(const IfThenElseNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
-  CHECK(!op->new_expr.defined());
   CHECK(!op->dtype.is_handle());
   int32_t constant_size = op->constant_allocation_size();
   CHECK_GT(constant_size, 0)
@@ -656,10 +656,6 @@ void CodeGenSPIRV::VisitStmt_(const SeqStmtNode* op) {
 
 void CodeGenSPIRV::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
-}
-
-void CodeGenSPIRV::VisitStmt_(const ProducerConsumerNode* op) {
-  this->VisitStmt(op->body);
 }
 
 }  // namespace codegen

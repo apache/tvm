@@ -128,15 +128,15 @@ void CodeGenLLVM::AddFunctionInternal(const PrimFunc& f, bool ret_void) {
   llvm::FunctionType* ftype = llvm::FunctionType::get(
       ret_void ? t_void_ : t_int_, param_types, false);
 
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenLLVM: Expect PrimFunc to have the global_symbol attribute";
-  CHECK(module_->getFunction(static_cast<std::string>(global_symbol)) == nullptr)
+  CHECK(module_->getFunction(static_cast<std::string>(global_symbol.value())) == nullptr)
       << "Function " << global_symbol << " already exist in module";
 
   function_ = llvm::Function::Create(
       ftype, llvm::Function::ExternalLinkage,
-      global_symbol.operator std::string(), module_.get());
+      global_symbol.value().operator std::string(), module_.get());
   function_->setCallingConv(llvm::CallingConv::C);
   function_->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
 
@@ -684,6 +684,74 @@ llvm::Value* CodeGenLLVM::CreateCallExtern(const CallNode* op) {
   return call;
 }
 
+llvm::Function* CodeGenLLVM::GetIntrinsicDecl(
+    llvm::Intrinsic::ID id, llvm::Type* ret_type,
+    llvm::ArrayRef<llvm::Type*> arg_types) {
+  llvm::Module* module = module_.get();
+
+  if (!llvm::Intrinsic::isOverloaded(id)) {
+    return llvm::Intrinsic::getDeclaration(module, id, {});
+  }
+
+  llvm::SmallVector<llvm::Intrinsic::IITDescriptor, 4> infos;
+  llvm::Intrinsic::getIntrinsicInfoTableEntries(id, infos);
+  llvm::SmallVector<llvm::Type*, 4> overload_types;
+
+#if TVM_LLVM_VERSION >= 90
+  auto try_match = [&](llvm::FunctionType* f_ty, bool var_arg) {
+    overload_types.clear();
+    llvm::ArrayRef<llvm::Intrinsic::IITDescriptor> ref(infos);
+    auto match =
+        llvm::Intrinsic::matchIntrinsicSignature(f_ty, ref, overload_types);
+    if (match == llvm::Intrinsic::MatchIntrinsicTypes_Match) {
+      bool error = llvm::Intrinsic::matchIntrinsicVarArg(var_arg, ref);
+      if (error) {
+        return llvm::Intrinsic::MatchIntrinsicTypes_NoMatchArg;
+      }
+    }
+    return match;
+  };
+
+  // First, try matching the signature assuming non-vararg case.
+  auto* fn_ty = llvm::FunctionType::get(ret_type, arg_types, false);
+  switch (try_match(fn_ty, false)) {
+    case llvm::Intrinsic::MatchIntrinsicTypes_NoMatchRet:
+      // The return type doesn't match, there is nothing else to do.
+      return nullptr;
+    case llvm::Intrinsic::MatchIntrinsicTypes_Match:
+      return llvm::Intrinsic::getDeclaration(module, id, overload_types);
+    case llvm::Intrinsic::MatchIntrinsicTypes_NoMatchArg:
+      break;
+  }
+
+  // Keep adding one type at a time (starting from empty list), and
+  // try matching the vararg signature.
+  llvm::SmallVector<llvm::Type*, 4> var_types;
+  for (int i = 0, e = arg_types.size(); i <= e; ++i) {
+    if (i > 0) var_types.push_back(arg_types[i - 1]);
+    auto* ft = llvm::FunctionType::get(ret_type, var_types, true);
+    if (try_match(ft, true) == llvm::Intrinsic::MatchIntrinsicTypes_Match) {
+      return llvm::Intrinsic::getDeclaration(module, id, overload_types);
+    }
+  }
+  // Failed to identify the type.
+  return nullptr;
+
+#else  // TVM_LLVM_VERSION
+  llvm::ArrayRef<llvm::Intrinsic::IITDescriptor> ref(infos);
+  // matchIntrinsicType returns true on error.
+  if (llvm::Intrinsic::matchIntrinsicType(ret_type, ref, overload_types)) {
+    return nullptr;
+  }
+  for (llvm::Type* t : arg_types) {
+    if (llvm::Intrinsic::matchIntrinsicType(t, ref, overload_types)) {
+      return nullptr;
+    }
+  }
+  return llvm::Intrinsic::getDeclaration(module, id, overload_types);
+#endif  // TVM_LLVM_VERSION
+}
+
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->is_intrinsic("llvm_intrin")) {
     CHECK_GE(op->args.size(), 2U);
@@ -691,19 +759,27 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
         Downcast<IntImm>(op->args[0])->value);
     int64_t num_signature  = Downcast<IntImm>(op->args[1])->value;
     std::vector<llvm::Value*> arg_value;
-    std::vector<llvm::Type*> sig_type;
+    std::vector<llvm::Type*> arg_type;
     for (size_t i = 2; i < op->args.size(); ++i) {
       arg_value.push_back(MakeValue(op->args[i]));
       if (i - 2 < static_cast<size_t>(num_signature)) {
-        sig_type.push_back(arg_value.back()->getType());
+        arg_type.push_back(arg_value.back()->getType());
       }
     }
-    llvm::Type *return_type = GetLLVMType(GetRef<PrimExpr>(op));
-    if (sig_type.size() > 0 && return_type != sig_type[0]) {
-      sig_type.insert(sig_type.begin(), return_type);
-    }
-    llvm::Function* f = llvm::Intrinsic::getDeclaration(
-        module_.get(), id, sig_type);
+    // LLVM's prefetch intrinsic returns "void", while TVM's prefetch
+    // returns int32. This causes problems because prefetch is one of
+    // those intrinsics that is generated automatically via the
+    // tvm.intrin.rule mechanism. Any other intrinsic with a type
+    // mismatch will have to be treated specially here.
+    // TODO(kparzysz-quic): fix this once TVM prefetch uses the same
+    // type as LLVM.
+    llvm::Type *return_type = (id != llvm::Intrinsic::prefetch)
+        ? GetLLVMType(GetRef<PrimExpr>(op))
+        : llvm::Type::getVoidTy(*ctx_);
+
+    llvm::Function* f = GetIntrinsicDecl(id, return_type, arg_type);
+    CHECK(f) << "Cannot find intrinsic declaration, possible type mismatch: "
+             << llvm::Intrinsic::getName(id, {});
     return builder_->CreateCall(f, arg_value);
   } else if (op->is_intrinsic(CallNode::bitwise_and)) {
     return builder_->CreateAnd(MakeValue(op->args[0]), MakeValue(op->args[1]));
@@ -1192,10 +1268,7 @@ void CodeGenLLVM::VisitStmt_(const IfThenElseNode* op) {
 void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   llvm::Value* buf = nullptr;
-  if (op->new_expr.defined()) {
-    CHECK_EQ(op->free_function, "nop");
-    buf = MakeValue(op->new_expr);
-  } else {
+
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
         << "Can only handle constant size stack allocation";
@@ -1220,7 +1293,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
     }
     info.alignment = alloca->getAlignment();
     buf = alloca;
-  }
+
   buf = builder_->CreatePointerCast(
       buf, DTypeToLLVMType(op->dtype)->getPointerTo(
           buf->getType()->getPointerAddressSpace()));
@@ -1283,9 +1356,6 @@ void CodeGenLLVM::VisitStmt_(const EvaluateNode* op) {
   MakeValue(op->value);
 }
 
-void CodeGenLLVM::VisitStmt_(const ProducerConsumerNode* op) {
-  this->VisitStmt(op->body);
-}
 }  // namespace codegen
 }  // namespace tvm
 #endif  // TVM_LLVM_VERSION

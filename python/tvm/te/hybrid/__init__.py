@@ -30,7 +30,7 @@ HalideIR.
 # 2. Support multi-level HalideIR
 import inspect
 import tvm._ffi
-from tvm.driver.build_module import form_body
+import tvm.te.schedule
 from tvm._ffi.base import decorate
 
 from .module import HybridModule
@@ -87,8 +87,10 @@ def build(sch, inputs, outputs, name="hybrid_func"):
         The built results is wrapped in a HybridModule.
         The usage of HybridModule is roughly the same as normal TVM-built modules.
     """
+    sch = sch.normalize()
+    bounds = tvm.te.schedule.InferBound(sch)
+    stmt = tvm.te.schedule.ScheduleOps(sch, bounds)
 
-    stmt = form_body(sch)
     src = _Dump(stmt, inputs, outputs, name)
 
     return HybridModule(src, name)

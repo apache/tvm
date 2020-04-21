@@ -156,11 +156,11 @@ void CodeGenOpenGL::AddFunction(const PrimFunc& f) {
     arg_kinds.push_back(kind);
   }
 
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenOpenGL: Expect PrimFunc to have the global_symbol attribute";
 
-  shaders_[static_cast<std::string>(global_symbol)] = runtime::OpenGLShader(
+  shaders_[static_cast<std::string>(global_symbol.value())] = runtime::OpenGLShader(
       this->decl_stream.str() + this->stream.str(),
       std::move(arg_names), std::move(arg_kinds),
       this->thread_extent_var_);
@@ -299,8 +299,7 @@ runtime::Module BuildOpenGL(IRModule mod) {
         << "CodeGenOpenGL: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenOpenGL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }

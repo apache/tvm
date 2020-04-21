@@ -20,9 +20,9 @@ from tvm.tir import const
 
 
 def lower_stmt(params, stmt, target_bits):
-    func = tvm.tir.PrimFunc(params, stmt).with_attr(
-        "target_bits", target_bits)
-    func = tvm.tir.transform.NarrowDataType()(tvm.IRModule.from_expr(func))["main"]
+    func = tvm.tir.PrimFunc(params, stmt)
+    func = tvm.tir.transform.NarrowDataType(target_bits)(
+        tvm.IRModule.from_expr(func))["main"]
     stmt = func.body
     return stmt
 
@@ -40,8 +40,11 @@ def lower_sch(sch, args, target_bits):
             raise ValueError("args must be Tensor, Buffer or Var")
     bounds = te.schedule.InferBound(sch)
     stmt = te.schedule.ScheduleOps(sch, bounds)
-    stmt = tvm.tir.ir_pass.StorageFlatten(stmt, binds, 64, False)
-    return lower_stmt(arg_list, stmt, target_bits)
+
+    func = tvm.te.schedule.SchedulePostProcToPrimFunc(args, stmt, None)
+    mod = tvm.IRModule.from_expr(func)
+    mod = tvm.tir.transform.StorageFlatten(64)(mod)
+    return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
 
 
 def test_basic():
@@ -148,7 +151,7 @@ def test_reduce():
         B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name='B')
         s = te.create_schedule(B.op)
         stmt = lower_sch(s, [A, B], target_bits)
-        assert stmt.body[1].loop_var.dtype == target_dtype
+        assert stmt[1].loop_var.dtype == target_dtype
 
     # i32 -> i32
     check(const(64, dtype='int32'), 32, 'int32')

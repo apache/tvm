@@ -16,4 +16,6 @@
 # under the License.
 # pylint: disable=wildcard-import
 """Contrib modules."""
+from .register import get_pattern_table, register_pattern_table
+
 from .dnnl import *

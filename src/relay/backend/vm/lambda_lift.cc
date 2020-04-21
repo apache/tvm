@@ -45,7 +45,7 @@ inline std::string GenerateName(const Function& func) {
 }
 
 bool IsClosure(const Function& func) {
-  return func->GetAttr<Integer>(attr::kClosure, 0)->value != 0;
+  return func->GetAttr<Integer>(attr::kClosure, 0) != 0;
 }
 
 Function MarkClosure(Function func) {
@@ -190,7 +190,7 @@ class LambdaLifter : public ExprMutator {
     auto glob_funcs = module_->functions;
     for (auto pair : glob_funcs) {
       if (auto* n = pair.second.as<FunctionNode>()) {
-        if (n->GetAttr<tir::StringImm>(attr::kCompiler).defined()) continue;
+        if (n->GetAttr<String>(attr::kCompiler).defined()) continue;
         auto func = GetRef<Function>(n);
         func = Function(func->params,
                         VisitExpr(func->body),

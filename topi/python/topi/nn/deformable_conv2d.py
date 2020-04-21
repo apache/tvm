@@ -106,7 +106,7 @@ def deformable_conv2d_nchw(data, offset, kernel, strides, padding, dilation, def
                                     (kh * kernel_w + kw) * 2, y, x],
                              x * stride_w - pad_left + kw * dilation_w +
                              offset[n, c // ic_per_dgroup * (kernel_w*kernel_h*2) +
-                                    (kh * kernel_w + kw) * 2 + 1, y, x]))
+                                    (kh * kernel_w + kw) * 2 + 1, y, x]), tag="data_deform")
     return te.compute(
         (batch, out_channel, out_height, out_width),
         lambda n, f, y, x: te.sum(

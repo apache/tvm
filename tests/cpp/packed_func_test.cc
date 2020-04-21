@@ -20,7 +20,9 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/transform.h>
 #include <tvm/tir/expr.h>
 
 TEST(PackedFunc, Basic) {
@@ -51,7 +53,7 @@ TEST(PackedFunc, Node) {
   Var x;
   Var t = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.num_args == 1);
-      CHECK(args.type_codes[0] == kTVMObjectHandle);
+      CHECK(args[0].IsObjectRef<ObjectRef>());
       Var b = args[0];
       CHECK(x.same_as(b));
       *rv = b;
@@ -267,6 +269,60 @@ TEST(PackedFunc, ObjectConversion) {
     });
   pf2(m, ObjectRef());
   pf2(ObjectRef(m), Module());
+}
+
+TEST(TypedPackedFunc, RValue) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  {
+
+    auto inspect = [](TVMArgs args, TVMRetValue* rv) {
+      for (int i = 0; i < args.size(); ++i) {
+        CHECK_EQ(args[0].type_code(), kTVMObjectRValueRefArg);
+      }
+    };
+    PackedFunc  finspect(inspect);
+    finspect(tir::Var("x"));
+  }
+  {
+    auto f = [](tir::Var x, bool move) {
+      if (move) {
+        CHECK(x.unique());
+      } else {
+        CHECK(!x.unique());
+      }
+      CHECK(x->name_hint == "x");
+      return x;
+    };
+    TypedPackedFunc<tir::Var(tir::Var, bool)> tf(f);
+
+    tir::Var var("x");
+    CHECK(var.unique());
+    tf(var, false);
+    // move the result to the function.
+    tir::Var ret = tf(std::move(var), true);
+    CHECK(!var.defined());
+  }
+
+  {
+    // pass child class.
+    auto f = [](PrimExpr x, bool move) {
+      if (move) {
+        CHECK(x.unique());
+      } else {
+        CHECK(!x.unique());
+      }
+      return x;
+    };
+    TypedPackedFunc<PrimExpr(PrimExpr, bool)> tf(f);
+
+    tir::Var var("x");
+    CHECK(var.unique());
+    tf(var, false);
+    tf(std::move(var), true);
+    // auto conversion.
+    tf(1, true);
+  }
 }
 
 int main(int argc, char ** argv) {

@@ -30,186 +30,294 @@
 #include <tvm/runtime/registry.h>
 
 #include <fstream>
+#include <numeric>
 #include <sstream>
 
+#include "../../utils.h"
 #include "../codegen_c/codegen_c.h"
 
 namespace tvm {
 namespace relay {
 namespace contrib {
 
+using namespace backend;
+
+inline size_t GetShape1DSize(const Type& type) {
+  const auto shape = GetShape(type);
+  return std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<int>());
+}
+
+std::vector<std::string> Conv2d(const CallNode* call) {
+  std::vector<std::string> args;
+  const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
+  CHECK(conv2d_attr);
+
+  auto ishape = GetShape(call->args[0]->checked_type());
+  auto wshape = GetShape(call->args[1]->checked_type());
+
+  // Args: N, C, H, W
+  for (auto s : ishape) {
+    args.push_back(std::to_string(s));
+  }
+
+  // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
+  args.push_back(std::to_string(wshape[0]));
+  args.push_back(std::to_string(conv2d_attr->groups));
+  args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImmNode>()->value));
+  args.push_back(std::to_string(wshape[2]));
+  args.push_back(std::to_string(wshape[3]));
+  args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImmNode>()->value));
+  args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImmNode>()->value));
+
+  return args;
+}
+
+std::vector<std::string> Dense(const CallNode* call) {
+  std::vector<std::string> args;
+  auto ishape = GetShape(call->args[0]->checked_type());
+  auto wshape = GetShape(call->args[1]->checked_type());
+
+  // Args: N, C, O
+  args.push_back(std::to_string(ishape[0]));
+  args.push_back(std::to_string(ishape[1]));
+  args.push_back(std::to_string(wshape[0]));
+
+  return args;
+}
+
+std::vector<std::string> Relu(const CallNode* call) {
+  std::vector<std::string> args;
+  auto ishape = GetShape(call->args[0]->checked_type());
+
+  // Args: N, C, H, W
+  for (auto s : ishape) {
+    args.push_back(std::to_string(s));
+  }
+
+  return args;
+}
+
+std::vector<std::string> BatchNorm(const CallNode* call) {
+  std::vector<std::string> args;
+  const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
+  auto ishape = GetShape(call->args[0]->checked_type());
+
+  // Args: N, C, H, W
+  for (auto s : ishape) {
+    args.push_back(std::to_string(s));
+  }
+
+  // Args: epsilon
+  args.push_back(std::to_string(bn_attr->epsilon));
+
+  return args;
+}
+
+std::vector<std::string> Add(const CallNode* call) {
+  std::vector<std::string> args;
+  auto ishape = GetShape(call->args[0]->checked_type());
+
+  // Args: H, W
+  for (auto s : ishape) {
+    args.push_back(std::to_string(s));
+  }
+
+  return args;
+}
+
 // TODO(@zhiics, @comaniac): This is a basic implementation. We should implement
 // all utilities and make a base class for users to implement.
-class CodegenDNNL : public ExprVisitor, public CodegenCBase {
+class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public CodegenCBase {
  public:
   explicit CodegenDNNL(const std::string& id) { this->ext_func_id_ = id; }
 
-  void VisitExpr_(const VarNode* node) final {
+  std::vector<Output> VisitExprDefault_(const Object* op) final {
+    LOG(FATAL) << "DNNL codegen doesn't support: " << op->GetTypeKey();
+    return {};
+  }
+
+  std::vector<Output> VisitExpr_(const VarNode* node) final {
     ext_func_args_.push_back(GetRef<Var>(node));
-    out_.clear();
     Output output;
     output.name = node->name_hint();
-    out_.push_back(output);
+    return {output};
   }
 
-  void VisitExpr_(const TupleGetItemNode* op) final {
-    // Do nothing
+  std::vector<Output> VisitExpr_(const TupleGetItemNode* op) final {
+    auto res = VisitExpr(op->tuple);
+    CHECK_GT(res.size(), static_cast<size_t>(op->index));
+
+    // Only keep the item we want for the child node.
+    // FIXME(@comaniac): The other items should still be requried for the primary outputs.
+    return {res[op->index]};
   }
 
-  void VisitExpr_(const CallNode* call) final {
-    std::ostringstream decl_stream;
-    std::ostringstream buf_stream;
-    // Args: ID
-    std::vector<std::string> args;
-
-    // Get the arguments for various DNNL kernels.
-    if (IsOp(call, "nn.conv2d")) {
-      decl_stream << "dnnl_conv2d";
-      args = Conv2d(call);
-    } else if (IsOp(call, "nn.dense")) {
-      decl_stream << "dnnl_dense";
-      args = Dense(call);
-    } else if (IsOp(call, "nn.relu")) {
-      decl_stream << "dnnl_relu";
-      args = Relu(call);
-    } else if (IsOp(call, "nn.batch_norm")) {
-      decl_stream << "dnnl_bn";
-      args = BatchNorm(call);
-    } else if (IsOp(call, "add")) {
-      decl_stream << "dnnl_add";
-      args = Add(call);
-    } else {
-      LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
-    }
-
-    // Make function call with input buffers when visiting arguments
-    bool first = true;
-    decl_stream << "(";
-    for (size_t i = 0; i < call->args.size(); ++i) {
-      VisitExpr(call->args[i]);
-      for (auto out : out_) {
-        if (!first) {
-          decl_stream << ", ";
-        }
-        first = false;
-        decl_stream << out.name;
-      }
-    }
-
-    // Analyze the output buffer
-    auto type_node = call->checked_type().as<TensorTypeNode>();
-    CHECK(type_node);
-    const auto& dtype = GetDtypeString(type_node);
-    std::string out = "buf_" + std::to_string(buf_idx_++);
-    auto out_shape = GetShape(call->checked_type());
-    int out_size = 1;
-    for (size_t i = 0; i < out_shape.size(); ++i) {
-      out_size *= out_shape[i];
-    }
-    this->PrintIndents();
-    buf_stream << "float* " << out << " = (float*)std::malloc(4 * " << out_size << ");";
-    buf_decl_.push_back(buf_stream.str());
-    decl_stream << ", " << out;
-
-    // Attach attribute arguments
-    for (size_t i = 0; i < args.size(); ++i) {
-      decl_stream << ", " << args[i];
-    }
-    decl_stream << ");";
-    ext_func_body.push_back(decl_stream.str());
-
-    // Update output buffer
-    out_.clear();
+  std::vector<Output> VisitExpr_(const ConstantNode* cn) final {
     Output output;
-    output.name = out;
-    output.dtype = dtype;
-    output.need_copy = true;
-    output.size = out_size;
-    out_.push_back(output);
+    output.name = "const_" + std::to_string(const_idx_++);
+    output.dtype = "float";
+
+    runtime::NDArray array = cn->data;
+
+    // Get the number of elements.
+    int64_t num_elems = 1;
+    for (auto i : array.Shape()) num_elems *= i;
+
+    const auto* type_node = cn->checked_type().as<TensorTypeNode>();
+    CHECK(type_node);
+    CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
+
+    std::ostringstream buf_stream;
+    const float* ptr = static_cast<float*>(array.ToDLPack()->dl_tensor.data);
+
+    // Allocate large arrays on the static section to avoid stakc overflow.
+    // Note that this would probably increase compilation time as the source
+    // file could be really large.
+    buf_stream << "static float " << output.name << "[" << num_elems <<"] = {";
+    for (int64_t i = 0; i < num_elems - 1; i++) {
+      buf_stream << ptr[i] << ",";
+    }
+    if (num_elems > 0) buf_stream << ptr[num_elems - 1];
+    buf_stream << "};\n";
+
+    ext_func_body.insert(ext_func_body.begin(), buf_stream.str());
+    return {output};
   }
 
-  std::string JIT(void) {
-    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out_);
+  std::vector<Output> VisitExpr_(const CallNode* call) final {
+    GenerateBodyOutput ret;
+    if (const auto* func = call->op.as<FunctionNode>()) {
+      ret = GenerateCompositeFunctionCall(func, call);
+    } else {
+      ret = GenerateOpCall(call);
+    }
+
+    buf_decl_.insert(buf_decl_.end(), ret.buffers.begin(), ret.buffers.end());
+    ext_func_body.push_back(ret.decl);
+    return ret.outputs;
+  }
+
+  std::string JIT(const std::vector<Output>& out) {
+    return JitImpl(ext_func_id_, ext_func_args_, buf_decl_, ext_func_body, out);
   }
 
  private:
-  std::vector<std::string> Conv2d(const CallNode* call) {
-    std::vector<std::string> args;
-    const auto* conv2d_attr = call->attrs.as<Conv2DAttrs>();
-    CHECK(conv2d_attr);
+  struct GenerateBodyOutput {
+    std::string decl;
+    std::vector<std::string> buffers;
+    std::vector<Output> outputs;
+  };
 
-    auto ishape = GetShape(call->args[0]->checked_type());
-    auto wshape = GetShape(call->args[1]->checked_type());
-
-    // Args: N, C, H, W
-    for (auto s : ishape) {
-      args.push_back(std::to_string(s));
+  std::vector<std::string> GetArgumentNames(const CallNode* call) {
+    std::vector<std::string> arg_names;
+    for (size_t i = 0; i < call->args.size(); ++i) {
+      auto res = VisitExpr(call->args[i]);
+      for (const auto& out : res) {
+        arg_names.push_back(out.name);
+      }
     }
-
-    // Args: O, G, Ph, Pw, Kh, Kw, Sh, Sw
-    args.push_back(std::to_string(wshape[0]));
-    args.push_back(std::to_string(conv2d_attr->groups));
-    args.push_back(std::to_string(conv2d_attr->padding[0].as<IntImmNode>()->value));
-    args.push_back(std::to_string(conv2d_attr->padding[1].as<IntImmNode>()->value));
-    args.push_back(std::to_string(wshape[2]));
-    args.push_back(std::to_string(wshape[3]));
-    args.push_back(std::to_string(conv2d_attr->strides[0].as<IntImmNode>()->value));
-    args.push_back(std::to_string(conv2d_attr->strides[1].as<IntImmNode>()->value));
-
-    return args;
+    return arg_names;
   }
 
-  std::vector<std::string> Dense(const CallNode* call) {
-    std::vector<std::string> args;
-    auto ishape = GetShape(call->args[0]->checked_type());
-    auto wshape = GetShape(call->args[1]->checked_type());
+  GenerateBodyOutput GenerateOpCall(const CallNode* call) {
+    const auto* op_node = call->op.as<OpNode>();
+    CHECK(op_node) << "Expect OpNode, but got " << call->op->GetTypeKey();
 
-    // Args: N, C, O
-    args.push_back(std::to_string(ishape[0]));
-    args.push_back(std::to_string(ishape[1]));
-    args.push_back(std::to_string(wshape[0]));
+    using ArgFunType = std::function<std::vector<std::string>(const CallNode*)>;
+    static const std::map<std::string, std::pair<std::string, ArgFunType>> op_map = {
+        {"nn.conv2d", {"dnnl_conv2d", Conv2d}},
+        {"nn.dense", {"dnnl_dense", Dense}},
+        {"nn.relu", {"dnnl_relu", Relu}},
+        {"nn.batch_norm", {"dnnl_bn", BatchNorm}},
+        {"add", {"dnnl_add", Add}},
+    };
 
-    return args;
-  }
-
-  std::vector<std::string> Relu(const CallNode* call) {
-    std::vector<std::string> args;
-    auto ishape = GetShape(call->args[0]->checked_type());
-
-    // Args: N, C, H, W
-    for (auto s : ishape) {
-      args.push_back(std::to_string(s));
+    const auto op_name = GetRef<Op>(op_node)->name;
+    const auto iter = op_map.find(op_name);
+    if (iter != op_map.end()) {
+      return GenerateBody(call, iter->second.first, iter->second.second(call));
     }
 
-    return args;
+    LOG(FATAL) << "Unsupported op: " << AsText(call->op, false);
+    return {};
   }
 
-  std::vector<std::string> BatchNorm(const CallNode* call) {
-    std::vector<std::string> args;
-    const auto* bn_attr = call->attrs.as<BatchNormAttrs>();
-    auto ishape = GetShape(call->args[0]->checked_type());
+  GenerateBodyOutput GenerateCompositeFunctionCall(const FunctionNode* callee,
+                                                   const CallNode* caller) {
+    const auto pattern_name = callee->GetAttr<runtime::String>(attr::kComposite);
+    CHECK(pattern_name.defined()) << "Only functions with composite attribute supported";
 
-    // Args: N, C, H, W
-    for (auto s : ishape) {
-      args.push_back(std::to_string(s));
+    if (pattern_name == "dnnl.conv2d_bias_relu") {
+      const auto* conv_call =
+          GetRootCall(callee->body.as<CallNode>(), 2, {"nn.conv2d", "add", "nn.relu"});
+      return GenerateBody(conv_call, "dnnl_fused_conv2d_bias_relu", GetArgumentNames(caller),
+                          Conv2d(conv_call));
+    } else if (pattern_name == "dnnl.conv2d_relu") {
+      const auto* conv_call = GetRootCall(callee->body.as<CallNode>(), 1, {"nn.conv2d", "nn.relu"});
+      return GenerateBody(conv_call, "dnnl_fused_conv2d_relu", GetArgumentNames(caller),
+                          Conv2d(conv_call));
     }
 
-    // Args: epsilon
-    args.push_back(std::to_string(bn_attr->epsilon));
-
-    return args;
+    LOG(FATAL) << "Unknown composite function:" << pattern_name;
+    return {};
   }
 
-  std::vector<std::string> Add(const CallNode* call) {
-    std::vector<std::string> args;
-    auto ishape = GetShape(call->args[0]->checked_type());
+  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
+                                  const std::vector<std::string>& attribute_args) {
+    return GenerateBody(root_call, func_name, GetArgumentNames(root_call), attribute_args);
+  }
 
-    // Args: H, W
-    for (auto s : ishape) {
-      args.push_back(std::to_string(s));
+  GenerateBodyOutput GenerateBody(const CallNode* root_call, const std::string& func_name,
+                                  const std::vector<std::string>& func_args,
+                                  const std::vector<std::string>& attribute_args) {
+    // Make function call with input buffers when visiting arguments
+    CHECK_GT(func_args.size(), 0);
+    std::ostringstream decl_stream;
+    decl_stream << "(" << func_args[0];
+    for (size_t i = 1; i < func_args.size(); ++i) {
+      decl_stream << ", " << func_args[i];
     }
 
-    return args;
+    // Analyze the output buffers
+    std::vector<Type> out_types;
+    if (root_call->checked_type()->IsInstance<TupleTypeNode>()) {
+      auto type_node = root_call->checked_type().as<TupleTypeNode>();
+      for (auto field : type_node->fields) {
+        CHECK(field->IsInstance<TensorTypeNode>());
+        out_types.push_back(field);
+      }
+    } else if (root_call->checked_type()->IsInstance<TensorTypeNode>()) {
+      CHECK(root_call->checked_type()->IsInstance<TensorTypeNode>());
+      out_types.push_back(root_call->checked_type());
+    } else {
+      LOG(FATAL) << "Unrecognized type node: " << AsText(root_call->checked_type(), false);
+    }
+
+    GenerateBodyOutput ret;
+    for (const auto& out_type : out_types) {
+      this->PrintIndents();
+      const std::string out = "buf_" + std::to_string(buf_idx_++);
+      const auto out_size = GetShape1DSize(out_type);
+      decl_stream << ", " << out;
+
+      Output output;
+      output.name = out;
+      output.size = out_size;
+      output.dtype = GetDtypeString(out_type.as<TensorTypeNode>());
+      output.need_copy = true;
+      ret.buffers.push_back("float* " + out + " = (float*)std::malloc(4 * " +
+                            std::to_string(out_size) + ");");
+      ret.outputs.push_back(output);
+    }
+
+    // Attach attribute arguments
+    for (size_t i = 0; i < attribute_args.size(); ++i) {
+      decl_stream << ", " << attribute_args[i];
+    }
+    decl_stream << ");";
+    ret.decl = func_name + decl_stream.str();
+    return ret;
   }
 
   /*! \brief The id of the external dnnl ext_func. */
@@ -219,14 +327,14 @@ class CodegenDNNL : public ExprVisitor, public CodegenCBase {
    * output to a buffer that may be consumed by other kernels.
    */
   int buf_idx_{0};
+  /*! \brief The index of global constants. */
+  int const_idx_{0};
   /*! \brief The arguments used by a wrapped function that calls DNNL kernels. */
   Array<Var> ext_func_args_;
   /*! \brief statement of the function that will be compiled using DNNL kernels. */
   std::vector<std::string> ext_func_body;
   /*! \brief The declaration of intermeidate buffers. */
   std::vector<std::string> buf_decl_;
-  /*! \brief The name of the the outputs. */
-  std::vector<Output> out_;
 };
 
 /*!
@@ -246,8 +354,8 @@ class DNNLModuleCodegen : public CSourceModuleCodegenBase {
     auto sid = GetExtSymbol(func);
 
     CodegenDNNL builder(sid);
-    builder.VisitExpr(func->body);
-    code_stream_ << builder.JIT();
+    auto out = builder.VisitExpr(func->body);
+    code_stream_ << builder.JIT(out);
   }
 
   /*!

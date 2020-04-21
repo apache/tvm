@@ -78,13 +78,13 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
   // reserve keywords
   ReserveKeywordsAsUnique();
 
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
   bool no_alias = f->HasNonzeroAttr(tir::attr::kNoAlias);
 
   this->PrintFuncPrefix();
-  this->stream << " " << static_cast<std::string>(global_symbol) << "(";
+  this->stream << " " << static_cast<std::string>(global_symbol.value()) << "(";
 
   for (size_t i = 0; i < f->params.size(); ++i) {
     tir::Var v = f->params[i];
@@ -668,15 +668,7 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
       std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base);
       HandleVolatileLoads(ref, op, os);
     } else {
-      // The assignment below introduces side-effect, and the resulting value cannot
-      // be reused across multiple expression, thus a new scope is needed
-      int vec_scope = BeginScope();
-
-      // load seperately.
-      std::string svalue = GetUniqueName("_");
-      this->PrintIndent();
-      this->PrintType(op->dtype, stream);
-      stream << ' ' << svalue << ";\n";
+      std::ostringstream svalue_expr;
       std::string sindex = SSAGetID(PrintExpr(op->index), op->index.dtype());
       std::string vid = GetVarID(op->buffer_var.get());
       DataType elem_type = op->dtype.element_of();
@@ -699,10 +691,9 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
         value_temp << '[';
         PrintVecElemLoad(sindex, op->index.dtype(), i, value_temp);
         value_temp << ']';
-        PrintVecElemStore(svalue, op->dtype, i, value_temp.str());
+        PrintVecElemLoadExpr(op->dtype, i, value_temp.str(), svalue_expr);
       }
-      os << svalue;
-      EndScope(vec_scope);
+      os << svalue_expr.str();
     }
   }
 }
@@ -823,14 +814,7 @@ void CodeGenC::VisitStmt_(const LetStmtNode* op) {
 void CodeGenC::VisitStmt_(const AllocateNode* op) {
   CHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
-  if (op->new_expr.defined()) {
-    // Prefer global static allocation for the program
-    CHECK_EQ(op->free_function, "nop");
-    std::string new_data = PrintExpr(op->new_expr);
-    this->PrintIndent();
-    PrintType(op->dtype, stream);
-    stream << "* "<< vid << '=' << new_data << ";\n";
-  } else {
+
     this->PrintIndent();
     int32_t constant_size = op->constant_allocation_size();
     CHECK_GT(constant_size, 0)
@@ -842,7 +826,7 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
     PrintType(op->dtype, stream);
     stream << ' '<< vid << '['
            << constant_size << "];\n";
-  }
+
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);
 }
@@ -951,8 +935,29 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
   }
 }
 
-void CodeGenC::VisitStmt_(const ProducerConsumerNode* op) {
-  PrintStmt(op->body);
+void CodeGenC::PrintVecElemLoadExpr(
+    DataType t, int i, const std::string& value, std::ostream& os) {
+  CHECK_GT(t.lanes(), 1);
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
+    if (i != 0) {
+      os << "|";
+    }
+    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
+    return;
+  }
+
+  if (i == 0) {
+    os << "((";
+    PrintType(t, os);
+    os << t.lanes() << ")(";
+  }
+  os << value;
+  if (i != t.lanes() - 1) {
+    os << ",";
+  } else {
+    os << "))";
+  }
+  return;
 }
 
 }  // namespace codegen

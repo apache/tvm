@@ -163,6 +163,7 @@ Supported Ops
 - Identity
 - IsFinite
 - IsInf
+- IsNan
 - LeakyRelu
 - LeftShift
 - Less

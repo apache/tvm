@@ -56,12 +56,12 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   GetUniqueName("_");
 
   // add to alloc buffer type.
-  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
   CHECK(global_symbol.defined())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
   // Function header.
-  this->stream << "kernel void " << static_cast<std::string>(global_symbol) << "(";
+  this->stream << "kernel void " << static_cast<std::string>(global_symbol.value()) << "(";
 
   // Buffer arguments
   size_t num_buffer = 0;
@@ -91,7 +91,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   size_t nargs = f->params.size() - num_buffer;
   std::string varg = GetUniqueName("arg");
   if (nargs != 0) {
-    std::string arg_buf_type = static_cast<std::string>(global_symbol) + "_args_t";
+    std::string arg_buf_type =
+        static_cast<std::string>(global_symbol.value()) + "_args_t";
     stream << "  constant " << arg_buf_type << "& " << varg
            << " [[ buffer(" << num_buffer << ") ]],\n";
     // declare the struct
@@ -120,8 +121,8 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
   CHECK_EQ(GetUniqueName("threadIdx"), "threadIdx");
   CHECK_EQ(GetUniqueName("blockIdx"), "blockIdx");
   int work_dim = 0;
-  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(tir::attr::kDeviceThreadAxis);
-  CHECK(thread_axis.defined());
+  auto thread_axis = f->GetAttr<Array<tir::IterVar>>(
+      tir::attr::kDeviceThreadAxis).value();
 
   for (IterVar iv : thread_axis) {
     runtime::ThreadScope scope = runtime::ThreadScope::make(iv->thread_tag);
@@ -278,8 +279,7 @@ runtime::Module BuildMetal(IRModule mod) {
         << "CodeGenMetal: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenMetal: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
