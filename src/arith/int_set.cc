@@ -533,14 +533,9 @@ class IntervalSetEvaluator :
   // whether set is exactly single point that equals value.
   bool MatchPoint(const IntervalSet& set,
                   const PrimExpr& value) const {
-    if (set->min_value.same_as(value) && set->max_value.same_as(value)) {
-      return true;
-    }
-    const auto* min_ptr = set->min_value.as<IntImmNode>();
-    const auto* max_ptr = set->max_value.as<IntImmNode>();
-    const auto* value_ptr = value.as<IntImmNode>();
-    return (min_ptr && max_ptr && value_ptr && value_ptr->value == min_ptr->value &&
-        value_ptr->value == max_ptr->value);
+    return (set->min_value.same_as(value) && set->max_value.same_as(value)) ||
+           (analyzer_->CanProve(set->min_value == value) &&
+            analyzer_->CanProve(set->max_value == value));
   }
 
   template<typename T>
