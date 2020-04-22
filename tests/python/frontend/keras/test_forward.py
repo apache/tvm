@@ -125,6 +125,7 @@ class TestKeras:
                     keras.layers.Subtract(),
                     keras.layers.Multiply(),
                     keras.layers.Maximum(),
+                    keras.layers.Minimum(),
                     keras.layers.Average(),
                     keras.layers.Concatenate()]
         for merge_func in merge_funcs:
