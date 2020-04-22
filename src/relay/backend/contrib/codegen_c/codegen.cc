@@ -68,7 +68,6 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
 
     runtime::NDArray array = cn->data;
     const auto& shape = array.Shape();
-    const DLTensor& dl_tensor = array.ToDLPack()->dl_tensor;
 
     // Get the number of elements.
     int64_t num_elems = 1;
@@ -83,11 +82,11 @@ class CodegenC : public MemoizedExprTranslator<std::vector<Output>>, public Code
     // to avoid possible stack overflow.
     buf_stream << dtype << " " << output.name << "[" << num_elems << "] = {";
     if (dtype == "float") {
-      float* p_flt = static_cast<float*>(dl_tensor.data);
+      float* p_flt = static_cast<float*>(array->data);
       for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
       if (num_elems) buf_stream << p_flt[num_elems - 1];
     } else if (dtype == "int") {
-      int* p_flt = static_cast<int*>(dl_tensor.data);
+      int* p_flt = static_cast<int*>(array->data);
       for (int64_t i = 0; i < num_elems - 1; i++) buf_stream << p_flt[i] << ", ";
       if (num_elems) buf_stream << p_flt[num_elems - 1];
     } else {

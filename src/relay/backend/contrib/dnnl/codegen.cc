@@ -169,7 +169,7 @@ class CodegenDNNL : public MemoizedExprTranslator<std::vector<Output>>, public C
     CHECK_EQ(GetDtypeString(type_node), "float") << "Only float is supported for now.";
 
     std::ostringstream buf_stream;
-    const float* ptr = static_cast<float*>(array.ToDLPack()->dl_tensor.data);
+    const float* ptr = static_cast<float*>(array->data);
 
     // Allocate large arrays on the static section to avoid stakc overflow.
     // Note that this would probably increase compilation time as the source
