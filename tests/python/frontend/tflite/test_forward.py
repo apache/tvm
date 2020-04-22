@@ -22,6 +22,7 @@ This article is a test script to test TFLite operator with Relay.
 """
 from __future__ import print_function
 from functools import partial
+import pytest
 import numpy as np
 import tvm
 from tvm import te
@@ -1756,12 +1757,13 @@ def test_forward_qnn_mobilenet_v2_net():
 # Mobilenet V3 Quantized
 # ----------------------
 
-@pytest.mark.skip(reason="This segfaults with tensorflow 2.1.0")
 def test_forward_qnn_mobilenet_v3_net():
     """Test the Quantized TFLite Mobilenet V3 model."""
     # In MobilenetV3, some ops are not supported before tf 1.15 fbs schema
     if package_version.parse(tf.VERSION) < package_version.parse('1.15.0'):
-        return
+        pytest.skip("Unsupported in tflite < 1.15.0")
+    else:
+        pytest.skip("This segfaults with tensorflow 1.15.2 and above")
 
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/mobilenet_v3/checkpoints/v3-large_224_1.0_uint8.tgz",
