@@ -491,7 +491,11 @@ llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent
 
 llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
   int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
+#if TVM_LLVM_VERSION >= 110
+  std::vector<int> indices;
+#else
   std::vector<unsigned> indices;
+#endif
   for (int i = 0; i < num_elems; ++i) {
     indices.push_back(num_elems - i - 1);
   }
@@ -531,7 +535,11 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
         rhs = CreateVecPad(rhs, lhs_lanes);
       }
       const size_t shared_lanes = std::max(lhs_lanes, rhs_lanes);
+#if TVM_LLVM_VERSION >= 110
+      std::vector<int> mask;
+#else
       std::vector<unsigned> mask;
+#endif
       for (size_t i = 0; i < lhs_lanes; ++i) {
         mask.push_back(i);
       }
@@ -872,7 +880,11 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     llvm::Value *v0 = MakeValue(op->args[0]);
     llvm::Value *v1 = MakeValue(op->args[1]);
     int num_elems = static_cast<int>(v0->getType()->getVectorNumElements()) * 2;
+#if TVM_LLVM_VERSION >= 110
+    std::vector<int> indices;
+#else
     std::vector<unsigned> indices;
+#endif
     for (int i = 0; i < num_elems; ++i) {
       indices.push_back(i);
     }
