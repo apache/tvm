@@ -99,13 +99,13 @@ class ConstIntBoundAnalyzer::Impl :
     }
   };
 
-  void Bind(const Var& var, const Range& range) {
+  void Bind(const Var& var, const Range& range, bool override) {
     Entry a = VisitExpr(range->min);
     Entry b = VisitExpr(range->extent);
     Entry ret;
     ret.min_value = a.min_value;
     ret.max_value = InfAwareAdd(a.max_value, InfAwareAdd(b.max_value, -1));
-    Update(var, ret, false);
+    Update(var, ret, override);
   }
 
   void Update(const Var& var,
@@ -576,8 +576,8 @@ void ConstIntBoundAnalyzer::Update(const Var& var,
   impl_->Update(var, info, override);
 }
 
-void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range) {
-  impl_->Bind(var, range);
+void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range, bool override) {
+  impl_->Bind(var, range, override);
 }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {

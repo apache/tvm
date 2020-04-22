@@ -139,7 +139,7 @@ class ConstIntBoundAnalyzer {
    * \param var The variable.
    * \param range The range we bind to.
    */
-  TVM_DLL void Bind(const Var& var, const Range& range);
+  TVM_DLL void Bind(const Var& var, const Range& range, bool override = false);
 
  private:
   friend class Analyzer;
@@ -412,7 +412,7 @@ class TVM_DLL Analyzer {
    * \param var The variable.
    * \param expr The expression we bind to.
    */
-  void Bind(const Var& var, const PrimExpr& expr);
+  void Bind(const Var& var, const PrimExpr& expr, bool override = false);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -422,13 +422,13 @@ class TVM_DLL Analyzer {
    * \param var The variable.
    * \param range The range we bind to.
    */
-  void Bind(const Var& var, const Range& range);
+  void Bind(const Var& var, const Range& range, bool override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
    */
-  void Bind(const Map<Var, Range>& variables);
+  void Bind(const Map<Var, Range>& variables, bool override = false);
   /*!
    * \brief Whether can we prove expr >= val.
 

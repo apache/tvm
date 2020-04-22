@@ -183,7 +183,6 @@ void ScanOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
     const std::unordered_map<const VarNode*, IntSet>& dom_map,
-    const std::unordered_map<IterVar, Range>& rmap,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
   for (size_t i = 0, sp_idx = 0; i < this->init.size(); ++i) {

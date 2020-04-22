@@ -120,7 +120,6 @@ void ExternOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
     const std::unordered_map<const VarNode*, IntSet>& dom_map,
-    const std::unordered_map<IterVar, Range>& rmap,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   for (Tensor t : this->inputs) {
     auto it = out_dom_map->find(t);

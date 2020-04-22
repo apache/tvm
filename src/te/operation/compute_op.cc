@@ -218,10 +218,9 @@ void ComputeOpNode::PropBoundToInputs(
     const Operation& self,
     arith::Analyzer* analyzer,
     const std::unordered_map<const VarNode*, IntSet>& dom_map,
-    const std::unordered_map<IterVar, Range>& rmap,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
   CHECK_EQ(self.operator->(), this);
-  auto fvisit = [&dom_map, &rmap, out_dom_map, analyzer](const ObjectRef& n) {
+  auto fvisit = [&dom_map, out_dom_map, analyzer](const ObjectRef& n) {
     auto *call = n.as<tir::CallNode>();
     if (call != nullptr && call->func.defined()) {
       Tensor t = Downcast<Operation>(call->func).output(call->value_index);
@@ -232,7 +231,7 @@ void ComputeOpNode::PropBoundToInputs(
           // undefined behaviour), so we can intersect the estimated set of the argument with the
           // range expected by the tensor. However, intersection may result in overly complex
           // expressions, so we perform a more relaxed form of intersection.
-          IntSet arg_intset = EvalSet(call->args[i], dom_map, rmap);
+          IntSet arg_intset = analyzer->int_set(call->args[i], ConvertDomMap(dom_map));
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
             PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());
@@ -240,12 +239,10 @@ void ComputeOpNode::PropBoundToInputs(
             PrimExpr min_value = arg_interval->min_value;
             PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
-            if (arith::is_neg_inf(min_value) ||
-                analyzer->CanProve(shape_i_min_value >= min_value)) {
+            if (arith::is_pos_inf(max_value) || arith::is_neg_inf(min_value) ||
+                (analyzer->CanProve(shape_i_min_value >= min_value) &&
+                 analyzer->CanProve(shape_i_max_value <= max_value))) {
               min_value = shape_i_min_value;
-            }
-            if (arith::is_pos_inf(max_value) ||
-                analyzer->CanProve(shape_i_max_value <= max_value)) {
               max_value = shape_i_max_value;
             }
             dom.data[i].push_back(IntSet::interval(min_value, max_value));

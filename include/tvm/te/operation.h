@@ -104,7 +104,6 @@ class OperationNode : public tir::FunctionBaseNode {
    * \param self The reference to self.
    * \param analyzer The analyzer to be used in the function.
    * \param dom_map the domain map of Variables(corresponds to root_iter_vars)
-   * \param rmap The range of variables (not only root_iter_vars) to improve propagation accuracy.
    * \param out_dom_map The output domain.
    *  The function is only asked to fill the bounds for Tensors that
    *  is already in the out_dom_map
@@ -113,7 +112,6 @@ class OperationNode : public tir::FunctionBaseNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const = 0;
   /*!
    * \brief Gather the bound from output tensor.
@@ -178,7 +176,6 @@ class PlaceholderOpNode : public OperationNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
@@ -257,7 +254,6 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
       const Stage& stage,
@@ -311,7 +307,6 @@ class TensorComputeOpNode : public BaseComputeOpNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   Stmt BuildProvide(
       const Stage& stage,
@@ -387,7 +382,6 @@ class ScanOpNode : public OperationNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
@@ -455,7 +449,6 @@ class ExternOpNode : public OperationNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,
@@ -524,7 +517,6 @@ class HybridOpNode : public OperationNode {
       const Operation& self,
       arith::Analyzer* analyzer,
       const std::unordered_map<const VarNode*, IntSet>& dom_map,
-      const std::unordered_map<IterVar, Range>& rmap,
       std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
   void GatherBound(
       const Operation& self,

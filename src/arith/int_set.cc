@@ -45,6 +45,17 @@ PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
 
 IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
   auto node = make_object<IntervalSetNode>();
+  if (!min_value.same_as(max_value) && min_value->IsInstance<IntImmNode>() &&
+      max_value->IsInstance<IntImmNode>()) {
+    const auto* min_ptr = min_value.as<IntImmNode>();
+    const auto* max_ptr = max_value.as<IntImmNode>();
+    if (min_ptr->value == max_ptr->value) {
+      node->min_value = std::move(min_value);
+      node->max_value = node->min_value;
+      data_ = node;
+      return;
+    }
+  }
   node->min_value = std::move(min_value);
   node->max_value = std::move(max_value);
   data_ = std::move(node);
@@ -395,16 +406,6 @@ class IntervalSetEvaluator :
     auto min_bd = analyzer_->const_int_bound(min_value_expr);
     auto max_bd = analyzer_->const_int_bound(max_value_expr);
     if (min_bd->max_value == min_bd->min_value && max_bd->max_value == max_bd->min_value) {
-      const auto* min_ptr = result->min_value.as<IntImmNode>();
-      const auto* max_ptr = result->max_value.as<IntImmNode>();
-      // The following if statement is necessary.  When result is a single point of IntImm, such as
-      // [0, 0], both 0s refer the same ObjectRef.  We really don't want to create a new [0, 0]
-      // IntervalSet and have 0s refer two different ObjectRef.  They will confuse APIs, such as
-      // IntervalSetEvaluator::MatchPoint() and IntervalSetNode::IsSinglePoint().
-      if (min_ptr && max_ptr && min_bd->min_value == min_ptr->value &&
-          max_bd->max_value == max_ptr->value) {
-        return result;
-      }
       return IntervalSet(static_cast<int>(min_bd->min_value), static_cast<int>(max_bd->max_value));
     }
     return result;
@@ -771,28 +772,10 @@ Map<Var, IntSet> ConvertDomMap(
   return dmap;
 }
 
-IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map,
-               const std::unordered_map<IterVar, Range>& rmap) {
-  Analyzer ana;
-  // Bind ana with rmap
-  for (auto entry : rmap) {
-    ana.Bind(entry.first->var, entry.second);
-  }
-  return IntervalSetEvaluator(&ana, dom_map, false).Eval(e);
-}
-
-IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map, const Map<IterVar, Range>& rmap) {
-  Analyzer ana;
-  // Bind ana with rmap
-  for (auto entry : rmap) {
-    ana.Bind(entry.first->var, entry.second);
-  }
-  return IntervalSetEvaluator(&ana, dom_map, false).Eval(e);
-}
-
 IntSet EvalSet(PrimExpr e,
                const Map<Var, IntSet>& dom_map) {
-  return EvalSet(e, dom_map, std::unordered_map<IterVar, Range>());
+  Analyzer ana;
+  return IntervalSetEvaluator(&ana, dom_map, false).Eval(e);
 }
 
 IntSet IntSet::vector(PrimExpr x) {
@@ -806,27 +789,14 @@ IntSet EvalSet(PrimExpr e,
   return EvalSet(e, ConvertDomMap(dom_map));
 }
 
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
+IntSet EvalSet(PrimExpr e,
+               const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   return EvalSet(e, ConvertDomMap(dom_map));
 }
 
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map,
-               const std::unordered_map<IterVar, Range>& rmap) {
-  return EvalSet(e, ConvertDomMap(dom_map), rmap);
-}
-
-IntSet EvalSet(PrimExpr e, const std::unordered_map<const VarNode*, IntSet>& dom_map,
-               const Map<IterVar, Range>& rmap) {
-  return EvalSet(e, ConvertDomMap(dom_map), rmap);
-}
-
-IntSet EvalSet(Range r, const Map<Var, IntSet>& dom_map,
-               const std::unordered_map<IterVar, Range>& rmap) {
+IntSet EvalSet(Range r,
+               const Map<Var, IntSet>& dom_map) {
   Analyzer ana;
-  // Bind ana with rmap
-  for (auto entry : rmap) {
-    ana.Bind(entry.first->var, entry.second);
-  }
   IntervalSetEvaluator m(&ana, dom_map);
   // Simplifying first can give tighter bounds if r->min and r->extent share variables
   PrimExpr sum = r->min + r->extent - 1;
@@ -835,17 +805,8 @@ IntSet EvalSet(Range r, const Map<Var, IntSet>& dom_map,
 }
 
 IntSet EvalSet(Range r,
-               const Map<Var, IntSet>& dom_map) {
-  return EvalSet(r, dom_map, std::unordered_map<IterVar, Range>());
-}
-
-IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map) {
+               const std::unordered_map<const VarNode*, IntSet>& dom_map) {
   return EvalSet(r, ConvertDomMap(dom_map));
-}
-
-IntSet EvalSet(Range r, const std::unordered_map<const VarNode*, IntSet>& dom_map,
-               const std::unordered_map<IterVar, Range>& rmap) {
-  return EvalSet(r, ConvertDomMap(dom_map), rmap);
 }
 
 IntSet EvalSet(IntSet s,
