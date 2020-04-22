@@ -472,6 +472,61 @@ def test_fuse_batchnorm_commutation():
     out = rewrite(BatchnormCallback(), BN)
     assert tvm.ir.structural_equal(out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon = 1e-5)[0])
 
+def test_quadruple_rewrite_dominator():
+    class DominatorRemovalCallback(DFPatternCallback):
+        def __init__(self):
+            self.inp = wildcard()
+            self.weight = wildcard()
+            
+            is_conv2d = is_op('nn.conv2d')(self.inp, self.weight)
+            is_unary_elemwise = (wildcard().has_attr("TOpPattern", K_ELEMWISE))(wildcard()) | is_op('add')(wildcard(), wildcard())
+            reduction = is_op('add')(wildcard(), wildcard())
+            self.pattern = dominates(is_conv2d, is_unary_elemwise, reduction)
+
+        def callback(self, pre, post, node_map):
+            inp = node_map[self.inp][0]
+            weight = node_map[self.weight][0]
+            return relay.op.nn.conv2d(inp, weight)
+
+    inp = relay.var('input')
+    weight = relay.var('weight')
+    # Classic Diamond
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Deeper Branch
+    conv2d = relay.op.nn.conv2d(out, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    relu = relay.op.tanh(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = relu + leaky_relu
+
+    # Single Branch
+    conv2d = relay.op.nn.conv2d(out, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relay.op.nn.relu(relu)
+    tanh = relay.op.tanh(relu)
+    out = relu + tanh
+
+    # Fuzzy path/nested Diamond
+    conv2d = relay.op.nn.conv2d(out, weight)
+    relu = relay.op.nn.relu(conv2d)
+    relu = relu + relu
+    tanh = relay.op.tanh(relu)
+    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+    out = tanh + leaky_relu
+    
+    one = relay.op.nn.conv2d(inp, weight)
+    two = relay.op.nn.conv2d(one, weight)
+    three = relay.op.nn.conv2d(two, weight)
+    four = relay.op.nn.conv2d(three, weight)
+
+    assert tvm.ir.structural_equal(DominatorRemovalCallback().rewrite(out), four)
+
 def algebraic_simplify(expr):
     zero = (ExprPattern(relay.const(0)) | ExprPattern(relay.const(0.0)))
     one = (ExprPattern(relay.const(1)) | ExprPattern(relay.const(1.0)))
@@ -558,14 +613,20 @@ def test_partition_dominator():
     # Classic Diamond
     inp = relay.var('input')
     weight = relay.var('weight')
-    conv2d = relay.op.nn.conv2d(inp*inp, weight*weight)
-    relu = relay.op.nn.relu(conv2d)
-    relu = relay.op.nn.relu(relu)
-    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
-    out = relu + leaky_relu
-
+    def generate_diamond(inp, weight):
+        conv2d = relay.op.nn.conv2d(inp, weight)
+        relu = relay.op.nn.relu(conv2d)
+        relu = relay.op.nn.relu(relu)
+        leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+        return relu + leaky_relu
+    out = generate_diamond(inp*inp, weight*weight)
     # Check
-    print(str(diamond.partition(out)))
+    partitioned = diamond.partition(out)
+
+    i = relay.Var("input")
+    w = relay.Var("weight")
+    f = relay.Function([i, w], generate_diamond(i, w))
+    assert tvm.ir.structural_equal(partitioned, f(inp*inp, weight*weight))
 
 def test_quadruple_partition_dominator():
     # Pattern
@@ -578,36 +639,68 @@ def test_quadruple_partition_dominator():
     inp = relay.var('input')
     weight = relay.var('weight')
     # Classic Diamond
-    conv2d = relay.op.nn.conv2d(inp, weight)
-    relu = relay.op.nn.relu(conv2d)
-    relu = relay.op.nn.relu(relu)
-    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
-    out = relu + leaky_relu
+    def classic_diamond(inp, weight):
+        conv2d = relay.op.nn.conv2d(inp, weight)
+        relu = relay.op.nn.relu(conv2d)
+        relu = relay.op.nn.relu(relu)
+        leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+        return relu + leaky_relu
 
     # Deeper Branch
-    conv2d = relay.op.nn.conv2d(out, weight)
-    relu = relay.op.nn.relu(conv2d)
-    relu = relay.op.nn.relu(relu)
-    relu = relay.op.tanh(relu)
-    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
-    out = relu + leaky_relu
+    def deeper_diamond(inp, weight):
+        conv2d = relay.op.nn.conv2d(inp, weight)
+        relu = relay.op.nn.relu(conv2d)
+        relu = relay.op.nn.relu(relu)
+        relu = relay.op.tanh(relu)
+        leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+        return relu + leaky_relu
 
     # Single Branch
-    conv2d = relay.op.nn.conv2d(out, weight)
-    relu = relay.op.nn.relu(conv2d)
-    relu = relay.op.nn.relu(relu)
-    tanh = relay.op.tanh(relu)
-    out = relu + tanh
+    def single_branch(inp, weight):
+        conv2d = relay.op.nn.conv2d(inp, weight)
+        relu = relay.op.nn.relu(conv2d)
+        relu = relay.op.nn.relu(relu)
+        tanh = relay.op.tanh(relu)
+        return relu + tanh
 
     # Fuzzy path/nested Diamond
-    conv2d = relay.op.nn.conv2d(out, weight)
-    relu = relay.op.nn.relu(conv2d)
-    relu = relu + relu
-    tanh = relay.op.tanh(relu)
-    leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
-    out = tanh + leaky_relu
+    def nested_diamond(inp, weight):
+        conv2d = relay.op.nn.conv2d(inp, weight)
+        relu = relay.op.nn.relu(conv2d)
+        relu = relu + relu
+        tanh = relay.op.tanh(relu)
+        leaky_relu = relay.op.nn.leaky_relu(conv2d, alpha=0)
+        return tanh + leaky_relu
 
-    print(str(diamond.partition(out)))
+    partitioned = diamond.partition(
+                    nested_diamond(
+                        single_branch(
+                            deeper_diamond(
+                                classic_diamond(inp, weight),
+                                weight),
+                            weight),
+                        weight
+                    )
+                )
+
+    functions = []
+    for f in [classic_diamond, deeper_diamond, single_branch, nested_diamond]:
+        inpf = relay.var("input")
+        weightf = relay.var("weight")
+        functions.append(relay.Function([inpf, weightf], f(inpf, weightf)))
+
+    reference = functions[3](
+                    functions[2](
+                        functions[1](
+                            functions[0](inp, weight),
+                            weight),
+                        weight),
+                    weight
+                )
+    assert tvm.ir.structural_equal(partitioned, reference)
+
+def get_BN(x, var, mean, beta, gamma, eps = 1e-5):
+    return gamma * (x - mean)/relay.op.sqrt(var + relay.const(eps)) + beta
 
 def test_parition_batchnorm():
     x = relay.var('x')
@@ -615,10 +708,19 @@ def test_parition_batchnorm():
     mean = relay.var('mean')
     beta = relay.var('beta')
     gamma = relay.var('gamma')
-    
-    BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
+    BN = get_BN(x, var, mean, beta, gamma)
 
-    print(str(BatchnormCallback().pattern.partition(BN)))
+    
+    xf = relay.var('xf')
+    varf = relay.var('varf')
+    meanf = relay.var('meanf')
+    betaf = relay.var('betaf')
+    gammaf = relay.var('gammaf')
+    # Put the arguments in toplogological order for the reference
+    f = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf))
+
+    partitioned = BatchnormCallback().pattern.partition(BN)
+    assert tvm.ir.structural_equal(partitioned, f(gamma, x, mean, var, beta))
 
 def test_parition_double_batchnorm():
     x = relay.var('x')
@@ -630,7 +732,23 @@ def test_parition_double_batchnorm():
     BN = gamma * (x - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
     BN2 = gamma * (BN - mean)/relay.op.sqrt(var + relay.const(1e-5)) + beta
 
-    print(str(BatchnormCallback().pattern.partition(BN2)))
+    xf = relay.var('xf')
+    varf = relay.var('varf')
+    meanf = relay.var('meanf')
+    betaf = relay.var('betaf')
+    gammaf = relay.var('gammaf')
+    f1 = relay.Function([gammaf, xf, meanf, varf, betaf], get_BN(xf, varf, meanf, betaf, gammaf))
+    # The paritioner doesn't replace duplicates, so we use two copies of the function
+    xf2 = relay.var('xf2')
+    varf2 = relay.var('varf2')
+    meanf2 = relay.var('meanf2')
+    betaf2 = relay.var('betaf2')
+    gammaf2 = relay.var('gammaf2')
+    f2 = relay.Function([gammaf2, xf2, meanf2, varf2, betaf2], get_BN(xf2, varf2, meanf2, betaf2, gammaf2))
+
+    partitioned = BatchnormCallback().pattern.partition(BN2)
+    reference = f2(gamma, f1(gamma, x, mean, var, beta), mean, var, beta)
+    assert tvm.ir.structural_equal(partitioned, reference)
 
 if __name__ == "__main__":
     test_match_op()

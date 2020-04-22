@@ -256,6 +256,7 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
   return false;
 }
 
+// Recursively find the Dominator parent along all inputs paths.
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
   bool out = true;
   auto call_node = expr.as<CallNode>();
@@ -277,6 +278,7 @@ bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& e
   return out;
 }
 
+// Iteratively ensure that the parent is dominated somewhere by the child or the path
 bool DFPatternMatcher::DominatesParent(const DominatorPatternNode* op, const Expr& expr) {
   std::stack<Expr> stack;
   std::unordered_set<Expr, ObjectHash, ObjectEqual> visited;
@@ -362,6 +364,156 @@ TVM_REGISTER_GLOBAL("relay.df_pattern.match").set_body_typed([](DFPattern patter
   return DFPatternMatcher(expr).Match(pattern, expr);
 });
 
+/* \brief PatternGrouper does pre-rewriting pattern matching and analysis
+ *
+ * This class creates a number of groups of matched expressions, ensures they don't overlap, and
+ * returns them to the caller for post-analysis rewriting.
+ *
+ * This is primarly needed to suppor the post-dominator analysis required for dominator pattern
+ * matching.
+ */
+class PatternGrouper : protected MixedModeVisitor {
+ public:
+  /* \brief Internal Group class for storing analysis */
+  struct Group {
+    Expr root_node;
+    int gid;
+    Map<DFPattern, Array<Expr>> matched_nodes;
+    Function function;
+    Array<Expr> args;
+  };
+
+  /* \brief Return the discovered groups */
+  const std::vector<Group>& GetGroups() { return this->groups_; }
+
+  /* \brief Return the group assingnments of expressions */
+  const std::unordered_map<Expr, int, ObjectHash, ObjectEqual>& GetGIDAssignments() {
+    return gid_assignments_;
+  }
+  /* \brief Group expressions that match the pattern */
+  void GroupMatches(const DFPattern& pattern, const Expr& pre) {
+    groups_ = {Group()};
+    gid_assignments_.clear();
+    visit_counter_.clear();
+
+    pattern_ = pattern;
+    pattern_graph_ = CreateIndexedGraph(pattern_);
+    auto matcher = DFPatternMatcher(pre);
+    matcher_ = &matcher;
+    this->VisitExpr(pre);
+  }
+
+ protected:
+  void VisitLeaf(const Expr& pre) override {
+    if (matcher_->Match(pattern_, pre)) {
+      CreateGroup(pre);
+    }
+  }
+
+  /* \brief Creates a new set of nodes based on Group inputs, used to create functions and perform
+   * group overlap analysis */
+  class MatchExtractor : public ExprMutator {
+   public:
+    explicit MatchExtractor(const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual>& inputs)
+        : inputs_(inputs) {}
+    const std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>& GetMemo() { return this->memo_; }
+
+   protected:
+    Expr VisitExpr(const Expr& pre) override {
+      if (inputs_.count(pre)) {
+        return inputs_.at(pre);
+      }
+      return ExprMutator::VisitExpr(pre);
+    }
+    const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs_;
+  };
+
+  /* \brief Create a group based on a matched expression */
+  void CreateGroup(const Expr& expr) {
+    var_number_ = 0;
+
+    auto node_map = matcher_->GetMemo();
+
+    // Get fuzzy patterns
+    std::unordered_set<Expr, ObjectHash, ObjectEqual> fuzzy_matches;
+    for (auto node : pattern_graph_.topological_order_) {
+      if (auto op = node->ref_.as<DominatorPatternNode>()) {
+        for (auto fuzzy_op : {op->parent, op->path}) {
+          for (auto match : node_map[fuzzy_op]) {
+            fuzzy_matches.insert(match);
+          }
+        }
+      }
+    }
+
+    // Create input variables
+    Group group;
+    group.root_node = expr;
+    group.matched_nodes = node_map;
+
+    std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs;
+    Array<Var> params;
+    for (auto node : pattern_graph_.topological_order_) {
+      if (node->inputs_.size() == 0) {
+        if (node_map.count(node->ref_)) {
+          auto matches = node_map[node->ref_];
+          for (auto match : matches) {
+            if (fuzzy_matches.count(match) == 0 && match.as<OpNode>() == nullptr &&
+                match.as<FunctionNode>() == nullptr && match.as<ConstantNode>() == nullptr) {
+              inputs[match] = Var("FunctionVar_" + std::to_string(graph_number_) + "_" +
+                                      std::to_string(var_number_),
+                                  NullValue<Type>());
+              group.args.push_back(match);
+              params.push_back(inputs[match]);
+              var_number_++;
+            }
+          }
+        }
+      }
+    }
+
+    graph_number_++;
+
+    // Extract a Function. Used in Parition directly,
+    // used to determine Group overlap in other passes
+    auto extractor = MatchExtractor(inputs);
+    auto body = extractor.Mutate(expr);
+
+    // Verify the pattern still holds
+    CHECK(DFPatternMatcher(body).Match(pattern_, body));
+    group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
+
+    // Check to make sure we aren't overlapping with another group
+    for (auto kv : extractor.GetMemo()) {
+      if (gid_assignments_.count(kv.first) != 0 && inputs.count(kv.first) == 0 &&
+          kv.first.as<OpNode>() == nullptr && kv.first.as<FunctionNode>() == nullptr &&
+          kv.first.as<ConstantNode>() == nullptr) {
+        // Exit due to overlapping partitions
+        return;
+      }
+    }
+    // Assign Group Ids
+    group.gid = ++gid_;
+    for (auto kv : extractor.GetMemo()) {
+      gid_assignments_[kv.first] = gid_;
+    }
+
+    // Save Group
+    groups_.emplace_back(std::move(group));
+    CHECK_EQ(groups_[gid_].gid, gid_);
+  }
+
+  // Internal State
+  DFPattern pattern_;
+  std::vector<Group> groups_;
+  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
+  DFPatternMatcher* matcher_ = nullptr;
+  IndexedGraph<DFPattern> pattern_graph_;
+  int gid_ = 0;
+  int var_number_ = 0;
+  int graph_number_ = 0;
+};
+
 // Rewrite
 
 DFPatternCallback DFPatternCallbackNode::make(DFPattern pattern, PackedFunc function) {
@@ -376,9 +528,16 @@ TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
     .set_body_typed(DFPatternCallbackNode::make);
 
+/* \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
+ * function to rewrtie those matches
+ *
+ * The class uses PatternGrouper to support the dominator pattern.
+ */
 class PatternRewriter : protected MixedModeMutator {
  public:
   PatternRewriter() {}
+  /*! \brief Rewrite can take a number of callbakcs and will repeatedly rewrite the graph with the
+   * callbacks until it stops changing */
   Expr Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
     auto post = pre;
     auto last = post;
@@ -386,9 +545,11 @@ class PatternRewriter : protected MixedModeMutator {
     do {
       last = post;
       for (auto callback : callbacks) {
-        callback_ = &callback;
-        auto matcher = DFPatternMatcher(post);
-        matcher_ = &matcher;
+        callback_ = callback;
+        auto grouper = PatternGrouper();
+        grouper.GroupMatches(callback_->pattern_, post);
+        groups_ = grouper.GetGroups();
+        gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
         post = this->VisitExpr(post);
       }
@@ -399,16 +560,26 @@ class PatternRewriter : protected MixedModeMutator {
  protected:
   Expr DispatchVisitExpr(const Expr& pre) override {
     auto post = MixedModeMutator::DispatchVisitExpr(pre);
-    if (auto* callback_node = callback_->as<DFPatternCallbackNode>()) {
-      if (matcher_->Match(callback_node->pattern_, post)) {
-        return callback_node->function_(pre, post, matcher_->GetMemo());
+    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
+      // Convert the pre-rewrite node map to a post-rewrite node map
+      auto group = groups_[gid_assignments_[pre]];
+      std::unordered_map<DFPattern, Array<Expr>, ObjectHash, ObjectEqual> node_map;
+      for (auto kv : group.matched_nodes) {
+        Array<Expr> tmp;
+        for (size_t i = 0; i < kv.second.size(); ++i) {
+          tmp.push_back(this->memo_[kv.second[i]]);
+        }
+        node_map.insert({kv.first, tmp});
       }
+      // run the user callback function
+      return callback_->function_(pre, post, Map<DFPattern, Array<Expr>>(node_map));
     }
     return post;
   }
 
-  DFPatternMatcher* matcher_ = nullptr;
-  DFPatternCallback* callback_ = nullptr;
+  DFPatternCallback callback_;
+  std::vector<PatternGrouper::Group> groups_;
+  std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
 };
 
 Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
@@ -417,105 +588,23 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite").set_body_typed(RewritePatterns);
 
+/* \brief PatternParitioner replaces expressions that match a pattern with function call that
+ * perform the same computation but allow for further analysis and lowering.
+ *
+ * The class uses PatternGrouper to support the dominator pattern.
+ */
 class PatternPartitioner : protected MixedModeMutator {
  public:
   Expr Partition(const DFPattern& pattern, const Expr& pre) {
-    pattern_ = pattern;
-    auto matcher = DFPatternMatcher(pre);
-    matcher_ = &matcher;
-    partitioning_ = true;
-    memo_.clear();
-    this->VisitExpr(pre);
-    memo_.clear();
-    partitioning_ = false;
+    auto grouper = PatternGrouper();
+    grouper.GroupMatches(pattern, pre);
+    groups_ = grouper.GetGroups();
+    gid_assignments_ = grouper.GetGIDAssignments();
     return this->VisitExpr(pre);
   }
 
  protected:
-  struct Group {
-    Expr root_node;
-    int gid;
-    Array<Expr> args;
-    Function function;
-  };
-  class PartitionRewriter : public ExprMutator {
-   public:
-    PartitionRewriter(const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual>& inputs)
-        : inputs_(inputs) {}
-    const std::unordered_map<Expr, Expr, ObjectHash, ObjectEqual>& GetMemo() { return this->memo_; }
-
-   protected:
-    Expr VisitExpr(const Expr& pre) override {
-      if (inputs_.count(pre)) {
-        return inputs_.at(pre);
-      }
-      return ExprMutator::VisitExpr(pre);
-    }
-    const std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs_;
-  };
-
-  void CreateGroup(const Expr& expr) {
-    var_number_ = 0;
-
-    auto node_map = matcher_->GetMemo();
-    auto pattern_graph = CreateIndexedGraph(pattern_);
-    // Get fuzzy patterns
-    std::unordered_set<Expr, ObjectHash, ObjectEqual> fuzzy_matches;
-    for (auto node : pattern_graph.topological_order_) {
-      if (auto op = node->ref_.as<DominatorPatternNode>()) {
-        for (auto fuzzy_op : {op->parent, op->path}) {
-          for (auto match : node_map[fuzzy_op]) {
-            fuzzy_matches.insert(match);
-          }
-        }
-      }
-    }
-    // Create input variables
-    Group group;
-    group.root_node = expr;
-    std::unordered_map<Expr, Var, ObjectHash, ObjectEqual> inputs;
-    Array<Var> params;
-    for (auto node : pattern_graph.topological_order_) {
-      if (node->inputs_.size() == 0) {
-        if (node_map.count(node->ref_)) {
-          auto matches = node_map[node->ref_];
-          for (auto match : matches) {
-            if (fuzzy_matches.count(match) == 0 && match.as<OpNode>() == nullptr &&
-                match.as<FunctionNode>() == nullptr) {
-              inputs[match] = Var("FunctionVar_" + std::to_string(graph_number_) + "_" +
-                                      std::to_string(var_number_),
-                                  NullValue<Type>());
-              group.args.push_back(match);
-              params.push_back(inputs[match]);
-              var_number_++;
-            }
-          }
-        }
-      }
-    }
-    graph_number_++;
-
-    // Make the new function
-    auto rewriter = PartitionRewriter(inputs);
-    auto body = rewriter.Mutate(expr);
-    CHECK(DFPatternMatcher(body).Match(pattern_, body));
-    group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
-    // Check to make sure we aren't overlapping with another group
-    for (auto kv : rewriter.GetMemo()) {
-      if (gid_assignments_.count(kv.first) != 0 && inputs.count(kv.first) == 0 &&
-          kv.first.as<OpNode>() == nullptr && kv.first.as<FunctionNode>() == nullptr) {
-        // Exit due to overlapping partitions
-        return;
-      }
-    }
-    group.gid = ++gid_;
-    for (auto kv : rewriter.GetMemo()) {
-      gid_assignments_[kv.first] = gid_;
-    }
-    groups_.emplace_back(std::move(group));
-    CHECK_EQ(groups_[gid_].gid, gid_);
-  }
-  Expr RewriteParition(const Group& group) {
+  Expr RewriteParition(const PatternGrouper::Group& group) {
     Array<Expr> args;
     for (size_t i = 0; i < group.args.size(); ++i) {
       args.push_back(memo_[group.args[i]]);
@@ -524,28 +613,15 @@ class PatternPartitioner : protected MixedModeMutator {
   }
 
   Expr DispatchVisitExpr(const Expr& pre) override {
-    Expr post = pre;
-    if (partitioning_) {
-      if (matcher_->Match(pattern_, pre)) {
-        CreateGroup(post);
-      }
-    } else {
-      post = MixedModeMutator::DispatchVisitExpr(pre);
-      if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
-        post = RewriteParition(groups_[gid_assignments_[pre]]);
-      }
+    auto post = MixedModeMutator::DispatchVisitExpr(pre);
+    if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
+      post = RewriteParition(groups_[gid_assignments_[pre]]);
     }
     return post;
   }
 
-  DFPatternMatcher* matcher_ = nullptr;
-  DFPattern pattern_;
+  std::vector<PatternGrouper::Group> groups_;
   std::unordered_map<Expr, int, ObjectHash, ObjectEqual> gid_assignments_;
-  std::vector<Group> groups_{Group()};
-  bool partitioning_ = true;
-  int var_number_ = 0;
-  int graph_number_ = 0;
-  int gid_ = 0;
 };
 
 Expr PartitionPattern(DFPattern pattern, Expr expr) {

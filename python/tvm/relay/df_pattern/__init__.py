@@ -476,13 +476,13 @@ def rewrite(callbacks, expr: Expr) -> Expr:
 
 def partition(pattern: DFPattern, expr: Expr) -> Expr:
     """
-    Rewrite expression with the given callbacks
+    Parition the expression into a series of functions that match the pattern
 
     Parameters
     ----------
     partion: tvm.relay.df_pattern.DFPattern
-        The pattern to separate into functions
+        The pattern to match
     expr : tvm.relay.Expr
-        The expression to rewrite.
+        The expression to split into functions
     """
     return ffi.partition(pattern, expr)
