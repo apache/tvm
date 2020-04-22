@@ -32,7 +32,7 @@ def verify_structure(stmt, expected_struct):
         key = op
         if isinstance(op, tvm.tir.IfThenElse):
             global var_list
-            tvm.tir.ir_pass.PostOrderVisit(op.condition, _extract_vars)
+            tvm.tir.stmt_functor.post_order_visit(op.condition, _extract_vars)
             val = [(op.then_case, op.else_case), ("IfThenElse", tuple(var_list))]
             var_list.clear()
         elif isinstance(op, tvm.tir.For):
@@ -43,7 +43,7 @@ def verify_structure(stmt, expected_struct):
             return
         node_dict[key] = val
 
-    tvm.tir.ir_pass.PostOrderVisit(stmt, _visit)
+    tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
     for key, val in node_dict.items():
         struct[val[1]] = tuple(node_dict[child][1] if child in node_dict
                                else None for child in val[0])

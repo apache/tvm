@@ -86,14 +86,14 @@ def FoldUopLoop():
                 raise RuntimeError("unexpected op %s" % op)
             return op
 
-        ret = tvm.tir.ir_pass.IRTransform(
+        ret = tvm.tir.stmt_functor.ir_transform(
             stmt.body, None, _post_order, ["Call"])
 
         if not fail[0] and all(x is not None for x in gemm_offsets):
             def _visit(op):
                 if op.same_as(loop_var):
                     fail[0] = True
-            tvm.tir.ir_pass.PostOrderVisit(ret, _visit)
+            tvm.tir.stmt_functor.post_order_visit(ret, _visit)
             if not fail[0]:
                 begin = tvm.tir.call_extern(
                     "int32", "VTAUopLoopBegin", stmt.extent, *gemm_offsets)
@@ -131,7 +131,7 @@ def FoldUopLoop():
         return None
 
     def _ftransform(f, mod, ctx):
-        return f.with_body(tvm.tir.ir_pass.IRTransform(
+        return f.with_body(tvm.tir.stmt_functor.ir_transform(
             f.body, _do_fold, None, ["AttrStmt"]))
 
     return tvm.tir.transform.prim_func_pass(
@@ -187,7 +187,7 @@ def CPUAccessRewrite():
             raise RuntimeError("not reached")
 
         stmt_in = f.body
-        stmt = tvm.tir.ir_pass.IRTransform(
+        stmt = tvm.tir.stmt_functor.ir_transform(
             stmt_in, None, _post_order, ["Allocate", "Load", "Store"])
 
         for buffer_var, new_var in rw_info.items():
@@ -253,7 +253,7 @@ def LiftAllocToScopeBegin():
                 return _merge_block(lift_stmt.pop() + [op], op.body)
             raise RuntimeError("not reached")
         stmt_in = f.body
-        stmt = tvm.tir.ir_pass.IRTransform(
+        stmt = tvm.tir.stmt_functor.ir_transform(
             stmt_in, _pre_order, _post_order, ["Allocate", "AttrStmt", "For"])
         assert len(lift_stmt) == 1
         return f.with_body(_merge_block(lift_stmt[0], stmt))
@@ -276,7 +276,7 @@ def InjectSkipCopy():
         return None
 
     def _ftransform(f, mod, ctx):
-        return f.with_body(tvm.tir.ir_pass.IRTransform(
+        return f.with_body(tvm.tir.stmt_functor.ir_transform(
             f.body, _do_fold, None, ["AttrStmt"]))
 
     return tvm.tir.transform.prim_func_pass(
@@ -306,7 +306,7 @@ def InjectCoProcSync():
                     op.loop_var, op.min, 2, op.for_type,
                     op.device_api, op.body)
             return None
-        return f.with_body(tvm.tir.ir_pass.IRTransform(
+        return f.with_body(tvm.tir.stmt_functor.ir_transform(
             f.body, None, _do_fold, ["AttrStmt"]))
     return tvm.transform.Sequential(
         [tvm.tir.transform.prim_func_pass(_ftransform, 0, "tir.vta.InjectCoProcSync"),
@@ -635,7 +635,7 @@ def InjectConv2DTransposeSkip():
         def _do_fold(op):
             if _match_pragma(op, "conv2d_transpose_gemm"):
                 is_init = ".init" in str(op)
-                tvm.tir.ir_pass.PostOrderVisit(op, _find_basics)
+                tvm.tir.stmt_functor.post_order_visit(op, _find_basics)
 
                 if is_init:
                     # create inner most block
@@ -707,7 +707,7 @@ def InjectConv2DTransposeSkip():
                     return inner
             return None
 
-        return func.with_body(tvm.tir.ir_pass.IRTransform(
+        return func.with_body(tvm.tir.stmt_functor.ir_transform(
             func.body, _do_fold, None, ["AttrStmt"]))
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.InjectConv2DTrasnposeSkip")
@@ -736,7 +736,7 @@ def AnnotateALUCoProcScope():
                 return tvm.tir.Evaluate(0)
             return stmt
 
-        return func.with_body(tvm.tir.ir_pass.IRTransform(
+        return func.with_body(tvm.tir.stmt_functor.ir_transform(
             func.body, None, _do_fold, ["AttrStmt"]))
     return tvm.tir.transform.prim_func_pass(
         _ftransform, opt_level=0, name="tir.vta.AnnotateALUCoProcScope")
@@ -955,7 +955,7 @@ def InjectALUIntrin():
                 return irb.get()
             return stmt
 
-        return func.with_body(tvm.tir.ir_pass.IRTransform(
+        return func.with_body(tvm.tir.stmt_functor.ir_transform(
             func.body, None, _do_fold, ["AttrStmt"]))
 
     return tvm.tir.transform.prim_func_pass(
