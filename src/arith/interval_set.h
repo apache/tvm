@@ -62,12 +62,7 @@ class IntervalSetNode : public IntSetNode {
   }
   /*! \return Whether the interval is a single point. */
   bool IsSinglePoint() const {
-    if (min_value.same_as(max_value)) {
-      return true;
-    }
-    const auto* min_ptr = min_value.as<IntImmNode>();
-    const auto* max_ptr = max_value.as<IntImmNode>();
-    return (min_ptr && max_ptr && max_ptr->value == min_ptr->value);
+    return min_value.same_as(max_value);
   }
   /*! \return whether interval represent nothing */
   bool IsEmpty() const {
