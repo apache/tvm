@@ -96,10 +96,28 @@ class AnnotateTargetWrapper : public ExprMutator {
 
     Array<Expr> compiler_begins;
     for (const auto& end : compiler_ends) {
-      compiler_begins.push_back(InsertAnnotation(end, op_target, make_begin_op));
+      if (IsConstant(end)) {
+        compiler_begins.push_back(end);
+      } else {
+        compiler_begins.push_back(InsertAnnotation(end, op_target, make_begin_op));
+      }
     }
 
     return {op_target, compiler_begins};
+  }
+
+  bool IsConstant(const Expr& expr) {
+    if (expr->IsInstance<ConstantNode>())
+      return true;
+    if (expr->IsInstance<TupleNode>()) {
+      auto tuple = expr.as<TupleNode>();
+      for (const auto& field : tuple->fields) {
+        if (!field->IsInstance<ConstantNode>())
+          return false;
+      }
+      return true;
+    }
+    return false;
   }
 
   Expr InsertAnnotation(const Expr& expr, const std::string& target, const PackedFunc* ann_op) {
@@ -198,6 +216,9 @@ class AnnotateTargetWrapper : public ExprMutator {
   Expr VisitExpr_(const TupleNode* op) final {
     auto new_e = ExprMutator::VisitExpr_(op);
     auto expr = Downcast<Tuple>(new_e);
+
+    if (IsConstant(expr))
+      return std::move(expr);
 
     auto target_n_args = AnnotateArgs(expr->fields);
     auto new_expr = Tuple(std::get<1>(target_n_args));

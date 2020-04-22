@@ -363,7 +363,39 @@ def test_multiple_runs():
     assert tvm.ir.structural_equal(expected, mod)
 
 
+def test_constant_annotation():
+    @reg.register("qnn.concatenate", "target.const_test")
+    def add(attrs, args):  # pylint: disable=unused-variable
+        return True
+
+    def before():
+        a = relay.var('a', shape=(10, 10), dtype="uint8")
+        b = relay.var('b', shape=(10, 10), dtype="uint8")
+        a1 = relay.abs(a)
+
+        zeroi = relay.const(1, "int32")
+        zerof = relay.const(0, "float32")
+        con = relay.qnn.op.concatenate((a1, b),
+                                       input_scales=(zerof, zerof),
+                                       input_zero_points=(zeroi, zeroi),
+                                       output_scale=zerof,
+                                       output_zero_point=zeroi,
+                                       axis=1)
+
+        f = relay.Function([a, b], con)
+        mod = tvm.IRModule.from_expr(f)
+        return mod
+
+    mod = transform.AnnotateTarget("const_test")(before())
+    concat = mod["main"].body.args[0]
+    assert type(concat.args[1]) == relay.Tuple
+    assert type(concat.args[2]) == relay.Tuple
+    assert type(concat.args[3]) == relay.Constant
+    assert type(concat.args[4]) == relay.Constant
+
+
 if __name__ == "__main__":
+    test_constant_annotation()
     test_extern_dnnl()
     test_composite_function()
     #test_extern_dnnl_mobilenet()
