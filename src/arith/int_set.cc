@@ -45,17 +45,6 @@ PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
 
 IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
   auto node = make_object<IntervalSetNode>();
-  if (!min_value.same_as(max_value) && min_value->IsInstance<IntImmNode>() &&
-      max_value->IsInstance<IntImmNode>()) {
-    const auto* min_ptr = min_value.as<IntImmNode>();
-    const auto* max_ptr = max_value.as<IntImmNode>();
-    if (min_ptr->value == max_ptr->value) {
-      node->min_value = std::move(min_value);
-      node->max_value = node->min_value;
-      data_ = node;
-      return;
-    }
-  }
   node->min_value = std::move(min_value);
   node->max_value = std::move(max_value);
   data_ = std::move(node);
@@ -398,17 +387,7 @@ class IntervalSetEvaluator :
   }
 
   IntervalSet Eval(const PrimExpr& val) {
-    IntervalSet result = this->VisitExpr(val);
-    // Use the IterVar range info bound to analyzer to further simplify
-    // and reduce the interval
-    auto min_value_expr = analyzer_->Simplify(result->min_value);
-    auto max_value_expr = analyzer_->Simplify(result->max_value);
-    auto min_bd = analyzer_->const_int_bound(min_value_expr);
-    auto max_bd = analyzer_->const_int_bound(max_value_expr);
-    if (min_bd->max_value == min_bd->min_value && max_bd->max_value == max_bd->min_value) {
-      return IntervalSet(static_cast<int>(min_bd->min_value), static_cast<int>(max_bd->max_value));
-    }
-    return result;
+    return this->VisitExpr(val);
   }
   // evaluate and relax the set
   IntervalSet Eval(IntervalSet val) {
@@ -554,7 +533,14 @@ class IntervalSetEvaluator :
   // whether set is exactly single point that equals value.
   bool MatchPoint(const IntervalSet& set,
                   const PrimExpr& value) const {
-    return set->min_value.same_as(value) && set->max_value.same_as(value);
+    if (set->min_value.same_as(value) && set->max_value.same_as(value)) {
+      return true;
+    }
+    const auto* min_ptr = set->min_value.as<IntImmNode>();
+    const auto* max_ptr = set->max_value.as<IntImmNode>();
+    const auto* value_ptr = value.as<IntImmNode>();
+    return (min_ptr && max_ptr && value_ptr && value_ptr->value == min_ptr->value &&
+        value_ptr->value == max_ptr->value);
   }
 
   template<typename T>
