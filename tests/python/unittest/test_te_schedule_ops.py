@@ -155,7 +155,7 @@ def test_inline_mixed():
     def check(x):
         if isinstance(x, tvm.tir.Call):
             assert x.func != A2
-    tvm.tir.ir_pass.PostOrderVisit(s[C].op.body[0], check)
+    tvm.tir.stmt_functor.post_order_visit(s[C].op.body[0], check)
 
 
 def test_scan_inline1():
@@ -517,7 +517,7 @@ def test_local_stage_predicate():
 
     def collect_visit(stmt, f):
         ret = []
-        tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
+        tvm.tir.stmt_functor.post_order_visit(stmt, lambda x: ret.append(f(x)))
         return ret
     # local vs. threadIdx
     s = schedule(tx, "local")
@@ -563,7 +563,7 @@ def test_local_stage_predicate2():
 
     def collect_visit(stmt, f):
         ret = []
-        tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x: ret.append(f(x)))
+        tvm.tir.stmt_functor.post_order_visit(stmt, lambda x: ret.append(f(x)))
         return ret
 
     def visit_stmt(op):

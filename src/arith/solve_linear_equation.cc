@@ -26,9 +26,10 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/util.h>
-#include <tvm/tir/op.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/tir/ir_pass.h>
+
+#include <tvm/tir/op.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/data_type.h>
 
 namespace tvm {
@@ -130,10 +131,10 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
           (*S)[i][j] = new_i_j;
         }
         // We have to do the same with rhs
-        PrimExpr ea = te::make_const((*y)[index].dtype(), a);
-        PrimExpr eb = te::make_const((*y)[i].dtype(), b);
-        PrimExpr e_m_g = te::make_const((*y)[i].dtype(), m_g);
-        PrimExpr e_n_g = te::make_const((*y)[index].dtype(), n_g);
+        PrimExpr ea = tir::make_const((*y)[index].dtype(), a);
+        PrimExpr eb = tir::make_const((*y)[i].dtype(), b);
+        PrimExpr e_m_g = tir::make_const((*y)[i].dtype(), m_g);
+        PrimExpr e_n_g = tir::make_const((*y)[index].dtype(), n_g);
         PrimExpr new_index_rhs = ea*(*y)[index] + eb*(*y)[i];
         PrimExpr new_i_rhs = e_n_g*(*y)[index] - e_m_g*(*y)[i];
         (*y)[index] = new_index_rhs;
@@ -190,10 +191,10 @@ void SmithNormalFormDiag(std::vector<std::vector<int64_t> >* S,
           (*V)[i][j] = new_i_j;
         }
         // And apply reverse transformations to new_to_old.
-        PrimExpr ea = te::make_const((*x)[j].dtype(), a);
-        PrimExpr eb = te::make_const((*x)[index].dtype(), b);
-        PrimExpr e_m_g = te::make_const((*x)[index].dtype(), m_g);
-        PrimExpr e_n_g = te::make_const((*x)[j].dtype(), n_g);
+        PrimExpr ea = tir::make_const((*x)[j].dtype(), a);
+        PrimExpr eb = tir::make_const((*x)[index].dtype(), b);
+        PrimExpr e_m_g = tir::make_const((*x)[index].dtype(), m_g);
+        PrimExpr e_n_g = tir::make_const((*x)[j].dtype(), n_g);
         PrimExpr new_index = e_m_g*(*x)[index] + e_n_g*(*x)[j];
         PrimExpr new_j = eb*(*x)[index] - ea*(*x)[j];
         (*x)[index] = new_index;
@@ -369,7 +370,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
           IntConstraints(
               /*variables=*/{},
               /*ranges=*/{},
-              /*relations=*/{te::make_zero(DataType::Bool())}),
+              /*relations=*/{tir::make_zero(DataType::Bool())}),
           {}, {});
     } else if (!tir::is_const_int(new_relation, 1)) {
       new_relations.push_back(new_relation);
@@ -403,13 +404,13 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
       // The j-th variable is just a single value, don't create a tvm variable
       // S^{-1}_{nxm} Uy_{mxn}
       if (S[j][j] >= 0) {
-        PrimExpr a = te::make_const(Uy[j].dtype(), S[j][j]);
+        PrimExpr a = tir::make_const(Uy[j].dtype(), S[j][j]);
         solution_for_V_inv_x.push_back(
             analyzer_problem.Simplify(floordiv(Uy[j], a)));
       } else {
         // This is required because some simplifiers
         // have problems with dividing by negative numbers
-        PrimExpr a = te::make_const(Uy[j].dtype(), -S[j][j]);
+        PrimExpr a = tir::make_const(Uy[j].dtype(), -S[j][j]);
         solution_for_V_inv_x.push_back(
             analyzer_problem.Simplify(floordiv(-Uy[j], a)));
       }
@@ -418,9 +419,9 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
 
   // V V^{-1} x = x
   for (size_t i = 0; i < num_vars; ++i) {
-    PrimExpr e = te::make_zero(system_to_solve->variables[i].dtype());
+    PrimExpr e = tir::make_zero(system_to_solve->variables[i].dtype());
     for (size_t j = 0; j < num_vars; ++j) {
-      e = e + te::make_const(e.dtype(), V[i][j])*solution_for_V_inv_x[j];
+      e = e + tir::make_const(e.dtype(), V[i][j])*solution_for_V_inv_x[j];
     }
     e = analyzer_problem.Simplify(e);
     old_to_new_map.Set(system_to_solve->variables[i], e);

@@ -24,7 +24,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <memory>
 #include <limits>
 #include "../pass/ir_util.h"
@@ -363,8 +363,8 @@ Array<PrimExpr> CommReducerNode::operator()(Array<PrimExpr> a, Array<PrimExpr> b
     value_map.Set(rhs[i], b[i]);
   }
   return UpdateArray(result, [&value_map] (const PrimExpr& e) {
-      return Substitute(e, value_map);
-    });
+    return Substitute(e, value_map);
+  });
 }
 
 TVM_REGISTER_GLOBAL("tir.CommReducer")

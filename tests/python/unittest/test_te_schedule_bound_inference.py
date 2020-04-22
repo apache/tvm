@@ -148,8 +148,8 @@ def test_bound_fusesplit1():
             for k in range(1, 6):
                 vars = tvm.runtime.convert({split1: tvm.tir.const(i, "int32"), l: tvm.tir.const(j, "int32"), xo.var: tvm.tir.const(k, "int32")})
                 tvm.testing.assert_prim_expr_equal(
-                    tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars),
-                    tvm.tir.ir_pass.Substitute(expected_extent, vars)
+                    tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[0]].extent, vars),
+                    tvm.tir.stmt_functor.substitute(expected_extent, vars)
                 )
 
     tvm.testing.assert_prim_expr_equal(bounds[A1.op.axis[1]].extent, l)
@@ -170,10 +170,10 @@ def test_bound_fusesplit2():
     bounds = tvm.te.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     vars = tvm.runtime.convert({xo.var: tvm.tir.const(5, "int32")})
-    tvm.testing.assert_prim_expr_equal(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[0]].min, vars), 2)
-    tvm.testing.assert_prim_expr_equal(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[1]].min, vars), 3)
-    tvm.testing.assert_prim_expr_equal(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[0]].extent, vars), 1)
-    tvm.testing.assert_prim_expr_equal(tvm.tir.ir_pass.Substitute(bounds[A1.op.axis[1]].extent, vars), 3)
+    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[0]].min, vars), 2)
+    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[1]].min, vars), 3)
+    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[0]].extent, vars), 1)
+    tvm.testing.assert_prim_expr_equal(tvm.tir.stmt_functor.substitute(bounds[A1.op.axis[1]].extent, vars), 3)
 
 
 def test_bound_warp():

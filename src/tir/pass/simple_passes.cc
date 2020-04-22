@@ -52,79 +52,7 @@ bool HasSideEffect(const PrimExpr& e) {
   return v.has_side_effect_;
 }
 
-class IRSubstitue : public StmtExprMutator {
- public:
-  explicit IRSubstitue(
-      const std::unordered_map<const VarNode*, PrimExpr>& smap)
-      : smap_(smap) {
-  }
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
-    auto it = smap_.find(op);
-    if (it != smap_.end()) {
-      return it->second;
-    } else {
-      return GetRef<PrimExpr>(op);
-    }
-  }
-
-  PrimExpr VisitExpr_(const LoadNode* op) final {
-    // NOTE: we do not explicit recursivly mutate op->buffer_var
-    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
-    op = ret.as<LoadNode>();
-    auto it = smap_.find(op->buffer_var.get());
-    if (it != smap_.end()) {
-      return LoadNode::make(
-          op->dtype, Downcast<Var>(it->second), op->index, op->predicate);
-    } else {
-      return ret;
-    }
-  }
-
-  Stmt VisitStmt_(const StoreNode* op) final {
-    // NOTE: we do not explicit recursivly mutate op->buffer_var
-    Stmt ret = StmtExprMutator::VisitStmt_(op);
-    op = ret.as<StoreNode>();
-    auto it = smap_.find(op->buffer_var.get());
-    if (it != smap_.end()) {
-      return StoreNode::make(
-          Downcast<Var>(it->second), op->value, op->index, op->predicate);
-    } else {
-      return ret;
-    }
-  }
-
- private:
-  const std::unordered_map<const VarNode*, PrimExpr>& smap_;
-};
-
-Stmt Substitute(Stmt stmt,
-                const std::unordered_map<const VarNode*, PrimExpr>& value_map) {
-  if (value_map.size() == 0) return stmt;
-  return IRSubstitue(value_map)(std::move(stmt));
-}
-
-PrimExpr Substitute(PrimExpr expr,
-                const std::unordered_map<const VarNode*, PrimExpr>& value_map) {
-  if (value_map.size() == 0) return expr;
-  return IRSubstitue(value_map)(std::move(expr));
-}
-
-Stmt Substitute(Stmt stmt, const Map<Var, PrimExpr>& value_map) {
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  for (const auto& kv : value_map) {
-    vmap[kv.first.get()] = kv.second;
-  }
-  return Substitute(stmt, vmap);
-}
-
-PrimExpr Substitute(PrimExpr expr, const Map<Var, PrimExpr>& value_map) {
-  std::unordered_map<const VarNode*, PrimExpr> vmap;
-  for (const auto& kv : value_map) {
-    vmap[kv.first.get()] = kv.second;
-  }
-  return Substitute(expr, vmap);
-}
 
 class VarTouchVisitor : public ExprVisitor {
  public:
