@@ -23,6 +23,7 @@
  */
 
 #include <topi/elemwise.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/relay/attrs/memory.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
@@ -107,21 +108,22 @@ TVM_REGISTER_GLOBAL("relay.op.memory._make.alloc_tensor")
 std::vector<int64_t> FromConstShape(Constant konst) {
   runtime::NDArray shape = konst->data;
   std::vector<int64_t> raw_shape;
-  DLTensor tensor = shape.ToDLPack()->dl_tensor;
-  CHECK_EQ(tensor.ndim, 1u);
-  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
+  CHECK_EQ(shape->ndim, 1u);
+  CHECK_EQ(shape->dtype.code, 0U)
+    << "The dtype of constant shape must be int32 or int64, but got "
+    << runtime::DLDataType2String(shape->dtype);
+  CHECK(shape->dtype.bits == 64 || shape->dtype.bits == 32)
+    << "The dtype of constant shape must be int32 or int64, but got"
+    << runtime::DLDataType2String(shape->dtype);
 
-  CHECK(tensor.dtype.bits == 64 || tensor.dtype.bits == 32)
-      << "found " << static_cast<int>(tensor.dtype.bits);
-
-  if (tensor.dtype.bits == 32) {
-    const int32_t* int_ptr = reinterpret_cast<int32_t*>(tensor.data);
-    for (auto i = 0; i < tensor.shape[0]; i++) {
+  if (shape->dtype.bits == 32) {
+    const int32_t* int_ptr = reinterpret_cast<int32_t*>(shape->data);
+    for (auto i = 0; i < shape->shape[0]; i++) {
       raw_shape.push_back(int_ptr[i]);
     }
-  } else if (tensor.dtype.bits == 64) {
-    const int64_t* int_ptr = reinterpret_cast<int64_t*>(tensor.data);
-    for (auto i = 0; i < tensor.shape[0]; i++) {
+  } else if (shape->dtype.bits == 64) {
+    const int64_t* int_ptr = reinterpret_cast<int64_t*>(shape->data);
+    for (auto i = 0; i < shape->shape[0]; i++) {
       raw_shape.push_back(int_ptr[i]);
     }
   }
