@@ -31,12 +31,16 @@ def test_unroll_loop():
             Aptr[j + 1] = Aptr[i] + 1
 
     stmt = ib.get()
+    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
+
     assert isinstance(stmt, tvm.tir.For)
-    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 16, 8, 0, True)
+
+    ret = tvm.tir.transform.UnrollLoop(16, 8, 0, True)(mod)["main"].body
+
     assert not isinstance(ret, tvm.tir.For)
-    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 15, 8, 0, True)
+    ret = tvm.tir.transform.UnrollLoop(15, 8, 0, True)(mod)["main"].body
     assert isinstance(ret, tvm.tir.For)
-    ret = tvm.tir.ir_pass.UnrollLoop(stmt, 16, 8, 0, False)
+    ret = tvm.tir.transform.UnrollLoop(16, 8, 0, False)(mod)["main"].body
     assert isinstance(ret, tvm.tir.For)
     assert ret.for_type == tvm.tir.For.Unrolled
 
@@ -46,11 +50,9 @@ def test_unroll_loop():
     wrapped = ib.get()
     wrapped = tvm.tir.SeqStmt([wrapped, stmt])
     assert isinstance(ret, tvm.tir.For)
-
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], wrapped))
     ret = tvm.tir.transform.UnrollLoop(0, 8, 0, False)(mod)["main"].body
 
-    # ret = tvm.tir.ir_pass.UnrollLoop(wrapped, 0, 8, 0, False)
     assert isinstance(ret[0], tvm.tir.For)
     assert ret[0].for_type == tvm.tir.For.Unrolled
     assert isinstance(ret[1], tvm.tir.For)
@@ -72,8 +74,6 @@ def test_unroll_fake_loop():
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt))
     ret = tvm.tir.transform.UnrollLoop(8, 0, 1, False)(mod)["main"].body
-
-    # ret = tvm.tir.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
     assert isinstance(ret[0], tvm.tir.Store)
 
 def test_unroll_single_count_loops():

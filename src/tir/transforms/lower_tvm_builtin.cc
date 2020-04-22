@@ -24,12 +24,11 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/registry.h>
 
 #include <unordered_set>
 
-#include "../pass/ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {

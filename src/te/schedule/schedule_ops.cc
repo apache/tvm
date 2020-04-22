@@ -22,7 +22,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
@@ -31,7 +31,7 @@
 #include <unordered_set>
 #include "graph.h"
 #include "../operation/op_util.h"
-#include "../../tir/pass/ir_util.h"
+#include "../../tir/transforms/ir_util.h"
 
 namespace tvm {
 namespace te {

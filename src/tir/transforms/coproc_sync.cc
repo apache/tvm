@@ -26,8 +26,8 @@
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "../pass/ir_util.h"
-#include "../pass/storage_access.h"
+#include "ir_util.h"
+#include "storage_access.h"
 
 namespace tvm {
 namespace tir {
@@ -677,9 +677,6 @@ class CoProcSyncInserter : public StmtMutator {
 Stmt CoProcSync(Stmt stmt) {
   return CoProcSyncInserter().Insert(std::move(stmt));
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.CoProcSync")
-.set_body_typed(CoProcSync);
 
 namespace transform {
 

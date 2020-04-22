@@ -18,44 +18,22 @@
  */
 
 /*!
- * \file simple_passes.cc
+ * \file simple_analysis.cc
  * \brief Implementation of simple passes
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
 
-class IRSideEffect : public ExprVisitor {
- public:
-  void VisitExpr(const PrimExpr& e) final {
-    if (has_side_effect_) return;
-    ExprVisitor::VisitExpr(e);
-  }
-
-  void VisitExpr_(const CallNode* op) final {
-    if (!op->is_pure()) {
-      has_side_effect_ = true; return;
-    } else {
-      ExprVisitor::VisitExpr_(op);
-    }
-  }
-
-  bool has_side_effect_{false};
-};
-
-bool HasSideEffect(const PrimExpr& e) {
-  IRSideEffect v;
-  v(e);
-  return v.has_side_effect_;
-}
-
-
-
 class VarTouchVisitor : public ExprVisitor {
  public:
+  explicit VarTouchVisitor(
+      std::function<bool(const VarNode*)> var_set)
+      : var_set_(var_set) {}
+
   void VisitExpr(const PrimExpr& e) final {
     if (use_var_) return;
     ExprVisitor::VisitExpr(e);
@@ -70,45 +48,20 @@ class VarTouchVisitor : public ExprVisitor {
     ExprVisitor::VisitExpr_(op);
   }
 
-  virtual void Handle(const VarNode* var) = 0;
+  void Handle(const VarNode* var) {
+    if (var_set_(var)) use_var_ = true;
+  }
 
   bool use_var_{false};
-};
 
-class ExprUseVarVisitor : public VarTouchVisitor {
- public:
-  explicit ExprUseVarVisitor(const VarNode* var)
-      : var_(var) {}
-
-  void Handle(const VarNode* var) final {
-    if (var == var_) use_var_ = true;
-  }
  private:
-  const VarNode* var_;
+  std::function<bool(const VarNode*)> var_set_;
 };
 
-class ExprUseVSetVisitor : public VarTouchVisitor {
- public:
-  explicit ExprUseVSetVisitor(
-      const std::unordered_set<const VarNode*>& vset)
-      : vset_(vset) {}
-
-  void Handle(const VarNode* var) final {
-    if (vset_.count(var)) use_var_ = true;
-  }
- private:
-  const std::unordered_set<const VarNode*>& vset_;
-};
-
-bool ExprUseVar(const PrimExpr& e, const Var& v) {
-  ExprUseVarVisitor visitor(v.get());
-  visitor(e);
-  return visitor.use_var_;
-}
 
 bool ExprUseVar(const PrimExpr& e,
-                const std::unordered_set<const VarNode*>& vset) {
-  ExprUseVSetVisitor visitor(vset);
+                std::function<bool(const VarNode*)> var_set) {
+  VarTouchVisitor visitor(var_set);
   visitor(e);
   return visitor.use_var_;
 }

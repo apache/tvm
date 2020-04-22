@@ -23,7 +23,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
@@ -150,9 +150,6 @@ class NoOpRemover : public StmtMutator {
 Stmt RemoveNoOp(Stmt stmt) {
   return NoOpRemover()(std::move(stmt));
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.RemoveNoOp")
-.set_body_typed(RemoveNoOp);
 
 namespace transform {
 

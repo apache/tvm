@@ -200,8 +200,6 @@ Stmt InjectCopyIntrin(Stmt stmt,
   return CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(stmt));
 }
 
-TVM_REGISTER_GLOBAL("ir_pass.InjectCopyIntrin")
-.set_body_typed(InjectCopyIntrin);
 
 namespace transform {
 

@@ -29,7 +29,6 @@
 #include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/target/target_info.h>
 #include <tvm/target/target.h>

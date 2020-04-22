@@ -24,7 +24,7 @@
 // Use libspirv for parsing and validating code.
 #include <libspirv.h>
 #include <dmlc/memory_io.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 
 #include "codegen_spirv.h"
 #include "../build_common.h"
@@ -80,6 +80,8 @@ runtime::Module BuildSPIRV(IRModule mod) {
 
   const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
 
+  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
+
   CodeGenSPIRV cg;
 
   for (auto kv :  mod->functions) {
@@ -94,7 +96,7 @@ runtime::Module BuildSPIRV(IRModule mod) {
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
     std::string f_name = global_symbol.value();
-    f = PointerValueTypeRewrite(std::move(f));
+
     VulkanShader shader;
     shader.data = cg.BuildFunction(f);
 

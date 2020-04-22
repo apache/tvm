@@ -26,7 +26,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
-#include "../pass/ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {
@@ -192,8 +192,6 @@ Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {
   return AttrScopeLifter(attr_key).Lift(std::move(stmt));
 }
 
-TVM_REGISTER_GLOBAL("ir_pass.LiftAttrScope")
-.set_body_typed(LiftAttrScope);
 
 namespace transform {
 

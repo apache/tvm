@@ -22,7 +22,6 @@
  * \brief Helper utility to match and bind arguments.
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/device_api.h>
 #include "ir_util.h"
 #include "arg_binder.h"

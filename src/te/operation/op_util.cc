@@ -22,7 +22,6 @@
  * \file op_util.cc
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/te/operation.h>
 #include <string>

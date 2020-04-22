@@ -22,10 +22,12 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <utility>
 #include "operation_inline.h"
+#include "../../tir/transforms/ir_util.h"
+
 
 namespace tvm {
 namespace te {

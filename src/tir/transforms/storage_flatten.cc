@@ -35,8 +35,8 @@
 #include <tvm/target/target_info.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
-#include "../pass/ir_util.h"
-#include "../pass/arg_binder.h"
+#include "ir_util.h"
+#include "arg_binder.h"
 #include "../../arith/compute_expr.h"
 #include "../../arith/ir_visitor_with_analyzer.h"
 #include "../../runtime/thread_storage_scope.h"
