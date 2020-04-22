@@ -138,6 +138,7 @@ class ConstIntBoundAnalyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
+   * \param override Whether do we allow override of existing information.
    */
   TVM_DLL void Bind(const Var& var, const Range& range, bool override = false);
 
@@ -411,6 +412,7 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param expr The expression we bind to.
+   * \param override Whether do we allow override of existing information.
    */
   void Bind(const Var& var, const PrimExpr& expr, bool override = false);
   /*!
@@ -421,12 +423,14 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
+   * \param override Whether do we allow override of existing information.
    */
   void Bind(const Var& var, const Range& range, bool override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
+   * \param override Whether do we allow override of existing information.
    */
   void Bind(const Map<Var, Range>& variables, bool override = false);
   /*!
