@@ -82,40 +82,6 @@ bool ExprUseVar(const PrimExpr& e, const std::unordered_set<const VarNode*>& vse
 TVM_DLL Stmt ConvertSSA(Stmt stmt);
 
 /*!
- * \brief Substitute the var specified in key->var to be value.
- * \param stmt The source statement to be substituted
- * \param value_map The map of new values.
- * \return The converted form.
- */
-Stmt Substitute(Stmt stmt,
-                const std::unordered_map<const VarNode*, PrimExpr>& value_map);
-
-/*!
- * \brief Substitute the var specified in key->var to be value.
- * \param expr The source expression to be substituted
- * \param value_map The map of new values.
- * \return The converted expression.
- */
-PrimExpr Substitute(PrimExpr expr,
-                const std::unordered_map<const VarNode*, PrimExpr>& value_map);
-
-/*!
- * \brief Substitute the var specified in key->var to be value.
- * \param stmt The source statement to be substituted
- * \param value_map The map of new values.
- * \return The converted form.
- */
-Stmt Substitute(Stmt stmt, const Map<Var, PrimExpr>& value_map);
-
-/*!
- * \brief Substitute the var specified in key->var to be value.
- * \param expr The source expression to be substituted
- * \param value_map The map of new values.
- * \return The converted expression.
- */
-PrimExpr Substitute(PrimExpr expr, const Map<Var, PrimExpr>& value_map);
-
-/*!
  * \brief Verify if there is any argument bound to compact buffer.
  *
  * \param stmt The stmt to be verified.

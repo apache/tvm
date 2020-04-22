@@ -23,7 +23,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/data_layout.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
 
 #include <cctype>

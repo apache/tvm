@@ -22,7 +22,7 @@
  * \brief Utility for tensor-level auto-differentiation.
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <string>
 #include "ad_util.h"
 

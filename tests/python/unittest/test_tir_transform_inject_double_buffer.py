@@ -54,7 +54,7 @@ def test_double_buffer():
     def count_sync(op):
         if isinstance(op, tvm.tir.Call) and op.name == "tvm_storage_sync":
             count[0] += 1
-    tvm.tir.ir_pass.PostOrderVisit(f.body, count_sync)
+    tvm.tir.stmt_functor.post_order_visit(f.body, count_sync)
     assert count[0] == 4
 
 

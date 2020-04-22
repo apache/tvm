@@ -32,26 +32,11 @@
 namespace tvm {
 namespace tir {
 
-TVM_REGISTER_GLOBAL("ir_pass.Substitute")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    if (args[0].IsObjectRef<Stmt>()) {
-      *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, PrimExpr>());
-    } else {
-      *ret = Substitute(args[0].operator PrimExpr(), args[1].operator Map<Var, PrimExpr>());
-    }
-  });
+
 
 TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = ExprUseVar(args[0].operator PrimExpr(), args[1].operator Var());
-  });
-
-TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    PackedFunc f = args[1];
-    tir::PostOrderVisit(args[0], [f](const ObjectRef& n) {
-        f(n);
-      });
   });
 
 
@@ -63,7 +48,6 @@ TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
 
 REGISTER_PASS(ConvertSSA);
 REGISTER_PASS(VerifySSA);
-REGISTER_PASS(IRTransform);
 REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(VerifyCompactBuffer);

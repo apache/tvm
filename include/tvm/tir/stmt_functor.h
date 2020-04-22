@@ -20,17 +20,20 @@
 /*!
  * \file tvm/tir/stmt_functor.h
  *
- * \brief Functors for tir stmts.
+ * \brief Functors for tir stmts
+ *        utility functions to call common functors.
  */
 #ifndef TVM_TIR_STMT_FUNCTOR_H_
 #define TVM_TIR_STMT_FUNCTOR_H_
 
 #include <tvm/node/functor.h>
+#include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/expr_functor.h>
 
 #include <utility>
+#include <unordered_map>
 
 namespace tvm {
 namespace tir {
@@ -318,9 +321,9 @@ class StmtExprMutator :
 };
 
 /*!
- * \brief recursively visit the ir in post DFS order node, and transform it
+ * \brief recursively visit the ir nodes in post DFS order, and transform it
  *
- * \param node The ir to be transformed.
+ * \param stmt The ir to be transformed.
  * \param preorder The function called in before recursive mutation
  *          If preorder returns None, then the transform will proceed to recursive call.
  *          If preorder returns a not None Stmt/Expr, the transformer will simply return it and
@@ -328,22 +331,75 @@ class StmtExprMutator :
  * \param postorder The function called after recursive mutation.
  *          The recursive mutation result is passed to postorder for further mutation.
  * \param only_enable List of runtime::String.
- *          If it is empty, all IRNode will call preorder/postorder
- *          If it is not empty, preorder/postorder will only be called
+ *          If it is null, all IRNode will call preorder/postorder
+ *          If it is not null, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
  */
-TVM_DLL Stmt IRTransform(Stmt node,
+TVM_DLL Stmt IRTransform(Stmt stmt,
                          const runtime::PackedFunc& preorder,
                          const runtime::PackedFunc& postorder,
-                         const Array<runtime::String>& only_enable = {});
+                         Optional<Array<String>> only_enable = NullOpt);
 
 /*!
- * \brief recursively visit the ir in post DFS order node, apply fvisit
+ * \brief Recursively visit the ir in post DFS order node, apply fvisit
  * Each node is guaranteed to be visited only once.
  * \param node The ir to be visited.
  * \param fvisit The visitor function to be applied.
  */
 TVM_DLL void PostOrderVisit(const ObjectRef& node, std::function<void(const ObjectRef&)> fvisit);
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param stmt The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The converted form.
+ */
+TVM_DLL Stmt Substitute(Stmt stmt,
+                        std::function<Optional<PrimExpr>(const Var& var)> vmap);
+
+/*!
+ * \brief Substitute the var specified by vmap.
+ * \param expr The source statement to be substituted
+ * \param vmap returns a new value if re-mapping is needed, otherwise returns nullptr.
+ * \return The result.
+ */
+TVM_DLL PrimExpr Substitute(PrimExpr expr,
+                            std::function<Optional<PrimExpr>(const Var& var)> vmap);
+
+/*!
+ * \brief Sugar for substitute via a given map.
+ * \param input The input to be updated.
+ * \param value_map The map of new values.
+ * \return The result.
+ * \tparam T the input type, can be PrimExpr or Stmt.
+ */
+template<typename T>
+inline T Substitute(T input, const Map<Var, PrimExpr>& value_map) {
+  auto vmap = [&](const Var& var) -> Optional<PrimExpr> {
+    auto it = value_map.find(var);
+    if (it != value_map.end()) return (*it).second;
+    return Optional<PrimExpr>(nullptr);
+  };
+  return Substitute(std::move(input), vmap);
+}
+
+/*!
+ * \brief Sugar for substitute via a given map.
+ * \param input The input to be updated.
+ * \param value_map The map of new values.
+ * \return The result.
+ * \tparam T the input type, can be PrimExpr or Stmt.
+ */
+template<typename T>
+inline T Substitute(T input,
+                    const std::unordered_map<const VarNode*, PrimExpr>& value_map) {
+  auto vmap = [&](const Var& var) -> Optional<PrimExpr> {
+    auto it = value_map.find(var.get());
+    if (it != value_map.end()) return (*it).second;
+    return Optional<PrimExpr>(nullptr);
+  };
+  return Substitute(std::move(input), vmap);
+}
 
 }  // namespace tir
 }  // namespace tvm

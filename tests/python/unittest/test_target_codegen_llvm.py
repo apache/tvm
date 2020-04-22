@@ -685,7 +685,7 @@ def test_llvm_shuffle():
 
         def _transform(f, *_):
             return f.with_body(
-                tvm.tir.ir_pass.IRTransform(f.body, None, vectorizer, ['For']))
+                tvm.tir.stmt_functor.ir_transform(f.body, None, vectorizer, ['For']))
 
         return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
 

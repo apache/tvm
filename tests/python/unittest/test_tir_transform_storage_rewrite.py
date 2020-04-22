@@ -45,7 +45,7 @@ def test_storage_share():
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 1
 
 def register_mem(scope_tb, max_bits):
@@ -84,7 +84,7 @@ def test_alloc_seq():
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
             assert n.extents[0].value == 200
-    tvm.tir.ir_pass.PostOrderVisit(body, verify)
+    tvm.tir.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
 
 def test_alloc_different_dtypes():
@@ -139,7 +139,7 @@ def test_alloc_different_dtypes():
         mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], body))
         body = tvm.tir.transform.StorageRewrite()(mod)["main"].body
 
-        tvm.tir.ir_pass.PostOrderVisit(body, verify)
+        tvm.tir.stmt_functor.post_order_visit(body, verify)
 
     length = 1024
     dtype_list = ["float16", "int32", "uint16", "int8"]
@@ -181,7 +181,7 @@ def test_inplace_rule():
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 2
 
 
@@ -214,7 +214,7 @@ def test_storage_combine():
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
             assert (n.extents[0].value == 16)
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 1
 
 
@@ -250,7 +250,7 @@ def test_storage_share_gpu():
         if isinstance(n, tvm.tir.AttrStmt):
             if n.attr_key == "storage_scope":
                 alloc_stats[n.value.value] += 1
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert alloc_stats["global"] == 2
     assert alloc_stats["shared"] == num_stage
 
@@ -318,7 +318,7 @@ def test_inplace_rule2(scope_tb = "local_TB2", max_bits = 1024 * 1024 * 1024):
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
     assert num_alloc[0] == 2
 
 def test_exceed_mem():
@@ -407,7 +407,7 @@ def test_inplace_rule3():
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
             assert n.extents[0].value == 70
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
 
 def test_alloc_seq_type():
     ib = tvm.tir.ir_builder.create()
@@ -437,7 +437,7 @@ def test_alloc_seq_type():
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
             assert n.extents[0].value == 500
-    tvm.tir.ir_pass.PostOrderVisit(body, verify)
+    tvm.tir.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
 
 def test_alloc_seq_type2():
@@ -469,7 +469,7 @@ def test_alloc_seq_type2():
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
             assert n.extents[0].value == 200
-    tvm.tir.ir_pass.PostOrderVisit(body, verify)
+    tvm.tir.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
 
 
@@ -502,7 +502,7 @@ def test_reuse_small_buffer():
         if isinstance(n, tvm.tir.Allocate):
             num_alloc[0] += 1
             assert n.extents[0].value == 800
-    tvm.tir.ir_pass.PostOrderVisit(body, verify)
+    tvm.tir.stmt_functor.post_order_visit(body, verify)
     assert num_alloc[0] == 1
 
 def test_replace_dataflow():
@@ -540,7 +540,7 @@ def test_large_input():
     def verify(n):
         if isinstance(n, tvm.tir.Allocate):
             assert n.extents[0].value == 268435456
-    tvm.tir.ir_pass.PostOrderVisit(stmt, verify)
+    tvm.tir.stmt_functor.post_order_visit(stmt, verify)
 
 
 if __name__ == "__main__":

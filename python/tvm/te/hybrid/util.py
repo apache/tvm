@@ -72,7 +72,7 @@ def _pruned_source(func):
 def replace_io(body, rmap):
     """Replacing tensors usage according to the dict given"""
     # pylint: disable=import-outside-toplevel
-    from tvm.tir import ir_pass
+    from tvm.tir import stmt_functor
 
     def replace(op):
         if isinstance(op, _stmt.Provide) and op.func in rmap.keys():
@@ -84,7 +84,7 @@ def replace_io(body, rmap):
                               _expr.Call.Halide, buf.op, buf.value_index)
         return None
 
-    return ir_pass.IRTransform(body, None, replace, ['Provide', 'Call'])
+    return stmt_functor.ir_transform(body, None, replace, ['Provide', 'Call'])
 
 
 def _is_tvm_arg_types(args):

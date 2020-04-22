@@ -611,6 +611,10 @@ struct PackedFuncValueConverter<::tvm::runtime::String> {
   }
 };
 
+/*! \brief Helper to represent nullptr for optional. */
+struct NullOptType {
+};
+
 /*!
  * \brief Optional container that to represent to a Nullable variant of T.
  * \tparam T The original ObjectRef.
@@ -642,6 +646,8 @@ class Optional : public ObjectRef {
    * \param ptr
    */
   explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
+  /*! \brief Nullopt handling */
+  Optional(NullOptType) {}  // NOLINT(*)
   // nullptr handling.
   // disallow implicit conversion as 0 can be implicitly converted to nullptr_t
   explicit Optional(std::nullptr_t) {}
@@ -751,6 +757,7 @@ struct PackedFuncValueConverter<Optional<T>> {
 // expose the functions to the root namespace.
 using runtime::String;
 using runtime::Optional;
+constexpr runtime::NullOptType NullOpt{};
 }  // namespace tvm
 
 namespace std {

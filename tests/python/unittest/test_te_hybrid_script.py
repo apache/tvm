@@ -24,7 +24,7 @@ from tvm.te.hybrid.runtime import HYBRID_GLOBALS
 @pytest.mark.skip
 def run_and_check(func, args, var_dict={}, target='llvm', sch=None, outs=None):
     def tvm_val_2_py_val(val):
-        val = tvm.tir.ir_pass.Substitute(val, var_dict)
+        val = tvm.tir.stmt_functor.substitute(val, var_dict)
         val = tvm.arith.Analyzer().simplify(val)
         assert isinstance(val, (tvm.tir.IntImm,))
         return val.value

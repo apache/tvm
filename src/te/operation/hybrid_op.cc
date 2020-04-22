@@ -26,7 +26,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <unordered_set>
