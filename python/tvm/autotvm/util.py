@@ -188,3 +188,12 @@ def get_const_tuple(in_tuple):
         else:
             ret.append(get_const_int(elem))
     return tuple(ret)
+
+
+SI_PREFIXES = 'yzafpn\xb5m kMGTPEZY'
+YOCTO_EXP10 = -24
+
+
+def format_si_prefix(x, si_prefix):
+    exp10 = 10 ** (SI_PREFIXES.index(si_prefix) * 3 + YOCTO_EXP10)
+    return float(x) / exp10

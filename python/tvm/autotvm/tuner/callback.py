@@ -23,6 +23,7 @@ import logging
 import numpy as np
 
 from .. import record
+from ..util import format_si_prefix
 
 logger = logging.getLogger('autotvm')
 
@@ -105,7 +106,7 @@ class Monitor(object):
         return np.array(self.timestamps)
 
 
-def progress_bar(total, prefix=''):
+def progress_bar(total, prefix='', si_prefix='G'):
     """Display progress bar for tuning
 
     Parameters
@@ -114,6 +115,8 @@ def progress_bar(total, prefix=''):
         The total number of trials
     prefix: str
         The prefix of output message
+    si_prefix: str
+        SI prefix for flops
     """
     class _Context(object):
         """Context to store local variables"""
@@ -129,6 +132,9 @@ def progress_bar(total, prefix=''):
 
     ctx = _Context()
     tic = time.time()
+
+    # Validate si_prefix argument
+    format_si_prefix(0, si_prefix)
 
     if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
         sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
@@ -147,10 +153,11 @@ def progress_bar(total, prefix=''):
             ctx.cur_flops = flops
             ctx.best_flops = tuner.best_flops
 
-            sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+            sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f %sFLOPS | Progress: (%d/%d) '
                              '| %.2f s' %
-                             (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
-                              time.time() - tic))
+                             (prefix, format_si_prefix(ctx.cur_flops, si_prefix),
+                              format_si_prefix(ctx.best_flops, si_prefix), si_prefix,
+                              ctx.ct, ctx.total, time.time() - tic))
             sys.stdout.flush()
 
     return _callback
