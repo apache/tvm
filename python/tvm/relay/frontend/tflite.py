@@ -32,7 +32,6 @@ from .util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
-
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
@@ -106,7 +105,6 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
-            'RANGE': self.convert_range,
             'REDUCE_ANY': self._convert_reduce_any,
             'REDUCE_MAX': self._convert_reduce_max,
             'REDUCE_MIN': self._convert_reduce_min,
@@ -117,12 +115,12 @@ class OperatorConverter(object):
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
-            'SHAPE': self.convert_shape,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'SPACE_TO_DEPTH': self.convert_space_to_depth,
+            'SPARSE_TO_DENSE': self.convert_sparse_to_dense,
             'SPLIT': self.convert_split,
             'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
@@ -552,63 +550,6 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.tanh(in_expr)
-
-        return out
-
-    def convert_range(self, op):
-        """Convert TFLite Range"""
-        try:
-            from tflite.Operator import Operator
-            from tflite.TensorType import TensorType
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized RANGE operator is not supported yet.')
-
-        assert isinstance(op, Operator)
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 3, "input tensors length should be 3"
-
-        start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
-        expressions = []
-
-        for t in [start, limit, delta]:
-            if self.has_expr(t.tensor_idx):
-                expressions.append(self.get_expr(t.tensor_idx))
-            else:
-                tensor_type = self.get_tensor_type_str(t.tensor.Type())
-                tensor_value = self.get_tensor_value(t)
-                expressions.append(self.exp_tab.new_const(tensor_value, dtype=tensor_type))
-
-        #out type inference
-        if delta.tensor.Type() == TensorType.FLOAT32:
-            out_type = self.get_tensor_type_str(delta.tensor.Type())
-        else:
-            out_type = self.get_tensor_type_str(start.tensor.Type())
-
-        #put type here form op
-        out = _op.arange(expressions[0], expressions[1], expressions[2], out_type)
-
-        return out
-
-    def convert_shape(self, op):
-        """Convert TFLite Shape"""
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized SHAPE operator is not supported yet.')
-
-        assert isinstance(op, Operator)
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
-
-        out = _op.shape_of(self.get_expr(input_tensors[0].tensor_idx))
 
         return out
 
@@ -1896,6 +1837,29 @@ class OperatorConverter(object):
         depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
         block_size = depth_to_space_options.BlockSize()
         out = _op.nn.depth_to_space(in_expr, block_size, layout='NHWC')
+
+        return out
+
+    def convert_sparse_to_dense(self, op):
+        """Convert TFLite SPARSE_TO_DENSE"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 4, "input tensors length should be 4"
+        indices, values = input_tensors[0], input_tensors[2]
+        default_value = input_tensors[3]
+        output_shape = input_tensors[1]
+
+        out = _op.sparse_to_dense(
+            self.get_expr(indices.tensor_idx),
+            self.get_expr(values.tensor_idx),
+            self.get_expr(default_value.tensor_idx),
+            list(self.get_tensor_value(output_shape))
+        )
 
         return out
 

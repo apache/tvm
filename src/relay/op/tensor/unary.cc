@@ -326,7 +326,6 @@ RELAY_REGISTER_UNARY_OP("bitwise_not")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::bitwise_not));
 
-
 // shape_of
 TVM_REGISTER_NODE_TYPE(ShapeOfAttrs);
 

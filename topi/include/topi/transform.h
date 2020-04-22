@@ -1272,6 +1272,54 @@ inline Tensor layout_transform(const Tensor& src,
   }, name, tag);
 }
 
+
+/*!
+ * \brief Get a dense tensor.
+ * \param sparse_indices sparse_indices[i] contains the complete index where sparse_values[i] will be placed.
+ * \param sparse_values is a 0-D or 1-D tensor. Values corresponding to each row of sparse_indices, or a scalar value to be used for all sparse indices
+ * |param default_value is a 0-D tensor of the same type as sparse_values. Value to set for indices not specified in sparse_indices. Defaults to zero.
+ * \param Shape of the dense output tensor
+ * \param name output tensor name.
+ * \param tag output tensor tag.
+ * \return Tensor of output_shape.
+ */
+inline Tensor sparse_to_dense(const Tensor& sparse_indices,
+                    const Tensor& sparse_values,
+                    const Tensor& default_value,
+                    const Array<Integer>& output_shape,
+                    const std::string name = "T_sparse_to_dense",
+                    const std::string tag = kInjective) {
+  CHECK(sparse_indices->dtype.is_int() || sparse_indices->dtype.is_uint())
+    << "sparse_indices only accepts integer indices";
+
+  const auto rank_sparse_indices = static_cast<int>(sparse_indices->shape.size());
+  Array<PrimExpr>  oshape;
+  for (auto l : output_shape) {
+    oshape.push_back(l);
+  }
+  return compute(oshape, [&](const Array<Var>& indices) {
+    PrimExpr ret = default_value[0];
+    if (0 == rank_sparse_indices) {
+      ret = if_then_else(indices[0] == sparse_indices[0], sparse_values[0],  ret);
+    } else if (1 == rank_sparse_indices) {
+      for (int j = 0; j <  GetConstInt(sparse_indices->shape[0]); j++) {
+        ret = if_then_else(indices[0] == sparse_indices[j], sparse_values[j],  ret);
+      }
+    } else {
+      for (int j = 0; j <  GetConstInt(sparse_indices->shape[0]); j++) {
+        PrimExpr aggregate_condition;
+        for (int k = 0; k <  GetConstInt(sparse_indices->shape[1]); k++) {
+          PrimExpr comparision = indices[k] == sparse_indices[j][k];
+          aggregate_condition = 0 == k ? comparision : aggregate_condition && comparision;
+        }
+        ret = if_then_else(aggregate_condition, sparse_values[j], ret);
+      }
+    }
+    return ret;
+  }, name, tag);
+}
+
+
 /*!
  * \brief Get the shape of input tensor.
  * \param src the input tensor.
