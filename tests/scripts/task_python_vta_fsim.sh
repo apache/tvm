@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export TVM_PATH=`pwd`
+source tests/scripts/setup-pytest-env.sh
 export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 
