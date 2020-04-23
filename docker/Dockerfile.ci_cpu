@@ -63,3 +63,7 @@ RUN bash /install/ubuntu_install_antlr.sh
 # Chisel deps for TSIM
 COPY install/ubuntu_install_chisel.sh /install/ubuntu_install_chisel.sh
 RUN bash /install/ubuntu_install_chisel.sh
+
+# TFLite deps
+COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
+RUN bash /install/ubuntu_install_tflite.sh
