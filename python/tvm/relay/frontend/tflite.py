@@ -60,6 +60,20 @@ class OperatorConverter(object):
         self.activation_fn_type = build_str_map(ActivationFunctionType())
         self.builtin_options = build_str_map(BuiltinOptions())
 
+        # Op-> tuple(op_parser, number_of_input_tensors,
+        # number_of_output_tensors)
+        # Adding new operators involves an entry in this table with
+        # the number of input and output tensors.  It is simpler to
+        # assume that the check for the length of the input and output
+        # tensors needs to be equality for now as this covers the vast
+        # majority of cases. Thus -1 indicates that checks that
+        # require other relational expressions are handled in the
+        # op_parser method.
+
+        self.convert_map_data_driven = {
+            'DEPTH_TO_SPACE': (self.convert_depth_to_space, 1, 1),
+            'SOFTMAX': (self.convert_softmax, 1, 1),
+            }
         # Add more operators
         self.convert_map = {
             'ABS': self.convert_abs,
@@ -71,7 +85,6 @@ class OperatorConverter(object):
             'CONCATENATION': self.convert_concatenation,
             'CONV_2D': self.convert_conv2d,
             'COS': self.convert_cos,
-            'DEPTH_TO_SPACE': self.convert_depth_to_space,
             'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
             'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
             'DIV': self.convert_div,
@@ -121,7 +134,6 @@ class OperatorConverter(object):
             'RSQRT': self.convert_rsqrt,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
-            'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'SPACE_TO_DEPTH': self.convert_space_to_depth,
             'SPLIT': self.convert_split,
@@ -150,7 +162,8 @@ class OperatorConverter(object):
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
-            if op_code_str not in self.convert_map:
+            if (op_code_str not in self.convert_map_data_driven)\
+            and (op_code_str not in self.convert_map):
                 unsupported_ops_set.add(op_code_str)
 
         if unsupported_ops_set:
@@ -171,7 +184,21 @@ class OperatorConverter(object):
                 raise ImportError("The tflite package must be installed")
 
             assert isinstance(op, Operator)
-            ret = self.convert_map[op_code_str](op)
+            input_tensors = self.get_input_tensors(op)
+
+            try:
+                (func, num_inputs, num_outputs) = self.convert_map_data_driven[op_code_str]
+                if num_inputs != -1:
+                    print("test")
+                    assert (len(input_tensors) == num_inputs)\
+                        , "input tensors should be %d" % num_inputs
+                if num_outputs != -1:
+                    assert (len(output_tensors) == num_outputs)\
+                        , "output tensors should be %d" % num_outputs
+                ret = func(op, input_tensors, output_tensors)
+            except KeyError:
+                func = self.convert_map[op_code_str]
+                ret = func(op)
 
             if len(output_tensors) == 1:
                 tensor_idx = output_tensors[0].tensor_idx
@@ -522,16 +549,11 @@ class OperatorConverter(object):
 
         return out
 
-    def convert_softmax(self, op):
+    def convert_softmax(self, op, input_tensors, output_tensors):
         """Convert TFLite softmax"""
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
-
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
 
-        output_tensors = self.get_output_tensors(op)
-        assert len(output_tensors) == 1, "output tensors length should be 1"
         output_tensor = output_tensors[0]
 
         params = {'axis': 1}  # 1 is channel
@@ -2101,16 +2123,13 @@ class OperatorConverter(object):
 
         return reshaped_permuted_reshaped_padded
 
-    def convert_depth_to_space(self, op):
+    def convert_depth_to_space(self, op, input_tensors, output_tensors):
         """Convert TFLite DEPTH_TO_SPACE"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.DepthToSpaceOptions import DepthToSpaceOptions
         except ImportError:
             raise ImportError("The tflite package must be installed")
-
-        input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1, "input tensors length should be 1"
 
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
