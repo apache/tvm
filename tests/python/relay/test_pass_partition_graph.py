@@ -522,8 +522,8 @@ def test_function_lifting():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = set_func_attr(func0, "test_compiler", "test_compiler_0")
-        gv0 = relay.GlobalVar("test_compiler_0")
+        func0 = set_func_attr(func0, "test_compiler", "test_compiler_2")
+        gv0 = relay.GlobalVar("test_compiler_2")
         mod[gv0] = func0
 
         # function for conv2d
@@ -536,8 +536,8 @@ def test_function_lifting():
             channels=16,
             padding=(1, 1))
         func1 = relay.Function([data1, weight1], conv)
-        func1 = set_func_attr(func1, "test_compiler", "test_compiler_1")
-        gv1 = relay.GlobalVar("test_compiler_1")
+        func1 = set_func_attr(func1, "test_compiler", "test_compiler_0")
+        gv1 = relay.GlobalVar("test_compiler_0")
         mod[gv1] = func1
 
         # main function
@@ -630,7 +630,6 @@ def test_constant_propagation():
 
     def expected():
         mod = tvm.IRModule()
-        x = relay.const(ones)
         y = relay.var("y", shape=(8, 8))
         x0 = relay.const(ones)
         y0 = relay.var("y0", shape=(8, 8))
@@ -712,12 +711,12 @@ def test_multiple_outputs():
         mod = tvm.IRModule()
 
         # function 0
-        data = relay.var("test_target_2_i0", relay.TensorType((1, 3, 224, 224), "float32"))
-        weight = relay.var("test_target_2_i1", relay.TensorType((16, 3, 3, 3), "float32"))
-        bn_gamma = relay.var("test_target_2_i2", relay.TensorType((16, ), "float32"))
-        bn_beta = relay.var("test_target_2_i3", relay.TensorType((16, ), "float32"))
-        bn_mean = relay.var("test_target_2_i4", relay.TensorType((16, ), "float32"))
-        bn_var = relay.var("test_target_2_i5", relay.TensorType((16, ), "float32"))
+        data = relay.var("test_target_0_i0", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("test_target_0_i1", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("test_target_0_i2", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("test_target_0_i3", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("test_target_0_i4", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("test_target_0_i5", relay.TensorType((16, ), "float32"))
 
         conv_o = relay.nn.conv2d(
             data=data,
@@ -730,12 +729,12 @@ def test_multiple_outputs():
                                    bn_var)
 
         relu_o = relay.nn.relu(bn_o[0])
-        tuple_o = relay.Tuple((bn_o[2], bn_o[1], relu_o))
+        tuple_o = relay.Tuple((relu_o, bn_o[1], bn_o[2]))
 
         func0 = relay.Function([data, weight, bn_gamma, bn_beta,
                                 bn_mean, bn_var], tuple_o)
-        func0 = set_func_attr(func0, "test_target", "test_target_2")
-        gv0 = relay.GlobalVar("test_target_2")
+        func0 = set_func_attr(func0, "test_target", "test_target_0")
+        gv0 = relay.GlobalVar("test_target_0")
         mod[gv0] = func0
 
         # body
@@ -747,9 +746,9 @@ def test_multiple_outputs():
         bn_var = relay.var("bn_var", relay.TensorType((16, ), "float32"))
 
         f0_o = gv0(data, weight, bn_gamma, bn_beta, bn_mean, bn_var)
-        f0_relu_o = relay.TupleGetItem(f0_o, 2)
+        f0_relu_o = relay.TupleGetItem(f0_o, 0)
         f0_mean_o = relay.TupleGetItem(f0_o, 1)
-        f0_var_o = relay.TupleGetItem(f0_o, 0)
+        f0_var_o = relay.TupleGetItem(f0_o, 2)
 
         f0_mean_abs = relay.abs(f0_mean_o)
         f0_var_abs = relay.abs(f0_var_o)
@@ -791,22 +790,22 @@ def test_mixed_single_multiple_outputs():
         mod = tvm.IRModule()
 
         # function 1
-        f1_cb1 = relay.var('test_target_1_i0', shape=(10, 10))
+        f1_cb1 = relay.var('test_target_0_i0', shape=(10, 10))
         f1_O_1 = relay.abs(f1_cb1)
         f1_O_2 = relay.nn.relu(f1_O_1)
         f1_out = relay.Tuple((f1_O_2, f1_O_1))
         func1 = relay.Function([f1_cb1], f1_out)
-        func1 = set_func_attr(func1, "test_target", "test_target_1")
-        gv1 = relay.GlobalVar("test_target_1")
+        func1 = set_func_attr(func1, "test_target", "test_target_0")
+        gv1 = relay.GlobalVar("test_target_0")
         mod[gv1] = func1
 
         # function 0
-        f2_cb3 = relay.var('test_target_0_i0', shape=(10, 10))
-        f2_cb4 = relay.var('test_target_0_i1', shape=(10, 10))
+        f2_cb3 = relay.var('test_target_1_i0', shape=(10, 10))
+        f2_cb4 = relay.var('test_target_1_i1', shape=(10, 10))
         f2_O_3 = relay.add(f2_cb3, f2_cb4)
         func0 = relay.Function([f2_cb3, f2_cb4], f2_O_3)
-        func0 = set_func_attr(func0, "test_target", "test_target_0")
-        gv0 = relay.GlobalVar("test_target_0")
+        func0 = set_func_attr(func0, "test_target", "test_target_1")
+        gv0 = relay.GlobalVar("test_target_1")
         mod[gv0] = func0
 
         # body
@@ -1109,22 +1108,22 @@ def test_duplicate_merge_and_tuplegetitem():
         mod = tvm.IRModule()
 
         # function 0
-        f0_i0 = relay.var(target+"_1_i0", shape=(10, 10))
-        f0_i1 = relay.var(target+"_1_i1")
-        f0_i2 = relay.var(target+"_1_i2")
-        f0_i3 = relay.var(target+"_1_i3")
-        f0_i4 = relay.var(target+"_1_i4")
+        f0_i0 = relay.var(target + "_0_i0", shape=(10, 10))
+        f0_i1 = relay.var(target + "_0_i1")
+        f0_i2 = relay.var(target + "_0_i2")
+        f0_i3 = relay.var(target + "_0_i3")
+        f0_i4 = relay.var(target + "_0_i4")
         f0_n0 = relay.nn.batch_norm(f0_i0, f0_i1, f0_i2, f0_i3, f0_i4)
         f0_n1 = f0_n0[1]
         f0_n2 = relay.nn.relu(f0_n0[0])
-        f0_o0 = relay.Tuple([f0_n1, f0_n2])
+        f0_o0 = relay.Tuple([f0_n2, f0_n1])
         func0 = relay.Function([f0_i0, f0_i1, f0_i2, f0_i3, f0_i4], f0_o0)
 
         func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler", target)
-        func0 = func0.with_attr("global_symbol", target+"_1")
-        gv0 = relay.GlobalVar(target+"_1")
+        func0 = func0.with_attr("global_symbol", target + "_0")
+        gv0 = relay.GlobalVar(target + "_0")
         mod[gv0] = func0
 
         # body
@@ -1136,9 +1135,9 @@ def test_duplicate_merge_and_tuplegetitem():
         function_out = gv0(data, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         get_out0 = relay.TupleGetItem(function_out, 0)
         get_out1 = relay.TupleGetItem(function_out, 1)
-        out_2 = relay.tanh(get_out0)
-        out_3 = relay.log(get_out0)
-        out = relay.Tuple([get_out1, out_2, out_3])
+        out_2 = relay.tanh(get_out1)
+        out_3 = relay.log(get_out1)
+        out = relay.Tuple([get_out0, out_2, out_3])
         func = relay.Function([data, bn_gamma, bn_beta, bn_mmean, bn_mvar], out)
         mod["main"] = func
         return mod
