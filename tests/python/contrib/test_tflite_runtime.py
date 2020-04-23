@@ -19,8 +19,7 @@ from tvm import te
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util, tflite_runtime
-# import tensorflow as tf
-# import tflite_runtime.interpreter as tflite
+import tensorflow as tf
 
 
 def skipped_test_tflite_runtime():
@@ -45,7 +44,7 @@ def skipped_test_tflite_runtime():
         open(tflite_model_path, 'wb').write(tflite_model)
 
         # inference via tflite interpreter python apis
-        interpreter = tflite.Interpreter(model_path=tflite_model_path)
+        interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
@@ -73,7 +72,7 @@ def skipped_test_tflite_runtime():
         open(tflite_model_path, 'wb').write(tflite_model)
 
         # inference via tflite interpreter python apis
-        interpreter = tflite.Interpreter(model_path=tflite_model_path)
+        interpreter = tf.lite.Interpreter(model_path=tflite_model_path)
         interpreter.allocate_tensors()
         input_details = interpreter.get_input_details()
         output_details = interpreter.get_output_details()
@@ -97,9 +96,8 @@ def skipped_test_tflite_runtime():
             out = runtime.get_output(0)
             np.testing.assert_equal(out.asnumpy(), tflite_output)
 
-    check_local()
+    # check_local()
     check_remote()
 
 if __name__ == "__main__":
-    # skipped_test_tflite_runtime()
-    pass
+    skipped_test_tflite_runtime()
