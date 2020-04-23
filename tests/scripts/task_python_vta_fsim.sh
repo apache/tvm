@@ -20,7 +20,7 @@ set -e
 set -u
 
 source tests/scripts/setup-pytest-env.sh
-export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python
+export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/vta/python
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 
 # cleanup pycache
