@@ -22,7 +22,6 @@
  * \brief narrow the datatype of indexing vars
  */
 
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 #include <tvm/runtime/registry.h>
@@ -394,10 +393,6 @@ PrimExpr DataTypeRewriter::VisitExpr_(const CallNode* op) {
 Stmt NarrowDataType(Stmt stmt, int target_bits) {
   return DataTypeRewriter(target_bits)(stmt);
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.NarrowDataType")
-.set_body_typed(NarrowDataType);
-
 
 namespace transform {
 

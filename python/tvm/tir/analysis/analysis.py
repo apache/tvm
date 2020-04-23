@@ -57,12 +57,52 @@ def expr_deep_equal(lhs, rhs):
     return _ffi_api.expr_deep_equal(lhs, rhs)
 
 
-def verify_memory(mod):
+def verify_ssa(func):
+    """Verify if the func is in SSA form.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The module to be verified.
+
+    Returns
+    -------
+    result : bool
+        The result of verification.
+    """
+    return _ffi_api.verify_ssa(func)
+
+
+def verify_memory(func):
+    """Verify if func contains illegal host side direct memory access.
+
+    Parameters
+    ----------
+    func: tvm.tir.PrimFunc
+        The module to be verified.
+
+    Returns
+    -------
+    result : bool
+        The result of verification.
+    """
+    return _ffi_api.verify_memory(func)
+
+
+def verify_gpu_code(func, constraints):
     """Verify if module contains illegal host side direct memory access.
 
     Parameters
     ----------
-    mod: tvm.IRModule
+    func: tvm.tir.PrimFunc
         The module to be verified.
+
+    constraints : Dict[str, int]
+        The attribute constraints.
+
+    Returns
+    -------
+    result : bool
+        The result of verification.
     """
-    _ffi_api.verify_memory(mod)
+    return _ffi_api.verify_gpu_code(func, constraints)

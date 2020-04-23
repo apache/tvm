@@ -22,7 +22,6 @@
  * \file lower_intrin.cc
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/runtime/registry.h>
 

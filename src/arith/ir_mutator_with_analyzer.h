@@ -49,11 +49,11 @@ class IRMutatorWithAnalyzer : public tir::StmtExprMutator {
   using StmtExprMutator::VisitExpr_;
 
   // override functions that need to populate the context information.
-  Stmt VisitStmt_(const tir::ForNode* op) override;
-  Stmt VisitStmt_(const tir::LetStmtNode* op) override;
-  Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
-  Stmt VisitStmt_(const tir::AttrStmtNode* op) override;
-  Stmt VisitStmt_(const tir::AssertStmtNode* op) override;
+  tir::Stmt VisitStmt_(const tir::ForNode* op) override;
+  tir::Stmt VisitStmt_(const tir::LetStmtNode* op) override;
+  tir::Stmt VisitStmt_(const tir::IfThenElseNode* op) override;
+  tir::Stmt VisitStmt_(const tir::AttrStmtNode* op) override;
+  tir::Stmt VisitStmt_(const tir::AssertStmtNode* op) override;
   PrimExpr VisitExpr_(const tir::LetNode* op) override;
   PrimExpr VisitExpr_(const tir::SelectNode* op) override;
   PrimExpr VisitExpr_(const tir::CallNode* op) override;
