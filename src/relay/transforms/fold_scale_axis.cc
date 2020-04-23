@@ -317,7 +317,8 @@ static bool IsIntInArray(const Array<Integer>& axis, int v) {
   return false;
 }
 
-static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape, const Array<Integer>& axis) {
+static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
+  const Array<Integer>& axis) {
   Array<Integer> arr;
   for (size_t i = 0; i < shape.size(); i++) {
     if (IsIntInArray(axis, i)) {
@@ -331,11 +332,12 @@ static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape, const A
       arr.push_back(1);
     }
   }
-  return MakeReshape(scale, std::move(arr)); 
+  return MakeReshape(scale, std::move(arr));
 }
 
 // if only one axis, use expand dim. Else, use reshape
-static Expr ReshapeOrExpandToMatchAxis(Expr scale, const Array<PrimExpr>& shape, const Array<Integer>& axis) {
+static Expr ReshapeOrExpandToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
+  const Array<Integer>& axis) {
   if (axis.size() > 1) {
     return ReshapeToMatchAxis(scale, shape, axis);
   } else {
@@ -528,7 +530,7 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
   int small_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('i'));
   int big_ki_axis = kernel_layout.IndexOf(LayoutAxis::Get('I'));
   int big_ko_axis = kernel_layout.IndexOf(LayoutAxis::Get('O'));
-  
+
   bool is_simple = (small_ko_axis < 0 && small_ki_axis < 0 && big_ki_axis >= 0);
   bool is_blocking = (small_ko_axis >= 0 && small_ki_axis >= 0 && big_ki_axis >= 0);
   CHECK(is_simple || is_blocking);
@@ -560,7 +562,7 @@ Expr Conv2DForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
       weight = Multiply(weight, scale);
     } else {
       weight = Multiply(weight, ReshapeToMatchAxis(sdata->scale,
-          weight->type_as<TensorTypeNode>()->shape, 
+          weight->type_as<TensorTypeNode>()->shape,
           {big_ki_axis, small_ki_axis}));
       if (!weight.defined())
         return Expr();
