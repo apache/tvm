@@ -24,8 +24,10 @@ for neural network computations, which can run on x86-64, ARMv7, or ARM64 archit
 Using NNPACK, higher-level libraries like _MXNet_ can speed up
 the execution on multi-core CPU computers, including laptops and mobile devices.
 
-***Note***: AS TVM already has natively tuned schedules, NNPACK is here mainly for reference and comparison purpose.
-For regular use prefer native tuned TVM implementation.
+.. note::
+
+   AS TVM already has natively tuned schedules, NNPACK is here mainly for reference and comparison purpose.
+   For regular use prefer native tuned TVM implementation.
 
 TVM supports NNPACK for forward propagation (inference only) in convolution, max-pooling, and fully-connected layers.
 In this document, we give a high level overview of how to use NNPACK with TVM.
