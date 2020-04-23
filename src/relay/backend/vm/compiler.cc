@@ -860,10 +860,11 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(host_target));
 
+  // Compute away constant computation introduced by manifesting allocations.
+  pass_seqs.push_back(transform::FoldConstant());
+
   // Perform memory planning in order to coalesce/reduce allocations.
   pass_seqs.push_back(transform::MemoryPlan());
-  // Compute away possibly introduced constant computation.
-  pass_seqs.push_back(transform::FoldConstant());
 
   return transform::Sequential(pass_seqs);
 }
