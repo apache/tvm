@@ -995,6 +995,38 @@ def test_forward_swap_axis():
     # _verify_swap_axis((4, 5), (5, 4), 0, 0)
 
 
+def test_forward_depth_to_space():
+    def verify(shape, blocksize=2):
+        x = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.depth_to_space(mx.nd.array(x), blocksize)
+        mx_sym = mx.sym.depth_to_space(mx.sym.var("x"), blocksize)
+        shape_dict = {"x": x.shape, }
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 18, 3, 3), 3)
+
+
+def test_forward_space_to_depth():
+    def verify(shape, blocksize=2):
+        x = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.space_to_depth(mx.nd.array(x), blocksize)
+        mx_sym = mx.sym.space_to_depth(mx.sym.var("x"), blocksize)
+        shape_dict = {"x": x.shape, }
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 1, 9, 9), 3)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1047,6 +1079,8 @@ if __name__ == '__main__':
     test_forward_instance_norm()
     test_forward_layer_norm()
     test_forward_one_hot()
+    test_forward_depth_to_space()
+    test_forward_space_to_depth()
     test_forward_convolution()
     test_forward_deconvolution()
     test_forward_cond()

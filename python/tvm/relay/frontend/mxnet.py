@@ -1073,6 +1073,20 @@ def _mx_one_hot(inputs, attrs):
     return _op.one_hot(indices, on_value, off_value, depth, -1, dtype)
 
 
+def _mx_depth_to_space(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["block_size"] = attrs.get_int("block_size")
+    return _op.nn.depth_to_space(*inputs, **new_attrs)
+
+
+def _mx_space_to_depth(inputs, attrs):
+    assert len(inputs) == 1
+    new_attrs = {}
+    new_attrs["block_size"] = attrs.get_int("block_size")
+    return _op.nn.space_to_depth(*inputs, **new_attrs)
+
+
 def _mx_contrib_fifo_buffer(inputs, attrs):
     new_attrs = {}
     new_attrs['axis'] = attrs.get_int('axis')
@@ -1854,6 +1868,8 @@ _convert_map = {
     "make_loss"     : _mx_make_loss,
     "_contrib_div_sqrt_dim": _mx_contrib_div_sqrt_dim,
     "one_hot"           : _mx_one_hot,
+    "depth_to_space"    : _mx_depth_to_space,
+    "space_to_depth"    : _mx_space_to_depth,
     # vision
     "_contrib_BilinearResize2D" : _mx_resize,
     "_contrib_MultiBoxPrior" : _mx_multibox_prior,
