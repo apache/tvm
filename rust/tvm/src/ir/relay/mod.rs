@@ -118,22 +118,20 @@ pub struct VarNode {
 
 impl Var {
     pub fn new(name_hint: String, _span: ObjectRef) -> Var {
-       let node = VarNode {
-          base: RelayExpr::base::<VarNode>(),
-          vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
-          type_annotation: ObjectRef::null(),
-       };
-       Var(Some(ObjectPtr::new(node)))
+        let node = VarNode {
+            base: RelayExpr::base::<VarNode>(),
+            vid: Id::new(TString::new(name_hint.to_string()).unwrap()),
+            type_annotation: ObjectRef::null(),
+        };
+        Var(Some(ObjectPtr::new(node)))
     }
 
     pub fn name_hint(&self) -> &TString {
-       &self.vid.0.as_ref().unwrap().name_hint
+        &self.vid.0.as_ref().unwrap().name_hint
     }
 
     pub fn to_expr(self) -> Expr {
-        unsafe {
-            Expr(std::mem::transmute(self.0))
-        }
+        unsafe { Expr(std::mem::transmute(self.0)) }
     }
 }
 
@@ -180,11 +178,16 @@ pub struct FunctionNode {
     pub params: Array<Var>,
     pub body: Expr,
     pub ret_type: Type,
-    pub type_params: Array<Type>
+    pub type_params: Array<Type>,
 }
 
 impl Function {
-    pub fn new(params: Array<Var>, body: Expr, ret_type: Type, type_params: Array<Type>) -> Function {
+    pub fn new(
+        params: Array<Var>,
+        body: Expr,
+        ret_type: Type,
+        type_params: Array<Type>,
+    ) -> Function {
         let node = FunctionNode {
             base: RelayExpr::base::<FunctionNode>(),
             params: params,

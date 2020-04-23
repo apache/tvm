@@ -1,6 +1,6 @@
-use crate::runtime::{Function, external_func, String as TString};
-use crate::runtime::{Object, ObjectPtr, ObjectRef};
 use crate::ir::array::Array;
+use crate::runtime::{external_func, Function, String as TString};
+use crate::runtime::{Object, ObjectPtr, ObjectRef};
 use tvm_macros::Object;
 
 type Pass = ObjectRef;
@@ -29,12 +29,11 @@ impl PassInfo {
             base: Object::base_object::<PassInfoNode>(),
             opt_level,
             name: TString::new(name).unwrap(),
-            required
+            required,
         };
 
         Ok(PassInfo(Some(ObjectPtr::new(node))))
     }
-
 }
 
 external_func! {

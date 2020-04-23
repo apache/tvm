@@ -238,76 +238,183 @@ impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
     }
 }
 
-unsafe extern "C" fn tvm_callback(
-    args: *mut ffi::TVMValue,
-    type_codes: *mut c_int,
-    num_args: c_int,
-    ret: ffi::TVMRetValueHandle,
-    fhandle: *mut c_void,
-) -> c_int {
-    // turning off the incorrect linter complaints
-    #![allow(unused_assignments, unused_unsafe)]
-    let len = num_args as usize;
-    let args_list = slice::from_raw_parts_mut(args, len);
-    let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
-    let mut local_args: Vec<TVMArgValue> = Vec::new();
-    let mut value = MaybeUninit::uninit().assume_init();
-    let mut tcode = MaybeUninit::uninit().assume_init();
-    let rust_fn = mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
-    for i in 0..len {
-        value = args_list[i];
-        println!("{:?}", value.v_handle);
-        tcode = type_codes_list[i];
-        if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
-            || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
-            || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
-        {
-            check_call!(ffi::TVMCbArgToReturn(
-                &mut value as *mut _,
-                &mut tcode as *mut _
-            ));
-            println!("{:?}", value.v_handle);
-        }
-        let arg_value = TVMArgValue::from_tvm_value(value, tcode as u32);
-        println!("{:?}", arg_value);
-        local_args.push(arg_value);
+trait ToFunction: Sized {
+    type Resource;
+
+    fn to_function(self) -> Function {
+        let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
+        let resource_handle = self.to_ptr();
+        check_call!(ffi::TVMFuncCreateFromCFunc(
+            Some(Self::tvm_callback),
+            resource_handle as *mut c_void,
+            Some(Self::tvm_finalizer),
+            &mut fhandle as *mut _
+        ));
+        Function::new(fhandle)
     }
 
-    let rv = match rust_fn(local_args.as_slice()) {
-        Ok(v) => v,
-        Err(msg) => {
-            crate::set_last_error(&msg);
-            return -1;
+    fn to_ptr(self) -> *mut Self::Resource;
+
+    /// The callback function which is wrapped converted by TVM
+    /// into a packed function stored in fhandle.
+    unsafe extern "C" fn tvm_callback(
+        args: *mut ffi::TVMValue,
+        type_codes: *mut c_int,
+        num_args: c_int,
+        ret: ffi::TVMRetValueHandle,
+        fhandle: *mut c_void,
+    ) -> c_int;
+
+    /// The finalizer which is invoked when the packed function's
+    /// reference count is zero.
+    unsafe extern "C" fn tvm_finalizer(fhandle: *mut c_void);
+}
+
+impl ToFunction for fn(&[TVMArgValue]) -> Result<TVMRetValue> {
+    type Resource = Self;
+
+    fn to_ptr(self) -> *mut Self::Resource {
+        self as *mut Self
+    }
+
+    unsafe extern "C" fn tvm_callback(
+        args: *mut ffi::TVMValue,
+        type_codes: *mut c_int,
+        num_args: c_int,
+        ret: ffi::TVMRetValueHandle,
+        fhandle: *mut c_void,
+    ) -> c_int {
+        // turning off the incorrect linter complaints
+        #![allow(unused_assignments, unused_unsafe)]
+        let len = num_args as usize;
+        let args_list = slice::from_raw_parts_mut(args, len);
+        let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
+        let mut local_args: Vec<TVMArgValue> = Vec::new();
+        let mut value = MaybeUninit::uninit().assume_init();
+        let mut tcode = MaybeUninit::uninit().assume_init();
+        let rust_fn =
+            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
+        for i in 0..len {
+            value = args_list[i];
+            println!("{:?}", value.v_handle);
+            tcode = type_codes_list[i];
+            if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
+                || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
+                || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
+            {
+                check_call!(ffi::TVMCbArgToReturn(
+                    &mut value as *mut _,
+                    &mut tcode as *mut _
+                ));
+                println!("{:?}", value.v_handle);
+            }
+            let arg_value = TVMArgValue::from_tvm_value(value, tcode as u32);
+            println!("{:?}", arg_value);
+            local_args.push(arg_value);
         }
-    };
 
-    let (mut ret_val, ret_tcode) = rv.to_tvm_value();
-    let mut ret_type_code = ret_tcode as c_int;
-    check_call!(ffi::TVMCFuncSetReturn(
-        ret,
-        &mut ret_val as *mut _,
-        &mut ret_type_code as *mut _,
-        1 as c_int
-    ));
-    0
+        let rv = match rust_fn(local_args.as_slice()) {
+            Ok(v) => v,
+            Err(msg) => {
+                crate::set_last_error(&msg);
+                return -1;
+            }
+        };
+
+        let (mut ret_val, ret_tcode) = rv.to_tvm_value();
+        let mut ret_type_code = ret_tcode as c_int;
+        check_call!(ffi::TVMCFuncSetReturn(
+            ret,
+            &mut ret_val as *mut _,
+            &mut ret_type_code as *mut _,
+            1 as c_int
+        ));
+        0
+    }
+
+    unsafe extern "C" fn tvm_finalizer(fhandle: *mut c_void) {
+        let _rust_fn =
+            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
+        // XXX: give converted functions lifetimes so they're not called after use
+    }
 }
 
-unsafe extern "C" fn tvm_callback_finalizer(fhandle: *mut c_void) {
-    let _rust_fn =
-        mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
-    // XXX: give converted functions lifetimes so they're not called after use
+impl<'v, 'a> ToFunction for Box<fn(&'v [TVMArgValue<'a>]) -> Result<TVMRetValue>> {
+    type Resource = fn(&'v [TVMArgValue<'a>]) -> Result<TVMRetValue>;
+
+    fn to_ptr(self) -> *mut Self::Resource {
+        Box::into_raw(self)
+    }
+
+    unsafe extern "C" fn tvm_callback(
+        args: *mut ffi::TVMValue,
+        type_codes: *mut c_int,
+        num_args: c_int,
+        ret: ffi::TVMRetValueHandle,
+        fhandle: *mut c_void,
+    ) -> c_int {
+        // turning off the incorrect linter complaints
+        #![allow(unused_assignments, unused_unsafe)]
+        let len = num_args as usize;
+        let args_list = slice::from_raw_parts_mut(args, len);
+        let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
+        let mut local_args: Vec<TVMArgValue> = Vec::new();
+        let mut value = MaybeUninit::uninit().assume_init();
+        let mut tcode = MaybeUninit::uninit().assume_init();
+        let rust_fn =
+            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
+        for i in 0..len {
+            value = args_list[i];
+            println!("{:?}", value.v_handle);
+            tcode = type_codes_list[i];
+            if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
+                || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
+                || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
+            {
+                check_call!(ffi::TVMCbArgToReturn(
+                    &mut value as *mut _,
+                    &mut tcode as *mut _
+                ));
+                println!("{:?}", value.v_handle);
+            }
+            let arg_value = TVMArgValue::from_tvm_value(value, tcode as u32);
+            println!("{:?}", arg_value);
+            local_args.push(arg_value);
+        }
+
+        let rv = match rust_fn(local_args.as_slice()) {
+            Ok(v) => v,
+            Err(msg) => {
+                crate::set_last_error(&msg);
+                return -1;
+            }
+        };
+
+        let (mut ret_val, ret_tcode) = rv.to_tvm_value();
+        let mut ret_type_code = ret_tcode as c_int;
+        check_call!(ffi::TVMCFuncSetReturn(
+            ret,
+            &mut ret_val as *mut _,
+            &mut ret_type_code as *mut _,
+            1 as c_int
+        ));
+        0
+    }
+
+    unsafe extern "C" fn tvm_finalizer(fhandle: *mut c_void) {
+        let _rust_fn =
+            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
+        // XXX: give converted functions lifetimes so they're not called after use
+    }
 }
 
-fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue>) -> Function {
-    let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
-    let resource_handle = f as *mut fn(&[TVMArgValue]) -> Result<TVMRetValue>;
-    check_call!(ffi::TVMFuncCreateFromCFunc(
-        Some(tvm_callback),
-        resource_handle as *mut c_void,
-        Some(tvm_callback_finalizer),
-        &mut fhandle as *mut _
-    ));
-    Function::new(fhandle)
+impl<I, O, F> ToFunction for F where F: Fn(I) -> O {
+    type Resource = dyn Fn(I) -> O;
+
+    fn to_ptr(self) -> *mut Self::Resource {
+        let ptr = Box::new(self);
+        Box::into_raw(ptr)
+    }
 }
 
 /// Registers a Rust function with signature
@@ -347,7 +454,7 @@ pub fn register<S: AsRef<str>>(
     name: S,
     override_: bool,
 ) -> Result<()> {
-    let func = convert_to_tvm_func(f);
+    let func = f.to_function();
     let name = CString::new(name.as_ref())?;
     check_call!(ffi::TVMFuncRegisterGlobal(
         name.into_raw(),
@@ -439,7 +546,7 @@ macro_rules! call_packed {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::function::{Function, Builder};
+    use crate::function::{Builder, Function};
 
     static CANARY: &str = "runtime.ModuleLoadFromFile";
 

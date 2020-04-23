@@ -51,6 +51,7 @@ mod module;
 mod threading;
 mod workspace;
 
+pub use tvm_macros::import_module;
 pub use tvm_sys::{
     call_packed,
     errors::*,
@@ -58,7 +59,6 @@ pub use tvm_sys::{
     packed_func::{self, *},
     TVMArgValue, TVMRetValue,
 };
-pub use tvm_macros::import_module;
 
 pub use self::{array::*, errors::*, graph::*, module::*, threading::*, workspace::*};
 

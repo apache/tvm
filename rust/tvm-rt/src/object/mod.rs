@@ -5,7 +5,7 @@ use tvm_sys::{TVMArgValue, TVMRetValue};
 
 mod object_ptr;
 
-pub use object_ptr::{Object, IsObject, ObjectPtr};
+pub use object_ptr::{IsObject, Object, ObjectPtr};
 
 #[derive(Clone)]
 pub struct ObjectRef(pub Option<ObjectPtr<Object>>);
@@ -46,10 +46,8 @@ impl From<ObjectRef> for TVMRetValue {
         use std::ffi::c_void;
         let object_ptr = &object_ref.0;
         match object_ptr {
-            None => {
-                TVMRetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
-            }
-            Some(value) => value.clone().into()
+            None => TVMRetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
+            Some(value) => value.clone().into(),
         }
     }
 }
@@ -74,15 +72,12 @@ impl<'a> std::convert::TryFrom<&TVMArgValue<'a>> for ObjectRef {
 }
 
 impl<'a> From<ObjectRef> for TVMArgValue<'a> {
-
     fn from(object_ref: ObjectRef) -> TVMArgValue<'a> {
         use std::ffi::c_void;
         let object_ptr = &object_ref.0;
         match object_ptr {
-            None => {
-                TVMArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
-            }
-            Some(value) => value.clone().into()
+            None => TVMArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
+            Some(value) => value.clone().into(),
         }
     }
 }

@@ -2,8 +2,8 @@ use std::ffi::{CString, NulError};
 use std::os::raw::c_char;
 
 use super::{IsObject, Object, ObjectPtr, ObjectRef};
-use tvm_macros::Object;
 use crate as tvm_rt;
+use tvm_macros::Object;
 
 #[repr(C)]
 #[derive(Object)]
@@ -52,8 +52,8 @@ impl String {
 #[cfg(test)]
 mod tests {
     use super::String;
-    use crate::object::debug_print;
     use super::{IsObject, Object, ObjectPtr, ObjectRef};
+    use crate::object::debug_print;
     use crate::ToObjectRef;
     use anyhow::{ensure, Result};
 
@@ -64,10 +64,10 @@ mod tests {
         println!("about to call");
         let string = debug_print(&object_ref)?;
         println!("after call");
-        ensure!(string
-            .into_string()
-            .expect("is cstring")
-            .contains("foo"), "string content is invalid");
+        ensure!(
+            string.into_string().expect("is cstring").contains("foo"),
+            "string content is invalid"
+        );
         Ok(())
     }
 }

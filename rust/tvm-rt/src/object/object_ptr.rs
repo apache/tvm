@@ -1,9 +1,9 @@
+use anyhow::Context;
 use std::convert::TryFrom;
 use std::ffi::CString;
 use std::ptr::NonNull;
 use tvm_sys::ffi::{self, /* TVMObjectFree, */ TVMObjectRetain, TVMObjectTypeKey2Index};
 use tvm_sys::{TVMArgValue, TVMRetValue};
-use anyhow::Context;
 
 type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
 
@@ -189,9 +189,8 @@ impl<'a, T: IsObject> TryFrom<TVMRetValue> for ObjectPtr<T> {
         match ret_value {
             TVMRetValue::ObjectHandle(handle) => {
                 let handle: *mut Object = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle)
-                       .context("unable to convert nullptr")?;
-                    optr.downcast()
+                let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
+                optr.downcast()
             }
             _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
         }
@@ -213,8 +212,7 @@ impl<'a, T: IsObject> TryFrom<TVMArgValue<'a>> for ObjectPtr<T> {
         match arg_value {
             TVMArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle)
-                    .context("unable to convert nullptr")?;
+                let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
                 optr.downcast()
             }
             _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
@@ -228,8 +226,7 @@ impl<'a, T: IsObject> TryFrom<&TVMArgValue<'a>> for ObjectPtr<T> {
         match arg_value {
             TVMArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
-                let optr = ObjectPtr::from_raw(handle)
-                    .context("unable to convert nullptr")?;
+                let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
                 optr.downcast()
             }
             _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
@@ -240,9 +237,9 @@ impl<'a, T: IsObject> TryFrom<&TVMArgValue<'a>> for ObjectPtr<T> {
 #[cfg(test)]
 mod tests {
     use super::{Object, ObjectPtr};
-    use tvm_sys::{TVMArgValue, TVMRetValue};
-    use anyhow::{Result, ensure};
+    use anyhow::{ensure, Result};
     use std::convert::TryInto;
+    use tvm_sys::{TVMArgValue, TVMRetValue};
 
     #[test]
     fn test_new_object() -> anyhow::Result<()> {
@@ -257,11 +254,14 @@ mod tests {
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
         let ret_value: TVMRetValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
-        ensure!(ptr.type_index == ptr2.type_index, "type indices do not match");
-        ensure!(ptr.fdeleter == ptr2.fdeleter, "objects have different deleters");
+        ensure!(
+            ptr.type_index == ptr2.type_index,
+            "type indices do not match"
+        );
+        ensure!(
+            ptr.fdeleter == ptr2.fdeleter,
+            "objects have different deleters"
+        );
         Ok(())
     }
-
-
-
 }
