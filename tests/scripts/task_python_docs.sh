@@ -19,6 +19,7 @@
 set -e
 set -u
 
+source tests/scripts/setup-pytest-env.sh
 # cleanup old states
 rm -rf docs/_build
 mkdir -p docs/_build/html

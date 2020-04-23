@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python
+source tests/scripts/setup-pytest-env.sh
 # to avoid openblas threading error
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
@@ -30,28 +30,28 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 echo "Running relay TFLite frontend test..."
-python3 -m pytest -v tests/python/frontend/tflite
+python3 -m pytest tests/python/frontend/tflite
 
 echo "Running relay MXNet frontend test..."
-python3 -m pytest -v tests/python/frontend/mxnet
+python3 -m pytest tests/python/frontend/mxnet
 
 echo "Running relay Keras frontend test..."
-python3 -m pytest -v tests/python/frontend/keras
+python3 -m pytest tests/python/frontend/keras
 
 echo "Running relay ONNX frontend test..."
-python3 -m pytest -v tests/python/frontend/onnx
+python3 -m pytest tests/python/frontend/onnx
 
 echo "Running relay CoreML frontend test..."
-python3 -m pytest -v tests/python/frontend/coreml
+python3 -m pytest tests/python/frontend/coreml
 
 echo "Running relay Tensorflow frontend test..."
-python3 -m pytest -v tests/python/frontend/tensorflow
+python3 -m pytest tests/python/frontend/tensorflow
 
 echo "Running relay caffe2 frontend test..."
-python3 -m pytest -v tests/python/frontend/caffe2
+python3 -m pytest tests/python/frontend/caffe2
 
 echo "Running relay DarkNet frontend test..."
-python3 -m pytest -v tests/python/frontend/darknet
+python3 -m pytest tests/python/frontend/darknet
 
 echo "Running relay PyTorch frontend test..."
-python3 -m pytest -v tests/python/frontend/pytorch
+python3 -m pytest tests/python/frontend/pytorch

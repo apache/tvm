@@ -118,3 +118,6 @@ If you want to run a single test:
   rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
   TVM_FFI=ctypes python -m pytest -v tests/python/unittest/test_pass_storage_rewrite.py
+
+  # Additionally if you want to run a single test, for example test_all_elemwise inside a file.
+  TVM_FFI=ctypes python -m pytest -v -k "test_all_elemwise" tests/python/frontend/tflite/test_forward.py
