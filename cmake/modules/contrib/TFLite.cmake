@@ -17,7 +17,7 @@
 
 if(NOT USE_TFLITE STREQUAL "OFF")
   message(STATUS "Build with contrib.tflite")
-  if (USE_TENSORFLOW_PATH STREQUAL "none") 
+  if (USE_TENSORFLOW_PATH STREQUAL "none")
     set(USE_TENSORFLOW_PATH ${CMAKE_CURRENT_SOURCE_DIR}/tensorflow)
   endif()
 
@@ -40,5 +40,8 @@ if(NOT USE_TFLITE STREQUAL "OFF")
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
-  list(APPEND TVM_RUNTIME_LINKER_LIBS rt dl flatbuffers)
+
+  if (NOT USE_FLATBUFFERS_PATH STREQUAL "none")
+    include_directories(${USE_FLATBUFFERS_PATH}/include)
+  endif()
 endif()

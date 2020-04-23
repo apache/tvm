@@ -154,6 +154,10 @@ set(USE_TFLITE OFF)
 # /path/to/tensorflow: tensorflow root path when use tflite library
 set(USE_TENSORFLOW_PATH none)
 
+# Required for full builds with TFLite. Not needed for runtime with TFLite.
+# /path/to/flatbuffers: flatbuffers root path when using tflite library
+set(USE_FLATBUFFERS_PATH none)
+
 # Possible values:
 # - OFF: disable tflite support for edgetpu
 # - /path/to/edgetpu: use specific path to edgetpu library
