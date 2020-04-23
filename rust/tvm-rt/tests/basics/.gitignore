@@ -1,7 +1,0 @@
-/target
-**/*.rs.bk
-Cargo.lock
-*.o
-*.so
-*.ptx
-*.json

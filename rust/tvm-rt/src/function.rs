@@ -256,6 +256,7 @@ unsafe extern "C" fn tvm_callback(
     let rust_fn = mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
     for i in 0..len {
         value = args_list[i];
+        println!("{:?}", value.v_handle);
         tcode = type_codes_list[i];
         if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
             || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
@@ -265,8 +266,11 @@ unsafe extern "C" fn tvm_callback(
                 &mut value as *mut _,
                 &mut tcode as *mut _
             ));
+            println!("{:?}", value.v_handle);
         }
-        local_args.push(TVMArgValue::from_tvm_value(value, tcode as u32));
+        let arg_value = TVMArgValue::from_tvm_value(value, tcode as u32);
+        println!("{:?}", arg_value);
+        local_args.push(arg_value);
     }
 
     let rv = match rust_fn(local_args.as_slice()) {
@@ -316,8 +320,8 @@ fn convert_to_tvm_func(f: fn(&[TVMArgValue]) -> Result<TVMRetValue>) -> Function
 /// ## Example
 ///
 /// ```
-/// # use tvm_frontend::{TVMArgValue, function, TVMRetValue};
-/// # use tvm_frontend::function::Builder;
+/// # use tvm_rt::{TVMArgValue, function, TVMRetValue};
+/// # use tvm_rt::function::Builder;
 /// # use anyhow::Error;
 /// use std::convert::TryInto;
 ///
@@ -361,9 +365,9 @@ pub fn register<S: AsRef<str>>(
 ///
 /// ```
 /// # use std::convert::TryInto;
-/// # use tvm_frontend::{register_global_func, TVMArgValue, TVMRetValue};
+/// # use tvm_rt::{register_global_func, TVMArgValue, TVMRetValue};
 /// # use anyhow::Error;
-/// # use tvm_frontend::function::Builder;
+/// # use tvm_rt::function::Builder;
 ///
 /// register_global_func! {
 ///     fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
@@ -414,12 +418,12 @@ macro_rules! register_global_func {
 /// Instead of
 ///
 /// # TODO(@jroesch): replace with working example
-/// # use tvm_frontend::function::Builder;
+/// # use tvm_rt::function::Builder;
 /// Builder::from(func).arg(&a).arg(&b).invoke();
 ///
 /// one can use
 ///
-/// # use tvm_frontend::call_packed;
+/// # use tvm_rt::call_packed;
 /// call_packed!(func, &a, &b);
 #[macro_export]
 macro_rules! call_packed {
@@ -435,6 +439,7 @@ macro_rules! call_packed {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::function::{Function, Builder};
 
     static CANARY: &str = "runtime.ModuleLoadFromFile";
 

@@ -6,7 +6,7 @@ use tvm_macros::Object;
 #[repr(C)]
 #[derive(Object)]
 #[ref_name = "Id"]
-#[type_key = "Id"]
+#[type_key = "relay.Id"]
 pub struct IdNode {
     pub base: Object,
     pub name_hint: TString,
@@ -85,10 +85,6 @@ impl GlobalVar {
         };
         GlobalVar(Some(ObjectPtr::new(node)))
     }
-
-    pub fn upcast(&self) -> ObjectRef {
-        ObjectRef(self.0.as_ref().map(|o| o.upcast()))
-    }
 }
 
 #[repr(C)]
@@ -133,10 +129,16 @@ impl Var {
     pub fn name_hint(&self) -> &TString {
        &self.vid.0.as_ref().unwrap().name_hint
     }
+
+    pub fn to_expr(self) -> Expr {
+        unsafe {
+            Expr(std::mem::transmute(self.0))
+        }
+    }
 }
 
-type Type = ObjectRef;
-type Attrs = ObjectRef;
+pub type Type = ObjectRef;
+pub type Attrs = ObjectRef;
 
 #[repr(C)]
 #[derive(Object)]
@@ -169,6 +171,30 @@ impl Call {
     }
 }
 
+#[repr(C)]
+#[derive(Object)]
+#[ref_name = "Function"]
+#[type_key = "relay.Function"]
+pub struct FunctionNode {
+    pub base: RelayExpr,
+    pub params: Array<Var>,
+    pub body: Expr,
+    pub ret_type: Type,
+    pub type_params: Array<Type>
+}
+
+impl Function {
+    pub fn new(params: Array<Var>, body: Expr, ret_type: Type, type_params: Array<Type>) -> Function {
+        let node = FunctionNode {
+            base: RelayExpr::base::<FunctionNode>(),
+            params: params,
+            body: body,
+            ret_type: ret_type,
+            type_params: type_params,
+        };
+        Function(Some(ObjectPtr::new(node)))
+    }
+}
 
 #[cfg(test)]
 mod tests {

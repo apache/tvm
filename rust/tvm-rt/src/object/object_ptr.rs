@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::ffi::CString;
 use std::ptr::NonNull;
-use tvm_sys::ffi::{self, TVMObjectFree, TVMObjectRetain, TVMObjectTypeKey2Index};
+use tvm_sys::ffi::{self, /* TVMObjectFree, */ TVMObjectRetain, TVMObjectTypeKey2Index};
 use tvm_sys::{TVMArgValue, TVMRetValue};
+use anyhow::Context;
 
 type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
 
@@ -75,7 +75,7 @@ pub unsafe trait IsObject {
 
     fn as_object<'s>(&'s self) -> &'s Object;
 
-    unsafe extern "C" fn typed_delete(object: *mut Self) {
+    unsafe extern "C" fn typed_delete(_object: *mut Self) {
         // let object = Box::from_raw(object);
         // drop(object)
     }
@@ -89,19 +89,14 @@ unsafe impl IsObject for Object {
     }
 }
 
-// unsafe impl<T: IsObject> IsObject for ObjectPtr<T> {
-//     fn as_object<'s>(&'s self) -> &'s Object {
-//         unsafe { self.ptr.as_ref().as_object() }
-//     }
-// }
-
 #[repr(C)]
 pub struct ObjectPtr<T> {
-    ptr: NonNull<T>,
+    pub ptr: NonNull<T>,
 }
 
 impl ObjectPtr<Object> {
     fn from_raw(object_ptr: *mut Object) -> Option<ObjectPtr<Object>> {
+        println!("{:?}", object_ptr);
         let non_null = NonNull::new(object_ptr);
         non_null.map(|ptr| ObjectPtr { ptr })
     }
@@ -117,14 +112,14 @@ impl<T> Clone for ObjectPtr<T> {
     }
 }
 
-impl<T> Drop for ObjectPtr<T> {
-    fn drop(&mut self) {
-        unsafe {
-            let raw_ptr = std::mem::transmute(self.ptr);
-            assert_eq!(TVMObjectFree(raw_ptr), 0)
-        }
-    }
-}
+// impl<T> Drop for ObjectPtr<T> {
+//     fn drop(&mut self) {
+//         unsafe {
+//             let raw_ptr = std::mem::transmute(self.ptr);
+//             assert_eq!(TVMObjectFree(raw_ptr), 0)
+//         }
+//     }
+// }
 
 impl<T: IsObject> ObjectPtr<T> {
     pub fn new(object: T) -> ObjectPtr<T> {
@@ -156,7 +151,8 @@ impl<T: IsObject> ObjectPtr<T> {
         let is_derived = if child_index == object_index {
             true
         } else {
-            derived_from(child_index, object_index)
+            // TODO(@jroesch): write tests
+            derived_from(object_index, child_index)
         };
 
         if is_derived {
@@ -177,47 +173,6 @@ impl<T> std::ops::Deref for ObjectPtr<T> {
     }
 }
 
-#[derive(Clone)]
-pub struct ObjectRef(pub Option<ObjectPtr<Object>>);
-
-impl ObjectRef {
-    pub fn null() -> ObjectRef {
-        ObjectRef(None)
-    }
-}
-
-pub trait ToObjectRef {
-    fn to_object_ref(&self) -> ObjectRef;
-}
-
-impl ToObjectRef for ObjectRef {
-    fn to_object_ref(&self) -> ObjectRef {
-        self.clone()
-    }
-}
-
-impl<T: ToObjectRef> ToObjectRef for &T {
-    fn to_object_ref(&self) -> ObjectRef {
-        (*self).to_object_ref()
-    }
-}
-
-impl TryFrom<TVMRetValue> for ObjectRef {
-    type Error = anyhow::Error;
-
-    fn try_from(ret_val: TVMRetValue) -> Result<ObjectRef, Self::Error> {
-        match ret_val {
-            TVMRetValue::ObjectHandle(handle) =>
-            // I think we can type the lower-level bindings even further.
-            unsafe {
-                let handle = std::mem::transmute(handle);
-                Ok(ObjectRef(ObjectPtr::from_raw(handle)))
-            }
-            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
-        }
-    }
-}
-
 impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMRetValue {
     fn from(object_ptr: ObjectPtr<T>) -> TVMRetValue {
         let raw_object_ptr = object_ptr.ptr.as_ptr();
@@ -227,15 +182,18 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMRetValue {
     }
 }
 
-impl From<ObjectRef> for TVMRetValue {
-    fn from(object_ref: ObjectRef) -> TVMRetValue {
-        use std::ffi::c_void;
-        let object_ptr = &object_ref.0;
-        match object_ptr {
-            None => {
-                TVMRetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
+impl<'a, T: IsObject> TryFrom<TVMRetValue> for ObjectPtr<T> {
+    type Error = anyhow::Error;
+
+    fn try_from(ret_value: TVMRetValue) -> Result<ObjectPtr<T>, Self::Error> {
+        match ret_value {
+            TVMRetValue::ObjectHandle(handle) => {
+                let handle: *mut Object = unsafe { std::mem::transmute(handle) };
+                let optr = ObjectPtr::from_raw(handle)
+                       .context("unable to convert nullptr")?;
+                    optr.downcast()
             }
-            Some(value) => value.clone().into()
+            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
         }
     }
 }
@@ -249,51 +207,61 @@ impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMArgValue<'a> {
     }
 }
 
-impl<'a> From<ObjectRef> for TVMArgValue<'a> {
-    fn from(object_ref: ObjectRef) -> TVMArgValue<'a> {
-        use std::ffi::c_void;
-        let object_ptr = &object_ref.0;
-        match object_ptr {
-            None => {
-                TVMArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void)
+impl<'a, T: IsObject> TryFrom<TVMArgValue<'a>> for ObjectPtr<T> {
+    type Error = anyhow::Error;
+    fn try_from(arg_value: TVMArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
+        match arg_value {
+            TVMArgValue::ObjectHandle(handle) => {
+                let handle = unsafe { std::mem::transmute(handle) };
+                let optr = ObjectPtr::from_raw(handle)
+                    .context("unable to convert nullptr")?;
+                optr.downcast()
             }
-            Some(value) => value.clone().into()
+            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
         }
     }
 }
 
-impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
-    fn from(object_ref: &ObjectRef) -> TVMArgValue<'a> {
-        object_ref.into()
-    }
-}
-
-#[macro_export]
-macro_rules! external_func {
-    (fn $name:ident ( $($arg:ident : $ty:ty),* ) -> $ret_type:ty as $ext_name:literal;) => {
-        ::paste::item! {
-            #[allow(non_upper_case_globals)]
-            static [<global_ $name>]: ::once_cell::sync::Lazy<&'static $crate::Function> =
-            ::once_cell::sync::Lazy::new(|| {
-                $crate::Function::get($ext_name)
-                .expect(concat!("unable to load external function", stringify!($ext_name), "from TVM registry."))
-            });
-        }
-
-        pub fn $name($($arg : $ty),*) -> Result<$ret_type, anyhow::Error> {
-            use std::convert::TryInto;
-            let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
-            let res = $crate::call_packed!(func_ref,$($arg),*)?;
-            let res = res.try_into()?;
-            Ok(res)
+impl<'a, T: IsObject> TryFrom<&TVMArgValue<'a>> for ObjectPtr<T> {
+    type Error = anyhow::Error;
+    fn try_from(arg_value: &TVMArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
+        match arg_value {
+            TVMArgValue::ObjectHandle(handle) => {
+                let handle = unsafe { std::mem::transmute(handle) };
+                let optr = ObjectPtr::from_raw(handle)
+                    .context("unable to convert nullptr")?;
+                optr.downcast()
+            }
+            _ => Err(anyhow::anyhow!("unable to convert the result to an Object")),
         }
     }
 }
 
-external_func! {
-    fn debug_print(object: &ObjectRef) -> CString as "ir.DebugPrinter";
-}
+#[cfg(test)]
+mod tests {
+    use super::{Object, ObjectPtr};
+    use tvm_sys::{TVMArgValue, TVMRetValue};
+    use anyhow::{Result, ensure};
+    use std::convert::TryInto;
 
-external_func! {
-    fn as_text(object: &ObjectRef) -> CString as "ir.TextPrinter";
+    #[test]
+    fn test_new_object() -> anyhow::Result<()> {
+        let object = Object::base_object::<Object>();
+        let ptr = ObjectPtr::new(object);
+        assert_eq!(ptr.count(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn roundtrip_retvalue() -> Result<()> {
+        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let ret_value: TVMRetValue = ptr.clone().into();
+        let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
+        ensure!(ptr.type_index == ptr2.type_index, "type indices do not match");
+        ensure!(ptr.fdeleter == ptr2.fdeleter, "objects have different deleters");
+        Ok(())
+    }
+
+
+
 }

@@ -6,7 +6,9 @@ use tvm_sys::TVMRetValue;
 
 use anyhow::Result;
 
+#[derive(Clone)]
 pub struct Array<T: ToObjectRef> {
+
     object: ObjectRef,
     _data: PhantomData<T>,
 }

@@ -71,8 +71,8 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
             }
         }
 
+        #[derive(Clone)]
         pub struct #ref_id(Option<tvm_rt::object::ObjectPtr<#payload_id>>);
-
 
         impl tvm_rt::object::ToObjectRef for #ref_id {
             fn to_object_ref(&self) -> ObjectRef {
@@ -116,7 +116,28 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> TokenStream {
 
         impl<'a> From<&#ref_id> for tvm_rt::TVMArgValue<'a> {
             fn from(object_ref: &#ref_id) -> tvm_rt::TVMArgValue<'a> {
-                object_ref.into()
+                let oref: #ref_id = object_ref.clone();
+                tvm_rt::TVMArgValue::<'a>::from(oref)
+            }
+        }
+
+        impl<'a> std::convert::TryFrom<tvm_rt::TVMArgValue<'a>> for #ref_id {
+            type Error = anyhow::Error;
+
+            fn try_from(arg_value: tvm_rt::TVMArgValue<'a>) -> Result<#ref_id, Self::Error> {
+                use std::convert::TryInto;
+                let optr = arg_value.try_into()?;
+                Ok(#ref_id(Some(optr)))
+            }
+        }
+
+        impl<'a> std::convert::TryFrom<&tvm_rt::TVMArgValue<'a>> for #ref_id {
+            type Error = anyhow::Error;
+
+            fn try_from(arg_value: &tvm_rt::TVMArgValue<'a>) -> Result<#ref_id, Self::Error> {
+                use std::convert::TryInto;
+                let optr = arg_value.try_into()?;
+                Ok(#ref_id(Some(optr)))
             }
         }
 

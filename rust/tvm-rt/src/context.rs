@@ -24,7 +24,7 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_frontend::{TVMDeviceType, TVMContext};
+//! # use tvm_rt::{TVMDeviceType, TVMContext};
 //! let cpu = TVMDeviceType::from("cpu");
 //! let ctx = TVMContext::new(cpu , 0);
 //! let cpu0 = TVMContext::cpu(0);
@@ -34,7 +34,7 @@
 //! Or from a supported device name.
 //!
 //! ```
-//! use tvm_frontend::TVMContext;
+//! use tvm_rt::TVMContext;
 //! let cpu0 = TVMContext::from("cpu");
 //! println!("{}", cpu0);
 //! ```
@@ -58,7 +58,7 @@ use crate::{function, TVMArgValue};
 /// ## Example
 ///
 /// ```
-/// use tvm_frontend::TVMDeviceType;
+/// use tvm_rt::TVMDeviceType;
 /// let cpu = TVMDeviceType::from("cpu");
 /// println!("device is: {}", cpu);
 ///```
@@ -156,7 +156,7 @@ impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
 /// ## Examples
 ///
 /// ```
-/// use tvm_frontend::TVMContext;
+/// use tvm_rt::TVMContext;
 /// let ctx = TVMContext::from("cpu");
 /// assert!(ctx.exist());
 ///
@@ -165,7 +165,7 @@ impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
 /// It is possible to query the underlying context as follows
 ///
 /// ```
-/// # use tvm_frontend::TVMContext;
+/// # use tvm_rt::TVMContext;
 /// # let ctx = TVMContext::from("cpu");
 /// println!("maximun threads per block: {}", ctx.exist());
 /// ```

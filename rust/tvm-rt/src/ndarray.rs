@@ -29,7 +29,7 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_frontend::{NDArray, TVMContext, DataType};
+//! # use tvm_rt::{NDArray, TVMContext, DataType};
 //! # use ndarray::{Array, ArrayD};
 //! # use std::str::FromStr;
 //! use std::convert::TryFrom;
@@ -179,7 +179,7 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// # use tvm_frontend::{TVMContext, DataType, NDArray};
+    /// # use tvm_rt::{TVMContext, DataType, NDArray};
     /// # use std::str::FromStr;
     /// let mut shape = [4];
     /// let mut data = vec![1i32, 2, 3, 4];
@@ -219,7 +219,7 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// # use tvm_frontend::{TVMContext, DataType, NDArray};
+    /// # use tvm_rt::{TVMContext, DataType, NDArray};
     /// # use std::str::FromStr;
     /// let shape = &mut [2];
     /// let mut data = vec![1f32, 2.0];
