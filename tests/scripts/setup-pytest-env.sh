@@ -19,5 +19,5 @@
 set -u
 set -e
 export TVM_PATH=`pwd`
-export PYTHONPATH=python:topi/python
+export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/topi/python
 export PYTEST_ADDOPTS="-v $CI_PYTEST_ADD_OPTIONS"
