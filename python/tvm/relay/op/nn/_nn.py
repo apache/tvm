@@ -464,7 +464,7 @@ def compute_dilate(attrs, inputs, out_dtype):
     return [topi.nn.dilate(inputs[0], attrs.strides)]
 
 reg.register_broadcast_schedule("nn.dilate")
-reg.register_pattern("nn.dilate", OpPattern.OPAQUE)
+reg.register_pattern("nn.dilate", OpPattern.INJECTIVE)
 
 
 # cross_entropy_with_logits
