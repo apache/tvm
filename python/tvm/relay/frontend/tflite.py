@@ -1308,13 +1308,7 @@ class OperatorConverter(object):
             pad_left, pad_right = get_pad_value(input_w, dilated_kernel_w, stride_w)
             do_pad = not (pad_top == 0 and pad_bottom == 0 and pad_left == 0 and pad_right == 0)
             if do_pad:
-                pad_value = 0
-                if input_tensor.qnn_params:
-                    pad_value = get_scalar_from_constant(input_tensor.qnn_params['zero_point'])
-                in_expr = _op.nn.pad(data=in_expr, pad_width=((0, 0),
-                                                              (pad_top, pad_bottom),
-                                                              (pad_left, pad_right),
-                                                              (0, 0)), pad_value=float(pad_value))
+                params['padding'] = [pad_top, pad_left, pad_bottom, pad_right]
 
         else:
             raise tvm.error.OpAttributeUnImplemented(
