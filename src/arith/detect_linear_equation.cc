@@ -23,7 +23,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
@@ -156,10 +157,14 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
   }
 
   std::unordered_set<const VarNode*> vset;
+  auto vset_contains = [&](const VarNode* node) {
+    return vset.count(node) != 0;
+  };
+
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
-    if (ExprUseVar(coeff[i - 2], vset)) {
+    if (ExprUseVar(coeff[i - 2], vset_contains)) {
       return Array<PrimExpr>();
     }
   }

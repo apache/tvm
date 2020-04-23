@@ -20,7 +20,7 @@
 /*!
  * \file tvm/arith/ir_mutator_with_analyzer.cc
  */
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include "ir_mutator_with_analyzer.h"
 

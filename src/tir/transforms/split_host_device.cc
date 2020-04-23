@@ -22,9 +22,10 @@
  * \brief Split device function from host.
  */
 #include <tvm/ir/transform.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target.h>
 #include <tvm/runtime/registry.h>

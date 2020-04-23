@@ -27,11 +27,11 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/arith/analyzer.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include "ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
@@ -203,9 +203,6 @@ Stmt UnrollLoop(Stmt stmt,
     return ret;
   }
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.UnrollLoop")
-.set_body_typed(UnrollLoop);
 
 namespace transform {
 

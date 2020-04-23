@@ -65,8 +65,8 @@
 #ifndef TVM_ARITH_PATTERN_MATCH_H_
 #define TVM_ARITH_PATTERN_MATCH_H_
 
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/expr.h>
 #include <tuple>
 #include "const_fold.h"
 
@@ -149,9 +149,9 @@ class PEqualChecker<IntImm> {
 };
 
 template<>
-class PEqualChecker<Var> {
+class PEqualChecker<tir::Var> {
  public:
-  bool operator()(const Var& lhs, const Var& rhs) const {
+  bool operator()(const tir::Var& lhs, const tir::Var& rhs) const {
     return lhs.same_as(rhs);
   }
 };
