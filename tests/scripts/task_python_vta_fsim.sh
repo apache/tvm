@@ -20,7 +20,7 @@ set -e
 set -u
 
 export TVM_PATH=`pwd`
-export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python:${TVM_PATH}/topi/python
+export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python
 export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
 
 # cleanup pycache

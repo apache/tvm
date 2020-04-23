@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python
+source tests/scripts/setup-pytest-env.sh
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f

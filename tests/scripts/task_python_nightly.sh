@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python
+source tests/scripts/setup-pytest-env.sh
 
 # Rebuild cython
 make cython3
