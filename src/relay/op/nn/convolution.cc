@@ -22,7 +22,6 @@
  * \brief Convolution operators
  */
 #include <tvm/tir/data_layout.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>

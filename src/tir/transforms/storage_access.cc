@@ -20,7 +20,6 @@
 /*!
  * \file storage_access.cc
  */
-#include <tvm/tir/ir_pass.h>
 #include <tvm/target/target_info.h>
 #include <string>
 #include <utility>

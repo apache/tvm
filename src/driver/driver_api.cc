@@ -27,7 +27,6 @@
 
 #include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/target/codegen.h>
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/registry.h>
@@ -142,7 +141,7 @@ IRModule lower(te::Schedule sch,
   // Before TIR transformation.
   auto bounds = te::InferBound(sch);
   auto stmt = te::ScheduleOps(sch, bounds, false);
-  bool compact = tir::VerifyCompactBuffer(stmt);
+  bool compact = te::VerifyCompactBuffer(stmt);
 
   Map<te::Tensor, tir::Buffer> out_binds;
   GetBinds(args, compact, binds, &out_binds, &out_arg_list, config);
@@ -196,10 +195,10 @@ split_dev_host_funcs(IRModule mod_mixed,
                      const Target& target,
                      const Target& target_host,
                      const BuildConfig& config) {
-  mod_mixed = BindTarget(target)(std::move(mod_mixed));
-  tir::VerifyMemory(mod_mixed);
-
-  Array<tvm::transform::Pass> mixed_pass_list = {BindTarget(target)};
+  Array<tvm::transform::Pass> mixed_pass_list = {
+    BindTarget(target),
+    tir::transform::VerifyMemory()
+  };
   if (config->detect_global_barrier) {
     mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
   }

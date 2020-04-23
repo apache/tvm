@@ -25,7 +25,6 @@
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/analysis.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/arith/analyzer.h>
 
 #include <iterator>

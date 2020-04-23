@@ -22,7 +22,6 @@
  * \brief Utility to deduce bound of expression
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/te/tensor.h>
 #include <tvm/runtime/registry.h>

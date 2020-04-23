@@ -228,7 +228,6 @@ TVM_DLL Pass InstrumentBoundCheckers();
  */
 TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
 
-
 /*!
  * \brief Remap the thread axis
  *
@@ -241,7 +240,6 @@ TVM_DLL Pass MakePackedAPI(int num_unpacked_args);
  */
 TVM_DLL Pass RemapThreadAxis(Map<runtime::String, IterVar> axis_map);
 
-
 /*!
  * \brief Lower custom datatypes.
  *
@@ -250,6 +248,13 @@ TVM_DLL Pass RemapThreadAxis(Map<runtime::String, IterVar> axis_map);
  * \return The pass.
  */
 TVM_DLL Pass LowerCustomDatatypes();
+
+/*!
+ * \brief Decorate all the function's body as device function.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass DecorateDeviceScope();
 
 /*!
  * \brief Split the function into a host function and device functions.
@@ -333,6 +338,16 @@ TVM_DLL Pass CombineContextCall();
  * \return The pass.
  */
 TVM_DLL Pass NarrowDataType(int target_bits);
+
+/*!
+ * \brief Rewrite the pointer content type of arguments,
+ *  as well as Alloc internal to the function to use
+ *  the most frequently accessed type for load/store
+ *  to avoid pointer casting in backend when possible.
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass PointerValueTypeRewrite();
 
 }  // namespace transform
 }  // namespace tir

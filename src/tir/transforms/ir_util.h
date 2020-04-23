@@ -21,8 +21,8 @@
  * \file ir_util.h
  * \brief Helper functions to construct and compose IR nodes.
  */
-#ifndef TVM_TIR_PASS_IR_UTIL_H_
-#define TVM_TIR_PASS_IR_UTIL_H_
+#ifndef TVM_TIR_TRANSFORMS_IR_UTIL_H_
+#define TVM_TIR_TRANSFORMS_IR_UTIL_H_
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -174,6 +174,14 @@ inline int GetTempAllocaAlignment(DataType type, int32_t const_size) {
   return align;
 }
 
+
+/*!
+ * \brief Convert a IR node to be SSA form.
+ * \param stmt The source statement to be converted.
+ * \return The converted form.
+ */
+Stmt ConvertSSA(Stmt stmt);
+
 }  // namespace tir
 }  // namespace tvm
-#endif  // TVM_TIR_PASS_IR_UTIL_H_
+#endif  // TVM_TIR_TRANSFORMS_IR_UTIL_H_

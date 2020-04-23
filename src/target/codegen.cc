@@ -25,7 +25,6 @@
 #include <tvm/target/target.h>
 
 #include <tvm/ir/module.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/function.h>
 

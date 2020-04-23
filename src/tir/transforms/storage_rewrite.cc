@@ -25,7 +25,6 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
@@ -33,7 +32,7 @@
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
-#include "../pass/ir_util.h"
+#include "ir_util.h"
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -937,6 +936,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
+
 // Turn alloc into vector alloc
 // if all its access is the same vector type.
 class VectorAllocRewriter : public StmtExprMutator {
@@ -995,6 +995,11 @@ class VectorAllocRewriter : public StmtExprMutator {
   arith::Analyzer analyzer_;
 };
 
+Stmt StorageRewrite(Stmt stmt) {
+  stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
+  return VectorAllocRewriter()(std::move(stmt));
+}
+
 
 PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   auto* n = f.CopyOnWrite();
@@ -1037,13 +1042,6 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f) {
   return f;
 }
 
-Stmt StorageRewrite(Stmt stmt) {
-  stmt = StoragePlanRewriter().Rewrite(std::move(stmt), true);
-  return VectorAllocRewriter()(std::move(stmt));
-}
-
-TVM_REGISTER_GLOBAL("ir_pass.StorageRewrite")
-.set_body_typed(StorageRewrite);
 
 namespace transform {
 
@@ -1059,6 +1057,17 @@ Pass StorageRewrite() {
 
 TVM_REGISTER_GLOBAL("tir.transform.StorageRewrite")
 .set_body_typed(StorageRewrite);
+
+
+Pass PointerValueTypeRewrite() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    return PointerValueTypeRewrite(std::move(f));
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.PointerValueTypeRewrite", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.PointerValueTypeRewrite")
+.set_body_typed(PointerValueTypeRewrite);
 
 }  // namespace transform
 

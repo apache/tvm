@@ -22,7 +22,6 @@
  * \brief Generate SPIRV block
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/container.h>
 #include <string>
 #include "codegen_spirv.h"

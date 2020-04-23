@@ -20,81 +20,7 @@ import tvm._ffi
 import tvm.ir
 
 from tvm.runtime import Object
-from tvm.tir import Stmt
 from . import _ffi_api
-
-
-class DumpIR(object):
-    """
-    Dump IR for each pass.
-    With it, you can dump ir just like gcc/llvm.
-
-    How to use:
-    -----------
-    .. code-block:: python
-
-        with tvm.target.build_config(dump_pass_ir=True)
-            run()
-    """
-    scope_level = 0
-    def __init__(self):
-        self._pass_id = 0
-        self._recover_list = []
-
-    def decorate(self, func):
-        """ decorate the pass function"""
-        def dump(*args, **kwargs):
-            """dump function"""
-            retv = func(*args, **kwargs)
-            if not isinstance(retv, (Stmt,)):
-                return retv
-            fname = func.func_name if hasattr(func, 'func_name') else func.__name__
-            pname = str(self._pass_id) + "_" + fname + "_ir.cc"
-            with open(pname, "a") as f:
-                out = retv
-                f.write(str(out))
-                self._pass_id += 1
-            return retv
-        return dump
-
-    def decorate_irpass(self):
-        """decorate ir_pass and ScheduleOps"""
-        self._old_sgpass = tvm.te.schedule.ScheduleOps
-        tvm.te.schedule.ScheduleOps = self.decorate(tvm.te.schedule.ScheduleOps)
-        vset = vars(tvm.tir.ir_pass)
-        k = v = 0
-        def recover():
-            vset[k] = v
-        for k, v in vset.items():
-            self._recover_list.append(recover)
-            vset[k] = self.decorate(v) if isinstance(v, tvm.runtime.PackedFunc) else v
-
-    def decorate_custompass(self, custom_pass):
-        """decorate given list of custom passes, and return decorated passes"""
-        custom_pass = custom_pass if custom_pass else []
-        pass_list = []
-        for idx, x in enumerate(custom_pass):
-            x[1].__name__ = "custom{}_phase{}".format(idx, x[0])
-            pass_list += [(x[0], self.decorate(x[1]))]
-        return pass_list
-
-    def enter(self):
-        """only decorate outermost nest"""
-        if DumpIR.scope_level > 0:
-            return
-        self.decorate_irpass()
-        self._pass_id = 0
-        DumpIR.scope_level += 1
-
-    def exit(self):
-        """recover outermost nest"""
-        if DumpIR.scope_level > 1:
-            return
-        # recover decorated functions
-        for f in self._recover_list:
-            f()
-        tvm.te.schedule.ScheduleOps = self._old_sgpass
-        DumpIR.scope_level -= 1
 
 
 @tvm._ffi.register_object
@@ -129,7 +55,6 @@ class BuildConfig(Object):
         "disable_vectorize": False,
         "disable_assert": False
     }
-    _dump_ir = DumpIR()
 
     # pylint: disable=no-member
     def __init__(self, handle):
@@ -163,13 +88,9 @@ class BuildConfig(Object):
     def __enter__(self):
         # pylint: disable=protected-access
         _ffi_api.EnterBuildConfigScope(self)
-        if self.dump_pass_ir:
-            BuildConfig._dump_ir.enter()
         return self
 
     def __exit__(self, ptype, value, trace):
-        if self.dump_pass_ir:
-            BuildConfig._dump_ir.exit()
         _ffi_api.ExitBuildConfigScope(self)
 
     def __setattr__(self, name, value):

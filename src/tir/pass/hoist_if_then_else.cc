@@ -20,6 +20,7 @@
 /*!
  * \file hoist_if_then_else.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
@@ -414,6 +415,10 @@ Stmt IfThenElseHoist::PostOrderMutate(const Stmt& stmt) {
 Stmt HoistIfThenElse(Stmt stmt) {
   return IfThenElseHoist().VisitAndMutate(stmt);
 }
+
+
+TVM_REGISTER_GLOBAL("testing.HoistIfThenElse")
+.set_body_typed(HoistIfThenElse);
 
 }  // namespace tir
 }  // namespace tvm

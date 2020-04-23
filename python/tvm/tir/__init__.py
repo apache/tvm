@@ -45,7 +45,6 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 
 from . import ir_builder
-from . import ir_pass
 from . import transform
 from . import analysis
 from . import stmt_functor

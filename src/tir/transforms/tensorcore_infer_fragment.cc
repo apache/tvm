@@ -22,7 +22,6 @@
  * \file tensorcore_fragment.cc
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>
@@ -30,8 +29,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../pass/storage_access.h"
-#include "../pass/ir_util.h"
+#include "storage_access.h"
+#include "ir_util.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {

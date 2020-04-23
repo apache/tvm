@@ -22,8 +22,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/ir_pass.h>
-#include "../pass/ir_util.h"
+#include <tvm/tir/op.h>
+
 
 namespace tvm {
 namespace tir {

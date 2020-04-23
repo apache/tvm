@@ -30,7 +30,7 @@
 
 #include <unordered_set>
 
-#include "../pass/ir_util.h"
+#include "ir_util.h"
 #include "../../arith/compute_expr.h"
 #include "../../runtime/thread_storage_scope.h"
 

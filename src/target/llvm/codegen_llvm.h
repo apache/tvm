@@ -45,7 +45,7 @@
 #include "llvm_common.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../arith/compute_expr.h"
-#include "../../tir/pass/ir_util.h"
+#include "../../tir/transforms/ir_util.h"
 
 namespace tvm {
 namespace codegen {

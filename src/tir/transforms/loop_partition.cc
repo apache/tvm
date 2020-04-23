@@ -22,12 +22,13 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/arith/bound.h>
 #include <unordered_map>
 #include <unordered_set>
+#include "ir_util.h"
 #include "../../arith/interval_set.h"
 #include "../../runtime/thread_storage_scope.h"
 
@@ -612,9 +613,6 @@ Stmt LoopPartition(Stmt stmt, bool split_const_loop) {
   return stmt;
 }
 
-
-TVM_REGISTER_GLOBAL("ir_pass.LoopPartition")
-.set_body_typed(LoopPartition);
 
 namespace transform {
 

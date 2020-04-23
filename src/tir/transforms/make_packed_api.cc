@@ -20,7 +20,6 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/transform.h>
@@ -35,8 +34,8 @@
 #include <utility>
 #include <unordered_set>
 
-#include "../pass/ir_util.h"
-#include "../pass/arg_binder.h"
+#include "ir_util.h"
+#include "arg_binder.h"
 
 namespace tvm {
 namespace tir {

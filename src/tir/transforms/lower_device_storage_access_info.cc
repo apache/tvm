@@ -27,7 +27,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/target/target_info.h>
 #include <tvm/runtime/registry.h>
-#include "../pass/ir_util.h"
+#include "ir_util.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -142,9 +142,6 @@ class StorageAccessInfoLower : public StmtExprMutator {
 Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower()(std::move(stmt));
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.LowerStorageAccessInfo")
-.set_body_typed(LowerStorageAccessInfo);
 
 namespace transform {
 

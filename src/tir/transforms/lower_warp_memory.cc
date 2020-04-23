@@ -30,10 +30,10 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/tir/ir_pass.h>
 
 #include <unordered_set>
 
@@ -260,7 +260,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       PrimExpr local_index, group;
       std::tie(local_index, group) = SplitIndexByGroup(op->index);
       // invariance: local index must do not contain warp id
-      CHECK(!ExprUseVar(local_index, {warp_index_.get()}))
+      CHECK(!ExprUseVar(local_index, warp_index_))
           << "LowerWarpMemory failed to rewrite load to shuffle for index "
           << op->index << " local_index=" << local_index;
       PrimExpr load_value = LoadNode::make(

@@ -20,9 +20,10 @@ from tvm import te
 
 def get_verify_pass(valid, **kwargs):
     def _fverify(f, *_):
-        valid[0] = tvm.tir.ir_pass.VerifyGPUCode(f.body, kwargs)
+        valid[0] = tvm.tir.analysis.verify_gpu_code(f, kwargs)
         return f
     return tvm.tir.transform.prim_func_pass(_fverify, opt_level=0)
+
 
 def test_shared_memory():
     def check_shared_memory(dtype):

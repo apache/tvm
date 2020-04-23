@@ -25,7 +25,7 @@
  */
 
 #include <tvm/runtime/registry.h>
-
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
@@ -164,7 +164,7 @@ class GPUCodeVerifier : public StmtVisitor {
   }
 };
 
-bool VerifyGPUCode(Stmt stmt,
+bool VerifyGPUCode(const PrimFunc& func,
                    Map<std::string, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
@@ -193,7 +193,7 @@ bool VerifyGPUCode(Stmt stmt,
       LOG(FATAL) << "Invalid check item: " << iter.first;
   }
 
-  return verifier.Verify(stmt,
+  return verifier.Verify(func->body,
                          max_local_memory_per_block,
                          max_shared_memory_per_block,
                          max_threads_per_block,
@@ -202,5 +202,30 @@ bool VerifyGPUCode(Stmt stmt,
                          max_thread_z);
 }
 
+
+TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code")
+.set_body_typed(VerifyGPUCode);
+
+namespace transform {
+
+Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints) {
+  auto pass_func = [=](IRModule mod, PassContext ctx) {
+    for (auto kv : mod->functions) {
+      if (auto* n = kv.second.as<PrimFuncNode>()) {
+        auto func = GetRef<PrimFunc>(n);
+        CHECK(VerifyGPUCode(func, constraints))
+            << "RuntimeError: GPU constraint violated"
+            << func;
+      }
+    }
+    return mod;
+  };
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyGPUCode", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.VerifyGPUCode")
+.set_body_typed(VerifyGPUCode);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

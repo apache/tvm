@@ -24,7 +24,6 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include "op_util.h"
 #include "../schedule/graph.h"
 

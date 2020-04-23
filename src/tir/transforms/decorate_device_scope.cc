@@ -18,21 +18,38 @@
  */
 
 /*!
- * \file detect_device.cc
+ * \file decorate_device_scope.cc
  */
-
-#include <tvm/tir/ir_pass.h>
-#include "ir_util.h"
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/stmt.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace tir {
-Stmt DecorateDeviceScope(Stmt stmt) {
+
+Stmt DecorateDeviceScope(Stmt&& stmt) {
   Stmt body = AttrStmtNode::make(make_zero(DataType::Int(32)),
-                             tir::attr::device_scope,
-                             0,
-                             stmt);
+                                 tir::attr::device_scope,
+                                 0,
+                                 stmt);
   return body;
 }
 
+namespace transform {
+
+Pass DecorateDeviceScope() {
+  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto* n = f.CopyOnWrite();
+    n->body = DecorateDeviceScope(std::move(n->body));
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "tir.DecorateDeviceScope", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.DecorateDeviceScope")
+.set_body_typed(DecorateDeviceScope);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

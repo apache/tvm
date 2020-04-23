@@ -24,8 +24,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/ir_pass.h>
 #include <unordered_set>
+#include "ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
@@ -501,9 +501,6 @@ Stmt InjectVirtualThread(Stmt stmt) {
   stmt = VirtualThreadInjector()(std::move(stmt));
   return ConvertSSA(std::move(stmt));
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.InjectVirtualThread")
-.set_body_typed(InjectVirtualThread);
 
 namespace transform {
 

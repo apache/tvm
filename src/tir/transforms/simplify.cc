@@ -23,7 +23,6 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/arith/analyzer.h>

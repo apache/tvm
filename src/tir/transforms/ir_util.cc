@@ -18,60 +18,71 @@
  */
 
 /*!
- *  SSA related checks and pass.
- *
- *  SSA requires each varaible to be only defined once.
- * \file ssa.cc
+ * \file ir_util.cc
+ * \brief Helper functions to construct and compose IR nodes.
  */
-#include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
+#include <utility>
 #include <unordered_set>
 #include <unordered_map>
-#include <vector>
+#include "ir_util.h"
 
 namespace tvm {
 namespace tir {
-namespace {
-class IRVerifySSA final : public StmtExprVisitor {
- public:
-  bool is_ssa{true};
 
-  void VisitExpr(const PrimExpr& n) final {
-    if (!is_ssa) return;
-    StmtExprVisitor::VisitExpr(n);
-  }
-  void VisitStmt(const Stmt& n) final {
-    if (!is_ssa) return;
-    StmtExprVisitor::VisitStmt(n);
-  }
-  void VisitExpr_(const LetNode* op) final {
-    MarkDef(op->var.get());
-    StmtExprVisitor::VisitExpr_(op);
-  }
-  void VisitStmt_(const LetStmtNode* op) final {
-    MarkDef(op->var.get());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-  void VisitStmt_(const ForNode* op) final {
-    MarkDef(op->loop_var.get());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-  void VisitStmt_(const AllocateNode* op) final {
-    MarkDef(op->buffer_var.get());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
- private:
-  void MarkDef(const VarNode* v) {
-    if (defined_.count(v) != 0) {
-      is_ssa = false; return;
+Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
+  // use reverse iteration
+  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
+    Stmt s = *ri;
+    if (const auto* for_ = s.as<ForNode>()) {
+      auto n = make_object<ForNode>(*for_);
+      CHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
+    } else if (const auto* let = s.as<LetStmtNode>()) {
+      auto n = make_object<LetStmtNode>(*let);
+      CHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
+    } else if (const auto* attr = s.as<AttrStmtNode>()) {
+      auto n = make_object<AttrStmtNode>(*attr);
+      CHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
+    } else if (const auto* ite = s.as<IfThenElseNode>()) {
+      auto n = make_object<IfThenElseNode>(*ite);
+      CHECK(is_no_op(n->then_case));
+      CHECK(!n->else_case.defined());
+      n->then_case = body;
+      body = Stmt(n);
+    } else if (const auto* seq = s.as<SeqStmtNode>()) {
+      auto n = make_object<SeqStmtNode>(*seq);
+      CHECK(n->size() != 0 && is_no_op(n->seq[n->size() - 1]));
+      n->seq.Set(n->size() - 1, body);
+      body = Stmt(n);
+    } else if (const auto* assert_ = s.as<AssertStmtNode>()) {
+      auto n = make_object<AssertStmtNode>(*assert_);
+      CHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
+    } else if (const auto* alloc = s.as<AllocateNode>()) {
+      auto n = make_object<AllocateNode>(*alloc);
+      CHECK(is_no_op(n->body));
+      n->body = body;
+      body = Stmt(n);
     } else {
-      defined_[v] = 1;
+      LOG(FATAL) << "not supported nest type";
     }
   }
-  std::unordered_map<const VarNode*, int> defined_;
-};
+  return body;
+}
+
+Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
+  for (auto ri = nest.rbegin(); ri != nest.rend(); ++ri) {
+    body = MergeNest(*ri, body);
+  }
+  return body;
+}
 
 
 class IRConvertSSA final : public StmtExprMutator {
@@ -194,14 +205,6 @@ class IRConvertSSA final : public StmtExprMutator {
   std::unordered_map<const VarNode*, std::vector<Var> > scope_;
   std::unordered_set<const VarNode*> defined_;
 };
-
-}  // namespace
-
-bool VerifySSA(const Stmt& ir) {
-  IRVerifySSA visitor;
-  visitor(ir);
-  return visitor.is_ssa;
-}
 
 Stmt ConvertSSA(Stmt stmt) {
   return IRConvertSSA()(std::move(stmt));

@@ -25,7 +25,6 @@
 #define TOPI_ELEMWISE_H_
 
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <topi/tags.h>
 #include <algorithm>
 #include <string>
