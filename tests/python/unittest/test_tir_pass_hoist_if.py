@@ -67,7 +67,7 @@ def test_basic():
                     ib.emit(tvm.tir.Evaluate(n))
 
     stmt = ib.get()
-    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.testing.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('For', 'j'): (('For', 'k'),),
                        ('IfThenElse', ('i',)): (('For', 'j'), ('For', 'j')),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
@@ -86,7 +86,7 @@ def test_no_else():
                     ib.emit(tvm.tir.Evaluate(m))
 
     stmt = ib.get()
-    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.testing.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('For', 'j'): (('For', 'k'),),
                        ('IfThenElse', ('i',)): (('For', 'j'), None),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
@@ -113,7 +113,7 @@ def test_attr_stmt():
                     data[bx * j + tx * j * k] = data[bx * j + tx * j * k]  + 1.0
 
     stmt = ib.get()
-    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.testing.HoistIfThenElse(stmt)
     expected_struct = {('For', 'k'): (None,), ('IfThenElse', ('i', 'j')): (('For', 'k'), ('For', 'k')),
                        ('For', 'j'): (('IfThenElse', ('i', 'j')),), ('For', 'i'): (('For', 'j'),),
                        ('AttrStmt', 'thread_extent', 64): (('For', 'i'),),
@@ -137,7 +137,7 @@ def test_nested_for():
                             data[i * 3 + j + k + l] = data[i * 3 + j + k + l] * 1.5
 
     stmt = ib.get()
-    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.testing.HoistIfThenElse(stmt)
     expected_struct = {('IfThenElse', ('i', 'j')): (None, None), ('For', 'l'): (('IfThenElse', ('i', 'j')),),
                        ('For', 'k'): (('For', 'l'),), ('For', 'j'): (None,), ('IfThenElse', ('i',)): (('For', 'j'), None),
                        ('For', 'i'): (('IfThenElse', ('i',)),)}
@@ -170,7 +170,7 @@ def test_if_block():
                         data[i * 3 + j + k] = data[i * 3 + j + k] + 0.6
 
     stmt = ib.get()
-    new_stmt = tvm.tir.ir_pass.HoistIfThenElse(stmt)
+    new_stmt = tvm.testing.HoistIfThenElse(stmt)
     expected_struct = {('IfThenElse', ('i', 'j')): (None, None), ('IfThenElse', ('j',)): (None, None),
                        ('For', 'l'): (None,), ('For', 'k'): (None,), ('For', 'j'): (('For', 'j'),),
                        ('IfThenElse', ('i',)): (('For', 'j'), None), ('For', 'i'): (('IfThenElse', ('i',)),),

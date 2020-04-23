@@ -18,39 +18,47 @@
  */
 
 /*!
- *  Exposure of pass functions.
- * \file ffi_api.cc
+ * \file verify_compact_buffer.cc
+ * \brief Verify if there was any compact buffer bound to a statement.
  */
+#include <tvm/runtime/registry.h>
+#include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/ir/attrs.h>
-#include <tvm/tir/ir_pass.h>
-#include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/te/tensor.h>
+#include <tvm/te/schedule_pass.h>
+
+#include <unordered_map>
 
 namespace tvm {
-namespace tir {
+namespace te {
 
+class VerifyBuffer : public StmtVisitor {
+ public:
+  bool Verify(const Stmt& stmt) {
+    this->VisitStmt(stmt);
+    return is_compact_;
+  }
 
+  void VisitStmt_(const AttrStmtNode* op) final {
+    StmtVisitor::VisitStmt_(op);
+    if (op->attr_key == tir::attr::buffer_bind_scope) {
+      is_compact_ = true;
+    }
+  }
 
-TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = ExprUseVar(args[0].operator PrimExpr(), args[1].operator Var());
-  });
+ private:
+  bool is_compact_{false};
+};
 
+bool VerifyCompactBuffer(const Stmt& stmt) {
+  VerifyBuffer verifier;
+  return verifier.Verify(stmt);
+}
 
-// make from two arguments
-#define REGISTER_PASS(PassName)                                   \
-  TVM_REGISTER_GLOBAL("ir_pass."#PassName)                        \
-  .set_body_typed(PassName);                                      \
+TVM_REGISTER_GLOBAL("schedule.VerifyCompactBuffer")
+.set_body_typed(VerifyCompactBuffer);
 
-
-REGISTER_PASS(ConvertSSA);
-REGISTER_PASS(VerifySSA);
-REGISTER_PASS(VerifyGPUCode);
-REGISTER_PASS(DecorateDeviceScope);
-REGISTER_PASS(VerifyCompactBuffer);
-REGISTER_PASS(HoistIfThenElse);
-}  // namespace tir
+}  // namespace te
 }  // namespace tvm

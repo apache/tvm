@@ -18,41 +18,38 @@
  */
 
 /*!
- * \file verify_compact_buffer.cc
- * \brief Verify if there was any compact buffer bound to a statement.
+ * \file side_effect.cc
+ * \brief side effect analysis
  */
-#include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/stmt.h>
-#include <tvm/tir/stmt_functor.h>
-#include <tvm/te/tensor.h>
-
-#include <unordered_map>
+#include <tvm/tir/expr_functor.h>
+#include <tvm/tir/analysis.h>
 
 namespace tvm {
 namespace tir {
 
-class VerifyBuffer : public StmtVisitor {
+class ExprSideEffect : public ExprVisitor {
  public:
-  bool Verify(const Stmt& stmt) {
-    this->VisitStmt(stmt);
-    return is_compact_;
+  void VisitExpr(const PrimExpr& e) final {
+    if (has_side_effect_) return;
+    ExprVisitor::VisitExpr(e);
   }
 
-  void VisitStmt_(const AttrStmtNode* op) final {
-    StmtVisitor::VisitStmt_(op);
-    if (op->attr_key == attr::buffer_bind_scope) {
-      is_compact_ = true;
+  void VisitExpr_(const CallNode* op) final {
+    if (!op->is_pure()) {
+      has_side_effect_ = true; return;
+    } else {
+      ExprVisitor::VisitExpr_(op);
     }
   }
 
- private:
-  bool is_compact_{false};
+  bool has_side_effect_{false};
 };
 
-bool VerifyCompactBuffer(Stmt stmt) {
-  VerifyBuffer verifier;
-  return verifier.Verify(stmt);
+bool HasSideEffect(const PrimExpr& e) {
+  ExprSideEffect v;
+  v(e);
+  return v.has_side_effect_;
 }
 
 }  // namespace tir

@@ -23,12 +23,11 @@
 #include <tvm/te/schedule.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
 #include <unordered_set>
 #include "message_passing.h"
 #include "operation_inline.h"
 
-#include "../../tir/pass/ir_util.h"
+#include "../../tir/transforms/ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {

@@ -26,7 +26,6 @@ from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
 from tvm.target import codegen, BuildConfig
-from tvm.tir import ir_pass
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm import target as _target
@@ -111,7 +110,7 @@ def form_irmodule(sch, args, name, binds):
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
 
-    compact = ir_pass.VerifyCompactBuffer(stmt)
+    compact = schedule.VerifyCompactBuffer(stmt)
     binds, arg_list = get_binds(args, compact, binds)
 
     stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
@@ -246,9 +245,8 @@ def _build_for_device(input_mod, target, target_host):
 
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
-    tvm.tir.analysis.verify_memory(mod_mixed)
 
-    opt_mixed = []
+    opt_mixed = [tvm.tir.transform.VerifyMemory()]
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
     if BuildConfig.current().detect_global_barrier:

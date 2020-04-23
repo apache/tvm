@@ -23,7 +23,6 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/analysis.h>
 #include <memory>
 #include <unordered_map>

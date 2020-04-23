@@ -4,7 +4,7 @@
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
+5B * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
@@ -25,7 +25,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_set>
 #include <string>
@@ -630,15 +630,20 @@ Stmt TransformUpdate(const Stage& stage,
       banned.insert(iv->var.get());
     }
   }
+
+  auto fbanned = [&](const VarNode* node) {
+    return banned.count(node);
+  };
+
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, banned)) {
+    if (tir::ExprUseVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize update transform failed, the condition "
                  << pred << " has a conflict with the reset condition";
     }
   }
 
   return IfThenElseNode::make(arith::ComputeReduce<tir::OrNode>(conds, const_true(1)),
-                          update, body);
+                              update, body);
 }
 
 }  // namespace te

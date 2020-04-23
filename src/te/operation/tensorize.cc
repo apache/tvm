@@ -23,7 +23,6 @@
  */
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/runtime/registry.h>
 
@@ -144,14 +143,19 @@ void VerifyTensorizeLoopNest(const ComputeOpNode* self,
       }
     }
   }
+
+  auto fbanned = [&](const VarNode* node) {
+    return banned.count(node);
+  };
+
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, banned)) {
+    if (tir::ExprUseVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize failed, split condition "
                  << pred << " relies on var defined inside tensorize scope";
     }
   }
   for (const PrimExpr& pred : n.init_predicates) {
-    if (tir::ExprUseVar(pred, banned)) {
+    if (tir::ExprUseVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize failed, split condition "
                  << pred << " relies on var defined inside tensorize scope";
     }

@@ -32,7 +32,6 @@
 #include <tvm/relay/type.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/ir_pass.h>
 
 #include <string>
 #include <typeinfo>
