@@ -42,26 +42,26 @@ rm -rf lib
 make
 cd ../..
 
-TVM_FFI=cython python3 -m pytest -v apps/extension/tests
-TVM_FFI=ctypes python3 -m pytest -v apps/extension/tests
+TVM_FFI=cython python3 -m pytest apps/extension/tests
+TVM_FFI=ctypes python3 -m pytest apps/extension/tests
 
 # Test dso plugin
 cd apps/dso_plugin_module
 rm -rf lib
 make
 cd ../..
-TVM_FFI=cython python3 -m pytest -v apps/dso_plugin_module
-TVM_FFI=ctypes python3 -m pytest -v apps/dso_plugin_module
+TVM_FFI=cython python3 -m pytest apps/dso_plugin_module
+TVM_FFI=ctypes python3 -m pytest apps/dso_plugin_module
 
 # Do not enable TensorFlow op
 # TVM_FFI=cython sh prepare_and_test_tfop_module.sh
 # TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
-TVM_FFI=ctypes python3 -m pytest -v tests/python/integration
-TVM_FFI=ctypes python3 -m pytest -v tests/python/contrib
+TVM_FFI=ctypes python3 -m pytest tests/python/integration
+TVM_FFI=ctypes python3 -m pytest tests/python/contrib
 
-TVM_FFI=ctypes python3 -m pytest -v tests/python/relay
+TVM_FFI=ctypes python3 -m pytest tests/python/relay
 
 # Do not enable OpenGL
-# TVM_FFI=cython python -m pytest -v tests/webgl
-# TVM_FFI=ctypes python3 -m pytest -v tests/webgl
+# TVM_FFI=cython python -m pytest tests/webgl
+# TVM_FFI=ctypes python3 -m pytest tests/webgl

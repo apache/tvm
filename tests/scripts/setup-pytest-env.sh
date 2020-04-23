@@ -16,28 +16,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
 set -u
-
-export TVM_PATH=`pwd`
-export PYTHONPATH=${TVM_PATH}/python:${TVM_PATH}/vta/python:${TVM_PATH}/topi/python
-export VTA_HW_PATH=`pwd`/3rdparty/vta-hw
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
-rm -rf ~/.tvm
-
-# Rebuild cython
-make cython3
-
-# Reset default fsim simulation
-cp ${VTA_HW_PATH}/config/fsim_sample.json ${VTA_HW_PATH}/config/vta_config.json
-
-# Run unit tests in functional/fast simulator
-echo "Running unittest in fsim..."
-python3 -m pytest ${TVM_PATH}/vta/tests/python/unittest
-
-# Run unit tests in functional/fast simulator
-echo "Running integration test in fsim..."
-python3 -m pytest ${TVM_PATH}/vta/tests/python/integration
+set -e
+export PYTEST_ADDOPTS="-v $CI_PYTEST_ADD_OPTIONS"
