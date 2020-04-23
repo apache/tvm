@@ -170,6 +170,17 @@ def compile_metal(code, path_target=None, sdk="macosx"):
     return libbin
 
 
+def compile_coreml(model, out_dir="."):
+    """Compile coreml model and return the compiled model path.
+    """
+    mlmodel_path = os.path.join(out_dir, "tmp.mlmodel")
+    model.save(mlmodel_path)
+
+    xcrun(["coremlcompiler", "compile", mlmodel_path, out_dir])
+
+    return os.path.join(out_dir, "tmp.mlmodelc")
+
+
 class XCodeRPCServer(object):
     """Wrapper for RPC server
 
