@@ -140,6 +140,7 @@ class BaseFuncNode : public RelayExprNode {
   }
 
   static constexpr const char* _type_key = "BaseFunc";
+  static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);
 };
 

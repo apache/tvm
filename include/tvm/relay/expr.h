@@ -630,6 +630,7 @@ class TempExprNode : public ExprNode {
   static constexpr const char* _type_key = "relay.TempExpr";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
+  static constexpr const uint32_t _type_child_slots = 0;
   TVM_DECLARE_BASE_OBJECT_INFO(TempExprNode, ExprNode);
 };
 

@@ -44,8 +44,8 @@ namespace vm {
  */
 class ClosureObj : public Object {
  public:
-  static constexpr const uint32_t _type_index = TypeIndex::kClosure;
-  static constexpr const char* _type_key = "Closure";
+  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeClosure;
+  static constexpr const char* _type_key = "runtime.Closure";
   TVM_DECLARE_BASE_OBJECT_INFO(ClosureObj, Object);
 };
 

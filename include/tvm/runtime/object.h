@@ -46,17 +46,31 @@
 namespace tvm {
 namespace runtime {
 
-/*! \brief list of the type index. */
-enum TypeIndex  {
-  /*! \brief Root object type. */
-  kRoot = 0,
-  kClosure = 1,
-  kVMADT = 2,
-  kRuntimeModule = 3,
-  kStaticIndexEnd,
-  /*! \brief Type index is allocated during runtime. */
-  kDynamic = kStaticIndexEnd
-};
+/*!
+ * \brief Namespace for the list of type index.
+ * \note Use struct so that we have to use TypeIndex::ENumName to refer to
+ *       the constant, but still able to use enum.
+ */
+struct TypeIndex {
+  enum {
+    /*! \brief Root object type. */
+    kRoot = 0,
+    // Standard static index assignments,
+    // Frontends can take benefit of these constants.
+    /*! \brief runtime::Module. */
+    kRuntimeModule = 1,
+    /*! \brief runtime::NDArray. */
+    kRuntimeNDArray = 2,
+    /*! \brief runtime::String. */
+    kRuntimeString = 3,
+    // static assignments that may subject to change.
+    kRuntimeClosure,
+    kRuntimeADT,
+    kStaticIndexEnd,
+    /*! \brief Type index is allocated during runtime. */
+    kDynamic = kStaticIndexEnd
+  };
+};  // namespace TypeIndex
 
 /*!
  * \brief base class of all object containers.
@@ -198,7 +212,7 @@ class Object {
   using RefCounterType = int32_t;
 #endif
 
-  static constexpr const char* _type_key = "Object";
+  static constexpr const char* _type_key = "runtime.Object";
 
   static uint32_t _GetOrAllocRuntimeTypeIndex() {
     return TypeIndex::kRoot;
@@ -675,6 +689,10 @@ struct ObjectEqual {
 #define TVM_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)              \
   static_assert(!ParentType::_type_final, "ParentObj maked as final");  \
   static uint32_t RuntimeTypeIndex()  {                                 \
+    static_assert(TypeName::_type_child_slots == 0 ||                   \
+                  ParentType::_type_child_slots == 0 ||                 \
+                  TypeName::_type_child_slots < ParentType::_type_child_slots, \
+                  "Need to set _type_child_slots when parent specifies it."); \
     if (TypeName::_type_index != ::tvm::runtime::TypeIndex::kDynamic) { \
       return TypeName::_type_index;                                     \
     }                                                                   \
@@ -689,6 +707,7 @@ struct ObjectEqual {
         TypeName::_type_child_slots_can_overflow);                      \
     return tidx;                                                        \
   }                                                                     \
+
 
 /*!
  * \brief helper macro to declare type information in a final class.
