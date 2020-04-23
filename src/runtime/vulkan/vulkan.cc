@@ -189,6 +189,10 @@ class VulkanDeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
+    // Before releasing the vkBuffer, call sync to
+    // finish all the vulkan commands that reference the buffer.
+    StreamSync(ctx, nullptr);
+
     const auto& vctx = context(ctx.device_id);
     auto* pbuf = static_cast<VulkanBuffer*>(ptr);
     vkDestroyBuffer(vctx.device, pbuf->buffer, nullptr);
