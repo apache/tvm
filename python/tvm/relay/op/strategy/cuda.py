@@ -161,7 +161,9 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and \
                     padding[1] == padding[3]:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn, True),
+                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn,
+                                        need_data_layout=True,
+                                        has_groups=True),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
                     name="conv2d_cudnn.cuda",
                     plevel=15)
@@ -181,6 +183,20 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
+        # add cudnn implementation, if any
+        cudnn_impl = False
+        if target.target_name == "cuda" and "cudnn" in target.libs:
+            if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and \
+                    padding[1] == padding[3]:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn,
+                                        need_data_layout=True,
+                                        has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
+                    name="conv2d_cudnn.cuda",
+                    plevel=15)
+                cudnn_impl = True
+
         if layout == 'NCHW':
             # TODO(@vinx13, @icemelon9): Use group_conv2d_NCHWc_int8 when dtype is int8/uint8.
             assert kernel_layout == "OIHW"
@@ -194,7 +210,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
                 wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
                 name="group_conv2d_NCHWc_int8.cuda")
-        else:
+        elif not cudnn_impl:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
 
