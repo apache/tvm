@@ -61,7 +61,7 @@ def getitem_helper(obj, elem_getter, length, idx):
     return elem_getter(obj, idx)
 
 
-@tvm._ffi.register_object("vm.ADT")
+@tvm._ffi.register_object("runtime.ADT")
 class ADT(Object):
     """Algebatic data type(ADT) object.
 

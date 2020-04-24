@@ -289,7 +289,7 @@ void CodeGenOpenGL::VisitStmt_(const EvaluateNode* op) {
   this->stream << GetVarID(buffer) << " = " << PrintExpr(value) << ";\n";
 }
 
-runtime::Module BuildOpenGL(IRModule mod) {
+runtime::Module BuildOpenGL(IRModule mod, std::string target) {
   bool output_ssa = false;
   CodeGenOpenGL cg;
   cg.Init(output_ssa);
