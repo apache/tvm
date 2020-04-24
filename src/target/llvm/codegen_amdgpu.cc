@@ -219,8 +219,10 @@ runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
          << " -mattr=-code-object-v3 "
          << target.substr(4, target.length() - 4);
   std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
-  std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
+  // careful: cg will hold a naked pointer reference to ctx, so it should
+  // have a shorter lifetime than the ctx.
+  std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
 
   cg->Init("TVMAMDGPUModule", tm.get(), ctx.get(), false, false);
 
@@ -233,10 +235,10 @@ runtime::Module BuildAMDGPU(IRModule mod, std::string target) {
 
   const auto *find_rocm_bitcodes =
       tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
-  Array<PrimExpr> bitcode_files = (*find_rocm_bitcodes)();
+  Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
 
-  for (auto &bitcode : bitcode_files) {
-    std::string path = bitcode.as<StringImmNode>()->value;
+  for (auto &bitcode_path : bitcode_files) {
+    std::string path = bitcode_path;
     llvm::SMDiagnostic err;
     std::unique_ptr<llvm::Module> mlib = llvm::parseIRFile(path, err, *ctx);
     if (mlib.get() == nullptr) {
