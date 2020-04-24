@@ -328,13 +328,19 @@ def test_forward_broadcast_ops():
 
 def test_forward_elemwise_ops():
     for op in ["elemwise_add", "elemwise_sub", "elemwise_mul",
-               "elemwise_div", "maximum", "minimum"]:
+               "elemwise_div", "maximum", "minimum",
+               operator.lt, operator.le, operator.eq,
+               operator.ne, operator.gt, operator.ge]:
         shape = (3, 4, 5)
         dtype = 'float32'
         a_np = np.random.uniform(size=shape).astype(dtype)
         b_np = np.random.uniform(size=shape).astype(dtype)
-        mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), mx.sym.var('b')])
-        ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), mx.nd.array(b_np)])
+        if type(op) == str:
+            mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), mx.sym.var('b')])
+            ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), mx.nd.array(b_np)])
+        else:
+            mx_sym = op(mx.sym.var('a'), mx.sym.var('b'))
+            ref_res = op(mx.nd.array(a_np), mx.nd.array(b_np))
         shapes = {'a': shape, 'b': shape}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, ctx in ctx_list():
