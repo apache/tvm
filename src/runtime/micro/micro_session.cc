@@ -651,14 +651,14 @@ TVM_REGISTER_GLOBAL("micro._GetMicroTimeEvaluator")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
   PackedFunc pf = args[0];
   TVMContext ctx = args[1];
-  int number = args[2];
-  int repeat = args[3];
+  uint64_t number = args[2];
+  uint64_t repeat = args[3];
 
   auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
 
-    for (int i = 0; i < repeat; ++i) {
+    for (unsigned int i = 0; i < repeat; ++i) {
       // start timing
       CHECK(number < MicroSession::kTaskQueueCapacity)
         << "`number` must be less than uTVM task queue capacity";
