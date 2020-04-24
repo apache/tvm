@@ -180,9 +180,9 @@ def concatenate(data,
         The concatenated quantized tensor.
     """
 
-    if type(data) in (list, tuple):
+    if isinstance(data, list)  or isinstance(data, tuple):
         data = Tuple(data)
-    if type(data) == TupleWrapper:
+    if isinstance(data, TupleWrapper):
         data = data.tuple_value
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
