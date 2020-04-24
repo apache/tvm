@@ -180,7 +180,7 @@ def concatenate(data,
         The concatenated quantized tensor.
     """
 
-    if isinstance(data, list)  or isinstance(data, tuple):
+    if isinstance(data, (list, tuple)):
         data = Tuple(data)
     if isinstance(data, TupleWrapper):
         data = data.tuple_value
