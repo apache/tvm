@@ -239,7 +239,7 @@ void ComputeOpNode::PropBoundToInputs(
             PrimExpr min_value = arg_interval->min_value;
             PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
-            if (arith::is_pos_inf(max_value) || arith::is_neg_inf(min_value) ||
+            if ((arith::is_pos_inf(max_value) && arith::is_neg_inf(min_value)) ||
                 (analyzer->CanProve(shape_i_min_value >= min_value) &&
                  analyzer->CanProve(shape_i_max_value <= max_value))) {
               min_value = shape_i_min_value;
