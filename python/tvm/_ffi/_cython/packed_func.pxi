@@ -109,6 +109,9 @@ cdef inline int make_arg(object arg,
         value[0].v_handle = (<NDArrayBase>arg).chandle
         tcode[0] = (kTVMNDArrayHandle if
                     not (<NDArrayBase>arg).c_is_view else kTVMDLTensorHandle)
+    elif isinstance(arg, PyNativeObject):
+        value[0].v_handle = (<ObjectBase>(arg.__tvm_object__)).chandle
+        tcode[0] = kTVMObjectHandle
     elif isinstance(arg, _TVM_COMPATS):
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
