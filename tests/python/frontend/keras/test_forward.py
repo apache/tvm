@@ -443,6 +443,28 @@ class TestKeras:
             keras_model = keras.models.Model(data, x)
             verify_keras_frontend(keras_model, layout='NDHWC')
 
+    def test_forward_upsample3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        x = keras.layers.UpSampling3D(size=(2, 3, 4))(data)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model, layout='NDHWC')
+
+    def test_forward_zero_padding3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        pad_funcs = [# Integer
+                     keras.layers.ZeroPadding3D(padding=2),
+                     # tuple of 3 ints
+                     keras.layers.ZeroPadding3D(padding=(1, 2, 3)),
+                     # tuple of 3 tuples of 2 ints
+                     keras.layers.ZeroPadding3D(padding=((1,1), (2,2), (2,2))),
+                     # tuple of 3 tuples of 2 ints different values
+                     keras.layers.ZeroPadding3D(padding=((1,2), (2,3), (3,2))),
+                    ]
+        for pad_func in pad_funcs:
+            x = pad_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
+
 if __name__ == '__main__':
     for k in [keras, tf_keras]:
         sut = TestKeras()
@@ -472,3 +494,6 @@ if __name__ == '__main__':
         sut.test_forward_mobilenet(keras=k, layout='NHWC')
         sut.test_forward_conv3d(keras=k)
         sut.test_forward_pool3d(keras=k)
+        sut.test_forward_upsample3d(keras=k)
+        sut.test_forward_zero_padding3d(keras=k)
+

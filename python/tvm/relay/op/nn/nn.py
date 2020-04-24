@@ -475,8 +475,8 @@ def log_softmax(data, axis=-1):
     data: tvm.relay.Expr
         The input data to the operator.
 
-    axis: int
-        The axis to sum over when computing softmax
+    axis: int, optional
+        The axis to sum over when computing log softmax
 
     Returns
     -------
@@ -509,6 +509,9 @@ def max_pool1d(data,
     ----------
     data : tvm.relay.Expr
         The input data to the operator.
+
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
 
     strides : int or tuple of int, optional
         The strides of pooling.
@@ -567,6 +570,9 @@ def max_pool2d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -611,6 +617,9 @@ def max_pool3d(data,
     ----------
     data : tvm.relay.Expr
         The input data to the operator.
+
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
 
     strides : tuple of int, optional
         The strides of pooling.
@@ -657,6 +666,9 @@ def avg_pool1d(data,
     ----------
     data : tvm.relay.Expr
         The input data to the operator.
+
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
 
     strides : int or tuple of int, optional
         The strides of pooling.
@@ -720,6 +732,9 @@ def avg_pool2d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -769,6 +784,9 @@ def avg_pool3d(data,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -811,6 +829,9 @@ def max_pool2d_grad(out_grad,
     data : tvm.relay.Expr
         The input data to the operator.
 
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
+
     strides : tuple of int, optional
         The strides of pooling.
 
@@ -850,6 +871,9 @@ def avg_pool2d_grad(out_grad,
 
     data : tvm.relay.Expr
         The input data to the operator.
+
+    pool_size : int or tuple of int, optional
+        The size of window for pooling.
 
     strides : tuple of int, optional
         The strides of pooling.
