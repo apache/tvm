@@ -32,6 +32,9 @@ namespace tvm {
 namespace relay {
 namespace annotate_target {
 
+// Cache compiler_begin op for equivalence check.
+static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
+
 // A helper class to insert annotation boundaries for a program region that will
 // be handled by a specific compiler.
 class AnnotateTargetWrapper : public ExprMutator {
@@ -50,6 +53,13 @@ class AnnotateTargetWrapper : public ExprMutator {
       CHECK(op.defined());
       if (fannotate.count(op)) {
         return fannotate[op](call->attrs, call->args);
+      }
+    }
+    if (expr->IsInstance<TupleGetItemNode>()) {
+      TupleGetItem get = Downcast<TupleGetItem>(expr);
+      if (get->tuple->IsInstance<CallNode>() &&
+          get->tuple.as<CallNode>()->op == compiler_begin_op) {
+        return true;
       }
     }
     return false;
@@ -110,9 +120,14 @@ class AnnotateTargetWrapper : public ExprMutator {
     auto new_e = ExprMutator::VisitExpr_(op);
 
     auto get = Downcast<TupleGetItem>(new_e);
-    return TupleGetItem(
-      InsertEnd(get->tuple),
-      get->index);
+    if (IsSupported(get->tuple)) {
+      const auto* begin_op =
+        runtime::Registry::Get("relay.op.annotation._make.compiler_begin");
+      CHECK(begin_op);
+      return TupleGetItem((*begin_op)(InsertEnd(get->tuple), target_), get->index);
+    } else {
+      return TupleGetItem(InsertEnd(get->tuple), get->index);
+    }
   }
 
   Expr VisitExpr_(const FunctionNode* op) {

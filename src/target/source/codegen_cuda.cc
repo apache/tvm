@@ -273,8 +273,10 @@ void CodeGenCUDA::PrintVecElemLoad(
     const std::string& vec, DataType t, int i, std::ostream& os) {  // NOLINT(*)
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
-  if (t.is_int() && t.bits() == 8) {
-    os << "(0x000000ff & (" << vec << " >> " << i * 8 << "))";
+  if ((t.is_int()) && t.bits() == 8) {
+    os << "((char)(" << vec << " >> " << i * 8 << "))";
+  } else if ((t.is_uint()) && t.bits() == 8) {
+    os << "((unsigned char)(" << vec << " >> " << i * 8 << "))";
   } else if (t.is_float16()) {
     os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->"
        << access[i % 2];
@@ -288,7 +290,7 @@ void CodeGenCUDA::PrintVecElemStore(
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
-  if (t.is_int() && t.bits() == 8) {
+  if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     stream << vec << "=";
     // Do not read the first undef lane.
     if (i != 0) {
@@ -350,6 +352,37 @@ void CodeGenCUDA::PrintStorageScope(
   if (scope == "shared") {
     os << "__shared__";
   }
+}
+
+void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
+  DataType from_ty = op->value.dtype();
+  DataType target_ty = op->dtype;
+  CHECK_EQ(target_ty.lanes(), from_ty.lanes());
+
+  // Emit simple C-style type conversion.
+  if (from_ty.is_scalar())
+    return CodeGenC::VisitExpr_(op, os);
+
+  // We could emit make_float4 like calls, but the emitted code looks
+  // too compact to read. Emit this as vectorized unary ops.
+  std::string sret = GetUniqueName("_");
+  this->PrintIndent();
+  this->PrintType(target_ty, stream);
+  stream << ' ' << sret << ";\n";
+  {
+    EnterScopeRAII scope(this);
+    std::string src = SSAGetID(PrintExpr(op->value), from_ty);
+    for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
+      std::ostringstream val;
+      val << "(";
+      PrintType(target_ty.element_of(), val);
+      val << ")(";
+      PrintVecElemLoad(src, from_ty, i, val);
+      val << ")";
+      PrintVecElemStore(sret, target_ty, i, val.str());
+    }
+  }
+  os << sret;
 }
 
 void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {

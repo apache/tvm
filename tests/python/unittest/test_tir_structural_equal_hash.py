@@ -142,9 +142,51 @@ def test_attrs():
     assert not consistent_equal(y, z)
 
 
+def test_stmt():
+    x = te.var('x')
+    y = te.var('y')
+    n = 128
+    A = te.placeholder((n, n), name='A')
+    B = te.placeholder((n, n), name='B')
+    ii = te.var('i')
+    jj = te.var('j')
+
+    Ab = tvm.tir.decl_buffer((n,), name='A')
+    n = te.var("n")
+    def func2():
+        ib = tvm.tir.ir_builder.create()
+        A = ib.buffer_ptr(Ab)
+        with ib.for_range(0, n, name="i") as i:
+            A[i] = A[i] + 1
+            with ib.for_range(0, 10, name="j") as j:
+                A[j] = A[j] + 2
+                A[j] = A[j] + 2
+        return ib.get()
+
+    assert consistent_equal(func2(), func2())
+
+
+def test_buffer_load_store():
+    b = tvm.tir.decl_buffer((10, 10), "float32")
+    x = tvm.tir.BufferLoad(b, [0, 1])
+    y = tvm.tir.BufferLoad(b, [0, 1])
+    z = tvm.tir.BufferLoad(b, [1, 2])
+    assert consistent_equal(y, x)
+    assert not consistent_equal(y, z)
+
+    i = tvm.tir.Var("x", "int32")
+    sx = tvm.tir.BufferStore(b, 0.1, [0, i])
+    sy = tvm.tir.BufferStore(b, 0.1, [0, i])
+    sz = tvm.tir.BufferStore(b, 0.1, [1, i])
+    assert consistent_equal(sy, sx)
+    assert not consistent_equal(sy, sz)
+
+
 if __name__ == "__main__":
     test_exprs()
     test_prim_func()
     test_attrs()
     test_array()
     test_env_func()
+    test_stmt()
+    test_buffer_load_store()

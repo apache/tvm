@@ -115,6 +115,15 @@ class ConstIntBoundAnalyzer {
   ConstIntBound operator()(const PrimExpr& expr);
 
   /*!
+   * \brief analyze the expr with the intermediate memorized to avoid redundant computation
+   * \param expr The expression of interest.
+   * \param bound The lookup table to store the intermediate results
+   * \return the result of the analysis.
+   */
+  ConstIntBound operator()(const PrimExpr& expr,
+                           std::unordered_map<const PrimExprNode*, ConstIntBound>* bound);
+
+  /*!
    * \brief Update constant int bound information of var.
    *
    * \param var The variable of interest.

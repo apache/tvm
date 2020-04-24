@@ -1516,7 +1516,7 @@ def _space_to_batch_nd():
             paddings = _infer_value(inputs[2], params).asnumpy()
             paddings = np.squeeze(paddings)
             if len(paddings.shape) == 1:
-                paddings = np.expand_dims(paddings, exis=0)
+                paddings = np.expand_dims(paddings, axis=0)
             paddings = paddings.tolist()
         N = len(input_shape)
         M = len(block_shape)

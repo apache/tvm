@@ -23,7 +23,7 @@ To enable this feature, you need to build with -DUSE_HYBRID_DUMP=ON.
 
 import ast
 
-from ..contrib import util
+from tvm.contrib import util
 from .util import _internal_assert
 from .util import _is_tvm_arg_types
 from .parser import source_to_op
@@ -52,7 +52,7 @@ class HybridModule(object):
             temp = util.tempdir()
             dst = temp.relpath("script.py")
             with open(dst, 'w') as f:
-                f.write("import tvm\n@tvm.hybrid.script\n%s" % src)
+                f.write("import tvm\n@tvm.te.hybrid.script\n%s" % src)
 
             if name is not None:
                 self.name = name

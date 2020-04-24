@@ -19,11 +19,11 @@
 import topi
 
 from tvm.runtime import convert
+from tvm.te.hybrid import script
 from topi.util import get_const_tuple
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
 from .op import register_pattern, OpPattern
-from ...hybrid import script
 
 
 register_broadcast_schedule("log")

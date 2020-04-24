@@ -24,6 +24,8 @@
 #include <dmlc/thread_local.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/te/operation.h>
+
+#include <tvm/tir/transform.h>
 #include <tvm/tir/ir_pass.h>
 #include <tvm/target/codegen.h>
 #include <tvm/runtime/registry.h>
@@ -174,10 +176,20 @@ Array<LoweredFunc> lower(te::Schedule sch,
   return Array<LoweredFunc>({ tir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
 
-Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
-                                                const Target& target,
-                                                const Target& target_host,
-                                                const BuildConfig& config) {
+
+transform::Pass BindTarget(Target target) {
+  auto fpass = [target](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
+    return WithAttr(std::move(f), tvm::attr::kTarget, target);
+  };
+  return tir::transform::CreatePrimFuncPass(fpass, 0, "BindTarget", {});
+}
+
+
+std::pair<IRModule, IRModule>
+split_dev_host_funcs(const Array<LoweredFunc>& funcs,
+                     const Target& target,
+                     const Target& target_host,
+                     const BuildConfig& config) {
   std::unordered_set<std::string> all_names;
   for (const auto& x : funcs) {
     CHECK(all_names.count(x->name) == 0)
@@ -217,13 +229,6 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
     }
   }
 
-  for (size_t i = 0; i < fdevice.size(); i++) {
-    auto warp_size = target->thread_warp_size;
-    auto func = fdevice[i];
-    func = tir::LowerWarpMemory(fdevice[i], warp_size);
-    fdevice.Set(i, func);
-  }
-
   auto keys = target->keys();
   bool target_is_gpu = std::find(keys.begin(), keys.end(), "gpu") != keys.end();
   if (target_is_gpu && fdevice.size() == 0) {
@@ -232,53 +237,46 @@ Array<Array<LoweredFunc> > split_dev_host_funcs(const Array<LoweredFunc>& funcs,
                  << " but cannot find device code. Did you forget to bind?";
   }
 
-  for (size_t i = 0; i < fdevice.size(); ++i) {
-    auto func = fdevice[i];
-    func = tir::LowerIntrin(func, target->target_name);
-    fdevice.Set(i, func);
-  }
 
   if (target->device_type == target::llvm()->device_type &&
-        target_host == target) {
+      target_host == target) {
     CHECK(fdevice.empty()) << "No device code should be generated when target "
                            << "and host_target are both llvm target."
                            << "\n";
   }
 
-  for (size_t i = 0; i < fdevice.size(); ++i) {
-    auto func = fdevice[i];
-    func = tir::LowerDeviceStorageAccessInfo(func);
-    fdevice.Set(i, func);
-  }
-
   for (size_t i = 0; i < fhost.size(); ++i) {
     auto func = fhost[i];
     func = tir::BindDeviceType(func, target->device_type);
-    func = tir::LowerDeviceStorageAccessInfo(func);
-    func = tir::LowerTVMBuiltin(func);
     fhost.Set(i, func);
   }
 
-  for (size_t i = 0; i < fhost.size(); ++i) {
-    auto func = fhost[i];
-    func = tir::LowerIntrin(func, target_host->target_name);
-    func = tir::LowerDeviceStorageAccessInfo(func);
-    func = tir::CombineContextCall(func);
-    fhost.Set(i, func);
-  }
-  return {fhost, fdevice};
+  // host pipeline
+  auto mhost = codegen::ToIRModule(fhost);
+  auto host_pass_list = {
+    BindTarget(target_host),
+    tir::transform::LowerTVMBuiltin(),
+    tir::transform::LowerIntrin(),
+    tir::transform::LowerDeviceStorageAccessInfo(),
+    tir::transform::CombineContextCall(),
+  };
+  auto opt_host = transform::Sequential(host_pass_list);
+  mhost = opt_host(mhost);
+
+  // device pipeline
+  auto mdevice = codegen::ToIRModule(fdevice);
+  auto device_pass_list = {
+    BindTarget(target),
+    tir::transform::LowerWarpMemory(),
+    tir::transform::LowerIntrin(),
+    tir::transform::LowerDeviceStorageAccessInfo(),
+  };
+  auto opt_device = transform::Sequential(device_pass_list);
+  mdevice = opt_device(mdevice);
+
+  return {mhost, mdevice};
 }
 
-// Create a module for a specific device (target). The lowered functions
-// associated with the host is returned as well.
-runtime::Module DeviceBuild(const Array<LoweredFunc>& fdevice,
-                            const Target& target) {
-  if (!fdevice.empty()) {
-    return codegen::Build(fdevice, target->str());
-  } else {
-    return runtime::Module(nullptr);
-  }
-}
 
 // Build for heterogeneous execution.
 runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
@@ -301,20 +299,21 @@ runtime::Module build(const Map<Target, Array<LoweredFunc>>& inputs,
     target_host_val = DefaultTargetHost(target_host_val);
   }
 
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>());
+
   for (const auto& it : inputs) {
-    auto host_dev_funcs =
+    auto pair =
         split_dev_host_funcs(it.second, it.first, target_host_val, config);
-    auto& fhost = host_dev_funcs[0];
-    auto& fdevice = host_dev_funcs[1];
-    // Get the module for a certain target.
-    runtime::Module mdev = DeviceBuild(fdevice, it.first);
-    for (const auto& it : fhost) {
-      fhost_all.push_back(it);
+    auto& mhost = pair.first;
+    auto& mdevice = pair.second;
+
+    mhost_all->Update(mhost);
+    if (mdevice->functions.size() != 0) {
+      device_modules.push_back(codegen::Build(mdevice, it.first));
     }
-    device_modules.push_back(mdev);
   }
 
-  runtime::Module mhost = codegen::Build(fhost_all, target_host_val->str());
+  runtime::Module mhost = codegen::Build(mhost_all, target_host_val);
   // Import all modules
   for (const auto& it : device_modules) {
     if (it.operator->()) {

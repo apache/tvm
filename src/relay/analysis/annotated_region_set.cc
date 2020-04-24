@@ -70,12 +70,12 @@ void AnnotatedRegionSetNode::MergeRegions(AnnotatedRegion src,
   regions_.erase(src);
 }
 
-void AnnotatedRegionSetNode::AddToRegion(AnnotatedRegion region, const Expr& expr) {
-  auto region2 = GetRegion(expr);
-  if (region2.defined()) {
-    MergeRegions(region, region2);
+void AnnotatedRegionSetNode::AddToRegion(AnnotatedRegion dest, const Expr& expr) {
+  auto src = GetRegion(expr);
+  if (src.defined()) {
+    MergeRegions(src, dest);
   } else {
-    region->nodes.insert(expr);
+    dest->nodes.insert(expr);
   }
 }
 

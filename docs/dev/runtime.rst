@@ -23,7 +23,7 @@ TVM Runtime System
 TVM supports multiple programming languages for the compiler stack development and deployment.
 In this note, we explain the key elements of the TVM runtime.
 
-.. image:: http://www.tvm.ai/images/release/tvm_flexible.png
+.. image:: https://tvm.apache.org/images/release/tvm_flexible.png
 
 We need to satisfy quite a few interesting requirements:
 
@@ -174,7 +174,7 @@ Remote Deployment
 The PackedFunc and Module system also makes it easy to ship the function into remote devices directly.
 Under the hood, we have an RPCModule that serializes the arguments to do the data movement and launches the computation on the remote.
 
-.. image:: http://www.tvm.ai/images/release/tvm_rpc.png
+.. image:: https://tvm.apache.org/images/release/tvm_rpc.png
 
 The RPC server itself is minimum and can be bundled into the runtime. We can start a minimum TVM
 RPC server on iPhone/android/raspberry pi or even the browser. The cross compilation on server and shipping of the module for testing can be done in the same script. Checkout

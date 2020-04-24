@@ -34,3 +34,4 @@ from .operation import thread_axis, reduce_axis
 
 from .tensor import PlaceholderOp, ComputeOp, TensorComputeOp, ScanOp, ExternOp, HybridOp
 from .autodiff import gradient
+from . import hybrid

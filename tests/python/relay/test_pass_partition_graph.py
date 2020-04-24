@@ -23,6 +23,7 @@ import tvm
 import tvm.relay.testing
 from tvm import relay
 from tvm import runtime
+from tvm.runtime import container
 from tvm.relay import transform
 from tvm.contrib import util
 from tvm.relay.op.annotation import compiler_begin, compiler_end
@@ -305,10 +306,8 @@ def test_extern_ccompiler_default_ops():
         func = relay.Function([x0, y0], add)
         func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.with_attr("Compiler",
-                                  tvm.tir.StringImm("ccompiler"))
-        func = func.with_attr("ExternalSymbol",
-                                  tvm.tir.StringImm("ccompiler_0"))
+        func = func.with_attr("Compiler", tvm.tir.StringImm("ccompiler"))
+        func = func.with_attr("global_symbol", container.String("ccompiler_0"))
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [x, y])
@@ -319,7 +318,7 @@ def test_extern_ccompiler_default_ops():
         concat = relay.concatenate([log, exp], axis=0)
         fused_func = relay.Function([p0], concat)
         fused_func = fused_func.with_attr("Primitive",
-                                              tvm.tir.IntImm("int32", 1))
+                                          tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
         mod["main"] = main
@@ -393,8 +392,7 @@ def test_extern_dnnl():
         func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Compiler", tvm.tir.StringImm("dnnl"))
-        func = func.with_attr("ExternalSymbol",
-                                  tvm.tir.StringImm("dnnl_0"))
+        func = func.with_attr("global_symbol", container.String("dnnl_0"))
         glb_var = relay.GlobalVar("dnnl_0")
         mod = tvm.IRModule()
         mod[glb_var] = func
@@ -520,8 +518,8 @@ def test_function_lifting():
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func0 = func0.with_attr("ExternalSymbol",
-                                    tvm.tir.StringImm("test_compiler_0"))
+        func0 = func0.with_attr("global_symbol",
+                                container.String("test_compiler_0"))
         gv0 = relay.GlobalVar("test_compiler_0")
         mod[gv0] = func0
 
@@ -539,8 +537,8 @@ def test_function_lifting():
         func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func1 = func1.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func1 = func1.with_attr("ExternalSymbol",
-                                    tvm.tir.StringImm("test_compiler_1"))
+        func1 = func1.with_attr("global_symbol",
+                                container.String("test_compiler_1"))
         gv1 = relay.GlobalVar("test_compiler_1")
         mod[gv1] = func1
 
@@ -613,8 +611,8 @@ def test_function_lifting_inline():
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func0 = func0.with_attr("ExternalSymbol",
-                                    tvm.tir.StringImm("test_compiler_0"))
+        func0 = func0.with_attr("global_symbol",
+                                container.String("test_compiler_0"))
 
         # main function
         data = relay.var("data", relay.TensorType((1, 16, 224, 224), "float32"))
@@ -649,8 +647,7 @@ def test_constant_propagation():
         func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func = func.with_attr("Compiler", tvm.tir.StringImm("ccompiler"))
-        func = func.with_attr("ExternalSymbol",
-                              tvm.tir.StringImm("ccompiler_0"))
+        func = func.with_attr("global_symbol", container.String("ccompiler_0"))
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
         add_call = relay.Call(glb_0, [y])
@@ -725,12 +722,12 @@ def test_multiple_outputs():
         mod = tvm.IRModule()
 
         # function 0
-        data = relay.var("test_target_0_i0", relay.TensorType((1, 3, 224, 224), "float32"))
-        weight = relay.var("test_target_0_i1", relay.TensorType((16, 3, 3, 3), "float32"))
-        bn_gamma = relay.var("test_target_0_i2", relay.TensorType((16, ), "float32"))
-        bn_beta = relay.var("test_target_0_i3", relay.TensorType((16, ), "float32"))
-        bn_mean = relay.var("test_target_0_i4", relay.TensorType((16, ), "float32"))
-        bn_var = relay.var("test_target_0_i5", relay.TensorType((16, ), "float32"))
+        data = relay.var("test_target_2_i0", relay.TensorType((1, 3, 224, 224), "float32"))
+        weight = relay.var("test_target_2_i1", relay.TensorType((16, 3, 3, 3), "float32"))
+        bn_gamma = relay.var("test_target_2_i2", relay.TensorType((16, ), "float32"))
+        bn_beta = relay.var("test_target_2_i3", relay.TensorType((16, ), "float32"))
+        bn_mean = relay.var("test_target_2_i4", relay.TensorType((16, ), "float32"))
+        bn_var = relay.var("test_target_2_i5", relay.TensorType((16, ), "float32"))
 
         conv_o = relay.nn.conv2d(
             data=data,
@@ -743,7 +740,7 @@ def test_multiple_outputs():
                                    bn_var)
 
         relu_o = relay.nn.relu(bn_o[0])
-        tuple_o = relay.Tuple((relu_o, bn_o[1], bn_o[2]))
+        tuple_o = relay.Tuple((bn_o[2], bn_o[1], relu_o))
 
         func0 = relay.Function([data, weight, bn_gamma, bn_beta,
                                 bn_mean, bn_var], tuple_o)
@@ -751,9 +748,9 @@ def test_multiple_outputs():
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler",
                                 tvm.tir.StringImm("test_target"))
-        func0 = func0.with_attr("ExternalSymbol",
-                                tvm.tir.StringImm("test_target_0"))
-        gv0 = relay.GlobalVar("test_target_0")
+        func0 = func0.with_attr("global_symbol",
+                                container.String("test_target_2"))
+        gv0 = relay.GlobalVar("test_target_2")
         mod[gv0] = func0
 
         # body
@@ -765,9 +762,9 @@ def test_multiple_outputs():
         bn_var = relay.var("bn_var", relay.TensorType((16, ), "float32"))
 
         f0_o = gv0(data, weight, bn_gamma, bn_beta, bn_mean, bn_var)
-        f0_relu_o = relay.TupleGetItem(f0_o, 0)
+        f0_relu_o = relay.TupleGetItem(f0_o, 2)
         f0_mean_o = relay.TupleGetItem(f0_o, 1)
-        f0_var_o = relay.TupleGetItem(f0_o, 2)
+        f0_var_o = relay.TupleGetItem(f0_o, 0)
 
         f0_mean_abs = relay.abs(f0_mean_o)
         f0_var_abs = relay.abs(f0_var_o)
@@ -819,8 +816,8 @@ def test_mixed_single_multiple_outputs():
         func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func1 = func1.with_attr("Compiler",
                                 tvm.tir.StringImm("test_target"))
-        func1 = func1.with_attr("ExternalSymbol",
-                                tvm.tir.StringImm("test_target_1"))
+        func1 = func1.with_attr("global_symbol",
+                                container.String("test_target_1"))
         gv1 = relay.GlobalVar("test_target_1")
         mod[gv1] = func1
 
@@ -834,8 +831,8 @@ def test_mixed_single_multiple_outputs():
         func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
         func0 = func0.with_attr("Compiler",
                                 tvm.tir.StringImm("test_target"))
-        func0 = func0.with_attr("ExternalSymbol",
-                                tvm.tir.StringImm("test_target_0"))
+        func0 = func0.with_attr("global_symbol",
+                                container.String("test_target_0"))
         gv0 = relay.GlobalVar("test_target_0")
         mod[gv0] = func0
 

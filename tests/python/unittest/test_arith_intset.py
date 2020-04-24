@@ -28,7 +28,7 @@ class IntSetChecker:
             return "\ndata={}\ndmap={}\nres={}\nexpected={}".format(data, dmap, res, expected)
         def equal(x, y):
             res = self.analyzer.canonical_simplify(x - y)
-            return tvm.tir.ir_pass.Equal(res, 0)
+            return tvm.tir.analysis.expr_deep_equal(res, 0)
         assert equal(res.min_value, expected[0]), err_msg()
         assert equal(res.max_value, expected[1]), err_msg()
 

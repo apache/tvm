@@ -512,12 +512,12 @@ class String : public ObjectRef {
 #endif
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
-
- private:
   /*! \return the internal StringObj pointer */
   const StringObj* get() const { return operator->(); }
 
+  TVM_DEFINE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
+
+ private:
   /*!
    * \brief Compare two char sequence
    *
