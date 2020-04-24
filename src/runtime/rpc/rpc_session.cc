@@ -1247,45 +1247,15 @@ void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(state_, kRecvCode);
 }
 
-PackedFunc MicroTimeEvaluator(
-    PackedFunc pf,
-    TVMContext ctx,
-    size_t number,
-    int repeat,
-    int min_repeat_ms) {
-  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
-    TVMRetValue temp;
-    std::ostringstream os;
-
-    for (int i = 0; i < repeat; ++i) {
-      // start timing
-      CHECK(number < MicroSession::kTaskQueueCapacity)
-        << "`number` must be less than uTVM task queue capacity";
-      for (unsigned int j = 0; j < number; ++j) {
-        pf.CallPacked(args, &temp);
-      }
-      ObjectPtr<MicroSession> session = MicroSession::Current();
-      DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-      double time_per_batch = session->GetLastBatchTime() / number;
-      os.write(reinterpret_cast<char*>(&time_per_batch), sizeof(time_per_batch));
-    }
-    std::string blob = os.str();
-    TVMByteArray arr;
-    arr.size = blob.length();
-    arr.data = blob.data();
-    // return the time.
-    *rv = arr;
-  };
-  return PackedFunc(ftimer);
-}
-
 PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              TVMContext ctx,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
   if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
-    return MicroTimeEvaluator(pf, ctx, number, repeat, min_repeat_ms);
+    auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
+    CHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
+    return (*get_micro_time_evaluator)(pf, ctx, number, repeat);
   }
 
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {

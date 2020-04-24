@@ -74,7 +74,7 @@ class TargetVal {
     if (width_bits_ == 64) {
       return 0xffffffff;
     } else {
-      return (1 << width_bits_) - 1;
+      return (1UL << width_bits_) - 1;
     }
   }
 

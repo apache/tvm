@@ -23,6 +23,7 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/device_api.h>
 #include <chrono>
 #include <memory>
 #include <locale>
@@ -643,6 +644,40 @@ PackedFunc MicroSession::GetFunction(
     return PackedFunc();
   }
 }
+
+TVM_REGISTER_GLOBAL("micro._GetMicroTimeEvaluator")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  PackedFunc pf = args[0];
+  TVMContext ctx = args[1];
+  int number = args[2];
+  int repeat = args[3];
+
+  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
+    TVMRetValue temp;
+    std::ostringstream os;
+
+    for (int i = 0; i < repeat; ++i) {
+      // start timing
+      CHECK(number < MicroSession::kTaskQueueCapacity)
+        << "`number` must be less than uTVM task queue capacity";
+      for (unsigned int j = 0; j < number; ++j) {
+        pf.CallPacked(args, &temp);
+      }
+      ObjectPtr<MicroSession> session = MicroSession::Current();
+      DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
+      double time_per_batch = session->GetLastBatchTime() / number;
+      os.write(reinterpret_cast<char*>(&time_per_batch), sizeof(time_per_batch));
+    }
+    std::string blob = os.str();
+    TVMByteArray arr;
+    arr.size = blob.length();
+    arr.data = blob.data();
+    // return the time.
+    *rv = arr;
+  };
+  *rv = PackedFunc(ftimer);
+});
+
 
 // create micro session and low-level device from Python frontend
 TVM_REGISTER_GLOBAL("micro._CreateSession")
