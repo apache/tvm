@@ -70,6 +70,11 @@ class DFPattern(Node):
             The name of the attribute to match
         attr_value: Any
             The value of the attribute to match
+
+        Returns
+        -------
+        result: tvm.relay.df_pattern.DFPattern
+            The resulting AttrPattern
         """
         attrs = make_node("DictAttrs", **{attr_name: attr_value})
         return AttrPattern(self, attrs)
@@ -82,6 +87,11 @@ class DFPattern(Node):
         ----------
         ttype: tvm.relay.Type
             The type to match
+
+        Returns
+        -------
+        result: tvm.relay.df_pattern.DFPattern
+            The resulting TypePattern
         """
         return has_type(ttype, self)
 
@@ -93,6 +103,11 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
+
+        Returns
+        -------
+        result: bool
+            Whether or not the expression matches the pattern
         """
         return match(self, expr)
 
@@ -104,6 +119,11 @@ class DFPattern(Node):
         ----------
         expr : tvm.relay.Expr
             The expression to match.
+
+        Returns
+        -------
+        result : tvm.relay.Expr
+            The Expression with matched subgraphs replaced by function calls to that subgraph
         """
         return partition(self, expr)
 
@@ -117,6 +137,11 @@ class DFPattern(Node):
             The parent pattern this pattern dominates.
         path: tvm.relay.df_pattern.DFPattern
             The fuzzy path pattern.
+
+        Returns
+        -------
+        result: tvm.relay.df_pattern.DFPattern
+            The resulting DominatorPattern
         """
         if path is None:
             path = wildcard()
@@ -131,6 +156,11 @@ def is_input(name: str = "") -> DFPattern:
     ----------
     name: str
         The name of the input pattern to match
+
+    Returns
+    -------
+    result: tvm.relay.df_pattern.DFPattern
+        The resulting InputPattern
     """
     return VarPattern(name)
 
@@ -143,6 +173,11 @@ def is_op(op_name: str) -> DFPattern:
     ----------
     op_name: String
         The name of the relay op
+
+    Returns
+    -------
+    result: tvm.relay.df_pattern.DFPattern
+        The resulting ExprPattern
     """
     op = get(op_name)
     return ExprPattern(op)
@@ -151,6 +186,11 @@ def is_op(op_name: str) -> DFPattern:
 def wildcard() -> DFPattern:
     """
     Syntatic sugar for creating a WildcardPattern
+
+    Returns
+    -------
+    result: tvm.relay.df_pattern.DFPattern
+        The resulting WildcardPattern
     """
     return WildcardPattern()
 
@@ -166,6 +206,11 @@ def has_type(ttype, pattern: DFPattern = None) -> DFPattern:
 
     ttype: tvm.relay.Type
         The type to match
+
+    Returns
+    -------
+    result: tvm.relay.df_pattern.DFPattern
+        The resulting TypePattern
     """
     if pattern is None:
         pattern = wildcard()
@@ -183,6 +228,11 @@ def has_attr(attr_name: DFPattern, attr_value, pattern=None) -> DFPattern:
 
     attrs: tvm.Attrs
         The attributes to match
+
+    Returns
+    -------
+    result: tvm.relay.df_pattern.DFPattern
+        The resulting AttrPattern
     """
     if pattern is None:
         pattern = wildcard()
@@ -201,6 +251,11 @@ def dominates(parent: DFPattern, path: DFPattern, child: DFPattern) -> DFPattern
         The fuzzy path pattern.
     child: tvm.relay.df_pattern.DFPattern
         The child pattern.
+
+    Returns
+    -------
+    result: tvm.relay.df_pattern.DFPattern
+        The resulting DominatorPattern
     """
     return DominatorPattern(parent, path, child)
 
@@ -429,6 +484,11 @@ class DFPatternCallback:
         ----------
         expr : tvm.relay.Expr
             The expression to rewrite.
+
+        Returns
+        -------
+        result : tvm.relay.Expr
+            The Expression with matched subgraphs rewritten by the callbacks
         """
         return rewrite(self, expr)
 
@@ -444,6 +504,11 @@ class DFPatternCallback:
             The matching expression with rewritten inputs
         node_map : Map(DFPattern, List(Expr))
             The map between patterns and matched expressions
+
+        Returns
+        -------
+        result : tvm.relay.Expr
+            The Expression with matched subgraph rewritten by the callback
         """
         raise "Unimplemented"
 
@@ -464,6 +529,11 @@ def rewrite(callbacks, expr: Expr) -> Expr:
         The input callback or list of callbacks.
     expr : tvm.relay.Expr
         The expression to rewrite.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The Expression with matched subgraphs rewritten by the callbacks
     """
     if isinstance(callbacks, DFPatternCallback):
         tmp = [_DFPatternCallback(callbacks.pattern, callbacks.callback)]
@@ -484,5 +554,10 @@ def partition(pattern: DFPattern, expr: Expr) -> Expr:
         The pattern to match
     expr : tvm.relay.Expr
         The expression to split into functions
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The Expression with matched subgraphs replaced by function calls to that subgraph
     """
     return ffi.partition(pattern, expr)

@@ -79,7 +79,7 @@ CallPattern CallPatternNode::make(DFPattern op, Array<DFPattern> args, Attrs att
   return CallPattern(n);
 }
 
-TVM_REGISTER_NODE_TYPE(CallNode);
+TVM_REGISTER_NODE_TYPE(CallPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.CallPattern")
 .set_body_typed(CallPatternNode::make);

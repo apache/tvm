@@ -369,7 +369,7 @@ TVM_REGISTER_GLOBAL("relay.df_pattern.match").set_body_typed([](DFPattern patter
  * This class creates a number of groups of matched expressions, ensures they don't overlap, and
  * returns them to the caller for post-analysis rewriting.
  *
- * This is primarly needed to suppor the post-dominator analysis required for dominator pattern
+ * This is primarily needed to suppor the post-dominator analysis required for dominator pattern
  * matching.
  */
 class PatternGrouper : protected MixedModeVisitor {
@@ -386,7 +386,7 @@ class PatternGrouper : protected MixedModeVisitor {
   /* \brief Return the discovered groups */
   const std::vector<Group>& GetGroups() { return this->groups_; }
 
-  /* \brief Return the group assingnments of expressions */
+  /* \brief Return the group assignments of expressions */
   const std::unordered_map<Expr, int, ObjectHash, ObjectEqual>& GetGIDAssignments() {
     return gid_assignments_;
   }
@@ -474,7 +474,7 @@ class PatternGrouper : protected MixedModeVisitor {
 
     graph_number_++;
 
-    // Extract a Function. Used in Parition directly,
+    // Extract a Function. Used in Partition directly,
     // used to determine Group overlap in other passes
     auto extractor = MatchExtractor(inputs);
     auto body = extractor.Mutate(expr);
@@ -484,6 +484,13 @@ class PatternGrouper : protected MixedModeVisitor {
     group.function = Function(params, body, NullValue<Type>(), Array<TypeVar>());
 
     // Check to make sure we aren't overlapping with another group
+    // The MatchExtractor will create a new graph by replacing nodes that match the inputs of the
+    // pattern with the input FunctionVar* Variables. The resulting memoization map will only
+    // contain nodes in the expression that matched the pattern. If a non-input node of the pattern
+    // (i.e., some piece of computation) overlaps with the nodes in a previous group, we'll have a
+    // situation where we try to rewrite the same node twice in the second rewriting or parition
+    // pass. This isn't valid, so we check for it here. We ignore Ops, functions, and constants
+    // because they exist more globally outside of the fusion.
     for (auto kv : extractor.GetMemo()) {
       if (gid_assignments_.count(kv.first) != 0 && inputs.count(kv.first) == 0 &&
           kv.first.as<OpNode>() == nullptr && kv.first.as<FunctionNode>() == nullptr &&
@@ -529,19 +536,20 @@ TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
     .set_body_typed(DFPatternCallbackNode::make);
 
 /* \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
- * function to rewrtie those matches
+ * function to rewrite those matches
  *
  * The class uses PatternGrouper to support the dominator pattern.
  */
 class PatternRewriter : protected MixedModeMutator {
  public:
   PatternRewriter() {}
-  /*! \brief Rewrite can take a number of callbakcs and will repeatedly rewrite the graph with the
+  /*! \brief Rewrite can take a number of callbacks and will repeatedly rewrite the graph with the
    * callbacks until it stops changing */
   Expr Rewrite(const Array<DFPatternCallback>& callbacks, const Expr& pre) {
     auto post = pre;
     auto last = post;
     // rewrite the graph until it stops changing to make sure all rewrites are complete
+    int count = 0;
     do {
       last = post;
       for (auto callback : callbacks) {
@@ -552,8 +560,12 @@ class PatternRewriter : protected MixedModeMutator {
         gid_assignments_ = grouper.GetGIDAssignments();
         memo_.clear();
         post = this->VisitExpr(post);
+        count++;
       }
-    } while (last != post);
+    } while (last != post || count >= 100);
+    if (count >= 100) {
+      throw("Observed 100 rewrite passes, possible conflicting passes?");
+    }
     return post;
   }
 
@@ -588,7 +600,7 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
 
 TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite").set_body_typed(RewritePatterns);
 
-/* \brief PatternParitioner replaces expressions that match a pattern with function call that
+/* \brief PatternPartitioner replaces expressions that match a pattern with function call that
  * perform the same computation but allow for further analysis and lowering.
  *
  * The class uses PatternGrouper to support the dominator pattern.
@@ -604,7 +616,7 @@ class PatternPartitioner : protected MixedModeMutator {
   }
 
  protected:
-  Expr RewriteParition(const PatternGrouper::Group& group) {
+  Expr RewritePartition(const PatternGrouper::Group& group) {
     Array<Expr> args;
     for (size_t i = 0; i < group.args.size(); ++i) {
       args.push_back(memo_[group.args[i]]);
@@ -615,7 +627,7 @@ class PatternPartitioner : protected MixedModeMutator {
   Expr DispatchVisitExpr(const Expr& pre) override {
     auto post = MixedModeMutator::DispatchVisitExpr(pre);
     if (gid_assignments_.count(pre) && pre == groups_[gid_assignments_[pre]].root_node) {
-      post = RewriteParition(groups_[gid_assignments_[pre]]);
+      post = RewritePartition(groups_[gid_assignments_[pre]]);
     }
     return post;
   }

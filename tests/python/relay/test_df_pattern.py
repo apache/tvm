@@ -28,47 +28,58 @@ K_BROADCAST = 1
 ## NODE TESTS
 def test_expr_pattern():
     ep = ExprPattern(relay.var('x', shape=(4, 1)))
-    print(ep)
+    assert isinstance(ep, ExprPattern)
+    assert isinstance(ep.expr, relay.Var)
 
 def test_var_pattern():
     v = is_input("x")
-    print(v)
+    assert isinstance(v, VarPattern)
+    assert v.name == "x"
 
 def test_wildcard_pattern():
     wc = wildcard()
-    print(wc)
+    assert isinstance(wc, WildcardPattern)
 
 def test_CallPattern():
     wc1 = wildcard()
     wc2 = wildcard()
     c = is_op("add")(wc1, wc2)
-    print(c)
+    assert isinstance(c, CallPattern)
+    assert isinstance(c.args[0], WildcardPattern)
+    assert isinstance(c.args[1], WildcardPattern)
 
 def test_TuplePattern():
     wc1 = wildcard()
     wc2 = wildcard()
     t = TuplePattern([wc1, wc2])
-    print(t)
+    assert isinstance(t, TuplePattern)
+    assert isinstance(t.fields[0], WildcardPattern)
+    assert isinstance(t.fields[1], WildcardPattern)
 
 def test_TupleGetItemPattern():
     wc1 = wildcard()
     wc2 = wildcard()
     t = TuplePattern([wc1, wc2])
     tgi = TupleGetItemPattern(t, 1)
-    print(tgi)
+    assert isinstance(tgi, TupleGetItemPattern)
+    assert isinstance(tgi.tuple, TuplePattern)
+    assert isinstance(tgi.tuple.fields[0], WildcardPattern)
+    assert isinstance(tgi.tuple.fields[1], WildcardPattern)
 
 def test_AltPattern():
     is_add_or_sub = is_op('add') | is_op('subtract')
-    print(is_add_or_sub)
+    assert isinstance(is_add_or_sub, AltPattern)
 
 def test_TypePattern():
-    ty_pat = has_type(relay.TensorType((10, 10), "float32"))
-    print(ty_pat)
+    ttype = relay.TensorType((10, 10), "float32")
+    ty_pat = has_type(ttype)
+    assert isinstance(ty_pat, TypePattern)
+    assert ty_pat.type == ttype
 
 def test_AttrPattern():
     op = is_op('add').has_attr("TOpPattern", K_ELEMWISE)
-    op_pat = op(wildcard(), wildcard())
-    print(op_pat)
+    assert isinstance(op, AttrPattern)
+    assert op.attrs["TOpPattern"] == K_ELEMWISE
 
 ## MATCHER TESTS
 

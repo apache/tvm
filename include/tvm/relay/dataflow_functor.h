@@ -37,7 +37,7 @@ namespace relay {
 /*!
  * \brief A dynamical functor that dispatches on in the first DFPattern argument.
  *
- * \tparam FType function signiture
+ * \tparam FType function signature
  *  This type is only defined for FType with function signature R(const DFPattern&,
  * Args...)
  */

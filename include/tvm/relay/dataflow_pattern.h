@@ -91,7 +91,7 @@ class VarPatternNode : public DFPatternNode {
    */
   std::string name;
   /*!
-   * \brief type annotaion of the variable.
+   * \brief type annotation of the variable.
    * This field records user provided type annotation of the Var.
    * This field is optional and can be None.
    */
@@ -103,6 +103,7 @@ class VarPatternNode : public DFPatternNode {
   }
 
   void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("name", &name);
     v->Visit("type_annotation", &type_annotation);
   }
 
@@ -212,7 +213,8 @@ class TupleGetItemPatternNode : public DFPatternNode {
 
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("tuple_value", &tuple);
+    v->Visit("tuple", &tuple);
+    v->Visit("index", &index);
   }
 
   TVM_DLL static TupleGetItemPattern make(DFPattern tuple, int index);
