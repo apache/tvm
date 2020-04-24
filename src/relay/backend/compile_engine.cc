@@ -70,28 +70,6 @@ CCacheKey::CCacheKey(Function source_func, Target target) {
   data_ = std::move(n);
 }
 
-struct IsDynamicVisitor : public TypeVisitor {
-  bool is_dyn{false};
-  void VisitType_(const TensorTypeNode* tt) {
-    for (auto dim : tt->shape) {
-      if (dim.as<Any>()) {
-        is_dyn = true;
-        break;
-      }
-    }
-  }
-};
-
-bool IsDynamic(const Type& ty) {
-  IsDynamicVisitor v;
-  v.VisitType(ty);
-  return v.is_dyn;
-}
-
-// TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
-.set_body_typed(IsDynamic);
-
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
   // for now, we always use int32 shape when possible
   // even if the result of shape inference becomes int64.
@@ -323,8 +301,11 @@ class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>>
   const Op& device_copy_op_;
 };
 
+// Pair of shape and data
+using TShapeData = std::pair<Array<te::Tensor>, Array<te::Tensor>>;
+
 // Creates shape function from functor.
-class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
+class MakeShapeFunc : public backend::MemoizedExprTranslator<TShapeData> {
  public:
   MakeShapeFunc() {}
 
@@ -367,7 +348,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     }
     readable_name_stream_ << "shape_func";
     auto cache_node = make_object<CachedFuncNode>();
-    cache_node->outputs = VisitExpr(prim_func->body);
+    cache_node->outputs = VisitExpr(prim_func->body).first;
     auto candidate_name = readable_name_stream_.str();
     constexpr static size_t kMaxFuncNameLength = 80;
     if (candidate_name.size() > kMaxFuncNameLength) {
@@ -411,40 +392,48 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     return std::make_pair(schedule, cfunc);
   }
 
-  Array<te::Tensor> VisitExpr(const Expr& expr) final {
+  TShapeData VisitExpr(const Expr& expr) final {
     if (expr.as<VarNode>()) {
       // Do not memoize vars because shape functions could use either the data
       // or the shape of a var each time.
       return ExprFunctor::VisitExpr(expr);
     }
     // For other case, do memoized visit
-    return backend::MemoizedExprTranslator<Array<te::Tensor>>::VisitExpr(expr);
+    return backend::MemoizedExprTranslator<TShapeData>::VisitExpr(expr);
   }
 
-  Array<te::Tensor> VisitExpr_(const VarNode* var_node) final {
+  TShapeData VisitExpr_(const VarNode* var_node) final {
     auto var = GetRef<Var>(var_node);
     auto it = param_states_.find(var);
     if (it == param_states_.end()) {
       LOG(FATAL) << "Free variable " << var->name_hint();
       return {};
     } else {
-      CHECK(data_dependants_.size());
-      bool data_dependant = data_dependants_.back();
-      if (data_dependant) {
+      CHECK(shape_dependants_.size());
+      std::pair<Array<te::Tensor>, Array<te::Tensor>> result;
+      TShapeDependant data_dependant = shape_dependants_.back();
+      if (data_dependant == ShapeDependantKind::kShapeDependantBoth) {
         param_states_[var] |= kNeedInputData;
-        return param_data_[var];
+        param_states_[var] |= kNeedInputShape;
+        result.first = param_shapes_[var];
+        result.second = param_data_[var];
+      } else if (data_dependant == ShapeDependantKind::kShapeDependantData) {
+        param_states_[var] |= kNeedInputData;
+        result.second = param_data_[var];
       } else {
         param_states_[var] |= kNeedInputShape;
-        return param_shapes_[var];
+        result.first = param_shapes_[var];
       }
+
+      return result;
     }
   }
 
-  Array<te::Tensor> VisitExpr_(const ConstantNode* op) final {
+  TShapeData VisitExpr_(const ConstantNode* op) final {
     using tir::make_const;
-    CHECK(data_dependants_.size());
+    CHECK(shape_dependants_.size());
     CHECK(op->is_scalar());
-    bool data_dependant = data_dependants_.back();
+    bool data_dependant = shape_dependants_.back();
     if (data_dependant) {
       void* data = op->data->data;
       DataType dtype = DataType(op->data->dtype);
@@ -465,41 +454,46 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
           }
       }, "data_const", topi::kBroadcast);
       scalars_.push_back(value);
-      return {value};
+      return std::make_pair(Array<te::Tensor>(), Array<te::Tensor>({value}));
     } else {
       auto value = tvm::te::compute({}, [&](const Array<tvm::tir::Var>&) {
           return tir::make_const(DataType::Int(64), 0);
       }, "shape_const", topi::kBroadcast);
       scalars_.push_back(value);
-      return {value};
+      return std::make_pair(Array<te::Tensor>({value}), Array<te::Tensor>());
     }
   }
 
-  Array<te::Tensor> VisitExpr_(const CallNode* call_node) final {
+  TShapeData VisitExpr_(const CallNode* call_node) final {
     static auto fshape_func = Op::GetAttr<FShapeFunc>("FShapeFunc");
-    static auto tshape_data_dependant = Op::GetAttr<TShapeDataDependant>(
-        "TShapeDataDependant");
+    static auto tshape_dependant = Op::GetAttr<TShapeDependant>(
+        "TShapeDependant");
     CHECK(call_node->op.as<OpNode>())
       << "Primitive function only allows call into primitive ops";
     Op op = Downcast<Op>(call_node->op);
-    CHECK(data_dependants_.empty() || !data_dependants_.back())
+    CHECK(shape_dependants_.empty() || !shape_dependants_.back())
       << "Error in op fusion: output of the shape func is fed to a "
       << "data-dependant shape func";
     CHECK_GT(fshape_func.count(op), 0)
       << "Internal error, cannot find ShapeFunc for " << op->name;
-    CHECK_GT(tshape_data_dependant.count(op), 0)
+    CHECK_GT(tshape_dependant.count(op), 0)
       << "Internal error, cannot find TShapeDataDependant for " << op->name;
 
-    data_dependants_.push_back(tshape_data_dependant[op]);
+    shape_dependants_.push_back(tshape_dependant[op]);
     // Visit all inputs
     Array<te::Tensor> inputs;
+    Array<te::Tensor> data_inputs;
     int count_tuple = 0;
     for (Expr arg : call_node->args) {
       if (arg->checked_type().as<TupleTypeNode>()) {
         ++count_tuple;
       }
-      for (te::Tensor tensor : VisitExpr(arg)) {
+      auto data = VisitExpr(arg);
+      for (te::Tensor tensor : data.first) {
         inputs.push_back(tensor);
+      }
+      for (te::Tensor tensor : data.second) {
+        data_inputs.push_back(tensor);
       }
     }
     if (count_tuple) {
@@ -522,34 +516,34 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
       }
     }
     // Call shape function
-    auto outputs = fshape_func[op](call_node->attrs, inputs, out_ndims);
-    data_dependants_.pop_back();
+    auto outputs = fshape_func[op](call_node->attrs, inputs, data_inputs, out_ndims);
+    shape_dependants_.pop_back();
     readable_name_stream_ << "_" << op->name;
-    return outputs;
+    return std::make_pair(outputs, Array<te::Tensor>());
   }
 
-  Array<te::Tensor> VisitExpr_(const FunctionNode* op) final {
+  TShapeData VisitExpr_(const FunctionNode* op) final {
     LOG(FATAL) << "Do not support sub function";
-    return Array<te::Tensor>();
+    return std::make_pair(Array<te::Tensor>(), Array<te::Tensor>());
   }
 
-  Array<te::Tensor> VisitExpr_(const LetNode* op) final {
-    Array<te::Tensor> val = VisitExpr(op->value);
+  TShapeData VisitExpr_(const LetNode* op) final {
+    TShapeData val = VisitExpr(op->value);
     CHECK(!memo_.count(op->var));
     memo_[op->var] = val;
     return VisitExpr(op->body);
   }
 
-  Array<te::Tensor> VisitExpr_(const TupleNode* op) final {
+  TShapeData VisitExpr_(const TupleNode* op) final {
     Array<te::Tensor> fields;
     for (Expr field : op->fields) {
       CHECK(field->checked_type().as<TensorTypeNode>())
         << "Only allow Tuple of Tensor";
-      Array<te::Tensor> res = VisitExpr(field);
-      CHECK_EQ(res.size(), 1);
-      fields.push_back(res[0]);
+      TShapeData res = VisitExpr(field);
+      CHECK_EQ(res.first.size(), 1);
+      fields.push_back(res.first[0]);
     }
-    return fields;
+    return std::make_pair(fields, Array<te::Tensor>());
   }
 
  private:
@@ -562,7 +556,7 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
   /*! \brief Map from parameter to list of shape placeholder */
   std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_shapes_;
   /*! \brief Stack of data dependencies for shape function */
-  std::vector<bool> data_dependants_;
+  std::vector<TShapeDependant> shape_dependants_;
   /*! \brief Scalars used in the shape function */
   Array<te::Tensor> scalars_;
 };

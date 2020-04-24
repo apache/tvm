@@ -446,5 +446,26 @@ Expr TypeSubst(const Expr& expr, const tvm::Map<TypeVar, Type>& subst_map) {
   return ret;
 }
 
+struct IsDynamicVisitor : public TypeVisitor {
+  bool is_dyn{false};
+  void VisitType_(const TensorTypeNode* tt) {
+    for (auto dim : tt->shape) {
+      if (dim.as<Any>()) {
+        is_dyn = true;
+        break;
+      }
+    }
+  }
+};
+
+bool IsDynamic(const Type& ty) {
+  IsDynamicVisitor v;
+  v.VisitType(ty);
+  return v.is_dyn;
+}
+
+TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
+.set_body_typed(IsDynamic);
+
 }  // namespace relay
 }  // namespace tvm

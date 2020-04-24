@@ -431,6 +431,18 @@ def register_gradient(op_name, fgradient=None, level=10):
     return register(op_name, "FPrimalGradient", fgradient, level)
 
 
+class ShapeDependant(object):
+    """Shape function dependant
+    """
+
+    # Shape function needs shape of input
+    SHAPE = 0
+    # Shape function needs data of input
+    DATA = 1
+    # Shape function needs both shape and data of input
+    BOTH = 2
+
+
 def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     """Register operator shape function for an op.
 
@@ -449,7 +461,7 @@ def register_shape_func(op_name, data_dependant, shape_func=None, level=10):
     level : int
         The priority level
     """
-    get(op_name).set_attr("TShapeDataDependant", data_dependant, level)
+    get(op_name).set_attr("TShapeDependant", data_dependant, level)
     return register(op_name, "FShapeFunc", shape_func, level)
 
 

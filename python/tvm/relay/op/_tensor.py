@@ -23,7 +23,7 @@ from tvm.te.hybrid import script
 from topi.util import get_const_tuple
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
-from .op import register_pattern, OpPattern
+from .op import register_pattern, OpPattern, ShapeDependant
 
 
 register_broadcast_schedule("log")
@@ -135,7 +135,7 @@ def _cast_shape_function(x):
         out[i] = x[i]
     return out
 
-def cast_shape_func(attrs, inputs, out_ndims):
+def cast_shape_func(attrs, inputs, _, out_ndims):
     return [_cast_shape_function(*inputs)]
 
 @script
@@ -146,7 +146,7 @@ def _full_shape_func(shape):
         out[i] = int64(shape[i])
     return out
 
-def full_shape_func(attrs, inputs, out_ndims):
+def full_shape_func(attrs, inputs, _, out_ndims):
     """
     Shape func for zeros, zeros_like, ones, ones_like.
     """
@@ -181,53 +181,53 @@ def _broadcast_shape_func(x, y, ndim):
                 out[ndim-i] = y[ndim2-i]
     return out
 
-def broadcast_shape_func(attrs, inputs, out_ndims):
+def broadcast_shape_func(attrs, inputs, _, out_ndims):
     """
     Shape function for broadcast op.
     """
     return [_broadcast_shape_func(*inputs, out_ndims[0])]
 
-def elemwise_shape_func(attrs, inputs, _):
+def elemwise_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for elemwise op.
     """
     return [topi.math.identity(inputs[0])]
 
-register_shape_func("cast", False, cast_shape_func)
-register_shape_func("zeros", False, full_shape_func)
-register_shape_func("zeros_like", False, elemwise_shape_func)
-register_shape_func("ones", False, full_shape_func)
-register_shape_func("ones_like", False, elemwise_shape_func)
-register_shape_func("full", False, full_shape_func)
-register_shape_func("full_like", False, elemwise_shape_func)
+register_shape_func("cast", ShapeDependant.SHAPE, cast_shape_func)
+register_shape_func("zeros", ShapeDependant.SHAPE, full_shape_func)
+register_shape_func("zeros_like", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("ones", ShapeDependant.SHAPE, full_shape_func)
+register_shape_func("ones_like", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("full", ShapeDependant.SHAPE, full_shape_func)
+register_shape_func("full_like", ShapeDependant.SHAPE, elemwise_shape_func)
 
-register_shape_func("add", False, broadcast_shape_func)
-register_shape_func("subtract", False, broadcast_shape_func)
-register_shape_func("multiply", False, broadcast_shape_func)
-register_shape_func("divide", False, broadcast_shape_func)
-register_shape_func("floor_divide", False, broadcast_shape_func)
-register_shape_func("mod", False, broadcast_shape_func)
-register_shape_func("floor_mod", False, broadcast_shape_func)
-register_shape_func("logical_and", False, broadcast_shape_func)
-register_shape_func("logical_or", False, broadcast_shape_func)
-register_shape_func("logical_xor", False, broadcast_shape_func)
-register_shape_func("bitwise_not", False, broadcast_shape_func)
-register_shape_func("bitwise_and", False, broadcast_shape_func)
-register_shape_func("bitwise_or", False, broadcast_shape_func)
-register_shape_func("bitwise_xor", False, broadcast_shape_func)
-register_shape_func("equal", False, broadcast_shape_func)
-register_shape_func("not_equal", False, broadcast_shape_func)
-register_shape_func("less", False, broadcast_shape_func)
-register_shape_func("less_equal", False, broadcast_shape_func)
-register_shape_func("greater", False, broadcast_shape_func)
-register_shape_func("greater_equal", False, broadcast_shape_func)
-register_shape_func("maximum", False, broadcast_shape_func)
-register_shape_func("minimum", False, broadcast_shape_func)
+register_shape_func("add", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("subtract", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("multiply", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("divide", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("floor_divide", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("mod", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("floor_mod", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("logical_and", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("logical_or", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("logical_xor", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("bitwise_not", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("bitwise_and", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("bitwise_or", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("bitwise_xor", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("equal", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("not_equal", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("less", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("less_equal", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("greater", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("greater_equal", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("maximum", ShapeDependant.SHAPE, broadcast_shape_func)
+register_shape_func("minimum", ShapeDependant.SHAPE, broadcast_shape_func)
 
-register_shape_func("sqrt", False, elemwise_shape_func)
-register_shape_func("negative", False, elemwise_shape_func)
-register_shape_func("exp", False, elemwise_shape_func)
-register_shape_func("tan", False, elemwise_shape_func)
-register_shape_func("fast_exp", False, elemwise_shape_func)
-register_shape_func("fast_tanh", False, elemwise_shape_func)
-register_shape_func("fast_erf", False, elemwise_shape_func)
+register_shape_func("sqrt", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("negative", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("exp", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("tan", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("fast_exp", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("fast_tanh", ShapeDependant.SHAPE, elemwise_shape_func)
+register_shape_func("fast_erf", ShapeDependant.SHAPE, elemwise_shape_func)

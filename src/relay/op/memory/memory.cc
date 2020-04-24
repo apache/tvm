@@ -365,7 +365,11 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (size_t i = 0; i < in_types.size(); i++) {
     auto in_type = in_types[i];
 
-    if (shape_func_attrs->is_input[i]) {
+    if (shape_func_attrs->is_input[i] == 2) {
+      shape_func_ins.push_back(in_type);
+      auto shape = RankShape(in_type->shape);
+      shape_func_ins.push_back(TensorType(shape, DataType::Int(64)));
+    } else if (shape_func_attrs->is_input[i]) {
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);

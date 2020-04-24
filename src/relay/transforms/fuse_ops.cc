@@ -31,6 +31,7 @@
 #include <tvm/relay/transform.h>
 #include "pattern_util.h"
 #include "../../support/arena.h"
+#include "pass_util.h"
 
 namespace tvm {
 namespace relay {
@@ -234,6 +235,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     Node* node = graph_.node_map.at(call);
     static auto fpattern =
         Op::GetAttr<TOpPattern>("TOpPattern");
+    static auto tshape_dependant = Op::GetAttr<TShapeDependant>(
+        "TShapeDependant");
     // Now we set the pattern of this call.
     //
     // If we see a call mentioning an operator we should mark it with its
@@ -245,7 +248,15 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     // need to call Update, as it may be an arbitrary expression.
     OpPatternKind op_pattern = kOpaque;
     if (const OpNode* opnode = call->op.as<OpNode>()) {
-      op_pattern = static_cast<OpPatternKind>(fpattern[GetRef<Op>(opnode)]);
+      auto op = GetRef<Op>(opnode);
+      if (IsDynamic(call->checked_type()) &&
+          tshape_dependant.count(op) &&
+          tshape_dependant[op] != ShapeDependantKind::kShapeDependantShape) {
+        // output of a shape func can't be fed to a data-dependent shape func
+        op_pattern = kOpaque;
+      } else {
+        op_pattern = static_cast<OpPatternKind>(fpattern[op]);
+      }
     } else {
       this->Update(call->op, node, kOpaque);
     }

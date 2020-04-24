@@ -568,7 +568,7 @@ def _conv2d_NCHWc_shape_func(dshape, kshape, strides, padding, dilation, oc_bn):
     return out
 
 @reg.register_shape_func("nn.contrib_conv2d_NCHWc", False)
-def conv2d_NCHWc_shape_func(attrs, inputs, _):
+def conv2d_NCHWc_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for contrib_conv2d_NCHWc op.
     """
@@ -596,7 +596,7 @@ def _pool2d_shape_func(data_shape, pool_size, strides,
 
     return out
 
-def pool2d_shape_func(attrs, inputs, _):
+def pool2d_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for pool2d op.
     """
@@ -629,7 +629,7 @@ def _global_pool2d_shape_func(data_shape, height_axis, width_axis):
 
     return out
 
-def global_pool2d_shape_func(attrs, inputs, _):
+def global_pool2d_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for global pool2d op.
     """
@@ -656,7 +656,7 @@ def _batch_flatten_shape_func(data_shape):
     return out
 
 @reg.register_shape_func("nn.batch_flatten", False)
-def batch_flatten_shape_func(attrs, inputs, _):
+def batch_flatten_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for batch_flatten op.
     """
@@ -672,7 +672,7 @@ def _dense_shape_func(data_shape, weight_shape):
     return out
 
 @reg.register_shape_func("nn.dense", False)
-def dense_shape_func(attrs, inputs, _):
+def dense_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for dense op.
     """
@@ -688,7 +688,7 @@ def _pad_shape_func(data_shape, pad_width):
     return out
 
 @reg.register_shape_func("nn.pad", False)
-def pad_shape_func(attrs, inputs, _):
+def pad_shape_func(attrs, inputs, data_inputs, _):
     """
     Shape function for pad op.
     """

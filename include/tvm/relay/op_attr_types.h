@@ -81,10 +81,16 @@ using TOpIsStateful = bool;
  */
 using TNonComputational = bool;
 
+enum ShapeDependantKind {
+  kShapeDependantShape = 0,
+  kShapeDependantData = 1,
+  kShapeDependantBoth = 2,
+};
+
 /*!
  * \brief Mark the operator whether output shape is data dependant.
  */
-using TShapeDataDependant = bool;
+using TShapeDependant = int;
 
 /*!
  * \brief Computation description interface.
@@ -236,6 +242,7 @@ using Shape = Array<IndexExpr>;
 using FShapeFunc = runtime::TypedPackedFunc<
   Array<te::Tensor>(const Attrs& attrs,
                     const Array<te::Tensor>& inputs,
+                    const Array<te::Tensor>& data_inputs,
                     const Array<IndexExpr>& out_ndims)>;
 
 }  // namespace relay

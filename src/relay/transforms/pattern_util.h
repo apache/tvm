@@ -554,7 +554,10 @@ static inline Expr Reshape(Expr data, Array<Integer> newshape) {
   attrs->newshape = std::move(newshape);
   attrs->reverse = false;
   static const Op& op = Op::Get("reshape");
-  return Call(op, {data}, Attrs(attrs), {});
+  std::vector<int> value{1};
+  auto dummy_newshape_tensor = MakeConstantTensor(DataType::Int(32), {1}, value);
+  // dummy_newshape_tensor won't be used since attrs->newshape has been set
+  return Call(op, {data, dummy_newshape_tensor}, Attrs(attrs), {});
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,

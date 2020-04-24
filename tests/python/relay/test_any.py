@@ -138,23 +138,35 @@ def test_any_concat():
         result = ex.evaluate()(x_np, y_np)
         tvm.testing.assert_allclose(result.asnumpy(), ref)
 
-def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape):
+def verify_any_reshape(x_shape, newshape, x_np_shape, out_shape, symbolic_newshape=False):
     x = relay.var('x', shape=x_shape, dtype="float32")
+    data = np.random.uniform(size=x_np_shape).astype('float32')
+    params = [x]
+    args = [data]
+
+    if symbolic_newshape:
+        newshape_var = relay.var('newshape', shape=(len(newshape),), dtype='int64')
+        params.append(newshape_var)
+        args.append(np.array(newshape, dtype='int64'))
+        newshape = newshape_var
+
     y = relay.reshape(x, newshape=newshape)
     mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], y)
-    data = np.random.uniform(size=x_np_shape).astype('float32')
+    mod["main"] = relay.Function(params, y)
+
     for kind in ["debug", "vm"]:
         ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
-        result = ex.evaluate()(data).asnumpy()
+        result = ex.evaluate()(*args).asnumpy()
         assert result.shape == out_shape
         tvm.testing.assert_allclose(result.flatten(), data.flatten())
 
 def test_any_reshape():
-    verify_any_reshape(any_dims(3), (1, -1), (2, 3, 4), (1, 24))
-    verify_any_reshape(any_dims(3), (0, -1), (2, 3, 4), (2, 12))
+    for symbolic_newshape in [False, True]:
+        # symblic newshape only supports that output rank is the same as newshape
+        verify_any_reshape(any_dims(3), (1, -1), (2, 3, 4), (1, 24), symbolic_newshape)
+        verify_any_reshape(any_dims(3), (0, -1), (2, 3, 4), (2, 12), symbolic_newshape)
+        verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4), symbolic_newshape)
     verify_any_reshape(any_dims(3), (0, -2), (2, 3, 4), (2, 3, 4))
-    verify_any_reshape(any_dims(3), (-4, 2, -1, -2), (6, 3, 4), (2, 3, 3, 4))
     verify_any_reshape(any_dims(3), (-4, -1, 2, -3), (6, 3, 4), (3, 2, 12))
 
 def verify_any_argwhere(x_shape, x_np_shape, dtype="bool"):
