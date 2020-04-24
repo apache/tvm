@@ -20,6 +20,7 @@ A pass for manifesting explicit memory allocations.
 """
 from typing import Optional, Dict, List, Tuple
 import attr
+from collections import defaultdict
 
 from ..expr_functor import ExprMutator
 from .. import op, expr
@@ -54,6 +55,12 @@ class Region:
     dtype: Optional[str]
     ctx: TVMContext
     offsets: Dict[expr.Var, Tuple[expr.Expr, expr.Expr]]
+
+    @staticmethod
+    def empty(region_no):
+        zero = expr.const(0, dtype="int64")
+        region_var = expr.var(f"region{region_no}")
+        return Region(region_var, zero, None, None, None, {})
 
     def grow(
             self, old_storage: expr.Var,
@@ -108,7 +115,7 @@ class Region:
 
         # First compute the total size.
         total_size = expr.var("total_size")
-        bindings.append((total_size, const_eval(self.size)))
+        bindings.append((total_size, self.size))
 
         # Allocate the entire region with a single call.
         alloc = op.memory.alloc_storage(total_size, self.alignment, self.ctx, self.dtype)
@@ -122,10 +129,10 @@ class Region:
         # potentially colaescing.
         for alloc in self.offsets:
             (var, offset) = self.offsets[alloc]
-            offset = const_eval(offset)
             bindings.append((var, offset))
 
-        return mk_let(bindings, body)
+        body = mk_let(bindings, body)
+        return body
 
 
 def iterative_let(let, each_binding, kont):
@@ -171,20 +178,23 @@ class StorageCoalesce(ExprMutator):
 
     def enter_scope(self) -> None:
         zero = expr.const(0, dtype="int64")
-        region_var = expr.var(f"region{len(self.regions)}")
-        region = Region(region_var, zero, None, None, None, {})
-        self.regions.append(region)
+        region_no = len(self.regions)
+        self.regions.append(defaultdict(lambda: Region.empty(region_no)))
 
     def exit_scope(self, body: expr.Expr) -> expr.Expr:
         """When leaving a scope build a region allocation for the scope."""
-        region = self.regions.pop()
-        if len(region.offsets) == 0:
-            return body
-        else:
-            return region.to_expr(body)
+        dtype_region = self.regions.pop()
+        for dtype, region in reversed(list(dtype_region.items())):
+            if len(region.offsets) == 0:
+                continue
+            else:
+                body = region.to_expr(body)
 
-    def current_region(self) -> Region:
-        return self.regions[-1]
+        return body
+
+    def current_region(self, dtype) -> Region:
+        current_scope = self.regions[-1]
+        return current_scope[dtype]
 
     def visit_function(self, fn):
         """Transform the function body to use region allocation scheme."""
@@ -235,12 +245,12 @@ class StorageCoalesce(ExprMutator):
         size, alignment = call.args
         dtype = call.attrs.dtype
         ctx = TVMContext(call.attrs.device_type, call.attrs.device_id)
-        region = self.current_region()
+        region = self.current_region(call.attrs.dtype)
         region.grow(lhs, size, alignment, ctx, dtype)
         return lhs, region.var
 
     def process_alloc_tensor(self, lhs, call):
-        region = self.current_region()
+        region = self.current_region(call.attrs.dtype)
         storage, old_offset, shape = call.args
         offset = region.offset_for(storage)
         assert (
@@ -251,6 +261,32 @@ class StorageCoalesce(ExprMutator):
             expr.Call(call.op, [region.var, offset, shape], call.attrs),
         )
 
+class LiftConstants(ExprMutator):
+    def __init__(self):
+        self.i = 0
+        self.constants = []
+        self.top_level = True
+        super().__init__()
+
+    def visit_constant(self, const):
+        var = expr.var(f"const{self.i}")
+        self.i += 1
+        self.constants.append((var, const))
+        return var
+
+    def visit_function(self, function):
+        if self.top_level:
+            self.top_level = False
+            body = mk_let(self.constants, self.visit(function.body))
+            return Function(
+                function.params,
+                body,
+                function.ret_type,
+                function.type_params,
+                function.attrs)
+        else:
+            return super().visit_function(function)
+
 @function_pass(opt_level=0)
 class MemoryPlan:
     """An explicit pass wrapper around ManifestAlloc."""
@@ -258,10 +294,12 @@ class MemoryPlan:
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
         sc = StorageCoalesce()
-        before = func
+        import pdb; pdb.set_trace()
         func = sc.visit(func)
-        print(func)
-        return before
+        import pdb; pdb.set_trace()
+        func = LiftConstants().visit(func)
+        func = const_eval(func)
+        return func
 
 
 register_func("relay.transform.MemoryPlan", MemoryPlan)

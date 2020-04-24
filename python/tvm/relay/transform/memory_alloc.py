@@ -174,7 +174,7 @@ class ManifestAllocPass(ExprMutator):
             size = self.compute_storage_in_relay(
                 out_shape, out_type.dtype)
             alignment = self.compute_alignment(out_type.dtype)
-            sto = scope.let("storage_{i}".format(i=i), self.alloc_storage(
+            sto = scope.let("storage_{i}".format(i=i), alloc_storage(
                 size, alignment, self.default_context, out_type.dtype))
             storages.append(sto)
 
@@ -206,6 +206,13 @@ class ManifestAllocPass(ExprMutator):
             # Because we are in ANF we do not need to visit the arguments.
             scope = self.current_scope()
             new_args = [self.visit(arg) for arg in call.args]
+            new_args = []
+            for i, arg in enumerate(call.args):
+                if isinstance(arg, expr.Constant):
+                    new_args.append(scope.let(f"const{i}", arg))
+                else:
+                    new_args.append(arg)
+
             ins = expr.Tuple(new_args)
             ret_type = call.checked_type
             out_types = flatten_tuple_type(ret_type)
@@ -235,11 +242,12 @@ class ManifestAlloc:
         self.target_host = target_host
 
     def transform_function(self, func, mod, _):
-        # TODO(@jroesch): Is there a way to do one shot initilization?
+        # TODO(@jroesch): Is there a way to do one shot initialization?
         # can we have def pass_init?
         mod.import_from_std("core.rly")
         ea = ManifestAllocPass(self.target_host)
         func = ea.visit(func)
+        print(func)
         return func
 
 
