@@ -34,7 +34,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     # collisions in the generated source (e.g., if there are multiple operators
     # in the same module that use the same intrinsic)
     #
-    # TODO to cut down on memory usage, we should cache each intrinsic
+    # TODO(areusch): to cut down on memory usage, we should cache each intrinsic
     # instantiation and include it only once, eliminating the need for unique
     # IDs
     UNIQ_ID_LEN = 8
@@ -47,7 +47,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
     if isinstance(N, tvm.tir.IntImm):
         N = N.value
     assert K % 4 == 0
-    # TODO support more dtypes?
+    # TODO(areusch): support more dtypes?
     assert in_dtype == 'int8'
     assert out_dtype == 'int32'
     A = te.placeholder((M, K), name='a', dtype=in_dtype)
@@ -124,7 +124,7 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
 
 def gemm_MxKxN_impl(M, K, N, uniq_id):
     """Emit C code for gemm impl."""
-    # TODO are there any SIMD tricks to zero out arrays quickly?
+    # TODO(areusch): are there any SIMD tricks to zero out arrays quickly?
     aa_pad_size = M * K
     bb_pad_size = N * K
     # code reference: CMSIS-NN paper (https://arxiv.org/abs/1801.06601)

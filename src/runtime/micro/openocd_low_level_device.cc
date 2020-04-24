@@ -207,8 +207,8 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
 
   /*! \brief number of bytes in a word on the target device (64-bit) */
   static const constexpr ssize_t kWordSize = 8;
-  // NOTE: OpenOCD will call any request larger than this constant an "absurd
-  // request".
+  // NOTE: The OS pipe buffer must be able to handle a line long enough to
+  // print this transfer request.
   /*! \brief maximum number of bytes allowed in a single memory transfer */
   static const constexpr ssize_t kMemTransferLimit = 8000;
   /*! \brief number of milliseconds to wait for function execution to halt */
