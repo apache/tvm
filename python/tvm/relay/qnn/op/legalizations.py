@@ -59,7 +59,8 @@ def get_scalar_from_constant(expr):
     assert isinstance(expr, relay.Constant) and not expr.data.shape, \
         "Expr is not a constant scalar."
     value = expr.data.asnumpy()
-    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), "value must be float32/int32"
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
+        "value must be float32/int32"
     return np.asscalar(value)
 
 # Helper function for lowering in the abscence of fast Int8 arithmetic units.
