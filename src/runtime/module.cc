@@ -188,5 +188,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
 .set_body_typed([](Module mod, std::string name, std::string fmt) {
   mod->SaveToFile(name, fmt);
 });
+
+TVM_REGISTER_OBJECT_TYPE(ModuleNode);
 }  // namespace runtime
 }  // namespace tvm

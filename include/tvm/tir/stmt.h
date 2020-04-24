@@ -40,6 +40,7 @@ class StmtNode : public Object {
   static constexpr const char* _type_key = "Stmt";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 15;
   TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
 };
 
