@@ -21,7 +21,6 @@ from __future__ import absolute_import
 import tvm
 from tvm import relay
 from .. import op as reg
-from ...util import get_scalar_from_constant
 
 #################################################
 # Register the functions for different operators.
@@ -53,6 +52,18 @@ def qnn_dense_legalize(attrs, inputs, types):
 ###################
 # Helper functions.
 ###################
+
+def get_scalar_from_constant(expr):
+    """ Returns scalar value from Relay constant scalar. """
+    assert isinstance(expr, _expr.Constant) and not expr.data.shape, \
+        "Expr is not a constant scalar."
+    value = expr.data.asnumpy()
+    if value.dtype == np.dtype(np.int32):
+        return int(value)
+    if value.dtype == np.dtype(np.float32):
+        return float(value)
+    assert False, "Constant expr must be float32/int32"
+    return None  # To suppress pylint
 
 # Helper function for lowering in the abscence of fast Int8 arithmetic units.
 def helper_no_fast_int8_hw_legalization(attrs, inputs, types, relay_op):
