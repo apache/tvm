@@ -1888,6 +1888,72 @@ def test_forward_unary():
     verify_model(Neg1().float().eval(), input_data=input_data)
 
 
+def test_forward_where():
+    torch.set_grad_enabled(False)
+
+    class Where1(Module):
+        def forward(self, *args):
+            y = torch.ones([3, 2])
+            if torch.cuda.is_available():
+                y = y.cuda()
+            return torch.where(args[0] > 0, args[0], y)
+
+    class Where2(Module):
+        def forward(self, *args):
+            return torch.where(args[0] > 0, args[0], args[1])
+
+    x = torch.rand([3, 2]).float()
+    verify_model(Where1().float().eval(), input_data=[x])
+    y = torch.rand([3, 2])
+    verify_model(Where2().float().eval(), input_data=[x, y])
+
+
+def test_forward_addcdiv():
+    torch.set_grad_enabled(False)
+
+    class Addcdiv1(Module):
+        def forward(self, *args):
+            t1 = torch.ones([3, 1])
+            t2 = torch.ones([1, 3])
+            if torch.cuda.is_available():
+                t1 = t1.cuda()
+                t2 = t2.cuda()
+            return torch.addcdiv(args[0], 0.1, t1, t2)
+
+    class Addcdiv2(Module):
+        def forward(self, *args):
+            return torch.addcdiv(args[0], 0.5, args[1], args[2])
+
+    input_data = torch.rand([1, 3]).float()
+    verify_model(Addcdiv1().float().eval(), input_data=input_data)
+    t1 = torch.rand([3, 1]).float()
+    t2 = torch.rand([1, 3]).float()
+    verify_model(Addcdiv2().float().eval(), input_data=[input_data, t1, t2])
+
+
+def test_forward_addcmul():
+    torch.set_grad_enabled(False)
+
+    class Addcmul1(Module):
+        def forward(self, *args):
+            t1 = torch.ones([3, 1])
+            t2 = torch.ones([1, 3])
+            if torch.cuda.is_available():
+                t1 = t1.cuda()
+                t2 = t2.cuda()
+            return torch.addcmul(args[0], 0.1, t1, t2)
+
+    class Addcmul2(Module):
+        def forward(self, *args):
+            return torch.addcmul(args[0], 0.5, args[1], args[2])
+
+    input_data = torch.rand([1, 3]).float()
+    verify_model(Addcmul1().float().eval(), input_data=input_data)
+    t1 = torch.rand([3, 1]).float()
+    t2 = torch.rand([1, 3]).float()
+    verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
@@ -1933,6 +1999,9 @@ if __name__ == "__main__":
     test_forward_select()
     test_forward_take()
     test_forward_topk()
+    test_forward_where()
+    test_forward_addcdiv()
+    test_forward_addcmul()
     test_forward_clone()
     test_forward_softplus()
     test_forward_softsign()
