@@ -152,22 +152,13 @@ class IntSet : public ObjectRef {
 //-----------------------------------------------
 // Integer set legacy API.
 //------------------------------------------------
-    /*!
-     * \brief Convert std::unordered_map<const VarNode*, IntSet> to Map<Var, IntSet>
-     *
-     * \param dom_map The domain map to convert.
-     * \return The converted map.
-     */
+/*!
+ * \brief Convert std::unordered_map<const VarNode*, IntSet> to Map<Var, IntSet>
+ *
+ * \param dom_map The domain map to convert.
+ * \return The converted map.
+ */
 Map<Var, IntSet> ConvertDomMap(const std::unordered_map<const VarNode*, IntSet>& dom_map);
-// /*!
-//  * \brief Find an symbolic integer set that contains all possible values of
-//  *  e given the domain of each iteration variables.
-//  *
-//  * \param e The expression to be evaluated.
-//  * \param dom_map The domain of each variable.
-//  * \return An integer set that can cover all the possible values of e.
-//  */
-// IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map);
 /*!
  * \brief Find an symbolic integer set that contains all possible values of
  *  e given the domain of each iteration variables.

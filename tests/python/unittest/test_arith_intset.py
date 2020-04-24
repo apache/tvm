@@ -100,7 +100,7 @@ def test_mod():
     z = te.var("z")
     ck.analyzer.bind(x, tvm.ir.Range.make_by_min_extent(0, 3))
     ck.verify(flm(y, 8), {y : tvm.arith.IntervalSet(z*8+x*4, z*8+x*4+3)},
-              (x*4-floordiv(x, 2)*8, x*4+3-floordiv(x*4+3, 8)*8))
+              (0, 7))
     ck1 = IntSetChecker()
     ck1.analyzer.bind(x, tvm.ir.Range.make_by_min_extent(0, 2))
     ck1.verify(flm(y, 8), {y : tvm.arith.IntervalSet(z*8+x*4, z*8+x*4+3)}, (x*4, x*4+3))

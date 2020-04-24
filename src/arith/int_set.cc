@@ -311,19 +311,14 @@ inline IntervalSet Combine<tir::FloorModNode>(Analyzer* analyzer,
       LOG(FATAL) << "Modular by zero in CombineInterval Mod";
     }
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
-      if (const auto* ptr = b->min_value.as<tir::IntImmNode>()) {
-        // a mod b = a - b * (a/b) if
-        // (i) a_max - a_min < b, i.e. that before mod, a's range doesn't cover [0, b)
-        // and (ii) a_min mod b <= a_max mod b, i.e. that a's range is still continuous after mod
-        auto tmax = a->max_value - b->min_value * floordiv(a->max_value, b->min_value);
-        tmax = analyzer->Simplify(tmax);
-        auto tmin = a->min_value - b->min_value * floordiv(a->min_value, b->min_value);
-        tmin = analyzer->Simplify(tmin);
-        auto tset = IntervalSet(tmin, tmax);
-        bool within_range = analyzer->CanProveLess(a->max_value - a->min_value, ptr->value);
-        bool wrap_around = analyzer->CanProve(tset->max_value < tset->min_value);
-        if (within_range && !wrap_around) {
-          return tset;
+      if (b->min_value.as<tir::IntImmNode>()) {
+        // a mod b = a - (a / b) * b if a_max / b == a_min / b
+        auto qmax = floordiv(a->max_value, b->min_value);
+        auto qmin = floordiv(a->min_value, b->min_value);
+        if (analyzer->CanProve(qmax == qmin)) {
+          auto tmax = a->max_value - b->min_value * qmin;
+          auto tmin = a->min_value - b->min_value * qmin;
+          return IntervalSet(tmin, tmax);
         }
       }
       return IntervalSet(make_zero(divisor.dtype()), divisor - 1);
