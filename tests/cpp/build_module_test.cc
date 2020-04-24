@@ -155,9 +155,9 @@ TEST(BuildModule, Heterogeneous) {
   auto c_val =
       runtime::NDArray::Empty({n}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pa = (float*)a_val.ToDLPack()->dl_tensor.data;
-  auto pb = (float*)b_val.ToDLPack()->dl_tensor.data;
-  auto pc = (float*)c_val.ToDLPack()->dl_tensor.data;
+  auto pa = (float*)(a_val->data);
+  auto pb = (float*)(b_val->data);
+  auto pc = (float*)(c_val->data);
 
   // Assign values.
   for (int i = 0; i < n; i++) {
@@ -186,7 +186,7 @@ TEST(BuildModule, Heterogeneous) {
 
   run();
   tvm::runtime::NDArray out = get_output(0);
-  float* p_out = (float*)out.ToDLPack()->dl_tensor.data;
+  float* p_out = (float*)out->data;
 
   // Check correctness.
   for (int i = 0; i < n; ++i) {

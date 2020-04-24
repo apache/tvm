@@ -63,9 +63,9 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   auto B = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto C = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto pA = (float*)A.ToDLPack()->dl_tensor.data;
-  auto pB = (float*)B.ToDLPack()->dl_tensor.data;
-  auto pC = (float*)C.ToDLPack()->dl_tensor.data;
+  auto pA = (float*)A->data;
+  auto pB = (float*)B->data;
+  auto pC = (float*)C->data;
 
   for (int i = 0; i < 6; ++i) {
     pA[i] = i;
@@ -118,7 +118,7 @@ TEST(MicroStandaloneRuntime, BuildModule) {
   UTVMRuntimeRun(handle);
   auto Y = tvm::runtime::NDArray::Empty({2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
   UTVMRuntimeGetOutput(handle, 0, &Y.ToDLPack()->dl_tensor);
-  auto* pY = (float*)Y.ToDLPack()->dl_tensor.data;
+  auto* pY = (float*)Y->data;
   for (int i = 0; i < 6; ++i) {
     CHECK_LT(fabs(pY[i] - (i + (i + 1) + (i + 2))), 1e-4);
   }

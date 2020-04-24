@@ -42,9 +42,10 @@ namespace tvm {
  */
 class BaseExprNode : public Object {
  public:
-  static constexpr const char* _type_key = "Expr";
+  static constexpr const char* _type_key = "BaseExpr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 58;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
 
@@ -88,6 +89,7 @@ class PrimExprNode : public BaseExprNode {
   DataType dtype;
 
   static constexpr const char* _type_key = "PrimExpr";
+  static constexpr const uint32_t _type_child_slots = 34;
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
 };
 
@@ -161,7 +163,8 @@ class RelayExprNode : public BaseExprNode {
   template<typename TTypeNode>
   inline const TTypeNode* type_as() const;
 
-  static constexpr const char* _type_key = "relay.Expr";
+  static constexpr const char* _type_key = "RelayExpr";
+  static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelayExprNode, BaseExprNode);
 };
 

@@ -47,6 +47,7 @@ class ObjA : public ObjBase {
 class ObjB : public ObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
+  static constexpr const uint32_t _type_child_slots = 0;
   static constexpr const char* _type_key = "test.ObjB";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjB, ObjBase);
 };

@@ -193,16 +193,6 @@ TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
   mod->SaveToFile(name, fmt);
 });
 
-TVM_REGISTER_GLOBAL("runtime.IsEmpty")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = args[0].operator Module().IsEmpty();
-});
-
-TVM_REGISTER_GLOBAL("runtime.CreateEmptyModule")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-    Module m;
-    *ret = m;
-});
-
+TVM_REGISTER_OBJECT_TYPE(ModuleNode);
 }  // namespace runtime
 }  // namespace tvm

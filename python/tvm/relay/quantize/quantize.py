@@ -121,7 +121,7 @@ class QConfig(Object):
         return self
 
     def __exit__(self, ptype, value, trace):
-        _quantize._ExitQConfigScope(self)
+        _quantize._ExitQConfigScope()
 
     def __setattr__(self, name, value):
         if name in QConfig._node_defaults:

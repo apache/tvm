@@ -1268,6 +1268,8 @@ struct unpack_call_dispatcher<void, 0, index, F> {
 
 template<typename R, int nargs, typename F>
 inline void unpack_call(const F& f, const TVMArgs& args, TVMRetValue* rv) {
+  CHECK_EQ(nargs, args.size())
+      << "Expect " << nargs << " arguments but get " << args.size();
   unpack_call_dispatcher<R, nargs, 0, F>::run(f, args, rv);
 }
 
