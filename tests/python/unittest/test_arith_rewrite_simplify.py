@@ -831,7 +831,7 @@ def test_cast_simplify():
         ck.verify(tvm.tir.Cast(dtype1, x - x), tvm.tir.const(0, dtype1))
         ck.verify(tvm.tir.Cast(dtype1, x == x), tvm.tir.const(1, dtype1))
         for dtype2 in dtypes:
-            for i in [0, 1, 2, 3]:
+            for i in [0, 1]:
                 ck.verify(tvm.tir.Cast(dtype1, tvm.tir.const(i, dtype2)), tvm.tir.const(i, dtype1))
 
 if __name__ == "__main__":
