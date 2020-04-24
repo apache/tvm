@@ -498,9 +498,6 @@ class StringImm(ConstExpr):
             return self.value != other.value
         return self.value != other
 
-    def __str__(self):
-        return self.value
-
 
 @tvm._ffi.register_object
 class Cast(PrimExprWithOp):

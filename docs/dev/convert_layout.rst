@@ -92,7 +92,7 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
 .. code-block:: python
 
     @reg.register_convert_op_layout("nn.conv2d")
-    def convert_conv2d(attrs, inputs, tinfos, desired_layout):
+    def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         """Convert Layout pass registration for conv2d op.
 
         Parameters
@@ -103,8 +103,9 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
             The args of the Relay expr to be legalized
         tinfos : list of types
             List of input and output types
-        desired_layout : str
-            The desired layout
+        desired_layouts : list of layout strings
+                List of layouts defining our desired
+                layout for the data and kernel inputs.
 
         Returns
         -------
@@ -116,6 +117,7 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
         data_layout = attrs['data_layout']
         kernel_layout = attrs['kernel_layout']
         data, weight = inputs
+        desired_layout = str(desired_layouts[0])
         assert desired_layout == 'NCHW', \
                 "Currently only transformation to NCHW layout is supported."
         if desired_layout == 'NCHW':
@@ -218,6 +220,8 @@ Second example is for a lightly-layout sensitive operator - batch normalization.
 
 ConvertLayout pass is extremely easy to use. The pass is not a part of default relay.build pipeline. The intended usage is to call it between the framework-to-relay parser and relay.build module call.
 
+In order to specify the layouts to convert to, we create a mapping of heavily-layout sensitive operators to a list of the desired layouts for that operator.
+
 .. code-block:: python
 
     # TFlite framework to Relay parser - Default layout is NHWC
@@ -225,16 +229,28 @@ ConvertLayout pass is extremely easy to use. The pass is not a part of default r
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
 
+    # We assume our model's heavily-layout sensitive operators only consist of nn.conv2d
+    desired_layouts = {'nn.conv2d': ['NCHW']}
+
     # Convert the layout to NCHW
     # RemoveUnunsedFunctions is used to clean up the graph.
     seq = tvm.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                      relay.transform.ConvertLayout('NCHW')])
+                                      relay.transform.ConvertLayout(desired_layouts)])
     with relay.transform.PassContext(opt_level=3):
         mod = seq(mod)
 
     # Call relay compilation
     with relay.build_config(opt_level=3):
          graph, lib, params = relay.build(mod, target, params=params)
+
+
+The example above only considers data layout, the kernel layout is automatically converted to one that is supported by TVM. If we wish to also convert to a specific kernel layout this can be done like so:
+
+.. code-block:: python
+    desired_layouts = {'nn.conv2d': ['NCHW', 'HWIO']}
+    pass = relay.transform.ConvertLayout(desired_layouts)
+
+If we wish to select the default choice for a specific layout then the layout should be declared as "default". In the first example, the kernel layout is implicitly defined as "default".
 
 Current implementation has support for almost all the operators commonly used in image classification models. However, if one encounters too many data layout transforms in the graph, it is highly likely that there is an operator whose layouts need special handling as described in Section 3. Some pull requests that can help in such a situation are
 

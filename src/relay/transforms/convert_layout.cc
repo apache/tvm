@@ -51,18 +51,15 @@ class ConvertTransformMemorizerNode : public TransformMemorizerNode {
  public:
   /*!
    * \brief Initializes the desired_layout.
-   * \param desired_layout The desired layout.
-   * \param additional_layouts Specify additional layouts for operators
-   *    with additional inputs e.g. kernel_layout = OHWI.
+ * \param desired_layouts Specify mapping of op_name to array of desired layouts for each input.
+ *                        For example: Map("nn.conv2d", Array("NHWC", "OHWI")),
+ *                        this specifies the desired layout for data then kernel for nn.conv2d.
    */
-  explicit ConvertTransformMemorizerNode(const std::string& desired_layout,
-                                         const Map<std::string, ObjectRef>& additional_layouts)
-      : desired_layout_(desired_layout), additional_layouts_(additional_layouts) {}
+  explicit ConvertTransformMemorizerNode(Map<std::string, Array<String>> desired_layouts)
+      : desired_layouts_(std::move(desired_layouts)) {}
 
-  /*! \brief The desired layout for the Convert Layout pass */
-  std::string desired_layout_;
-  /*! \brief The desired kernel layout for the Convert Layout pass */
-  Map<std::string, ObjectRef> additional_layouts_;
+  /*! \brief A mapping of op_name to array of desired layouts for each input. */
+  Map<std::string, Array<String>> desired_layouts_;
 };
 
 /*!
@@ -96,9 +93,14 @@ class ConvertTransformMemorizer : public TransformMemorizer {
         auto ttype = expr->type_as<TensorTypeNode>();
         tinfos.push_back(tvm::te::placeholder(ttype->shape, ttype->dtype));
       }
+
+      auto desired_layouts = operator->()->desired_layouts_;
+      if (desired_layouts.find(op->name) == desired_layouts.end()) {
+        LOG(FATAL) << "Desired layout(s) not specified for op: " << op->name;
+      }
+      Array<String> op_desired_layouts = desired_layouts.at(op->name);
       Expr altered_value =
-          fconvert_layout[op](ref_call->attrs, new_args, tinfos,
-              operator->()->desired_layout_, operator->()->additional_layouts_);
+          fconvert_layout[op](ref_call->attrs, new_args, tinfos, op_desired_layouts);
       if (altered_value.defined()) {
         new_e = altered_value;
         modified = true;
@@ -121,10 +123,9 @@ class ConvertTransformMemorizer : public TransformMemorizer {
  * 1. The altered op should have the same number of arguments as the previous one.
  * 2. Do not support nested tuple arguments.
  */
-Expr ConvertLayout(const Expr& expr, const std::string& desired_layout,
-                   const Map<std::string, ObjectRef>& additional_layouts) {
+Expr ConvertLayout(const Expr& expr, const Map<std::string, Array<String>>& desired_layouts) {
   ConvertTransformMemorizer transformMemorizer(
-      make_object<ConvertTransformMemorizerNode>(desired_layout, additional_layouts));
+      make_object<ConvertTransformMemorizerNode>(desired_layouts));
   auto fcontext = [&](const Call& call) -> ObjectRef { return transformMemorizer; };
 
   return ForwardRewrite(expr, LayoutRewriter<ConvertTransformMemorizer>, fcontext);
@@ -134,12 +135,10 @@ Expr ConvertLayout(const Expr& expr, const std::string& desired_layout,
 
 namespace transform {
 
-Pass ConvertLayout(const std::string& desired_layout,
-                   const Map<std::string, ObjectRef>& additional_layouts) {
+Pass ConvertLayout(const Map<std::string, Array<String>>& desired_layouts) {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
       [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layout,
-            additional_layouts));
+        return Downcast<Function>(relay::convert_op_layout::ConvertLayout(f, desired_layouts));
       };
   return CreateFunctionPass(pass_func, 3, "ConvertLayout", {"InferType", "CanonicalizeOps"});
 }

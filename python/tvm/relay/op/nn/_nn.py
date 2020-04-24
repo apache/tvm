@@ -118,7 +118,7 @@ def legalize_conv2d(attrs, inputs, types):
     return topi.nn.conv2d_legalize(attrs, inputs, types)
 
 @reg.register_convert_op_layout("nn.conv2d")
-def convert_conv2d(attrs, inputs, tinfos, desired_layout, additional_layouts):
+def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for conv2d op.
 
     Parameters
@@ -129,10 +129,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout, additional_layouts):
         The args of the Relay expr to be legalized
     tinfos : list of types
         List of input and output types
-    desired_layout : str
-        The desired layout
-    additional_layouts : tvm.ir.StrMap
-        Additional layouts (e.g. kernel layout).
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs.
 
     Returns
     -------
@@ -143,14 +142,17 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layout, additional_layouts):
     from tvm import relay
     data, weight = inputs
     new_attrs = dict(attrs)
+    desired_layout = str(desired_layouts[0])
+    assert desired_layout != "default", "Data layout cannot be default"
     new_attrs['data_layout'] = desired_layout
 
-    if additional_layouts:
-        if "kernel_layout" in additional_layouts:
-            new_attrs['kernel_layout'] = str(additional_layouts['kernel_layout'])
+    if len(desired_layouts) > 1:
+        desired_kernel_layout = str(desired_layouts[1])
+        if desired_kernel_layout != "default":
+            new_attrs['kernel_layout'] = desired_kernel_layout
             return relay.nn.conv2d(data, weight, **new_attrs)
 
-    # Handle cases where specific kernel layout is not provided
+    # Handle default kernel layouts
     if desired_layout == 'NCHW':
         new_attrs['kernel_layout'] = 'OIHW'
         return relay.nn.conv2d(data, weight, **new_attrs)
@@ -202,7 +204,7 @@ def alter_op_layout_conv3d(attrs, inputs, tinfos, out_type):
     return topi.nn.conv3d_alter_layout(attrs, inputs, tinfos, out_type)
 
 @reg.register_convert_op_layout("nn.conv3d")
-def convert_conv3d(attrs, inputs, tinfos, desired_layout):
+def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
     """Convert Layout pass registration for conv3d op.
 
     Parameters
@@ -213,8 +215,9 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layout):
         The args of the Relay expr to be legalized
     tinfos : list of types
         List of input and output types
-    desired_layout : str
-        The desired layout
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs.
 
     Returns
     -------
@@ -225,7 +228,17 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layout):
     from tvm import relay
     data, weight = inputs
     new_attrs = dict(attrs)
+    desired_layout = str(desired_layouts[0])
+    assert desired_layout != "default", "Data layout cannot be default"
     new_attrs['data_layout'] = desired_layout
+
+    if len(desired_layouts) > 1:
+        desired_kernel_layout = str(desired_layouts[1])
+        if desired_kernel_layout != "default":
+            new_attrs['kernel_layout'] = desired_kernel_layout
+            return relay.nn.conv3d(data, weight, **new_attrs)
+
+    # Handle default kernel layouts
     if desired_layout == 'NCDHW':
         new_attrs['kernel_layout'] = 'OIDHW'
         return relay.nn.conv3d(data, weight, **new_attrs)

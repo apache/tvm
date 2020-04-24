@@ -49,7 +49,7 @@ def test_no_convert_layout():
         return before()
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -84,7 +84,7 @@ def test_conv_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -129,7 +129,7 @@ def test_conv_bias_pool_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -177,7 +177,7 @@ def test_conv_concat_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -232,7 +232,7 @@ def test_dual_path_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -256,7 +256,7 @@ def test_bn_convert_layout():
         return relay.Function(analysis.free_vars(y), y)
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
 
     # Check that there is only 1 NHWC to NCHW transform.
     has_lt = list()
@@ -312,7 +312,7 @@ def test_resnet_convert_layout():
         return relay.Function(analysis.free_vars(y), y)
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -344,7 +344,7 @@ def test_scalar_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -392,7 +392,7 @@ def test_conv_bn_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -448,7 +448,7 @@ def test_qnn_conv_requantize_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'qnn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -526,7 +526,7 @@ def test_qnn_conv_concat_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'qnn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -606,13 +606,13 @@ def test_qnn_conv_add_convert_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NCHW'))
+    a = run_opt_pass(a, transform.ConvertLayout({'qnn.conv2d': ['NCHW']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
-def test_conv_additional_layout():
+def test_conv_convert_kernel_layout():
     """ Check that convolution kernel layout is correctly transformed. """
     def before():
         x = relay.var("x", shape=(1, 56, 56, 64))
@@ -636,7 +636,7 @@ def test_conv_additional_layout():
         return y
 
     a = before()
-    a = run_opt_pass(a, transform.ConvertLayout('NHWC', {'kernel_layout': 'OHWI'}))
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NHWC', 'OHWI']}))
     b = run_opt_pass(expected(), transform.InferType())
 
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
@@ -655,4 +655,4 @@ if __name__ == "__main__":
     test_qnn_conv_requantize_convert_layout()
     test_qnn_conv_concat_convert_layout()
     test_qnn_conv_add_convert_layout()
-    test_conv_additional_layout()
+    test_conv_convert_kernel_layout()
