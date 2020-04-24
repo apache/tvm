@@ -25,9 +25,9 @@ def test_callgraph_construct():
     x = relay.var("x", shape=(2, 3))
     y = relay.var("y", shape=(2, 3))
     mod["g1"] = relay.Function([x, y], x + y)
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
     assert "g1" in str(call_graph)
-    assert relay.alpha_equal(mod, call_graph.module)
+    assert tvm.ir.structural_equal(mod, call_graph.module)
 
 
 def test_print_element():
@@ -38,7 +38,7 @@ def test_print_element():
     x1 = relay.var("x1", shape=(2, 3))
     y1 = relay.var("y1", shape=(2, 3))
     mod["g1"] = relay.Function([x1, y1], x1 - y1)
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     assert "#refs = 0" in str(call_graph.print_var("g0"))
     assert "#refs = 0" in str(call_graph.print_var("g1"))
@@ -54,13 +54,13 @@ def test_global_call_count():
     y1 = relay.var("y1", shape=(2, 3))
     g1 = relay.GlobalVar("g1")
     mod[g1] = relay.Function([x1, y1], g0(x1, y1))
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     p0 = relay.var("p0", shape=(2, 3))
     p1 = relay.var("p1", shape=(2, 3))
     func = relay.Function([p0, p1], g0(p0, p1) * g1(p0, p1))
     mod["main"] = func
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     assert call_graph.global_call_count(g0) == 0
     assert call_graph.global_call_count(g1) == 1
@@ -77,13 +77,13 @@ def test_ref_count():
     y1 = relay.var("y1", shape=(2, 3))
     g1 = relay.GlobalVar("g1")
     mod[g1] = relay.Function([x1, y1], x1 - y1)
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     p0 = relay.var("p0", shape=(2, 3))
     p1 = relay.var("p1", shape=(2, 3))
     func = relay.Function([p0, p1], g0(p0, p1) * g1(p0, p1))
     mod["main"] = func
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     assert call_graph.ref_count(g0) == 1
     assert call_graph.ref_count(g1) == 1
@@ -100,13 +100,13 @@ def test_nested_ref():
     y1 = relay.var("y1", shape=(2, 3))
     g1 = relay.GlobalVar("g1")
     mod[g1] = relay.Function([x1, y1], g0(x1, y1))
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     p0 = relay.var("p0", shape=(2, 3))
     p1 = relay.var("p1", shape=(2, 3))
     func = relay.Function([p0, p1], g0(p0, p1) * g1(p0, p1))
     mod["main"] = func
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     assert call_graph.ref_count(g0) == 2
     assert call_graph.ref_count(g1) == 1
@@ -134,11 +134,11 @@ def test_recursive_func():
     func = relay.Function([i],
                           sb.get(),
                           ret_type=relay.TensorType([], 'int32'))
-    func = func.set_attribute("Compiler", tvm.tir.StringImm("a"))
+    func = func.with_attr("Compiler", tvm.tir.StringImm("a"))
     mod[sum_up] = func
     iarg = relay.var('i', shape=[], dtype='int32')
     mod["main"] = relay.Function([iarg], sum_up(iarg))
-    call_graph = relay.CallGraph(mod)
+    call_graph = relay.analysis.CallGraph(mod)
 
     assert call_graph.is_recursive(sum_up)
     assert call_graph.ref_count(sum_up) == 2

@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/ir/type.cc
+ * \file src/ir/type.cc
  * \brief Common type system AST nodes throughout the IR.
  */
 #include <tvm/ir/type.h>
@@ -42,6 +42,27 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<PrimTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
     auto* node = static_cast<const PrimTypeNode*>(ref.get());
     p->stream << node->dtype;
+});
+
+
+PointerType::PointerType(Type element_type) {
+  ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
+  n->element_type = std::move(element_type);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(PointerTypeNode);
+
+TVM_REGISTER_GLOBAL("ir.PointerType")
+.set_body_typed([](Type element_type) {
+  return PointerType(element_type);
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<PointerTypeNode>([](const ObjectRef& ref, ReprPrinter* p) {
+    auto* node = static_cast<const PointerTypeNode*>(ref.get());
+    p->Print(node->element_type);
+    p->stream << '*';
 });
 
 

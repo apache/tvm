@@ -135,10 +135,12 @@ Supported Ops
 - ConcatV2
 - Conv2D
 - Cos
+- Tan
 - CropAndResize
 - DecodeJpeg
 - DepthwiseConv2dNative
 - DepthToSpace
+- Dilation2D
 - Equal
 - Elu
 - Enter
@@ -158,6 +160,8 @@ Supported Ops
 - Greater
 - GreaterEqual
 - Identity
+- IsFinite
+- IsInf
 - LeakyRelu
 - LeftShift
 - Less
@@ -240,5 +244,6 @@ Supported Ops
 - Transpose
 - TruncateMod
 - Unpack
+- UnravelIndex
 - Where
 - ZerosLike

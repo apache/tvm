@@ -103,3 +103,17 @@ The tutorial code will run on our build server to generate the document page.
 So we may have a restriction like not being able to access a remote Raspberry Pi,
 in such case add a flag variable to the tutorial (e.g. `use_rasp`) and allow users to easily switch to the real device by changing one flag.
 Then use the existing environment to demonstrate the usage.
+
+
+Refer to Another Location in the Document
+-----------------------------------------
+Please use sphinx's `:ref:` markup to refer to another location in the same doc.
+
+.. code-block:: rst
+
+   .. _document-my-section-tag
+
+   My Section
+   ----------
+
+   You can use :ref:`document-my-section-tag` to refer to My Section.

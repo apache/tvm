@@ -39,7 +39,7 @@ Array<Array<Layout> > PadInferCorrectLayout(
     const Attrs& attrs,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
+    const Array<tvm::relay::Type> &old_in_types) {
   // NOTE: Discard "const" qualifier here.
   PadAttrs *params = const_cast<PadAttrs*>(attrs.as<PadAttrs>());
 
@@ -196,7 +196,7 @@ Expr MakePad(Expr data,
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
   static const Op& op = Op::Get("nn.pad");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.pad")
@@ -270,7 +270,7 @@ Expr MakeMirrorPad(Expr data, Array<Array<IndexExpr> > pad_width, std::string mo
   attrs->mode = mode;
   attrs->pad_width = std::move(pad_width);
   static const Op& op = Op::Get("nn.mirror_pad");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.nn._make.mirror_pad")

@@ -2371,3 +2371,95 @@ def adaptive_avg_pool2d(data,
     """
     output_size = [] or output_size
     return _make.adaptive_avg_pool2d(data, output_size, layout)
+
+
+def adaptive_max_pool3d(data,
+                        output_size=None,
+                        layout="NCDHW"):
+    r"""3D adaptive max pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 3D max value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_depth, output_height, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input depth, height and width will be used
+        as output depth, height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
+
+        If a tuple of integers (depth, height, width) are provided for output_size,
+        the output size is (N x C x depth x height x width) for any input (NCDHW).
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    output_size : tuple of int. optional
+        Output height and width.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [] or output_size
+    return _make.adaptive_max_pool3d(data, output_size, layout)
+
+
+def adaptive_avg_pool3d(data,
+                        output_size=None,
+                        layout="NCDHW"):
+    r"""3D adaptive avg pooling operator. This operator is experimental.
+
+    This operator takes data as input and does 3D avg value calculation
+    across each window represented by DxWxH.
+
+    In the default case, where the data_layout is `NCDHW`
+    a data Tensor with shape `(batch_size, in_channels, depth, height, width)`,
+    to produce an output Tensor with shape
+    (batch_size, in_channels, output_depth, output_height, output_width).
+
+    The pooling kernel and stride sizes are automatically chosen for
+    desired output sizes.
+
+    For output_size:
+        If this argument is not provided, input depth, height and width will be used
+        as output depth, height and width.
+
+        If a single integer is provided for output_size, the output size is
+        (N x C x output_size x output_size x output_size) for any input (NCDHW).
+
+        If a tuple of integers (depth, height, width) are provided for output_size,
+        the output size is (N x C x depth x height x width) for any input (NCDHW).
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    output_size : tuple of int. optional
+        Output height and width.
+
+    layout : str, optional
+        Layout of the input.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    output_size = [] or output_size
+    return _make.adaptive_avg_pool3d(data, output_size, layout)

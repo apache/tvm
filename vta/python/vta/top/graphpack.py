@@ -368,11 +368,11 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
     def _recursion(anf, start_found, stop_found, operator_current_idx):
         """ Helper to obtain the subgraph.
         """
-        if isinstance(anf, relay.expr.Function):
-            return relay.expr.Function(anf.params,
-                                       _recursion(anf.body, start_found, stop_found,
-                                                  operator_current_idx),
-                                       anf.ret_type, anf.type_params, anf.attrs)
+        if isinstance(anf, relay.Function):
+            return relay.Function(anf.params,
+                                  _recursion(anf.body, start_found, stop_found,
+                                             operator_current_idx),
+                                  anf.ret_type, anf.type_params, anf.attrs)
         if isinstance(anf, relay.expr.Let):
             value = anf.value
             if isinstance(value, relay.expr.Call):

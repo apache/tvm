@@ -33,7 +33,7 @@
 #include <tvm/relay/op_attr_types.h>
 
 #include "type_relations.h"
-#include "../pass/infer_layout_util.h"
+#include "../transforms/infer_layout_util.h"
 
 namespace tvm {
 namespace relay {
@@ -48,7 +48,7 @@ TVM_REGISTER_GLOBAL("relay.op._make.device_copy")
   attrs->src_dev_type = src_dev_type;
   attrs->dst_dev_type = dst_dev_type;
   static const Op& op = Op::Get("device_copy");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 });
 
 RELAY_REGISTER_OP("device_copy")

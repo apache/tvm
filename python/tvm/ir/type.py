@@ -16,6 +16,7 @@
 # under the License.
 """Unified type system in the project."""
 from enum import IntEnum
+import tvm
 import tvm._ffi
 
 from .base import Node
@@ -26,7 +27,7 @@ class Type(Node):
     """The base class of all types."""
     def __eq__(self, other):
         """Compare two types for structural equivalence."""
-        return bool(_ffi_api.type_alpha_equal(self, other))
+        return bool(tvm.ir.structural_equal(self, other))
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -46,7 +47,35 @@ class TypeKind(IntEnum):
     TypeData = 6
 
 
-@tvm._ffi.register_object("relay.TypeVar")
+@tvm._ffi.register_object("PrimType")
+class PrimType(Type):
+    """Primitive data type in the low level IR
+
+    Parameters
+    ----------
+    dtype : str
+        The runtime data type relates to the primtype.
+    """
+    def __init__(self, dtype):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PrimType, dtype)
+
+
+@tvm._ffi.register_object("PointerType")
+class PointerType(Type):
+    """PointerType used in the low-level TIR.
+
+    Parameters
+    ----------
+    element_type : tvm.ir.Type
+        The type of pointer's element.
+    """
+    def __init__(self, element_type):
+        self.__init_handle_by_constructor__(
+            _ffi_api.PointerType, element_type)
+
+
+@tvm._ffi.register_object("TypeVar")
 class TypeVar(Type):
     """Type parameter in functions.
 
@@ -85,7 +114,7 @@ class TypeVar(Type):
         return TypeCall(self, args)
 
 
-@tvm._ffi.register_object("relay.GlobalTypeVar")
+@tvm._ffi.register_object("GlobalTypeVar")
 class GlobalTypeVar(Type):
     """A global type variable that is used for defining new types or type aliases.
 
@@ -120,7 +149,7 @@ class GlobalTypeVar(Type):
         return TypeCall(self, args)
 
 
-@tvm._ffi.register_object("relay.TupleType")
+@tvm._ffi.register_object("TupleType")
 class TupleType(Type):
     """The type of tuple values.
 
@@ -135,12 +164,12 @@ class TupleType(Type):
             _ffi_api.TupleType, fields)
 
 
-@tvm._ffi.register_object("relay.TypeConstraint")
+@tvm._ffi.register_object("TypeConstraint")
 class TypeConstraint(Type):
     """Abstract class representing a type constraint."""
 
 
-@tvm._ffi.register_object("relay.FuncType")
+@tvm._ffi.register_object("FuncType")
 class FuncType(Type):
     """Function type.
 
@@ -179,7 +208,7 @@ class FuncType(Type):
             _ffi_api.FuncType, arg_types, ret_type, type_params, type_constraints)
 
 
-@tvm._ffi.register_object("relay.IncompleteType")
+@tvm._ffi.register_object("IncompleteType")
 class IncompleteType(Type):
     """Incomplete type during type inference.
 

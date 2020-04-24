@@ -307,7 +307,7 @@ def get_synthetic_lib():
     gcc_input3 = relay.var('gcc_input3', shape=(10, 10))
     subgraph0 = relay.Function([gcc_input0, gcc_input1, gcc_input2,
                                 gcc_input3], relay.copy(gcc_input0))
-    subgraph0 = subgraph0.set_attribute(
+    subgraph0 = subgraph0.with_attr(
         "Primitive", tvm.tir.IntImm("int32", 1))
 
     # Call subgraph0
@@ -320,7 +320,7 @@ def get_synthetic_lib():
     gcc_input7 = relay.var('gcc_input7', shape=(10, 10))
     subgraph1 = relay.Function([gcc_input4, gcc_input5, gcc_input6,
                                 gcc_input7], relay.copy(gcc_input4))
-    subgraph1 = subgraph1.set_attribute(
+    subgraph1 = subgraph1.with_attr(
         "Primitive", tvm.tir.IntImm("int32", 1))
 
     # Call subgraph1

@@ -40,6 +40,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tanh")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tan")
+.set_body(DispatchExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cos")
 .set_body(DispatchExtern<FloatSuffix>);
 
@@ -73,6 +76,22 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sigmoid")
 
     auto one = make_const(call->args[0].dtype(), 1);
     *rv = one / (one + exp(-call->args[0]));
+  });
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isfinite")
+.set_body([](const TVMArgs& args, TVMRetValue* rv){
+    PrimExpr e = args[0];
+    const CallNode* call = e.as<CallNode>();
+    CHECK(call != nullptr);
+    *rv = isfinite(call->args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.isinf")
+.set_body([](const TVMArgs& args, TVMRetValue* rv){
+    PrimExpr e = args[0];
+    const CallNode* call = e.as<CallNode>();
+    CHECK(call != nullptr);
+    *rv = isinf(call->args[0]);
   });
 
 }  // namespace intrin

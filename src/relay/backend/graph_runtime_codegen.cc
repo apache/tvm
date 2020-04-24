@@ -415,7 +415,7 @@ class GraphRuntimeCodegen
     } else {
       LOG(FATAL) << "TVM runtime does not support calls to " << op->op->GetTypeKey();
     }
-    if (!func->IsPrimitive()) {
+    if (!func->HasNonzeroAttr(attr::kPrimitive)) {
       LOG(FATAL) << "TVM only support calls to primitive functions "
                  << "(i.e functions composed of fusable operator invocations)";
     }
@@ -424,7 +424,7 @@ class GraphRuntimeCodegen
     auto pf1 = GetPackedFunc("relay.backend._CompileEngineLower");
     Target target;
     // Handle external function
-    if (!func->UseDefaultCompiler()) {
+    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
       CCacheKey key = (*pf0)(func, target);
       CachedFunc ext_func = (*pf1)(compile_engine_, key);
@@ -490,7 +490,8 @@ class GraphRuntimeCodegen
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const FunctionNode* op) override {
-    CHECK(!op->UseDefaultCompiler()) << "Only functions supported by custom codegen";
+    CHECK(op->GetAttr<tir::StringImm>(attr::kCompiler).defined())
+        << "Only functions supported by custom codegen";
     return {};
   }
   std::vector<GraphNodeRef> VisitExpr_(const RefCreateNode* op) override {

@@ -19,12 +19,13 @@
 """
 # expose all operators in tvm tir.op
 from tvm.tir import any, all, min_value, max_value, trace
-from tvm.tir import exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil
-from tvm.tir import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else
+from tvm.tir import exp, erf, tanh, sigmoid, log, tan, cos, sin, atan, sqrt, rsqrt, floor, ceil
+from tvm.tir import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
+from tvm.tir import isnan, isfinite, isinf
 from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from tvm.tir import comm_reducer, min, max, sum
 
-from .schedule import Schedule, create_schedule, SpecializedCondition
+from .schedule import Schedule, Stage, create_schedule, SpecializedCondition
 from .tensor import TensorSlice, Tensor
 from .tensor_intrin import decl_tensor_intrin
 from .tag import tag_scope
@@ -32,3 +33,4 @@ from .operation import placeholder, compute, scan, extern, var, size_var
 from .operation import thread_axis, reduce_axis
 
 from .tensor import PlaceholderOp, ComputeOp, TensorComputeOp, ScanOp, ExternOp, HybridOp
+from .autodiff import gradient

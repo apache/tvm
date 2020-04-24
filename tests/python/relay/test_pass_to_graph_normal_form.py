@@ -16,9 +16,9 @@
 # under the License.
 import numpy as np
 import tvm
-from tvm import te
 from tvm import relay
-from tvm.relay import op, create_executor, transform, Feature
+from tvm.relay import op, create_executor, transform
+from tvm.relay.analysis import Feature
 from tvm.relay.analysis import detect_feature
 
 

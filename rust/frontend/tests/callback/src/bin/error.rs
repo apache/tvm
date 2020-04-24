@@ -19,10 +19,7 @@
 
 use std::panic;
 
-#[macro_use]
-extern crate tvm_frontend as tvm;
-
-use tvm::{errors::Error, *};
+use tvm_frontend::{errors::Error, *};
 
 fn main() {
     register_global_func! {

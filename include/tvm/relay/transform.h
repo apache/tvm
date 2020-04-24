@@ -27,6 +27,7 @@
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/relay/op.h>
 
@@ -75,6 +76,20 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
  * \return the pass.
  */
 TVM_DLL Pass DeadCodeElimination(bool inline_once = false);
+
+/*!
+* \brief Convert all expressions of TensorType into GradCell,
+* an algebraic data type defined in gradient.rly.
+*
+* This will delay or decrease memory usage. All calls to
+* ones, ones_like, zeros, zeros_like will not immediately instantiate a tensor in memory,
+* rather only instantiate if needed. It also defines + and * operation
+* between GradCell types which can increase performance when using
+* zero-filled or one-filled tensors, which is the case in reverse mode ad.
+*
+* \return the pass
+*/
+TVM_DLL Pass LazyGradientInit();
 
 /*!
  * \brief Fold constant expressions.

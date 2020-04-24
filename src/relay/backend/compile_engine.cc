@@ -60,11 +60,11 @@ LoweredOutput::LoweredOutput(tvm::Array<te::Tensor> outputs, OpImplementation im
   data_ = std::move(n);
 }
 
-CCacheKey CCacheKeyNode::make(Function source_func, Target target) {
+CCacheKey::CCacheKey(Function source_func, Target target) {
   auto n = make_object<CCacheKeyNode>();
   n->source_func = std::move(source_func);
   n->target = std::move(target);
-  return CCacheKey(n);
+  data_ = std::move(n);
 }
 
 struct IsDynamicVisitor : public TypeVisitor {
@@ -86,7 +86,7 @@ bool IsDynamic(const Type& ty) {
 }
 
 // TODO(@jroesch): MOVE ME
-TVM_REGISTER_GLOBAL("relay._make.IsDynamic")
+TVM_REGISTER_GLOBAL("relay.ir.IsDynamic")
 .set_body_typed(IsDynamic);
 
 Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
@@ -616,16 +616,15 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (!src_func->UseDefaultCompiler()) {
-        auto compiler = FunctionGetAttr(src_func, attr::kCompiler);
-        const tvm::tir::StringImmNode* code_gen = compiler.as<tvm::tir::StringImmNode>();
-        CHECK(code_gen) << "No external codegen is set";
+      if (src_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+        auto code_gen = src_func->GetAttr<tir::StringImm>(attr::kCompiler);
+        CHECK(code_gen.defined()) << "No external codegen is set";
         if (ext_mods.find(code_gen->value) == ext_mods.end()) {
           ext_mods[code_gen->value] = IRModule({}, {});
         }
-        auto ext_symbol = FunctionGetAttr(src_func, attr::kExternalSymbol);
-        const tvm::tir::StringImmNode* symbol_name = ext_symbol.as<tvm::tir::StringImmNode>();
-        CHECK(symbol_name) << "No external symbol is set for:\n" << AsText(src_func, false);
+        auto symbol_name = src_func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
+        CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
+                                     << AsText(src_func, false);
         auto gv = GlobalVar(symbol_name->value);
         ext_mods[code_gen->value]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
@@ -691,11 +690,12 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (!key->source_func->UseDefaultCompiler()) {
+    if (key->source_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
-          FunctionGetAttr(key->source_func, attr::kExternalSymbol).as<tvm::tir::StringImmNode>();
-      CHECK(name_node != nullptr) << "External function has not been attached a name yet.";
+          key->source_func->GetAttr<tir::StringImm>(attr::kExternalSymbol);
+      CHECK(name_node.defined())
+          << "External function has not been attached a name yet.";
       cache_node->func_name = name_node->value;
       cache_node->target = tvm::target::ext_dev();
       value->cached_func = CachedFunc(cache_node);
@@ -819,7 +819,9 @@ TVM_REGISTER_GLOBAL("relay.backend._make_LoweredOutput")
 });
 
 TVM_REGISTER_GLOBAL("relay.backend._make_CCacheKey")
-.set_body_typed(CCacheKeyNode::make);
+.set_body_typed([](Function source_func, Target target) {
+  return CCacheKey(source_func, target);
+});
 
 TVM_REGISTER_GLOBAL("relay.backend._CompileEngineGlobal")
 .set_body_typed([]() {

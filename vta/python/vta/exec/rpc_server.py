@@ -30,8 +30,7 @@ from tvm import rpc
 from tvm.contrib import cc
 from vta import program_bitstream
 
-from ..environment import get_env
-from ..pkg_config import PkgConfig
+from ..environment import get_env, pkg_config
 from ..libinfo import find_libvta
 
 
@@ -101,7 +100,7 @@ def server_start():
             raise RuntimeError("Can only reconfig in the beginning of session...")
         cfg = json.loads(cfg_json)
         cfg["TARGET"] = env.TARGET
-        pkg = PkgConfig(cfg, proj_root)
+        pkg = pkg_config(cfg)
         # check if the configuration is already the same
         if os.path.isfile(cfg_path):
             old_cfg = json.loads(open(cfg_path, "r").read())

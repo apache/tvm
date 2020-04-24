@@ -111,7 +111,7 @@ def get_rand(shape, dtype='float32'):
 def check_func(func, ref_func):
     func = run_infer_type(func)
     ref_func = run_infer_type(ref_func)
-    assert analysis.graph_equal(func, ref_func)
+    assert tvm.ir.structural_equal(func, ref_func)
 
 
 def test_module_pass():
@@ -211,7 +211,7 @@ def test_function_class_pass():
     mod = fpass(mod)
     # wrap in expr
     mod2 = tvm.IRModule.from_expr(f1)
-    assert relay.alpha_equal(mod["main"], mod2["main"])
+    assert tvm.ir.structural_equal(mod["main"], mod2["main"])
 
 
 def test_function_pass():
@@ -496,7 +496,7 @@ def test_sequential_with_scoping():
 
     zz = mod["main"]
     zexpected = run_infer_type(expected())
-    assert analysis.alpha_equal(zz, zexpected)
+    assert tvm.ir.structural_equal(zz, zexpected)
 
 
 def test_print_ir(capfd):

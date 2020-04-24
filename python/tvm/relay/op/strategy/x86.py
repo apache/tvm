@@ -188,10 +188,9 @@ def conv3d_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     layout = attrs.data_layout
     if layout == "NCDHW":
-        logger.warning("conv3d with layout NCDHW is not optimized for x86.")
-        strategy.add_implementation(wrap_compute_conv3d(topi.nn.conv3d_ncdhw),
-                                    wrap_topi_schedule(topi.generic.schedule_conv3d_ncdhw),
-                                    name="conv3d_ncdhw.generic")
+        strategy.add_implementation(wrap_compute_conv3d(topi.x86.conv3d_ncdhw),
+                                    wrap_topi_schedule(topi.x86.schedule_conv3d_ncdhw),
+                                    name="conv3d_ncdhw.x86")
     elif layout == "NDHWC":
         strategy.add_implementation(wrap_compute_conv3d(topi.x86.conv3d_ndhwc),
                                     wrap_topi_schedule(topi.x86.schedule_conv3d_ndhwc),
@@ -233,13 +232,13 @@ def dense_strategy_cpu(attrs, inputs, out_type, target):
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_cblas),
                                     wrap_topi_schedule(topi.x86.schedule_dense_cblas),
                                     name="dense_cblas.x86",
-                                    plevel=5)
+                                    plevel=15)
     with SpecializedCondition(m >= 16):
         # this implementation may not be well-optimized, so use plevel=8 for now.
         strategy.add_implementation(wrap_compute_dense(topi.x86.dense_pack),
                                     wrap_topi_schedule(topi.x86.schedule_dense_pack),
                                     name="dense_pack.x86",
-                                    plevel=8)
+                                    plevel=5)
     return strategy
 
 @batch_matmul_strategy.register("cpu")
@@ -254,7 +253,7 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
         strategy.add_implementation(wrap_compute_batch_matmul(topi.x86.batch_matmul_cblas),
                                     wrap_topi_schedule(topi.x86.schedule_batch_matmul_cblas),
                                     name="batch_matmul_cblas.x86",
-                                    plevel=5)
+                                    plevel=15)
     return strategy
 
 @schedule_sparse_dense.register("cpu")

@@ -86,7 +86,7 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
 #   (2) The warp tile size is not 16x16x16 on CUDA9, or not one of {16x16x16, 32x8x16, 8x32x16} on CUDA version >= 10.0.
 #
 # In this schedule, storage_align is used to reduce bank conflicts of shared memory. Please refer to this
-# `doc <https://docs.tvm.ai/api/python/schedule.html#tvm.te.schedule.Stage.storage_align>`_
+# `doc <https://tvm.apache.org/docs/api/python/schedule.html#tvm.te.schedule.Stage.storage_align>`_
 # for the usage of storage_align primitive. In short, we need to add an offset to some shared memory buffer
 # to reduce bank conflicts.
 # According to the `wmma doc <https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-description>`_,
@@ -95,7 +95,7 @@ def matmul_nn(A, B, L, dtype='float16', layout='NN'):
 #
 # We use AutoTVM to search for best configurations in this schedule.
 
-@autotvm.register_customized_task("tutorial/test_gemm")
+@autotvm.template("tutorial/auto_tensorcore/test_gemm")
 def test_gemm(N, L, M, dtype, layout):
     if (layout == "NN"):
       shape_a = (N, L)
@@ -265,7 +265,7 @@ elif dtype == 'int4' or dtype == 'int1':
   assert(major == 7 and minor == 5 and layout == 'TN')
 
 def tune_and_evaluate(M, N, L, dtype, layout):
-  task = autotvm.task.create("tutorial/test_gemm", args=(N, L, M, dtype, layout),
+  task = autotvm.task.create("tutorial/auto_tensorcore/test_gemm", args=(N, L, M, dtype, layout),
                              target='cuda')
   print(task.config_space)
 

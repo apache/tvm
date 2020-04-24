@@ -144,7 +144,7 @@ class DPTuner(BaseGraphTuner):
                 continue
             optimal_sch_idx = optimal_record_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
-            if not has_multiple_inputs(self._node_list, node_idx, input_names):
+            if not has_multiple_inputs(self._node_list, node_idx, input_names, self._opt_out_op):
                 input_idx = self._in_nodes_dict[node_idx][0]
                 input_node = self._node_list[input_idx]
                 if is_boundary_node(input_node, input_names):

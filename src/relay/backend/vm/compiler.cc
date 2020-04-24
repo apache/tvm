@@ -40,7 +40,7 @@
 #include <vector>
 #include "../utils.h"
 #include "../../backend/compile_engine.h"
-#include "../../pass/pass_util.h"
+#include "../../transforms/pass_util.h"
 #include "../../op/op_common.h"
 #include "compiler.h"
 
@@ -366,7 +366,9 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     this->Emit(Instruction::If(test_register, target_register, 0, 0));
     this->VisitExpr(if_node->true_branch);
 
-    size_t true_register = last_register_;
+    // It saves the result of If-Else expression.
+    auto merge_register = NewRegister();
+    Emit(Instruction::Move(last_register_, merge_register));
     Emit(Instruction::Goto(0));
 
     // Finally store how many instructions there are in the
@@ -378,7 +380,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     size_t false_register = last_register_;
 
     // In else-branch, override the then-branch register
-    Emit(Instruction::Move(false_register, true_register));
+    Emit(Instruction::Move(false_register, merge_register));
     // Compute the total number of instructions
     // after generating false.
     auto after_false = this->instructions_.size();
@@ -397,12 +399,12 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     // Patch the Goto.
     this->instructions_[after_true - 1].pc_offset = (after_false - after_true) + 1;
 
-    this->last_register_ = true_register;
+    this->last_register_ = merge_register;
   }
 
   void EmitShapeFunc(Function func, Array<Expr> inputs, Array<Expr> outputs) {
     // Lower shape function
-    auto key = CCacheKeyNode::make(func, target_host_);
+    CCacheKey key(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
     int op_index = -1;
     if (context_->seen_funcs.count(cfunc->funcs[0]) == 0) {
@@ -440,7 +442,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK(func->IsPrimitive())
+    CHECK_NE(func->GetAttr<Integer>(attr::kPrimitive, 0)->value, 0)
       << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
@@ -469,7 +471,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     Target target;
 
-    if (!func->UseDefaultCompiler()) {
+    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
     } else {
       // Next generate the invoke instruction.
@@ -483,11 +485,11 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       }
     }
 
-    auto key = CCacheKeyNode::make(func, target);
+    CCacheKey key(func, target);
     auto cfunc = engine_->Lower(key);
 
     auto op_index = -1;
-    if (!func->UseDefaultCompiler()) {
+    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
@@ -648,7 +650,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
   }
 
   void VisitExpr_(const FunctionNode* func_node) {
-    if (!func_node->IsPrimitive()) {
+    if (!func_node->HasNonzeroAttr(attr::kPrimitive)) {
       LOG(FATAL) << "local functions should have been removed by lambda lifting:" << std::endl
                  << "Program: " << AsText(GetRef<Function>(func_node), false) << std::endl
                  << "AST: " << GetRef<Function>(func_node);
@@ -778,7 +780,7 @@ PackedFunc VMCompiler::GetFunction(const std::string& name,
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       Map<std::string, Constant> ret;
       for (const auto& kv : params_) {
-        ret.Set(kv.first, ConstantNode::make(kv.second));
+        ret.Set(kv.first, Constant(kv.second));
       }
       *rv = ret;
     });

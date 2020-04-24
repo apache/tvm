@@ -37,7 +37,7 @@ namespace codegen {
 CodeGenOpenGL::CodeGenOpenGL()
     : output_(nullptr), output_iter_var_(nullptr) {}
 
-void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
+void CodeGenOpenGL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
   output_ = nullptr;
   inputs_.clear();
@@ -47,7 +47,7 @@ void CodeGenOpenGL::InitFuncState(LoweredFunc f) {
   this->stream.str("");
 }
 
-void CodeGenOpenGL::AddFunction(LoweredFunc f) {
+void CodeGenOpenGL::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
 
@@ -56,15 +56,17 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
-  // add to alloc buffer type.
-  for (const auto& kv : f->handle_data_type) {
-    RegisterHandleType(kv.first.get(), kv.second.dtype());
-  }
 
   // Allocate argument names. Store in `var_idmap_`.
-  for (auto arg : f->args) {
+  for (auto arg : f->params) {
     auto arg_name = GetUniqueName(arg.get()->name_hint);
     var_idmap_[arg.get()] = arg_name;
+
+    if (auto* ptr = arg->type_annotation.as<PointerTypeNode>()) {
+      if (auto* prim = ptr->element_type.as<PrimTypeNode>()) {
+        RegisterHandleType(arg.get(), prim->dtype);
+      }
+    }
   }
 
   thread_extent_var_ = GetUniqueName("thread_extent");
@@ -80,7 +82,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
   this->stream << "}\n\n";
 
   // Declare arguments.
-  for (auto arg : f->args) {
+  for (auto arg : f->params) {
     if (this->inputs_.find(arg.get()) != this->inputs_.cend()) {
       // Declare input texture.
       // Format:
@@ -138,7 +140,7 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
 
   std::vector<std::string> arg_names;
   std::vector<runtime::OpenGLArgKind> arg_kinds;
-  for (auto arg : f->args) {
+  for (auto arg : f->params) {
     std::string name = GetVarID(arg.get());
 
     runtime::OpenGLArgKind kind;
@@ -154,7 +156,11 @@ void CodeGenOpenGL::AddFunction(LoweredFunc f) {
     arg_kinds.push_back(kind);
   }
 
-  shaders_[f->name] = runtime::OpenGLShader(
+  auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol.defined())
+      << "CodeGenOpenGL: Expect PrimFunc to have the global_symbol attribute";
+
+  shaders_[static_cast<std::string>(global_symbol)] = runtime::OpenGLShader(
       this->decl_stream.str() + this->stream.str(),
       std::move(arg_names), std::move(arg_kinds),
       this->thread_extent_var_);
@@ -283,18 +289,27 @@ void CodeGenOpenGL::VisitStmt_(const EvaluateNode* op) {
   this->stream << GetVarID(buffer) << " = " << PrintExpr(value) << ";\n";
 }
 
-runtime::Module BuildOpenGL(Array<LoweredFunc> funcs) {
+runtime::Module BuildOpenGL(IRModule mod) {
   bool output_ssa = false;
   CodeGenOpenGL cg;
   cg.Init(output_ssa);
-  for (LoweredFunc f : funcs) {
+
+  for (auto kv :  mod->functions) {
+    CHECK(kv.second->IsInstance<PrimFuncNode>())
+        << "CodeGenOpenGL: Can only take PrimFunc";
+    auto f = Downcast<PrimFunc>(kv.second);
+    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
+    CHECK(calling_conv.defined() &&
+          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+        << "CodeGenOpenGL: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }
+
   auto shaders = cg.Finish();
-  return OpenGLModuleCreate(shaders, "gl", ExtractFuncInfo(funcs));
+  return OpenGLModuleCreate(shaders, "gl", ExtractFuncInfo(mod));
 }
 
-TVM_REGISTER_GLOBAL("codegen.build_opengl")
+TVM_REGISTER_GLOBAL("target.build.opengl")
 .set_body_typed(BuildOpenGL);
 
 }  // namespace codegen

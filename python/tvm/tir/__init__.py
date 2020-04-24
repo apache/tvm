@@ -31,12 +31,18 @@ from .stmt import Stmt, LetStmt, AssertStmt, ProducerConsumer, For
 from .stmt import Store, Provide, Allocate, AttrStmt, Free, Realize, SeqStmt
 from .stmt import IfThenElse, Evaluate, Prefetch, LoweredFunc, stmt_seq, stmt_list
 
+from .function import PrimFunc
+
 from .op import call_packed, call_pure_intrin, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, all, any, min_value, max_value, trace
-from .op import exp, erf, tanh, sigmoid, log, cos, sin, atan, sqrt, rsqrt, floor, ceil
-from .op import trunc, abs, round, nearbyint, isnan, power, popcount, fmod, if_then_else
+from .op import exp, exp2, exp10, log, log2, log10
+from .op import cos, sin, cosh, sinh, tan, tanh, atan
+from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil
+from .op import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
+from .op import isnan, isfinite, isinf
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 
 from . import ir_builder
 from . import ir_pass
+from . import transform

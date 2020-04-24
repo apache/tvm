@@ -211,10 +211,15 @@ class Object {
   static constexpr bool _type_final = false;
   static constexpr uint32_t _type_child_slots = 0;
   static constexpr bool _type_child_slots_can_overflow = true;
+  // member information
+  static constexpr bool _type_has_method_visit_attrs = true;
+  static constexpr bool _type_has_method_sequal_reduce = false;
+  static constexpr bool _type_has_method_shash_reduce = false;
   // NOTE: the following field is not type index of Object
   // but was intended to be used by sub-classes as default value.
   // The type index of Object is TypeIndex::kRoot
   static constexpr uint32_t _type_index = TypeIndex::kDynamic;
+
 
   // Default constructor and copy constructor
   Object() {}
@@ -790,7 +795,7 @@ inline void Object::IncRef() {
 }
 
 inline void Object::DecRef() {
-  if (--ref_counter == 0) {
+  if (--ref_counter_ == 0) {
     if (this->deleter_ != nullptr) {
       (*this->deleter_)(this);
     }

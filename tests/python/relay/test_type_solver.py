@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 from tvm import relay
 import pytest
 
@@ -27,7 +26,7 @@ def make_rel(name, args, num_inputs=None, attrs=None):
     return relay.ty.TypeRelation(func, args, num_inputs, attrs)
 
 def make_solver():
-    solver = relay._analysis._test_type_solver()
+    solver = relay.analysis._ffi_api._test_type_solver()
     solver.Solve = solver("Solve")
     solver.Unify = solver("Unify")
     solver.Resolve = solver("Resolve")

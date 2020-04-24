@@ -110,7 +110,8 @@ class PassContextNode : public Object {
     v->Visit("disabled_pass", &disabled_pass);
   }
 
-  static constexpr const char* _type_key = "relay.PassContext";
+  static constexpr const char* _type_key = "transform.PassContext";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, Object);
 };
 
@@ -206,7 +207,8 @@ class PassInfoNode : public Object {
     v->Visit("required", &required);
   }
 
-  static constexpr const char* _type_key = "relay.PassInfo";
+  static constexpr const char* _type_key = "transform.PassInfo";
+  static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
 };
 
@@ -265,7 +267,7 @@ class PassNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {}
 
-  static constexpr const char* _type_key = "relay.Pass";
+  static constexpr const char* _type_key = "transform.Pass";
   TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
 };
 

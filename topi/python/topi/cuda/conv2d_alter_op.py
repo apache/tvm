@@ -26,6 +26,7 @@ from tvm import autotvm
 from .. import nn
 from ..util import get_const_tuple
 from .conv2d_winograd import _infer_tile_size
+from ..nn import conv2d_legalize
 
 logger = logging.getLogger('topi')
 
@@ -134,4 +135,83 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         dispatch_ctx.update(target, new_workload, cfg)
         return relay.nn.conv2d(*inputs, **new_attrs)
 
+    return None
+
+@conv2d_legalize.register("cuda")
+def _conv2d_legalize(attrs, inputs, arg_types):
+    """Legalizes Conv2D op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    types : list of types
+        List of input and output types
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The legalized expr
+    """
+
+    # Dilation not supported yet. Return None if dilation is not (1, 1)
+    dilation = attrs.get_int_tuple("dilation")
+    if not (dilation[0] == 1 and dilation[1] == 1):
+        return None
+
+    # No legalization for depthwise convolutions yet.
+    groups = attrs.get_int("groups")
+    if groups != 1:
+        return None
+
+    # Collect the input tensors.
+    data_tensor, kernel_tensor = arg_types[0], arg_types[1]
+    data_dtype = data_tensor.dtype
+
+    # Collect the output tensor.
+    output_tensor = arg_types[2]
+
+    # Collect the input exprs.
+    data, kernel = inputs
+
+    # Get the conv attrs
+    new_attrs = {k: attrs[k] for k in attrs.keys()}
+
+    # Get data layout. Return None if not NCHW
+    data_layout = attrs['data_layout']
+    kernel_layout = attrs['kernel_layout']
+
+    # Pad input and output channels to use int8 schedule.
+    if data_dtype in ['int8', 'uint8']:
+        if data_layout == 'NCHW' and kernel_layout == "OIHW":
+            oc_modified = False
+            in_channel = data_tensor.shape[1].value
+            out_channel = kernel_tensor.shape[0].value
+
+            # Pad input channel
+            if in_channel % 4 != 0:
+                new_in_channel = ((in_channel + 4) // 4) * 4
+                diff = new_in_channel - in_channel
+                pad_width = ((0, 0), (0, diff), (0, 0), (0, 0))
+                data = relay.nn.pad(data, pad_width=pad_width)
+                kernel = relay.nn.pad(kernel, pad_width=pad_width)
+
+            # Pad output channel
+            new_out_channel = out_channel
+            if out_channel % 4 != 0:
+                new_out_channel = ((out_channel + 4) // 4) * 4
+                diff = new_out_channel - out_channel
+                kernel = relay.nn.pad(kernel, pad_width=((0, diff), (0, 0), (0, 0), (0, 0)))
+                oc_modified = True
+
+            if oc_modified:
+                new_attrs['channels'] = new_out_channel
+                out = tvm.relay.nn.conv2d(data, kernel, **new_attrs)
+                original_out_shape = [x.value for x in output_tensor.shape]
+                out = relay.strided_slice(out, begin=(0, 0, 0, 0), end=original_out_shape)
+            else:
+                out = relay.nn.conv2d(data, kernel, **new_attrs)
+            return out
     return None

@@ -24,6 +24,7 @@ from tvm.ir import IRModule
 from ... import nd as _nd
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
@@ -91,16 +92,18 @@ def get_numpy(tensor_proto):
     return to_array(tensor_proto)
 
 
-def dimension_picker(prefix, surfix=''):
+def dimension_picker(prefix, suffix=''):
     """Check that dimensions are supported."""
     def _impl(attr):
         kernel = attr['kernel_shape']
         if len(kernel) == 1:
-            return prefix + '1d' + surfix
+            return prefix + '1d' + suffix
         if len(kernel) == 2:
-            return prefix + '2d' + surfix
-        msg = 'Only 1D and 2D kernels are supported for operator {}.'
-        op_name = prefix + '1d/2d'
+            return prefix + '2d' + suffix
+        if len(kernel) == 3:
+            return prefix + '3d' + suffix
+        msg = 'Only 1D, 2D, and 3D kernels are supported for operator {}.'
+        op_name = prefix + '1d/2d/3d'
         raise tvm.error.OpAttributeInvalid(msg.format(op_name))
 
     return _impl
@@ -155,11 +158,11 @@ def onnx_storage_order2layout(storage_order, dims=2):
 
 def dimension_constraint():
     def _dim_check(attrs):
-        if len(attrs['kernel_shape']) == 2 or len(attrs['kernel_shape']) == 1:
+        if len(attrs['kernel_shape']) in [1, 2, 3]:
             return True
         return False
 
-    return _dim_check, "Only 1d and 2d kernel supported."
+    return _dim_check, "Only 1d, 2d and 3d kernel supported."
 
 
 class OnnxOpConverter(object):
@@ -1441,6 +1444,18 @@ class Resize(OnnxOpConverter):
         return _op.image.resize(inputs[0], out_size, layout, method, coord_trans)
 
 
+class NonZero(OnnxOpConverter):
+    """Operator converter for NonZero
+    """
+    @classmethod
+    def _impl_v9(cls, inputs, attr, params):
+        if len(inputs) > 1:
+            raise ValueError("Expect 1 input only")
+
+        output = AttrCvt(op_name='argwhere')(inputs, attr, params)
+        return _op.transpose(output, axes=(1, 0))
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1570,6 +1585,7 @@ def _get_convert_map(opset):
         'Where': Where.get_converter(opset),
         'Or': Or.get_converter(opset),
         'Resize': Resize.get_converter(opset),
+        'NonZero': NonZero.get_converter(opset),
     }
 
 
@@ -1706,7 +1722,7 @@ class GraphProto(object):
         # now return the outputs
         outputs = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-        func = _expr.Function(analysis.free_vars(outputs), outputs)
+        func = _function.Function(analysis.free_vars(outputs), outputs)
         return IRModule.from_expr(func), self._params
 
     def _parse_value_proto(self, value_proto):
@@ -1772,7 +1788,7 @@ class GraphProto(object):
         ----------
         op_name : str
             Operator name, such as Convolution, FullyConnected
-        inputs : list of tvm.relay.expr.Function
+        inputs : list of tvm.relay.function.Function
             List of inputs.
         attrs : dict
             Dict of operator attributes
@@ -1781,7 +1797,7 @@ class GraphProto(object):
 
         Returns
         -------
-        sym : tvm.relay.expr.Function
+        sym : tvm.relay.function.Function
             Converted relay function
         """
         convert_map = _get_convert_map(opset)

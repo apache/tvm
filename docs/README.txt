@@ -2,7 +2,7 @@ TVM Documentations
 ==================
 This folder contains the source of TVM documents
 
-- A hosted version of doc is at http://docs.tvm.ai
+- A hosted version of doc is at https://tvm.apache.org/docs
 - pip install sphinx>=1.5.5 sphinx-gallery sphinx_rtd_theme matplotlib Image recommonmark "Pillow<7"
 - Build tvm first in the root folder.
 - To build locally, you need to enable USE_CUDA, USE_OPENCL, LLVM_CONFIG in config.mk and then type "make html" in this folder.

@@ -20,8 +20,7 @@ import tvm
 from tvm import relay
 from tvm.relay import transform
 
-
-def has_multiple_inputs(node_list, node_idx, input_names):
+def has_multiple_inputs(node_list, node_idx, input_names, opt_out_op):
     """Check whether a node has multiple input nodes
     except variable nodes.
 
@@ -47,7 +46,14 @@ def has_multiple_inputs(node_list, node_idx, input_names):
         in_idx = in_idx[0]
         in_node = node_list[in_idx]
         # Exclude parameter nodes
-        if in_node["op"] is not None or \
+        if(in_node["op"] is not None and in_node["op"].name in opt_out_op):
+            increase = False
+            for t_idx in in_node["inputs"]:
+                increase = has_multiple_inputs(node_list, t_idx[0], \
+                        input_names, opt_out_op)
+            if increase:
+                num_inputs += 1
+        elif in_node["op"] is not None or \
                 ("name" in in_node and in_node["name"] in input_names):
             num_inputs += 1
     return num_inputs > 1

@@ -101,18 +101,6 @@ TVM_REGISTER_GLOBAL("ir_pass.RewriteForTensorCore")
       return RewriteForTensorCore(stmt, schedule, extern_buffer);
   });
 
-TVM_REGISTER_GLOBAL("ir_pass.AttrsEqual")
-.set_body_typed(
-  [](const ObjectRef& lhs, const ObjectRef& rhs) {
-    return AttrsEqual()(lhs, rhs);
-  });
-
-TVM_REGISTER_GLOBAL("ir_pass.AttrsHash")
-.set_body_typed([](const ObjectRef &node) -> int64_t {
-    return AttrsHash()(node);
-});
-
-
 TVM_REGISTER_GLOBAL("ir_pass.ExprUseVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = ExprUseVar(args[0].operator PrimExpr(), args[1].operator Var());

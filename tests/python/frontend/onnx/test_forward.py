@@ -30,21 +30,38 @@ from tvm.relay.testing.config import ctx_list
 import scipy
 
 
-def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32', opset=None):
-    """ Generic function to execute and get tvm output"""
-    target = 'llvm'
+def get_input_data_shape_dict(graph_def, input_data):
     if isinstance(input_data, list):
         input_names = {}
         shape_dict = {}
-        dtype_dict = {}
         for i, _ in enumerate(input_data):
             input_names[i] = graph_def.graph.input[i].name
             shape_dict[input_names[i]] = input_data[i].shape
-            dtype_dict[input_names[i]] = input_data[i].dtype
     else:
         input_names = graph_def.graph.input[0].name
         shape_dict = {input_names: input_data.shape}
-        dtype_dict = {input_names: input_data.dtype}
+
+    return input_names, shape_dict
+
+
+def get_tvm_output_with_vm(graph_def, input_data, target, ctx, opset=None):
+    """ Generic function to execute and get tvm output with vm executor"""
+
+    _, shape_dict = get_input_data_shape_dict(graph_def, input_data)
+
+    mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
+
+    ex = relay.create_executor('vm', mod=mod, ctx=ctx, target=target)
+    indata = tvm.nd.array(input_data)
+    result = ex.evaluate()(indata)
+    return result.asnumpy()
+
+
+def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32', opset=None):
+    """ Generic function to execute and get tvm output"""
+    target = 'llvm'
+
+    input_names, shape_dict = get_input_data_shape_dict(graph_def, input_data)
 
     mod, params = relay.frontend.from_onnx(graph_def, shape_dict, opset=opset)
     with relay.build_config(opt_level=1):
@@ -1794,37 +1811,51 @@ def verify_conv(x_shape, w_shape, y_shape, padding, kernel_shape, strides, dilat
 
 
 def test_conv():
-    # Convolution with padding
-    # Conv2D
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [1, 1, 1, 1], [3, 3], [1, 1], [1, 1])
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [1, 1], [3], [1], [1])
-
-    # Convolution without padding
-    # Conv2D
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3), [0, 0, 0, 0], [3, 3], [1, 1], [1, 1])
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), [0, 0], [3], [1], [1])
-
-    # Convolution with autopadding
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5),
-                None, [3, 3], [1, 1], [1, 1],
-                auto_pad="SAME_UPPER")
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), None, [3], [1], [1], auto_pad="SAME_UPPER")
-
-    # Convolution with non uniform stride
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 3, 3),
-                None, [3, 3], [2, 2], [1, 1],
-                auto_pad="SAME_UPPER")
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 3), None, [3], [2], [1], auto_pad="SAME_UPPER")
-
-    # Convolution with dilation
-    verify_conv((1, 1, 5, 5), (1, 1, 3, 3), (1, 1, 5, 5), [2, 2, 2, 2], [3, 3], [1, 1], [2, 2])
-    # Conv1D
-    verify_conv((1, 1, 5), (1, 1, 3), (1, 1, 5), [2, 2], [3], [1], [2])
-
+    def repeat(N, D):
+        return tuple([N for _ in range(D)])
+    for D in [1, 2, 3]:
+        # Convolution with padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    2 * repeat(1, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D))
+        # Convolution without padding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    2 * repeat(0, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D))
+        # Convolution with autopadding
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    None,
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(1, D),
+                    auto_pad="SAME_UPPER")
+        # Convolution with non uniform stride
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(3, D),
+                    None,
+                    repeat(3, D),
+                    repeat(2, D),
+                    repeat(1, D),
+                    auto_pad="SAME_UPPER")
+        # Convolution with dilation
+        verify_conv((1, 1) + repeat(5, D),
+                    (1, 1) + repeat(3, D),
+                    (1, 1) + repeat(5, D),
+                    2 * repeat(2, D),
+                    repeat(3, D),
+                    repeat(1, D),
+                    repeat(2, D))
 
 def verify_convtranspose(x_shape, w_shape, y_shape, p):
     node = onnx.helper.make_node("ConvTranspose",
@@ -2195,6 +2226,35 @@ def test_resize():
     verify([1, 16, 32, 32], [], [1, 1, 0.5, 0.5], "linear", "half_pixel")
 
 
+def test_nonzero():
+
+    def verify_nonzero(indata, outdata, dtype):
+        node = helper.make_node('NonZero',
+                                inputs=['X'],
+                                outputs=['Y'],)
+
+        graph = helper.make_graph([node],
+                                  "nonzero_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.INT64, list(indata.shape))],
+                                  outputs=[helper.make_tensor_value_info("Y", TensorProto.INT64, list(outdata.shape))])
+
+        model = helper.make_model(graph, producer_name='nonzero_test')
+
+        onnx_out = get_onnxruntime_output(model, indata, dtype)
+
+        for target, ctx in [('llvm', tvm.cpu())]:
+            tvm_out = get_tvm_output_with_vm(model, indata, target, ctx, opset=9)
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+
+    input_data = np.array([[1, 0], [1, 1]], dtype=np.int64)
+    result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 1], [0, 0, 1]]
+    verify_nonzero(input_data, result, dtype=np.int64)
+
+    input_data = np.array([[3, 0, 0], [0, 4, 0], [5, 6, 0]], dtype=np.int64)
+    result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 2, 2], [0, 1, 0, 1]]
+    verify_nonzero(input_data, result, dtype=np.int64)
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -2255,3 +2315,4 @@ if __name__ == '__main__':
     test_pooling()
     test_lstm()
     test_resize()
+    test_nonzero()

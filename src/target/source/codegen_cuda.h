@@ -37,17 +37,17 @@ class CodeGenCUDA final : public CodeGenC {
  public:
   CodeGenCUDA();
   void Init(bool output_ssa);
-  void AddFunction(LoweredFunc f);
   std::string Finish();
   bool need_include_path() {
     return (enable_fp16_ || enable_int8_ || need_math_constants_h_ || need_mma_h_);
   }
   // override behavior
-  void VisitStmt_(const tir::ForNode* op) final;
+  void PrintFuncPrefix() final;
+  void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
   void PrintVecBinaryOp(
-      const std::string&op, DataType t,
+      const std::string& op, DataType t,
       PrimExpr lhs, PrimExpr rhs, std::ostream& os) final;  // NOLINT(*)
   void PrintType(DataType t, std::ostream& os) final; // NOLINT(*)
   void PrintVecElemLoad(
@@ -58,6 +58,7 @@ class CodeGenCUDA final : public CodeGenC {
   // overload visitor
   void VisitExpr_(const RampNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const ShuffleNode* op, std::ostream& os) final; // NOLINT(*)
+  void VisitExpr_(const SelectNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImmNode *op, std::ostream& os) final;
   void VisitExpr_(const CallNode *op, std::ostream& os) final;

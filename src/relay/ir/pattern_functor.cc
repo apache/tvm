@@ -36,7 +36,7 @@ Pattern PatternMutator::VisitPattern_(const PatternWildcardNode* op) {
 }
 
 Pattern PatternMutator::VisitPattern_(const PatternVarNode* op) {
-  return PatternVarNode::make(VisitVar(op->var));
+  return PatternVar(VisitVar(op->var));
 }
 
 Pattern PatternMutator::VisitPattern_(const PatternConstructorNode* op) {
@@ -44,7 +44,7 @@ Pattern PatternMutator::VisitPattern_(const PatternConstructorNode* op) {
   for (const auto& p : op->patterns) {
     pat.push_back(VisitPattern(p));
   }
-  return PatternConstructorNode::make(VisitConstructor(op->constructor), pat);
+  return PatternConstructor(VisitConstructor(op->constructor), pat);
 }
 
 Pattern PatternMutator::VisitPattern_(const PatternTupleNode* op) {
@@ -52,7 +52,7 @@ Pattern PatternMutator::VisitPattern_(const PatternTupleNode* op) {
   for (const auto& p : op->patterns) {
     pat.push_back(VisitPattern(p));
   }
-  return PatternTupleNode::make(pat);
+  return PatternTuple(pat);
 }
 
 Type PatternMutator::VisitType(const Type& t) {
@@ -62,7 +62,7 @@ Type PatternMutator::VisitType(const Type& t) {
 Var PatternMutator::VisitVar(const Var& v) {
   if (var_map_.count(v) == 0) {
     var_map_.insert(std::pair<Var, Var>(v,
-                                        VarNode::make(v->name_hint(),
+                                        Var(v->name_hint(),
                                                       VisitType(v->type_annotation))));
   }
   return var_map_.at(v);

@@ -150,6 +150,31 @@ class BufferNode : public Object {
     v->Visit("buffer_type", &buffer_type);
   }
 
+  bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
+    // Use DefEqual as buffer can define variables
+    // in its semantics, skip name as name is not important.
+    return
+        equal.DefEqual(data, other->data) &&
+        equal(dtype, other->dtype) &&
+        equal.DefEqual(shape, other->shape) &&
+        equal.DefEqual(strides, other->strides) &&
+        equal.DefEqual(elem_offset, other->elem_offset) &&
+        equal(scope, other->scope) &&
+        equal(data_alignment, other->data_alignment) &&
+        equal(buffer_type, other->buffer_type);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce.DefHash(data);
+    hash_reduce(dtype);
+    hash_reduce.DefHash(shape);
+    hash_reduce.DefHash(strides);
+    hash_reduce.DefHash(elem_offset);
+    hash_reduce(scope);
+    hash_reduce(data_alignment);
+    hash_reduce(buffer_type);
+  }
+
   /*! \return preferred index type for this buffer node */
   DataType DefaultIndexType() const {
     return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
@@ -169,6 +194,8 @@ class BufferNode : public Object {
                              BufferType buffer_type);
 
   static constexpr const char* _type_key = "Buffer";
+  static constexpr const bool _type_has_method_sequal_reduce = true;
+  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
 };
 

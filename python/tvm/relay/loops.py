@@ -20,6 +20,7 @@ Utilities for building Relay loops.
 """
 from .scope_builder import ScopeBuilder
 from . import expr as _expr
+from . import function as _function
 
 def while_loop(cond, loop_vars, loop_bodies):
     """
@@ -60,6 +61,6 @@ def while_loop(cond, loop_vars, loop_bodies):
     with sb.else_scope():
         sb.ret(_expr.Tuple(fresh_vars))
 
-    func = _expr.Function(fresh_vars, sb.get())
+    func = _function.Function(fresh_vars, sb.get())
     let = _expr.Let(loop, func, loop)
     return let

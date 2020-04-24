@@ -350,20 +350,18 @@ Array<PrimExpr> BijectiveLayout::BackwardShape(const Array<PrimExpr>& shape) con
                         self->src_layout->axes, self->backward_rule);
 }
 
-BijectiveLayout BijectiveLayoutNode::make(const Layout& src_layout,
-                                          const Layout& dst_layout) {
+BijectiveLayout::BijectiveLayout(Layout src_layout, Layout dst_layout) {
   auto n = make_object<BijectiveLayoutNode>();
 
-  n->src_layout = src_layout;
-  n->dst_layout = dst_layout;
+  n->src_layout = std::move(src_layout);
+  n->dst_layout = std::move(dst_layout);
 
-  if (!GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
-    // not convertible
-    return BijectiveLayout();
+  // To be consistent with previous behavior, a nullptr layout is created
+  // when argument is invalid.
+  if (GetStoreRule(&n->forward_rule, n->src_layout, n->dst_layout)) {
+    CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
+    data_ = std::move(n);
   }
-  CHECK(GetStoreRule(&n->backward_rule, n->dst_layout, n->src_layout));
-
-  return BijectiveLayout(n);
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -398,7 +396,9 @@ TVM_REGISTER_GLOBAL("tir.LayoutGetItem")
 });
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayout")
-.set_body_typed(BijectiveLayoutNode::make);
+.set_body_typed([](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
+  return BijectiveLayout(src_layout, dst_layout);
+});
 
 TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
 .set_body_method(&BijectiveLayout::ForwardIndex);

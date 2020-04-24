@@ -175,6 +175,11 @@ TVM_REGISTER_GLOBAL("topi.erf")
   *rv = erf(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.tan")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = tan(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.cos")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = cos(args[0]);
@@ -430,6 +435,11 @@ TVM_REGISTER_GLOBAL("topi.gather_nd")
   *rv = gather_nd(args[0], args[1]);
 });
 
+TVM_REGISTER_GLOBAL("topi.unravel_index")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = unravel_index(args[0], args[1]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.matmul")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   switch ( args.size() ) {
@@ -542,6 +552,13 @@ TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool")
   *rv = nn::adaptive_pool(args[0], args[1],
                           static_cast<nn::PoolType>(static_cast<int>(args[2])),
                           args[3]);
+});
+
+TVM_REGISTER_GLOBAL("topi.nn.adaptive_pool3d")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = nn::adaptive_pool3d(args[0], args[1],
+                            static_cast<nn::PoolType>(static_cast<int>(args[2])),
+                            args[3]);
 });
 
 TVM_REGISTER_GLOBAL("topi.nn.pool1d")

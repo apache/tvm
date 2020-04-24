@@ -18,11 +18,12 @@
  */
 
 /*!
- * \file src/tvm/ir/expr.cc
+ * \file src/ir/expr.cc
  * \brief The expression AST nodes for the common IR infra.
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 // NOTE: reverse dependency on top/tir.
 // These dependencies do not happen at the interface-level,
 // and are only used in minimum cases where they are clearly marked.
@@ -104,6 +105,7 @@ TVM_REGISTER_GLOBAL("ir.FloatImm")
 
 TVM_REGISTER_NODE_TYPE(FloatImmNode);
 
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<FloatImmNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const FloatImmNode*>(node.get());
@@ -142,16 +144,13 @@ TVM_REGISTER_GLOBAL("ir.Range")
   *ret = Range(args[0], args[1]);
   });
 
+TVM_REGISTER_NODE_TYPE(RangeNode);
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<RangeNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const RangeNode*>(node.get());
     p->stream << "range(min=" << op->min << ", ext=" << op->extent << ')';
   });
-
-TVM_REGISTER_NODE_TYPE(ArrayNode);
-TVM_REGISTER_NODE_TYPE(MapNode);
-TVM_REGISTER_NODE_TYPE(StrMapNode);
-TVM_REGISTER_NODE_TYPE(RangeNode);
 
 
 GlobalVar::GlobalVar(std::string name_hint) {

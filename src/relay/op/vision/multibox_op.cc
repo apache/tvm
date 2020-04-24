@@ -68,7 +68,7 @@ Expr MakeMultiBoxPrior(Expr data,
   attrs->offsets = std::move(offsets);
   attrs->clip = clip;
   static const Op& op = Op::Get("vision.multibox_prior");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return Call(op, {data}, Attrs(attrs), {});
 }
 
 
@@ -141,7 +141,7 @@ Expr MakeMultiBoxTransformLoc(Expr cls_prob,
   attrs->threshold = std::move(threshold);
   attrs->variances = std::move(variances);
   static const Op& op = Op::Get("vision.multibox_transform_loc");
-  return CallNode::make(op, {cls_prob, loc_pred, anchor}, Attrs(attrs), {});
+  return Call(op, {cls_prob, loc_pred, anchor}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relay.op.vision._make.multibox_transform_loc")

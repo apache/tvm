@@ -20,5 +20,5 @@ tvm.relay.op
 .. automodule:: tvm.relay.op
    :members:
    :imported-members:
-   :exclude-members: Tuple
+   :exclude-members: Tuple, TupleWrapper
    :autosummary:

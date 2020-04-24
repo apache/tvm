@@ -27,6 +27,7 @@ from ...hybrid import script
 
 
 register_broadcast_schedule("log")
+register_broadcast_schedule("tan")
 register_broadcast_schedule("cos")
 register_broadcast_schedule("sin")
 register_broadcast_schedule("atan")
@@ -65,12 +66,16 @@ register_broadcast_schedule("less")
 register_broadcast_schedule("less_equal")
 register_broadcast_schedule("greater")
 register_broadcast_schedule("greater_equal")
+register_broadcast_schedule("isfinite")
+register_broadcast_schedule("isinf")
 register_injective_schedule("maximum")
 register_injective_schedule("minimum")
 register_injective_schedule("right_shift")
 register_injective_schedule("left_shift")
 register_injective_schedule("shape_of")
 register_injective_schedule("ndarray_size")
+register_broadcast_schedule("fast_exp")
+register_broadcast_schedule("fast_tanh")
 
 
 # zeros
@@ -214,3 +219,6 @@ register_shape_func("minimum", False, broadcast_shape_func)
 register_shape_func("sqrt", False, elemwise_shape_func)
 register_shape_func("negative", False, elemwise_shape_func)
 register_shape_func("exp", False, elemwise_shape_func)
+register_shape_func("tan", False, elemwise_shape_func)
+register_shape_func("fast_exp", False, elemwise_shape_func)
+register_shape_func("fast_tanh", False, elemwise_shape_func)

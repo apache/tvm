@@ -24,10 +24,11 @@ from tvm.ir import IRModule
 from tvm import relay
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
-from ..util import get_scalar_from_constant
 from ... import nd as _nd
+from .util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -62,69 +63,77 @@ class OperatorConverter(object):
         # Add more operators
         self.convert_map = {
             'ABS': self.convert_abs,
-            'EXP': self.convert_exp,
-            'FLOOR': self.convert_floor,
-            'CEIL': self.convert_ceil,
-            'LOG': self.convert_log,
-            'SIN': self.convert_sin,
-            'COS': self.convert_cos,
-            'SQRT': self.convert_sqrt,
-            'RSQRT': self.convert_rsqrt,
-            'NEG': self.convert_neg,
-            'CONV_2D': self.convert_conv2d,
-            'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
+            'ADD': self.convert_add,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
+            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
+            'CAST': self.convert_cast,
+            'CEIL': self.convert_ceil,
+            'CONCATENATION': self.convert_concatenation,
+            'CONV_2D': self.convert_conv2d,
+            'COS': self.convert_cos,
+            'DEPTH_TO_SPACE': self.convert_depth_to_space,
+            'DEPTHWISE_CONV_2D': self.convert_depthwise_conv2d,
+            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'DIV': self.convert_div,
+            'ELU': self.convert_elu,
+            'EQUAL': self.convert_equal,
+            'EXP': self.convert_exp,
+            'FLOOR_DIV': self.convert_floor_div,
+            'FLOOR_MOD': self.convert_floor_mod,
+            'FLOOR': self.convert_floor,
+            'FULLY_CONNECTED': self.convert_fully_connected,
+            'GREATER_EQUAL': self.convert_greater_equal,
+            'GREATER': self.convert_greater,
+            'L2_NORMALIZATION': self.convert_l2_normalization,
+            'LESS_EQUAL': self.convert_less_equal,
+            'LESS': self.convert_less,
+            'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
+            'LOG': self.convert_log,
+            'LOGICAL_AND': self.convert_logical_and,
+            'LOGICAL_OR': self.convert_logical_or,
+            'LOGISTIC': self.convert_logistic,
+            'MAX_POOL_2D': self.convert_max_pool2d,
+            'MAXIMUM': self.convert_maximum,
+            'MEAN': self._convert_reduce_mean,
+            'MINIMUM': self.convert_minimum,
+            'MIRROR_PAD': self.convert_mirror_pad,
+            'MUL': self.convert_mul,
+            'NEG': self.convert_neg,
+            'NOT_EQUAL': self.convert_not_equal,
+            'PACK': self.convert_pack,
+            'PAD': self.convert_pad,
+            'POW': self.convert_pow,
+            'PRELU': self.convert_prelu,
+            'REDUCE_ANY': self._convert_reduce_any,
+            'REDUCE_MAX': self._convert_reduce_max,
+            'REDUCE_MIN': self._convert_reduce_min,
+            'REDUCE_PROD': self._convert_reduce_prod,
+            'RELU':self.convert_relu,
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
-            'SOFTMAX': self.convert_softmax,
-            'SQUEEZE': self.convert_squeeze,
-            'MAX_POOL_2D': self.convert_max_pool2d,
-            'CONCATENATION': self.convert_concatenation,
-            'ADD': self.convert_add,
-            'SUB': self.convert_sub,
-            'MUL': self.convert_mul,
-            'DIV': self.convert_div,
-            'POW': self.convert_pow,
-            'MAXIMUM': self.convert_maximum,
-            'MINIMUM': self.convert_minimum,
-            'GREATER': self.convert_greater,
-            'GREATER_EQUAL': self.convert_greater_equal,
-            'LESS': self.convert_less,
-            'LESS_EQUAL': self.convert_less_equal,
-            'EQUAL': self.convert_equal,
-            'NOT_EQUAL': self.convert_not_equal,
-            'ZEROS_LIKE': self.convert_zeros_like,
-            'REDUCE_MIN': self._convert_reduce_min,
-            'REDUCE_MAX': self._convert_reduce_max,
-            'MEAN': self._convert_reduce_mean,
-            'REDUCE_PROD': self._convert_reduce_prod,
-            'SUM': self._convert_reduce_sum,
-            'FULLY_CONNECTED': self.convert_fully_connected,
-            'PAD': self.convert_pad,
-            'MIRROR_PAD': self.convert_mirror_pad,
-            'PACK': self.convert_pack,
-            'UNPACK': self.convert_unpack,
-            'LOGISTIC': self.convert_logistic,
-            'TANH':self.convert_tanh,
-            'RELU':self.convert_relu,
-            'SPLIT': self.convert_split,
+            'ROUND': self.convert_round,
+            'RSQRT': self.convert_rsqrt,
+            'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
-            'TRANSPOSE': self.convert_transpose,
-            'CAST': self.convert_cast,
-            'TILE': self.convert_tile,
-            'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
+            'SOFTMAX': self.convert_softmax,
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
-            'PRELU': self.convert_prelu,
-            'TRANSPOSE_CONV': self.convert_transpose_conv,
-            'SQUARED_DIFFERENCE': self.convert_squared_difference,
-            'LOGICAL_AND': self.convert_logical_and,
-            'LOGICAL_OR': self.convert_logical_or,
-            'DETECTION_POSTPROCESS': self.convert_detection_postprocess,
+            'SPACE_TO_DEPTH': self.convert_space_to_depth,
+            'SPLIT': self.convert_split,
+            'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
-            'L2_NORMALIZATION': self.convert_l2_normalization,
-            'FLOOR_DIV': self.convert_floor_div,
-            'FLOOR_MOD': self.convert_floor_mod,
+            'SQUARED_DIFFERENCE': self.convert_squared_difference,
+            'SQUEEZE': self.convert_squeeze,
+            'SUB': self.convert_sub,
+            'SUM': self._convert_reduce_sum,
+            'TAN': self.convert_tan,
+            'TANH':self.convert_tanh,
+            'TILE': self.convert_tile,
+            'TOPK_V2': self.convert_topk_v2,
+            'TRANSPOSE_CONV': self.convert_transpose_conv,
+            'TRANSPOSE': self.convert_transpose,
+            'UNPACK': self.convert_unpack,
+            'ZEROS_LIKE': self.convert_zeros_like,
         }
 
     def check_unsupported_ops(self):
@@ -454,6 +463,43 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_lrn(self, op):
+        """Convert TFLite LOCAL_RESPONSE_NORMALIZATION """
+        try:
+            from tflite.Operator import Operator
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.LocalResponseNormalizationOptions import LocalResponseNormalizationOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized LRN operator is not supported yet.')
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.LocalResponseNormalizationOptions
+        op_options = op.BuiltinOptions()
+        lrn_options = LocalResponseNormalizationOptions()
+        lrn_options.Init(op_options.Bytes, op_options.Pos)
+        radius = lrn_options.Radius()
+        bias = lrn_options.Bias()
+        alpha = lrn_options.Alpha()
+        beta = lrn_options.Beta()
+        size = (radius * 2) + 1
+        alpha = alpha * size
+        axis = 3 # NHWC format
+        out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+
+        return out
+
     def convert_logistic(self, op):
         """Convert TFLite LOGISTIC"""
         try:
@@ -636,6 +682,13 @@ class OperatorConverter(object):
                 'TFlite quantized FLOOR operator is not supported yet.')
         return self._convert_unary_elemwise(_op.floor, op)
 
+    def convert_round(self, op):
+        """Convert TFLite ROUND"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ROUND operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.round, op)
+
     def convert_exp(self, op):
         """Convert TFLite EXP"""
         if self.is_quantized(op):
@@ -656,6 +709,13 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized SIN operator is not supported yet.')
         return self._convert_unary_elemwise(_op.sin, op)
+
+    def convert_tan(self, op):
+        """Convert TFLite TAN"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized TAN operator is not supported yet.')
+        return self._convert_unary_elemwise(_op.tan, op)
 
     def convert_cos(self, op):
         """Convert TFLite COS"""
@@ -684,6 +744,29 @@ class OperatorConverter(object):
             raise tvm.error.OpNotImplemented(
                 'TFlite quantized NEG operator is not supported yet.')
         return self._convert_unary_elemwise(_op.negative, op)
+
+    def convert_elu(self, op):
+        """Convert TFLite ELU"""
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+        assert isinstance(op, Operator)
+
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                'TFlite quantized ELU operator is not supported yet.')
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        exp_type = self.get_tensor_type_str(input_tensor.tensor.Type())
+        out = relay.const(-1.0, exp_type) * \
+              _op.nn.relu(relay.const(1., exp_type) - _op.exp(in_expr)) + \
+              _op.nn.relu(in_expr)
+
+        return out
 
     def convert_square(self, op):
         """Convert TFLite SQUARE"""
@@ -1009,6 +1092,9 @@ class OperatorConverter(object):
 
     def _convert_reduce_sum(self, op):
         return self._convert_reduce(_op.reduce.sum, op)
+
+    def _convert_reduce_any(self, op):
+        return self._convert_reduce(_op.reduce.any, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
@@ -1465,6 +1551,24 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_topk_v2(self, op):
+        """ Convert TFLite TOPK_v2 """
+        try:
+            from tflite.Operator import Operator
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+        k = self.get_tensor_value(input_tensors[1])
+        out = _op.topk(in_expr, int(k))
+
+        return out
+
     def convert_pool2d(self, op, pool_type):
         """pool2d implementation."""
         try:
@@ -1813,6 +1917,56 @@ class OperatorConverter(object):
         reshaped_permuted_reshaped_padded = _op.reshape(permuted_reshaped_padded, newshape=shape2)
 
         return reshaped_permuted_reshaped_padded
+
+    def convert_depth_to_space(self, op):
+        """Convert TFLite DEPTH_TO_SPACE"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.DepthToSpaceOptions import DepthToSpaceOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.DepthToSpaceOptions
+        op_options = op.BuiltinOptions()
+        depth_to_space_options = DepthToSpaceOptions()
+        depth_to_space_options.Init(op_options.Bytes, op_options.Pos)
+        block_size = depth_to_space_options.BlockSize()
+        out = _op.nn.depth_to_space(in_expr, block_size, layout='NHWC')
+
+        return out
+
+    def convert_space_to_depth(self, op):
+        """Convert TFLite SPACE_TO_DEPTH"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.Operator import Operator
+            from tflite.SpaceToDepthOptions import SpaceToDepthOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        assert isinstance(op, Operator)
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.SpaceToDepthOptions
+        op_options = op.BuiltinOptions()
+        space_to_depth_options = SpaceToDepthOptions()
+        space_to_depth_options.Init(op_options.Bytes, op_options.Pos)
+        block_size = space_to_depth_options.BlockSize()
+        out = _op.nn.space_to_depth(in_expr, block_size, layout='NHWC')
+
+        return out
 
     def convert_prelu(self, op):
         """Convert TFLite PReLU"""
@@ -2231,6 +2385,6 @@ def from_tflite(model, shape_dict, dtype_dict):
     params = {k:_nd.array(np.array(v)) for k, v in exp_tab.params.items()}
     outputs = [exp_tab.get_expr(get_tensor_name(subgraph, i)) for i in model_outputs]
     outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
-    func = _expr.Function(analysis.free_vars(outputs), outputs)
+    func = _function.Function(analysis.free_vars(outputs), outputs)
     mod = IRModule.from_expr(func)
     return mod, params

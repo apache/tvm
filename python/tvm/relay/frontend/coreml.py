@@ -24,6 +24,7 @@ from tvm.ir import IRModule
 
 from .. import analysis
 from .. import expr as _expr
+from .. import function as _function
 from .. import op as _op
 from ... import nd as _nd
 from ..._ffi import base as _base
@@ -503,6 +504,6 @@ def from_coreml(model, shape=None):
                for o in spec.description.output]
     # for now return first output
     outexpr = outexpr[0]
-    func = _expr.Function(analysis.free_vars(outexpr), outexpr)
+    func = _function.Function(analysis.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
     return IRModule.from_expr(func), params

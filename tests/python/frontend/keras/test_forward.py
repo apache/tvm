@@ -22,11 +22,16 @@ from tvm.contrib import graph_runtime
 from tvm.relay.testing.config import ctx_list
 import keras
 
-import tensorflow as tf
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
+
 from tensorflow import keras as tf_keras
+from packaging import version as package_version
 # prevent Keras from using up all gpu memory
 if tf.executing_eagerly():
-    gpus = tf.config.list_physical_devices('GPU')
+    gpus = tf.config.experimental.list_physical_devices('GPU')
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 else:
@@ -363,7 +368,7 @@ class TestKeras:
                     keras.layers.SimpleRNN(units=16, return_state=False,
                         activation='tanh'),
                     keras.layers.GRU(units=16, return_state=False,
-                        recurrent_activation='sigmoid', activation='tanh')]
+                        recurrent_activation='sigmoid', activation='tanh', reset_after=False)]
         for rnn_func in rnn_funcs:
             x = rnn_func(data)
             keras_model = keras.models.Model(data, x)
@@ -393,6 +398,28 @@ class TestKeras:
             input_shape=(224, 224, 3), classes=1000)
         verify_keras_frontend(keras_model, layout=layout)
 
+    def test_forward_conv3d(self, keras):
+        data = keras.layers.Input(shape=(32, 32, 32, 3))
+        conv_funcs = [keras.layers.Conv3D(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          strides=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3D(filters=10,
+                                          kernel_size=(3, 3, 3),
+                                          dilation_rate=(2, 2, 2),
+                                          padding='same'),
+                      keras.layers.Conv3D(filters=1,
+                                          kernel_size=(3, 3, 3),
+                                          padding='valid',
+                                          use_bias=False),
+                      keras.layers.Conv3D(filters=10,
+                                          kernel_size=(2, 2, 2),
+                                          padding='valid'),
+                    ]
+        for conv_func in conv_funcs:
+            x = conv_func(data)
+            keras_model = keras.models.Model(data, x)
+            verify_keras_frontend(keras_model, layout='NDHWC')
 
 if __name__ == '__main__':
     for k in [keras, tf_keras]:
@@ -421,3 +448,4 @@ if __name__ == '__main__':
         sut.test_forward_resnet50(keras=k, layout='NHWC')
         sut.test_forward_mobilenet(keras=k)
         sut.test_forward_mobilenet(keras=k, layout='NHWC')
+        sut.test_forward_conv3d(keras=k)

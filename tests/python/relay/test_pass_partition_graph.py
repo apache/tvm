@@ -25,7 +25,7 @@ from tvm import relay
 from tvm import runtime
 from tvm.relay import transform
 from tvm.contrib import util
-from tvm.relay.annotation import compiler_begin, compiler_end
+from tvm.relay.op.annotation import compiler_begin, compiler_end
 from tvm.relay.expr_functor import ExprMutator
 
 # Leverage the pass manager to write a simple white list based annotator
@@ -303,11 +303,11 @@ def test_extern_ccompiler_default_ops():
         add = x0 + y0
         # Function that uses C compiler
         func = relay.Function([x0, y0], add)
-        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Compiler",
+        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Compiler",
                                   tvm.tir.StringImm("ccompiler"))
-        func = func.set_attribute("ExternalSymbol",
+        func = func.with_attr("ExternalSymbol",
                                   tvm.tir.StringImm("ccompiler_0"))
         glb_0 = relay.GlobalVar("ccompiler_0")
         mod[glb_0] = func
@@ -318,7 +318,7 @@ def test_extern_ccompiler_default_ops():
         exp = relay.exp(p0)
         concat = relay.concatenate([log, exp], axis=0)
         fused_func = relay.Function([p0], concat)
-        fused_func = fused_func.set_attribute("Primitive",
+        fused_func = fused_func.with_attr("Primitive",
                                               tvm.tir.IntImm("int32", 1))
         fused_call = relay.Call(fused_func, [add_call])
         main = relay.Function([x, y], fused_call)
@@ -339,7 +339,7 @@ def test_extern_ccompiler_default_ops():
 
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
-    assert relay.alpha_equal(fused_mod, expected_mod)
+    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
 
     x_data = np.random.rand(8, 8).astype('float32')
     y_data = np.random.rand(8, 8).astype('float32')
@@ -390,10 +390,10 @@ def test_extern_dnnl():
         out = relay.add(depthwise_conv2d_1, depthwise_conv2d_2)
 
         func = relay.Function([data0, input0, input1], out)
-        func = func.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func = func.set_attribute("Compiler", tvm.tir.StringImm("dnnl"))
-        func = func.set_attribute("ExternalSymbol",
+        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Compiler", tvm.tir.StringImm("dnnl"))
+        func = func.with_attr("ExternalSymbol",
                                   tvm.tir.StringImm("dnnl_0"))
         glb_var = relay.GlobalVar("dnnl_0")
         mod = tvm.IRModule()
@@ -427,7 +427,7 @@ def test_extern_dnnl():
     mod["main"] = WholeGraphAnnotator("dnnl").visit(get_func())
     mod = transform.PartitionGraph()(mod)
 
-    assert relay.alpha_equal(mod, expected())
+    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
 
     ref_mod = tvm.IRModule()
     ref_mod["main"] = get_func()
@@ -516,11 +516,11 @@ def test_function_lifting():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Compiler",
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func0 = func0.set_attribute("ExternalSymbol",
+        func0 = func0.with_attr("ExternalSymbol",
                                     tvm.tir.StringImm("test_compiler_0"))
         gv0 = relay.GlobalVar("test_compiler_0")
         mod[gv0] = func0
@@ -535,11 +535,11 @@ def test_function_lifting():
             channels=16,
             padding=(1, 1))
         func1 = relay.Function([data1, weight1], conv)
-        func1 = func1.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func1 = func1.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func1 = func1.set_attribute("Compiler",
+        func1 = func1.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func1 = func1.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func1 = func1.set_attribute("ExternalSymbol",
+        func1 = func1.with_attr("ExternalSymbol",
                                     tvm.tir.StringImm("test_compiler_1"))
         gv1 = relay.GlobalVar("test_compiler_1")
         mod[gv1] = func1
@@ -561,7 +561,7 @@ def test_function_lifting():
 
     partitioned = partition()
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_function_lifting_inline():
@@ -609,11 +609,11 @@ def test_function_lifting_inline():
         bn = relay.nn.batch_norm(data0, bn_gamma, bn_beta, bn_mmean, bn_mvar)
         func0 = relay.Function([data0, bn_gamma, bn_beta, bn_mmean, bn_mvar],
                                bn.astuple())
-        func0 = func0.set_attribute("Primitive", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Inline", tvm.tir.IntImm("int32", 1))
-        func0 = func0.set_attribute("Compiler",
+        func0 = func0.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func0 = func0.with_attr("Compiler",
                                     tvm.tir.StringImm("test_compiler"))
-        func0 = func0.set_attribute("ExternalSymbol",
+        func0 = func0.with_attr("ExternalSymbol",
                                     tvm.tir.StringImm("test_compiler_0"))
 
         # main function
@@ -631,7 +631,51 @@ def test_function_lifting_inline():
 
     partitioned = partition()
     ref_mod = expected()
-    assert relay.analysis.alpha_equal(partitioned, ref_mod)
+    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+
+
+def test_constant_propagation():
+    ones = np.ones(shape=(8, 8), dtype="float32")
+
+    def expected():
+        mod = tvm.IRModule()
+        x = relay.const(ones)
+        y = relay.var("y", shape=(8, 8))
+        x0 = relay.const(ones)
+        y0 = relay.var("y0", shape=(8, 8))
+        add = x0 + y0
+        # Function that uses C compiler
+        func = relay.Function([y0], add)
+        func = func.with_attr("Primitive", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Inline", tvm.tir.IntImm("int32", 1))
+        func = func.with_attr("Compiler", tvm.tir.StringImm("ccompiler"))
+        func = func.with_attr("ExternalSymbol",
+                              tvm.tir.StringImm("ccompiler_0"))
+        glb_0 = relay.GlobalVar("ccompiler_0")
+        mod[glb_0] = func
+        add_call = relay.Call(glb_0, [y])
+        log = relay.log(add_call)
+        main = relay.Function([y], log)
+        mod["main"] = main
+        return mod
+
+    x = relay.var("x", shape=(8, 8))
+    y = relay.var("y", shape=(8, 8))
+    add = x + y
+    log = relay.log(add)
+    f = relay.Function([x, y], log)
+    f = relay.build_module.bind_params_by_name(f, {"x": tvm.nd.array(ones)})
+    mod = tvm.IRModule()
+    mod["main"] = f
+    mod = WhiteListAnnotator(["add"], "ccompiler")(mod)
+    mod = transform.PartitionGraph()(mod)
+
+    expected_mod = expected()
+    assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
+
+    y_data = np.random.rand(8, 8).astype('float32')
+    np_add = ones + y_data
+    check_result(mod, {"y": y_data}, (8, 8), np.log(np_add))
 
 
 if __name__ == "__main__":
@@ -643,3 +687,4 @@ if __name__ == "__main__":
     test_extern_dnnl_mobilenet()
     test_function_lifting()
     test_function_lifting_inline()
+    test_constant_propagation()

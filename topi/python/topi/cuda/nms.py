@@ -22,7 +22,7 @@ import tvm
 from tvm import te
 
 from tvm.tir import if_then_else
-from .sort import argsort
+from .sort import argsort, argsort_thrust
 from .. import tag
 
 
@@ -668,8 +668,12 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
     score_shape = (batch_size, num_anchors)
     score_tensor = te.compute(
         score_shape, lambda i, j: data[i, j, score_axis], tag=tag.ELEMWISE)
-    sort_tensor = argsort(
-        score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
+    if tvm.get_global_func("tvm.contrib.thrust.sort_nms", allow_missing=True):
+        sort_tensor = argsort_thrust(
+            score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
+    else:
+        sort_tensor = argsort(
+            score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
 
     sort_tensor_buf = tvm.tir.decl_buffer(sort_tensor.shape, sort_tensor.dtype,
                                           "sort_tensor_buf", data_alignment=8)

@@ -110,6 +110,23 @@ def tanh(x):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
+def tan(x):
+    """Take tan of input x.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.tan(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def cos(x):
     """Take cos of input x.
 
@@ -258,6 +275,40 @@ def isnan(x):
         The result.
     """
     return te.compute(x.shape, lambda *i: te.isnan(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def isfinite(x):
+    """Check if value of x is finite, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.isfinite(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def isinf(x):
+    """Check if value of x is infinite, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return te.compute(x.shape, lambda *i: te.isinf(x(*i)))
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)

@@ -47,11 +47,20 @@ def _lower(mod,
                 mod, _ = relay.optimize(mod, target, params)
                 grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
                 grc.codegen(mod["main"])
+                return
     # default case
-    compiler = relay.vm.VMCompiler()
-    if params:
-        compiler.set_params(params)
-    compiler.lower(mod, target=target)
+    # Try graph codegen first to extract autotvm tasks.
+    # If failed to compile, then fallback to use VM compiler.
+    # TODO: Currently VM compiler is likely to stack overflow for large models.
+    try:
+        opt_mod, _ = relay.optimize(mod, target, params)
+        grc = graph_runtime_codegen.GraphRuntimeCodegen(None, target)
+        grc.codegen(opt_mod["main"])
+    except tvm.TVMError:
+        compiler = relay.vm.VMCompiler()
+        if params:
+            compiler.set_params(params)
+        compiler.lower(mod, target=target)
 
 
 def extract_from_program(mod, params, target, target_host=None, ops=None):
@@ -61,7 +70,7 @@ def extract_from_program(mod, params, target, target_host=None, ops=None):
 
     Parameters
     ----------
-    mod: tvm.IRModule or relay.expr.Function
+    mod: tvm.IRModule or relay.function.Function
         The module or function to tune
     params: dict of str to numpy array
         The associated parameters of the program
@@ -88,7 +97,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
 
     Parameters
     ----------
-    mods: List[tvm.IRModule] or List[relay.expr.Function]
+    mods: List[tvm.IRModule] or List[relay.function.Function]
         The list of modules or functions to tune
     params: List of dict of str to numpy array
         The associated parameters of the programs
@@ -118,7 +127,7 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
         logger.disabled = True
 
         for mod, param in zip(mods, params):
-            if isinstance(mod, relay.expr.Function):
+            if isinstance(mod, relay.function.Function):
                 mod = tvm.IRModule.from_expr(mod)
             assert isinstance(mod, tvm.IRModule), \
                 "only support relay Module or Function to be tuned"

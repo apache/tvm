@@ -32,6 +32,38 @@ namespace tvm {
 
 using namespace tir;
 
+
+runtime::DataType GetRuntimeDataType(const Type& type) {
+  if (auto * n = type.as<PrimTypeNode>()) {
+    return n->dtype;
+  } else if (type.as<PointerTypeNode>()) {
+    return DataType::Handle();
+  } else {
+    LOG(FATAL) << "Type " << type
+               << " does not have a corresponding runtime::DataType";
+    return DataType::Handle();
+  }
+}
+
+Type GetType(const PrimExpr& expr) {
+  // TODO(tqchen): add recursive type inference for Call here
+  // once we introduced the corresponding fields to the IR.
+  if (auto* ptr = expr.as<tir::VarNode>()) {
+    // If Var has a more refined type annotation,
+    // return the type anotation
+    if (ptr->type_annotation.defined()) {
+      return ptr->type_annotation;
+    }
+  }
+  // Default: return the type indicated by the dtype.
+  runtime::DataType dtype = expr.dtype();
+  // These types already implies the specific type.
+  if (dtype.is_int() || dtype.is_uint() || dtype.is_float()) {
+    return PrimType(dtype);
+  }
+  return PrimType(dtype);
+}
+
 // simple cast that only checks if type matches and cast
 inline PrimExpr SimpleCast(const DataType& t, PrimExpr value) {
   if (value.dtype() == t) return value;
@@ -145,6 +177,21 @@ PrimExpr min_value(const DataType& dtype) {
     }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
+  return PrimExpr();
+}
+
+// infinity
+PrimExpr infinity(const DataType& dtype) {
+  using namespace tir;
+  CHECK_EQ(dtype.lanes(), 1);
+  if (dtype.is_float()) {
+    if (dtype.bits() == 64) {
+      return FloatImm(dtype, std::numeric_limits<double>::infinity());
+    } else if (dtype.bits() == 32 || dtype.bits() == 16) {
+      return FloatImm(dtype, std::numeric_limits<float>::infinity());
+    }
+  }
+  LOG(FATAL) << "Cannot decide infinity for type " << dtype;
   return PrimExpr();
 }
 
@@ -422,6 +469,9 @@ PrimExpr operator>>(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
+      if (pb) CHECK(pb->value >= 0 && pb->value < rtype.bits()) <<
+                "Shift amount must be non-negative and less than " << rtype.bits()
+                << " for type " << rtype;
       if (pa && pb) return IntImm(rtype, (pa->value >> pb->value));
       if (pb) {
         if (pb->value == 0) return a;
@@ -437,6 +487,9 @@ PrimExpr operator<<(PrimExpr a, PrimExpr b) {
   BinaryOpMatchTypes(a, b);
   TVM_INDEX_CONST_PROPAGATION({
       const DataType& rtype = a.dtype();
+      if (pb) CHECK(pb->value >= 0 && pb->value < rtype.bits()) <<
+                "Shift amount must be non-negative and less than " << rtype.bits()
+                << " for type " << rtype;
       if (pa && pb) return IntImm(rtype, (pa->value << pb->value));
       if (pb) {
         if (pb->value == 0) return a;
@@ -543,6 +596,21 @@ PrimExpr isnan(PrimExpr x) {
   }
 }
 
+PrimExpr isinf(PrimExpr x) {
+  DataType t = DataType::Bool(x.dtype().lanes());
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return make_const(t, false);
+  } else if (x.dtype().is_float()) {
+    PrimExpr infX = infinity(x.dtype());
+    return abs(x) == infX && !isnan(x);
+  } else {
+    LOG(FATAL) << "Data type " << x.dtype() << " not supported for finiteness ops. Skipping it...";
+    return x;
+  }
+}
+
+PrimExpr isfinite(PrimExpr x) { return !isinf(x) && !isnan(x); }
+
 PrimExpr sum(PrimExpr source, Array<IterVar> rdom) {
   Var x("x", source.dtype()), y("y", source.dtype());
   PrimExpr result = tir::AddNode::make(x, y);
@@ -606,6 +674,9 @@ PrimExpr fmod(PrimExpr x, PrimExpr y) {
 }
 
 PrimExpr floor(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::floor(fx->value));
@@ -613,6 +684,9 @@ PrimExpr floor(PrimExpr x) {
 }
 
 PrimExpr ceil(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::ceil(fx->value));
@@ -620,6 +694,9 @@ PrimExpr ceil(PrimExpr x) {
 }
 
 PrimExpr round(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
@@ -627,6 +704,9 @@ PrimExpr round(PrimExpr x) {
 }
 
 PrimExpr nearbyint(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.dtype(), std::nearbyint(fx->value));
@@ -634,6 +714,9 @@ PrimExpr nearbyint(PrimExpr x) {
 }
 
 PrimExpr trunc(PrimExpr x) {
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return x;
+  }
   using tir::FloatImmNode;
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) {
@@ -673,6 +756,12 @@ TVM_REGISTER_GLOBAL("tir.abs")
 
 TVM_REGISTER_GLOBAL("tir.isnan")
 .set_body_typed(tvm::isnan);
+
+TVM_REGISTER_GLOBAL("tir.isfinite")
+.set_body_typed(tvm::isfinite);
+
+TVM_REGISTER_GLOBAL("tir.isinf")
+.set_body_typed(tvm::isinf);
 
 TVM_REGISTER_GLOBAL("tir.floor")
 .set_body_typed(tvm::floor);

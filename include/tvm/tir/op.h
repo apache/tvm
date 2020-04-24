@@ -28,6 +28,7 @@
 #ifndef TVM_TIR_OP_H_
 #define TVM_TIR_OP_H_
 
+#include <tvm/ir/type.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 
@@ -37,12 +38,36 @@
 
 
 namespace tvm {
+
 // Most common operators can be overloaded by argument type(PrimExpr).
 // So we put them under the root namespace.
 // It is also necessary to overload operators for PrimExpr.
 //
 // We put more developer oriented APIs -- make_const and is_const under tir
 // as they are more specific to the tir namespace.
+
+/*!
+ * \brief Get the type of the expression under the unified type system.
+ *
+ * This function could return a more refined type than
+ * the runtime type provided by expr->dtype
+ *
+ * \param expr The input parameter.
+ * \return The result type.
+ *
+ * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ */
+TVM_DLL Type GetType(const PrimExpr& expr);
+
+/*!
+ * \brief Get the implied DataType for storing values with type during runtime.
+ *
+ * \param type The input type.
+ * \return The result runtime::DataType.
+ *
+ * \sa tvm/ir/type.h for discussion about the relation between Type and runtime::DataType.
+ */
+TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 
 /*!
  * Query the maximum possible value of dtype.
@@ -57,6 +82,13 @@ TVM_DLL PrimExpr max_value(const DataType& dtype);
  * \return the minimum possible value in this format.
  */
 TVM_DLL PrimExpr min_value(const DataType& dtype);
+
+/*!
+ * Get the value of infinity.
+ * \param dtype The data type.
+ * \return the infinity value in this format.
+ */
+TVM_DLL PrimExpr infinity(const DataType& dtype);
 
 /*!
  * \brief cast value to type.
@@ -415,6 +447,20 @@ TVM_DLL PrimExpr abs(PrimExpr x);
 TVM_DLL PrimExpr isnan(PrimExpr x);
 
 /*!
+ * \brief Check if x is finite.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isfinite(PrimExpr x);
+
+/*!
+ * \brief Check if x is infinite.
+ * \param x The input data
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr isinf(PrimExpr x);
+
+/*!
  * \brief sum of of source expression over axis
  * \param source The source expression.
  * \param axis List of iteration variables that will be used for reduction.
@@ -508,15 +554,22 @@ TVM_DLL PrimExpr LargeUIntImm(DataType dtype, int64_t low, int64_t high);
   }                                                                                    \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
+TVM_DECLARE_INTRIN_UNARY(exp2);
+TVM_DECLARE_INTRIN_UNARY(exp10);
 TVM_DECLARE_INTRIN_UNARY(erf);
 TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(rsqrt);
 TVM_DECLARE_INTRIN_UNARY(log);
+TVM_DECLARE_INTRIN_UNARY(log2);
+TVM_DECLARE_INTRIN_UNARY(log10);
 TVM_DECLARE_INTRIN_UNARY(popcount);
+TVM_DECLARE_INTRIN_UNARY(tan);
 TVM_DECLARE_INTRIN_UNARY(cos);
+TVM_DECLARE_INTRIN_UNARY(cosh);
 TVM_DECLARE_INTRIN_UNARY(sin);
+TVM_DECLARE_INTRIN_UNARY(sinh);
 TVM_DECLARE_INTRIN_UNARY(atan);
 
 namespace tir {

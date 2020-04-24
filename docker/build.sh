@@ -21,7 +21,7 @@
 # Execute command within a docker container
 #
 # Usage: build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
-#                    <COMMAND>
+#                [--net=host] [--cache-from <IMAGE_NAME>] <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
 #                 (cpu | gpu)
@@ -29,6 +29,9 @@
 # DOCKERFILE_PATH: (Optional) Path to the Dockerfile used for docker build.  If
 #                  this optional value is not supplied (via the --dockerfile
 #                  flag), will use Dockerfile.CONTAINER_TYPE in default
+#
+# IMAGE_NAME: An image to be as a source for cached layers when building the
+#             Docker image requested.
 #
 # COMMAND: Command to be executed in the docker container
 #
@@ -57,6 +60,13 @@ fi
 
 if [[ "$1" == "--net=host" ]]; then
     CI_DOCKER_EXTRA_PARAMS+=('--net=host')
+    shift 1
+fi
+
+if [[ "$1" == "--cache-from" ]]; then
+    shift 1
+    cached_image="$1"
+    CI_DOCKER_BUILD_EXTRA_PARAMS+=("--cache-from $cached_image")
     shift 1
 fi
 
@@ -126,7 +136,9 @@ echo ""
 # Build the docker container.
 echo "Building container (${DOCKER_IMG_NAME})..."
 docker build -t ${DOCKER_IMG_NAME} \
-    -f "${DOCKERFILE_PATH}" "${DOCKER_CONTEXT_PATH}"
+    -f "${DOCKERFILE_PATH}" \
+    ${CI_DOCKER_BUILD_EXTRA_PARAMS[@]} \
+    "${DOCKER_CONTEXT_PATH}"
 
 # Check docker build status
 if [[ $? != "0" ]]; then

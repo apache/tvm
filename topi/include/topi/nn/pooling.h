@@ -491,72 +491,72 @@ inline PrimExpr end_index(const Var& out_index,
 }
 
 /*!
-* \brief Perform adaptive pooling on height and width dimension of data.
+* \brief Perform adaptive pooling on N dimensional data
 *
 * \param x The input tensor
-* \param output_size Vector of two ints: {output_height, output_width}
+* \param output_size int vector of size in each dimension
 * \param pool_type The type of pooling operator
-* \param height_axis index of the height dimension
-* \param width_axis index of the width dimension
+* \param axes indices of each dimension
 *
 * \return The output tensor in same layout order
 */
 inline Tensor adaptive_pool_impl(const Tensor& x,
                                  const Array<PrimExpr>& output_size,
                                  PoolType pool_type,
-                                 const size_t height_axis,
-                                 const size_t width_axis) {
-  CHECK_EQ(output_size.size(), 2) << "Pooling kernel_size must have 2 elements";
+                                 const std::vector<int>& axes) {
+  const auto n_dim = output_size.size();
+  CHECK_EQ(axes.size(), n_dim) << "The number of axes not equal to the in/out dimension";
 
-  auto height = x->shape[height_axis];
-  auto width = x->shape[width_axis];
-
-  auto out_height = cast(DataType::Int(32), output_size[0]);
-  auto out_width = cast(DataType::Int(32), output_size[1]);
   Array<PrimExpr> out_shape = x->shape;
-  out_shape.Set(height_axis, out_height);
-  out_shape.Set(width_axis, out_width);
+  Array<PrimExpr> in_size, out_size;
+  for (size_t i = 0; i < n_dim; ++i) {
+    in_size.push_back(x->shape[axes[i]]);
+    out_size.push_back(cast(DataType::Int(32), output_size[i]));
+    out_shape.Set(axes[i], out_size[i]);
+  }
+
+  auto get_iter_vars = [=](const Array<Var>& output, bool reduce_indices) {
+    Array<PrimExpr> indices;
+    for (size_t i = 0; i < output.size(); ++i) indices.push_back(output[i]);
+    Array<tir::IterVar> reduce_axes;
+    for (size_t i = 0; i < n_dim; ++i) {
+      auto i_start = start_index(output[axes[i]], out_size[i], in_size[i]);
+      auto i_end = end_index(output[axes[i]], out_size[i], in_size[i]);
+      auto rv_name = "rv" + std::to_string(i);
+      auto rv_axis = tvm::te::reduce_axis(Range(0, i_end - i_start), rv_name);
+      reduce_axes.push_back(rv_axis);
+      if (reduce_indices) {
+        indices.Set(axes[i], i_start + rv_axis);
+      }
+    }
+    return std::make_tuple(indices, reduce_axes);
+  };
 
   if (pool_type == kMaxPool) {
     return tvm::te::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
-      for (const Var& var : output) indices.push_back(var);
-      auto i_start_h = start_index(output[height_axis], out_height, height);
-      auto i_end_h = end_index(output[height_axis], out_height, height);
-      auto i_start_w = start_index(output[width_axis], out_width, width);
-      auto i_end_w = end_index(output[width_axis], out_width, width);
-      auto dheight = tvm::te::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
-      auto dwidth = tvm::te::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
-      indices.Set(height_axis, i_start_h + dheight);
-      indices.Set(width_axis, i_start_w + dwidth);
-      return tvm::max(x(indices), { dheight, dwidth });  // NOLINT(*)
+      Array<tir::IterVar> reduce_axes;
+      std::tie(indices, reduce_axes) = get_iter_vars(output, true);
+      return tvm::max(x(indices), reduce_axes);  // NOLINT(*)
     }, "tensor", "adaptive_pool_max");
   } else if (pool_type == kAvgPool) {
     auto pool_sum = tvm::te::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
-      for (const Var& var : output) indices.push_back(var);
-      auto i_start_h = start_index(output[height_axis], out_height, height);
-      auto i_end_h = end_index(output[height_axis], out_height, height);
-      auto i_start_w = start_index(output[width_axis], out_width, width);
-      auto i_end_w = end_index(output[width_axis], out_width, width);
-      auto divide_factor = tvm::cast(x->dtype, (i_end_h - i_start_h)
-                                               * (i_end_w - i_start_w));
-      auto dheight = tvm::te::reduce_axis(Range(0, i_end_h - i_start_h), "rv1");
-      auto dwidth = tvm::te::reduce_axis(Range(0, i_end_w - i_start_w), "rv2");
-      indices.Set(height_axis, i_start_h + dheight);
-      indices.Set(width_axis, i_start_w + dwidth);
-      return tvm::sum(x(indices), { dheight, dwidth });
+      Array<tir::IterVar> reduce_axes;
+      std::tie(indices, reduce_axes) = get_iter_vars(output, true);
+      return tvm::sum(x(indices), reduce_axes);
     }, "tensor", "adaptive_pool_sum");
 
     return tvm::te::compute(out_shape, [&](const Array<Var>& output) {
       Array<PrimExpr> indices;
-      for (const Var& var : output) indices.push_back(var);
-      auto i_start_h = start_index(output[height_axis], out_height, height);
-      auto i_end_h = end_index(output[height_axis], out_height, height);
-      auto i_start_w = start_index(output[width_axis], out_width, width);
-      auto i_end_w = end_index(output[width_axis], out_width, width);
-      auto divide_factor = tvm::cast(x->dtype, (i_end_h - i_start_h)
-                                               * (i_end_w - i_start_w));
+      Array<tir::IterVar> reduce_axes;
+      std::tie(indices, reduce_axes) = get_iter_vars(output, false);
+
+      PrimExpr divide_factor = tvm::cast(x->dtype, 1);
+      for (size_t i = 0; i < n_dim; ++i) {
+        divide_factor *= tvm::cast(x->dtype, reduce_axes[i]->dom->extent);
+      }
+
       return div(pool_sum(indices), divide_factor);
     }, "tensor", kElementWise);
   } else {
@@ -598,7 +598,25 @@ inline Tensor adaptive_pool(const Tensor& x,
   int height_axis = -1, width_axis = -1;
   CHECK(find_height_width(layout, &height_axis, &width_axis))
     << "Unsupported layout " << layout;
-  return adaptive_pool_impl(x, output_size, pool_type, height_axis, width_axis);
+  return adaptive_pool_impl(x, output_size, pool_type, {height_axis, width_axis});
+}
+
+/*!
+* \brief Adaptively perform pooling on three dimensional data.
+*        See the two dimensional version above for details.
+* \param x The input tensor
+* \param output_size Vector of three ints: {output_depth, output_height, output_width}
+* \param pool_type The type of pooling operator
+* \param layout The input layout. The default is "NCDHW".
+*/
+inline Tensor adaptive_pool3d(const Tensor& x,
+                              const Array<PrimExpr>& output_size,
+                              PoolType pool_type,
+                              const std::string& layout = "NCDHW") {
+  int depth_axis = -1, height_axis = -1, width_axis = -1;
+  CHECK(find_depth_height_width(layout, &depth_axis, &height_axis, &width_axis))
+    << "Unsupported layout " << layout;
+  return adaptive_pool_impl(x, output_size, pool_type, {depth_axis, height_axis, width_axis});
 }
 
 /*!
