@@ -19,7 +19,7 @@
 
 /*!
  * \file src/runtime/container.cc
- * \brief Implementations of common plain old data (POD) containers.
+ * \brief Implementations of common containers.
  */
 #include <tvm/runtime/container.h>
 #include <tvm/runtime/memory.h>
@@ -81,24 +81,9 @@ TVM_REGISTER_GLOBAL("runtime.String")
   return String(std::move(str));
 });
 
-TVM_REGISTER_GLOBAL("runtime.GetStringSize")
-.set_body_typed([](String str) {
-  return static_cast<int64_t>(str.size());
-});
-
-TVM_REGISTER_GLOBAL("runtime.GetStdString")
+TVM_REGISTER_GLOBAL("runtime.GetFFIString")
 .set_body_typed([](String str) {
   return std::string(str);
-});
-
-TVM_REGISTER_GLOBAL("runtime.CompareString")
-.set_body_typed([](String lhs, String rhs) {
-  return lhs.compare(rhs);
-});
-
-TVM_REGISTER_GLOBAL("runtime.StringHash")
-.set_body_typed([](String str) {
-  return static_cast<int64_t>(std::hash<String>()(str));
 });
 
 TVM_REGISTER_OBJECT_TYPE(ADTObj);

@@ -27,11 +27,11 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     from tvm._ffi._cy3.core import _set_class_object, _set_class_object_generic
-    from tvm._ffi._cy3.core import ObjectBase
+    from tvm._ffi._cy3.core import ObjectBase, PyNativeObject
 except (RuntimeError, ImportError):
     # pylint: disable=wrong-import-position,unused-import
     from tvm._ffi._ctypes.packed_func import _set_class_object, _set_class_object_generic
-    from tvm._ffi._ctypes.object import ObjectBase
+    from tvm._ffi._ctypes.object import ObjectBase, PyNativeObject
 
 
 def _new_object(cls):
@@ -41,6 +41,7 @@ def _new_object(cls):
 
 class Object(ObjectBase):
     """Base class for all tvm's runtime objects."""
+    __slots__ = []
     def __repr__(self):
         return _ffi_node_api.AsRepr(self)
 
@@ -78,13 +79,10 @@ class Object(ObjectBase):
     def __setstate__(self, state):
         # pylint: disable=assigning-non-slot, assignment-from-no-return
         handle = state['handle']
+        self.handle = None
         if handle is not None:
-            json_str = handle
-            other = _ffi_node_api.LoadJSON(json_str)
-            self.handle = other.handle
-            other.handle = None
-        else:
-            self.handle = None
+            self.__init_handle_by_constructor__(
+                _ffi_node_api.LoadJSON, handle)
 
     def _move(self):
         """Create an RValue reference to the object and mark the object as moved.

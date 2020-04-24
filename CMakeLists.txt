@@ -123,7 +123,7 @@ else(MSVC)
   endif(USE_TF_COMPILE_FLAGS)
 
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    message("Build in Debug mode")
+    message(STATUS "Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O0 -g -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
