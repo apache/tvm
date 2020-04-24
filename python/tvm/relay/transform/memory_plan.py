@@ -147,8 +147,8 @@ def mk_let(bindings, body):
         body = expr.Let(var, value, body)
     return body
 
-def const_eval(expr):
-    mod = IRModule.from_expr(expr)
+def const_eval(exp):
+    mod = IRModule.from_expr(exp)
     mod = transform.FoldConstant()(mod)
     return mod["main"].body
 
