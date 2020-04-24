@@ -16,7 +16,7 @@
 # under the License.
 import tvm
 from tvm import relay
-from tvm.relay.df_pattern import *
+from tvm.relay.dataflow_pattern import *
 import numpy as np
 
 # NB: 1 corresponds to the C++ enum that specicfies this

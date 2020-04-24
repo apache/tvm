@@ -34,7 +34,7 @@ ExprPattern::ExprPattern(Expr expr) {
 
 TVM_REGISTER_NODE_TYPE(ExprPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.ExprPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.ExprPattern")
 .set_body_typed([](Expr e) {
     return ExprPattern(e);
   });
@@ -55,7 +55,7 @@ VarPattern VarPatternNode::make(std::string name_hint, Type type_annotation) {
 
 TVM_REGISTER_NODE_TYPE(VarPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.VarPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.VarPattern")
 .set_body_typed(static_cast<VarPattern (*)(std::string, Type)>(VarPatternNode::make));
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -81,7 +81,7 @@ CallPattern CallPatternNode::make(DFPattern op, Array<DFPattern> args, Attrs att
 
 TVM_REGISTER_NODE_TYPE(CallPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.CallPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.CallPattern")
 .set_body_typed(CallPatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -99,7 +99,7 @@ TuplePattern TuplePatternNode::make(tvm::Array<DFPattern> fields) {
 
 TVM_REGISTER_NODE_TYPE(TuplePatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.TuplePattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.TuplePattern")
 .set_body_typed(TuplePatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -117,7 +117,7 @@ TupleGetItemPattern TupleGetItemPatternNode::make(DFPattern tuple, int index) {
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.TupleGetItemPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.TupleGetItemPattern")
 .set_body_typed(TupleGetItemPatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -135,7 +135,7 @@ AltPattern AltPatternNode::make(DFPattern left, DFPattern right) {
 
 TVM_REGISTER_NODE_TYPE(AltPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.AltPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.AltPattern")
 .set_body_typed(AltPatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -146,7 +146,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.WildcardPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.WildcardPattern")
 .set_body_typed([]() {
     auto w = WildcardPattern(make_object<WildcardPatternNode>());
     return w;
@@ -166,7 +166,7 @@ TypePattern TypePatternNode::make(DFPattern pattern, Type type) {
 
 TVM_REGISTER_NODE_TYPE(TypePatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.TypePattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.TypePattern")
 .set_body_typed(TypePatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -184,7 +184,7 @@ AttrPattern AttrPatternNode::make(DFPattern pattern, Attrs attrs) {
 
 TVM_REGISTER_NODE_TYPE(AttrPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.AttrPattern")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.AttrPattern")
 .set_body_typed(AttrPatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -203,7 +203,8 @@ DominatorPattern DominatorPatternNode::make(DFPattern parent, DFPattern path, DF
 
 TVM_REGISTER_NODE_TYPE(DominatorPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.DominatorPattern").set_body_typed(DominatorPatternNode::make);
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DominatorPattern")
+    .set_body_typed(DominatorPatternNode::make);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<DominatorPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {

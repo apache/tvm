@@ -33,7 +33,6 @@ namespace relay {
 
 // Pattern Matcher
 
-
 class DominatorMatcher;
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
@@ -214,8 +213,8 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
       if (is_pattern_op(op, "divide")) {
         if (const auto* arg_node = op->args[0].as<CallPatternNode>()) {
           if (is_pattern_op(arg_node, "multiply") && is_expr_op(expr, "multiply") &&
-                 (is_expr_op(call_node->args[0], "divide") ||
-                  is_expr_op(call_node->args[1], "divide"))) {
+              (is_expr_op(call_node->args[0], "divide") ||
+               is_expr_op(call_node->args[1], "divide"))) {
             bool out = false;
             for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
               auto div = CallPatternNode::make(op->op, {arg_node->args[arg_id], op->args[1]},
@@ -239,8 +238,8 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
         for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
           if (auto* arg_node = op->args[arg_id].as<CallPatternNode>()) {
             if (is_pattern_op(arg_node, "divide") && is_expr_op(expr, "divide") &&
-                   (is_expr_op(call_node->args[0], "multiply") ||
-                    is_expr_op(call_node->args[1], "multiply"))) {
+                (is_expr_op(call_node->args[0], "multiply") ||
+                 is_expr_op(call_node->args[1], "multiply"))) {
               auto mul =
                   CallPatternNode::make(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
                                         op->attrs, op->type_args);
@@ -360,9 +359,10 @@ bool DFPatternMatcher::VisitDFPattern_(const WildcardPatternNode* op, const Expr
   return true;
 }
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.match").set_body_typed([](DFPattern pattern, Expr expr) {
-  return DFPatternMatcher(expr).Match(pattern, expr);
-});
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.match")
+    .set_body_typed([](DFPattern pattern, Expr expr) {
+      return DFPatternMatcher(expr).Match(pattern, expr);
+    });
 
 /* \brief PatternGrouper does pre-rewriting pattern matching and analysis
  *
@@ -532,7 +532,7 @@ DFPatternCallback DFPatternCallbackNode::make(DFPattern pattern, PackedFunc func
 
 TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.DFPatternCallback")
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
     .set_body_typed(DFPatternCallbackNode::make);
 
 /* \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
@@ -598,7 +598,7 @@ Expr RewritePatterns(Array<DFPatternCallback> callbacks, Expr expr) {
   return PatternRewriter().Rewrite(callbacks, expr);
 }
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.rewrite").set_body_typed(RewritePatterns);
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.rewrite").set_body_typed(RewritePatterns);
 
 /* \brief PatternPartitioner replaces expressions that match a pattern with function call that
  * perform the same computation but allow for further analysis and lowering.
@@ -640,7 +640,7 @@ Expr PartitionPattern(DFPattern pattern, Expr expr) {
   return PatternPartitioner().Partition(pattern, expr);
 }
 
-TVM_REGISTER_GLOBAL("relay.df_pattern.partition").set_body_typed(PartitionPattern);
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.partition").set_body_typed(PartitionPattern);
 
 }  // namespace relay
 }  // namespace tvm

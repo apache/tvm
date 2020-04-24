@@ -17,4 +17,4 @@
 """DataFlow Pattern Language FFI bindings."""
 import tvm._ffi
 
-tvm._ffi._init_api("relay.df_pattern", __name__)
+tvm._ffi._init_api("relay.dataflow_pattern", __name__)

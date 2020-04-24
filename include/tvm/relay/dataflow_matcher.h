@@ -24,8 +24,8 @@
 #ifndef TVM_RELAY_DATAFLOW_MATCHER_H_
 #define TVM_RELAY_DATAFLOW_MATCHER_H_
 
-#include <tvm/relay/dataflow_functor.h>
 #include <tvm/relay/dataflow_pattern.h>
+#include <tvm/relay/dataflow_pattern_functor.h>
 #include <unordered_map>
 #include <utility>
 

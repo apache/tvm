@@ -23,7 +23,7 @@
  */
 
 #include <tvm/relay/analysis.h>
-#include <tvm/relay/dataflow_functor.h>
+#include <tvm/relay/dataflow_pattern_functor.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 

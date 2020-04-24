@@ -34,7 +34,7 @@ def register_df_node(type_key=None):
     """
     if not isinstance(type_key, str):
         return tvm_ffi.register_object(
-            "relay.df_pattern." + type_key.__name__)(type_key)
+            "relay.dataflow_pattern." + type_key.__name__)(type_key)
     return tvm_ffi.register_object(type_key)
 
 
@@ -73,7 +73,7 @@ class DFPattern(Node):
 
         Returns
         -------
-        result: tvm.relay.df_pattern.DFPattern
+        result: tvm.relay.dataflow_pattern.DFPattern
             The resulting AttrPattern
         """
         attrs = make_node("DictAttrs", **{attr_name: attr_value})
@@ -90,7 +90,7 @@ class DFPattern(Node):
 
         Returns
         -------
-        result: tvm.relay.df_pattern.DFPattern
+        result: tvm.relay.dataflow_pattern.DFPattern
             The resulting TypePattern
         """
         return has_type(ttype, self)
@@ -133,14 +133,14 @@ class DFPattern(Node):
 
         Parameters
         ----------
-        parent: tvm.relay.df_pattern.DFPattern
+        parent: tvm.relay.dataflow_pattern.DFPattern
             The parent pattern this pattern dominates.
-        path: tvm.relay.df_pattern.DFPattern
+        path: tvm.relay.dataflow_pattern.DFPattern
             The fuzzy path pattern.
 
         Returns
         -------
-        result: tvm.relay.df_pattern.DFPattern
+        result: tvm.relay.dataflow_pattern.DFPattern
             The resulting DominatorPattern
         """
         if path is None:
@@ -159,7 +159,7 @@ def is_input(name: str = "") -> DFPattern:
 
     Returns
     -------
-    result: tvm.relay.df_pattern.DFPattern
+    result: tvm.relay.dataflow_pattern.DFPattern
         The resulting InputPattern
     """
     return VarPattern(name)
@@ -176,7 +176,7 @@ def is_op(op_name: str) -> DFPattern:
 
     Returns
     -------
-    result: tvm.relay.df_pattern.DFPattern
+    result: tvm.relay.dataflow_pattern.DFPattern
         The resulting ExprPattern
     """
     op = get(op_name)
@@ -189,7 +189,7 @@ def wildcard() -> DFPattern:
 
     Returns
     -------
-    result: tvm.relay.df_pattern.DFPattern
+    result: tvm.relay.dataflow_pattern.DFPattern
         The resulting WildcardPattern
     """
     return WildcardPattern()
@@ -201,7 +201,7 @@ def has_type(ttype, pattern: DFPattern = None) -> DFPattern:
 
     Parameters
     ----------
-    pattern: tvm.relay.df_pattern.DFPattern
+    pattern: tvm.relay.dataflow_pattern.DFPattern
         The pattern that needs type annotation
 
     ttype: tvm.relay.Type
@@ -209,7 +209,7 @@ def has_type(ttype, pattern: DFPattern = None) -> DFPattern:
 
     Returns
     -------
-    result: tvm.relay.df_pattern.DFPattern
+    result: tvm.relay.dataflow_pattern.DFPattern
         The resulting TypePattern
     """
     if pattern is None:
@@ -223,7 +223,7 @@ def has_attr(attr_name: DFPattern, attr_value, pattern=None) -> DFPattern:
 
     Parameters
     ----------
-    pattern: tvm.relay.df_pattern.DFPattern
+    pattern: tvm.relay.dataflow_pattern.DFPattern
         The input pattern.
 
     attrs: tvm.Attrs
@@ -231,7 +231,7 @@ def has_attr(attr_name: DFPattern, attr_value, pattern=None) -> DFPattern:
 
     Returns
     -------
-    result: tvm.relay.df_pattern.DFPattern
+    result: tvm.relay.dataflow_pattern.DFPattern
         The resulting AttrPattern
     """
     if pattern is None:
@@ -245,16 +245,16 @@ def dominates(parent: DFPattern, path: DFPattern, child: DFPattern) -> DFPattern
 
     Parameters
     ----------
-    parent: tvm.relay.df_pattern.DFPattern
+    parent: tvm.relay.dataflow_pattern.DFPattern
         The parent pattern.
-    path: tvm.relay.df_pattern.DFPattern
+    path: tvm.relay.dataflow_pattern.DFPattern
         The fuzzy path pattern.
-    child: tvm.relay.df_pattern.DFPattern
+    child: tvm.relay.dataflow_pattern.DFPattern
         The child pattern.
 
     Returns
     -------
-    result: tvm.relay.df_pattern.DFPattern
+    result: tvm.relay.dataflow_pattern.DFPattern
         The resulting DominatorPattern
     """
     return DominatorPattern(parent, path, child)
@@ -266,7 +266,7 @@ def match(pattern: DFPattern, expr: Expr) -> bool:
 
     Parameters
     ----------
-    pattern: tvm.relay.df_pattern.DFPattern
+    pattern: tvm.relay.dataflow_pattern.DFPattern
         The input pattern.
     expr : tvm.relay.Expr
         The expression to match.
@@ -317,10 +317,10 @@ class CallPattern(DFPattern):
 
     Parameters
     ----------
-    op: realy.df_pattern.DFPattern
+    op: realy.dataflow_pattern.DFPattern
         The operation to be called.
 
-    args: List[realy.df_pattern.DFPattern]
+    args: List[realy.dataflow_pattern.DFPattern]
         The arguments to the call.
 
     attrs: Optional[tvm.Attrs]
@@ -344,7 +344,7 @@ class TuplePattern(DFPattern):
 
     Parameters
     ----------
-    fields : List[tvm.relay.df_pattern.DFPattern]
+    fields : List[tvm.relay.dataflow_pattern.DFPattern]
         The fields in the tuple.
     """
 
@@ -369,7 +369,7 @@ class TupleGetItemPattern(DFPattern):
 
     Parameters
     ----------
-    tuple_value: tvm.relay.df_pattern.DFPattern
+    tuple_value: tvm.relay.dataflow_pattern.DFPattern
         The input tuple expression.
 
     index: int
@@ -387,9 +387,9 @@ class AltPattern(DFPattern):
 
     Parameters
     ----------
-    left: tvm.relay.df_pattern.DFPattern
+    left: tvm.relay.dataflow_pattern.DFPattern
         One possible matching Pattern
-    right: tvm.relay.df_pattern.DFPattern
+    right: tvm.relay.dataflow_pattern.DFPattern
         One possible matching Pattern
     """
 
@@ -413,7 +413,7 @@ class TypePattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relay.df_pattern.DFPattern
+    pattern: tvm.relay.dataflow_pattern.DFPattern
         The input pattern that needs type annotation
 
     ttype: tvm.relay.Type
@@ -432,7 +432,7 @@ class AttrPattern(DFPattern):
 
     Parameters
     ----------
-    pattern: tvm.relay.df_pattern.DFPattern
+    pattern: tvm.relay.dataflow_pattern.DFPattern
         The input pattern.
 
     attrs: tvm.Attrs
@@ -450,13 +450,13 @@ class DominatorPattern(DFPattern):
 
     Parameters
     ----------
-    parent: tvm.relay.df_pattern.DFPattern
+    parent: tvm.relay.dataflow_pattern.DFPattern
         The parent, i.e., the single node which produces something,
         later aggregated by the child
-    path: tvm.relay.df_pattern.DFPattern
+    path: tvm.relay.dataflow_pattern.DFPattern
         The fuzzy path pattern between parent and child,
         typically matches elementwise ops
-    child: tvm.relay.df_pattern.DFPattern
+    child: tvm.relay.dataflow_pattern.DFPattern
         The last node in the domination which is the end user
         for all nodes in the path and the parent
     """
@@ -525,7 +525,7 @@ def rewrite(callbacks, expr: Expr) -> Expr:
 
     Parameters
     ----------
-    callbacks: tvm.relay.df_pattern.DFPatternCallback
+    callbacks: tvm.relay.dataflow_pattern.DFPatternCallback
         The input callback or list of callbacks.
     expr : tvm.relay.Expr
         The expression to rewrite.
@@ -550,7 +550,7 @@ def partition(pattern: DFPattern, expr: Expr) -> Expr:
 
     Parameters
     ----------
-    partion: tvm.relay.df_pattern.DFPattern
+    partion: tvm.relay.dataflow_pattern.DFPattern
         The pattern to match
     expr : tvm.relay.Expr
         The expression to split into functions

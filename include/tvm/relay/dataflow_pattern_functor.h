@@ -21,8 +21,8 @@
  * \file tvm/relay/dataflow_matcher.h
  * \brief A pattern matcher for matching dataflow properties.
  */
-#ifndef TVM_RELAY_DATAFLOW_FUNCTOR_H_
-#define TVM_RELAY_DATAFLOW_FUNCTOR_H_
+#ifndef TVM_RELAY_DATAFLOW_PATTERN_FUNCTOR_H_
+#define TVM_RELAY_DATAFLOW_PATTERN_FUNCTOR_H_
 
 #include <tvm/relay/dataflow_pattern.h>
 #include <memory>
@@ -245,4 +245,4 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_DATAFLOW_FUNCTOR_H_
+#endif  // TVM_RELAY_DATAFLOW_PATTERN_FUNCTOR_H_
