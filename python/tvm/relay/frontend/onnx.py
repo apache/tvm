@@ -1477,8 +1477,7 @@ class TopK(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         if len(inputs) != 2:
             raise ValueError("Expect 2 input only")
-        inp = inputs[0]
-        axis = attr.get("axis", len(infer_shape(inp)) - 1)
+        axis = attr.get("axis", -1)
         largest = attr.get("largest", 1)
 
         if largest == 0:
