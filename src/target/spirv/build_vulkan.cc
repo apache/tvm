@@ -70,7 +70,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod) {
+runtime::Module BuildSPIRV(IRModule mod, std::string target) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
