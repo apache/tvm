@@ -36,7 +36,7 @@ def _create_tflite_model():
     return tflite_model
 
 
-@pytest.mark.skip('skip because getting outputs is flakey')
+@pytest.mark.skip('skip because accessing output tensor is flakey')
 def test_local():
     tflite_fname = "model.tflite"
     tflite_model = _create_tflite_model()
