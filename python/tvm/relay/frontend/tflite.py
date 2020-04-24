@@ -1212,12 +1212,6 @@ class OperatorConverter(object):
 
     def convert_fill(self, op):
         """Convert TFLite FILL"""
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
@@ -1638,12 +1632,6 @@ class OperatorConverter(object):
 
     def convert_split_v(self, op):
         """SPLIT_V implementation."""
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
 
         assert len(input_tensors) == 3, "input tensors length should be 3"
