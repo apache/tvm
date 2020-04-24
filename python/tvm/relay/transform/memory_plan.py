@@ -18,7 +18,7 @@
 """
 A pass for manifesting explicit memory allocations.
 """
-from typing import Optional, Dict
+from typing import Optional, Dict, List, Tuple
 import attr
 
 from ..expr_functor import ExprMutator
@@ -26,6 +26,8 @@ from .. import op, expr
 from ..function import Function
 from ... import register_func, ir, cpu
 from ..._ffi.runtime_ctypes import TVMContext
+from ... import IRModule
+from .. import transform
 from . import function_pass
 
 
@@ -51,7 +53,7 @@ class Region:
     alignment: Optional[expr.Expr]
     dtype: Optional[str]
     ctx: TVMContext
-    offsets: Dict[expr.Var, expr.Expr] = {}
+    offsets: Dict[expr.Var, Tuple[expr.Expr, expr.Expr]]
 
     def grow(
             self, old_storage: expr.Var,
@@ -81,15 +83,49 @@ class Region:
             self.ctx = ctx
 
         # Record the offset at which we allocate the storage.
-        self.offsets[old_storage] = self.size
+        offset_var: expr.RelayExpr = expr.var(f"offset{len(self.offsets)}")
+        self.offsets[old_storage] = (offset_var, self.size)
 
         self.size = self.size + size
 
-    def to_expr(self) -> expr.Expr:
+    def offset_for(self, alloc: expr.Expr) -> expr.Expr:
+        return self.offsets[alloc][0]
+
+    def to_expr(self, body: expr.Expr) -> expr.Expr:
+        """
+        Generate the prelude code for a region, wrapping the body in it.
+
+        The prelude contains the single allocation for a region, and
+        all offset computations.
+        """
+
         if self.ctx is None:
             self.ctx = cpu(0)
 
-        return op.memory.alloc_storage(self.size, self.alignment, self.ctx, self.dtype)
+        # Generate bindings for each and every size computation
+        # we must do this to maintain ANF.
+        bindings: List[Tuple[expr.Expr, expr.Expr]] = []
+
+        # First compute the total size.
+        total_size = expr.var("total_size")
+        bindings.append((total_size, const_eval(self.size)))
+
+        # Allocate the entire region with a single call.
+        alloc = op.memory.alloc_storage(total_size, self.alignment, self.ctx, self.dtype)
+        bindings.append((self.var, alloc))
+
+        # Generate variables which contain all of the offset math.
+        # Ensure we constant evaluate away all the math here.
+        #
+        # In theory we can support dynamic offsets but this
+        # requires another round of memory planning and
+        # potentially colaescing.
+        for alloc in self.offsets:
+            (var, offset) = self.offsets[alloc]
+            offset = const_eval(offset)
+            bindings.append((var, offset))
+
+        return mk_let(bindings, body)
 
 
 def iterative_let(let, each_binding, kont):
@@ -111,6 +147,10 @@ def mk_let(bindings, body):
         body = expr.Let(var, value, body)
     return body
 
+def const_eval(expr):
+    mod = IRModule.from_expr(expr)
+    mod = transform.FoldConstant()(mod)
+    return mod["main"].body
 
 class StorageCoalesce(ExprMutator):
     """
@@ -129,10 +169,10 @@ class StorageCoalesce(ExprMutator):
         super().__init__()
         self.regions = []
 
-    def enter_scope(self):
+    def enter_scope(self) -> None:
         zero = expr.const(0, dtype="int64")
         region_var = expr.var(f"region{len(self.regions)}")
-        region = Region(region_var, zero, None, None, None)
+        region = Region(region_var, zero, None, None, None, {})
         self.regions.append(region)
 
     def exit_scope(self, body: expr.Expr) -> expr.Expr:
@@ -141,12 +181,7 @@ class StorageCoalesce(ExprMutator):
         if len(region.offsets) == 0:
             return body
         else:
-            storage_expr = region.to_expr()
-            assert storage_expr, "can not be None"
-            assert region.var
-            assert storage_expr
-            assert body
-            return expr.Let(region.var, storage_expr, body)
+            return region.to_expr(body)
 
     def current_region(self) -> Region:
         return self.regions[-1]
@@ -207,7 +242,7 @@ class StorageCoalesce(ExprMutator):
     def process_alloc_tensor(self, lhs, call):
         region = self.current_region()
         storage, old_offset, shape = call.args
-        offset = region.offsets[storage]
+        offset = region.offset_for(storage)
         assert (
             old_offset.data.asnumpy().item() == 0
         ), "no offsets should yet be allocated"
@@ -225,6 +260,7 @@ class MemoryPlan:
         sc = StorageCoalesce()
         before = func
         func = sc.visit(func)
+        print(func)
         return before
 
 
