@@ -21,7 +21,7 @@ from tvm._ffi.base import string_types
 from tvm._ffi.runtime_ctypes import ObjectRValueRef
 
 from . import _ffi_node_api, _ffi_api
-from .object import ObjectBase, _set_class_object_generic
+from .object import ObjectBase, PyNativeObject, _set_class_object_generic
 from .ndarray import NDArrayBase
 from .packed_func import PackedFuncBase, convert_to_tvm_func
 from .module import Module
@@ -34,7 +34,7 @@ class ObjectGeneric(object):
         raise NotImplementedError()
 
 
-ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef)
+ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PyNativeObject)
 
 
 def convert_to_object(value):
