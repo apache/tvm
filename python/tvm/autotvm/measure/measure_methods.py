@@ -615,7 +615,7 @@ def gpu_verify_pass(**kwargs):
     This pass will check memory usage and number of threads per block.
     """
     def verify_pass(f, *_):
-        valid = tvm.analysis.verify_gpu_code(f, kwargs)
+        valid = tvm.tir.analysis.verify_gpu_code(f, kwargs)
         if not valid:
             raise InstantiationError("Skipped because of invalid gpu kernel")
         return f
