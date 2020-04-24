@@ -25,7 +25,6 @@
 #include <memory>
 #include <string>
 
-#include "../../../relay/backend/contrib/tensorrt/common_utils.h"
 #include "tensorrt_builder.h"
 #include "tensorrt_logger.h"
 #include "tensorrt_ops.h"
@@ -54,6 +53,8 @@ GetOpConverters() {
   map->emplace("multiply", std::make_shared<ElementWiseBinaryOpConverter>());
   map->emplace("divide", std::make_shared<ElementWiseBinaryOpConverter>());
   map->emplace("power", std::make_shared<ElementWiseBinaryOpConverter>());
+  map->emplace("maximum", std::make_shared<ElementWiseBinaryOpConverter>());
+  map->emplace("minimum", std::make_shared<ElementWiseBinaryOpConverter>());
   map->emplace("nn.max_pool2d", std::make_shared<PoolingOpConverter>());
   map->emplace("nn.avg_pool2d", std::make_shared<PoolingOpConverter>());
   map->emplace("nn.global_max_pool2d",
@@ -79,9 +80,9 @@ GetOpConverters() {
   map->emplace("max", std::make_shared<ReduceOpConverter>());
   map->emplace("min", std::make_shared<ReduceOpConverter>());
   map->emplace("mean", std::make_shared<ReduceOpConverter>());
-  map->emplace("contrib.adaptive_max_pool2d",
+  map->emplace("nn.adaptive_max_pool2d",
                std::make_shared<AdaptivePoolingOpConverter>());
-  map->emplace("contrib.adaptive_avg_pool2d",
+  map->emplace("nn.adaptive_avg_pool2d",
                std::make_shared<AdaptivePoolingOpConverter>());
 #if TRT_VERSION_GE(5, 1, 5)
   map->emplace("clip", std::make_shared<ActivationOpConverter>());
@@ -92,54 +93,109 @@ GetOpConverters() {
   map->emplace("ceil", std::make_shared<UnaryOpConverter>());
   map->emplace("floor", std::make_shared<UnaryOpConverter>());
   map->emplace("strided_slice", std::make_shared<StridedSliceOpConverter>());
+  map->emplace("split", std::make_shared<SplitOpConverter>());
 #else
   map->emplace("clip", std::make_shared<ClipLegacyOpConverter>());
 #endif
 #if TRT_VERSION_GE(6, 0, 1)
   map->emplace("image.resize", std::make_shared<ResizeOpConverter>());
+  map->emplace("nn.upsampling", std::make_shared<UpsamplingOpConverter>());
 #endif
   return map;
 }
 
-TensorRTBuilder::TensorRTBuilder(const std::vector<DLTensor*>& args)
-    : execution_args_(args) {
+TensorRTBuilder::TensorRTBuilder(runtime::TensorRTLogger* logger,
+    const std::vector<DLTensor*>& args, size_t max_workspace_size)
+    : execution_args_(args), max_workspace_size_(max_workspace_size) {
   // Create TRT builder and network.
-  static runtime::TensorRTLogger logger;
-  builder_ = nvinfer1::createInferBuilder(logger);
+  builder_ = nvinfer1::createInferBuilder(*logger);
+#if TRT_VERSION_GE(6, 0, 1)
+  // Use INetworkV2 with explicit batch.
+  const auto flags =
+      1U << static_cast<uint32_t>(
+          nvinfer1::NetworkDefinitionCreationFlag::kEXPLICIT_BATCH);
+  network_ = builder_->createNetworkV2(flags);
+#else
+  // Use INetwork with implicit batch.
   batch_size_ = args[0]->shape[0];
   builder_->setMaxBatchSize(batch_size_);
-  const size_t workspace_size =
-      dmlc::GetEnv("TVM_TENSORRT_MAX_WORKSPACE_SIZE", size_t(1) << 31);
-  builder_->setMaxWorkspaceSize(workspace_size);
+  builder_->setMaxWorkspaceSize(max_workspace_size_);
   const bool use_fp16 = dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false);
   builder_->setFp16Mode(use_fp16);
   network_ = builder_->createNetwork();
+#endif
 }
 
-runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(const Expr& expr) {
-  // Process graph and create INetworkDefinition.
-  VisitExpr(expr);
+void TensorRTBuilder::ProcessInputs(const Function& func) {
+  // All input names in order. This order matches that of execution args.
+  for (size_t i = 0; i < func->params.size(); i++) {
+    network_input_names_.push_back(func->params[i]->name_hint());
+    network_input_map_[func->params[i]->name_hint()] = i;
+  }
+  // Assume all inputs are real to start. If an input is baked into the TRT
+  // engine, we will set the entry in this array to true.
+  network_input_is_baked_.assign(func->params.size(), false);
+}
+
+void TensorRTBuilder::ProcessOutputs(const Expr& expr) {
   // Mark outputs.
   auto it = node_output_map_.find(expr.operator->());
   CHECK(it != node_output_map_.end()) << "Output was not found.";
   auto network_outputs = it->second;
-  std::vector<std::string> network_output_names;
   for (size_t i = 0; i < network_outputs.size(); ++i) {
     CHECK(network_outputs[i].type == kTensor);
     auto out_tensor = network_outputs[i].tensor;
     std::string output_name = "tensorrt_output" + std::to_string(i);
+    // If the network is already marked as an output, make a copy to avoid TRT crash. This shouldn't
+    // happen since duplicate output issue in partitioning was fixed.
+    if (out_tensor->isNetworkOutput()) {
+      LOG(WARNING) << output_name << " is a duplicate output.";
+      out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
+    }
     out_tensor->setName(output_name.c_str());
-    network_output_names.push_back(output_name);
+    network_output_names_.push_back(output_name);
     network_->markOutput(*out_tensor);
     DLOG(INFO) << "Added TRT network output: " << out_tensor->getName()
                << " -> " << output_name;
   }
+}
+
+runtime::TrtEngineAndContext TensorRTBuilder::BuildEngine(
+    const Function& func) {
+  // Process graph to create INetworkDefinition.
+  ProcessInputs(func);
+  VisitExpr(func->body);
+  ProcessOutputs(func->body);
+// Build engine.
+#if TRT_VERSION_GE(6, 0, 1)
+  config_ = builder_->createBuilderConfig();
+  config_->setMaxWorkspaceSize(max_workspace_size_);
+  if (dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false)) {
+    config_->setFlag(nvinfer1::BuilderFlag::kFP16);
+  }
+  // Add profiles.
+  auto profile = builder_->createOptimizationProfile();
+  for (int i = 0; i < network_->getNbInputs(); ++i) {
+    auto name = network_->getInput(i)->getName();
+    auto dims = network_->getInput(i)->getDimensions();
+    profile->setDimensions(name, nvinfer1::OptProfileSelector::kMIN, dims);
+    profile->setDimensions(name, nvinfer1::OptProfileSelector::kOPT, dims);
+    profile->setDimensions(name, nvinfer1::OptProfileSelector::kMAX, dims);
+  }
+  config_->addOptimizationProfile(profile);
+  nvinfer1::ICudaEngine* engine =
+      builder_->buildEngineWithConfig(*network_, *config_);
+#else
   nvinfer1::ICudaEngine* engine = builder_->buildCudaEngine(*network_);
-  CHECK_EQ(engine->getNbBindings(),
-           network_input_map_.size() + network_outputs.size());
+#endif
   CleanUp();
+  const int num_input_bindings = std::count(
+      network_input_is_baked_.begin(), network_input_is_baked_.end(), false);
+  CHECK_EQ(engine->getNbBindings(),
+           num_input_bindings + network_output_names_.size());
   nvinfer1::IExecutionContext* context = engine->createExecutionContext();
-  return {engine, context, network_input_map_, network_output_names};
+  return {engine, context, network_input_names_, network_input_is_baked_,
+          network_output_names_};
 }
 
 nvinfer1::Weights TensorRTBuilder::GetDLTensorAsWeights(
@@ -170,7 +226,9 @@ nvinfer1::Weights TensorRTBuilder::GetNdArrayAsWeights(
 }
 
 void TensorRTBuilder::GetInputAsWeights(const VarNode* node) {
-  const int var_node_idx = TrackVarNode(node);
+  const int var_node_idx = network_input_map_[node->name_hint()];
+  // This input will be baked into TensorRT engine using value from first invocation.
+  network_input_is_baked_[var_node_idx] = true;
   nvinfer1::Weights weight =
       GetDLTensorAsWeights(execution_args_[var_node_idx], kDLGPU);
   node_output_map_[node] = {TrtOpInput(weight, GetShape(node->checked_type()))};
@@ -249,31 +307,72 @@ void TensorRTBuilder::VisitExpr_(const TupleNode* op) {
   node_output_map_[op] = outputs;
 }
 
-void TensorRTBuilder::VisitExpr_(const VarNode* node) {
-  const int id = TrackVarNode(node);
-
-  const std::string& tensor_name = node->name_hint();
-  auto shape = GetShape(node->checked_type());
-  // Remove batch dim
-  if (shape.size() > 1) shape.erase(shape.begin());
-  DLOG(INFO) << "Added TRT network input: " << node->name_hint() << " "
+nvinfer1::ITensor* TensorRTBuilder::AddInput(const std::string& tensor_name, const Type& type) {
+  auto shape = GetShape(type);
+  // Remove batch dim when not in explicit batch mode.
+  if (TRT_HAS_IMPLICIT_BATCH && shape.size() > 1) {
+    shape.erase(shape.begin());
+  }
+  DLOG(INFO) << "Added TRT network input: " << tensor_name << " "
              << DebugString(shape);
   nvinfer1::Dims dims = VectorToTrtDims(shape);
-  auto type_node = node->checked_type().as<TensorTypeNode>();
+  auto type_node = type.as<TensorTypeNode>();
   CHECK(type_node != nullptr &&
         runtime::TypeMatch(type_node->dtype, kDLFloat, 32))
       << "Only FP32 inputs are supported.";
-  auto input =
-      network_->addInput(tensor_name.c_str(), nvinfer1::DataType::kFLOAT, dims);
-  network_input_map_[id] = tensor_name;
-  node_output_map_[node] = {TrtOpInput(input)};
+  return network_->addInput(tensor_name.c_str(), nvinfer1::DataType::kFLOAT, dims);
+}
+
+void TensorRTBuilder::VisitExpr_(const VarNode* node) {
+  if (node->checked_type().as<TupleTypeNode>()) {
+    // Handle TupleTypes by creating multiple TRT inputs from one.
+    auto* tuple_type = node->type_as<TupleTypeNode>();
+    std::vector<TrtOpInput> outputs;
+    const std::string& original_name = node->name_hint();
+    std::vector<std::string> new_names;
+    for (int i = 0; i < tuple_type->fields.size(); ++i) {
+      std::string tensor_name = original_name + "_" + std::to_string(i);
+      new_names.push_back(tensor_name);
+      outputs.push_back(TrtOpInput(AddInput(tensor_name, tuple_type->fields[i])));
+    }
+    node_output_map_[node] = outputs;
+    // Update network_input_map_
+    const int original_index = network_input_map_[original_name];
+    network_input_map_.erase(original_name);
+    // Push all other inputs back.
+    for (auto it : network_input_map_) {
+      if (it.second > original_index) {
+        network_input_map_[it.first] += new_names.size() - 1;
+      }
+    }
+    for (size_t i = 0; i < new_names.size(); ++i) {
+      network_input_map_[new_names[i]] = original_index + i;
+    }
+    // Update network_input_names_
+    network_input_names_.erase(network_input_names_.begin() + original_index);
+    network_input_names_.insert(network_input_names_.begin() + original_index,
+                                new_names.begin(), new_names.end());
+    // Update network_input_is_baked_
+    bool is_baked = network_input_is_baked_[original_index];
+    network_input_is_baked_.erase(network_input_is_baked_.begin() + original_index);
+    network_input_is_baked_.insert(network_input_is_baked_.begin() + original_index,
+                                   new_names.size(), is_baked);
+  } else if (node->checked_type().as<TensorTypeNode>()) {
+    // Standard TensorType case.
+    const std::string& tensor_name = node->name_hint();
+    node_output_map_[node] = {TrtOpInput(AddInput(tensor_name, node->checked_type()))};
+  } else {
+    LOG(FATAL) << "VarNode must be Tensor or Tuple type.";
+  }
 }
 
 void TensorRTBuilder::VisitExpr_(const ConstantNode* node) {
   nvinfer1::Weights weight = GetNdArrayAsWeights(node->data, kDLCPU);
   auto shape = node->data.Shape();
-  // Remove batch dim.
-  if (shape.size() > 1 && shape[0] == 1) shape.erase(shape.begin());
+  // Remove batch dim when not in explicit batch mode.
+  if (TRT_HAS_IMPLICIT_BATCH && shape.size() > 1 && shape[0] == 1) {
+    shape.erase(shape.begin());
+  }
   nvinfer1::Dims dims = VectorToTrtDims(shape);
   auto const_layer = network_->addConstant(dims, weight);
   CHECK(const_layer != nullptr);
@@ -288,8 +387,7 @@ void TensorRTBuilder::VisitExpr_(const CallNode* call) {
       << "Unsupported operator conversion to TRT, op name: " << params.op_name;
   const auto converter = it->second;
 
-  // Ensure that nodes are processed in topological order by visiting their
-  // inputs first.
+  // Ensure that nodes are processed in topological order by visiting their inputs first.
   for (size_t i = 0; i < call->args.size(); ++i) {
     if (converter->variable_input_count ||
         converter->input_types[i] != kWeight) {
@@ -341,16 +439,9 @@ void TensorRTBuilder::VisitExpr_(const CallNode* call) {
   }
 }
 
-int TensorRTBuilder::TrackVarNode(const VarNode* node) {
-  // TODO(trevmorr): make more robust
-  const int trim_length = std::string("tensorrt_input").length();
-  int var_node_idx =
-      std::stoi(node->name_hint().substr(trim_length, std::string::npos));
-  return var_node_idx;
-}
-
 void TensorRTBuilder::CleanUp() {
   network_->destroy();
+  config_->destroy();
   builder_->destroy();
   for (auto weight : trt_weights_) {
     if (weight.type == nvinfer1::DataType::kFLOAT) {

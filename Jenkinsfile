@@ -61,7 +61,7 @@ tvm_multilib = "build/libtvm.so, " +
 // command to start a docker container
 docker_run = 'docker/bash.sh'
 // timeout in minutes
-max_time = 120
+max_time = 150
 
 def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder

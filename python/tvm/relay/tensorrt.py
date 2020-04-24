@@ -19,32 +19,14 @@
 Relay TensorRT codegen.
 """
 import tvm
+import tvm.relay.transform as transform
 from tvm import relay
-from tvm.relay.expr import Call, Constant
-
+from tvm.relay.expr import Call, Constant, Tuple, GlobalVar
+from tvm.relay.build_module import bind_params_by_name
+from tvm.relay import op as reg
 from tvm.relay.transform import _ffi_api
-from .expr_functor import ExprMutator
+from tvm.relay.expr_functor import ExprMutator
 
-def _bind_params(func, params):
-    """
-    Bind the params to the expression as constants.
-    """
-    name_dict = {}
-    for arg in func.params:
-        name = arg.name_hint
-        if name in name_dict:
-            name_dict[name] = None
-        else:
-            name_dict[name] = arg
-    bind_dict = {}
-    for k, v in params.items():
-        if k not in name_dict:
-            continue
-        arg = name_dict[k]
-        if arg is None:
-            raise ValueError("Multiple args in the function have name %s" % k)
-        bind_dict[arg] = relay.expr.const(v)
-    return relay.expr.bind(func, bind_dict)
 
 class LegalizeLayoutTranform(ExprMutator):
     """
@@ -79,57 +61,41 @@ class RemoveDropout(ExprMutator):
             return visit.tuple_value.args[0]
         return visit
 
-class RemoveMultiplyByOne(ExprMutator):
+class SimplifySliceLike(ExprMutator):
     """
-    Removes multiply by 1.0f. This pass when followed by
-    RemoveRedundantTranspose is intended to remove a pattern of
-    Transpose([1, 0]) -> Scale(1.0f) -> Transpose([1, 0]) produced by
-    PyTorch's addmm operator.
+    Legalize Relay layout transforms to transpose ops to simplify TensorRT conversion.
     """
     def visit_call(self, expr):
-        if expr.op.name == "multiply":
-            if isinstance(expr.args[1], Constant):
-                data = expr.args[1].data.asnumpy()
-                if data.shape == () and data.item() == 1.0:
-                    return expr.args[0]
+        if expr.op == tvm.relay.op.get("slice_like"):
+            axes = expr.attrs['axes']
+            shape0 = expr.args[0].checked_type.shape
+            end = [int(x) for x in shape0]
+            if axes is not None:
+                shape1 = expr.args[1].checked_type.shape
+                for axis in axes:
+                    if shape1[int(axis)] is None:
+                        return super().visit_call(expr)
+                    end[int(axis)] = shape1[int(axis)]
+            begin = [0] * len(end)
+            arg = super().visit(expr.args[0])
+            x = relay.strided_slice(arg, begin=begin, end=end)
+            return x
         return super().visit_call(expr)
 
-class RemoveRedundantTranspose(ExprMutator):
-    """
-    Removes Transpose([1, 0]) followed by Transpose([1, 0]). This pass, when
-    preceded by with RemoveMultiplyByOne is intended to remove a pattern of
-    Transpose([1, 0]) -> Scale(1.0f) -> Transpose([1, 0]) produced by
-    PyTorch's addmm operator.
-    """
-    def check_axes(self, axes):
-        return len(axes) == 2 and int(axes[0].value) == 1 and int(axes[1].value) == 0
+@transform.function_pass(opt_level=0)
+class LegalizeLayoutTranformPass:
+    def transform_function(self, func, mod, _):
+        return LegalizeLayoutTranform().visit(func)
 
-    def visit_call(self, expr):
-        if expr.op.name == "transpose":
-            if self.check_axes(expr.attrs['axes']):
-                if isinstance(expr.args[0], Call) and expr.args[0].op.name == "transpose":
-                    if self.check_axes(expr.args[0].attrs['axes']):
-                        return expr.args[0].args[0]
-        return super().visit_call(expr)
+@transform.function_pass(opt_level=0)
+class RemoveDropoutPass:
+    def transform_function(self, func, mod, _):
+        return RemoveDropout().visit(func)
 
-def PreprocessForTrt(mod):
-    """Applies passes to prepare main function for TensorRT conversion.
-
-    Parameters
-    ----------
-    mod: Module
-        The original module.
-
-    Returns
-    -------
-    mod: Module
-        The module modified for TensorRT.
-    """
-    mod['main'] = LegalizeLayoutTranform().visit(mod['main'])
-    mod['main'] = RemoveDropout().visit(mod['main'])
-    mod['main'] = RemoveMultiplyByOne().visit(mod['main'])
-    mod['main'] = RemoveRedundantTranspose().visit(mod['main'])
-    return mod
+@transform.function_pass(opt_level=0)
+class SimplifySliceLikePass:
+    def transform_function(self, func, mod, _):
+        return SimplifySliceLike().visit(func)
 
 def GetTrtVersion():
     """Gets the version of TensorRT that TVM is built against.
@@ -147,7 +113,434 @@ def IsTrtRuntimeAvailable():
         return False
     return GetTrtVersion() != ()
 
-def EnableTrt(mod, params=None, trt_version=None):
+def _register_external_op_helper(op_name, supported=True):
+    @reg.register(op_name, "target.tensorrt")
+    def _func_wrapper(attrs, args):
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        return supported
+    return _func_wrapper
+
+def _register_external_op_helper_func(op_name, func, trt_version):
+    @reg.register(op_name, "target.tensorrt")
+    def _func_wrapper(attrs, args):
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        return func(attrs, args, op_name, trt_version)
+    return _func_wrapper
+
+def register_tensorrt_annotations(trt_version):
+    if hasattr(register_tensorrt_annotations, "registered"):
+        # Can't register annotations more than once.
+        return
+    register_tensorrt_annotations.registered = True
+    # Ops which are always supported
+    _register_external_op_helper("nn.relu")
+    _register_external_op_helper("sigmoid")
+    _register_external_op_helper("tanh")
+    _register_external_op_helper("subtract")
+    _register_external_op_helper("multiply")
+    _register_external_op_helper("divide")
+    _register_external_op_helper("power")
+    _register_external_op_helper("maximum")
+    _register_external_op_helper("minimum")
+    _register_external_op_helper("exp")
+    _register_external_op_helper("log")
+    _register_external_op_helper("sqrt")
+    _register_external_op_helper("abs")
+    _register_external_op_helper("negative")
+    _register_external_op_helper("nn.batch_flatten")
+    _register_external_op_helper("clip")
+    # TODO(trevmorr): Temporarily disable split due to TRT bug on xavier.
+    #_register_external_op_helper("split")
+    #_register_external_op_helper("slice_like")
+
+    @reg.register("add", "target.tensorrt")
+    def add_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if (isinstance(args[0], Constant) or isinstance(args[1], Constant)) and \
+                args[0].checked_type.shape[0] == args[0].checked_type.shape[0] and \
+                args[0].checked_type.shape[0] != 1 and \
+                (len(args[0].checked_type.shape) > 3 or len(args[1].checked_type.shape) > 3):
+            print("add: bug in TRT with adding batched constants.")
+            return False
+        return True
+
+    @reg.register("nn.batch_norm", "target.tensorrt")
+    def batch_norm_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if int(attrs.axis) != 1 and int(attrs.axis) != 3:
+            print("nn.batch_norm: axis is {} but must be 1 or 3.".format(int(attrs.axis)))
+            return False
+        return True
+
+    @reg.register("nn.softmax", "target.tensorrt")
+    def softmax_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1) and int(attrs.axis) == 0:
+            print("nn.softmax: can't modify batch dimension.")
+            return False
+        return True
+
+    @reg.register("nn.conv2d", "target.tensorrt")
+    def conv2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.data_layout != "NCHW":
+            print("nn.conv2d: data_layout is {} but must be NCHW.".format(attrs.data_layout))
+            return False
+        if attrs.kernel_layout != "OIHW":
+            print("nn.conv2d: kernel_layout is {} but must be OIHW.".format(attrs.kernel_layout))
+            return False
+        if attrs.out_layout and attrs.out_layout != "NCHW":
+            print("nn.conv2d: out_layout is {} but must be NCHW.".format(attrs.out_layout))
+            return False
+        return True
+
+    @reg.register("nn.dense", "target.tensorrt")
+    def dense_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        input_rank = len(args[0].checked_type.shape)
+        weight_rank = len(args[1].checked_type.shape)
+        if input_rank < 2 or input_rank > 4:
+            print("nn.dense: input has rank {} but must be 2, 3 or 4.".format(input_rank))
+            return False
+        if weight_rank != 2:
+            print("nn.dense: weight has rank {} but must be 2.".format(weight_rank))
+            return False
+        return True
+
+    @reg.register("nn.bias_add", "target.tensorrt")
+    def bias_add_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        # TODO(trevmorr): BiasAddSimplifier creates a pattern which cannot be
+        # converted to TRT without binding params and constant folding.
+        # if trt_version < (6, 0, 1):
+        #     return False
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        input_rank = len(args[0].checked_type.shape)
+        if input_rank < 2 or input_rank > 4:
+            print("nn.bias_add: input rank is {} but must be 2, 3 or 4.".format(input_rank))
+            return False
+        return True
+
+    @reg.register("nn.max_pool2d", "target.tensorrt")
+    def max_pool_2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.layout != "NCHW":
+            print("nn.max_pool2d: layout is {} but must be NCHW.".format(attrs.layout))
+            return False
+        return True
+
+    @reg.register("nn.avg_pool2d", "target.tensorrt")
+    def avg_pool_2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.layout != "NCHW":
+            print("nn.avg_pool2d: layout is {} but must be NCHW.".format(attrs.layout))
+            return False
+        if attrs.count_include_pad and len(attrs.padding) == 4:
+            print("nn.avg_pool2d: inclusive-counted blended or average "
+                  "pooling is not supported in combination with asymmetric padding")
+            return False
+        if attrs.ceil_mode and trt_version < (5, 1, 5):
+            print("nn.avg_pool2d: ceil_mode=True requires TensorRT 5.1.5 or greater.")
+            return False
+        return True
+
+    @reg.register("nn.global_max_pool2d", "target.tensorrt")
+    def global_max_pool_2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.layout != "NCHW":
+            print("nn.global_max_pool2d: layout is {} but must be NCHW.".format(attrs.layout))
+            return False
+        return True
+
+    @reg.register("nn.global_avg_pool2d", "target.tensorrt")
+    def global_avg_pool_2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.layout != "NCHW":
+            print("nn.global_avg_pool2d: layout is {} but must be NCHW.".format(attrs.layout))
+            return False
+        return True
+
+    @reg.register("expand_dims", "target.tensorrt")
+    def expand_dims_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1) and int(attrs.axis) == 0:
+            print("expand_dims: can't modify batch dimension.")
+            return False
+        return True
+
+    @reg.register("squeeze", "target.tensorrt")
+    def squeeze_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if not attrs.axis:
+            print("squeeze: must explicitly set axis.")
+            return False
+        if trt_version < (6, 0, 1) and any([axis == 0 for axis in map(int, attrs.axis)]):
+            print("squeeze: can't modify batch dimension.")
+            return False
+        return True
+
+    @reg.register("concatenate", "target.tensorrt")
+    def concatenate_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.dtype != "float32" for x in args[0].checked_type.fields]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version >= (6, 0, 1):
+            return True
+        if int(attrs.axis) == 0:
+            print("concatenate: can't modify batch dimension.")
+            return False
+        if isinstance(args[0], Tuple):
+            for tuple_input in args[0].fields:
+                if isinstance(tuple_input, Constant):
+                    print("concatenate: can't concatenate tensors with constants.")
+                    return False
+        return True
+
+    @reg.register("nn.conv2d_transpose", "target.tensorrt")
+    def conv2d_transpose_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.data_layout != "NCHW":
+            print("nn.conv2d_transpose: data_layout is {} but must be NCHW.".format(
+                attrs.data_layout))
+            return False
+        if attrs.kernel_layout != "OIHW":
+            print("nn.conv2d_transpose: kernel_layout is {} but must be OIHW.".format(
+                attrs.kernel_layout))
+            return False
+        if attrs.out_layout and attrs.out_layout != "NCHW":
+            print("nn.conv2d_transpose: out_layout is {} but must be NCHW.".format(
+                attrs.out_layout))
+            return False
+        if attrs.dilation and any([rate != 1 for rate in map(int, attrs.dilation)]):
+            print("nn.conv2d_transpose: dilation rate must be 1.")
+            return False
+        return True
+
+    @reg.register("transpose", "target.tensorrt")
+    def transpose_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1) and int(attrs.axes[0]) != 0:
+            print("transpose: can't modify batch dimension.")
+            return False
+        return True
+
+    @reg.register("reshape", "target.tensorrt")
+    def reshape_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if any([x < -1 for x in map(int, attrs.newshape)]):
+            print("reshape: new shape dims must be explicit.")
+            return False
+        return True
+
+    @reg.register("nn.pad", "target.tensorrt")
+    def pad_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if attrs.pad_mode != "constant":
+            print("nn.pad: pad mode is {} but must be constant.".format(attrs.pad_mode))
+            return False
+        if float(attrs.pad_value) != 0.0:
+            print("nn.pad: pad value is {} but must be 0.0.".format(float(attrs.pad_value)))
+            return False
+        return True
+
+    def reduce_whitelist_fn(attrs, args, op_name, trt_version):
+        if not attrs.axis or len(attrs.axis) == 0:
+            print("{}: cannot reduce to scalar.".format(op_name))
+            return False
+        if attrs.exclude:
+            print("{}: exclude not supported.".format(op_name))
+            return False
+        if trt_version < (6, 0, 1) and any([x == 0 for x in map(int, attrs.axis)]):
+            print("{}: can't modify batch dimension.".format(op_name))
+            return False
+        return True
+
+    _register_external_op_helper_func("sum", reduce_whitelist_fn, trt_version)
+    _register_external_op_helper_func("prod", reduce_whitelist_fn, trt_version)
+    _register_external_op_helper_func("max", reduce_whitelist_fn, trt_version)
+    _register_external_op_helper_func("min", reduce_whitelist_fn, trt_version)
+    _register_external_op_helper_func("mean", reduce_whitelist_fn, trt_version)
+
+    def trt_5_1_5_whitelist_fn(attrs, args, op_name, trt_version):
+        if trt_version < (5, 1, 5):
+            print("{}: requires TensorRT version 5.1.5 or higher.".format(op_name))
+            return False
+        return True
+
+    _register_external_op_helper_func("nn.leaky_relu", trt_5_1_5_whitelist_fn, trt_version)
+    _register_external_op_helper_func("sin", trt_5_1_5_whitelist_fn, trt_version)
+    _register_external_op_helper_func("cos", trt_5_1_5_whitelist_fn, trt_version)
+    _register_external_op_helper_func("atan", trt_5_1_5_whitelist_fn, trt_version)
+    _register_external_op_helper_func("ceil", trt_5_1_5_whitelist_fn, trt_version)
+
+    @reg.register("strided_slice", "target.tensorrt")
+    def strided_slice_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (5, 1, 5):
+            print("strided_slice: requires TensorRT version 5.1.5 or higher.")
+            return False
+        if args[0].checked_type.dtype != "float32":
+            print("strided_slice: only fp32 inputs are supported.")
+            return False
+        if trt_version < (6, 0, 1):
+            batch_dim_begin_modified = attrs.begin[0] is not None and int(attrs.begin[0]) != 0
+            batch_dim_end_modified = attrs.end[0] is not None and int(attrs.end[0]) != -1 and \
+                                     int(attrs.end[0]) != int(args[0].checked_type.shape[0])
+            if batch_dim_begin_modified or batch_dim_end_modified:
+                print("strided_slice: can't modify batch dimension.")
+                return False
+        if any([x is not None and x <= 0 for x in attrs.strides]):
+            print("strided_slice: stride must be positive")
+            return False
+        return True
+
+    @reg.register("image.resize", "target.tensorrt")
+    def resize_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1):
+            print("image.resize: requires TensorRT version 6.0.1 or higher.")
+            return False
+        if attrs.method != "nearest_neighbor" and attrs.method != "bilinear":
+            return False
+        # TODO(trevmorr): coordinate transform method
+        return True
+
+    @reg.register("nn.adaptive_max_pool2d", "target.tensorrt")
+    def adapative_max_pool2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if len(attrs.output_size) == 0 or any([size != 1 for size in map(int, attrs.output_size)]):
+            print("nn.adaptive_max_pool2d: output size must be (1, 1).")
+            return False
+        return True
+
+    @reg.register("nn.adaptive_avg_pool2d", "target.tensorrt")
+    def adapative_avg_pool2d_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if len(attrs.output_size) == 0 or any([size != 1 for size in map(int, attrs.output_size)]):
+            print("nn.adaptive_avg_pool2d: output size must be (1, 1).")
+            return False
+        return True
+
+    @reg.register("nn.upsampling", "target.tensorrt")
+    def upsampling_whitelist_fn(attrs, args): # pylint: disable=unused-variable
+        if any([x.checked_type.dtype != "float32" for x in args]):
+            print("Only float32 inputs are supported for TensorRT.")
+            return False
+        if trt_version < (6, 0, 1):
+            print("nn.upsampling: requires TensorRT version 6.0.1 or higher.")
+            return False
+        return True
+
+class VarReplacer(ExprMutator):
+    """
+    Visit an expression while replacing vars according to var_map. Used by
+    SubgraphRemover/PruneSubgraphs to return a subgraph originally partitioned to TRT back to TVM.
+    """
+    def __init__(self, var_map):
+        ExprMutator.__init__(self)
+        self.var_map = var_map
+
+    def visit_var(self, var):
+        if var in self.var_map:
+            return self.var_map[var]
+        return super().visit_var(var)
+
+class SubgraphRemover(ExprMutator):
+    """
+    Reverts subgraphs in subgraphs_to_remove back to TVM instead of using an external codegen.
+    """
+    def __init__(self, subgraphs_to_remove, mod, new_mod):
+        ExprMutator.__init__(self)
+        self.subgraphs_to_remove = subgraphs_to_remove
+        self.mod = mod
+        self.new_mod = new_mod
+
+    def visit_call(self, call):
+        if isinstance(call.op, GlobalVar):
+            name = call.op.name_hint
+            if name in self.subgraphs_to_remove:
+                # "Inline" the subgraph back into new main function.
+                func = self.mod[name]
+                var_map = {}
+                for arg, param in zip(call.args, func.params):
+                    var_map[param] = super().visit(arg)
+                new_body = VarReplacer(var_map).visit(func.body)
+                return new_body
+            elif name != "main":
+                # Copy the GlobalVar (subgraph function) to the new module and call.
+                args = []
+                for arg in call.args:
+                    args.append(super().visit(arg))
+                subgraph_gv = relay.GlobalVar(name)
+                self.new_mod[subgraph_gv] = self.mod[name]
+                return subgraph_gv(*args)
+        return super().visit_call(call)
+
+def PruneSubgraphs(mod, compiler="tensorrt"):
+    """
+    Removes subgraphs which were originally partitioned for TRT if the number of
+    multiply-accumulates is 0. This is a heuristic which can improve performance by around 5%
+    because TVM provides better optimization for certain ops.
+    """
+    subgraph_with_macs = []
+    for subgraph in mod.get_global_vars():
+        name = subgraph.name_hint
+        if not mod[name].attrs or mod[name].attrs["Compiler"] != compiler:
+            continue
+        num_macs = relay.analysis.get_total_mac_number(mod[name])
+        subgraph_with_macs.append([name, num_macs])
+    print("Subgraphs with computed # of MACS:", subgraph_with_macs)
+    subgraphs_to_remove = [name for name, num_macs in subgraph_with_macs if num_macs == 0]
+    print("Will remove these subgraphs:", subgraphs_to_remove)
+    # Create new pruned module
+    new_mod = tvm.IRModule()
+    new_mod["main"] = SubgraphRemover(subgraphs_to_remove, mod, new_mod).visit(mod["main"])
+    return new_mod
+
+def EnableTrt(mod, params=None, trt_version=None, prune_subgraphs=False):
     """Converts the "main" function in the module into one that can be executed using
     TensorRT. If any of the operators are not supported by the TensorRT
     conversion, the unmodified program will be returned instead.
@@ -166,6 +559,9 @@ def EnableTrt(mod, params=None, trt_version=None):
         (major, minor, patch). If not specified, will attempt to get using
         GetTrtVersion.
 
+    prune_subgraphs : bool
+        If true, will prune subgraphs with 0 MACS and run them with TVM instead.
+
     Returns
     -------
     mod: Module
@@ -181,14 +577,26 @@ def EnableTrt(mod, params=None, trt_version=None):
     assert isinstance(trt_version, (list, tuple))
     assert len(trt_version) == 3
 
-    # Apply passes required for TRT
-    seq = relay.transform.Sequential([relay.transform.RemoveUnusedFunctions(),
-                                      relay.transform.ConvertLayout('NCHW')])
-    with relay.transform.PassContext(opt_level=3):
-        mod = seq(mod)
-    mod = PreprocessForTrt(mod)
+    register_tensorrt_annotations(trt_version)
+
     if params:
         # Bind params so that we can use FoldConstant.
-        mod['main'] = _bind_params(mod['main'], params)
-    mod = relay.transform.FoldConstant()(mod)
-    return _ffi_api.EnableTrt(*trt_version)(mod)
+        mod['main'] = bind_params_by_name(mod['main'], params)
+    # Apply passes required for TRT
+    mod = transform.InferType()(mod)
+    seq = tvm.transform.Sequential([transform.InferType(),
+                                    SimplifySliceLikePass(),
+                                    RemoveDropoutPass(),
+                                    transform.RemoveUnusedFunctions(),
+                                    transform.ConvertLayout('NCHW'),
+                                    transform.FoldConstant(),
+                                    LegalizeLayoutTranformPass(),
+                                    transform.AnnotateTarget('tensorrt'),
+                                    transform.MergeCompilerRegions(),
+                                    transform.PartitionGraph(),
+                                    transform.InferType()])
+    with tvm.transform.PassContext(opt_level=3):
+        mod = seq(mod)
+    if prune_subgraphs:
+        mod = PruneSubgraphs(mod)
+    return mod

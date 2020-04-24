@@ -27,6 +27,8 @@
 
 #include "NvInfer.h"
 
+#include <tvm/relay/expr.h>
+#include <tvm/relay/type.h>
 #include <string>
 #include <vector>
 
@@ -74,6 +76,19 @@ std::string DebugString(const std::vector<int>& vec) {
   }
   ss << ")";
   return ss.str();
+}
+
+std::vector<int> GetShape(const Type& type) {
+  const auto* ttype = type.as<TensorTypeNode>();
+  CHECK(ttype);
+  std::vector<int> _shape;
+  _shape.reserve(ttype->shape.size());
+  for (size_t i = 0; i < ttype->shape.size(); ++i) {
+    auto* val = ttype->shape[i].as<IntImmNode>();
+    CHECK(val);
+    _shape.push_back(val->value);
+  }
+  return _shape;
 }
 
 }  // namespace contrib

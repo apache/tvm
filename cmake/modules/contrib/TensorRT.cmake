@@ -40,7 +40,6 @@ if(USE_TENSORRT)
     # Relay TRT runtime sources
     file(GLOB TENSORRT_RELAY_CONTRIB_SRC src/runtime/contrib/tensorrt/*.cc)
     list(APPEND RUNTIME_SRCS ${TENSORRT_RELAY_CONTRIB_SRC})
-    list(APPEND RUNTIME_SRCS src/relay/backend/contrib/tensorrt/common_utils.cc)
 
     # Set defines
     add_definitions(-DTVM_GRAPH_RUNTIME_TENSORRT)

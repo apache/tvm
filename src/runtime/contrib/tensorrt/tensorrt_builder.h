@@ -40,6 +40,8 @@
   (NV_TENSORRT_MAJOR == major && NV_TENSORRT_MINOR == minor && \
   NV_TENSORRT_PATCH >= patch))
 
+#include "tensorrt_logger.h"
+
 namespace tvm {
 namespace runtime {
 
@@ -50,8 +52,9 @@ namespace runtime {
 struct TrtEngineAndContext {
   nvinfer1::ICudaEngine* engine;
   nvinfer1::IExecutionContext* context;
-  std::unordered_map<int, std::string> network_input_map;
-  std::vector<std::string> network_outputs;
+  std::vector<std::string> inputs;
+  std::vector<bool> input_is_baked;
+  std::vector<std::string> outputs;
 };
 
 }  // namespace runtime
@@ -95,7 +98,8 @@ class TensorRTBuilder : public ExprVisitor {
    * \brief Create TensorRT builder.
    * \param args Inputs to this execution.
    */
-  explicit TensorRTBuilder(const std::vector<DLTensor*>& args);
+  explicit TensorRTBuilder(runtime::TensorRTLogger* logger, const std::vector<DLTensor*>& args,
+                           size_t max_workspace_size);
 
   void VisitExpr_(const VarNode* node) final;
 
@@ -112,7 +116,7 @@ class TensorRTBuilder : public ExprVisitor {
    * \param expr The relay expression.
    * \return TRT engine, context, and input/output information.
    */
-  runtime::TrtEngineAndContext BuildEngine(const Expr& expr);
+  runtime::TrtEngineAndContext BuildEngine(const Function& func);
 
  private:
   /*!
@@ -133,6 +137,8 @@ class TensorRTBuilder : public ExprVisitor {
   nvinfer1::Weights GetDLTensorAsWeights(DLTensor* dptr,
                                          DLDeviceType src_device);
 
+  nvinfer1::ITensor* AddInput(const std::string& tensor_name, const Type& type);
+
   /*! \brief Gets value from execution args and converts to constant weight
    * stored in node_output_map_ with node as the key. */
   void GetInputAsWeights(const VarNode* node);
@@ -148,14 +154,24 @@ class TensorRTBuilder : public ExprVisitor {
   /*! \brief Deallocates weights and destroys network definition. */
   void CleanUp();
 
-  /*! \brief Get corresponding index for VarNode in execution_args_. */
-  int TrackVarNode(const VarNode* node);
+  /*! \brief Initializes network_input_names_, network_input_map_ and
+   * network_input_is_baked_ based on function parameters. */
+  void ProcessInputs(const Function& expr);
+
+  /*! \brief Populates network_output_names_ from the final outputs of the
+   * processed expr. */
+  void ProcessOutputs(const Expr& expr);
 
   /*! \brief Maps a node to its outputs. */
   std::unordered_map<const ExprNode*, std::vector<TrtOpInput>> node_output_map_;
 
   /*! \brief TensorRT builder. */
   nvinfer1::IBuilder* builder_;
+
+#if TRT_VERSION_GE(6, 0, 1)
+  /*! \brief TensorRT builder config. */
+  nvinfer1::IBuilderConfig* config_;
+#endif
 
   /*! \brief TensorRT network definition. */
   nvinfer1::INetworkDefinition* network_;
@@ -169,9 +185,24 @@ class TensorRTBuilder : public ExprVisitor {
   /*! \brief Batch size of inputs from this invocation. */
   int batch_size_;
 
-  /*! \brief Maps execution_args_ input index -> TRT input tensor name / VarNode
-   * name_hint. */
-  std::unordered_map<int, std::string> network_input_map_;
+  /*! \brief Max workspace size in bytes for TRT. */
+  size_t max_workspace_size_;
+
+  /*! \brief Input names in same order as execution args during runtime. Some of
+   * these are not actual input bindings in the TRT engine - use
+   * network_input_is_baked_ to find out which. */
+  std::vector<std::string> network_input_names_;
+
+  /*! \brief Maps input name to execution args index. */
+  std::unordered_map<std::string, int> network_input_map_;
+
+  /*! \brief True if the corresponding input is baked into the TensorRT engine
+   * and therefore should not be included in the input bindings during
+   * execution. */
+  std::vector<bool> network_input_is_baked_;
+
+  /*! \brief Output names in same order as execution args during runtime. */
+  std::vector<std::string> network_output_names_;
 };
 
 /*!

@@ -1,5 +1,4 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
+/* * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
@@ -18,31 +17,31 @@
  */
 
 /*!
- * \file src/relay/backend/contrib/tensorrt/common_utils.h
- * \brief Utility functions used by compilation and runtime.
+ * \file runtime/contrib/tensorrt/tensorrt_module.h
+ * \brief TensorRTModule is the runtime module for tensorrt backend.
  */
-#ifndef TVM_RELAY_BACKEND_CONTRIB_TENSORRT_COMMON_UTILS_H_
-#define TVM_RELAY_BACKEND_CONTRIB_TENSORRT_COMMON_UTILS_H_
 
-#include <tvm/relay/expr.h>
-#include <tvm/relay/type.h>
-#include <vector>
+#ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_MODULE_H_
+#define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_MODULE_H_
+
+#include <tvm/ir/module.h>
+
+#include <string>
+#include <unordered_map>
 
 namespace tvm {
-namespace relay {
-namespace contrib {
+namespace runtime {
 
 /*!
- * \brief Extract the shape from a Relay tensor type.
- *
- * \param type The provided type.
- *
- * \return The extracted shape in a list.
+ * \brief Create a TensorRTModule.
+ * \param serialized_subgraphs Function name -> Relay func serialized with
+ * SaveJSON.
+ * \return TensorRTModule created from subgraphs.
  */
-std::vector<int> GetShape(const Type& type);
+Module TensorRTModuleCreate(
+    const std::unordered_map<std::string, std::string>& serialized_subgraphs);
 
-}  // namespace contrib
-}  // namespace relay
+}  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RELAY_BACKEND_CONTRIB_TENSORRT_COMMON_UTILS_H_
+#endif  // TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_MODULE_H_
