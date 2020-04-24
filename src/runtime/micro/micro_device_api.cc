@@ -50,18 +50,14 @@ class MicroDeviceAPI final : public DeviceAPI {
                        size_t alignment,
                        DLDataType type_hint) final {
     ObjectPtr<MicroSession>& session = MicroSession::Current();
-    void* data = session->AllocateInSection(SectionKind::kHeap, nbytes).cast_to<void*>();
+    TargetPtr data = session->AllocateInSection(SectionKind::kHeap, nbytes);
     CHECK(data != nullptr) << "unable to allocate " << nbytes << " bytes on device heap";
-    MicroDevSpace* dev_space = new MicroDevSpace();
-    dev_space->data = data;
-    dev_space->session = session;
-    return static_cast<void*>(dev_space);
+    return reinterpret_cast<void*>(new MicroDevSpace{data, session});
   }
 
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
     MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(ptr);
-    dev_space->session->FreeInSection(
-      SectionKind::kHeap, TargetPtr(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+    dev_space->session->FreeInSection(SectionKind::kHeap, dev_space->data);
     delete dev_space;
   }
 
@@ -134,20 +130,17 @@ class MicroDeviceAPI final : public DeviceAPI {
     CHECK(false) << "the on-device workspace allocator isn't aware of this function";
     ObjectPtr<MicroSession>& session = MicroSession::Current();
 
-    void* data = session->AllocateInSection(SectionKind::kWorkspace, size).cast_to<void*>();
-    CHECK(data != nullptr) << "unable to allocate " << size << " bytes on device workspace";
-    MicroDevSpace* dev_space = new MicroDevSpace();
-    dev_space->data = data;
-    dev_space->session = session;
-    return static_cast<void*>(dev_space);
+    TargetPtr data = session->AllocateInSection(SectionKind::kWorkspace, size);
+    CHECK(data.value().uint64() != 0)
+      << "unable to allocate " << size << " bytes on device workspace";
+    return static_cast<void*>(new MicroDevSpace{data, session});
   }
 
   void FreeWorkspace(TVMContext ctx, void* data) final {
     CHECK(false) << "the on-device workspace allocator isn't aware of this function";
     MicroDevSpace* dev_space = static_cast<MicroDevSpace*>(data);
     ObjectPtr<MicroSession>& session = dev_space->session;
-    session->FreeInSection(SectionKind::kWorkspace,
-                           TargetPtr(reinterpret_cast<std::uintptr_t>(dev_space->data)));
+    session->FreeInSection(SectionKind::kWorkspace, dev_space->data);
     delete dev_space;
   }
 
@@ -162,7 +155,7 @@ class MicroDeviceAPI final : public DeviceAPI {
 
  private:
   TargetPtr GetDevLoc(MicroDevSpace* dev_space, size_t offset) {
-    return TargetPtr(reinterpret_cast<std::uintptr_t>(dev_space->data) + offset);
+    return dev_space->data + offset;
   }
 
   void* GetHostLoc(const void* ptr, size_t offset) {

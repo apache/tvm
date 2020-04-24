@@ -39,16 +39,18 @@ class MicroSectionAllocator {
    * \brief constructor that specifies section boundaries
    * \param region location and size of the section on the device
    */
-  explicit MicroSectionAllocator(std::string section_name, DevMemRegion region, size_t word_size)
+  explicit MicroSectionAllocator(std::string section_name,
+                                 DevMemRegion region,
+                                 TargetWordSize word_size)
     : section_name_(section_name),
       start_addr_(region.start),
       size_(0),
       capacity_(region.size),
       word_size_(word_size) {
-      CHECK_EQ(start_addr_.value().uint64() % word_size, 0)
-        << "micro section start not aligned to " << word_size << " bytes";
-      CHECK_EQ(capacity_ % word_size, 0)
-        << "micro section end not aligned to " << word_size << " bytes";
+      CHECK_EQ(start_addr_.value().uint64() % word_size.bytes(), 0)
+        << "micro section start not aligned to " << word_size.bytes() << " bytes";
+      CHECK_EQ(capacity_ % word_size.bytes(), 0)
+        << "micro section end not aligned to " << word_size.bytes() << " bytes";
     }
 
   /*!
@@ -62,7 +64,7 @@ class MicroSectionAllocator {
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
   TargetPtr Allocate(size_t size) {
-    size_ = UpperAlignValue(size_, word_size_);
+    size_ = UpperAlignValue(size_, word_size_.bytes());
     CHECK(size_ + size < capacity_)
       << "cannot alloc " << size << " bytes in section \""
       << section_name_ << "\" (start_addr=" << start_addr_.cast_to<void*>()
@@ -122,7 +124,7 @@ class MicroSectionAllocator {
   /*! \brief total storage capacity of the section */
   size_t capacity_;
   /*! \brief number of bytes in a word on the target device */
-  size_t word_size_;
+  TargetWordSize word_size_;
   /*! \brief allocation map for allocation sizes */
   std::unordered_map<uint64_t, size_t> alloc_map_;
 };

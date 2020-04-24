@@ -20,7 +20,7 @@ from .. import create_micro_lib_base, register_device, gen_mem_layout, MemConstr
 
 DEVICE_ID = 'arm.stm32f746xx'
 TOOLCHAIN_PREFIX = 'arm-none-eabi-'
-WORD_SIZE = 4
+WORD_SIZE_BITS = 32
 #
 # [Device Memory Layout]
 #   RAM   (rwx) : START = 0x20000000, LENGTH = 320K
@@ -112,8 +112,8 @@ def generate_config(server_addr, server_port, section_constraints=None):
     return {
         'device_id': DEVICE_ID,
         'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': gen_mem_layout(BASE_ADDR, AVAILABLE_MEM, WORD_SIZE, section_constraints),
-        'word_size': WORD_SIZE,
+        'mem_layout': gen_mem_layout(BASE_ADDR, AVAILABLE_MEM, WORD_SIZE_BITS, section_constraints),
+        'word_size_bits': WORD_SIZE_BITS,
         'thumb_mode': True,
         'use_device_timer': True,
         'comms_method': 'openocd',

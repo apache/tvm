@@ -80,7 +80,7 @@ MicroSession::MicroSession(
     size_t workspace_size,
     uint64_t stack_start,
     size_t stack_size,
-    size_t word_size,
+    TargetWordSize word_size,
     bool thumb_mode,
     bool use_device_timer,
     const std::string& server_addr,
@@ -90,7 +90,6 @@ MicroSession::MicroSession(
       thumb_mode_(thumb_mode),
       use_device_timer_(use_device_timer),
       batch_args_encoder_(args_size, word_size) {
-  CHECK(word_size_ == 4 || word_size_ == 8) << "unsupported word size " << word_size_;
   if (comms_method == "host") {
     // TODO(weberlo): move checks to python
     CHECK(
@@ -105,11 +104,11 @@ MicroSession::MicroSession(
     size_t memory_size =
       text_size + rodata_size + data_size + bss_size +
       args_size + heap_size + workspace_size + stack_size;
-    void* base_addr;
+    TargetPtr base_addr;
     low_level_device_ = HostLowLevelDeviceCreate(memory_size, &base_addr);
-    CHECK_EQ(reinterpret_cast<std::uintptr_t>(base_addr) % word_size_, 0)
-      << "base address not aligned to " << word_size_ << " bytes";
-    TargetPtr curr_addr = TargetPtr(reinterpret_cast<std::uintptr_t>(base_addr));
+    CHECK_EQ(base_addr.value().uint64() % word_size.bytes(), 0)
+      << "base address not aligned to " << word_size.bytes() << " bytes";
+    TargetPtr curr_addr = base_addr;
 
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(
       "text",
@@ -172,49 +171,49 @@ MicroSession::MicroSession(
     section_allocators_[0] = std::make_shared<MicroSectionAllocator>(
       "text",
       DevMemRegion {
-        .start = TargetPtr(text_start),
+        .start = TargetPtr(word_size_, text_start),
         .size = text_size,
       }, word_size_);
     section_allocators_[1] = std::make_shared<MicroSectionAllocator>(
       "rodata",
       DevMemRegion {
-        .start = TargetPtr(rodata_start),
+        .start = TargetPtr(word_size_, rodata_start),
         .size = rodata_size,
       }, word_size_);
     section_allocators_[2] = std::make_shared<MicroSectionAllocator>(
       "data",
       DevMemRegion {
-        .start = TargetPtr(data_start),
+        .start = TargetPtr(word_size_, data_start),
         .size = data_size,
       }, word_size_);
     section_allocators_[3] = std::make_shared<MicroSectionAllocator>(
       "bss",
       DevMemRegion {
-        .start = TargetPtr(bss_start),
+        .start = TargetPtr(word_size_, bss_start),
         .size = bss_size,
       }, word_size_);
     section_allocators_[4] = std::make_shared<MicroSectionAllocator>(
       "args",
       DevMemRegion {
-        .start = TargetPtr(args_start),
+        .start = TargetPtr(word_size_, args_start),
         .size = args_size,
       }, word_size_);
     section_allocators_[5] = std::make_shared<MicroSectionAllocator>(
       "heap",
       DevMemRegion {
-        .start = TargetPtr(heap_start),
+        .start = TargetPtr(word_size_, heap_start),
         .size = heap_size,
       }, word_size_);
     section_allocators_[6] = std::make_shared<MicroSectionAllocator>(
       "workspace",
       DevMemRegion {
-        .start = TargetPtr(workspace_start),
+        .start = TargetPtr(word_size_, workspace_start),
         .size = workspace_size,
       }, word_size_);
     section_allocators_[7] = std::make_shared<MicroSectionAllocator>(
       "stack",
       DevMemRegion {
-        .start = TargetPtr(stack_start),
+        .start = TargetPtr(word_size_, stack_start),
         .size = stack_size,
       }, word_size_);
   } else {
@@ -229,17 +228,14 @@ MicroSession::MicroSession(
   // Patch pointers to define the bounds of the workspace section and the word
   // size (for allocation alignment).
   std::shared_ptr<MicroSectionAllocator> ws_allocator = GetAllocator(SectionKind::kWorkspace);
-  TargetVal ws_start(word_size_ * 8, ws_allocator->start_addr().value().uint64());
-  TargetVal ws_end(word_size_ * 8, ws_allocator->max_addr().value().uint64());
-  TargetVal target_word_size(word_size_ * 8, word_size_);
-  if (word_size_ == 4) {
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.uint32());
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.uint32());
-    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.uint32());
-  } else if (word_size_ == 8) {
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_start.uint64());
-    DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_end.uint64());
-    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", target_word_size.uint64());
+  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_start", ws_allocator->start_addr());
+  DevSymbolWrite(runtime_symbol_map_, "utvm_workspace_end", ws_allocator->max_addr());
+  if (word_size.bytes() == 4) {
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", uint32_t(word_size.bytes()));
+  } else if (word_size.bytes() == 8) {
+    DevSymbolWrite(runtime_symbol_map_, "utvm_word_size", uint64_t(word_size.bytes()));
+  } else {
+    CHECK(false) << "Unsupported word size unexpectedly here";
   }
 }
 
@@ -258,8 +254,8 @@ void MicroSession::PushToTaskQueue(TargetPtr func_ptr, const TVMArgs& args) {
   TargetVal func_dev_addr = func_ptr.value();
 
   std::tuple<TargetPtr, TargetPtr> arg_field_addrs = EncoderAppend(&batch_args_encoder_, args);
-  TargetVal arg_values_dev_addr{std::get<0>(arg_field_addrs).cast_to<uint64_t>()};
-  TargetVal arg_type_codes_dev_addr{std::get<1>(arg_field_addrs).cast_to<uint64_t>()};
+  TargetVal arg_values_dev_addr{std::get<0>(arg_field_addrs).value()};
+  TargetVal arg_type_codes_dev_addr{std::get<1>(arg_field_addrs).value()};
 
   task_queue_.push_back(
       DevTask {
@@ -279,9 +275,9 @@ void MicroSession::FlushTaskQueue() {
     // nothing to run
     return;
   }
-  if (word_size_ == 4) {
+  if (word_size_.bytes() == 4) {
     FlushTaskQueuePriv<StructUTVMTask32>();
-  } else if (word_size_ == 8) {
+  } else if (word_size_.bytes() == 8) {
     FlushTaskQueuePriv<StructUTVMTask64>();
   }
 }
@@ -389,9 +385,6 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   rodata_section.start = AllocateInSection(SectionKind::kRodata, rodata_section.size);
   data_section.start = AllocateInSection(SectionKind::kData, data_section.size);
   bss_section.start = AllocateInSection(SectionKind::kBss, bss_section.size);
-  CHECK(text_section.start != nullptr && rodata_section.start != nullptr &&
-        data_section.start != nullptr && bss_section.start != nullptr)
-      << "not enough space to load module on device";
 
   std::string relocated_bin = RelocateBinarySections(
       binary_path,
@@ -411,7 +404,7 @@ BinaryInfo MicroSession::LoadBinary(const std::string& binary_path, bool patch_d
   low_level_device_->Write(rodata_section.start, &rodata_contents[0], rodata_section.size);
   low_level_device_->Write(data_section.start, &data_contents[0], data_section.size);
   low_level_device_->Write(bss_section.start, &bss_contents[0], bss_section.size);
-  SymbolMap symbol_map {relocated_bin, toolchain_prefix_};
+  SymbolMap symbol_map {relocated_bin, toolchain_prefix_, word_size_};
 
   if (patch_dylib_pointers) {
     // Patch device lib pointers.
@@ -447,12 +440,13 @@ std::tuple<TargetPtr, TargetPtr> MicroSession::EncoderAppend(
         // order to prevent premature session destruction.
         void* old_data = base_arr_handle->data;
         // Mutate the array to unwrap the `data` field.
-        base_arr_handle->data = reinterpret_cast<MicroDevSpace*>(old_data)->data;
+        MicroDevSpace* dev_arr_ptr = reinterpret_cast<MicroDevSpace*>(old_data);
+        base_arr_handle->data = reinterpret_cast<void*>(dev_arr_ptr->data.value().uint64());
         // Now, encode the unwrapped version.
         void* arr_ptr = nullptr;
-        if (word_size_ == 4) {
+        if (word_size_.bytes() == 4) {
           arr_ptr = EncoderAppend<TVMArray32>(encoder, *base_arr_handle).cast_to<void*>();
-        } else if (word_size_ == 8) {
+        } else if (word_size_.bytes() == 8) {
           arr_ptr = EncoderAppend<TVMArray64>(encoder, *base_arr_handle).cast_to<void*>();
         }
         // And restore the original wrapped version.
@@ -486,7 +480,7 @@ TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DL
   // is a device pointer, so we don't need to write it.
   shape_slot.WriteArray(arr.shape, arr.ndim);
   TargetPtr shape_dev_addr = shape_slot.start_addr();
-  TargetPtr strides_dev_addr = TargetPtr(nullptr);
+  TargetPtr strides_dev_addr = TargetPtr(word_size_, nullptr);
   if (arr.strides != nullptr) {
     auto stride_slot = encoder->Alloc<int64_t>(arr.ndim);
     stride_slot.WriteArray(arr.strides, arr.ndim);
@@ -494,13 +488,13 @@ TargetPtr MicroSession::EncoderAppend(TargetDataLayoutEncoder* encoder, const DL
   }
 
   T dev_arr(
-      TargetVal { word_size_ * 8, reinterpret_cast<uint64_t>(arr.data) },
+      TargetVal { word_size_.bits(), reinterpret_cast<uint64_t>(arr.data) },
       arr.ctx,
       arr.ndim,
       arr.dtype,
       shape_dev_addr.value(),
       strides_dev_addr.value(),
-      TargetVal { word_size_ * 8, arr.byte_offset });
+      TargetVal { word_size_.bits(), arr.byte_offset });
   CHECK(dev_arr.ctx.device_type == static_cast<DLDeviceType>(kDLMicroDev))
     << "attempt to write DLTensor with non-micro device type";
   // Update the device type to CPU, because from the microcontroller's
@@ -570,11 +564,7 @@ void MicroSession::PatchImplHole(const SymbolMap& symbol_map, const std::string&
   }
   std::ostringstream func_name_underscore;
   func_name_underscore << func_name << "_";
-  if (word_size_ == 4) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().uint32());
-  } else if (word_size_ == 8) {
-    DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr.value().uint64());
-  }
+  DevSymbolWrite(symbol_map, func_name_underscore.str(), runtime_impl_addr);
 }
 
 std::string MicroSession::ReadString(TargetPtr str_addr) {
@@ -609,6 +599,18 @@ T MicroSession::DevSymbolRead(const SymbolMap& symbol_map, const std::string& sy
   T result;
   low_level_device()->Read(sym_addr, &result, sizeof(T));
   return result;
+}
+
+void MicroSession::DevSymbolWrite(const SymbolMap& symbol_map,
+                                  const std::string& symbol,
+                                  const TargetPtr& ptr) {
+  if (word_size_.bytes() == 4) {
+    DevSymbolWrite(symbol_map, symbol, ptr.value().uint32());
+  } else if (word_size_.bytes() == 8) {
+    DevSymbolWrite(symbol_map, symbol, ptr.value().uint64());
+  } else {
+    CHECK(false) << "Unsupported word size unexpectedly here";
+  }
 }
 
 template <typename T>
@@ -701,7 +703,7 @@ TVM_REGISTER_GLOBAL("micro._CreateSession")
     size_t workspace_size = uint64_t(args[16]);
     uint64_t stack_start = args[17];
     size_t stack_size = uint64_t(args[18]);
-    size_t word_size = uint64_t(args[19]);
+    TargetWordSize word_size{uint64_t(args[19])};
     bool thumb_mode = args[20];
     bool use_device_timer = args[21];
     const std::string& server_addr = args[22];

@@ -178,7 +178,7 @@ class MemConstraint(enum.Enum):
     WEIGHT = 1
 
 
-def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
+def gen_mem_layout(base_addr, available_mem, word_size_bits, section_constraints):
     """Template function to generate memory layout for devices.
 
     Parameters
@@ -189,12 +189,14 @@ def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
     available_mem: Number
         Available memory at base_addr, given in bytes.
 
-    word_size: Number
-        Number of bytes in one word on this device.
+    word_size_bits: Number
+        Number of bits in one word on this device.
 
     section_constraints: Optional[Dict[str, [Number, MemConstraint]]]
         maps section name to the quantity of available memory
     """
+    assert word_size_bits in (32, 64), 'only 32- or 64-bit devices are supported now'
+    word_size_bytes = word_size_bits // 8
     byte_sum = sum(x[0]
                    for x in section_constraints.values()
                    if x[1] == MemConstraint.ABSOLUTE_BYTES)
@@ -209,7 +211,7 @@ def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
     for section in DEVICE_SECTIONS:
         (val, cons_type) = section_constraints[section]
         if cons_type == MemConstraint.ABSOLUTE_BYTES:
-            assert val % word_size == 0, \
+            assert val % word_size_bytes == 0, \
                 f'constraint {val} for {section} section is not word-aligned'
             size = val
             res[section] = {
@@ -218,7 +220,7 @@ def gen_mem_layout(base_addr, available_mem, word_size, section_constraints):
             }
         else:
             size = int((val / weight_sum) * available_weight_mem)
-            size = (size // word_size) * word_size
+            size = (size // word_size_bytes) * word_size_bytes
             res[section] = {
                 'start': curr_addr,
                 'size': size,

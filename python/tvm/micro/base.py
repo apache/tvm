@@ -77,7 +77,7 @@ class Session:
         dev_funcs = tvm.micro.device.get_device_funcs(config['device_id'])
         self.toolchain_prefix = config['toolchain_prefix']
         self.mem_layout = config['mem_layout']
-        self.word_size = config['word_size']
+        self.word_size_bits = config['word_size_bits']
         self.thumb_mode = config['thumb_mode']
         self.use_device_timer = config['use_device_timer']
         self.comms_method = config['comms_method']
@@ -122,7 +122,7 @@ class Session:
             self.mem_layout['workspace']['size'],
             self.mem_layout['stack'].get('start', 0),
             self.mem_layout['stack']['size'],
-            self.word_size,
+            self.word_size_bits,
             self.thumb_mode,
             self.use_device_timer,
             server_addr,

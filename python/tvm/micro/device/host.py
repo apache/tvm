@@ -21,7 +21,7 @@ from . import create_micro_lib_base, register_device, gen_mem_layout, MemConstra
 
 DEVICE_ID = 'host'
 TOOLCHAIN_PREFIX = ''
-WORD_SIZE = 8 if sys.maxsize > 2**32 else 4
+WORD_SIZE_BITS = 64 if sys.maxsize > 2**32 else 32
 
 # we pretend we only have 320kb in the default case, so we can use `gen_mem_layout`
 DEFAULT_AVAILABLE_MEM = 3200000
@@ -89,7 +89,7 @@ def generate_config(available_mem=None, section_constraints=None):
         available_mem = DEFAULT_AVAILABLE_MEM
     if section_constraints is None:
         section_constraints = DEFAULT_SECTION_CONSTRAINTS
-    mem_layout = gen_mem_layout(0, available_mem, WORD_SIZE, section_constraints)
+    mem_layout = gen_mem_layout(0, available_mem, WORD_SIZE_BITS, section_constraints)
     # TODO the host emulated device is an outlier, since we don't know how what
     # its base address will be until we've created it in the C++. is there any
     # way to change the infrastructure around this so it's not so much of an
@@ -103,7 +103,7 @@ def generate_config(available_mem=None, section_constraints=None):
         'device_id': DEVICE_ID,
         'toolchain_prefix': TOOLCHAIN_PREFIX,
         'mem_layout': mem_layout,
-        'word_size': WORD_SIZE,
+        'word_size_bits': WORD_SIZE_BITS,
         'thumb_mode': False,
         'use_device_timer': False,
         'comms_method': 'host',

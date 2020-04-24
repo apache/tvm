@@ -78,7 +78,8 @@ class LowLevelDevice {
  * \param num_bytes size of the memory region
  * \param base_addr pointer to write the host device's resulting base address into
  */
-const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes, void** base_addr);
+const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes,
+                                                               TargetPtr* base_addr);
 
 /*!
  * \brief connect to OpenOCD and create an OpenOCD low-level device

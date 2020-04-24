@@ -99,7 +99,7 @@ class MicroSession : public ModuleNode {
    * \param workspace_size workspace section size
    * \param stack_start stack section start address
    * \param stack_size stack section size
-   * \param word_size number of bytes in a word on the target device
+   * \param word_size_bytes number of bytes in a word on the target device
    * \param thumb_mode whether the target device requires a thumb-mode bit on function addresses
    * \param server_addr address of the OpenOCD server to connect to (if `comms_method == "openocd"`)
    * \param port port of the OpenOCD server to connect to (if `comms_method == "openocd"`)
@@ -124,7 +124,7 @@ class MicroSession : public ModuleNode {
       size_t workspace_size,
       uint64_t stack_start,
       size_t stack_size,
-      size_t word_size,
+      TargetWordSize word_size,
       bool thumb_mode,
       bool use_device_timer,
       const std::string& server_addr,
@@ -197,6 +197,16 @@ class MicroSession : public ModuleNode {
   T DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol);
 
   /*!
+   * \brief write pointer value into device memory corresponding to symbol
+  * \param symbol_map symbol map to read location of symbol from
+  * \param symbol name of symbol being written to
+  * \param ptr pointer value to write into symbol
+   */
+  void DevSymbolWrite(const SymbolMap& symbol_map,
+                      const std::string& symbol,
+                      const TargetPtr& ptr);
+
+  /*!
   * \brief write value into device memory corresponding to symbol
   * \param symbol_map symbol map to read location of symbol from
   * \param symbol name of symbol being written to
@@ -235,7 +245,7 @@ class MicroSession : public ModuleNode {
   std::shared_ptr<MicroSectionAllocator>
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
   /*! \brief number of bytes in a word on the target device */
-  size_t word_size_;
+  TargetWordSize word_size_;
   /*! \brief whether the target device requires a thumb-mode bit on function addresses
    *
    * ARM and other manufacturers use the lowest bit of a function address to determine
@@ -251,11 +261,11 @@ class MicroSession : public ModuleNode {
   std::vector<DevTask> task_queue_;
   // TODO(weberlo): we don't even need an allocator mechanism for the args
   // section. there's only ever one allocation.
-  /*! \brief TODO fukn hack */
+  /*! \brief TODO hack */
   TargetDataLayoutEncoder batch_args_encoder_;
-  /*! \brief TODO fukn hack */
+  /*! \brief TODO hack */
   double last_batch_time_;
-  /*! \brief TODO fukn hack */
+  /*! \brief TODO hack */
   double last_batch_cycles_;
 
   /*!
@@ -317,7 +327,7 @@ class MicroSession : public ModuleNode {
  */
 struct MicroDevSpace {
   /*! \brief data being wrapped */
-  void* data;
+  TargetPtr data;
   /*! \brief shared ptr to session where this data is valid */
   ObjectPtr<MicroSession> session;
 };

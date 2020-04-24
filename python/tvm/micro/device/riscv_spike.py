@@ -20,7 +20,7 @@ from . import create_micro_lib_base, register_device, gen_mem_layout, MemConstra
 
 DEVICE_ID = 'riscv_spike'
 TOOLCHAIN_PREFIX = 'riscv64-unknown-elf-'
-WORD_SIZE = 8
+WORD_SIZE_BITS = 64
 
 DEFAULT_SECTION_CONSTRAINTS = {
     'text': (18000, MemConstraint.ABSOLUTE_BYTES),
@@ -92,8 +92,8 @@ def generate_config(base_addr, available_mem, server_addr, server_port, section_
     return {
         'device_id': DEVICE_ID,
         'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': gen_mem_layout(base_addr, available_mem, WORD_SIZE, section_constraints),
-        'word_size': WORD_SIZE,
+        'mem_layout': gen_mem_layout(base_addr, available_mem, WORD_SIZE_BITS, section_constraints),
+        'word_size_bits': WORD_SIZE_BITS,
         'thumb_mode': False,
         'use_device_timer': False,
         'comms_method': 'openocd',

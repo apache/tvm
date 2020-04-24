@@ -96,8 +96,10 @@ class TargetDataLayoutEncoder {
    * \brief constructor
    * \param start_addr start address of the encoder in device memory
    */
-  explicit TargetDataLayoutEncoder(size_t capacity, size_t word_size)
-      : buf_(std::vector<uint8_t>()), curr_offset_(0), capacity_(capacity), word_size_(word_size) {
+  explicit TargetDataLayoutEncoder(size_t capacity, TargetWordSize word_size)
+      : buf_(std::vector<uint8_t>()), curr_offset_(0),
+        start_addr_(word_size, nullptr),
+        capacity_(capacity), word_size_(word_size) {
   }
 
   /*!
@@ -107,7 +109,7 @@ class TargetDataLayoutEncoder {
    */
   template <typename T>
   Slot<T> Alloc(size_t num_elems = 1) {
-    curr_offset_ = UpperAlignValue(curr_offset_, word_size_);
+    curr_offset_ = UpperAlignValue(curr_offset_, word_size_.bytes());
     size_t size = sizeof(T) * num_elems;
     if (curr_offset_ + size > buf_.size()) {
       buf_.resize(curr_offset_ + size);
@@ -146,7 +148,8 @@ class TargetDataLayoutEncoder {
 
   void set_start_addr(TargetPtr start_addr) {
     CHECK_EQ(buf_.size(), 0) << "cannot change encoder start addr unless empty";
-    start_addr_ = TargetPtr(UpperAlignValue(start_addr.value().uint64(), word_size_));
+    start_addr_ = TargetPtr(word_size_,
+                            UpperAlignValue(start_addr.value().uint64(), word_size_.bytes()));
   }
 
  private:
@@ -159,7 +162,7 @@ class TargetDataLayoutEncoder {
   /*! \brief TODO */
   size_t capacity_;
   /*! \brief number of bytes in a word on the target device */
-  size_t word_size_;
+  TargetWordSize word_size_;
 };
 
 template <typename T>

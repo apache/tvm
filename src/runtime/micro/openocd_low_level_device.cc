@@ -50,7 +50,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     socket_.SendCommand();
   }
 
-  void Read(TargetPtr addr, void* buf, size_t num_bytes) {
+  void Read(TargetPtr addr, void* buf, size_t num_bytes) override {
     if (num_bytes == 0) {
       return;
     }
@@ -119,7 +119,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
   }
 
-  void Write(TargetPtr addr, const void* buf, size_t num_bytes) {
+  void Write(TargetPtr addr, const void* buf, size_t num_bytes) override {
     if (num_bytes == 0) {
       return;
     }
@@ -171,7 +171,7 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     }
   }
 
-  void Execute(TargetPtr func_addr, TargetPtr breakpoint_addr) {
+  void Execute(TargetPtr func_addr, TargetPtr breakpoint_addr) override {
     socket_.cmd_builder() << "halt 0";
     socket_.SendCommand();
 
