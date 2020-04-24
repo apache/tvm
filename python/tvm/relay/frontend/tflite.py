@@ -2224,12 +2224,8 @@ def get_scalar_from_constant(expr):
     assert isinstance(expr, _expr.Constant) and not expr.data.shape, \
         "Expr is not a constant scalar."
     value = expr.data.asnumpy()
-    if value.dtype == np.dtype(np.int32):
-        return int(value)
-    if value.dtype == np.dtype(np.float32):
-        return float(value)
-    assert False, "Constant expr must be float32/int32"
-    return None  # To suppress pylint
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), "value must be float32/int32"
+    return np.asscalar(value)
 
 
 def build_str_map(obj):
