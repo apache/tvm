@@ -55,55 +55,95 @@ namespace TVMRuntime
 
     public static class UnmanagedNDArrayWrapper
     {
+        /// <summary>
+        /// TVM Array alloc.
+        /// </summary>
+        /// <returns>The rray alloc.</returns>
+        /// <param name="shape">Shape.</param>
+        /// <param name="ndim">Ndim.</param>
+        /// <param name="dtypeCode">Dtype code.</param>
+        /// <param name="dtypeBits">Dtype bits.</param>
+        /// <param name="dtypeLanes">Dtype lanes.</param>
+        /// <param name="deviceType">Device type.</param>
+        /// <param name="deviceId">Device identifier.</param>
+        /// <param name="output">Output.</param>
         [DllImport(Utils.libName)]
         private unsafe static extern int TVMArrayAlloc(
                           [MarshalAs(UnmanagedType.LPArray)] int[] shape,
                           int ndim,
-                          int dtype_code,
-                          int dtype_bits,
-                          int dtype_lanes,
-                          int device_type,
-                          int device_id,
+                          int dtypeCode,
+                          int dtypeBits,
+                          int dtypeLanes,
+                          int deviceType,
+                          int deviceId,
                           TVMTensor** output);
 
+        /// <summary>
+        /// TVM Array free.
+        /// </summary>
+        /// <returns>The rray free.</returns>
+        /// <param name="tensorHandle">Tensor handle.</param>
         [DllImport(Utils.libName)]
         private unsafe static extern int TVMArrayFree(
-                          TVMTensor* tensor_handle);
+                          TVMTensor* tensorHandle);
 
+        /// <summary>
+        /// Creates the NDArray.
+        /// </summary>
+        /// <param name="shape">Shape.</param>
+        /// <param name="ndim">Ndim.</param>
+        /// <param name="dtypeCode">Dtype code.</param>
+        /// <param name="dtypeBits">Dtype bits.</param>
+        /// <param name="dtypeLanes">Dtype lanes.</param>
+        /// <param name="deviceType">Device type.</param>
+        /// <param name="deviceId">Device identifier.</param>
+        /// <param name="arrayHandle">Array handle.</param>
         public static void CreateNDArray(int[] shape,
                           int ndim,
-                          int dtype_code,
-                          int dtype_bits,
-                          int dtype_lanes,
-                          int device_type,
-                          int device_id,
-                          ref UIntPtr array_handle)
+                          int dtypeCode,
+                          int dtypeBits,
+                          int dtypeLanes,
+                          int deviceType,
+                          int deviceId,
+                          ref UIntPtr arrayHandle)
         {
             unsafe
             {
-                TVMTensor* tensor_handle = null;
-                TVMArrayAlloc(shape, ndim, dtype_code, dtype_bits, dtype_lanes,
-                    device_type, device_id, &tensor_handle);
+                TVMTensor* tensorHandle = null;
+                TVMArrayAlloc(shape, ndim, dtypeCode, dtypeBits, dtypeLanes,
+                    deviceType, deviceId, &tensorHandle);
 
-                array_handle = (UIntPtr)tensor_handle;
+                arrayHandle = (UIntPtr)tensorHandle;
             }
         }
 
-        public static int [] GetNDArrayShape(UIntPtr array_handle)
+        /// <summary>
+        /// Gets the NDArray shape.
+        /// </summary>
+        /// <returns>The NDA rray shape.</returns>
+        /// <param name="arrayHandle">Array handle.</param>
+        public static int [] GetNDArrayShape(UIntPtr arrayHandle)
         {
             unsafe
             {
-                int ndim = ((TVMTensor*)array_handle)->ndim;
-                int[] shape_out = new int[ndim];
+                int ndim = ((TVMTensor*)arrayHandle)->ndim;
+                int[] shapeOut = new int[ndim];
                 for (int i = 0; i < ndim; i++)
                 {
-                    shape_out[i] = ((TVMTensor*)array_handle)->shape[i];
+                    shapeOut[i] = ((TVMTensor*)arrayHandle)->shape[i];
                 }
-                return shape_out;
+                return shapeOut;
             }
         }
 
-        public static object GetNDArrayElem(UIntPtr array_handle, int index, int arraySize)
+        /// <summary>
+        /// Gets the NDArray element.
+        /// </summary>
+        /// <returns>The NDA rray element.</returns>
+        /// <param name="arrayHandle">Array handle.</param>
+        /// <param name="index">Index.</param>
+        /// <param name="arraySize">Array size.</param>
+        public static object GetNDArrayElem(UIntPtr arrayHandle, int index, int arraySize)
         {
             if (index < 0 || index >= arraySize)
             {
@@ -112,18 +152,18 @@ namespace TVMRuntime
             }
             unsafe
             {
-                byte code = ((TVMTensor*)array_handle)->dtype.code;
+                byte code = ((TVMTensor*)arrayHandle)->dtype.code;
                 if (code == (byte)TVMDataTypeCode.Int)
                 {
-                    return ((int*)((TVMTensor*)array_handle)->data)[index];
+                    return ((int*)((TVMTensor*)arrayHandle)->data)[index];
                 }
                 else if (code == (byte)TVMDataTypeCode.UInt)
                 {
-                    return ((uint*)((TVMTensor*)array_handle)->data)[index];
+                    return ((uint*)((TVMTensor*)arrayHandle)->data)[index];
                 }
                 else if (code == (byte)TVMDataTypeCode.Float)
                 {
-                    return ((float*)((TVMTensor*)array_handle)->data)[index];
+                    return ((float*)((TVMTensor*)arrayHandle)->data)[index];
                 }
                 else
                 {
@@ -133,7 +173,14 @@ namespace TVMRuntime
             }
         }
 
-        public static void SetNDArrayElem(UIntPtr array_handle, int index,
+        /// <summary>
+        /// Sets the NDArray element.
+        /// </summary>
+        /// <param name="arrayHandle">Array handle.</param>
+        /// <param name="index">Index.</param>
+        /// <param name="value">Value.</param>
+        /// <param name="arraySize">Array size.</param>
+        public static void SetNDArrayElem(UIntPtr arrayHandle, int index,
             object value, int arraySize)
         {
             if (index < 0 || index >= arraySize)
@@ -143,18 +190,18 @@ namespace TVMRuntime
 
             unsafe
             {
-                byte code = ((TVMTensor*)array_handle)->dtype.code;
+                byte code = ((TVMTensor*)arrayHandle)->dtype.code;
                 if (code == (byte)TVMDataTypeCode.Int)
                 {
-                    ((int*)((TVMTensor*)array_handle)->data)[index] = (int)value;
+                    ((int*)((TVMTensor*)arrayHandle)->data)[index] = (int)value;
                 }
                 else if (code == (byte)TVMDataTypeCode.UInt)
                 {
-                    ((uint*)((TVMTensor*)array_handle)->data)[index] = (uint)value;
+                    ((uint*)((TVMTensor*)arrayHandle)->data)[index] = (uint)value;
                 }
                 else if (code == (byte)TVMDataTypeCode.Float)
                 {
-                    ((float*)((TVMTensor*)array_handle)->data)[index] = (float)value;
+                    ((float*)((TVMTensor*)arrayHandle)->data)[index] = (float)value;
                 }
                 else
                 {
@@ -163,11 +210,15 @@ namespace TVMRuntime
             }
         }
 
-        public static void DisposeNDArray(UIntPtr array_handle)
+        /// <summary>
+        /// Disposes the NDArray.
+        /// </summary>
+        /// <param name="arrayHandle">Array handle.</param>
+        public static void DisposeNDArray(UIntPtr arrayHandle)
         {
             unsafe
             {
-                TVMArrayFree((TVMTensor*)array_handle);
+                TVMArrayFree((TVMTensor*)arrayHandle);
             }
         }
     }
