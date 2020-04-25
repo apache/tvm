@@ -27,12 +27,14 @@ from .op import register_gradient
 from .reduce import sum as _sum
 from .tensor import (
     cos,
+    cosh,
     exp,
     less,
     negative,
     ones_like,
     power,
     sin,
+    sinh,
     zeros_like,
     equal,
     shape_of,
@@ -61,6 +63,24 @@ def log_grad(orig, grad):
     return [grad * ones_like(x) / x]
 
 
+@register_gradient("log2")
+def log2_grad(orig, grad):
+    """Returns [grad * 1 / (log(2) * x)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    two = const(2.0)
+    return [grad * ones / (log(two) * x)]
+
+
+@register_gradient("log10")
+def log10_grad(orig, grad):
+    """Returns [grad * 1 / (log(10) * x)]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    ten = const(10.0)
+    return [grad * ones / (log(ten) * x)]
+
+
 @register_gradient("tan")
 def tan_grad(orig, grad):
     """Returns [grad / (cos^2(x))]"""
@@ -76,11 +96,25 @@ def cos_grad(orig, grad):
     return [grad * (-ones * sin(x))]
 
 
+@register_gradient("cosh")
+def cosh_grad(orig, grad):
+    """Returns [grad * (-sinh(x))]"""
+    x = orig.args[0]
+    ones = ones_like(x)
+    return [grad * (-ones * sinh(x))]
+
+
 @register_gradient("sin")
 def sin_grad(orig, grad):
     """Returns [grad * cos(x)]"""
     x = orig.args[0]
     return [grad * cos(x)]
+
+@register_gradient("sinh")
+def sinh_grad(orig, grad):
+    """Returns [grad * cosh(x)]"""
+    x = orig.args[0]
+    return [grad * cosh(x)]
 
 @register_gradient("atan")
 def atan_grad(orig, grad):

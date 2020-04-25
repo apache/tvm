@@ -539,7 +539,7 @@ def sin(x):
 
 
 def sinh(x):
-    """Take sin of input x.
+    """Take sinh of input x.
 
     Parameters
     ----------

@@ -47,6 +47,36 @@ def log(data):
     """
     return _make.log(data)
 
+def log2(data):
+    """Compute elementwise log to the base 2 of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.log2(data)
+
+def log10(data):
+    """Compute elementwise log to the base 10 of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.log10(data)
+
 def tan(data):
     """Compute elementwise tan of data.
 
@@ -77,6 +107,21 @@ def cos(data):
     """
     return _make.cos(data)
 
+def cosh(data):
+    """Compute elementwise cosh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.cosh(data)
+
 def sin(data):
     """Compute elementwise sin of data.
 
@@ -91,6 +136,21 @@ def sin(data):
         The computed result.
     """
     return _make.sin(data)
+
+def sinh(data):
+    """Compute elementwise sinh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.sinh(data)
 
 def atan(data):
     """Compute elementwise atan of data.

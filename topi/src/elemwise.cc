@@ -61,9 +61,19 @@ TVM_REGISTER_GLOBAL("topi.cos")
   *rv = cos(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.cosh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = cosh(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.sin")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = sin(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.sinh")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = sinh(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.tanh")
@@ -99,6 +109,16 @@ TVM_REGISTER_GLOBAL("topi.rsqrt")
 TVM_REGISTER_GLOBAL("topi.log")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = log(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.log2")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = log2(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.log10")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = log10(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.identity")
