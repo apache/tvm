@@ -293,7 +293,7 @@ Build Additional Components to Use VTA Bitstream
 """"""""""""""""""""""""""""""""""""""""""""""""
 
 To use the above built bitstream on DE10-Nano hardware, several additional components need to be compiled for the system.
-Specifically, to compile application executables for the system, you need to download and install `SoCEDS <http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux) (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem.
+Specifically, to compile application executables for the system, you need to download and install `SoCEDS <http://fpgasoftware.intel.com/soceds/18.1/?edition=standard&download_manager=dlm3&platform=linux>`_ (recommended), or alternatively install the `g++-arm-linux-gnueabihf` package on your host machine. You would also need a `cma` kernel module to allocate contigous memory, and a driver for communicating with the VTA subsystem.
 
 
 .. _VTA FPGA Toolchain Installation:
