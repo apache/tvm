@@ -1470,6 +1470,22 @@ class NonZero(OnnxOpConverter):
         output = AttrCvt(op_name='argwhere')(inputs, attr, params)
         return _op.transpose(output, axes=(1, 0))
 
+class TopK(OnnxOpConverter):
+    """Operator converter for TopK
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if len(inputs) != 2:
+            raise ValueError("Expect 2 input only")
+        axis = attr.get("axis", -1)
+        largest = attr.get("largest", 1)
+
+        if largest == 0:
+            raise ValueError("TVM only supports finding TopK largest elements")
+
+        K = int(infer_value(inputs[1], params).asnumpy()[0])
+
+        return _op.topk(inputs[0], k=K, axis=axis)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1573,8 +1589,11 @@ def _get_convert_map(opset):
         'ReduceProd': ReduceProd.get_converter(opset),
         # 'ReduceProd'
         # 'ReduceLogSumExp'
+
+        #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),
         'ArgMin': ArgMin.get_converter(opset),
+        'TopK': TopK.get_converter(opset),
 
         # defs/tensor
         'Cast': Cast.get_converter(opset),
