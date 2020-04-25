@@ -5,33 +5,38 @@ namespace TVMRuntime
 {
     public static class Utils
     {
-        //public const string libName = "native/libtvm_runtime.so";
-        public const string libName = "native/libtvm_runtime_log.so";
+        public const string libName = "tvmlibs/libtvm_runtime.so";
 
-        public static byte [] ReadByteArrayFromFile(string file_path)
+        /// <summary>
+        /// Reads the byte array from file.
+        /// </summary>
+        /// <returns>The byte array from file.</returns>
+        /// <param name="filePath">File path.</param>
+        public static byte [] ReadByteArrayFromFile(string filePath)
         {
-            if (!File.Exists(file_path))
+            if (!File.Exists(filePath))
             {
-                Console.WriteLine(file_path + " does not exist.");
+                Console.WriteLine(filePath + " does not exist.");
                 return null;
             }
 
-            //string text = File.ReadAllText(file_path);
-            //byte[] byteArray = Convert.FromBase64String(text);
-
-            return File.ReadAllBytes(file_path);
-            //return byteArray;
+            return File.ReadAllBytes(filePath);
         }
 
-        public static string ReadStringFromFile(string file_path)
+        /// <summary>
+        /// Reads the string from file.
+        /// </summary>
+        /// <returns>The string from file.</returns>
+        /// <param name="filePath">File path.</param>
+        public static string ReadStringFromFile(string filePath)
         {
-            if (!File.Exists(file_path))
+            if (!File.Exists(filePath))
             {
-                Console.WriteLine(file_path + " does not exist.");
+                Console.WriteLine(filePath + " does not exist.");
                 return null;
             }
 
-            return File.ReadAllText(file_path);
+            return File.ReadAllText(filePath);
         }
     }
 }
