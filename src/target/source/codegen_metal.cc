@@ -74,7 +74,6 @@ void CodeGenMetal::AddFunction(const PrimFunc& f) {
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, stream);
     }
-    stream << ' ';
     PrintType(GetType(v), stream);
     // Register handle data type
     // TODO(tvm-team): consider simply keep type info in the
@@ -236,11 +235,11 @@ void CodeGenMetal::PrintVecElemStore(const std::string& vec,
 void CodeGenMetal::PrintStorageScope(
     const std::string& scope, std::ostream& os) { // NOLINT(*)
   if (scope == "global") {
-    os << "device";
+    os << "device ";
   } else if (scope == "shared") {
-    os << "threadgroup";
+    os << "threadgroup ";
   } else {
-    os << "thread";
+    os << "thread ";
   }
 }
 
