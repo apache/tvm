@@ -8,23 +8,23 @@ namespace TVMRuntime
         /// <summary>
         /// The module lib path.
         /// </summary>
-        private string mod_lib_path = "";
+        private string modLibPath = "";
 
         /// <summary>
         /// The module lib format.
         /// </summary>
-        private string mod_lib_format = "";
+        private string modLibFormat = "";
 
         /// <summary>
         /// The module handle.
         /// </summary>
-        private UIntPtr module_handle = UIntPtr.Zero;
+        private UIntPtr moduleHandle = UIntPtr.Zero;
 
         /// <summary>
         /// Gets the module handle.
         /// </summary>
         /// <value>The module handle.</value>
-        public UIntPtr Module_handle { get => module_handle;}
+        public UIntPtr ModuleHandle { get => moduleHandle;}
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:TVMRuntime.Module"/> class.
@@ -39,9 +39,9 @@ namespace TVMRuntime
         /// <param name="other">Other.</param>
         public Module(Module other)
         {
-            module_handle = other.module_handle;
-            mod_lib_path = other.mod_lib_path;
-            mod_lib_format = other.mod_lib_format;
+            moduleHandle = other.moduleHandle;
+            modLibPath = other.modLibPath;
+            modLibFormat = other.modLibFormat;
         }
 
         /// <summary>
@@ -51,44 +51,41 @@ namespace TVMRuntime
         /// <param name="format">Format.</param>
         public Module(string path, string format)
         {
-            mod_lib_path = path;
-            mod_lib_format = format;
+            modLibPath = path;
+            modLibFormat = format;
 
-            UnmanagedModuleWrapper.LoadModuleFromFile(mod_lib_path,
-                mod_lib_format, ref module_handle);
+            UnmanagedModuleWrapper.LoadModuleFromFile(modLibPath,
+                modLibFormat, ref moduleHandle);
 
-            Console.WriteLine("Jai hanuman module created");
-            Console.WriteLine(module_handle);
         }
 
         /// <summary>
         /// Imports the module.
         /// </summary>
-        /// <param name="dep_mod">Dep mod.</param>
-        public void ImportModule(UIntPtr dep_mod)
-            => UnmanagedModuleWrapper.ImportModule(module_handle, dep_mod);
+        /// <param name="depMod">Dep mod.</param>
+        public void ImportModule(UIntPtr depMod)
+            => UnmanagedModuleWrapper.ImportModule(moduleHandle, depMod);
 
         /// <summary>
         /// Gets the module embeded func.
         /// </summary>
-        /// <param name="func_name">Func name.</param>
-        /// <param name="query_imports">Query imports.</param>
-        /// <param name="func_handle">Func handle.</param>
-        public void GetModuleEmbededFunc(string func_name,
-            int query_imports, ref UIntPtr func_handle)
-            => UnmanagedModuleWrapper.GetModuleEmbededFunc(module_handle,
-                func_name, query_imports, ref func_handle);
+        /// <param name="funcName">Func name.</param>
+        /// <param name="queryImports">Query imports.</param>
+        /// <param name="funcHandle">Func handle.</param>
+        public void GetModuleEmbededFunc(string funcName,
+            int queryImports, ref UIntPtr funcHandle)
+            => UnmanagedModuleWrapper.GetModuleEmbededFunc(moduleHandle,
+                funcName, queryImports, ref funcHandle);
 
         /// <summary>
         /// Disposes the module.
         /// </summary>
         public void DisposeModule()
         {
-            Console.WriteLine("Jai hanuman module destroyed");
-            if (!UIntPtr.Zero.Equals(module_handle))
+            if (!UIntPtr.Zero.Equals(moduleHandle))
             {
-                UnmanagedModuleWrapper.DisposeModule(module_handle);
-                module_handle = UIntPtr.Zero;
+                UnmanagedModuleWrapper.DisposeModule(moduleHandle);
+                moduleHandle = UIntPtr.Zero;
             }
         }
 
@@ -99,9 +96,9 @@ namespace TVMRuntime
         /// </summary>
         ~Module()
         {
-            if (!UIntPtr.Zero.Equals(module_handle))
+            if (!UIntPtr.Zero.Equals(moduleHandle))
             {
-                UnmanagedModuleWrapper.DisposeModule(module_handle);
+                UnmanagedModuleWrapper.DisposeModule(moduleHandle);
             }
         }
     }
