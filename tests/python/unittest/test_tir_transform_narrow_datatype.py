@@ -130,7 +130,7 @@ def test_multilanes():
     # i32 -> i32
     check(const(2 ** 10, dtype='int32'), 2,
           target_bits=32, target_dtype='int32')
-    check(const(2 ** 32, dtype='int32'), 2,
+    check(const(2 ** 31 - 1, dtype='int32'), 2,
           target_bits=32, target_dtype='int32')
     # i64 -> i32
     check(const(2 ** 10, dtype='int64'), 2,

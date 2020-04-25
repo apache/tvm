@@ -133,7 +133,7 @@ def test_cuda_make_int8x4():
         a = tvm.nd.empty(np_a.shape, dtype, ctx)
         fun(a)
         np.testing.assert_equal(a.asnumpy(), np_a)
-    check_cuda(64, 0xAB)
+    check_cuda(64, 127)
     check_cuda(64, 0)
     check_cuda(64, -3)
 

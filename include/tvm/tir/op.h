@@ -726,11 +726,29 @@ inline bool is_no_op(const tir::Stmt& stmt) {
 
 template<typename ValueType>
 inline PrimExpr MakeConstScalar(DataType t, ValueType value) {
-  if (t.is_int()) return IntImm(t, static_cast<int64_t>(value));
+  if (t.is_int()) {
+    int64_t ival = static_cast<int64_t>(value);
+    int64_t bits = static_cast<int64_t>(t.bits());
+    if (bits < 64) {
+      int64_t max_int = 1;
+      max_int = (max_int << (t.bits() - 1)) - 1;
+      int64_t min_int = 1;
+      min_int = -(min_int << (t.bits() - 1));
+      CHECK(ival >= min_int && ival <= max_int) <<
+        "The value " << ival << " cannot fit in type " << t;
+    }
+    return IntImm(t, ival);
+  }
   if (t.is_uint()) {
     // Use IntImm if it is a small integer
     uint64_t uval = static_cast<uint64_t>(value);
     if (uval <= static_cast<uint64_t>(std::numeric_limits<int64_t>::max())) {
+      if (t.bits() < 64) {
+        uint64_t max_uint = 1;
+        max_uint = (max_uint << t.bits()) - 1;
+        CHECK(uval <= max_uint) <<
+          "The value " << uval << " cannot fit in type " << t;
+      }
       return IntImm(t, static_cast<int64_t>(value));
     } else {
       uint64_t mask = (static_cast<uint64_t>(1) << 32U) - 1U;
