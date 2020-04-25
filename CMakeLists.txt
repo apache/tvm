@@ -192,6 +192,7 @@ file(GLOB_RECURSE COMPILER_SRCS
     src/autotvm/*.cc
     src/tir/*.cc
     src/driver/*.cc
+    src/parser/*.cc
     src/printer/*.cc
     src/support/*.cc
     )
