@@ -311,13 +311,13 @@ inline IntervalSet Combine<tir::FloorModNode>(Analyzer* analyzer,
       LOG(FATAL) << "Modular by zero in CombineInterval Mod";
     }
     if (analyzer->CanProveGreaterEqual(divisor, 0)) {
-      if (b->min_value.as<tir::IntImmNode>()) {
+      if (divisor.as<tir::IntImmNode>()) {
         // a mod b = a - (a / b) * b if a_max / b == a_min / b
-        auto qmax = floordiv(a->max_value, b->min_value);
-        auto qmin = floordiv(a->min_value, b->min_value);
+        auto qmax = floordiv(a->max_value, divisor);
+        auto qmin = floordiv(a->min_value, divisor);
         if (analyzer->CanProve(qmax == qmin)) {
-          auto tmax = a->max_value - b->min_value * qmin;
-          auto tmin = a->min_value - b->min_value * qmin;
+          auto tmax = a->max_value - divisor * qmin;
+          auto tmin = a->min_value - divisor * qmin;
           return IntervalSet(tmin, tmax);
         }
       }

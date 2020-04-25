@@ -239,6 +239,10 @@ void ComputeOpNode::PropBoundToInputs(
             PrimExpr min_value = arg_interval->min_value;
             PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
+            // We must update bound's ends in pairs.  Here is an counter example: shape_i is
+            // [0, 0] and arg_interval is [threadIdx.y, threadIdx.y], where threadIdx.y's range is
+            // [0, 7]. If we allowed updating one end, the bound would become [threadIdx.y, 0],
+            // awkward for further analysis.
             if ((arith::is_pos_inf(max_value) && arith::is_neg_inf(min_value)) ||
                 (analyzer->CanProve(shape_i_min_value >= min_value) &&
                  analyzer->CanProve(shape_i_max_value <= max_value))) {
