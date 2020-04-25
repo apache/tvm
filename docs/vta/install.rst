@@ -266,7 +266,7 @@ Now you can connect the power cable and serial port to boot the Angstrom Linux.
 
 > Note: When boot up from the microSD card, you might notice the incompatibility of the linux kernel `zImage` in the microSD card.
 > In this case, you might need to build the `zImage` file of your own from `socfpga-4.9.78-ltsi <https://github.com/altera-opensource/linux-socfpga/tree/socfpga-4.9.78-ltsi>`_ branch of the `linux-socfpga <https://github.com/altera-opensource/linux-socfpga>`_ repository.
-> For a quick fix, you can also download a prebuilt version of the `zImage` file `here <https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage>`_.
+> For a quick fix, you can also download a prebuilt version of the `zImage` file `from this link <https://raw.githubusercontent.com/liangfu/de10-nano-supplement/master/zImage>`_.
 
 After connecting the usb cables to the DE10-Nano board, power on the board by connecting the power cable. You may then connect to the serial port of the device by using `minicom` on your host PC:
 
