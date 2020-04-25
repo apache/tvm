@@ -2,8 +2,10 @@
 
 namespace TVMRuntime
 {
-    public static partial class Binding
+    public static class Binding
     {
-        public tvm_runtime runtime { get; } = new tvm_runtime();
+        public static Runtime runtime { get; } = new Runtime();
+
+        public static Module module { get; } = new Module();
     }
 }
