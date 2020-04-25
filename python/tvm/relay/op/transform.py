@@ -500,7 +500,7 @@ def where(condition, x, y):
     Returns
     -------
     result : relay.Expr
-		The selected array.
+        The selected array.
 
     Examples
     --------
