@@ -2,6 +2,9 @@
 
 namespace TVMRuntime
 {
+    /// <summary>
+    /// TVM Data type code.
+    /// </summary>
     enum TVMDataTypeCode
     {
         Int = 0,
@@ -26,28 +29,32 @@ namespace TVMRuntime
         /// </summary>
         public ushort lanes;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.TVMDataType"/> struct.
+        /// </summary>
+        /// <param name="dtype">Dtype.</param>
         public TVMDataType(string dtype) : this()
         {
-            string lower_dtype = dtype.ToLower();
+            string lowerDtype = dtype.ToLower();
 
             // TODO: support user input for lanes
             lanes = 1;
-            if (lower_dtype.StartsWith("i") && lower_dtype.Contains("int"))
+            if (lowerDtype.StartsWith("i") && lowerDtype.Contains("int"))
             {
                 code = (byte)TVMDataTypeCode.Int;
-                bits = (byte)Int32.Parse(lower_dtype.Split("int")[1]);
+                bits = (byte)Int32.Parse(lowerDtype.Split("int")[1]);
             }
-            else if (lower_dtype.StartsWith("u") && lower_dtype.Contains("uint"))
+            else if (lowerDtype.StartsWith("u") && lowerDtype.Contains("uint"))
             {
                 code = (byte)TVMDataTypeCode.UInt;
-                bits = (byte)Int32.Parse(lower_dtype.Split("uint")[1]);
+                bits = (byte)Int32.Parse(lowerDtype.Split("uint")[1]);
             }
-            else if (lower_dtype.StartsWith("f") && lower_dtype.Contains("float"))
+            else if (lowerDtype.StartsWith("f") && lowerDtype.Contains("float"))
             {
                 code = (byte)TVMDataTypeCode.Float;
-                bits = (byte)Int32.Parse(lower_dtype.Split("float")[1]);
+                bits = (byte)Int32.Parse(lowerDtype.Split("float")[1]);
             }
-            else if (lower_dtype.StartsWith("b") && lower_dtype.Contains("bool"))
+            else if (lowerDtype.StartsWith("b") && lowerDtype.Contains("bool"))
             {
                 code = (byte)TVMDataTypeCode.UInt;
                 bits = 1;
@@ -61,12 +68,18 @@ namespace TVMRuntime
 
     public class NDArray
     {
-        UIntPtr array_handle = UIntPtr.Zero;
+        UIntPtr arrayHandle = UIntPtr.Zero;
         int ndim = 0;
         int[] shape;
         int arraySize = 0;
 
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.NDArray"/> class.
+        /// </summary>
+        /// <param name="shapeInp">Shape inp.</param>
+        /// <param name="ndimInp">Ndim inp.</param>
+        /// <param name="dataType">Data type.</param>
+        /// <param name="ctx">Context.</param>
         public NDArray(int[] shapeInp,
                           int ndimInp,
                           TVMDataType dataType,
@@ -74,29 +87,20 @@ namespace TVMRuntime
         {
             UnmanagedNDArrayWrapper.CreateNDArray(shape, ndim, dataType.code,
                 dataType.bits, dataType.lanes, (int)ctx.device_type,
-                 ctx.device_id, ref array_handle);
+                 ctx.device_id, ref arrayHandle);
             shape = shapeInp;
             ndim = ndimInp;
             arraySize = 1;
             Array.ForEach(shape, i => arraySize *= i);
         }
 
-        public NDArray(int[] shapeInp,
-                          int ndimInp,
-                          int dtype_code,
-                          int dtype_bits,
-                          int dtype_lanes,
-                          TVMContext ctx)
-        {
-            UnmanagedNDArrayWrapper.CreateNDArray(shape, ndim, dtype_code,
-                dtype_bits, dtype_lanes, (int)ctx.device_type,
-                 ctx.device_id, ref array_handle);
-            shape = shapeInp;
-            ndim = ndimInp;
-            arraySize = 1;
-            Array.ForEach(shape, i => arraySize *= i);
-        }
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.NDArray"/> class.
+        /// </summary>
+        /// <param name="shapeInp">Shape inp.</param>
+        /// <param name="ndimInp">Ndim inp.</param>
+        /// <param name="dataTypeStr">Data type string.</param>
+        /// <param name="ctx">Context.</param>
         public NDArray(int[] shapeInp,
                           int ndimInp,
                           string dataTypeStr,
@@ -105,24 +109,36 @@ namespace TVMRuntime
             TVMDataType dataType = new TVMDataType(dataTypeStr);
             UnmanagedNDArrayWrapper.CreateNDArray(shape, ndim, dataType.code,
                 dataType.bits, dataType.lanes, (int)ctx.device_type,
-                 ctx.device_id, ref array_handle);
+                 ctx.device_id, ref arrayHandle);
             shape = shapeInp;
             ndim = ndimInp;
             arraySize = 1;
             Array.ForEach(shape, i => arraySize *= i);
         }
 
-        public UIntPtr NDArray_handle { get => array_handle; }
+        /// <summary>
+        /// Gets the ND Array handle.
+        /// </summary>
+        /// <value>The NDA rray handle.</value>
+        public UIntPtr NDArrayHandle { get => arrayHandle; }
 
+        /// <summary>
+        /// Gets or sets the <see cref="T:TVMRuntime.NDArray"/> with the specified i.
+        /// </summary>
+        /// <param name="i">The index.</param>
         public object this[int i]
         {
-            get { return UnmanagedNDArrayWrapper.GetNDArrayElem(array_handle, i, arraySize); }
-            set { UnmanagedNDArrayWrapper.SetNDArrayElem(array_handle, i, value, arraySize); }
+            get { return UnmanagedNDArrayWrapper.GetNDArrayElem(arrayHandle, i, arraySize); }
+            set { UnmanagedNDArrayWrapper.SetNDArrayElem(arrayHandle, i, value, arraySize); }
         }
 
+        /// <summary>
+        /// Releases unmanaged resources and performs other cleanup operations before the
+        /// <see cref="T:TVMRuntime.NDArray"/> is reclaimed by garbage collection.
+        /// </summary>
         ~NDArray()
         {
-            UnmanagedNDArrayWrapper.DisposeNDArray(array_handle);
+            UnmanagedNDArrayWrapper.DisposeNDArray(arrayHandle);
         }
     }
 }
