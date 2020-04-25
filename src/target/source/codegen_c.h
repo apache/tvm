@@ -257,29 +257,6 @@ class CodeGenC :
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const VarNode*, DataType> handle_data_type_;
 
-  /*!
-   * \brief A RAII utility class for emitting code in a scoped region.
-   */
-  class EnterScopeRAII {
-    // The codegen context.
-    CodeGenC* cg;
-
-    // The new scope level.
-    int scope;
-
-   public:
-    explicit EnterScopeRAII(CodeGenC* cg) : cg(cg) {
-      cg->PrintIndent();
-      cg->stream << "{\n";
-      scope = cg->BeginScope();
-    }
-    ~EnterScopeRAII() {
-      cg->EndScope(scope);
-      cg->PrintIndent();
-      cg->stream << "}\n";
-    }
-  };
-
  private:
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};
