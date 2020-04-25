@@ -1477,6 +1477,50 @@ def _tensor_array_stack(prelude):
     return _impl
 
 
+def _rsub():
+    def _impl(inputs, input_types):
+        # TODO: Figure out a better way to get typing to work for tensor + scalar
+        type0 = input_types[0]
+        if isinstance(inputs[1], _expr.Expr):
+            type0 = input_types[1]
+
+        type1 = input_types[1]
+        if isinstance(inputs[0], _expr.Expr):
+            type1 = input_types[0]
+
+        data1 = _convert_elemwise_input(inputs[0], type0)
+        data0 = _convert_elemwise_input(inputs[1], type1)
+        alpha = _expr.const(float(inputs[2]))
+
+        return get_relay_op("subtract")(data0, alpha * data1)
+    return _impl
+
+
+def _embedding():
+    def _impl(inputs, input_types):
+        weight = inputs[0]
+        indices = inputs[1]
+
+        return _op.take(weight, indices.astype('int32'), axis=0)
+    return _impl
+
+
+def _one_hot():
+    def _impl(inputs, input_types):
+        indices = inputs[0].astype('int32')
+        num_classes = inputs[1]
+        if num_classes == -1:
+            msg = "Inferring the number of classes is not yet supported."
+            raise NotImplementedError(msg)
+
+        dtype = 'int32'
+        on_value = tvm.relay.const(1.0, dtype)
+        off_value = tvm.relay.const(0.0, dtype)
+
+        return _op.one_hot(indices, on_value, off_value, num_classes, -1, dtype)
+    return _impl
+
+
 # Helper functions for operator implementation
 def _convert_dtype_value(val):
     convert_torch_dtype_map = {7:"torch.float64",
@@ -1690,6 +1734,9 @@ def _get_convert_map(prelude):
         "aten::Float"                           : _Float(),
         "aten::adaptive_avg_pool3d"             : _adaptive_avg_pool_3d(),
         "aten::adaptive_max_pool3d"             : _adaptive_max_pool_3d(),
+        "aten::rsub"                            : _rsub(),
+        "aten::embedding"                       : _embedding(),
+        "aten::one_hot"                         : _one_hot(),
         "aten::mm"                              : _matmul(),
         "relay::tensor_array_stack"             : _tensor_array_stack(prelude),
         "aten::add"                             : _add(prelude),

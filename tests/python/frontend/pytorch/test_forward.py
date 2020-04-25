@@ -1463,6 +1463,56 @@ def test_forward_variance():
     verify_model(Variance5().float().eval(), input_data=input_data)
 
 
+def test_forward_rsub():
+    torch.set_grad_enabled(False)
+
+    class Rsub1(Module):
+        def forward(self, *args):
+            return torch.rsub(args[0], args[1])
+
+    class Rsub2(Module):
+        def forward(self, *args):
+            return torch.rsub(args[0], args[1], alpha=0.5)
+
+    d1 = torch.rand([1, 3]).float()
+    d2 = torch.rand([1, 3]).float()
+    d3 = torch.rand([1, 3]).int()
+    verify_model(Rsub1().float().eval(), input_data=[d1, d2])
+    verify_model(Rsub1().float().eval(), input_data=[d1, d3])
+    verify_model(Rsub2().float().eval(), input_data=[d1, d2])
+    verify_model(Rsub2().float().eval(), input_data=[d1, d3])
+
+
+def test_forward_embedding():
+    torch.set_grad_enabled(False)
+
+    input_data = torch.randint(0, 10, [2, 4]).long()
+    verify_model(torch.nn.Embedding(10, 3).float().eval(), input_data=input_data)
+
+    input_data = torch.randint(0, 4, [2, 3, 4]).long()
+    verify_model(torch.nn.Embedding(4, 5, sparse=False).float().eval(), input_data=input_data)
+
+    input_data = torch.randint(0, 4, [2, 3, 4]).long()
+    verify_model(torch.nn.Embedding(4, 5, sparse=True).float().eval(), input_data=input_data)
+
+
+def test_forward_onehot():
+    torch.set_grad_enabled(False)
+
+    class OneHot1(Module):
+        def forward(self, *args):
+            return torch.nn.functional.one_hot(args[0], num_classes=3)
+
+    class OneHot2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.one_hot(args[0], num_classes=5)
+
+    input_data = torch.arange(0, 5) % 3
+    verify_model(OneHot1().float().eval(), input_data=input_data)
+
+    input_data = torch.arange(0, 5) % 4
+    verify_model(OneHot2().float().eval(), input_data=input_data)
+
 
 def test_forward_isfinite():
     torch.set_grad_enabled(False)
@@ -1984,6 +2034,9 @@ if __name__ == "__main__":
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_rsub()
+    test_forward_onehot()
+    test_forward_embedding()
     test_forward_reshape()
     test_forward_reciprocal()
     test_forward_repeat()
