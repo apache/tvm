@@ -9,17 +9,17 @@ namespace TVMRuntime
         /// <summary>
         ///
         /// </summary>
-        /// <param name="file_name">The file name to load the module from.</param>
+        /// <param name="fileName">The file name to load the module from.</param>
         /// <param name="format">The format of the module.</param>
-        /// <param name="out_handle">The result module</param>
+        /// <param name="outHandle">The result module</param>
         /// <returns>0 when success, -1 when failure happens</returns>
         /// <remarks>
         /// @brief Load module from file.@note The resulting module do not contain import relation.
         /// It can be reconstructed by TVMModImport.
         /// </remarks>
         [DllImport(Utils.libName)]
-        private static extern int TVMModLoadFromFile([MarshalAs(UnmanagedType.LPStr)] string file_name,
-            [MarshalAs(UnmanagedType.LPStr)] string format, ref UIntPtr out_handle);
+        private static extern int TVMModLoadFromFile([MarshalAs(UnmanagedType.LPStr)] string fileName,
+            [MarshalAs(UnmanagedType.LPStr)] string format, ref UIntPtr outHandle);
 
 
         /// <summary>
@@ -40,9 +40,9 @@ namespace TVMRuntime
         ///
         /// </summary>
         /// <param name="mod">The module handle.</param>
-        /// <param name="func_name">The name of the function.</param>
-        /// <param name="query_imports">Whether to query imported modules</param>
-        /// <param name="out_handle">The result function, 
+        /// <param name="funcName">The name of the function.</param>
+        /// <param name="queryImports">Whether to query imported modules</param>
+        /// <param name="outHandle">The result function, 
         /// can be NULL if it is not available.</param>
         /// <returns>0 when no error is thrown, -1 when failure happens</returns>
         /// <remarks>
@@ -50,8 +50,8 @@ namespace TVMRuntime
         /// </remarks>
         [DllImport(Utils.libName)]
         private static extern int TVMModGetFunction(UIntPtr mod,
-            [MarshalAs(UnmanagedType.LPStr)] string func_name,
-            int query_imports, ref UIntPtr out_handle);
+            [MarshalAs(UnmanagedType.LPStr)] string funcName,
+            int queryImports, ref UIntPtr outHandle);
 
 
         /// <summary>
@@ -72,15 +72,15 @@ namespace TVMRuntime
         /// <summary>
         /// Loads the module from file.
         /// </summary>
-        /// <param name="file_name">File name.</param>
+        /// <param name="fileName">File name.</param>
         /// <param name="format">Format.</param>
-        /// <param name="mod_handle">Module handle.</param>
-        public static void LoadModuleFromFile(string file_name,
-            string format, ref UIntPtr mod_handle)
+        /// <param name="modHandle">Module handle.</param>
+        public static void LoadModuleFromFile(string fileName,
+            string format, ref UIntPtr modHandle)
         {
             // TODO: Error handling
-            int result = TVMModLoadFromFile(file_name, format, 
-                    ref mod_handle);
+            int result = TVMModLoadFromFile(fileName, format, 
+                    ref modHandle);
         }
 
         /// <summary>
@@ -98,20 +98,15 @@ namespace TVMRuntime
         /// Gets the module embeded func.
         /// </summary>
         /// <param name="mod">Mod.</param>
-        /// <param name="func_name">Func name.</param>
-        /// <param name="query_imports">Query imports.</param>
-        /// <param name="func_handle">Func handle.</param>
-        public static void GetModuleEmbededFunc(UIntPtr mod, string func_name,
-            int query_imports, ref UIntPtr func_handle)
+        /// <param name="funcName">Func name.</param>
+        /// <param name="queryImports">Query imports.</param>
+        /// <param name="funcHandle">Func handle.</param>
+        public static void GetModuleEmbededFunc(UIntPtr mod, string funcName,
+            int queryImports, ref UIntPtr funcHandle)
         {
             // TODO: Error handling
-            Console.WriteLine("Jai Hanuman GetModuleEmbededFunc start!!!");
-            Console.WriteLine(mod);
-            Console.WriteLine(func_name);
-            Console.WriteLine(query_imports);
-            Console.WriteLine(func_handle);
-            int result = TVMModGetFunction(mod, func_name, query_imports,
-                    ref func_handle);
+            int result = TVMModGetFunction(mod, funcName, queryImports,
+                    ref funcHandle);
 
         }
 
