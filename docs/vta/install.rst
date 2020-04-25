@@ -371,7 +371,7 @@ You would need to install Intel's FPGA compilation toolchain, `Quartus Prime Lit
 Obtaining and Launching the Quartus GUI Installer
 """""""""""""""""""""""""""""""""""""""""""""""""
 
-1. Go to the `download center <http://fpgasoftware.intel.com/?edition=lite), and download the linux version of `Quartus Prime (include Nios II EDS)` and `Cyclone V device support` files in the `Separate file` tab. This avoid downloading unused device support files.
+1. Go to the `download center <http://fpgasoftware.intel.com/?edition=lite>`_, and download the linux version of `Quartus Prime (include Nios II EDS)` and `Cyclone V device support` files in the `Separate file` tab. This avoid downloading unused device support files.
 2. Sign in the form if you have an account, or register on the right side of the web page to create an account.
 3. After signed in, you are able to download the installer and the device support files.
 4. Now that the files are downloaded, go to your `Downloads` directory, and change the file permissions:
