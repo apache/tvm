@@ -9,22 +9,22 @@ namespace TVMRuntime
         /// <summary>
         /// The mod lib path.
         /// </summary>
-        public string mod_lib_path;
+        public string modLibPath;
 
         /// <summary>
         /// (Optional) The mod lib format.
         /// </summary>
-        public string mod_lib_format;
+        public string modLibFormat;
 
         /// <summary>
         /// The graph json path.
         /// </summary>
-        public string graph_json_path;
+        public string graphJsonPath;
 
         /// <summary>
         /// The parameter dict path.
         /// </summary>
-        public string param_dict_path;
+        public string paramDictPath;
 
         /// <summary>
         /// The context.
@@ -36,103 +36,124 @@ namespace TVMRuntime
     public class Runtime
     {
         private Module module = null;
-        private byte[] params_dict;
-        private string graph_json_string;
+        private byte[] paramsDict;
+        private string graphJsonString;
         private bool isInstantiated = false;
-        private UIntPtr runtime_handle = UIntPtr.Zero;
+        private UIntPtr runtimeHandle = UIntPtr.Zero;
 
         // all embeded func handles
-        private UIntPtr runtime_run_func_handle = UIntPtr.Zero;
-        private UIntPtr runtime_set_input_func_handle = UIntPtr.Zero;
-        private UIntPtr runtime_load_param_handle = UIntPtr.Zero;
-        private UIntPtr runtime_get_output_func_handle = UIntPtr.Zero;
+        private UIntPtr runtimeRunFuncHandle = UIntPtr.Zero;
+        private UIntPtr runtimeSetInputFuncHandle = UIntPtr.Zero;
+        private UIntPtr runtimeLoadParamHandle = UIntPtr.Zero;
+        private UIntPtr runtimeGetOutputFuncHandle = UIntPtr.Zero;
 
+        /// <summary>
+        /// Creates the instance.
+        /// </summary>
+        /// <param name="runtimeParam">Runtime parameter.</param>
         private void CreateInstance(RuntimeParams runtimeParam)
         {
-            Console.WriteLine("Jai Hanuman module create start!!!");
-            module = new Module(runtimeParam.mod_lib_path,
-                                runtimeParam.mod_lib_format);
+            module = new Module(runtimeParam.modLibPath,
+                                runtimeParam.modLibFormat);
 
-            Console.WriteLine("Jai Hanuman module created!!!");
+            paramsDict = Utils.ReadByteArrayFromFile(runtimeParam.paramDictPath);
 
-            params_dict = Utils.ReadByteArrayFromFile(runtimeParam.param_dict_path);
+            graphJsonString = Utils.ReadStringFromFile(runtimeParam.graphJsonPath);
 
-            Console.WriteLine("byte length: " + params_dict.Length);
-
-            graph_json_string = Utils.ReadStringFromFile(runtimeParam.graph_json_path);
-
-            Console.WriteLine("Module handle : " + module.Module_handle);
-            UnmanagedRuntimeWrapper.CreateTVMRuntime(module.Module_handle,
-                                            graph_json_string,
+            UnmanagedRuntimeWrapper.CreateTVMRuntime(module.ModuleHandle,
+                                            graphJsonString,
                                             runtimeParam.context,
-                                            ref runtime_handle);
-
-            Console.WriteLine("Jai Hanuman runtime created!!!");
-            Console.WriteLine("Module handle : " + module.Module_handle);
-            Console.WriteLine("Runtime handle : " + runtime_handle);
+                                            ref runtimeHandle);
 
             // Load all embeded func handles
             UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("run",
-                runtime_handle, ref runtime_run_func_handle);
+                runtimeHandle, ref runtimeRunFuncHandle);
 
             UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("set_input",
-                runtime_handle, ref runtime_set_input_func_handle);
+                runtimeHandle, ref runtimeSetInputFuncHandle);
 
             UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("load_params",
-                runtime_handle, ref runtime_load_param_handle);
+                runtimeHandle, ref runtimeLoadParamHandle);
 
             UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("get_output",
-                runtime_handle, ref runtime_get_output_func_handle);
+                runtimeHandle, ref runtimeGetOutputFuncHandle);
 
             isInstantiated = true;
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.Runtime"/> class.
+        /// </summary>
+        /// <param name="runtimeParam">Runtime parameter.</param>
         public Runtime(RuntimeParams runtimeParam)
         {
             CreateInstance(runtimeParam);
         }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.Runtime"/> class.
+        /// </summary>
         public Runtime()
         {
 
         }
 
+        /// <summary>
+        /// Create the specified runtimeParam.
+        /// </summary>
+        /// <returns>The create.</returns>
+        /// <param name="runtimeParam">Runtime parameter.</param>
         public Runtime Create(RuntimeParams runtimeParam)
         {
             if (!isInstantiated) { CreateInstance(runtimeParam); }
             return this;
         }
 
+        /// <summary>
+        /// Run this instance.
+        /// </summary>
         public void Run ()
         {
             if (!isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeRunFunc(runtime_handle);
+            UnmanagedRuntimeWrapper.InvokeRuntimeRunFunc(runtimeHandle);
         }
 
-        public void SetInput(string input_name, UIntPtr input_tensor_handle)
+        /// <summary>
+        /// Sets the input.
+        /// </summary>
+        /// <param name="inputName">Input name.</param>
+        /// <param name="inputTensorHandle">Input tensor handle.</param>
+        public void SetInput(string inputName, UIntPtr inputTensorHandle)
         {
             if (!isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeSetInputFunc(runtime_set_input_func_handle,
-                input_name, input_tensor_handle);
+            UnmanagedRuntimeWrapper.InvokeRuntimeSetInputFunc(runtimeSetInputFuncHandle,
+                inputName, inputTensorHandle);
         }
 
+        /// <summary>
+        /// Loads the parameters.
+        /// </summary>
         public void LoadParams()
         {
             if (!isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
-            Console.WriteLine("byte length: " + params_dict.Length);
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeLoadParamFunc(runtime_load_param_handle,
-                params_dict);
+            UnmanagedRuntimeWrapper.InvokeRuntimeLoadParamFunc(runtimeLoadParamHandle,
+                paramsDict);
         }
 
-        public void GetOutput(int output_index, ref TVMTensor output_tensor)
+        /// <summary>
+        /// Gets the output.
+        /// </summary>
+        /// <param name="outputIndex">Output index.</param>
+        /// <param name="outputTensor">Output tensor.</param>
+        public void GetOutput(int outputIndex, ref TVMTensor outputTensor)
         {
             if (!isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeGetOutputFunc(runtime_get_output_func_handle,
-                output_index, ref output_tensor);
+            UnmanagedRuntimeWrapper.InvokeRuntimeGetOutputFunc(runtimeGetOutputFuncHandle,
+                outputIndex, ref outputTensor);
         }
 
         // TODO: Destructor
