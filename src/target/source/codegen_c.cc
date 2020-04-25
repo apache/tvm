@@ -94,7 +94,6 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
       auto it = alloc_storage_scope_.find(v.get());
       if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
-        stream << ' ';
       }
 
       PrintType(GetType(v), stream);
@@ -179,7 +178,6 @@ std::string CodeGenC::GetBufferRef(
       if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
-      os << ' ';
       PrintType(t, os);
       os << "*)" << vid << ')';
     } else {
@@ -213,7 +211,6 @@ std::string CodeGenC::GetBufferRef(
     if (!scope.empty() && IsScopePartOfType()) {
       PrintStorageScope(scope, os);
     }
-    os << ' ';
     PrintType(t, os);
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
@@ -221,7 +218,6 @@ std::string CodeGenC::GetBufferRef(
       if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
-      os << ' ';
       PrintType(t.element_of(), os);
       os << "*)";
     }
@@ -681,7 +677,6 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
             auto it = alloc_storage_scope_.find(op->buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, value_temp);
-              value_temp << ' ';
             }
           }
           PrintType(elem_type, value_temp);
@@ -731,7 +726,6 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
             auto it = alloc_storage_scope_.find(op->buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, stream);
-              stream << ' ';
             }
           }
           PrintType(elem_type, stream);
@@ -823,10 +817,8 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
     const VarNode* buffer = op->buffer_var.as<VarNode>();
     std::string scope = alloc_storage_scope_.at(buffer);
     PrintStorageScope(scope, stream);
-    stream << ' ';
     PrintType(op->dtype, stream);
-    stream << ' '<< vid << '['
-           << constant_size << "];\n";
+    stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);

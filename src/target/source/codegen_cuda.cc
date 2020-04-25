@@ -242,8 +242,6 @@ void CodeGenCUDA::PrintVecBinaryOp(
   this->PrintType(t, stream);
   stream << ' ' << sret << ";\n";
   {
-    EnterScopeRAII scope(this);
-
     // Unpack into individual ops.
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
@@ -350,7 +348,7 @@ void CodeGenCUDA::PrintStorageScope(
     const std::string& scope, std::ostream& os) { // NOLINT(*)
   CHECK_NE(scope, "global");
   if (scope == "shared") {
-    os << "__shared__";
+    os << "__shared__ ";
   }
 }
 
@@ -370,7 +368,6 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   this->PrintType(target_ty, stream);
   stream << ' ' << sret << ";\n";
   {
-    EnterScopeRAII scope(this);
     std::string src = SSAGetID(PrintExpr(op->value), from_ty);
     for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
       std::ostringstream val;
@@ -470,8 +467,6 @@ void CodeGenCUDA::VisitExpr_(const CallNode *op, std::ostream& os) {
     this->PrintType(op->dtype, stream);
     stream << ' ' << sret << ";\n";
     {
-      EnterScopeRAII scope(this);
-
       // Load arguments.
       std::vector<std::string> sargs;
       for (size_t i = 0; i < op->args.size(); ++i) {
@@ -541,7 +536,6 @@ void CodeGenCUDA::VisitStmt_(const AllocateNode* op) {
     PrintWmmaScope(scope, op->dtype, buffer, stream);
   } else {
     PrintStorageScope(scope, stream);
-    stream << ' ';
     PrintType(op->dtype, stream);
   }
   if ((op->dtype == DataType::Int(4) ||
@@ -657,8 +651,6 @@ void CodeGenCUDA::VisitExpr_(const SelectNode* op, std::ostream &os) {
   this->PrintType(op->dtype, stream);
   stream << ' ' << r_var << ";\n";
   {
-    EnterScopeRAII scope(this);
-
     std::string c_var = SSAGetID(PrintExpr(op->condition), op->dtype);
     std::string t_var = SSAGetID(PrintExpr(op->true_value), op->dtype);
     std::string f_var = SSAGetID(PrintExpr(op->false_value), op->dtype);
