@@ -66,7 +66,7 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation,
     pt, pl, pb, pr = get_pad_tuple(padding, (KH, KW))
     pad_h, pad_w = pt + pb, pl + pr
     dilation_h, dilation_w = (dilation, dilation) if isinstance(dilation, int) else dilation
-
+    assert (pt == pb) and (pl == pr)
     OH = (H + 2 * pad_h - KH) // stride_h + 1
     OW = (W + 2 * pad_w - KW) // stride_w + 1
     cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) *\
@@ -76,8 +76,8 @@ def conv2d_nchw_miopen(cfg, data, kernel, strides, padding, dilation,
                                  kernel,
                                  stride_h,
                                  stride_w,
-                                 pad_h,
-                                 pad_w,
+                                 pt,
+                                 pl,
                                  dilation_h,
                                  dilation_w,
                                  conv_mode=0,
