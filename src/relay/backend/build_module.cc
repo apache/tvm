@@ -38,7 +38,6 @@ namespace tvm {
 namespace relay {
 namespace backend {
 
-using tir::LoweredFunc;
 
 using TargetsMap = Map<tvm::Integer, tvm::Target>;
 using namespace tvm::relay::transform;
@@ -78,16 +77,16 @@ struct GraphCodegen {
   }
 
   Array<tvm::runtime::Module> GetExternalModules() {
-    return CallFunc<Array<tvm::runtime::Module> >("get_external_modules", nullptr);
+    return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
   }
 
-  Map<std::string, Array<LoweredFunc> > GetLoweredFunc() {
-    return CallFunc<Map<std::string, Array<LoweredFunc> > >("get_lowered_funcs", nullptr);
+  Map<std::string, IRModule> GetIRModule() {
+    return CallFunc<Map<std::string, IRModule>>("get_irmodule", nullptr);
   }
 
   std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
     std::unordered_map<std::string, tvm::runtime::NDArray> ret;
-    auto names = CallFunc<Array<tvm::PrimExpr> >("list_params_name", nullptr);
+    auto names = CallFunc<Array<tvm::PrimExpr>>("list_params_name", nullptr);
     for (auto expr : names) {
       auto key = expr.as<tir::StringImmNode>()->value;
       ret[key] = CallFunc<runtime::NDArray>("get_param_by_name", key);
@@ -152,9 +151,9 @@ class RelayBuildModule : public runtime::ModuleNode {
           this->SetParam(kv.first, kv.second->data);
         }
       });
-    } else if (name == "get_lowered_funcs") {
+    } else if (name == "get_irmodule") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->graph_codegen_->GetLoweredFunc();
+          *rv = this->graph_codegen_->GetIRModule();
       });
     } else if (name == "get_external_modules") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -452,7 +451,7 @@ class RelayBuildModule : public runtime::ModuleNode {
     ret_.graph_json = graph_codegen_->GetJSON();
     ret_.params = graph_codegen_->GetParams();
 
-    auto lowered_funcs = graph_codegen_->GetLoweredFunc();
+    auto lowered_funcs = graph_codegen_->GetIRModule();
 
     // When there is no lowered_funcs due to reasons such as optimization.
     if (lowered_funcs.size() == 0) {

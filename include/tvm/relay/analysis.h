@@ -30,6 +30,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relay/type.h>
 #include <string>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
@@ -224,6 +225,16 @@ TVM_DLL Map<Expr, Integer> CollectDeviceAnnotationOps(const Expr& expr);
  * expression.
  */
 TVM_DLL Array<Pattern> UnmatchedCases(const Match& match, const IRModule& mod);
+
+/*!
+ * \brief Get reference counter of each internal ExprNode in body.
+ *
+ * \param body The body expression.
+ *
+ * \return The reference count mapping.
+ */
+TVM_DLL std::unordered_map<const Object*, size_t>
+GetExprRefCount(const Expr& body);
 
 }  // namespace relay
 }  // namespace tvm

@@ -161,6 +161,23 @@ TEST(Relay, BuildModule) {
   }
 }
 
+TEST(Relay, GetExprRefCount) {
+  auto tensor_type = relay::TensorType({2, 3}, DataType::Float(32));
+  auto a = relay::Var("a", tensor_type);
+  auto add_op = relay::Op::Get("add");
+  auto relu_op = relay::Op::Get("nn.relu");
+  auto x = relay::Call(relu_op, {a}, tvm::Attrs(), {});
+  auto y = relay::Call(relu_op, {x}, tvm::Attrs(), {});
+  auto z = relay::Call(add_op, {y, x}, tvm::Attrs(), {});
+  auto ref_count = GetExprRefCount(z);
+  CHECK(ref_count[a.get()] == 1);
+  CHECK(ref_count[relu_op.get()] == 2);
+  CHECK(ref_count[add_op.get()] == 1);
+  CHECK(ref_count[x.get()] == 2);
+  CHECK(ref_count[y.get()] == 1);
+  CHECK(ref_count[z.get()] == 1);
+}
+
 int main(int argc, char ** argv) {
   testing::InitGoogleTest(&argc, argv);
   testing::FLAGS_gtest_death_test_style = "threadsafe";

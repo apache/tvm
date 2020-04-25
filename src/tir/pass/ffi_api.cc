@@ -105,13 +105,6 @@ TVM_REGISTER_GLOBAL("ir_pass.PostOrderVisit")
       });
   });
 
-TVM_REGISTER_GLOBAL("ir_pass.LowerStorageAccess")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
-  LoweredFunc f = args[0];
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = LowerStorageAccessInfo(f->body);
-  *ret = LoweredFunc(n);
-});
 
 // make from two arguments
 #define REGISTER_PASS(PassName)                                   \
@@ -128,10 +121,6 @@ REGISTER_PASS(VectorizeLoop);
 REGISTER_PASS(SkipVectorize);
 REGISTER_PASS(UnrollLoop);
 REGISTER_PASS(InjectCopyIntrin);
-REGISTER_PASS(ThreadSync);
-REGISTER_PASS(MakeAPI);
-REGISTER_PASS(BindDeviceType);
-REGISTER_PASS(SplitHostDevice);
 REGISTER_PASS(StorageRewrite);
 REGISTER_PASS(CoProcSync);
 REGISTER_PASS(LowerStorageAccessInfo);
@@ -141,16 +130,11 @@ REGISTER_PASS(InjectDoubleBuffer);
 REGISTER_PASS(LoopPartition);
 REGISTER_PASS(RemoveNoOp);
 REGISTER_PASS(LiftAttrScope);
-REGISTER_PASS(LowerThreadAllreduce);
-REGISTER_PASS(RemapThreadAxis);
-REGISTER_PASS(LowerCustomDatatypes);
-REGISTER_PASS(VerifyMemory);
 REGISTER_PASS(VerifyGPUCode);
 REGISTER_PASS(DecorateDeviceScope);
 REGISTER_PASS(InstrumentBoundCheckers);
 REGISTER_PASS(VerifyCompactBuffer);
 REGISTER_PASS(HoistIfThenElse);
-REGISTER_PASS(InferFragment)
 REGISTER_PASS(NarrowDataType);
 }  // namespace tir
 }  // namespace tvm

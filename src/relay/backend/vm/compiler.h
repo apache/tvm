@@ -76,7 +76,7 @@ struct VMCompilerContext {
   // List of cached functions
   std::vector<CachedFunc> cached_funcs;
   // The functions that have been lowered.
-  std::unordered_map<tir::LoweredFunc, size_t, ObjectHash, ObjectEqual> seen_funcs;
+  std::unordered_map<tir::PrimFunc, size_t, ObjectHash, ObjectEqual> seen_funcs;
 };
 
 

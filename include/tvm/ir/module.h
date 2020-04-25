@@ -297,6 +297,15 @@ class IRModule : public ObjectRef {
     CHECK(ptr != nullptr);
     return static_cast<IRModuleNode*>(ptr);
   }
+
+  /*!
+   * \brief Construct an empty module.
+   *
+   * \returns The constructed module
+   */
+  static IRModule Empty() {
+    return IRModule(Map<GlobalVar, BaseFunc>());
+  }
   /*!
    * \brief Construct a module from a standalone expression.
    *
@@ -324,6 +333,8 @@ class IRModule : public ObjectRef {
 
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
+  // allow copy on write.
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };
 
 /*!

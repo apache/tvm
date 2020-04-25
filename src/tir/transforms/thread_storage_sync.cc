@@ -374,13 +374,6 @@ Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   return ThreadSyncInserter(sync_scope, planner.syncs_inserted_)(std::move(stmt));
 }
 
-LoweredFunc ThreadSync(LoweredFunc f, std::string storage_scope) {
-  CHECK_NE(f->func_type, kHostFunc);
-  auto n = make_object<LoweredFuncNode>(*f.operator->());
-  n->body = ThreadSync(f->body, storage_scope);
-  return LoweredFunc(n);
-}
-
 namespace transform {
 
 Pass ThreadSync(std::string storage_scope) {

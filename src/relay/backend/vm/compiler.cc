@@ -226,6 +226,7 @@ std::vector<int64_t> ToAllocTensorShape32(NDArray shape) {
   return raw_shape;
 }
 
+
 class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
  public:
   VMFunctionCompiler(VMCompilerContext* context, TargetsMap targets, Target target_host)
@@ -407,12 +408,15 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     CCacheKey key(func, target_host_);
     auto cfunc = engine_->LowerShapeFunc(key);
     int op_index = -1;
-    if (context_->seen_funcs.count(cfunc->funcs[0]) == 0) {
+    // pick the only function inside the context
+    CHECK_EQ(cfunc->funcs->functions.size(), 1);
+    auto pfunc = Downcast<tir::PrimFunc>((*cfunc->funcs->functions.begin()).second);
+    if (context_->seen_funcs.count(pfunc) == 0) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
-      context_->seen_funcs[cfunc->funcs[0]] = op_index;
+      context_->seen_funcs[pfunc] = op_index;
     } else {
-      op_index = context_->seen_funcs[cfunc->funcs[0]];
+      op_index = context_->seen_funcs[pfunc];
     }
 
     // Prepare input and output registers
@@ -494,13 +498,14 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
       context_->cached_funcs.push_back(cfunc);
     } else {
       // TODO(jroesch): support lowered funcs for multiple targets
-      CHECK_EQ(cfunc->funcs.size(), 1);
-      if (context_->seen_funcs.find(cfunc->funcs[0]) == context_->seen_funcs.end()) {
+      CHECK_EQ(cfunc->funcs->functions.size(), 1);
+      auto pfunc = Downcast<tir::PrimFunc>((*cfunc->funcs->functions.begin()).second);
+      if (context_->seen_funcs.find(pfunc) == context_->seen_funcs.end()) {
         op_index = context_->cached_funcs.size();
         context_->cached_funcs.push_back(cfunc);
-        context_->seen_funcs[cfunc->funcs[0]] = op_index;
+        context_->seen_funcs[pfunc] = op_index;
       } else {
-        op_index = context_->seen_funcs[cfunc->funcs[0]];
+        op_index = context_->seen_funcs[pfunc];
       }
     }
 
@@ -862,11 +867,7 @@ void VMCompiler::Lower(IRModule mod,
   // update primitive function map
   size_t primitive_index = 0;
   for (const auto& cfunc : context_.cached_funcs) {
-    if (cfunc->target->str() == "ext_dev") {
-      exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
-    } else {
-      exec_->primitive_map.insert({cfunc->funcs[0]->name, primitive_index++});
-    }
+    exec_->primitive_map.insert({cfunc->func_name, primitive_index++});
   }
 }
 
@@ -961,8 +962,6 @@ void VMCompiler::PopulateGlobalMap() {
 }
 
 void VMCompiler::Codegen() {
-  using tir::LoweredFunc;
-
   if (!context_.module.defined()) {
     LOG(WARNING) << "Did you forget to call VMCompiler::Lower?";
     return;
@@ -971,15 +970,21 @@ void VMCompiler::Codegen() {
   if (cached_funcs.size() == 0) {
     return;
   }
-  std::unordered_map<std::string, Array<LoweredFunc>> funcs;
+  std::unordered_map<std::string, IRModule> funcs;
+
   for (auto& cfunc : cached_funcs) {
     std::string target_str = cfunc->target->str();
+    // NOTE: because module, is mutable, we need to make an
+    // explicit copy of the IRModule.
+    IRModule mod = cfunc->funcs;
+    mod.CopyOnWrite();
+
     if (target_str == "ext_dev") {
       continue;
     } else if (funcs.count(target_str) == 0) {
-      funcs.emplace(target_str, Array<LoweredFunc>{cfunc->funcs[0]});
+      funcs.emplace(target_str, mod);
     } else {
-      funcs[target_str].push_back(cfunc->funcs[0]);
+      funcs[target_str]->Update(mod);
     }
   }
 

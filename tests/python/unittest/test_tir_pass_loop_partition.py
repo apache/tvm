@@ -381,7 +381,7 @@ def test_multilevel_splitting_with_indivisble_factors():
 
     ## But this does the right thing.
     with tvm.target.build_config(partition_const_loop=True):
-        lowered_body = tvm.lower(s, [A, B]).body
+        lowered_body = tvm.lower(s, [A, B], name="x")["x"].body
         def visit_stmt(op):
             return(isinstance(op, tvm.tir.Max))
         num_max = collect_visit(lowered_body, visit_stmt)
@@ -407,7 +407,7 @@ def test_double_splitting_with_indivisible_factors():
 
     # Find the beginning of the Halide IR corresponding to kernel code
     # and make sure it doesn't have an if statements left
-    top_produce = find_top_produce(f.body)
+    top_produce = find_top_produce(f["fadd1"].body)
     assert(not any(collect_visit(top_produce, lambda x: isinstance(x, tvm.tir.IfThenElse))))
 
     # check functional correctness of generated code

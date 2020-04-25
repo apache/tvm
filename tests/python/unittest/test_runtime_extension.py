@@ -38,8 +38,9 @@ def test_dltensor_compatible():
     with ib.for_range(0, n - 1, "i") as i:
         A[i + 1] = A[i] + 1
     stmt = ib.get()
-    fapi = tvm.tir.ir_pass.MakeAPI(stmt, "arange", [Ab], 0, True)
-    mod = tvm.testing.LoweredFuncsToIRModule([fapi])
+
+
+    mod = tvm.testing.MakeAPILegacy(stmt, "arange", [Ab], 0, True)
     mod = tvm.tir.transform.LowerTVMBuiltin()(mod)
     f = tvm.target.codegen.build_module(mod, "stackvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))

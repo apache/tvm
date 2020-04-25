@@ -32,12 +32,12 @@
 namespace tvm {
 namespace relay {
 
-class BiasAddSimplifier : public ExprMutator {
+class BiasAddSimplifier : public ExprRewriter {
  public:
   BiasAddSimplifier() : bias_add_op_(Op::Get("nn.bias_add")) {}
 
-  Expr VisitExpr_(const CallNode* n) {
-    auto new_n = ExprMutator::VisitExpr_(n);
+  Expr Rewrite_(const CallNode* n, const Expr& post) override {
+    auto new_n = post;
     if (n->op == bias_add_op_) {
       Call call = Downcast<Call>(new_n);
       CHECK_EQ(call->args.size(), 2);
@@ -63,7 +63,8 @@ class BiasAddSimplifier : public ExprMutator {
 };
 
 Expr CanonicalizeOps(const Expr& e) {
-  return BiasAddSimplifier().Mutate(e);
+  auto rewriter = BiasAddSimplifier();
+  return PostOrderRewrite(e, &rewriter);
 }
 
 namespace transform {
