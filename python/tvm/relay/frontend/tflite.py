@@ -29,7 +29,6 @@ from .. import function as _function
 from .. import op as _op
 from .. import qnn as _qnn
 from ... import nd as _nd
-from .util import get_scalar_from_constant
 from .common import ExprTable
 from .common import infer_shape as _infer_shape
 
@@ -2280,6 +2279,17 @@ class OperatorConverter(object):
 
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
+
+
+def get_scalar_from_constant(expr):
+    """ Returns scalar value from Relay constant scalar. """
+    assert isinstance(expr, _expr.Constant) and not expr.data.shape, \
+        "Expr is not a constant scalar."
+    value = expr.data.asnumpy()
+    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(np.float32), \
+        "value must be float32/int32"
+    return np.asscalar(value)
+
 
 def build_str_map(obj):
     """Build string map of TFLite enum int value
