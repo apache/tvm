@@ -88,23 +88,32 @@ namespace TVMRuntime
         /// <summary>
         /// The type of the device.
         /// </summary>
-        public DeviceType device_type;
+        public DeviceType deviceType;
 
         /// <summary>
         /// The device identifier.
         /// </summary>
-        public int device_id;
+        public int deviceId;
 
-        public TVMContext(int dev_id) : this()
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.TVMContext"/> struct.
+        /// </summary>
+        /// <param name="devId">Dev identifier.</param>
+        public TVMContext(int devId) : this()
         {
-            device_type = DeviceType.CPU;
-            device_id = dev_id;
+            deviceType = DeviceType.CPU;
+            deviceId = devId;
         }
 
-        public TVMContext(DeviceType dev_type, int dev_id) : this()
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.TVMContext"/> struct.
+        /// </summary>
+        /// <param name="devType">Dev type.</param>
+        /// <param name="devId">Dev identifier.</param>
+        public TVMContext(DeviceType devType, int devId) : this()
         {
-            device_type = dev_type;
-            device_id = dev_id;
+            deviceType = devType;
+            deviceId = devId;
         }
     }
 }
