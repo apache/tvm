@@ -4,7 +4,7 @@
 namespace TVMRuntime
 {
     /// <summary>
-    /// TVMT ype code.
+    /// TVM Type code.
     /// </summary>
     public enum TVMTypeCode
     {

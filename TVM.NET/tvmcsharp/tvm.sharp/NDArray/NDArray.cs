@@ -68,10 +68,10 @@ namespace TVMRuntime
 
     public class NDArray
     {
-        IntPtr arrayHandle = IntPtr.Zero;
-        int ndim = 0;
-        int[] shape;
-        int arraySize = 0;
+        private IntPtr _arrayHandle = IntPtr.Zero;
+        private int _ndim = 0;
+        private int[] _shape;
+        private int _arraySize = 0;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:TVMRuntime.NDArray"/> class.
@@ -87,11 +87,11 @@ namespace TVMRuntime
         {
             UnmanagedNDArrayWrapper.CreateNDArray(shapeInp, ndimInp, dataType.code,
                 dataType.bits, dataType.lanes, (int)ctx.deviceType,
-                 ctx.deviceId, ref arrayHandle);
-            shape = shapeInp;
-            ndim = ndimInp;
-            arraySize = 1;
-            Array.ForEach(shape, i => arraySize *= i);
+                 ctx.deviceId, ref _arrayHandle);
+            _shape = shapeInp;
+            _ndim = ndimInp;
+            _arraySize = 1;
+            Array.ForEach(_shape, i => _arraySize *= i);
         }
 
         /// <summary>
@@ -109,18 +109,18 @@ namespace TVMRuntime
             TVMDataType dataType = new TVMDataType(dataTypeStr);
             UnmanagedNDArrayWrapper.CreateNDArray(shapeInp, ndimInp, dataType.code,
                 dataType.bits, dataType.lanes, (int)ctx.deviceType,
-                 ctx.deviceId, ref arrayHandle);
-            shape = shapeInp;
-            ndim = ndimInp;
-            arraySize = 1;
-            Array.ForEach(shape, i => arraySize *= i);
+                 ctx.deviceId, ref _arrayHandle);
+            _shape = shapeInp;
+            _ndim = ndimInp;
+            _arraySize = 1;
+            Array.ForEach(_shape, i => _arraySize *= i);
         }
 
         /// <summary>
         /// Gets the ND Array handle.
         /// </summary>
         /// <value>The NDA rray handle.</value>
-        public IntPtr NDArrayHandle { get => arrayHandle; }
+        public IntPtr NDArrayHandle { get => _arrayHandle; }
 
         /// <summary>
         /// Gets or sets the <see cref="T:TVMRuntime.NDArray"/> with the specified i.
@@ -128,8 +128,8 @@ namespace TVMRuntime
         /// <param name="i">The index.</param>
         public object this[int i]
         {
-            get { return UnmanagedNDArrayWrapper.GetNDArrayElem(arrayHandle, i, arraySize); }
-            set { UnmanagedNDArrayWrapper.SetNDArrayElem(arrayHandle, i, value, arraySize); }
+            get { return UnmanagedNDArrayWrapper.GetNDArrayElem(_arrayHandle, i, _arraySize); }
+            set { UnmanagedNDArrayWrapper.SetNDArrayElem(_arrayHandle, i, value, _arraySize); }
         }
 
         /// <summary>
@@ -138,7 +138,7 @@ namespace TVMRuntime
         /// </summary>
         ~NDArray()
         {
-            UnmanagedNDArrayWrapper.DisposeNDArray(arrayHandle);
+            UnmanagedNDArrayWrapper.DisposeNDArray(_arrayHandle);
         }
     }
 }
