@@ -32,12 +32,12 @@ namespace TVMRuntime
         /// <summary>
         /// The type of the device.
         /// </summary>
-        public DeviceType device_type;
+        public DeviceType deviceType;
 
         /// <summary>
         /// The device identifier.
         /// </summary>
-        public int device_id;
+        public int deviceId;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -68,7 +68,7 @@ namespace TVMRuntime
         /// <param name="deviceId">Device identifier.</param>
         /// <param name="output">Output.</param>
         [DllImport(Utils.libName)]
-        private unsafe static extern int TVMArrayAlloc(
+        private static extern int TVMArrayAlloc(
                           [MarshalAs(UnmanagedType.LPArray)] int[] shape,
                           int ndim,
                           int dtypeCode,
@@ -76,7 +76,7 @@ namespace TVMRuntime
                           int dtypeLanes,
                           int deviceType,
                           int deviceId,
-                          TVMTensor** output);
+                          ref IntPtr output);
 
         /// <summary>
         /// TVM Array free.
@@ -85,7 +85,7 @@ namespace TVMRuntime
         /// <param name="tensorHandle">Tensor handle.</param>
         [DllImport(Utils.libName)]
         private unsafe static extern int TVMArrayFree(
-                          TVMTensor* tensorHandle);
+                          IntPtr tensorHandle);
 
         /// <summary>
         /// Creates the NDArray.
@@ -105,16 +105,10 @@ namespace TVMRuntime
                           int dtypeLanes,
                           int deviceType,
                           int deviceId,
-                          ref UIntPtr arrayHandle)
+                          ref IntPtr arrayHandle)
         {
-            unsafe
-            {
-                TVMTensor* tensorHandle = null;
-                TVMArrayAlloc(shape, ndim, dtypeCode, dtypeBits, dtypeLanes,
-                    deviceType, deviceId, &tensorHandle);
-
-                arrayHandle = (UIntPtr)tensorHandle;
-            }
+            TVMArrayAlloc(shape, ndim, dtypeCode, dtypeBits, dtypeLanes,
+                    deviceType, deviceId, ref arrayHandle);
         }
 
         /// <summary>
@@ -122,7 +116,7 @@ namespace TVMRuntime
         /// </summary>
         /// <returns>The NDA rray shape.</returns>
         /// <param name="arrayHandle">Array handle.</param>
-        public static int [] GetNDArrayShape(UIntPtr arrayHandle)
+        public static int [] GetNDArrayShape(IntPtr arrayHandle)
         {
             unsafe
             {
@@ -143,7 +137,7 @@ namespace TVMRuntime
         /// <param name="arrayHandle">Array handle.</param>
         /// <param name="index">Index.</param>
         /// <param name="arraySize">Array size.</param>
-        public static object GetNDArrayElem(UIntPtr arrayHandle, int index, int arraySize)
+        public static object GetNDArrayElem(IntPtr arrayHandle, int index, int arraySize)
         {
             if (index < 0 || index >= arraySize)
             {
@@ -180,7 +174,7 @@ namespace TVMRuntime
         /// <param name="index">Index.</param>
         /// <param name="value">Value.</param>
         /// <param name="arraySize">Array size.</param>
-        public static void SetNDArrayElem(UIntPtr arrayHandle, int index,
+        public static void SetNDArrayElem(IntPtr arrayHandle, int index,
             object value, int arraySize)
         {
             if (index < 0 || index >= arraySize)
@@ -214,12 +208,9 @@ namespace TVMRuntime
         /// Disposes the NDArray.
         /// </summary>
         /// <param name="arrayHandle">Array handle.</param>
-        public static void DisposeNDArray(UIntPtr arrayHandle)
+        public static void DisposeNDArray(IntPtr arrayHandle)
         {
-            unsafe
-            {
-                TVMArrayFree((TVMTensor*)arrayHandle);
-            }
+            TVMArrayFree(arrayHandle);
         }
     }
 }
