@@ -207,6 +207,14 @@ def _convert_permute(inexpr, keras_layer, _):
     return _op.transpose(inexpr, axes=(0,) + keras_layer.dims)
 
 
+def _convert_embedding(inexpr, keras_layer, etab):
+    indices = inexpr
+    weightList = keras_layer.get_weights()
+    weight = etab.new_const(weightList[0])
+    out = _op.take(weight, indices.astype('int32'), axis=0)
+
+    return out
+
 def _convert_dense(inexpr, keras_layer, etab):
     weightList = keras_layer.get_weights()
     weight = etab.new_const(weightList[0].transpose([1, 0]))
@@ -893,7 +901,7 @@ _convert_map = {
     'Maximum'                  : _convert_merge,
     'Dot'                      : _convert_merge,
     'Permute'                  : _convert_permute,
-    # 'Embedding'              : _convert_embedding,
+    'Embedding'                : _convert_embedding,
     # 'RepeatVector'           : _convert_repeat_vector,
 
     'InputLayer'               : _default_skip,
