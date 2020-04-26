@@ -583,6 +583,8 @@ def test_cuda_vectorize_load_permute_pad():
                                     (0, 0)), mode='constant', constant_values=0)
         tvm.testing.assert_allclose(b.asnumpy(), ref)
 
+    check_cuda("int8", 64, 16, 3, 2)
+    check_cuda("uint8", 64, 16, 3, 2)
     check_cuda("int8", 64, 16, 3, 4)
     check_cuda("uint8", 64, 16, 3, 4)
     check_cuda("int32", 64, 16, 3, 4)

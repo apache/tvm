@@ -814,11 +814,13 @@ void CodeGenCUDA::PrintVecElemLoadExpr(
     DataType t, int i, const std::string& value, std::ostream& os) {
   CHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
-    if (i != 0) {
-      os << "|";
+    if (t.lanes() != 2) {
+      if (i != 0) {
+        os << "|";
+      }
+      os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8   << "))";
+      return;
     }
-    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
-    return;
   }
 
   if (t.is_float16()) {
