@@ -86,8 +86,8 @@ namespace TVMRuntime
                           TVMContext ctx)
         {
             UnmanagedNDArrayWrapper.CreateNDArray(shape, ndim, dataType.code,
-                dataType.bits, dataType.lanes, (int)ctx.device_type,
-                 ctx.device_id, ref arrayHandle);
+                dataType.bits, dataType.lanes, (int)ctx.deviceType,
+                 ctx.deviceId, ref arrayHandle);
             shape = shapeInp;
             ndim = ndimInp;
             arraySize = 1;
@@ -108,8 +108,8 @@ namespace TVMRuntime
         {
             TVMDataType dataType = new TVMDataType(dataTypeStr);
             UnmanagedNDArrayWrapper.CreateNDArray(shape, ndim, dataType.code,
-                dataType.bits, dataType.lanes, (int)ctx.device_type,
-                 ctx.device_id, ref arrayHandle);
+                dataType.bits, dataType.lanes, (int)ctx.deviceType,
+                 ctx.deviceId, ref arrayHandle);
             shape = shapeInp;
             ndim = ndimInp;
             arraySize = 1;
