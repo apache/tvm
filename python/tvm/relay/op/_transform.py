@@ -25,7 +25,7 @@ import topi
 from topi.util import get_const_int, get_const_tuple
 from . import op as _reg
 from . import strategy
-from .op import OpPattern, ShapeDependant
+from .op import OpPattern
 
 _reg.register_broadcast_schedule("broadcast_to")
 _reg.register_broadcast_schedule("broadcast_to_like")
@@ -97,8 +97,8 @@ def _arange_shape_func(start, stop, step):
     out[0] = int64(ceil_div((int64(stop[0]) - int64(start[0])), int64(step[0])))
     return out
 
-@_reg.register_shape_func("arange", ShapeDependant.DATA)
-def arange_shape_func(attrs, shape_inputs, inputs, _):
+@_reg.register_shape_func("arange", True)
+def arange_shape_func(attrs, inputs, _):
     return [_arange_shape_func(*inputs)]
 
 @script
@@ -117,14 +117,17 @@ def _concatenate_shape_func(inputs, axis):
                 out[i] += inputs[j][i]
     return out
 
-@_reg.register_shape_func("concatenate", ShapeDependant.SHAPE)
-def concatenate_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("concatenate", False)
+def concatenate_shape_func(attrs, inputs, _):
     axis = get_const_int(attrs.axis)
     return [_concatenate_shape_func(inputs, convert(axis))]
 
 @script
-def _reshape_shape_func(data_shape, newshape, ndim):
+def _reshape_shape_func(data, newshape, ndim):
     out = output_tensor((ndim,), "int64")
+    data_shape = allocate((len(data.shape),), "int64")
+    for x in const_range(len(data.shape)):
+        data_shape[x] = int64(data.shape[x])
     src_idx = 0
     dst_idx = 0
     infer_idx = -1
@@ -189,14 +192,14 @@ def _reshape_shape_func(data_shape, newshape, ndim):
             out[infer_idx] = old_size // new_size
     return out
 
-@_reg.register_shape_func("reshape", ShapeDependant.BOTH)
-def reshape_shape_func(attrs, shape_inputs, data_inputs, out_ndims):
+@_reg.register_shape_func("reshape", True)
+def reshape_shape_func(attrs, inputs, out_ndims):
     if len(attrs.newshape):
         newshape = convert(get_const_tuple(attrs.newshape))
     else:
-        newshape = data_inputs[1]
+        newshape = inputs[1]
 
-    return [_reshape_shape_func(shape_inputs[0], newshape, out_ndims[0])]
+    return [_reshape_shape_func(inputs[0], newshape, out_ndims[0])]
 
 @script
 def _take_no_axis_shape_func(indices_shape, out_ndim):
@@ -222,7 +225,7 @@ def _take_with_axis_shape_func(data_shape, indices_shape, axis, out_ndim):
     return out
 
 @_reg.register_shape_func("take", False)
-def take_shape_func(attrs, inputs, _, out_ndims):
+def take_shape_func(attrs, inputs, out_ndims):
     """
     Shape function for take op.
     """
@@ -295,8 +298,8 @@ def _argwhere_shape_func_5d(condition):
                             out[0] += int64(1)
     return out
 
-@_reg.register_shape_func("argwhere", ShapeDependant.DATA)
-def argwhere_shape_func(attrs, _, inputs, out_ndims):
+@_reg.register_shape_func("argwhere", True)
+def argwhere_shape_func(attrs, inputs, out_ndims):
     """
     Shape function for argwhere.
     """
@@ -337,7 +340,7 @@ def _layout_transform_shape_func(data_shape,
     return out
 
 @_reg.register_shape_func("layout_transform", False)
-def layout_transform_shape_func(attrs, inputs, data_inputs, _):
+def layout_transform_shape_func(attrs, inputs, _):
     """
     Shape function for layout_transform op.
     """
@@ -414,8 +417,8 @@ def _expand_dim_shape_func(data_shape, ndim, axis, num_newaxis):
 
     return out
 
-@_reg.register_shape_func("expand_dims", ShapeDependant.SHAPE)
-def expand_dim_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("expand_dims", False)
+def expand_dim_shape_func(attrs, inputs, _):
     """
     Shape function for expand_dim op.
     """
@@ -437,8 +440,8 @@ def _transpose_shape_func(data_shape, axes):
 
     return out
 
-@_reg.register_shape_func("transpose", ShapeDependant.SHAPE)
-def transpose_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("transpose", False)
+def transpose_shape_func(attrs, inputs, _):
     """
     Shape function for transpose op.
     """
@@ -459,8 +462,8 @@ def _squeeze_shape_func(data_shape, keep_axes):
 
     return out
 
-@_reg.register_shape_func("squeeze", ShapeDependant.SHAPE)
-def squeeze_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("squeeze", False)
+def squeeze_shape_func(attrs, inputs, _):
     """
     Shape function for squeeze op.
     """
@@ -490,8 +493,8 @@ def _reshape_like_shape_func(target_shape):
 
     return out
 
-@_reg.register_shape_func("reshape_like", ShapeDependant.SHAPE)
-def reshape_like_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("reshape_like", False)
+def reshape_like_shape_func(attrs, inputs, _):
     """
     Shape function for reshape_like op.
     """
@@ -520,8 +523,8 @@ def _tile_shape_func(data, reps, ndim, tndim, rndim):
                 out[i] = int64(reps[i]) * data[i - rgap]
     return out
 
-@_reg.register_shape_func("tile", ShapeDependant.SHAPE)
-def tile_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("tile", False)
+def tile_shape_func(attrs, inputs, _):
     """
     Shape function for tile op.
     """
@@ -555,8 +558,8 @@ def _split_shape_func(data_shape, index, indices_or_sections, axis):
                 out[i] = data_shape[i]
     return out
 
-@_reg.register_shape_func("split", ShapeDependant.SHAPE)
-def split_shape_func(attrs, inputs, data_inputs, _):
+@_reg.register_shape_func("split", False)
+def split_shape_func(attrs, inputs, _):
     """
     Shape function for split op.
     """

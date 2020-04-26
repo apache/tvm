@@ -14,25 +14,24 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=unused-argument
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 
 from tvm.runtime import convert
 from tvm.te.hybrid import script
 from topi.util import get_const_int, get_const_tuple
-from .op import ShapeDependant, register_reduce_schedule, register_shape_func
+from . import op as _reg
 
-register_reduce_schedule("argmax")
-register_reduce_schedule("argmin")
-register_reduce_schedule("sum")
-register_reduce_schedule("all")
-register_reduce_schedule("any")
-register_reduce_schedule("max")
-register_reduce_schedule("min")
-register_reduce_schedule("prod")
-register_reduce_schedule("mean")
-register_reduce_schedule("variance")
+_reg.register_reduce_schedule("argmax")
+_reg.register_reduce_schedule("argmin")
+_reg.register_reduce_schedule("sum")
+_reg.register_reduce_schedule("all")
+_reg.register_reduce_schedule("any")
+_reg.register_reduce_schedule("max")
+_reg.register_reduce_schedule("min")
+_reg.register_reduce_schedule("prod")
+_reg.register_reduce_schedule("mean")
+_reg.register_reduce_schedule("variance")
 
 def _create_axis_record(attrs, inputs):
     axes = attrs.axis if attrs.axis is None else list(get_const_tuple(attrs.axis))
@@ -80,19 +79,19 @@ def _reduce_shape_func(data_shape, axis_record):
 
     return out
 
-def reduce_shape_func(attrs, inputs, data_inputs, _):
+def reduce_shape_func(attrs, inputs, _):
     """
     Shape function for reduce op.
     """
     axis_record = _create_axis_record(attrs, inputs)
     return [_reduce_shape_func(inputs[0], convert(axis_record))]
 
-register_shape_func("argmax", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("argmin", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("all", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("sum", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("max", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("min", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("prod", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("mean", ShapeDependant.SHAPE, reduce_shape_func)
-register_shape_func("variance", ShapeDependant.SHAPE, reduce_shape_func)
+_reg.register_shape_func("argmax", False, reduce_shape_func)
+_reg.register_shape_func("argmin", False, reduce_shape_func)
+_reg.register_shape_func("all", False, reduce_shape_func)
+_reg.register_shape_func("sum", False, reduce_shape_func)
+_reg.register_shape_func("max", False, reduce_shape_func)
+_reg.register_shape_func("min", False, reduce_shape_func)
+_reg.register_shape_func("prod", False, reduce_shape_func)
+_reg.register_shape_func("mean", False, reduce_shape_func)
+_reg.register_shape_func("variance", False, reduce_shape_func)

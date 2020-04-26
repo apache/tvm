@@ -235,8 +235,8 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
     Node* node = graph_.node_map.at(call);
     static auto fpattern =
         Op::GetAttr<TOpPattern>("TOpPattern");
-    static auto tshape_dependant = Op::GetAttr<TShapeDependant>(
-        "TShapeDependant");
+    static auto tshape_dependant = Op::GetAttr<TShapeDataDependant>(
+        "TShapeDataDependant");
     // Now we set the pattern of this call.
     //
     // If we see a call mentioning an operator we should mark it with its
@@ -251,7 +251,7 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
       auto op = GetRef<Op>(opnode);
       if (IsDynamic(call->checked_type()) &&
           tshape_dependant.count(op) &&
-          tshape_dependant[op] != ShapeDependantKind::kShapeDependantShape) {
+          tshape_dependant[op]) {
         // output of a shape func can't be fed to a data-dependent shape func
         op_pattern = kOpaque;
       } else {

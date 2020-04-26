@@ -135,18 +135,23 @@ class ManifestAllocPass(ExprMutator):
             state = int(state)
             # Pass Shapes
             if state == 2:
-                input_pos = self.pass_shapes(arg, input_pos, scope, shape_func_ins)
+                for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
+                    let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
+                    sh_of = self.visit(self.shape_of(let_in_arg))
+                    shape_func_ins.append(
+                        scope.let("in_shape_{0}".format(input_pos + j), sh_of))
+                    input_pos += 1
                 is_inputs.append(0)
             # Pass Inputs
             elif state == 1:
-                input_pos = self.pass_inputs(arg, input_pos, scope, shape_func_ins)
+                new_arg = self.visit(arg)
+                shape_func_ins.append(
+                    scope.let("in_shape_{0}".format(input_pos), new_arg))
+                input_pos += 1
                 is_inputs.append(1)
-            elif state == 3:
-                input_pos = self.pass_inputs(arg, input_pos, scope, shape_func_ins)
-                input_pos = self.pass_shapes(arg, input_pos, scope, shape_func_ins)
-                is_inputs.append(2)
             else:
-                raise Exception("Illegal shape function input state")
+                # TODO(@jroesch): handle 3rd case
+                raise Exception("unsupported shape function input state")
 
         out_shapes = []
         for i, out in enumerate(cfunc.outputs):
@@ -186,22 +191,6 @@ class ManifestAllocPass(ExprMutator):
         invoke = self.invoke_tvm(func, ins, tuple_outs)
         scope.let("", invoke)
         return to_tuple_type(ret_type, tuple_outs.fields)
-
-    def pass_shapes(self, arg, input_pos, scope, shape_func_ins):
-        for j, subexp in enumerate(from_tuple_type(arg.type_annotation, arg)):
-            let_in_arg = scope.let("in_arg_{0}".format(input_pos + j), subexp)
-            sh_of = self.visit(self.shape_of(let_in_arg))
-            shape_func_ins.append(
-                scope.let("in_shape_{0}".format(input_pos + j), sh_of))
-            input_pos += 1
-        return input_pos
-
-    def pass_inputs(self, arg, input_pos, scope, shape_func_ins):
-        new_arg = self.visit(arg)
-        shape_func_ins.append(
-            scope.let("in_shape_{0}".format(input_pos), new_arg))
-        input_pos += 1
-        return input_pos
 
     def is_dynamic(self, ret_type):
         is_dynamic = ty.type_has_any(ret_type)
