@@ -1,7 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <TargetFramework>netstandard2.0</TargetFramework>
+	  <TargetFramework>netstandard2.1</TargetFramework>
+	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	  <RootNamespace>TVMRuntime</RootNamespace>
+	  <OutputType>Library</OutputType>
   </PropertyGroup>
 
+  <ItemGroup>
+	  <Folder Include="Module\" />
+	  <Folder Include="Runtime\" />
+	  <Folder Include="NDArray\" />
+	  <Folder Include="PackedFuncManager\" />
+	  <Folder Include="Utils\" />
+	  <Folder Include="Tests\" />
+  </ItemGroup>
 </Project>
