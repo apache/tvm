@@ -407,7 +407,8 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
     CHECK(MatchBroadcastToLeftAxes(tlhs, trhs, slhs->axes));
     Expr scale = ReshapeOrExpandToMatchAxis(
         slhs->scale, tlhs->shape, slhs->axes);
-    CHECK(scale.defined());
+    if (!scale.defined())
+      return Expr();
     Expr rhs = Divide(new_args[1], scale);
     rnode->value = Call(ref_call->op, {slhs->value, rhs}, ref_call->attrs, ref_call->type_args);
     rnode->scale = slhs->scale;
@@ -417,7 +418,8 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
     CHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
     Expr scale = ReshapeOrExpandToMatchAxis(
         srhs->scale, trhs->shape, srhs->axes);
-    CHECK(scale.defined());
+    if (!scale.defined())
+      return Expr();
     Expr lhs = Divide(new_args[0], scale);
     rnode->value = Call(ref_call->op, {lhs, srhs->value}, ref_call->attrs, ref_call->type_args);
     rnode->scale = srhs->scale;
@@ -824,7 +826,9 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
         call->args[1], NullValue<Message>(), NullValue<Expr>());
     Expr rhs_scale = ReshapeOrExpandToMatchAxis(scale, tlhs->shape,
         message->axes);
-    CHECK(rhs_scale.defined());
+    if (!rhs_scale.defined()) {
+      return transformer->NormalCallTransform(call.operator->());
+    }
     rhs = Multiply(rhs, rhs_scale);
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else if (rhs_message.defined()) {
@@ -833,7 +837,9 @@ Expr AddSubBackwardTransform(const Call& call, const Message& message, const Exp
     Expr rhs = transformer->Transform(call->args[1], message, scale);
     Expr lhs_scale = ReshapeOrExpandToMatchAxis(
         scale, trhs->shape, message->axes);
-    CHECK(lhs_scale.defined());
+    if (!lhs_scale.defined()) {
+      return transformer->NormalCallTransform(call.operator->());
+    }
     lhs = Multiply(lhs, lhs_scale);
     return Call(call->op, {lhs, rhs}, call->attrs, call->type_args);
   } else {
