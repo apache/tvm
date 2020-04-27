@@ -579,11 +579,15 @@ std::vector<PrimExpr> MakeBoundCheck(
   PassUpBoundCheck(stage, dom_map, &bound_state, &analyzer);
 
   std::vector<PrimExpr> preds;
-  std::unordered_map<const VarNode*, IntSet> iset_dmap;
+  Map<Var, IntSet> iset_dmap;
 
   // setup domain map for set analysis
   for (const auto& kv : dom_map) {
-    iset_dmap[kv.first->var.get()] = IntSet::range(kv.second);
+    iset_dmap.Set(kv.first->var, IntSet::range(kv.second));
+  }
+
+  for (auto entry : dom_map) {
+    analyzer.Bind(entry.first->var, entry.second);
   }
 
   for (const IterVar& iv : stage->all_iter_vars) {
@@ -591,7 +595,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     if (bound_state.at(iv)) {
       Range dom = dom_map.at(iv);
       PrimExpr value = value_map.at(iv) - dom->min;
-      PrimExpr vmax = EvalSet(value, iset_dmap).max();
+      PrimExpr vmax = analyzer.int_set(value, iset_dmap).max();
       if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < dom->extent)) {
         preds.emplace_back(value < dom->extent);
       }
@@ -603,7 +607,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !IsRangeSame(iv->dom, dom)) {
       PrimExpr value = value_map.at(iv) - iv->dom->min;
-      IntSet s = EvalSet(value, iset_dmap);
+      IntSet s = analyzer.int_set(value, iset_dmap);
       PrimExpr vmin = s.min();
       PrimExpr vmax = s.max();
       // The range of `value` resides in [vmin, vmax]
