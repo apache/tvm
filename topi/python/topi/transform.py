@@ -680,9 +680,8 @@ def unravel_index(indices, shape):
 def sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
     """Converts a sparse representation into a dense tensor.
        Example::
-       -   sparse_to_dense([[0, 0], [1, 2]], [3, 4], [1, 2], 0, True) = [[1, 0, 0, 0]
-                                [0, 0, 2, 0]
-                                [0, 0, 0, 0]]
+       -   sparse_to_dense([[0, 0], [1, 1]], [3, 3], 0, [2, 2]) = [[3, 0], [0, 3]]
+
        Parameters
        ----------
        sparse_indices : tvm.te.Tensor
