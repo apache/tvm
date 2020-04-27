@@ -93,20 +93,6 @@ def intrin_gemm_MxKxN(M, K, N, in_dtype, out_dtype):
             return ib.get()
         def _body():
             ib = tvm.tir.ir_builder.create()
-            # # NOTE we need the reset in the body for cases where the buffer
-            # # we're accumulating into is uninitialized (e.g., if it's the
-            # # result of a workspace allocation, because there are no guarantees
-            # # on the contents).
-            # ib.emit(tvm.tir.call_extern("int32", f"gemm_{M}x{K}x{N}_reset",
-            #                         cc.access_ptr("w"),
-            #                         cc.strides[0]))
-            # ib.emit(tvm.tir.call_extern("int32", f"gemm_{M}x{K}x{N}_update",
-            #                         aa.access_ptr("r"),
-            #                         bb.access_ptr("r"),
-            #                         cc.access_ptr("w"),
-            #                         aa.strides[0],
-            #                         bb.strides[0],
-            #                         cc.strides[0]))
             ib.emit(tvm.tir.call_extern("int32", f"gemm_{M}x{K}x{N}_body_{uniq_id}",
                                         aa.access_ptr("r"),
                                         bb.access_ptr("r"),

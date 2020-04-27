@@ -144,12 +144,12 @@ def progress_bar(total, prefix='', si_prefix='G'):
     def _callback(tuner, inputs, results):
         ctx.ct += len(inputs)
 
-        flops = float("inf")
+        flops = 0
         for inp, res in zip(inputs, results):
             if res.error_no == 0:
-                flops = min(inp.task.flop / np.mean(res.costs), flops)
+                flops = inp.task.flop / np.mean(res.costs)
 
-        if logger.level > logging.DEBUG:  # only print progress bar in non-debug mode
+        if not logger.isEnabledFor(logging.DEBUG):  # only print progress bar in non-debug mode
             ctx.cur_flops = flops
             ctx.best_flops = tuner.best_flops
 

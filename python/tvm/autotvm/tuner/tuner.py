@@ -150,15 +150,7 @@ class Tuner(object):
                              i + k + 1, si_prefix, format_si_prefix(flops, si_prefix),
                              format_si_prefix(self.best_flops, si_prefix), res, config)
 
-            num_successes = 0
-            for result in results:
-                if isinstance(result.costs[0], float):
-                    num_successes += 1
-            if num_successes != len(results):
-                logger.debug('not counting %d failures towards trial count',
-                             len(results) - num_successes)
-            i += num_successes
-
+            i += len(results)
             self.ttl = min(early_stopping + self.best_iter, n_trial) - i
 
             self.update(inputs, results)

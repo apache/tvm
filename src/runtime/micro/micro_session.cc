@@ -284,7 +284,6 @@ void MicroSession::FlushTaskQueue() {
 
 template <typename T>
 void MicroSession::FlushTaskQueuePriv() {
-  // std::cout << "[MicroSession::FlushTaskQueue]" << std::endl;
   std::vector<T> prepped_tasks;
   for (const auto& task : task_queue_) {
     prepped_tasks.push_back(T(task));
@@ -297,7 +296,6 @@ void MicroSession::FlushTaskQueuePriv() {
       batch_args_encoder_.buf_size());
 
   // Flush `tasks` to device memory.
-//  runtime_symbol_map_.Dump(std::cout);
   TargetPtr dev_tasks_addr = runtime_symbol_map_["utvm_tasks"];
   low_level_device()->Write(
       dev_tasks_addr,
