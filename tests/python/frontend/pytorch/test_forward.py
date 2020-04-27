@@ -767,9 +767,14 @@ def test_forward_transpose():
         def forward(self, *args):
             return args[0].transpose(-2, -1)
 
+    class Transpose3(Module):
+        def forward(self, *args):
+            return args[0].permute(0,2,3,1)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Transpose1().float().eval(), input_data=input_data)
     verify_model(Transpose2().float().eval(), input_data=input_data)
+    verify_model(Transpose3().float().eval(), input_data=input_data)
 
 def test_forward_size():
     torch.set_grad_enabled(False)
