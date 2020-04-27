@@ -1316,8 +1316,8 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
  * \brief Get a dense tensor.
  * \param sparse_indices sparse_indices[i] contains the complete index where sparse_values[i] will be placed.
  * \param sparse_values is a 0-D or 1-D tensor. Values corresponding to each row of sparse_indices
- * |param default_value is a 0-D tensor. Defaults to zero.
- * \param Shape of the dense output tensor
+ * \param default_value is a 0-D tensor. Defaults to zero.
+ * \param output_shape is the shape of the dense output tensor
  * \param name output tensor name.
  * \param tag output tensor tag.
  * \return Tensor of output_shape.
