@@ -39,10 +39,9 @@ def test_dltensor_compatible():
         A[i + 1] = A[i] + 1
     stmt = ib.get()
 
-
-    mod = tvm.testing.MakeAPILegacy(stmt, "arange", [Ab], 0, True)
-    mod = tvm.tir.transform.LowerTVMBuiltin()(mod)
-    f = tvm.target.codegen.build_module(mod, "stackvm")
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "arange"))
+    f = tvm.build(mod, target="stackvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     aview = MyTensorView(a)
     f(aview)

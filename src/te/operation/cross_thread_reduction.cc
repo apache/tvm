@@ -21,7 +21,6 @@
  * \brief Logics related to cross thread reduction, used by ComputeOpNode.
  * \file cross_thread_reduction.cc
  */
-#include <tvm/tir/ir_pass.h>
 #include "compute_op.h"
 #include "op_util.h"
 

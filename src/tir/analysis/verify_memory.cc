@@ -22,6 +22,7 @@
  * \brief Pass to check if memory accesses are legal.
  */
 #include <tvm/tir/expr.h>
+#include <tvm/ir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target.h>
@@ -39,8 +40,8 @@ namespace {
  *  threads, CPU code is generated that tries to access GPU memory,
  *  which is illegal.
  *
- *  This pass performs such verification by checking if all Producer/Consumer
- *  with memory accesses are bound with threads when device type is GPU.
+ *  This pass performs such verification by checking if all
+ *  memory accesses are bound with threads when device type is GPU.
  */
 class MemoryAccessVerifier final : protected StmtExprVisitor {
  public:
@@ -94,12 +95,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     }
   }
 
-  void VisitStmt_(const ProducerConsumerNode* op) final {
-    EnterProducerConsumer(op);
-    StmtExprVisitor::VisitStmt_(op);
-    ExitProducerConsumer();
-  }
-
   void VisitExpr_(const LoadNode* op) final {
     HandleLoadStoreToVariable(op->buffer_var);
     return StmtExprVisitor::VisitExpr_(op);
@@ -114,9 +109,11 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Check if the value of a Variable comes from function argument.
   bool IsFromFunctionArgs(const VarNode *var) const {
     const VarNode *V = var;
-    while (true) {
-      CHECK(V) << "Invalid Variable\n";
+    for (auto kv : func_->buffer_map) {
+      if (V == kv.second->data.get()) return true;
+    }
 
+    while (true) {
       // Variable is from function args. Return true.
       if (V == func_->params[0].get()) return true;
 
@@ -136,11 +133,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
     // We skip the access within thread env.
     if (InThreadEnv()) return;
 
-    // We only check access within a producer/consumer.
-    // Because for load/store out side of producer/consumer,
-    // they don't have to be in thread env to stay legal (e.g. Load of args).
-    if (!InProducerConsumer()) return;
-
     // We only handle the variable from function argument.
     // If it does not come from args, then it could be allocated internally,
     // it may possibly be in host or device address space.
@@ -156,10 +148,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   bool InThreadEnv() const { return in_thread_env_; }
   void EnterThreadEnv() { in_thread_env_ = true; }
   void ExitThreadEnv() { in_thread_env_ = false; }
-  bool InProducerConsumer() const { return pc_ != nullptr; }
-  const ProducerConsumerNode *GetCurrentProducerConsumer() const { return pc_; }
-  void EnterProducerConsumer(const ProducerConsumerNode *pc) { this->pc_ = pc; }
-  void ExitProducerConsumer() { pc_ = nullptr; }
   void SetFailure() { failure_ = true; }
   //@}
 
@@ -178,7 +166,6 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Status of visitor
   //@{
   bool in_thread_env_{false};
-  const ProducerConsumerNode *pc_{nullptr};
   bool failure_{false};  ///< If the verification fails (i.e. has illegal access)
   //@}
   tir::PrimFunc func_{nullptr};  ///< Function to be verified.
@@ -188,26 +175,46 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 }  // namespace
 
 /// Interface of VerifyMemory pass
-void VerifyMemory(const IRModule& mod) {
-  for (auto kv : mod->functions) {
-    if (auto* n = kv.second.as<PrimFuncNode>()) {
-      PrimFunc func = GetRef<PrimFunc>(n);
-      auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-      CHECK(target.defined())
-          << "LowerWarpMemory: Require the target attribute";
-      MemoryAccessVerifier v(func, target->device_type);
-      v.Run();
-      if (v.Failed()) {
-        LOG(FATAL)
-            << "ValueError: Direct host side access to device memory is detected."
-            << " Did you forget to bind?\n"
-            << func;
-      }
-    }
+bool VerifyMemory(const PrimFunc& func) {
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  CHECK(target.defined())
+      << "LowerWarpMemory: Require the target attribute";
+
+  if (func->GetAttr<Integer>(
+          tvm::attr::kCallingConv,
+          Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
+    MemoryAccessVerifier v(func, target.value()->device_type);
+    v.Run();
+    return !v.Failed();
+  } else {
+    return true;
   }
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.verify_memory")
 .set_body_typed(VerifyMemory);
+
+namespace transform {
+
+Pass VerifyMemory() {
+  auto pass_func = [=](IRModule mod, PassContext ctx) {
+    for (auto kv : mod->functions) {
+      if (auto* n = kv.second.as<PrimFuncNode>()) {
+        auto func = GetRef<PrimFunc>(n);
+        CHECK(VerifyMemory(func))
+            << "RuntimeError: Direct host side access to device memory is detected."
+            << " Did you forget to bind?\n"
+            << func;
+      }
+    }
+    return mod;
+  };
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyMemory", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.VerifyMemory")
+.set_body_typed(VerifyMemory);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

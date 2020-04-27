@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/container.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/function.h>
 
 #include <new>
 #include <unordered_map>
@@ -261,7 +262,7 @@ TEST(String, empty) {
   using namespace std;
   String s{"hello"};
   CHECK_EQ(s.empty(), false);
-  s = "";
+  s = std::string("");
   CHECK_EQ(s.empty(), true);
 }
 
@@ -399,6 +400,74 @@ TEST(String, Cast) {
   String s{source};
   ObjectRef r = s;
   String s2 = Downcast<String>(r);
+}
+
+
+TEST(Optional, Composition) {
+  Optional<String> opt0(nullptr);
+  Optional<String> opt1 = String("xyz");
+  Optional<String> opt2 = String("xyz1");
+  // operator bool
+  CHECK(!opt0);
+  CHECK(opt1);
+  // comparison op
+  CHECK(opt0 != "xyz");
+  CHECK(opt1 == "xyz");
+  CHECK(opt1 != nullptr);
+  CHECK(opt0 == nullptr);
+  CHECK(opt0.value_or("abc") == "abc");
+  CHECK(opt1.value_or("abc") == "xyz");
+  CHECK(opt0 != opt1);
+  CHECK(opt1 == Optional<String>(String("xyz")));
+  CHECK(opt0 == Optional<String>(nullptr));
+  opt0 = opt1;
+  CHECK(opt0 == opt1);
+  CHECK(opt0.value().same_as(opt1.value()));
+  opt0 = std::move(opt2);
+  CHECK(opt0 != opt2);
+}
+
+TEST(Optional, IntCmp) {
+  Integer val(CallingConv::kDefault);
+  Optional<Integer> opt = Integer(0);
+  CHECK(0 == static_cast<int>(CallingConv::kDefault));
+  CHECK(val == CallingConv::kDefault);
+  CHECK(opt == CallingConv::kDefault);
+
+  // check we can handle implicit 0 to nullptr conversion.
+  Optional<Integer> opt1(nullptr);
+  CHECK(opt1 != 0);
+  CHECK(opt1 != false);
+  CHECK(!(opt1 == 0));
+}
+
+TEST(Optional, PackedCall) {
+  auto tf = [](Optional<String> s, bool isnull) {
+    if (isnull) {
+      CHECK(s == nullptr);
+    } else {
+      CHECK(s != nullptr);
+    }
+    return s;
+  };
+  auto func = TypedPackedFunc<Optional<String>(Optional<String>, bool)>(tf);
+  CHECK(func(String("xyz"), false) == "xyz");
+  CHECK(func(Optional<String>(nullptr), true) == nullptr);
+
+  auto pf = [](TVMArgs args, TVMRetValue* rv) {
+    Optional<String> s = args[0];
+    bool isnull = args[1];
+    if (isnull) {
+      CHECK(s == nullptr);
+    } else {
+      CHECK(s != nullptr);
+    }
+    *rv = s;
+  };
+  auto packedfunc = PackedFunc(pf);
+  CHECK(packedfunc("xyz", false).operator String() == "xyz");
+  CHECK(packedfunc("xyz", false).operator Optional<String>() == "xyz");
+  CHECK(packedfunc(nullptr, true).operator Optional<String>() == nullptr);
 }
 
 int main(int argc, char** argv) {

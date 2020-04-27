@@ -24,12 +24,10 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/arith/analyzer.h>
 #include <tvm/target/target_info.h>
 #include <tvm/runtime/registry.h>
-
-#include <tvm/tir/ir_pass.h>
-
-#include "../pass/ir_util.h"
+#include "ir_util.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
@@ -51,12 +49,13 @@ class StorageAccessInfoLower : public StmtExprMutator {
       ++it->second.alloc_count;
       CHECK_LE(it->second.alloc_count, 1)
           << "Double allocation of " << it->second.scope.to_string();
+
       if (info->head_address.defined()) {
-        return AllocateNode::make(
-            op->buffer_var, op->dtype, op->extents, op->condition,
-            op->body, info->head_address, "nop");
+        return LetStmtNode::make(
+          op->buffer_var, info->head_address, op->body);
+      } else {
+        return op->body;
       }
-      return op->body;
     } else {
       return stmt;
     }
@@ -110,10 +109,10 @@ class StorageAccessInfoLower : public StmtExprMutator {
   }
 
   PrimExpr MakeTaggedAccessPtr(DataType ptr_type,
-                           Var buffer_var,
-                           DataType dtype,
-                           PrimExpr offset,
-                           const MemoryInfo& info) {
+                               Var buffer_var,
+                               DataType dtype,
+                               PrimExpr offset,
+                               const MemoryInfo& info) {
     if (ptr_type.is_handle()) {
       CHECK(info->head_address.defined())
           << buffer_var << " is not adddressable.";
@@ -122,8 +121,8 @@ class StorageAccessInfoLower : public StmtExprMutator {
     int dtype_bits = dtype.bits() * dtype.lanes();
     CHECK_EQ(info->unit_bits % dtype_bits, 0);
     return cast(ptr_type,
-                   tir::Simplify(offset / make_const(
-                       offset.dtype(), info->unit_bits / dtype_bits)));
+                analyzer_.Simplify(offset / make_const(
+                  offset.dtype(), info->unit_bits / dtype_bits)));
   }
   // The storage entry.
   struct StorageEntry {
@@ -136,12 +135,13 @@ class StorageAccessInfoLower : public StmtExprMutator {
   };
   // The storage scope of each buffer
   std::unordered_map<const VarNode*, StorageEntry> storage_info_;
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 Stmt LowerStorageAccessInfo(Stmt stmt) {
   return StorageAccessInfoLower()(std::move(stmt));
 }
-
 
 namespace transform {
 

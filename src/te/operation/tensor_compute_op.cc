@@ -25,8 +25,9 @@
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/stmt_functor.h>
 #include <unordered_set>
+
 #include "./op_util.h"
 #include "./compute_op.h"
 #include "../../arith/compute_expr.h"

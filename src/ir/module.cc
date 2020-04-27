@@ -121,8 +121,20 @@ bool IRModuleNode::ContainGlobalTypeVar(const std::string& name) const {
 
 GlobalVar IRModuleNode::GetGlobalVar(const std::string& name) const {
   auto it = global_var_map_.find(name);
-  CHECK(it != global_var_map_.end())
-    << "Cannot find global var " << name << " in the Module";
+  if (it == global_var_map_.end()) {
+    std::ostringstream msg;
+    msg << "ValueError: Cannot find global var \"" << name << "\" in the Module\n"
+        << "candidates are: [";
+    int counter = 0;
+    for (auto kv : global_var_map_) {
+      if (counter++ != 0) {
+        msg << ", ";
+      }
+      msg << "\"" << kv.first << "\"";
+    }
+    msg << "]";
+    LOG(FATAL) << msg.str();
+  }
   return (*it).second;
 }
 
@@ -350,13 +362,19 @@ IRModule IRModule::FromExpr(
   const tvm::Map<GlobalTypeVar, TypeData>& type_definitions) {
   auto mod = IRModule(global_funcs, type_definitions);
   BaseFunc func;
+  std::string gv_name = "main";
+
   if (auto* func_node = expr.as<BaseFuncNode>()) {
     func = GetRef<BaseFunc>(func_node);
+    if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+      gv_name = opt.value();
+    }
+
   } else {
     func = relay::Function(relay::FreeVars(expr), expr, Type(),
                            relay::FreeTypeVars(expr, mod), {});
   }
-  auto main_gv = GlobalVar("main");
+  auto main_gv = GlobalVar(gv_name);
   mod->Add(main_gv, func);
   return mod;
 }

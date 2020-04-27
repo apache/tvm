@@ -25,6 +25,7 @@
 #define TVM_ARITH_COMPUTE_EXPR_H_
 
 #include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
 #include <limits>
 #include <algorithm>
 
@@ -54,27 +55,6 @@ inline PrimExpr Compute(PrimExpr lhs, PrimExpr rhs) {
 template<typename Op>
 inline PrimExpr ComputeReduce(
     const Array<PrimExpr>& values, PrimExpr empty_value);
-
-inline bool GetConst(PrimExpr e, int64_t* out) {
-  if (e.dtype().is_vector()) return false;
-  const int64_t* v = tir::as_const_int(e);
-  if (v) {
-    *out = *v; return true;
-  } else {
-    return false;
-  }
-}
-
-// get a small constant int
-inline bool GetConstInt(PrimExpr e, int* out) {
-  int64_t v1 = 0;
-  if (GetConst(e, &v1)) {
-    if (v1 > static_cast<int64_t>(
-            std::numeric_limits<int>::max())) return false;
-    *out = static_cast<int>(v1); return true;
-  }
-  return false;
-}
 
 template<>
 inline PrimExpr Compute<tir::AddNode>(PrimExpr a, PrimExpr b) {

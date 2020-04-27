@@ -154,6 +154,10 @@ set(USE_TFLITE OFF)
 # /path/to/tensorflow: tensorflow root path when use tflite library
 set(USE_TENSORFLOW_PATH none)
 
+# Required for full builds with TFLite. Not needed for runtime with TFLite.
+# /path/to/flatbuffers: flatbuffers root path when using tflite library
+set(USE_FLATBUFFERS_PATH none)
+
 # Possible values:
 # - OFF: disable tflite support for edgetpu
 # - /path/to/edgetpu: use specific path to edgetpu library
@@ -204,3 +208,10 @@ set(USE_EXAMPLE_EXT_RUNTIME OFF)
 
 # Whether use Thrust
 set(USE_THRUST OFF)
+
+# Whether to build the TensorFlow TVMDSOOp module
+set(USE_TF_TVMDSOOP OFF)
+
+# Whether to use hexagon device
+set(USE_HEXAGON_DEVICE OFF)
+set(USE_HEXAGON_SDK /path/to/sdk)

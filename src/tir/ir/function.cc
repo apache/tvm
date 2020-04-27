@@ -84,11 +84,5 @@ TVM_REGISTER_GLOBAL("tir.PrimFunc")
   return PrimFunc(params, body, ret_type, buffer_map, attrs);
 });
 
-
-TVM_REGISTER_GLOBAL("tir.PrimFuncWithAttr")
-.set_body_typed([](PrimFunc func, std::string name, ObjectRef ref) {
-  return WithAttr(std::move(func), name, ref);
-});
-
 }  // namespace tir
 }  // namespace tvm

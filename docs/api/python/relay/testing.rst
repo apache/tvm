@@ -18,4 +18,34 @@
 tvm.relay.testing
 -----------------
 
-.. autoclass:: tvm.relay.testing.resnet
+.. automodule:: tvm.relay.testing
+    :members:
+    :imported-members:
+    :autosummary:
+
+.. automodule:: tvm.relay.testing.mlp
+    :members:
+
+.. automodule:: tvm.relay.testing.resnet
+    :members:
+
+.. automodule:: tvm.relay.testing.dcgan
+    :members:
+
+.. automodule:: tvm.relay.testing.mobilenet
+    :members:
+
+.. automodule:: tvm.relay.testing.lstm
+    :members:
+
+.. automodule:: tvm.relay.testing.inception_v3
+    :members:
+
+.. automodule:: tvm.relay.testing.squeezenet
+    :members:
+
+.. automodule:: tvm.relay.testing.vgg
+    :members:
+
+.. automodule:: tvm.relay.testing.densenet
+    :members:

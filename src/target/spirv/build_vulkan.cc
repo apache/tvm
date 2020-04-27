@@ -24,7 +24,7 @@
 // Use libspirv for parsing and validating code.
 #include <libspirv.h>
 #include <dmlc/memory_io.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/transform.h>
 
 #include "codegen_spirv.h"
 #include "../build_common.h"
@@ -70,7 +70,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod) {
+runtime::Module BuildSPIRV(IRModule mod, std::string target) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
@@ -80,6 +80,8 @@ runtime::Module BuildSPIRV(IRModule mod) {
 
   const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
 
+  mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
+
   CodeGenSPIRV cg;
 
   for (auto kv :  mod->functions) {
@@ -87,15 +89,14 @@ runtime::Module BuildSPIRV(IRModule mod) {
         << "CodeGenSPIRV: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenSPIRV: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    auto global_symbol = f->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+    auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
     CHECK(global_symbol.defined())
         << "CodeGenSPIRV: Expect PrimFunc to have the global_symbol attribute";
 
-    std::string f_name = global_symbol;
-    f = PointerValueTypeRewrite(std::move(f));
+    std::string f_name = global_symbol.value();
+
     VulkanShader shader;
     shader.data = cg.BuildFunction(f);
 

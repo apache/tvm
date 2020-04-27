@@ -22,8 +22,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/tir/ir_pass.h>
-#include "../pass/ir_util.h"
+#include <tvm/tir/op.h>
+
 
 namespace tvm {
 namespace tir {
@@ -58,7 +58,6 @@ Stmt AttrStmtNode::make(ObjectRef node,
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
 .set_body_typed(AttrStmtNode::make);
 
-
 Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
   CHECK(condition.defined());
   CHECK(message.dtype() == DataType::Int(32) ||
@@ -74,29 +73,21 @@ Stmt AssertStmtNode::make(PrimExpr condition, PrimExpr message, Stmt body) {
 }
 
 TVM_REGISTER_GLOBAL("tir.AssertStmt")
-.set_body_typed(AssertStmtNode::make);
-
-
-Stmt ProducerConsumerNode::make(FunctionRef func, bool is_producer, Stmt body) {
-  CHECK(body.defined());
-
-  ObjectPtr<ProducerConsumerNode> node = make_object<ProducerConsumerNode>();
-  node->func = std::move(func);
-  node->is_producer = is_producer;
-  node->body = std::move(body);
-  return Stmt(node);
-}
-
-TVM_REGISTER_GLOBAL("tir.ProducerConsumer")
-.set_body_typed(ProducerConsumerNode::make);
-
+.set_body_typed([](PrimExpr condition, ObjectRef message, Stmt body) {
+  if (const auto* str = message.as<StringObj>()) {
+    auto msg = StringImmNode::make(str->data);
+    return AssertStmtNode::make(condition, msg, body);
+  } else {
+    return AssertStmtNode::make(condition, Downcast<PrimExpr>(message), body);
+  }
+});
 
 Stmt ForNode::make(Var loop_var,
-               PrimExpr min,
-               PrimExpr extent,
-               ForType for_type,
-               DeviceAPI device_api,
-               Stmt body) {
+                   PrimExpr min,
+                   PrimExpr extent,
+                   ForType for_type,
+                   DeviceAPI device_api,
+                   Stmt body) {
   CHECK(min.defined());
   CHECK(extent.defined());
   CHECK(min.dtype().is_scalar());
@@ -119,11 +110,11 @@ TVM_REGISTER_GLOBAL("tir.For")
   Var loop_var, PrimExpr min, PrimExpr extent,
   int for_type, int device_api, Stmt body) {
   return ForNode::make(loop_var,
-                   min,
-                   extent,
-                   static_cast<ForType>(for_type),
-                   static_cast<DeviceAPI>(device_api),
-                   body);
+                       min,
+                       extent,
+                       static_cast<ForType>(for_type),
+                       static_cast<DeviceAPI>(device_api),
+                       body);
 });
 
 
@@ -176,12 +167,10 @@ TVM_REGISTER_GLOBAL("tir.Provide")
 
 
 Stmt AllocateNode::make(Var buffer_var,
-                    DataType dtype,
-                    Array<PrimExpr> extents,
-                    PrimExpr condition,
-                    Stmt body,
-                    PrimExpr new_expr,
-                    std::string free_function) {
+                        DataType dtype,
+                        Array<PrimExpr> extents,
+                        PrimExpr condition,
+                        Stmt body) {
     for (size_t i = 0; i < extents.size(); ++i) {
       CHECK(extents[i].defined());
       CHECK(extents[i].dtype().is_scalar());
@@ -196,8 +185,6 @@ Stmt AllocateNode::make(Var buffer_var,
     node->extents = std::move(extents);
     node->condition = std::move(condition);
     node->body = std::move(body);
-    node->new_expr = std::move(new_expr);
-    node->free_function = std::move(free_function);
     return Stmt(node);
 }
 
@@ -266,24 +253,14 @@ TVM_REGISTER_GLOBAL("tir.Realize")
 .set_body_typed(RealizeNode::make);
 
 
-Stmt PrefetchNode::make(FunctionRef func, int value_index, DataType dtype, Region bounds) {
-  for (size_t i = 0; i < bounds.size(); ++i) {
-    CHECK(bounds[i]->min.defined());
-    CHECK(bounds[i]->extent.defined());
-    CHECK(bounds[i]->min.dtype().is_scalar());
-    CHECK(bounds[i]->extent.dtype().is_scalar());
-  }
-
-  ObjectPtr<PrefetchNode> node = make_object<PrefetchNode>();
-  node->func = std::move(func);
-  node->value_index = value_index;
-  node->dtype = dtype;
-  node->bounds = std::move(bounds);
-  return Stmt(node);
+Prefetch::Prefetch(Buffer buffer, Array<Range> bounds) {
+  data_ = make_object<PrefetchNode>(buffer, bounds);
 }
 
 TVM_REGISTER_GLOBAL("tir.Prefetch")
-.set_body_typed(PrefetchNode::make);
+.set_body_typed([](Buffer buffer, Array<Range> bounds) {
+  return Prefetch(buffer, bounds);
+});
 
 
 SeqStmt::SeqStmt(Array<Stmt> seq) {
@@ -339,6 +316,25 @@ TVM_REGISTER_GLOBAL("tir.BufferStore")
 
 TVM_REGISTER_NODE_TYPE(BufferStoreNode);
 
+
+BufferRealize::BufferRealize(Buffer buffer,
+                             Array<Range> bounds,
+                             PrimExpr condition,
+                             Stmt body) {
+  data_ = make_object<BufferRealizeNode>(
+      buffer, bounds, condition, body);
+}
+
+TVM_REGISTER_GLOBAL("tir.BufferRealize")
+.set_body_typed([](Buffer buffer,
+                   Array<Range> bounds,
+                   PrimExpr condition,
+                   Stmt body) {
+  return BufferRealize(buffer, bounds, condition, body);
+});
+
+TVM_REGISTER_NODE_TYPE(BufferRealizeNode);
+
 // Printers
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -374,22 +370,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->Print(op->message);
     p->stream << ")\n";
     p->Print(op->body);
-  });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ProducerConsumerNode>([](const ObjectRef& node, ReprPrinter* p) {
-    auto* op = static_cast<const ProducerConsumerNode*>(node.get());
-    if (op->is_producer) {
-      p->PrintIndent();
-      p->stream << "produce " << op->func->func_name() << " {\n";
-      p->indent += 2;
-      p->Print(op->body);
-      p->indent -= 2;
-      p->PrintIndent();
-      p->stream << "}\n";
-    } else {
-      p->Print(op->body);
-    }
   });
 
 std::ostream &operator<<(std::ostream& out, ForType type) { // NOLINT(*)
@@ -462,6 +442,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<BufferStoreNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const BufferStoreNode*>(node.get());
+    p->PrintIndent();
+    p->stream << op->buffer->name << "[";
+    for (size_t i = 0; i < op->indices.size(); ++i) {
+      p->Print(op->indices[i]);
+      if (i < op->indices.size() - 1) p->stream << ", ";
+    }
+    p->stream << "]";
+    p->stream << " = ";
+    p->Print(op->value);
+    p->stream << '\n';
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<AllocateNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const AllocateNode*>(node.get());
     p->PrintIndent();
@@ -485,6 +480,34 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     p->PrintIndent();
     p->stream << "free " << op->buffer_var;
     p->stream << '\n';
+  });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<BufferRealizeNode>([](const ObjectRef& node, ReprPrinter* p) {
+    auto* op = static_cast<const BufferRealizeNode*>(node.get());
+    p->PrintIndent();
+    p->stream << "buffer_realize " << op->buffer->name << "(";
+    for (size_t i = 0; i < op->bounds.size(); ++i) {
+      p->stream << "[";
+      p->Print(op->bounds[i]->min);
+      p->stream << ", ";
+      p->Print(op->bounds[i]->extent);
+      p->stream << "]";
+      if (i < op->bounds.size() - 1) p->stream << ", ";
+    }
+    p->stream << ")";
+    if (!is_one(op->condition)) {
+      p->stream << " if ";
+      p->Print(op->condition);
+    }
+    p->stream << " {\n";
+
+    p->indent += 2;
+    p->Print(op->body);
+    p->indent -= 2;
+
+    p->PrintIndent();
+    p->stream << "}\n";
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -522,7 +545,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 .set_dispatch<PrefetchNode>([](const ObjectRef& node, ReprPrinter* p) {
     auto* op = static_cast<const PrefetchNode*>(node.get());
     p->PrintIndent();
-    p->stream << "prefetch " << op->func->func_name() << "(";
+    p->stream << "prefetch " << op->buffer << "(";
     for (size_t i = 0; i < op->bounds.size(); ++i) {
       p->stream << "[";
       p->Print(op->bounds[i]->min);
@@ -532,9 +555,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       if (i < op->bounds.size() - 1) p->stream << ", ";
     }
     p->stream << ")";
-    if (op->func->num_outputs() != 1) {
-      p->stream << ".value[" << op->value_index << "]";
-    }
   });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -610,7 +630,6 @@ TVM_REGISTER_NODE_TYPE(CallNode);
 TVM_REGISTER_NODE_TYPE(LetNode);
 TVM_REGISTER_NODE_TYPE(LetStmtNode);
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
-TVM_REGISTER_NODE_TYPE(ProducerConsumerNode);
 TVM_REGISTER_NODE_TYPE(ForNode);
 TVM_REGISTER_NODE_TYPE(StoreNode);
 TVM_REGISTER_NODE_TYPE(ProvideNode);

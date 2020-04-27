@@ -125,7 +125,7 @@ def test_forward_rrelu():
     data = mx.sym.var('data')
     data = mx.sym.concat(data, -data, dim=1)  # negative part explicitly
     mx_sym = mx.sym.LeakyReLU(data, act_type='rrelu', lower_bound=0.3, upper_bound=0.7)
-    verify_mxnet_frontend_impl(mx_sym, (1, 3, 100, 100), (1, 6, 100, 100))
+    verify_mxnet_frontend_impl(mx_sym[0], (1, 3, 100, 100), (1, 6, 100, 100))
 
 def test_forward_prelu():
     data = mx.sym.var('data')
@@ -328,13 +328,19 @@ def test_forward_broadcast_ops():
 
 def test_forward_elemwise_ops():
     for op in ["elemwise_add", "elemwise_sub", "elemwise_mul",
-               "elemwise_div", "maximum", "minimum"]:
+               "elemwise_div", "maximum", "minimum",
+               operator.lt, operator.le, operator.eq,
+               operator.ne, operator.gt, operator.ge]:
         shape = (3, 4, 5)
         dtype = 'float32'
         a_np = np.random.uniform(size=shape).astype(dtype)
         b_np = np.random.uniform(size=shape).astype(dtype)
-        mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), mx.sym.var('b')])
-        ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), mx.nd.array(b_np)])
+        if type(op) == str:
+            mx_sym = _mx_symbol(mx.sym, op, [mx.sym.var('a'), mx.sym.var('b')])
+            ref_res = _mx_symbol(mx.nd, op, [mx.nd.array(a_np), mx.nd.array(b_np)])
+        else:
+            mx_sym = op(mx.sym.var('a'), mx.sym.var('b'))
+            ref_res = op(mx.nd.array(a_np), mx.nd.array(b_np))
         shapes = {'a': shape, 'b': shape}
         mod, _ = relay.frontend.from_mxnet(mx_sym, shapes, dtype)
         for target, ctx in ctx_list():
@@ -983,6 +989,50 @@ def test_forward_unravel_index():
     # verify([0, 1, 2, 5], [2, 2], dtype)
 
 
+def test_forward_swap_axis():
+    def _verify_swap_axis(in_shape, out_shape, dim1, dim2):
+        data = mx.sym.var('data')
+        mx_sym = mx.sym.swapaxes(data, dim1, dim2)
+        verify_mxnet_frontend_impl(mx_sym, in_shape, out_shape)
+
+    _verify_swap_axis((4, 5), (5, 4), 0, 1)
+    _verify_swap_axis((2, 4, 4, 5), (2, 5, 4, 4), 1, 3)
+    # MXNet errors out when dim1 == dim2
+    # _verify_swap_axis((4, 5), (5, 4), 0, 0)
+
+
+def test_forward_depth_to_space():
+    def verify(shape, blocksize=2):
+        x = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.depth_to_space(mx.nd.array(x), blocksize)
+        mx_sym = mx.sym.depth_to_space(mx.sym.var("x"), blocksize)
+        shape_dict = {"x": x.shape, }
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 18, 3, 3), 3)
+
+
+def test_forward_space_to_depth():
+    def verify(shape, blocksize=2):
+        x = np.random.uniform(size=shape).astype("float32")
+        ref_res = mx.nd.space_to_depth(mx.nd.array(x), blocksize)
+        mx_sym = mx.sym.space_to_depth(mx.sym.var("x"), blocksize)
+        shape_dict = {"x": x.shape, }
+        mod, _ = relay.frontend.from_mxnet(mx_sym, shape_dict)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy(), rtol=1e-3, atol=1e-5)
+
+    verify((1, 1, 9, 9), 3)
+
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -1035,8 +1085,11 @@ if __name__ == '__main__':
     test_forward_instance_norm()
     test_forward_layer_norm()
     test_forward_one_hot()
+    test_forward_depth_to_space()
+    test_forward_space_to_depth()
     test_forward_convolution()
     test_forward_deconvolution()
     test_forward_cond()
     test_forward_make_loss()
     test_forward_unravel_index()
+    test_forward_swap_axis()

@@ -81,6 +81,7 @@ class TypeNode : public Object {
   static constexpr const char* _type_key = "Type";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 14;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
 
@@ -391,6 +392,7 @@ inline bool IsVoidType(const Type& type) {
 class TypeConstraintNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "TypeConstraint";
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeConstraintNode, TypeNode);
 };
 

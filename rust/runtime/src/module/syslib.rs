@@ -42,7 +42,8 @@ impl Module for SystemLibModule {
         SYSTEM_LIB_FUNCTIONS
             .lock()
             .unwrap()
-            .get(name.as_ref()).copied()
+            .get(name.as_ref())
+            .copied()
     }
 }
 

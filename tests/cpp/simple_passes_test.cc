@@ -19,8 +19,8 @@
 
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/te/operation.h>
+#include <tvm/tir/analysis.h>
 
 TEST(SimplePasses, HasSideEffect) {
   using namespace tvm;

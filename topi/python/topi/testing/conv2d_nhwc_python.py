@@ -21,7 +21,7 @@ import scipy.signal
 from topi.nn.util import get_pad_tuple
 
 
-def conv2d_nhwc_python(a_np, w_np, stride, padding):
+def _conv2d_nhwc_python(a_np, w_np, stride, padding):
     """Convolution operator in NHWC layout.
 
     Parameters
@@ -77,3 +77,38 @@ def conv2d_nhwc_python(a_np, w_np, stride, padding):
                     apad, np.rot90(np.rot90(wt[f, c])), mode='valid')
                 bt[n, f] += out[::stride_h, ::stride_w]
     return bt.transpose((0, 2, 3, 1))
+
+def conv2d_nhwc_python(a_np, w_np, stride, padding, groups=1):
+    """Convolution operator in NHWC layout.
+
+    Parameters
+    ----------
+    a_np : numpy.ndarray
+        4-D with shape [batch, in_height, in_width, in_channel]
+
+    w_np : numpy.ndarray
+        4-D with shape [filter_height, filter_width, in_channel // groups, num_filter]
+
+    stride : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+
+    padding : int or str or a list/tuple of 2 or 4 ints
+        Padding size, or ['VALID', 'SAME'], or
+        [pad_height, pad_width] for 2 ints, or
+        [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
+
+    groups : int
+        Number of groups
+
+    Returns
+    -------
+    b_np : np.ndarray
+        4-D with shape [batch, out_height, out_width, out_channel]
+    """
+
+    a_slices = np.array_split(a_np, groups, axis=3)
+    w_slices = np.array_split(w_np, groups, axis=3)
+    b_slices = [_conv2d_nhwc_python(a_slice, w_slice, stride, padding)
+                for a_slice, w_slice in zip(a_slices, w_slices)]
+    b_np = np.concatenate(b_slices, axis=3)
+    return b_np

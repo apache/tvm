@@ -23,13 +23,13 @@ from numbers import Number, Integral
 
 from ..base import _LIB, get_last_ffi_error, py2cerror, check_call
 from ..base import c_str, string_types
-from ..runtime_ctypes import DataType, TVMByteArray, TVMContext
+from ..runtime_ctypes import DataType, TVMByteArray, TVMContext, ObjectRValueRef
 from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
-from .object import ObjectBase, _set_class_object
+from .object import ObjectBase, PyNativeObject, _set_class_object
 from . import object as _object
 
 PackedFuncHandle = ctypes.c_void_p
@@ -123,6 +123,9 @@ def _make_tvm_args(args, temp_args):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
             type_codes[i] = (TypeCode.NDARRAY_HANDLE
                              if not arg.is_view else TypeCode.DLTENSOR_HANDLE)
+        elif isinstance(arg, PyNativeObject):
+            values[i].v_handle = arg.__tvm_object__.handle
+            type_codes[i] = TypeCode.OBJECT_HANDLE
         elif isinstance(arg, _nd._TVM_COMPATS):
             values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
             type_codes[i] = arg.__class__._tvm_tcode
@@ -164,6 +167,9 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, ctypes.c_void_p):
             values[i].v_handle = arg
             type_codes[i] = TypeCode.HANDLE
+        elif isinstance(arg, ObjectRValueRef):
+            values[i].v_handle = ctypes.cast(ctypes.byref(arg.obj.handle), ctypes.c_void_p)
+            type_codes[i] = TypeCode.OBJECT_RVALUE_REF_ARG
         elif callable(arg):
             arg = convert_to_tvm_func(arg)
             values[i].v_handle = arg.handle

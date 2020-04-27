@@ -70,7 +70,7 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, out_dtyp
     # convert data type of input feature maps and weights
     TransPaddedInput = te.compute(
         PaddedInput.shape,
-        lambda h, w, i, o: PaddedInput[h, w, i, o].astype('float16'))
+        lambda n, h, w, c: PaddedInput[n, h, w, c].astype('float16'))
     TransFilter = te.compute(
         Filter.shape, lambda h, w, i, o: Filter[h, w, i, o].astype('float16'))
     Output = te.compute(

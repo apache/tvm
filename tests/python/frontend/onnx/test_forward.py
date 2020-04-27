@@ -1366,16 +1366,16 @@ def test_binary_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_binary_ops(op, x, y, out_np, broadcast=None):
+    def verify_binary_ops(op, x, y, out_np, x_name='in1', y_name='in2', broadcast=None):
         if broadcast is None:
-            z = helper.make_node(op, ['in1', 'in2'], ['out'])
+            z = helper.make_node(op, [x_name, y_name], ['out'])
         else:
-            z = helper.make_node(op, ['in1', 'in2'], ['out'], broadcast=1)
+            z = helper.make_node(op, [x_name, y_name], ['out'], broadcast=1)
         graph = helper.make_graph([z],
                                   '_test',
-                                  inputs=[helper.make_tensor_value_info("in1",
+                                  inputs=[helper.make_tensor_value_info(x_name,
                                                                         TensorProto.FLOAT, list(in_shape)),
-                                          helper.make_tensor_value_info("in2",
+                                          helper.make_tensor_value_info(y_name,
                                                                         TensorProto.FLOAT, list(in_shape))],
                                   outputs=[helper.make_tensor_value_info("out",
                                                                          TensorProto.FLOAT, list(out_shape))])
@@ -1393,6 +1393,7 @@ def test_binary_ops():
     verify_binary_ops("Sub", x, z, x - z, broadcast=True)
     verify_binary_ops("Mul", x, y, x * y, broadcast=None)
     verify_binary_ops("Mul", x, z,  x * z, broadcast=True)
+    verify_binary_ops("Mul", x, x, x * x, x_name='in1', y_name='in1', broadcast=None)
     verify_binary_ops("Div", x, y, x / y, broadcast=None)
     verify_binary_ops("Div", x, z, x / z, broadcast=True)
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
@@ -2329,6 +2330,43 @@ def test_nonzero():
     result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 2, 2], [0, 1, 0, 1]]
     verify_nonzero(input_data, result, dtype=np.int64)
 
+def test_topk():
+    def verify_topk(input_dims, K, axis=-1):
+        output_dims = list(input_dims)
+        output_dims[axis] = K
+
+        node = helper.make_node('TopK',
+                                inputs=['X', 'K'],
+                                outputs=['Values', 'Indicies'],
+                                axis=axis)
+
+        graph = helper.make_graph([node],
+                                  "topk_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
+                                          helper.make_tensor_value_info("K", TensorProto.INT64, [1,])],
+                                  initializer=[helper.make_tensor("K", TensorProto.INT64, [1], [K])],
+                                  outputs=[helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims), 
+                                           helper.make_tensor_value_info("Indicies", TensorProto.INT64, output_dims)])
+
+        model = helper.make_model(graph, producer_name='topk_test')
+
+        indata = np.random.uniform(-10, 10, input_dims).astype(np.float32)
+        onnx_out = get_onnxruntime_output(model, [indata, k])
+
+        for target, ctx in [('llvm', tvm.cpu())]:
+            tvm_out = get_tvm_output(model, indata, target, ctx, [output_dims, output_dims], 
+                    output_dtype=['float32', 'int64'])
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+    
+    for n in [12, 32]:
+        for shape in [[n], [n, n], [n, n, n]]:
+            for k in [1, 5, 10]:
+                verify_topk(shape, k)
+
+        verify_topk([n, n, n], 5, 0)
+        verify_topk([n, n, n], 5, 1)
+        verify_topk([n, n, n], 5, 2)
+    
 
 if __name__ == '__main__':
     test_flatten()
@@ -2391,3 +2429,4 @@ if __name__ == '__main__':
     test_lstm()
     test_resize()
     test_nonzero()
+    test_topk()

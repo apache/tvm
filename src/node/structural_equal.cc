@@ -35,7 +35,8 @@ SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const
   uint32_t tindex = self->type_index();
   if (tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: SEqualReduce of " << self->GetTypeKey()
-        << " is not registered via TVM_REGISTER_NODE_TYPE";
+        << " is not registered via TVM_REGISTER_NODE_TYPE."
+        << " Did you forget to set _type_has_method_sequal_reduce=true?";
   }
   return fsequal_reduce_[tindex](self, other, equal);
 }

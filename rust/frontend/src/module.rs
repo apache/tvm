@@ -94,7 +94,7 @@ impl Module {
                     format_err!("Bad module load path: `{}`.", path.as_ref().display())
                 })?,
         )?;
-        let func = Function::get("module._LoadFromFile").expect("API function always exists");
+        let func = Function::get("runtime.ModuleLoadFromFile").expect("API function always exists");
         let cpath =
             CString::new(path.as_ref().to_str().ok_or_else(|| {
                 format_err!("Bad module load path: `{}`.", path.as_ref().display())
@@ -105,7 +105,7 @@ impl Module {
 
     /// Checks if a target device is enabled for a module.
     pub fn enabled(&self, target: &str) -> bool {
-        let func = Function::get("module._Enabled").expect("API function always exists");
+        let func = Function::get("runtime.RuntimeEnabled").expect("API function always exists");
         // `unwrap` is safe here because if there is any error during the
         // function call, it would occur in `call_packed!`.
         let tgt = CString::new(target).unwrap();

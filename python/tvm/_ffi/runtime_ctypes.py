@@ -39,6 +39,7 @@ class TypeCode(object):
     STR = 11
     BYTES = 12
     NDARRAY_HANDLE = 13
+    OBJECT_RVALUE_REF_ARG = 14
     EXT_BEGIN = 15
 
 
@@ -145,6 +146,7 @@ class TVMContext(ctypes.Structure):
         11: 'opengl',
         12: 'ext_dev',
         13: 'micro_dev',
+        14: 'hexagon',
     }
     STR2MASK = {
         'llvm': 1,
@@ -166,6 +168,7 @@ class TVMContext(ctypes.Structure):
         'opengl': 11,
         'ext_dev': 12,
         'micro_dev': 13,
+        'hexagon': 14,
     }
     def __init__(self, device_type, device_id):
         super(TVMContext, self).__init__()
@@ -278,5 +281,19 @@ class TVMArray(ctypes.Structure):
                 ("shape", ctypes.POINTER(tvm_shape_index_t)),
                 ("strides", ctypes.POINTER(tvm_shape_index_t)),
                 ("byte_offset", ctypes.c_uint64)]
+
+
+class ObjectRValueRef:
+    """Represent an RValue ref to an object that can be moved.
+
+    Parameters
+    ----------
+    obj : tvm.runtime.Object
+        The object that this value refers to
+    """
+    __slots__ = ["obj"]
+    def __init__(self, obj):
+        self.obj = obj
+
 
 TVMArrayHandle = ctypes.POINTER(TVMArray)

@@ -45,9 +45,9 @@ namespace topi {
  * \return A Tensor whose op member is a broadcast operation
  */
 inline tvm::te::Tensor broadcast_to(const tvm::te::Tensor& t,
-                                const tvm::Array<tvm::PrimExpr>& output_shape,
-                                std::string name = "T_broadcast_to",
-                                std::string tag = kBroadcast) {
+                                    const tvm::Array<tvm::PrimExpr>& output_shape,
+                                    std::string name = "T_broadcast_to",
+                                    std::string tag = kBroadcast) {
   CHECK_GE(output_shape.size(), t->shape.size())
       << "Not a broadcast, output dimensionality smaller than input.\noutput: "
       << output_shape << "\nvs\ninput: " << t;
@@ -139,6 +139,19 @@ TOPI_DEFINE_OP_OVERLOAD(operator&&, logical_and);
  */
 TOPI_DEFINE_BCAST_OP(logical_or, { return a || b; });
 TOPI_DEFINE_OP_OVERLOAD(operator||, logical_or);
+
+/*!
+ * \fn logical_xor
+ * \brief Compute A ^ B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(logical_xor, { return a ^ b; });
 
 /*!
  * \fn bitwise_and

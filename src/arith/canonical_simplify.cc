@@ -57,6 +57,7 @@ class CanonicalExprNode : public PrimExprNode {
   }
 
   static constexpr const char* _type_key = "arith.CanonicalExpr";
+  static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(CanonicalExprNode, PrimExprNode);
 };
 

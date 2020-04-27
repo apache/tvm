@@ -30,7 +30,6 @@
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/registry.h>
 
-#include <tvm/tir/ir_pass.h>
 
 #include <unordered_map>
 

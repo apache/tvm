@@ -36,7 +36,10 @@ def test_for():
             ib.emit(tvm.tir.call_extern
                     ("int32", "fadd", device_context(0), A))
     body = ib.get()
-    mod = tvm.testing.MakeAPILegacy(body, "func", [dev_type, n], 2, True)
+    mod = tvm.IRModule({
+        "func" : tvm.tir.PrimFunc([dev_type, n], body)
+    })
+
     mod = tvm.tir.transform.CombineContextCall()(mod)
 
     assert mod["func"].body.value.dtype == "handle"

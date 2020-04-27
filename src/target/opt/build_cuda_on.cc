@@ -127,7 +127,7 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   return ptx;
 }
 
-runtime::Module BuildCUDA(IRModule mod) {
+runtime::Module BuildCUDA(IRModule mod, std::string target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenCUDA cg;
@@ -138,8 +138,7 @@ runtime::Module BuildCUDA(IRModule mod) {
         << "CodeGenCUDA: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    CHECK(calling_conv.defined() &&
-          calling_conv->value == static_cast<int>(CallingConv::kDeviceKernelLaunch))
+    CHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
     cg.AddFunction(f);
   }

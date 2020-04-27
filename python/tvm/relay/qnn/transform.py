@@ -60,7 +60,7 @@ def CanonicalizeOps():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that canonicalizes QNN ops to Relay ops.
     """
 
@@ -108,7 +108,7 @@ def Legalize():
 
     Returns
     -------
-    ret : tvm.relay.Pass
+    ret : tvm.transform.Pass
         The registered pass that legalizes QNN ops.
     """
 

@@ -37,6 +37,7 @@ cdef enum TVMTypeCode:
     kTVMStr = 11
     kTVMBytes = 12
     kTVMNDArrayHandle = 13
+    kTVMObjectRefArg = 14
     kTVMExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
@@ -113,7 +114,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
                                void* resource_handle,
                                TVMPackedCFuncFinalizer fin,
                                TVMPackedFuncHandle *out)
-    int TVMCbArgToReturn(TVMValue* value, int code)
+    int TVMCbArgToReturn(TVMValue* value, int* code)
     int TVMArrayAlloc(tvm_index_t* shape,
                       tvm_index_t ndim,
                       DLDataType dtype,

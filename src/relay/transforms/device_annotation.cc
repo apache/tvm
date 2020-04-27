@@ -140,10 +140,10 @@ class RewriteAnnotation : public ExprMutator {
     }
   }
 
-  Expr VisitExp_(const TupleNode* op) {
+  Expr VisitExpr_(const TupleNode* op) {
     Array<Expr> fields;
     bool annotated = false;
-    for (const auto& field : fields) {
+    for (const auto& field : op->fields) {
       annotated |= NeedDeviceCopy(field.operator->(), op);
       fields.push_back(GetDeviceCopyExpr(field, op));
     }
@@ -573,8 +573,7 @@ Pass RewriteAnnotatedOps(int fallback_device) {
     [=](Function f, IRModule m, PassContext pc) {
     return Downcast<Function>(relay::RewriteAnnotatedOps(f, fallback_device));
   };
-  return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps",
-                            {tir::StringImmNode::make("InferType")});
+  return CreateFunctionPass(pass_func, 1, "RewriteAnnotatedOps", {"InferType"});
 }
 
 TVM_REGISTER_GLOBAL("relay._transform.RewriteDeviceAnnotation")

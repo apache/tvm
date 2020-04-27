@@ -20,12 +20,12 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/buffer.h>
+#include <tvm/target/target.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/container.h>
@@ -34,22 +34,29 @@
 #include <utility>
 #include <unordered_set>
 
-#include "../pass/ir_util.h"
-#include "../pass/arg_binder.h"
+#include "ir_util.h"
+#include "arg_binder.h"
 
 namespace tvm {
 namespace tir {
 
 inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
-  return AssertStmtNode::make(lhs == rhs, msg, EvaluateNode::make(0));
+  return AssertStmtNode::make(lhs == rhs, tvm::tir::StringImmNode::make(msg),
+                              EvaluateNode::make(0));
 }
 
 PrimFunc MakePackedAPI(PrimFunc&& func,
                        int num_unpacked_args) {
-  auto global_symbol = func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
-  CHECK(global_symbol.defined())
+  auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
+  CHECK(global_symbol)
       << "MakePackedAPI: Expect PrimFunc to have the global_symbol attribute";
-  std::string name_hint = global_symbol;
+
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  CHECK(target.defined())
+      << "MakePackedAPI: Require the target attribute";
+  int target_device_type = target.value()->device_type;
+
+  std::string name_hint = global_symbol.value();
 
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = EvaluateNode::make(0);
@@ -67,7 +74,8 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   // The arguments of the function.
   Array<Var> args;
   // The device context
-  Var device_type("dev_type"), device_id("dev_id");
+  Var device_id("dev_id");
+  Integer device_type(target_device_type);
   // seq_init gives sequence of initialization
   // seq_check gives sequence of later checks after init
   std::vector<Stmt> seq_init, seq_check;
@@ -140,17 +148,19 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
             AssertStmtNode::make(tcode == kTVMOpaqueHandle ||
                                  tcode == kTVMNDArrayHandle ||
                                  tcode == kTVMDLTensorHandle ||
-                                 tcode == kTVMNullptr, msg.str(), nop));
+                                 tcode == kTVMNullptr,
+                                 tvm::tir::StringImmNode::make(msg.str()), nop));
       } else if (t.is_int() || t.is_uint()) {
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be int";
-        seq_check.emplace_back(AssertStmtNode::make(tcode == kDLInt, msg.str(), nop));
+        seq_check.emplace_back(
+            AssertStmtNode::make(tcode == kDLInt, tvm::tir::StringImmNode::make(msg.str()), nop));
       } else {
         CHECK(t.is_float());
         std::ostringstream msg;
         msg << name_hint << ": Expect arg[" << i << "] to be float";
         seq_check.emplace_back(
-            AssertStmtNode::make(tcode == kDLFloat, msg.str(), nop));
+            AssertStmtNode::make(tcode == kDLFloat, tvm::tir::StringImmNode::make(msg.str()), nop));
       }
     } else {
       args.push_back(v_arg);
@@ -192,17 +202,18 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
   // Set device context
   if (vmap.count(device_id.get())) {
     PrimExpr node = StringImmNode::make("default");
-    CHECK(vmap.count(device_type.get()));
     seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_id, device_id, nop));
     seq_check.push_back(AttrStmtNode::make(
         node, attr::device_context_type, device_type, nop));
-    Stmt set_device = IfThenElseNode::make(
-        device_type != kDLCPU, EvaluateNode::make(CallNode::make(
-            DataType::Int(32), intrinsic::tvm_call_packed,
-            {StringImmNode::make(runtime::symbol::tvm_set_device),
-             device_type, device_id}, CallNode::Intrinsic)));
-    body = SeqStmt({set_device, body});
+
+    if (runtime::DeviceAPI::NeedSetDeviceContext(target_device_type)) {
+      Stmt set_device = EvaluateNode::make(CallNode::make(
+              DataType::Int(32), intrinsic::tvm_call_packed,
+              {StringImmNode::make(runtime::symbol::tvm_set_device),
+               device_type, device_id}, CallNode::Intrinsic));
+      body = SeqStmt({set_device, body});
+    }
   }
   func_ptr->body = MergeNest(
       {seq_init, binder.init_nest(), seq_check, binder.asserts()}, body);
@@ -237,8 +248,9 @@ Pass MakePackedAPI(int num_unpacked_args) {
     for (const auto& kv : mptr->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {
         PrimFunc func = GetRef<PrimFunc>(n);
-        if (func->GetAttr<Integer>(tvm::attr::kCallingConv, 0)->value
-            == static_cast<int>(CallingConv::kDefault)) {
+        if (func->GetAttr<Integer>(
+                tvm::attr::kCallingConv,
+                Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
           auto updated_func = MakePackedAPI(std::move(func), num_unpacked_args);
           updates.push_back({kv.first, updated_func});
         }

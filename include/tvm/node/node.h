@@ -35,6 +35,7 @@
 #define TVM_NODE_NODE_H_
 
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/node/reflection.h>

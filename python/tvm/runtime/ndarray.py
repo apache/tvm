@@ -36,7 +36,7 @@ except (RuntimeError, ImportError):
     from tvm._ffi._ctypes.ndarray import NDArrayBase
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("runtime.NDArray")
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
 
@@ -460,6 +460,22 @@ def micro_dev(dev_id=0):
         The created context
     """
     return TVMContext(13, dev_id)
+
+
+def hexagon(dev_id=0):
+    """Construct a Hexagon device
+
+    Parameters
+    ----------
+    dev_id : int, optional
+        The integer device id
+
+    Returns
+    -------
+    ctx : TVMContext
+        The created context
+    """
+    return TVMContext(14, dev_id)
 
 
 cl = opencl

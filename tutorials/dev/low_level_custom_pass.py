@@ -40,8 +40,6 @@ Before reading this tutorial, we assume readers have already known these topics 
   take a look at ``python/tvm/build_module.py`` to get some basics.
 
 """
-
-from __future__ import absolute_import, print_function
 import tvm
 from tvm import te
 import numpy as np
@@ -57,7 +55,7 @@ b = te.placeholder((n, ), name="b")
 c = te.compute((n, ), lambda i: a[i] + b[i], name='c')
 
 sch = te.create_schedule(c.op)
-ir  = tvm.lower(sch, [a, b, c], simple_mode=True)
+ir  = tvm.lower(sch, [a, b, c])
 print(ir)
 
 ######################################################################
@@ -72,7 +70,7 @@ print(ir)
 #
 # IR Visitor
 # ~~~~~~~~~~
-# We can use ``tvm.tir.ir_pass.PostOrderVisit(stmt, func)`` to gather information from the Halide IR.
+# We can use ``tvm.tir.stmt_functor.post_order_visit(stmt, func)`` to gather information from the Halide IR.
 # ``func`` is a function callback. This function will be called before exiting the current IR node,
 # i.e. post-order visit. Then we leverage side effects to store the result of IR visit, because the
 # return value of ``func`` will be ignored.
@@ -113,36 +111,33 @@ def vectorize8(op):
         extent = op.extent.value
         name = op.loop_var.name
         lo, li = te.var(name + '.outer'), te.var(name + '.inner')
-        body = tvm.tir.ir_pass.Substitute(op.body, {op.loop_var: lo * 8 + li})
+        body = tvm.tir.stmt_functor.substitute(op.body, {op.loop_var: lo * 8 + li})
         body = tvm.tir.For(li, 0, 8, tvm.tir.For.Vectorized, 0, body)
         body = tvm.tir.For(lo, 0, extent // 8, tvm.tir.For.Serial, 0, body)
         return body
     return None
 
-def vectorize(stmt):
+@tvm.tir.transform.prim_func_pass(opt_level=0)
+def vectorize(f, mod, ctx):
     global loops
 
-    tvm.tir.ir_pass.PostOrderVisit(stmt, find_width8)
+    tvm.tir.stmt_functor.post_order_visit(f.body, find_width8)
 
     if not loops:
-        return stmt
+        return sf
 
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`
-    stmt = tvm.tir.ir_pass.IRTransform(stmt, None, vectorize8, ['For'])
+    return f.with_body(
+        tvm.tir.stmt_functor.ir_transform(f.body, None, vectorize8, ['For']))
 
-    return stmt
 
 #####################################################################
 # Glue to Lowering
 # ----------------
 # So far, we are done with writing this IR transformation pass. What we need to do next is to glue
-# this pass to TVM's lower pass. We can first call this function directly as a sanity check.
+# this pass to TVM's lower pass.
 #
-
-print(vectorize(ir))
-
-#####################################################################
 # In TVM, there is a property called ``BuildConfig``. You can use this property to customize your
 # own lowering options. In this case, we inject the pass written above into the TVM standard lowering
 # pass by feeding **a list of tuple** as argument to ``add_lower_pass``. "Tuple" indicates different
@@ -160,14 +155,14 @@ print(vectorize(ir))
 #
 
 with tvm.target.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
-    print(tvm.lower(sch, [a, b, c], simple_mode=True))
+    print(tvm.lower(sch, [a, b, c]))
 
 #####################################################################
 # Quick View
 # ----------
 # This tutorial gives a quick view of writing a customized IR transformation pass:
-# - Use ``tvm.tir.ir_pass.PostOrderVisit`` to gather information on each IR nodes.
-# - Use ``tvm.tir.ir_pass.IRTransform`` to transform IR nodes.
+# - Use ``tvm.tir.stmt_functor.post_order_visit`` to gather information on each IR nodes.
+# - Use ``tvm.tir.stmt_functor.ir_transform`` to transform IR nodes.
 # - Wrap up two above to write an IR-transformation function.
 # - Use ``tvm.target.build_config`` to put this function to TVM lowering pass
 #

@@ -148,10 +148,6 @@ def test_stmt_constructor():
     assert isinstance(x, tvm.tir.AssertStmt)
     assert x.body == nop
 
-    x = tvm.tir.ProducerConsumer(None, True, nop)
-    assert isinstance(x, tvm.tir.ProducerConsumer)
-    assert x.body == nop
-
     x = tvm.tir.For(te.var("x"), 0, 10, 0, 0, nop)
     assert isinstance(x, tvm.tir.For)
     assert x.min.value == 0
@@ -198,9 +194,9 @@ def test_stmt_constructor():
     assert x.then_case.value.value == 11
     assert x.else_case == nop
 
-    x = tvm.tir.Prefetch(None, 1, "float32", [])
+    b = tvm.tir.decl_buffer((1, 2))
+    x = tvm.tir.Prefetch(b, [])
     assert isinstance(x, tvm.tir.Prefetch)
-    assert x.value_index == 1
 
 
 if __name__ == "__main__":

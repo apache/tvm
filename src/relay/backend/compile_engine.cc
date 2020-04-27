@@ -21,29 +21,31 @@
  * \file relay/backend/compile_engine.cc
  * \brief Internal compialtion engine.
  */
+#include "compile_engine.h"
+
+#include <topi/tags.h>
+#include <tvm/driver/driver_api.h>
 #include <tvm/ir/type_functor.h>
-#include <tvm/te/schedule.h>
-#include <tvm/te/operation.h>
-#include <tvm/te/schedule_pass.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/container.h>
-#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/analysis.h>
+#include <tvm/relay/attrs/device_copy.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/op_attr_types.h>
-#include <tvm/driver/driver_api.h>
+#include <tvm/runtime/container.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
+#include <tvm/te/schedule.h>
+#include <tvm/te/schedule_pass.h>
 
-#include <topi/tags.h>
-#include <utility>
+#include <functional>
 #include <limits>
 #include <mutex>
-#include <functional>
-#include <vector>
 #include <unordered_map>
+#include <utility>
+#include <vector>
 
-#include "compile_engine.h"
+#include "utils.h"
 
 namespace tvm {
 namespace relay {
@@ -111,8 +113,7 @@ Array<IndexExpr> GetShape(const Array<IndexExpr>& shape) {
 
 // The getter to get schedule from compile engine.
 // Get schedule from functor.
-class ScheduleGetter :
-      public ExprFunctor<Array<te::Tensor>(const Expr&)> {
+class ScheduleGetter : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
   explicit ScheduleGetter(Target target)
       : target_(target), device_copy_op_(Op::Get("device_copy")) {}
@@ -177,17 +178,6 @@ class ScheduleGetter :
     }
     cache_node->schedule = std::move(schedule);
     return CachedFunc(cache_node);
-  }
-
-  Array<te::Tensor> VisitExpr(const Expr& expr) {
-    auto it = memo_.find(expr);
-    if (it != memo_.end()) {
-      return it->second;
-    } else {
-      Array<te::Tensor> res = ExprFunctor::VisitExpr(expr);
-      memo_[expr] = res;
-      return res;
-    }
   }
 
   Array<te::Tensor> VisitExpr_(const VarNode* op) final {
@@ -327,7 +317,6 @@ class ScheduleGetter :
   int master_op_pattern_{0};
   OpImplementation master_implementation_;
   std::ostringstream readable_name_stream_;
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> memo_;
   Array<te::Operation> scalars_;
   // Cache device copy op for equivalence checking to reduce registry lookup
   // overhead for each invocation of call node when retrieving schedules.
@@ -335,7 +324,7 @@ class ScheduleGetter :
 };
 
 // Creates shape function from functor.
-class MakeShapeFunc : public ExprFunctor<Array<te::Tensor>(const Expr&)> {
+class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> {
  public:
   MakeShapeFunc() {}
 
@@ -422,19 +411,14 @@ class MakeShapeFunc : public ExprFunctor<Array<te::Tensor>(const Expr&)> {
     return std::make_pair(schedule, cfunc);
   }
 
-  Array<te::Tensor> VisitExpr(const Expr& expr) {
-    auto it = memo_.find(expr);
-    if (it != memo_.end()) {
-      return it->second;
-    } else {
-      Array<te::Tensor> res = ExprFunctor::VisitExpr(expr);
-      if (expr.as<VarNode>() == nullptr) {
-        // Do not memoize vars because shape functions could use either the data
-        // or the shape of a var each time.
-        memo_[expr] = res;
-      }
-      return res;
+  Array<te::Tensor> VisitExpr(const Expr& expr) final {
+    if (expr.as<VarNode>()) {
+      // Do not memoize vars because shape functions could use either the data
+      // or the shape of a var each time.
+      return ExprFunctor::VisitExpr(expr);
     }
+    // For other case, do memoized visit
+    return backend::MemoizedExprTranslator<Array<te::Tensor>>::VisitExpr(expr);
   }
 
   Array<te::Tensor> VisitExpr_(const VarNode* var_node) final {
@@ -577,8 +561,6 @@ class MakeShapeFunc : public ExprFunctor<Array<te::Tensor>(const Expr&)> {
   std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_data_;
   /*! \brief Map from parameter to list of shape placeholder */
   std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> param_shapes_;
-  /*! \brief Memoized visit result */
-  std::unordered_map<Expr, Array<te::Tensor>, ObjectHash, ObjectEqual> memo_;
   /*! \brief Stack of data dependencies for shape function */
   std::vector<bool> data_dependants_;
   /*! \brief Scalars used in the shape function */
@@ -617,17 +599,18 @@ class CompileEngineImpl : public CompileEngineNode {
     for (const auto& it : cache_) {
       auto src_func = it.first->source_func;
       CHECK(src_func.defined());
-      if (src_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
-        auto code_gen = src_func->GetAttr<tir::StringImm>(attr::kCompiler);
+      if (src_func->GetAttr<String>(attr::kCompiler).defined()) {
+        auto code_gen = src_func->GetAttr<String>(attr::kCompiler);
         CHECK(code_gen.defined()) << "No external codegen is set";
-        if (ext_mods.find(code_gen->value) == ext_mods.end()) {
-          ext_mods[code_gen->value] = IRModule({}, {});
+        std::string code_gen_name = code_gen.value();
+        if (ext_mods.find(code_gen_name) == ext_mods.end()) {
+          ext_mods[code_gen_name] = IRModule({}, {});
         }
-        auto symbol_name = src_func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+        auto symbol_name = src_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
         CHECK(symbol_name.defined()) << "No external symbol is set for:\n"
                                      << AsText(src_func, false);
-        auto gv = GlobalVar(std::string(symbol_name));
-        ext_mods[code_gen->value]->Add(gv, src_func);
+        auto gv = GlobalVar(std::string(symbol_name.value()));
+        ext_mods[code_gen_name]->Add(gv, src_func);
         cached_ext_funcs.push_back(it.first);
       }
     }
@@ -691,13 +674,13 @@ class CompileEngineImpl : public CompileEngineNode {
     }
     // No need to lower external functions for now. We will invoke the external
     // codegen tool once and lower all functions together.
-    if (key->source_func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (key->source_func->GetAttr<String>(attr::kCompiler).defined()) {
       auto cache_node = make_object<CachedFuncNode>();
       const auto name_node =
-          key->source_func->GetAttr<runtime::String>(tvm::attr::kGlobalSymbol);
+          key->source_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
       CHECK(name_node.defined())
           << "External function has not been attached a name yet.";
-      cache_node->func_name = std::string(name_node);
+      cache_node->func_name = std::string(name_node.value());
       cache_node->target = tvm::target::ext_dev();
       value->cached_func = CachedFunc(cache_node);
       return value;

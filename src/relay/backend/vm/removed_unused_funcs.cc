@@ -87,11 +87,10 @@ struct CallTracer : ExprVisitor {
  * \return The module with dead functions removed.
  */
 IRModule RemoveUnusedFunctions(const IRModule& module,
-                             Array<tvm::PrimExpr> entry_funcs) {
+                               Array<runtime::String> entry_funcs) {
   std::unordered_set<std::string> called_funcs{};
   for (auto entry : entry_funcs) {
-    auto* str_name = entry.as<tir::StringImmNode>();
-    auto funcs = CallTracer(module).Trace(str_name->value);
+    auto funcs = CallTracer(module).Trace(entry);
     called_funcs.insert(funcs.cbegin(), funcs.cend());
   }
   auto existing_functions = module->functions;
@@ -108,7 +107,7 @@ IRModule RemoveUnusedFunctions(const IRModule& module,
 
 namespace transform {
 
-Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions) {
+Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
     [=](IRModule m, PassContext pc) {
     return relay::vm::RemoveUnusedFunctions(m, entry_functions);

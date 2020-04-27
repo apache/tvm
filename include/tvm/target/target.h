@@ -27,6 +27,7 @@
 #include <tvm/support/with.h>
 #include <tvm/node/container.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/transform.h>
 
 #include <string>
 #include <vector>
@@ -52,11 +53,11 @@ class TargetNode : public Object {
   /*! \brief The warp size that should be used by the LowerThreadAllreduce pass */
   int thread_warp_size = 1;
   /*! \brief Keys for this target */
-  Array<PrimExpr> keys_array;
+  Array<runtime::String> keys_array;
   /*! \brief Options for this target */
-  Array<PrimExpr> options_array;
+  Array<runtime::String> options_array;
   /*! \brief Collection of imported libs */
-  Array<PrimExpr> libs_array;
+  Array<runtime::String> libs_array;
 
   /*! \return the full device string to pass to codegen::Build */
   TVM_DLL const std::string& str() const;
@@ -177,6 +178,10 @@ TVM_DLL Target stackvm(const std::vector<std::string>& options =
 /*! \return A target for external device */
 TVM_DLL Target ext_dev(const std::vector<std::string>& options =
                        std::vector<std::string>());
+
+/*! \return A target for hexagon */
+TVM_DLL Target hexagon(const std::vector<std::string>& options =
+                       std::vector<std::string>());
 }  // namespace target
 
 /*!
@@ -221,8 +226,8 @@ class BuildConfigNode : public Object {
   /*! \brief Whether to partition const loop */
   bool partition_const_loop = false;
 
-  /*! \brief Whether to dump the IR of each pass (only when building from python) */
-  std::vector< std::pair<int, runtime::PackedFunc> > add_lower_pass;
+  /*! \brief List of passes to be injected into the low-level pipeline. */
+  std::vector<std::pair<int, transform::Pass>> add_lower_pass;
 
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
   bool dump_pass_ir = false;

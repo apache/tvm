@@ -322,6 +322,11 @@ inline Expr FastExp(Expr e) {
   return Call(op, {e});
 }
 
+inline Expr FastErf(Expr e) {
+  static const Op& op = Op::Get("fast_erf");
+  return Call(op, {e});
+}
+
 inline Expr FastTanh(Expr e) {
   static const Op& op = Op::Get("fast_tanh");
   return Call(op, {e});

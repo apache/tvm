@@ -187,6 +187,43 @@ def schedule_conv2d_winograd_weight_transform(outs):
     return s
 
 
+def schedule_conv3d_winograd_weight_transform(outs):
+    """Schedule for weight transformation of 3D winograd
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    # Typically this is computed in PreCompute pass
+    # so we make a schedule here for cpu llvm
+    s = te.create_schedule([x.op for x in outs])
+    output = outs[0]
+    _, G = s[output].op.input_tensors
+    s[G].compute_inline()
+    transform_depth = len(s[output].op.reduce_axis) == 3
+    if transform_depth:
+        omg, eps, nu, ci, co = s[output].op.axis
+        r_kd, r_kh, r_kw = s[output].op.reduce_axis
+        s[output].reorder(co, ci, omg, eps, nu, r_kd, r_kh, r_kw)
+        for axis in [r_kd, r_kh, r_kw]:
+            s[output].unroll(axis)
+    else:
+        eps, nu, d, ci, co = s[output].op.axis
+        r_kh, r_kw = s[output].op.reduce_axis
+        s[output].reorder(co, ci, d, eps, nu, r_kh, r_kw)
+        for axis in [r_kh, r_kw]:
+            s[output].unroll(axis)
+    s[output].parallel(co)
+    return s
+
+
 def schedule_conv2d_winograd_without_weight_transform(outs):
     """Schedule for winograd without weight transformation
 

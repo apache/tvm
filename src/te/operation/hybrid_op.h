@@ -32,8 +32,8 @@
 #include <vector>
 
 #include "../schedule/message_passing.h"
-#include "../../tir/pass/ir_util.h"
-#include "../../tir/pass/arg_binder.h"
+#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/arg_binder.h"
 
 namespace tvm {
 namespace te {

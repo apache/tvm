@@ -22,7 +22,6 @@
  * \file lower_intrin.cc
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/runtime/registry.h>
 
@@ -293,7 +292,7 @@ Pass LowerIntrin() {
         << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
     n->body =
-        IntrinInjecter(&analyzer, target->target_name)(std::move(n->body));
+        IntrinInjecter(&analyzer, target.value()->target_name)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});

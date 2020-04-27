@@ -22,13 +22,13 @@
  * \file op_util.cc
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/te/operation.h>
 #include <string>
 #include "op_util.h"
 #include "../schedule/message_passing.h"
 #include "../../arith/compute_expr.h"
+#include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {
 namespace te {
@@ -131,8 +131,8 @@ MakeLoopNest(const Stage& stage,
         for (size_t j = 0; j < it_attr->prefetch_data.size(); ++j) {
           nest[i + 1].emplace_back(
               AttrStmtNode::make(it_attr->prefetch_data[j],
-                             tir::attr::prefetch_scope,
-                             it_attr->prefetch_offset[j], no_op));
+                                 tir::attr::prefetch_scope,
+                                 it_attr->prefetch_offset[j], no_op));
         }
       }
     } else if (bind_iv->thread_tag == "vthread" ||
@@ -162,7 +162,13 @@ MakeLoopNest(const Stage& stage,
       if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
-        value_map[iv] = var;
+        runtime::ThreadScope ts = runtime::ThreadScope::make(bind_iv->thread_tag);
+        if (stage->scope == "" || stage->scope == "warp" ||
+            static_cast<int>(runtime::StorageScope::make(stage->scope).rank) <= ts.rank) {
+          value_map[iv] = var;
+        } else {
+          value_map[iv] = dom->min;
+        }
       }
     }
     // annotate the extent of the IterVar

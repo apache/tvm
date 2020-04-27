@@ -249,7 +249,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "libpath=${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Frameworks/tvm\nmkdir -p ${libpath}\nrm -rf ${libpath}/*\n                  \nif [ -f ${SRCROOT}/rpc_config.txt ]; then\n    head -n 1 ${SRCROOT}/rpc_config.txt > ${libpath}/rpc_config.txt\n    tail -n +2 ${SRCROOT}/rpc_config.txt | xargs -J % cp % ${libpath}\nfi\n\n";
+			shellScript = "libpath=${CONFIGURATION_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Frameworks/tvm\nmkdir -p ${libpath}\nrm -rf ${libpath}/*\n                  \nif [ -f ${SRCROOT}/rpc_config.txt ]; then\n    head -n 1 ${SRCROOT}/rpc_config.txt > ${libpath}/rpc_config.txt\n    tail -n +2 ${SRCROOT}/rpc_config.txt | xargs -J % cp -r % ${libpath}\nfi\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

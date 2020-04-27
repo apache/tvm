@@ -22,7 +22,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/schedule_pass.h>
@@ -31,7 +31,7 @@
 #include <unordered_set>
 #include "graph.h"
 #include "../operation/op_util.h"
-#include "../../tir/pass/ir_util.h"
+#include "../../tir/transforms/ir_util.h"
 
 namespace tvm {
 namespace te {
@@ -43,9 +43,6 @@ Stmt MakePipeline(const Stage& s,
                   Stmt consumer,
                   bool debug_keep_trivial_loop) {
   Stmt producer = s->op->BuildProvide(s, dom_map, debug_keep_trivial_loop);
-  if (producer.defined()) {
-    producer = ProducerConsumerNode::make(s->op, true, producer);
-  }
   if (s->double_buffer) {
     producer = AttrStmtNode::make(
         s->op, tir::attr::double_buffer_scope, 1, producer);
@@ -53,7 +50,6 @@ Stmt MakePipeline(const Stage& s,
   Stmt pipeline = producer;
 
   if (consumer.defined() && !is_no_op(consumer)) {
-    consumer = ProducerConsumerNode::make(s->op, false, consumer);
     pipeline = SeqStmt({producer, consumer});
   }
   pipeline = s->op->BuildRealize(s, dom_map, pipeline);
@@ -163,20 +159,6 @@ class InjectScanStep : public StmtMutator {
 // Replace the init and update's expression by scan's buffer.
 class SchedulePostProc : public StmtExprMutator {
  public:
-  Stmt VisitStmt_(const ProducerConsumerNode* op) final {
-    auto it = replace_op_.find(op->func.get());
-    if (it != replace_op_.end()) {
-      Stmt body = this->VisitStmt(op->body);
-      if (it->second.defined()) {
-        return ProducerConsumerNode::make(
-            it->second, op->is_producer, body);
-      } else {
-        return body;
-      }
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
   Stmt VisitStmt_(const LetStmtNode* op) final {
     if (!HasSideEffect(op->value)) {
       var_value_[op->var.get()] = this->VisitExpr(op->value);
@@ -199,7 +181,7 @@ class SchedulePostProc : public StmtExprMutator {
       // delete duplicated thread extent attr
       auto it = thread_extent_scope_.find(op->node.get());
       if (it != thread_extent_scope_.end()) {
-        CHECK(is_zero(tir::Simplify(it->second - op->value)));
+        CHECK(is_zero(analyzer_.Simplify(it->second - op->value)));
         return this->VisitStmt(op->body);
       } else {
         thread_extent_scope_[op->node.get()] = op->value;
@@ -353,6 +335,8 @@ class SchedulePostProc : public StmtExprMutator {
   std::unordered_map<TensorKey, Tensor> replace_realize_;
   // replace producer consumer.
   std::unordered_map<const Object*, Operation> replace_op_;
+  // integer analyzer
+  arith::Analyzer analyzer_;
 };
 
 Stmt ScheduleOps(

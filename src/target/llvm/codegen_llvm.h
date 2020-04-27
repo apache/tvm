@@ -45,7 +45,7 @@
 #include "llvm_common.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../arith/compute_expr.h"
-#include "../../tir/pass/ir_util.h"
+#include "../../tir/transforms/ir_util.h"
 
 namespace tvm {
 namespace codegen {
@@ -150,7 +150,6 @@ class CodeGenLLVM :
   void VisitStmt_(const LetStmtNode* op) override;
   void VisitStmt_(const SeqStmtNode* op) override;
   void VisitStmt_(const EvaluateNode* op) override;
-  void VisitStmt_(const ProducerConsumerNode* op) override;
 
  protected:
   /*! \brief The storage information */
@@ -232,6 +231,21 @@ class CodeGenLLVM :
    * \param type The corresponding TVM Type.
    */
   llvm::Type* GetLLVMType(const PrimExpr& expr) const;
+  /*!
+   * \brief Get the declaration of the LLVM intrinsic based on the intrinsic
+   *        id, and the type of the actual call.
+   *
+   * \param id The intrinsic id.
+   * \param ret_type The call return type.
+   * \param arg_types The types of the call arguments.
+   *
+   * \return Return the llvm::Function pointer, or nullptr if the declaration
+   *         could not be generated (e.g. if the argument/return types do not
+   *         match).
+   */
+  llvm::Function* GetIntrinsicDecl(llvm::Intrinsic::ID id,
+                                   llvm::Type* ret_type,
+                                   llvm::ArrayRef<llvm::Type*> arg_types);
   // initialize the function state.
   void InitFuncState();
   // Get alignment given index.

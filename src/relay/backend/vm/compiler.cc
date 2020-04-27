@@ -193,35 +193,26 @@ TreeObjectPtr BuildDecisionTreeFromClauses(MatchValuePtr data, tvm::Array<Clause
   return else_branch;
 }
 
-std::vector<int64_t> ToAllocTensorShape64(NDArray shape) {
+std::vector<int64_t> ToAllocTensorShape(NDArray shape) {
   std::vector<int64_t> raw_shape;
-  DLTensor tensor = shape.ToDLPack()->dl_tensor;
-  CHECK_EQ(tensor.ndim, 1u);
-  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
+  CHECK_EQ(shape->ndim, 1u);
+  CHECK_EQ(shape->dtype.code, 0U)
+    << "The dtype of constant shape must be int32 or int64, but got "
+    << DLDataType2String(shape->dtype);
+  CHECK(shape->dtype.bits == 64 || shape->dtype.bits == 32)
+    << "The dtype of constant shape must be int32 or int64, but got"
+    << DLDataType2String(shape->dtype);
 
-  // TODO(@jroesch): we really need to standaridize the bit width of
-  // all of the shape manipulating code.
-  CHECK_EQ(tensor.dtype.bits, 64) << "found " << tensor.dtype.bits;
-  int64_t* int_ptr = reinterpret_cast<int64_t*>(tensor.data);
-  for (auto i = 0; i < tensor.shape[0]; i++) {
-    raw_shape.push_back(int_ptr[i]);
-  }
-  return raw_shape;
-}
-
-
-std::vector<int64_t> ToAllocTensorShape32(NDArray shape) {
-  std::vector<int64_t> raw_shape;
-  DLTensor tensor = shape.ToDLPack()->dl_tensor;
-  CHECK_EQ(tensor.ndim, 1u);
-  CHECK_EQ(tensor.dtype.code, 0U) << "found " << tensor.dtype.code;
-
-  // TODO(@jroesch): we really need to standaridize the bit width of
-  // all of the shape manipulating code.
-  CHECK_LE(tensor.dtype.bits, 32) << "found " << tensor.dtype.bits;
-  int32_t* int_ptr = reinterpret_cast<int32_t*>(tensor.data);
-  for (auto i = 0; i < tensor.shape[0]; i++) {
-    raw_shape.push_back(static_cast<int64_t>(int_ptr[i]));
+  if (shape->dtype.bits == 64) {
+    int64_t* int_ptr = reinterpret_cast<int64_t*>(shape->data);
+    for (auto i = 0; i < shape->shape[0]; i++) {
+      raw_shape.push_back(int_ptr[i]);
+    }
+  } else {  // int32
+    int32_t* int_ptr = reinterpret_cast<int32_t*>(shape->data);
+    for (auto i = 0; i < shape->shape[0]; i++) {
+      raw_shape.push_back(static_cast<int64_t>(int_ptr[i]));
+    }
   }
   return raw_shape;
 }
@@ -446,7 +437,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                        const Expr& outputs) {
     std::vector<Index> argument_registers;
 
-    CHECK_NE(func->GetAttr<Integer>(attr::kPrimitive, 0)->value, 0)
+    CHECK(func->GetAttr<Integer>(attr::kPrimitive, 0) != 0)
       << "internal error: invoke_tvm_op requires the first argument to be a relay::Function";
 
     auto input_tuple = inputs.as<TupleNode>();
@@ -475,7 +466,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
     Target target;
 
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       target = tvm::target::ext_dev();
     } else {
       // Next generate the invoke instruction.
@@ -493,7 +484,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
     auto cfunc = engine_->Lower(key);
 
     auto op_index = -1;
-    if (func->GetAttr<tir::StringImm>(attr::kCompiler).defined()) {
+    if (func->GetAttr<String>(attr::kCompiler).defined()) {
       op_index = context_->cached_funcs.size();
       context_->cached_funcs.push_back(cfunc);
     } else {
@@ -546,17 +537,8 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
 
           if (const_shape) {
             NDArray shape = const_shape->data;
-            std::vector<int64_t> raw_shape;
-            DLTensor tensor = shape.ToDLPack()->dl_tensor;
-            // TODO(@jroesch): we need to get an RFC done to standarize this
-            if (tensor.dtype.bits == 64) {
-              raw_shape = ToAllocTensorShape64(shape);
-            } else if (tensor.dtype.bits == 32) {
-              raw_shape = ToAllocTensorShape32(shape);
-            } else {
-              LOG(FATAL) << "unsupported bitwidth: " << tensor.dtype.bits;
-            }
-
+            // TODO(@jroesch): we need to get an RFC done to standarize shape dtype
+            std::vector<int64_t> raw_shape = ToAllocTensorShape(shape);
             // Add context field.
             Emit(Instruction::AllocTensor(storage_register, raw_shape, dtype, NewRegister()));
           } else {
@@ -579,7 +561,7 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
           auto alignment_register = last_register_;
 
           // Get the dtype hint from the attributes.
-          auto alloc_attrs = attrs.as<AllocTensorAttrs>();
+          auto alloc_attrs = attrs.as<AllocStorageAttrs>();
           CHECK(alloc_attrs != nullptr)
               << "must be the alloc tensor attrs";
           auto dtype = alloc_attrs->dtype;
@@ -873,7 +855,7 @@ void VMCompiler::Lower(IRModule mod,
 
 IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targets) {
   Array<Pass> pass_seqs;
-  Array<tvm::PrimExpr> entry_functions{tvm::PrimExpr{"main"}};
+  Array<runtime::String> entry_functions{"main"};
   pass_seqs.push_back(transform::RemoveUnusedFunctions(entry_functions));
   // Run all dialect legalization passes.
   pass_seqs.push_back(relay::qnn::transform::Legalize());
@@ -937,6 +919,7 @@ IRModule VMCompiler::OptimizeModule(const IRModule& mod, const TargetsMap& targe
   pass_seqs.push_back(transform::FoldConstant());
   // Fuse the shape functions.
   pass_seqs.push_back(transform::FuseOps());
+
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(this->target_host_));
 

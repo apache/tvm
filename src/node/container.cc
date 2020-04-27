@@ -24,7 +24,7 @@
 #include <tvm/runtime/container.h>
 #include <tvm/node/container.h>
 #include <tvm/tir/expr.h>
-#include <cstring>
+#include "../support/str_escape.h"
 
 namespace tvm {
 
@@ -43,12 +43,32 @@ struct StringObjTrait {
                            SEqualReducer equal) {
     if (lhs == rhs) return true;
     if (lhs->size != rhs->size) return false;
-    if (lhs->data != rhs->data) return true;
-    return std::memcmp(lhs->data, rhs->data, lhs->size) != 0;
+    if (lhs->data == rhs->data) return true;
+    return std::memcmp(lhs->data, rhs->data, lhs->size) == 0;
   }
 };
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait);
+struct RefToObjectPtr : public ObjectRef {
+  static ObjectPtr<Object> Get(const ObjectRef& ref) {
+    return GetDataPtr<Object>(ref);
+  }
+};
+
+TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
+.set_creator([](const std::string& bytes) {
+  return RefToObjectPtr::Get(runtime::String(bytes));
+})
+.set_repr_bytes([](const Object* n) -> std::string {
+  return GetRef<runtime::String>(
+      static_cast<const runtime::StringObj*>(n)).operator std::string();
+});
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+.set_dispatch<runtime::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
+  auto* op = static_cast<const runtime::StringObj*>(node.get());
+  p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
+});
+
 
 struct ADTObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
@@ -357,7 +377,6 @@ TVM_REGISTER_GLOBAL("node.MapGetItem")
     Object* ptr = static_cast<Object*>(args[0].value().v_handle);
 
     if (ptr->IsInstance<MapNode>()) {
-      CHECK(args[1].type_code() == kTVMObjectHandle);
       auto* n = static_cast<const MapNode*>(ptr);
       auto it = n->data.find(args[1].operator ObjectRef());
       CHECK(it != n->data.end())

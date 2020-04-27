@@ -75,7 +75,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
         with tvm.target.create(device):
             if "cudnn" in device:
-                C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), "NCHW", dtype)
+                C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), 1, "NCHW", dtype)
             else:
                 C = fcompute(A, W, (stride, stride), padding, (dilation, dilation), dtype)
             if add_bias:

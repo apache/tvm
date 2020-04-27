@@ -20,6 +20,8 @@
 import logging
 import numpy as np
 import tvm
+import tvm.arith
+import tvm.tir
 import tvm._ffi
 
 
@@ -168,40 +170,23 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
                      x_name, grad.shape, dist, max_diff, avg_diff)
 
 
-def MakeAPILegacy(stmt, name, args, num_unpacked_args, noalias):
-    """Legacy adapter to build a Module from statement.
-
-    Used for migrating existing test cases only.
+def assert_prim_expr_equal(lhs, rhs):
+    """Assert lhs and rhs equals to each iother.
 
     Parameters
     ----------
-    stmt: Stmt
-        The input statement.
+    lhs : tvm.tir.PrimExpr
+        The left operand.
 
-    name: str
-        The name of the funciton.
-
-    args: list of Buffer or Vars
-        The function arguments
-
-    num_unpacked_args: int
-        Number of unpacked arguments.
-
-    nolias: bool
-        Whether allow noalias.
-
-    Returns
-    -------
-    mod : IRModule
-        The created IRModule.
+    rhs : tvm.tir.PrimExpr
+        The left operand.
     """
-    f = tvm.tir.PrimFunc(args, stmt).with_attr(
-        "global_symbol", tvm.runtime.String(name))
-    f = f.with_attr("tir.is_entry_func", True)
-    if noalias:
-        f = f.with_attr("tir.no_alias", True)
-    mod = tvm.IRModule({name: f})
-    return tvm.tir.transform.MakePackedAPI(num_unpacked_args)(mod)
+    ana = tvm.arith.Analyzer()
+    res = ana.simplify(lhs - rhs)
+    equal = isinstance(res, tvm.tir.IntImm) and res.value == 0
+    if not equal:
+        raise ValueError("{} and {} are not equal".format(lhs, rhs))
+
 
 
 tvm._ffi._init_api("testing", __name__)

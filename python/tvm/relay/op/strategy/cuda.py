@@ -60,9 +60,25 @@ def schedule_adaptive_pool_cuda(attrs, outs, target):
     with target:
         return topi.cuda.schedule_adaptive_pool(outs)
 
-@schedule_softmax.register(["cuda", "gpu"])
-def schedule_softmax_cuda(attrs, outs, target):
-    """schedule softmax for cuda"""
+@softmax_strategy.register(["cuda", "gpu"])
+def softmax_strategy_cuda(attrs, inputs, out_type, target):
+    """softmax cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="softmax.cuda")
+    if target.target_name == "cuda" and "cudnn" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(topi.cuda.softmax_cudnn),
+            wrap_topi_schedule(topi.cuda.schedule_softmax_cudnn),
+            name="softmax.cudnn",
+            plevel=15)
+    return strategy
+
+@schedule_log_softmax.register(["cuda", "gpu"])
+def schedule_log_softmax_cuda(attrs, outs, target):
+    """scheudle log_softmax for cuda"""
     with target:
         return topi.cuda.schedule_softmax(outs)
 
@@ -122,15 +138,16 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 name="conv2d_nhwc.cuda")
             N, _, _, _ = get_const_tuple(data.shape)
             _, _, CI, CO = get_const_tuple(kernel.shape)
-            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-                if (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
-                        (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
-                        (N % 32 == 0 and CI % 16 == 0 and CO % 8 == 0):
-                    strategy.add_implementation(
-                        wrap_compute_conv2d(topi.cuda.conv2d_nhwc_tensorcore),
-                        wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc_tensorcore),
-                        name="conv2d_nhwc_tensorcore.cuda",
-                        plevel=20)
+            if target.target_name == "cuda":
+                if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+                    if (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
+                            (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
+                            (N % 32 == 0 and CI % 16 == 0 and CO % 8 == 0):
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(topi.cuda.conv2d_nhwc_tensorcore),
+                            wrap_topi_schedule(topi.cuda.schedule_conv2d_nhwc_tensorcore),
+                            name="conv2d_nhwc_tensorcore.cuda",
+                            plevel=20)
         elif layout == "NCHW4c" and data.dtype in ["int8", "uint8"]:
             assert kernel_layout == "OIHW4o4i"
             strategy.add_implementation(
@@ -144,7 +161,9 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and \
                     padding[1] == padding[3]:
                 strategy.add_implementation(
-                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn, True),
+                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn,
+                                        need_data_layout=True,
+                                        has_groups=True),
                     wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
                     name="conv2d_cudnn.cuda",
                     plevel=15)
@@ -154,7 +173,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
             strategy.add_implementation(
                 wrap_compute_conv2d(topi.cuda.depthwise_conv2d_nchw),
                 wrap_topi_schedule(topi.cuda.schedule_depthwise_conv2d_nchw),
-                name="dpethwise_nchw.cuda")
+                name="depthwise_conv2d_nchw.cuda")
         elif layout == "NHWC":
             assert kernel_layout == "HWOI"
             strategy.add_implementation(
@@ -164,6 +183,20 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
         else:
             raise RuntimeError("Unsupported depthwise_conv2d layout {}".format(layout))
     else: # group_conv2d
+        # add cudnn implementation, if any
+        cudnn_impl = False
+        if target.target_name == "cuda" and "cudnn" in target.libs:
+            if layout in ["NCHW", "NHWC"] and padding[0] == padding[2] and \
+                    padding[1] == padding[3]:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.conv2d_cudnn,
+                                        need_data_layout=True,
+                                        has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_conv2d_cudnn),
+                    name="conv2d_cudnn.cuda",
+                    plevel=15)
+                cudnn_impl = True
+
         if layout == 'NCHW':
             # TODO(@vinx13, @icemelon9): Use group_conv2d_NCHWc_int8 when dtype is int8/uint8.
             assert kernel_layout == "OIHW"
@@ -177,7 +210,7 @@ def conv2d_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_compute_conv2d(topi.cuda.group_conv2d_NCHWc_int8, True),
                 wrap_topi_schedule(topi.cuda.schedule_group_conv2d_NCHWc_int8),
                 name="group_conv2d_NCHWc_int8.cuda")
-        else:
+        elif not cudnn_impl:
             raise RuntimeError("Unsupported group_conv2d layout {}".format(layout))
     return strategy
 
@@ -233,23 +266,69 @@ def conv2d_transpose_strategy_cuda(attrs, inputs, out_type, target):
 def conv3d_strategy_cuda(attrs, inputs, out_type, target):
     """conv3d cuda strategy"""
     strategy = _op.OpStrategy()
+    data, kernel = inputs
     layout = attrs.data_layout
+    _, stride_h, stride_w = attrs.get_int_tuple("strides")
+    _, dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     assert layout in ["NCDHW", "NDHWC"], "Not support this layout {} yet".format(layout)
     if layout == "NCDHW":
         strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_ncdhw),
                                     wrap_topi_schedule(topi.cuda.schedule_conv3d_ncdhw),
                                     name="conv3d_ncdhw.cuda",
                                     plevel=10)
-    else: # layout == "NDHWC":
-        strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
-                                    wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc),
-                                    name="conv3d_ndhwc.cuda",
-                                    plevel=10)
+        _, _, _, kh, kw = get_const_tuple(kernel.shape)
+        if 2 < kh < 8 and 2 < kw < 8 and kh == kw and \
+            stride_h == 1 and stride_w == 1 and \
+            dilation_h == 1 and dilation_w == 1:
+            strategy.add_implementation(
+                wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd),
+                wrap_topi_schedule(topi.cuda.schedule_conv3d_ncdhw_winograd),
+                name="conv3d_ncdhw_winograd.cuda",
+                plevel=5)
+    else:  # layout == "NDHWC":
+        strategy.add_implementation(
+            wrap_compute_conv3d(topi.cuda.conv3d_ndhwc),
+            wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc),
+            name="conv3d_ndhwc.cuda",
+            plevel=10)
+        N, _, _, _, _ = get_const_tuple(data.shape)
+        _, _, _, CI, CO = get_const_tuple(kernel.shape)
+        if target.target_name == "cuda":
+            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+                if (N % 16 == 0 and CI % 16 == 0 and CO % 16 == 0) or \
+                (N % 8 == 0 and CI % 16 == 0 and CO % 32 == 0) or \
+                (N % 32 == 0 and CI % 16 == 0 and CO % 8 == 0):
+                    strategy.add_implementation(
+                        wrap_compute_conv3d(topi.cuda.conv3d_ndhwc_tensorcore),
+                        wrap_topi_schedule(topi.cuda.schedule_conv3d_ndhwc_tensorcore),
+                        name="conv3d_ndhwc_tensorcore.cuda",
+                        plevel=20)
+
     if target.target_name == "cuda" and "cudnn" in target.libs:
         strategy.add_implementation(wrap_compute_conv3d(topi.cuda.conv3d_cudnn, True),
                                     wrap_topi_schedule(topi.cuda.schedule_conv3d_cudnn),
                                     name="conv3d_cudnn.cuda",
                                     plevel=15)
+    return strategy
+
+@conv3d_winograd_without_weight_transfrom_strategy.register(["cuda", "gpu"])
+def conv3d_winograd_without_weight_transfrom_strategy_cuda(attrs, inputs, out_type, target):
+    """conv3d_winograd_without_weight_transfrom cuda strategy"""
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.data_layout
+    assert dilation == (1, 1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+    strategy = _op.OpStrategy()
+    if layout == "NCDHW":
+        strategy.add_implementation(
+            wrap_compute_conv3d(topi.cuda.conv3d_ncdhw_winograd_without_weight_transform),
+            wrap_topi_schedule(
+                topi.cuda.schedule_conv3d_ncdhw_winograd_without_weight_transform),
+            name="conv3d_ncdhw_winograd_without_weight_transform.cuda")
+    else:
+        raise RuntimeError("Unsupported conv3d_winograd_without_weight_transfrom layout {}".
+                           format(layout))
     return strategy
 
 @conv1d_strategy.register(["cuda", "gpu"])
@@ -310,15 +389,16 @@ def dense_strategy_cuda(attrs, inputs, out_type, target):
                 wrap_topi_schedule(topi.cuda.schedule_dense_large_batch),
                 name="dense_large_batch.cuda",
                 plevel=5)
-        if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
-            if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
-                    or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
-                    or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0):
-                strategy.add_implementation(
-                    wrap_compute_dense(topi.cuda.dense_tensorcore),
-                    wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
-                    name="dense_tensorcore.cuda",
-                    plevel=20)
+        if target.target_name == "cuda":
+            if nvcc.have_tensorcore(tvm.gpu(0).compute_version):
+                if(i % 16 == 0 and b % 16 == 0 and o % 16 == 0) \
+                        or (i % 16 == 0 and b % 8 == 0 and o % 32 == 0) \
+                        or (i % 16 == 0 and b % 32 == 0 and o % 8 == 0):
+                    strategy.add_implementation(
+                        wrap_compute_dense(topi.cuda.dense_tensorcore),
+                        wrap_topi_schedule(topi.cuda.schedule_dense_tensorcore),
+                        name="dense_tensorcore.cuda",
+                        plevel=20)
     if target.target_name == "cuda" and "cublas" in target.libs:
         strategy.add_implementation(
             wrap_compute_dense(topi.cuda.dense_cublas),

@@ -19,115 +19,13 @@
 /*!
  * \file stmt_functor.cc
  */
+#include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt_functor.h>
+#include <functional>
 #include "functor_common.h"
 
 namespace tvm {
 namespace tir {
-
-// visitor to implement apply
-class IRApplyVisit :
-      public StmtExprVisitor {
- public:
-  explicit IRApplyVisit(std::function<void(const ObjectRef&)> f) : f_(f) {}
-
-  void VisitExpr(const PrimExpr& node) final {
-    if (visited_.count(node.get()) != 0) return;
-    visited_.insert(node.get());
-    ExprVisitor::VisitExpr(node);
-    f_(node);
-  }
-
-  void VisitStmt(const Stmt& node) final {
-    if (visited_.count(node.get()) != 0) return;
-    visited_.insert(node.get());
-    StmtVisitor::VisitStmt(node);
-    f_(node);
-  }
-
- private:
-  std::function<void(const ObjectRef&)> f_;
-  std::unordered_set<const Object*> visited_;
-};
-
-void PostOrderVisit(const ObjectRef& node,
-                    std::function<void(const ObjectRef&)> fvisit) {
-  if (node.as<StmtNode>()) {
-    IRApplyVisit visitor(fvisit);
-    visitor(Downcast<Stmt>(node));
-  } else {
-    IRApplyVisit visitor(fvisit);
-    visitor(Downcast<PrimExpr>(node));
-  }
-}
-
-class IRTransformer final :
-      public StmtExprMutator {
- public:
-  IRTransformer(const runtime::PackedFunc& f_preorder,
-                const runtime::PackedFunc& f_postorder,
-                const std::unordered_set<uint32_t>& only_enable)
-      : f_preorder_(f_preorder),
-        f_postorder_(f_postorder),
-        only_enable_(only_enable) {
-  }
-
-  Stmt VisitStmt(const Stmt& stmt) final {
-    return MutateInternal<Stmt>(stmt, [this](const Stmt& s) {
-      return this->BaseVisitStmt(s);
-    });
-  }
-  PrimExpr VisitExpr(const PrimExpr& expr) final {
-    return MutateInternal<PrimExpr>(expr, [this](const PrimExpr& e) {
-      return this->BaseVisitExpr(e);
-    });
-  }
-
- private:
-  // NOTE: redirect to parent's call
-  // This is used to get around limitation of gcc-4.8
-  Stmt BaseVisitStmt(const Stmt& s) {
-    return StmtMutator::VisitStmt(s);
-  }
-  PrimExpr BaseVisitExpr(const PrimExpr& e) {
-    return ExprMutator::VisitExpr(e);
-  }
-
-  template <typename T, typename F>
-  T MutateInternal(const T& node, F fmutate) {
-    if (only_enable_.size() &&
-        !only_enable_.count(node->type_index())) {
-      return fmutate(node);
-    }
-    if (f_preorder_ != nullptr) {
-      T pre = f_preorder_(node);
-      if (pre.defined()) return pre;
-    }
-    T new_node = fmutate(node);
-    if (f_postorder_ != nullptr) {
-      T post = f_postorder_(new_node);
-      if (post.defined()) return post;
-    }
-    return new_node;
-  }
-  // The functions
-  const runtime::PackedFunc& f_preorder_;
-  const runtime::PackedFunc& f_postorder_;
-  // type indices enabled.
-  const std::unordered_set<uint32_t>& only_enable_;
-};
-
-Stmt IRTransform(Stmt ir_node,
-                 const runtime::PackedFunc& f_preorder,
-                 const runtime::PackedFunc& f_postorder,
-                 const Array<PrimExpr>& only_enable) {
-  std::unordered_set<uint32_t> only_type_index;
-  for (PrimExpr s : only_enable) {
-    only_type_index.insert(Object::TypeKey2Index(s.as<StringImmNode>()->value.c_str()));
-  }
-  IRTransformer transform(f_preorder, f_postorder, only_type_index);
-  return transform(std::move(ir_node));
-}
 
 void StmtVisitor::VisitStmt_(const LetStmtNode* op) {
   this->VisitExpr(op->value);
@@ -149,9 +47,6 @@ void StmtVisitor::VisitStmt_(const AllocateNode* op) {
   VisitArray(op->extents, [this](const PrimExpr& e) { this->VisitExpr(e); });
   this->VisitStmt(op->body);
   this->VisitExpr(op->condition);
-  if (op->new_expr.defined()) {
-    this->VisitExpr(op->new_expr);
-  }
 }
 
 void StmtVisitor::VisitStmt_(const StoreNode* op) {
@@ -161,7 +56,17 @@ void StmtVisitor::VisitStmt_(const StoreNode* op) {
 }
 
 void StmtVisitor::VisitStmt_(const BufferStoreNode* op) {
+  this->VisitExpr(op->value);
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
+}
+
+void StmtVisitor::VisitStmt_(const BufferRealizeNode* op) {
+  VisitArray(op->bounds, [this](const Range& r) {
+      this->VisitExpr(r->min);
+      this->VisitExpr(r->extent);
+    });
+  this->VisitExpr(op->condition);
+  this->VisitStmt(op->body);
 }
 
 void StmtVisitor::VisitStmt_(const IfThenElseNode* op) {
@@ -177,10 +82,6 @@ void StmtVisitor::VisitStmt_(const FreeNode* op) {}
 void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
-  this->VisitStmt(op->body);
-}
-
-void StmtVisitor::VisitStmt_(const ProducerConsumerNode* op) {
   this->VisitStmt(op->body);
 }
 
@@ -291,21 +192,16 @@ Stmt StmtMutator::VisitStmt_(const AllocateNode* op) {
   Array<PrimExpr> extents = Internal::Mutate(this, op->extents);
   Stmt body = this->VisitStmt(op->body);
   PrimExpr condition = this->VisitExpr(op->condition);
-  PrimExpr new_expr;
-  if (op->new_expr.defined()) {
-    new_expr = this->VisitExpr(op->new_expr);
-  }
+
   if (extents.same_as(op->extents) &&
       body.same_as(op->body) &&
-      condition.same_as(op->condition) &&
-      new_expr.same_as(op->new_expr)) {
+      condition.same_as(op->condition)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
     n->extents = std::move(extents);
     n->body = std::move(body);
     n->condition = std::move(condition);
-    n->new_expr = std::move(new_expr);
     return Stmt(n);
   }
 }
@@ -348,12 +244,34 @@ Stmt StmtMutator::VisitStmt_(const StoreNode* op) {
 }
 
 Stmt StmtMutator::VisitStmt_(const BufferStoreNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
   Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
-  if (indices.same_as(op->indices)) {
+
+  if (value.same_as(op->value) &&
+      indices.same_as(op->indices)) {
     return GetRef<Stmt>(op);
   } else {
     auto n = CopyOnWrite(op);
+    n->value = std::move(value);
     n->indices = std::move(indices);
+    return Stmt(n);
+  }
+}
+
+Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
+  Region bounds = Internal::Mutate(this, op->bounds);
+  PrimExpr condition = this->VisitExpr(op->condition);
+  Stmt body = this->VisitStmt(op->body);
+
+  if (bounds.same_as(op->bounds) &&
+      condition.same_as(op->condition) &&
+      body.same_as(op->body)) {
+    return GetRef<Stmt>(op);
+  } else {
+    auto n = CopyOnWrite(op);
+    n->bounds = std::move(bounds);
+    n->condition = std::move(condition);
+    n->body = std::move(body);
     return Stmt(n);
   }
 }
@@ -475,17 +393,6 @@ Stmt StmtMutator::VisitStmt_(const AssertStmtNode* op) {
   }
 }
 
-Stmt StmtMutator::VisitStmt_(const ProducerConsumerNode* op) {
-  Stmt body = this->VisitStmt(op->body);
-  if (body.same_as(op->body)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
 Stmt StmtMutator::VisitStmt_(const EvaluateNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
   if (value.same_as(op->value)) {
@@ -502,6 +409,183 @@ Stmt StmtMutator::VisitStmt_(const FreeNode* op) {
 }
 
 
+// Implementations of IRTransform, PostOrderVisit and Substitute
+class IRApplyVisit :
+      public StmtExprVisitor {
+ public:
+  explicit IRApplyVisit(std::function<void(const ObjectRef&)> f) : f_(f) {}
+
+  void VisitExpr(const PrimExpr& node) final {
+    if (visited_.count(node.get()) != 0) return;
+    visited_.insert(node.get());
+    ExprVisitor::VisitExpr(node);
+    f_(node);
+  }
+
+  void VisitStmt(const Stmt& node) final {
+    if (visited_.count(node.get()) != 0) return;
+    visited_.insert(node.get());
+    StmtVisitor::VisitStmt(node);
+    f_(node);
+  }
+
+ private:
+  std::function<void(const ObjectRef&)> f_;
+  std::unordered_set<const Object*> visited_;
+};
+
+void PostOrderVisit(const ObjectRef& node,
+                    std::function<void(const ObjectRef&)> fvisit) {
+  if (node.as<StmtNode>()) {
+    IRApplyVisit visitor(fvisit);
+    visitor(Downcast<Stmt>(node));
+  } else {
+    IRApplyVisit visitor(fvisit);
+    visitor(Downcast<PrimExpr>(node));
+  }
+}
+
+class IRTransformer final :
+      public StmtExprMutator {
+ public:
+  IRTransformer(const runtime::PackedFunc& f_preorder,
+                const runtime::PackedFunc& f_postorder,
+                const std::unordered_set<uint32_t>& only_enable)
+      : f_preorder_(f_preorder),
+        f_postorder_(f_postorder),
+        only_enable_(only_enable) {
+  }
+
+  Stmt VisitStmt(const Stmt& stmt) final {
+    return MutateInternal<Stmt>(stmt, [this](const Stmt& s) {
+      return this->BaseVisitStmt(s);
+    });
+  }
+  PrimExpr VisitExpr(const PrimExpr& expr) final {
+    return MutateInternal<PrimExpr>(expr, [this](const PrimExpr& e) {
+      return this->BaseVisitExpr(e);
+    });
+  }
+
+ private:
+  // NOTE: redirect to parent's call
+  // This is used to get around limitation of gcc-4.8
+  Stmt BaseVisitStmt(const Stmt& s) {
+    return StmtMutator::VisitStmt(s);
+  }
+  PrimExpr BaseVisitExpr(const PrimExpr& e) {
+    return ExprMutator::VisitExpr(e);
+  }
+
+  template <typename T, typename F>
+  T MutateInternal(const T& node, F fmutate) {
+    if (only_enable_.size() &&
+        !only_enable_.count(node->type_index())) {
+      return fmutate(node);
+    }
+    if (f_preorder_ != nullptr) {
+      T pre = f_preorder_(node);
+      if (pre.defined()) return pre;
+    }
+    T new_node = fmutate(node);
+    if (f_postorder_ != nullptr) {
+      T post = f_postorder_(new_node);
+      if (post.defined()) return post;
+    }
+    return new_node;
+  }
+  // The functions
+  const runtime::PackedFunc& f_preorder_;
+  const runtime::PackedFunc& f_postorder_;
+  // type indices enabled.
+  const std::unordered_set<uint32_t>& only_enable_;
+};
+
+Stmt IRTransform(Stmt ir_node,
+                 const runtime::PackedFunc& f_preorder,
+                 const runtime::PackedFunc& f_postorder,
+                 Optional<Array<String>> only_enable) {
+  std::unordered_set<uint32_t> only_type_index;
+  if (only_enable.defined()) {
+    for (auto s : only_enable.value()) {
+      only_type_index.insert(Object::TypeKey2Index(s.c_str()));
+    }
+  }
+  IRTransformer transform(f_preorder, f_postorder, only_type_index);
+  return transform(std::move(ir_node));
+}
+
+class IRSubstitue : public StmtExprMutator {
+ public:
+  explicit IRSubstitue(std::function<Optional<PrimExpr>(const Var&)> vmap)
+      : vmap_(vmap) {
+  }
+
+  PrimExpr VisitExpr_(const VarNode* op) final {
+    Var var = GetRef<Var>(op);
+    auto ret = vmap_(var);
+    if (ret.defined()) return ret.value();
+    return std::move(var);
+  }
+
+  PrimExpr VisitExpr_(const LoadNode* op) final {
+    // NOTE: we do not explicit recursivly mutate op->buffer_var
+    PrimExpr ret = StmtExprMutator::VisitExpr_(op);
+    op = ret.as<LoadNode>();
+    if (auto mapped_var = vmap_(op->buffer_var)) {
+      return LoadNode::make(
+          op->dtype, Downcast<Var>(mapped_var.value()), op->index, op->predicate);
+    } else {
+      return ret;
+    }
+  }
+
+  Stmt VisitStmt_(const StoreNode* op) final {
+    // NOTE: we do not explicit recursivly mutate op->buffer_var
+    Stmt ret = StmtExprMutator::VisitStmt_(op);
+    op = ret.as<StoreNode>();
+    if (auto mapped_var = vmap_(op->buffer_var)) {
+      return StoreNode::make(
+          Downcast<Var>(mapped_var.value()), op->value, op->index, op->predicate);
+    } else {
+      return ret;
+    }
+  }
+
+ private:
+  std::function<Optional<PrimExpr>(const Var&)> vmap_;
+};
+
+Stmt Substitute(Stmt stmt,
+                std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstitue(vmap)(std::move(stmt));
+}
+
+PrimExpr Substitute(PrimExpr expr,
+                    std::function<Optional<PrimExpr>(const Var&)> vmap) {
+  return IRSubstitue(vmap)(std::move(expr));
+}
+
+
+TVM_REGISTER_GLOBAL("tir.IRTransform")
+.set_body_typed(IRTransform);
+
+
+TVM_REGISTER_GLOBAL("tir.PostOrderVisit")
+.set_body_typed([](ObjectRef node, PackedFunc f) {
+  tir::PostOrderVisit(node, [f](const ObjectRef& n) {
+    f(n);
+  });
+});
+
+TVM_REGISTER_GLOBAL("tir.Substitute")
+.set_body_typed([](ObjectRef node, Map<Var, PrimExpr> vmap) -> ObjectRef{
+  if (node->IsInstance<StmtNode>()) {
+    return Substitute(Downcast<Stmt>(node), vmap);
+  } else {
+    return Substitute(Downcast<PrimExpr>(node), vmap);
+  }
+});
 
 }  // namespace tir
 }  // namespace tvm

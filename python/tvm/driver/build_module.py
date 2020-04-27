@@ -26,7 +26,6 @@ from tvm.runtime import ndarray
 from tvm.ir import container
 from tvm.ir import CallingConv
 from tvm.target import codegen, BuildConfig
-from tvm.tir import ir_pass
 from tvm.te import tensor
 from tvm.te import schedule
 from tvm import target as _target
@@ -84,28 +83,48 @@ def get_binds(args, compact=False, binds=None):
     return binds, arg_list
 
 
-def form_body(sch):
-    """According to the given schedule, form the raw body
+def form_irmodule(sch, args, name, binds):
+    """According to the given schedule, form a function.
+
     Parameters
     ----------
     sch : tvm.te.schedule.Schedule
-    The given scheduler to form the raw body
+        The given scheduler to form the raw body
+
+    args : list of Buffer or Tensor or Var
+        The argument lists to the function.
+
+    name : str
+        The name of result function.
+
+    binds : dict of :any:`Tensor` to :any:`Buffer`, optional
+        The binds information
 
     Returns
     -------
     The body formed according to the given schedule
     """
     # normalize schedule first
+    cfg = BuildConfig.current()
     sch = sch.normalize()
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds)
-    stmt = ir_pass.InjectPrefetch(stmt)
-    return stmt
+
+    compact = schedule.VerifyCompactBuffer(stmt)
+    binds, arg_list = get_binds(args, compact, binds)
+
+    stmt = schedule.SchedulePostProcRewriteForTensorCore(stmt, sch, binds)
+    func = schedule.SchedulePostProcToPrimFunc(arg_list, stmt, binds)
+
+    func = func.with_attr("global_symbol", name)
+    if cfg.restricted_func:
+        func = func.with_attr("tir.noalias", True)
+    return tvm.IRModule({name: func})
 
 
 def lower(sch,
           args,
-          name="default_function",
+          name="main",
           binds=None,
           simple_mode=False):
     """Lowering step before build into target.
@@ -147,60 +166,54 @@ def lower(sch,
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
-        stmt = form_body(sch)
+        mod = form_irmodule(sch, args, name, binds)
+    else:
+        mod = sch
 
-    for f in lower_phase0:
-        stmt = f(stmt)
-
-    compact = ir_pass.VerifyCompactBuffer(stmt)
-    binds, arg_list = get_binds(args, compact, binds)
-
+    pass_list = lower_phase0
     # Phase 1
-    stmt = ir_pass.RewriteForTensorCore(stmt, sch, binds)
-    stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
-    stmt = ir_pass.NarrowDataType(stmt, 32)
-    stmt = ir_pass.CanonicalSimplify(stmt)
-    for f in lower_phase1:
-        stmt = f(stmt)
+    pass_list += [
+        tvm.tir.transform.InjectPrefetch(),
+        tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
+        tvm.tir.transform.NarrowDataType(32),
+        tvm.tir.transform.Simplify(),
+    ]
+    pass_list += lower_phase1
 
     # Phase 2
     if not simple_mode:
-        stmt = ir_pass.LoopPartition(stmt, cfg.partition_const_loop)
-    if cfg.disable_vectorize:
-        stmt = ir_pass.SkipVectorize(stmt)
-    else:
-        stmt = ir_pass.VectorizeLoop(stmt)
-    stmt = ir_pass.InjectVirtualThread(stmt)
-    stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
-    stmt = ir_pass.StorageRewrite(stmt)
-    stmt = ir_pass.UnrollLoop(
-        stmt,
-        cfg.auto_unroll_max_step,
-        cfg.auto_unroll_max_depth,
-        cfg.auto_unroll_max_extent,
-        cfg.unroll_explicit)
-    for f in lower_phase2:
-        stmt = f(stmt)
+        pass_list += [(tvm.tir.transform.LoopPartition(cfg.partition_const_loop))]
+
+    pass_list += [
+        tvm.tir.transform.VectorizeLoop(not cfg.disable_vectorize),
+        tvm.tir.transform.InjectVirtualThread(),
+        tvm.tir.transform.InjectDoubleBuffer(cfg.double_buffer_split_loop),
+        tvm.tir.transform.StorageRewrite(),
+        tvm.tir.transform.UnrollLoop(
+            cfg.auto_unroll_max_step,
+            cfg.auto_unroll_max_depth,
+            cfg.auto_unroll_max_extent,
+            cfg.unroll_explicit),
+    ]
+    pass_list += lower_phase2
 
     # Phase 3
-    stmt = ir_pass.Simplify(stmt)
-    stmt = ir_pass.RemoveNoOp(stmt)
+    pass_list += [
+        tvm.tir.transform.Simplify(),
+        tvm.tir.transform.RemoveNoOp(),
+    ]
+
     if not cfg.disable_select_rewriting:
-        stmt = ir_pass.RewriteUnsafeSelect(stmt)
-    for f in lower_phase3:
-        stmt = f(stmt)
+        pass_list += [tvm.tir.transform.RewriteUnsafeSelect()]
+    pass_list += lower_phase3
+
     # Instrument BoundCheckers
     if cfg.instrument_bound_checkers:
-        stmt = ir_pass.InstrumentBoundCheckers(stmt)
-    if simple_mode:
-        return stmt
+        pass_list += [tvm.tir.transform.InstrumentBoundCheckers()]
 
-    f = tvm.tir.PrimFunc(arg_list, stmt).with_attr(
-        "global_symbol", tvm.runtime.String(name))
-    if cfg.restricted_func:
-        f = f.with_attr("tir.no_alias", True)
-    mod = tvm.IRModule({name: f})
-    return tvm.tir.transform.MakePackedAPI()(mod)
+    optimize = tvm.transform.Sequential(pass_list)
+    mod = optimize(mod)
+    return mod
 
 
 def _build_for_device(input_mod, target, target_host):
@@ -232,9 +245,8 @@ def _build_for_device(input_mod, target, target_host):
 
     mod_mixed = input_mod
     mod_mixed = tvm.tir.transform.Apply(lambda f: f.with_attr("target", target))(mod_mixed)
-    tvm.tir.analysis.verify_memory(mod_mixed)
 
-    opt_mixed = []
+    opt_mixed = [tvm.tir.transform.VerifyMemory()]
     if len(mod_mixed.functions) == 1:
         opt_mixed += [tvm.tir.transform.Apply(lambda f: f.with_attr("tir.is_entry_func", True))]
     if BuildConfig.current().detect_global_barrier:
@@ -243,23 +255,24 @@ def _build_for_device(input_mod, target, target_host):
                   tvm.tir.transform.ThreadSync("warp"),
                   tvm.tir.transform.InferFragment(),
                   tvm.tir.transform.LowerThreadAllreduce(),
-                  tvm.tir.transform.BindDeviceType(),
+                  tvm.tir.transform.MakePackedAPI(),
                   tvm.tir.transform.SplitHostDevice()]
-    mod_mixed = tvm.ir.transform.Sequential(opt_mixed)(mod_mixed)
+    mod_mixed = tvm.transform.Sequential(opt_mixed)(mod_mixed)
 
 
     # device optimizations
-    opt_device = tvm.ir.transform.Sequential(
+    opt_device = tvm.transform.Sequential(
         [tvm.tir.transform.Filter(
             lambda f: "calling_conv" in f.attrs and
             f.attrs["calling_conv"].value == CallingConv.DEVICE_KERNEL_LAUNCH),
          tvm.tir.transform.LowerWarpMemory(),
+         tvm.tir.transform.Simplify(),
          tvm.tir.transform.LowerDeviceStorageAccessInfo(),
          tvm.tir.transform.LowerIntrin()])
     mod_dev = opt_device(mod_mixed)
 
     # host optimizations
-    opt_host = tvm.ir.transform.Sequential(
+    opt_host = tvm.transform.Sequential(
         [tvm.tir.transform.Filter(
             lambda f: "calling_conv" not in f.attrs or
             f.attrs["calling_conv"].value != CallingConv.DEVICE_KERNEL_LAUNCH),

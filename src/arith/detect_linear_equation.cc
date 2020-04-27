@@ -23,7 +23,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/arith/analyzer.h>
@@ -156,10 +157,14 @@ Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
   }
 
   std::unordered_set<const VarNode*> vset;
+  auto vset_contains = [&](const VarNode* node) {
+    return vset.count(node) != 0;
+  };
+
   for (size_t i = vars.size(); i > 1; --i) {
     vset.insert(vars[i - 1].get());
     // The previous coeff contains the variable
-    if (ExprUseVar(coeff[i - 2], vset)) {
+    if (ExprUseVar(coeff[i - 2], vset_contains)) {
       return Array<PrimExpr>();
     }
   }
@@ -207,8 +212,9 @@ bool DetectClipBound(
     return false;
   }
   LinearEqEntry ret;
+  Analyzer analyzer;
   if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
-  ret.coeff = Simplify(ret.coeff);
+  ret.coeff = analyzer.Simplify(ret.coeff);
   IntervalEntry& p = (*bmap)[var.get()];
   if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
@@ -254,14 +260,15 @@ Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   for (PrimExpr cond : splits) {
     if (!DetectClipBound(cond, &rmap)) return Array<PrimExpr>();
   }
+  Analyzer analyzer;
   Array<PrimExpr> ret;
   for (Var v : vars) {
     IntervalEntry e = rmap[v.get()];
     if (e.min_value.defined()) {
-      e.min_value = Simplify(e.min_value);
+      e.min_value = analyzer.Simplify(e.min_value);
     }
     if (e.max_value.defined()) {
-      e.max_value = Simplify(e.max_value);
+      e.max_value = analyzer.Simplify(e.max_value);
     }
     ret.push_back(e.min_value);
     ret.push_back(e.max_value);

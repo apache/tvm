@@ -95,8 +95,8 @@ class PythonConverter(ExprFunctor):
 
         # necessary pass: SimplifyInference (otherwise we can't generate code for some operators)
         # and fusion (to get primitive functions)
-        opts = relay.transform.Sequential([relay.transform.SimplifyInference(),
-                                           relay.transform.FuseOps(fuse_opt_level=0)])
+        opts = tvm.transform.Sequential([relay.transform.SimplifyInference(),
+                                         relay.transform.FuseOps(fuse_opt_level=0)])
         mod = opts(mod)
         optimized = mod['main']
         return optimized if isinstance(unwrapped, Function) else optimized.body

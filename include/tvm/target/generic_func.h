@@ -72,7 +72,7 @@ class GenericFunc : public ObjectRef {
    *
    * \code
    *   // Example code on how to call generic function
-   *   void CallGeneirc(GenericFunc f) {
+   *   void CallGeneric(GenericFunc f) {
    *     // call like normal functions by pass in arguments
    *     // return value is automatically converted back
    *     int rvalue = f(1, 2.0);

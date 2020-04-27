@@ -46,6 +46,8 @@
 // Metal
 #include "../../../src/runtime/metal/metal_module.mm"
 #include "../../../src/runtime/metal/metal_device_api.mm"
+// CoreML
+#include "../../../src/runtime/contrib/coreml/coreml_runtime.mm"
 
 namespace dmlc {
 // Override logging mechanism

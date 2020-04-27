@@ -24,6 +24,7 @@
 #ifndef TVM_RELAY_TRANSFORM_H_
 #define TVM_RELAY_TRANSFORM_H_
 
+#include <tvm/runtime/container.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relay/expr.h>
@@ -59,7 +60,7 @@ TVM_DLL Pass CreateFunctionPass(const runtime::TypedPackedFunc<
                                 Function(Function, IRModule, PassContext)>& pass_func,
                                 int opt_level,
                                 const std::string& name,
-                                const tvm::Array<tvm::PrimExpr>& required);
+                                const tvm::Array<runtime::String>& required);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -323,15 +324,6 @@ TVM_DLL Pass CanonicalizeCast();
 TVM_DLL Pass EtaExpand(bool expand_constructor, bool expand_global_var);
 
 /*!
- * \brief Print the IR for a module to help debugging.
- *
- * \param show_meta_data The flag to control if meta data needs to be printed.
- *
- * \return the pass.
- */
-TVM_DLL Pass PrintIR(bool show_meta_data = true);
-
-/*!
  * \brief Partition a Relay program into regions that can be executed on
  * different backends.
  *
@@ -355,7 +347,7 @@ TVM_DLL Pass Inline();
  *
  * \return The pass.
  */
-TVM_DLL Pass RemoveUnusedFunctions(Array<tvm::PrimExpr> entry_functions);
+TVM_DLL Pass RemoveUnusedFunctions(Array<runtime::String> entry_functions);
 
 }  // namespace transform
 

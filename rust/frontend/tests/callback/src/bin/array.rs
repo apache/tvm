@@ -68,5 +68,5 @@ fn main() {
         .unwrap()
         .try_into()
         .unwrap();
-    assert_eq!(ret, 14f32);
+    assert_eq!(ret, 7f32);
 }

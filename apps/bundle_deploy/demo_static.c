@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <sys/time.h>
+#include <stdlib.h>
 #include <float.h>
 
 #include "bundle.h"
@@ -40,12 +41,12 @@ int main(int argc, char **argv) {
   struct timeval t0, t1, t2, t3, t4, t5;
   gettimeofday(&t0, 0);
 
-  auto *handle = tvm_runtime_create(json_data, params_data, params_size);
+  void *handle = tvm_runtime_create(json_data, params_data, params_size);
   gettimeofday(&t1, 0);
 
   float input_storage[1 * 3 * 224 * 224];
   FILE * fp = fopen(argv[1], "rb");
-  fread(input_storage, 3 * 224 * 224, 4, fp);
+  (void)fread(input_storage, 3 * 224 * 224, 4, fp);
   fclose(fp);
 
   DLTensor input;
@@ -56,7 +57,7 @@ int main(int argc, char **argv) {
   DLDataType dtype = {kDLFloat, 32, 1};
   input.dtype = dtype;
   int64_t shape [4] = {1, 3, 224, 224};
-  input.shape = &shape;
+  input.shape = shape;
   input.strides = NULL;
   input.byte_offset = 0;
 
@@ -74,8 +75,8 @@ int main(int argc, char **argv) {
   output.ndim = 2;
   DLDataType out_dtype = {kDLFloat, 32, 1};
   output.dtype = out_dtype;
-  int64_t out_shape [2] = {1, OUTPUT_LEN};
-  output.shape = &out_shape;
+  int64_t out_shape[2] = {1, OUTPUT_LEN};
+  output.shape = out_shape;
   output.strides = NULL;
   output.byte_offset = 0;
 
@@ -84,7 +85,7 @@ int main(int argc, char **argv) {
 
   float max_iter = -FLT_MAX;
   int32_t max_index = -1;
-  for (auto i = 0; i < OUTPUT_LEN; ++i) {
+  for (int i = 0; i < OUTPUT_LEN; ++i) {
     if (output_storage[i] > max_iter) {
       max_iter = output_storage[i];
       max_index = i;
@@ -98,11 +99,11 @@ int main(int argc, char **argv) {
          max_index, max_iter);
   printf("timing: %.2f ms (create), %.2f ms (set_input), %.2f ms (run), "
          "%.2f ms (get_output), %.2f ms (destroy)\n",
-         (t1.tv_sec-t0.tv_sec)*1000000 + (t1.tv_usec-t0.tv_usec)/1000.f,
-         (t2.tv_sec-t1.tv_sec)*1000000 + (t2.tv_usec-t1.tv_usec)/1000.f,
-         (t3.tv_sec-t2.tv_sec)*1000000 + (t3.tv_usec-t2.tv_usec)/1000.f,
-         (t4.tv_sec-t3.tv_sec)*1000000 + (t4.tv_usec-t3.tv_usec)/1000.f,
-         (t5.tv_sec-t4.tv_sec)*1000000 + (t5.tv_usec-t4.tv_usec)/1000.f);
-  
+         (t1.tv_sec-t0.tv_sec)*1000 + (t1.tv_usec-t0.tv_usec)/1000.f,
+         (t2.tv_sec-t1.tv_sec)*1000 + (t2.tv_usec-t1.tv_usec)/1000.f,
+         (t3.tv_sec-t2.tv_sec)*1000 + (t3.tv_usec-t2.tv_usec)/1000.f,
+         (t4.tv_sec-t3.tv_sec)*1000 + (t4.tv_usec-t3.tv_usec)/1000.f,
+         (t5.tv_sec-t4.tv_sec)*1000 + (t5.tv_usec-t4.tv_usec)/1000.f);
+
   return 0;
 }

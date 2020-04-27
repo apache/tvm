@@ -18,7 +18,6 @@
  */
 
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/runtime/registry.h>

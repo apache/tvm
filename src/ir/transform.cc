@@ -23,6 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/ir/transform.h>
@@ -125,7 +126,7 @@ class ModulePassNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   /*!
    * \brief Get the pass information/meta data.
@@ -204,7 +205,7 @@ class SequentialNode : public PassNode {
    *
    * \return Return the updated module.
    */
-  IRModule operator()(const IRModule& mod, const PassContext& pass_ctx) const final;
+  IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
   static constexpr const char* _type_key = "transform.Sequential";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialNode, PassNode);
@@ -212,7 +213,7 @@ class SequentialNode : public PassNode {
 
 PassInfo::PassInfo(int opt_level,
                    std::string name,
-                   tvm::Array<tvm::PrimExpr> required) {
+                   tvm::Array<runtime::String> required) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
@@ -230,19 +231,20 @@ ModulePass::ModulePass(
 }
 
 // Module -> Module optimizations.
-IRModule ModulePassNode::operator()(const IRModule& mod,
+IRModule ModulePassNode::operator()(IRModule mod,
                                     const PassContext& pass_ctx) const {
   const PassInfo& pass_info = Info();
   DLOG(INFO) << "Executing module pass : "
              << pass_info->name
              << " with opt level: "
              << pass_info->opt_level;
+
   CHECK(mod.defined());
   pass_ctx.Trace(mod, pass_info, true);
-  IRModule updated_mod = pass_func(mod, pass_ctx);
-  CHECK(updated_mod.defined());
-  pass_ctx.Trace(updated_mod, pass_info, false);
-  return updated_mod;
+  mod = pass_func(std::move(mod), pass_ctx);
+  CHECK(mod.defined());
+  pass_ctx.Trace(mod, pass_info, false);
+  return mod;
 }
 
 Sequential::Sequential(tvm::Array<Pass> passes, PassInfo pass_info) {
@@ -274,12 +276,10 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
 }
 
 // linearly scan the pass array to match pass_name
-inline bool PassArrayContains(const Array<tvm::PrimExpr>& pass_array,
+inline bool PassArrayContains(const Array<runtime::String>& pass_array,
                               const std::string& pass_name) {
   for (auto x : pass_array) {
-    auto* str_name = x.as<tir::StringImmNode>();
-    CHECK(str_name) << "pass name must be str";
-    if (str_name->value == pass_name) return true;
+    if (x == pass_name) return true;
   }
   return false;
 }
@@ -315,20 +315,17 @@ Pass GetPass(const std::string& pass_name) {
 // TODO(zhiics): we currenlty only sequentially execute each pass in
 // a Sequential without the consideration of their orders. The phase
 // ordering problem needs to be handled in the future.
-IRModule SequentialNode::operator()(const IRModule& module,
+IRModule SequentialNode::operator()(IRModule mod,
                                     const PassContext& pass_ctx) const {
-  IRModule mod = module;
   for (const Pass& pass : passes) {
     CHECK(pass.defined()) << "Found undefined pass for optimization.";
     const PassInfo& pass_info = pass->Info();
     if (!PassEnabled(pass_info))  continue;
     // resolve dependencies
     for (const auto& it : pass_info->required) {
-      const auto* name = it.as<tvm::tir::StringImmNode>();
-      CHECK(name);
-      mod = GetPass(name->value)(mod, pass_ctx);
+      mod = GetPass(it)(std::move(mod), pass_ctx);
     }
-    mod = pass(mod, pass_ctx);
+    mod = pass(std::move(mod), pass_ctx);
   }
   return mod;
 }
@@ -337,7 +334,7 @@ Pass CreateModulePass(
     const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
     int opt_level,
     const std::string& name,
-    const tvm::Array<tvm::PrimExpr>& required) {
+    const tvm::Array<runtime::String>& required) {
   PassInfo pass_info = PassInfo(opt_level, name, required);
   return ModulePass(pass_func, pass_info);
 }
@@ -345,7 +342,7 @@ Pass CreateModulePass(
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
 TVM_REGISTER_GLOBAL("transform.PassInfo")
-.set_body_typed([](int opt_level, std::string name, tvm::Array<PrimExpr> required) {
+.set_body_typed([](int opt_level, std::string name, tvm::Array<runtime::String> required) {
   return PassInfo(opt_level, name, required);
 });
 
@@ -363,8 +360,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   p->stream << "opt_level: " << node->opt_level;
   p->stream << "required passes: [" << "\n";
   for (const auto& it : node->required) {
-    const auto* str = it.as<tvm::tir::StringImmNode>();
-    p->stream << str->value << ", ";
+    p->stream << it << ", ";
   }
   p->stream << "]\n";
 });
@@ -375,15 +371,12 @@ TVM_REGISTER_GLOBAL("transform.MakeModulePass")
 .set_body_typed(
   [](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
      PassInfo pass_info) {
-  return ModulePass(pass_func, pass_info);
+    return ModulePass(pass_func, pass_info);
 });
 
 TVM_REGISTER_GLOBAL("transform.RunPass")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-  Pass pass = args[0];
-  IRModule mod = args[1];
-  ObjectRef ref = args[1];
-  *ret = pass(mod);
+.set_body_typed([](Pass pass, IRModule mod) {
+  return pass(std::move(mod));
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -401,7 +394,7 @@ TVM_REGISTER_GLOBAL("transform.Sequential")
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
   std::string name = args[2];
-  tvm::Array<tvm::PrimExpr> required = args[3];
+  tvm::Array<runtime::String> required = args[3];
   PassInfo pass_info = PassInfo(opt_level, name, required);
   *ret = Sequential(passes, pass_info);
 });
@@ -427,8 +420,8 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
   auto pctx = PassContext::Create();
   int opt_level = args[0];
   int fallback_device = args[1];
-  tvm::Array<tvm::PrimExpr> required = args[2];
-  tvm::Array<tvm::PrimExpr> disabled = args[3];
+  tvm::Array<runtime::String> required = args[2];
+  tvm::Array<runtime::String> disabled = args[3];
   TraceFunc trace_func = args[4];
   pctx->opt_level = opt_level;
   pctx->fallback_device = fallback_device;
@@ -479,6 +472,19 @@ TVM_REGISTER_GLOBAL("transform.EnterPassContext")
 
 TVM_REGISTER_GLOBAL("transform.ExitPassContext")
 .set_body_typed(PassContext::Internal::ExitScope);
+
+
+Pass PrintIR(std::string header, bool show_meta_data) {
+  auto pass_func =[header, show_meta_data](IRModule mod, const PassContext& ctx) {
+    LOG(INFO) << "PrintIR(" << header << "):\n"
+              << AsText(mod, show_meta_data);
+    return mod;
+  };
+  return CreateModulePass(pass_func, 0, "PrintIR", {});
+}
+
+TVM_REGISTER_GLOBAL("transform.PrintIR")
+.set_body_typed(PrintIR);
 
 }  // namespace transform
 }  // namespace tvm
