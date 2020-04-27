@@ -967,8 +967,14 @@ def test_tensor_array_size():
     def run(dtype_str, infer_shape):
         with tf.Graph().as_default():
             dtype =  tf_dtypes[dtype_str]
+            np_data = np.array([[1.0, 2.0], [3.0, 4.0]]).astype(dtype_str)
+            in_data = [np_data, np_data]
+            t1 = tf.constant(np_data, dtype=dtype)
+            t2 = tf.constant(np_data, dtype=dtype)
             ta1 = tf.TensorArray(dtype=dtype, size=2, infer_shape=infer_shape)
-            out = ta1.size()
+            ta2 = ta1.write(0, t1)
+            ta3 = ta2.write(1, t2)
+            out = ta3.size()
             g = tf.get_default_graph()
             compare_tf_with_tvm([], [], 'TensorArraySizeV3:0', mode='debug')
     for dtype in ["float32", "int8"]:

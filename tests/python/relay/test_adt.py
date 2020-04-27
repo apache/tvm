@@ -1336,7 +1336,6 @@ def test_static_tensor_get_data():
         p = Prelude(mod)
         static_tensor_array_ops = StaticTensorArrayOps(p, dtype, shape)
         static_tensor_array_ops.register()
-        static_tensor_array_ops.define_tensor_get_data(shape)
 
         np_data_list = []
         ta_length = 3
@@ -1405,17 +1404,3 @@ if __name__ == "__main__":
     test_tensor_array_concat()
     test_tensor_array_scatter()
     test_tensor_array_split()
-
-    test_static_tensor_take()
-    test_static_tensor_concatenate()
-    test_static_tensor_expand_dims()
-    test_static_tensor_array_constructor()
-    test_static_tensor_array_read()
-    test_static_tensor_array_write()
-    test_static_tensor_array_unstack()
-    test_static_tensor_array_scatter()
-    test_static_tensor_array_split()
-    test_static_tensor_array_concat()
-    test_static_tensor_array_stack()
-    test_static_tensor_array_gather()
-    test_static_tensor_get_data()
