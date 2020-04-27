@@ -575,7 +575,7 @@ def _test_l2_pool2d(input_shape, ksize, strides, padding, data_format, fused_fun
         compare_tflite_with_tvm(x, 'input', [in_data], [out])
 
 
-def test_l2_pool2d():
+def test_forward_l2_pool2d():
     _test_l2_pool2d([1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 'SAME', "NHWC", "RELU6")
     _test_l2_pool2d([2, 9, 10, 2], [1, 1, 1, 1], [1, 1, 1, 1], 'SAME', "NHWC", "RELU6")
     _test_l2_pool2d([2, 9, 10, 2], [1, 2, 1, 1], [1, 1, 1, 1], 'SAME', "NHWC")
@@ -1963,6 +1963,7 @@ if __name__ == '__main__':
     test_forward_transpose_conv()
     test_forward_logistic()
     test_forward_pooling()
+    test_forward_l2_pool2d()
     test_forward_softmax()
     test_forward_tanh()
     test_forward_relu()
