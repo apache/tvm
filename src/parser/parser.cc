@@ -388,6 +388,22 @@ struct Parser {
         return defs;
     }
 
+    template<typename R>
+    R Bracket(TokenType open, TokenType close, std::function<R()> parser) {
+        Consume(open);
+        R result;
+        if (WhenMatch(close)) {
+            return result;
+        } else {
+            result = parser();
+        }
+    }
+
+    template<typename R>
+    R Parens(std::function<R()> parser) {
+        return Bracket(open, close, parser);
+    }
+
     Expr ParseExpr() {
         return ConsumeWhitespace<Expr>([this] {
             auto next = Peek();
