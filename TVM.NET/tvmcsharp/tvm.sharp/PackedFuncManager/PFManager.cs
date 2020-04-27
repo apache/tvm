@@ -45,8 +45,65 @@ namespace TVMRuntime
         TVMCustomBegin = 129,
     }
 
+    //TODO: Auto type code inference/matching
+
     public static class PFManager
     {
+        public static void RunPackedFunc(UIntPtr funcHandle, object [] inputArgs)
+        {
+            int numArgs = inputArgs.Length;
+            int[] typeCodes = new int[numArgs];
+            TVMValue [] args = new TVMValue[numArgs];
 
+            for (int i=0; i < numArgs; i++)
+            {
+                Type t = inputArgs[i].GetType();
+                if (t.Equals(typeof(byte)) || t.Equals(typeof(sbyte))
+                    || t.Equals(typeof(int)) || t.Equals(typeof(long))
+                    || t.Equals(typeof(double)))
+                {
+                    args[i].vInt64 = (long)inputArgs[i];
+                    typeCodes[i] = (int)TVMDataTypeCode.Int;
+                }
+                else if (t.Equals(typeof(uint)))
+                {
+                    args[i].vInt64 = (long)inputArgs[i];
+                    typeCodes[i] = (int)TVMDataTypeCode.UInt;
+                }
+                else if (t.Equals(typeof(float))
+                    || t.Equals(typeof(double)))
+                {
+                    args[i].vFloat64 = (double)inputArgs[i];
+                    typeCodes[i] = (int)TVMDataTypeCode.Float;
+                }
+
+                // TODO: UIntPtr/IntPtr does not mean only NDArray Handle
+                //      so find a generic solution
+                else if (t.Equals(typeof(UIntPtr)))
+                {
+                    args[i].handle = (UIntPtr)inputArgs[i];
+                    typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
+                }
+                else if (t.Equals(typeof(IntPtr)))
+                {
+                    unsafe
+                    {
+                        args[i].handle = (UIntPtr)((IntPtr)inputArgs[i]).ToPointer();
+                    }
+                    typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
+                }
+                else
+                {
+                    Console.WriteLine("'{0}' is unsupported data type.", t);
+                }
+            }
+
+            TVMValue retVal = new TVMValue();
+            int retTypeCode = 0;
+
+            UnamangedPFManagerWrapper.InvokeTVMRuntimePackedFunc(funcHandle,
+                args, typeCodes, numArgs, ref retVal, ref retTypeCode);
+
+        }
     }
 }
