@@ -55,9 +55,6 @@ enum class SectionKind : size_t {
 
 /*! \brief data type for word sizes */
 class TargetWordSize {
- private:
-  size_t word_size_bits_;
-
  public:
   explicit TargetWordSize(size_t word_size_bits) : word_size_bits_{word_size_bits} {
     CHECK(word_size_bits == 32 || word_size_bits == 64)
@@ -71,6 +68,9 @@ class TargetWordSize {
   size_t bits() const {
     return word_size_bits_;
   }
+
+ private:
+  size_t word_size_bits_;
 };
 
 
@@ -94,18 +94,18 @@ class TargetVal {
           width_bits <= 64 &&
           (width_bits & (width_bits - 1)) == 0)
       << "width_bits must be a power of 2 in [8, 64], got " << width_bits;
-    value_ = value & bitmask();
+    value_ = value & Bitmask();
   }
 
-  bool is_initialized() const { return width_bits_ != 0; }
+  bool IsInitialized() const { return width_bits_ != 0; }
 
   size_t width_bits() const {
-    CHECK(is_initialized()) << "TargetVal is not initialized";
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
     return width_bits_;
   }
 
-  uint64_t bitmask() const {
-    CHECK(is_initialized()) << "TargetVal is not initialized";
+  uint64_t Bitmask() const {
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
 
     if (width_bits_ == 64) {
       return ~0UL;
@@ -115,21 +115,21 @@ class TargetVal {
   }
 
   uint32_t uint32() const {
-    CHECK(is_initialized()) << "TargetVal is not initialized";
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
     CHECK(width_bits_ <= 32) << "TargetVal: requested 32-bit value, actual width is "
                              << width_bits_;
-    return uint32_t(value_ & bitmask());
+    return uint32_t(value_ & Bitmask());
   }
 
   uint64_t uint64() const {
-    CHECK(is_initialized()) << "TargetVal is not initialized";
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
     return value_;
   }
 
   TargetVal& operator=(const TargetVal& other) {
-    CHECK(other.is_initialized()) << "Cannot assign an uninitialized TargetVal";
+    CHECK(other.IsInitialized()) << "Cannot assign an uninitialized TargetVal";
 
-    if (!is_initialized()) {
+    if (!IsInitialized()) {
       width_bits_ = other.width_bits_;
     }
 
@@ -137,12 +137,12 @@ class TargetVal {
       << "Cannot assign TargetVal with width " << other.width_bits_
       << "bits to TargetVal with width " << width_bits_ << "bits";
 
-    value_ = other.value_ & bitmask();
+    value_ = other.value_ & Bitmask();
     return *this;
   }
 };
 
-// TODO(areusch): just get rid of `TargetPtr`.
+// TODO(weberlo, areusch): just get rid of `TargetPtr`.
 /*! \brief absolute device address */
 class TargetPtr {
  public:

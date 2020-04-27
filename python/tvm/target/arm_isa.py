@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Defines functions to analyze availble opcodes in the ARM ISA."""
+"""Defines functions to analyze available opcodes in the ARM ISA."""
 
 
 ARM_ISA_MAP = {

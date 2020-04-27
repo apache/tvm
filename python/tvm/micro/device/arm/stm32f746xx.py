@@ -18,8 +18,8 @@
 import os
 from .. import create_micro_lib_base, register_device, gen_mem_layout, MemConstraint
 
-DEVICE_ID = 'arm.stm32f746xx'
-TOOLCHAIN_PREFIX = 'arm-none-eabi-'
+DEVICE_ID = "arm.stm32f746xx"
+TOOLCHAIN_PREFIX = "arm-none-eabi-"
 WORD_SIZE_BITS = 32
 #
 # [Device Memory Layout]
@@ -29,14 +29,14 @@ WORD_SIZE_BITS = 32
 BASE_ADDR = 0x20000000
 AVAILABLE_MEM = 320000
 DEFAULT_SECTION_CONSTRAINTS = {
-    'text': (18000, MemConstraint.ABSOLUTE_BYTES),
-    'rodata': (100, MemConstraint.ABSOLUTE_BYTES),
-    'data': (100, MemConstraint.ABSOLUTE_BYTES),
-    'bss': (600, MemConstraint.ABSOLUTE_BYTES),
-    'args': (4096, MemConstraint.ABSOLUTE_BYTES),
-    'heap': (100.0, MemConstraint.WEIGHT),
-    'workspace': (64000, MemConstraint.ABSOLUTE_BYTES),
-    'stack': (32, MemConstraint.ABSOLUTE_BYTES),
+    "text": (18000, MemConstraint.ABSOLUTE_BYTES),
+    "rodata": (100, MemConstraint.ABSOLUTE_BYTES),
+    "data": (100, MemConstraint.ABSOLUTE_BYTES),
+    "bss": (600, MemConstraint.ABSOLUTE_BYTES),
+    "args": (4096, MemConstraint.ABSOLUTE_BYTES),
+    "heap": (100.0, MemConstraint.WEIGHT),
+    "workspace": (64000, MemConstraint.ABSOLUTE_BYTES),
+    "stack": (32, MemConstraint.ABSOLUTE_BYTES),
 }
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=None):
@@ -66,22 +66,22 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
 
     options += [
         # TODO(weberlo): make a debug flag
-        '-O2',
-        '-march=armv7e-m',
-        '-mcpu=cortex-m7',
-        '-mlittle-endian',
-        '-mfloat-abi=hard',
-        '-mfpu=fpv5-sp-d16',
-        '-mthumb',
-        '-ffast-math',
-        '-gdwarf-5',
-        '-DARM_MATH_CM7',
-        '-D__FPU_PRESENT=1U',
-        '-DARM_MATH_DSP',
-        '-Wno-unused-variable',
-        '-Wno-unused-parameter',
-        '-I{}'.format(os.environ['CMSIS_ST_PATH']),
-        '-I{}/Core/Include'.format(os.environ['CMSIS_ST_PATH'])
+        "-O2",
+        "-march=armv7e-m",
+        "-mcpu=cortex-m7",
+        "-mlittle-endian",
+        "-mfloat-abi=hard",
+        "-mfpu=fpv5-sp-d16",
+        "-mthumb",
+        "-ffast-math",
+        "-gdwarf-5",
+        "-DARM_MATH_CM7",
+        "-D__FPU_PRESENT=1U",
+        "-DARM_MATH_DSP",
+        "-Wno-unused-variable",
+        "-Wno-unused-parameter",
+        "-I{}".format(os.environ["CMSIS_ST_PATH"]),
+        "-I{}/Core/Include".format(os.environ["CMSIS_ST_PATH"])
         ]
     create_micro_lib_base(
         obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
@@ -110,19 +110,19 @@ def generate_config(server_addr, server_port, section_constraints=None):
     if section_constraints is None:
         section_constraints = DEFAULT_SECTION_CONSTRAINTS
     return {
-        'device_id': DEVICE_ID,
-        'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': gen_mem_layout(BASE_ADDR, AVAILABLE_MEM, WORD_SIZE_BITS, section_constraints),
-        'word_size_bits': WORD_SIZE_BITS,
-        'thumb_mode': True,
-        'use_device_timer': True,
-        'comms_method': 'openocd',
-        'server_addr': server_addr,
-        'server_port': server_port,
+        "device_id": DEVICE_ID,
+        "toolchain_prefix": TOOLCHAIN_PREFIX,
+        "mem_layout": gen_mem_layout(BASE_ADDR, AVAILABLE_MEM, WORD_SIZE_BITS, section_constraints),
+        "word_size_bits": WORD_SIZE_BITS,
+        "thumb_mode": True,
+        "use_device_timer": True,
+        "comms_method": "openocd",
+        "server_addr": server_addr,
+        "server_port": server_port,
     }
 
 
 register_device(DEVICE_ID, {
-    'create_micro_lib': create_micro_lib,
-    'generate_config': generate_config,
+    "create_micro_lib": create_micro_lib,
+    "generate_config": generate_config,
 })

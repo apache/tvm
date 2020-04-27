@@ -60,9 +60,7 @@ def _conv2d_direct_nhwc_compute(cfg, data, kernel, strides, padding, dilation, l
     assert layout == 'NHWC'
     conv = conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
 
-    ###########################
-    # Config Space Definition #
-    ###########################
+    # Config Space Definition
     N, H, W, CI = get_const_tuple(data.shape)
     KH, KW, _, CO = get_const_tuple(kernel.shape)
     n, oh, ow, co = cfg.axis(N), cfg.axis(H), cfg.axis(W), cfg.axis(CO)

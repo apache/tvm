@@ -18,19 +18,19 @@
 
 from . import create_micro_lib_base, register_device, gen_mem_layout, MemConstraint
 
-DEVICE_ID = 'riscv_spike'
-TOOLCHAIN_PREFIX = 'riscv64-unknown-elf-'
+DEVICE_ID = "riscv_spike"
+TOOLCHAIN_PREFIX = "riscv64-unknown-elf-"
 WORD_SIZE_BITS = 64
 
 DEFAULT_SECTION_CONSTRAINTS = {
-    'text': (18000, MemConstraint.ABSOLUTE_BYTES),
-    'rodata': (128, MemConstraint.ABSOLUTE_BYTES),
-    'data': (128, MemConstraint.ABSOLUTE_BYTES),
-    'bss': (2048, MemConstraint.ABSOLUTE_BYTES),
-    'args': (4096, MemConstraint.ABSOLUTE_BYTES),
-    'heap': (100.0, MemConstraint.WEIGHT),
-    'workspace': (64000, MemConstraint.ABSOLUTE_BYTES),
-    'stack': (32, MemConstraint.ABSOLUTE_BYTES),
+    "text": (18000, MemConstraint.ABSOLUTE_BYTES),
+    "rodata": (128, MemConstraint.ABSOLUTE_BYTES),
+    "data": (128, MemConstraint.ABSOLUTE_BYTES),
+    "bss": (2048, MemConstraint.ABSOLUTE_BYTES),
+    "args": (4096, MemConstraint.ABSOLUTE_BYTES),
+    "heap": (100.0, MemConstraint.WEIGHT),
+    "workspace": (64000, MemConstraint.ABSOLUTE_BYTES),
+    "stack": (32, MemConstraint.ABSOLUTE_BYTES),
 }
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=None):
@@ -90,19 +90,19 @@ def generate_config(base_addr, available_mem, server_addr, server_port, section_
     if section_constraints is None:
         section_constraints = DEFAULT_SECTION_CONSTRAINTS
     return {
-        'device_id': DEVICE_ID,
-        'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': gen_mem_layout(base_addr, available_mem, WORD_SIZE_BITS, section_constraints),
-        'word_size_bits': WORD_SIZE_BITS,
-        'thumb_mode': False,
-        'use_device_timer': False,
-        'comms_method': 'openocd',
-        'server_addr': server_addr,
-        'server_port': server_port,
+        "device_id": DEVICE_ID,
+        "toolchain_prefix": TOOLCHAIN_PREFIX,
+        "mem_layout": gen_mem_layout(base_addr, available_mem, WORD_SIZE_BITS, section_constraints),
+        "word_size_bits": WORD_SIZE_BITS,
+        "thumb_mode": False,
+        "use_device_timer": False,
+        "comms_method": "openocd",
+        "server_addr": server_addr,
+        "server_port": server_port,
     }
 
 
 register_device(DEVICE_ID, {
-    'create_micro_lib': create_micro_lib,
-    'generate_config': generate_config,
+    "create_micro_lib": create_micro_lib,
+    "generate_config": generate_config,
 })

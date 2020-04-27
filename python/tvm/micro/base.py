@@ -32,14 +32,14 @@ from tvm.contrib import cc as _cc
 # all sections that comprise a device's memory layout, in order from lowest
 # starting address to highest
 DEVICE_SECTIONS = [
-    'text',
-    'rodata',
-    'data',
-    'bss',
-    'args',
-    'heap',
-    'workspace',
-    'stack',
+    "text",
+    "rodata",
+    "data",
+    "bss",
+    "args",
+    "heap",
+    "workspace",
+    "stack",
 ]
 
 class LibType(Enum):
@@ -74,75 +74,75 @@ class Session:
         # TODO(weberlo): add config validation
 
         # grab a binutil instance from the ID in the config
-        dev_funcs = tvm.micro.device.get_device_funcs(config['device_id'])
-        self.toolchain_prefix = config['toolchain_prefix']
-        self.mem_layout = config['mem_layout']
-        self.word_size_bits = config['word_size_bits']
-        self.thumb_mode = config['thumb_mode']
-        self.use_device_timer = config['use_device_timer']
-        self.comms_method = config['comms_method']
+        dev_funcs = tvm.micro.device.get_device_funcs(config["device_id"])
+        self.toolchain_prefix = config["toolchain_prefix"]
+        self.mem_layout = config["mem_layout"]
+        self.word_size_bits = config["word_size_bits"]
+        self.thumb_mode = config["thumb_mode"]
+        self.use_device_timer = config["use_device_timer"]
+        self.comms_method = config["comms_method"]
 
         # First, find and compile runtime library.
-        runtime_src_path = os.path.join(get_micro_host_driven_dir(), 'utvm_runtime.c')
+        runtime_src_path = os.path.join(get_micro_host_driven_dir(), "utvm_runtime.c")
         tmp_dir = _util.tempdir()
-        runtime_obj_path = tmp_dir.relpath('utvm_runtime.obj')
-        options = ['-I{}'.format(get_micro_host_driven_dir())]
-        dev_funcs['create_micro_lib'](
+        runtime_obj_path = tmp_dir.relpath("utvm_runtime.obj")
+        options = ["-I{}".format(get_micro_host_driven_dir())]
+        dev_funcs["create_micro_lib"](
             runtime_obj_path, runtime_src_path, LibType.RUNTIME, options=options)
 
-        comms_method = config['comms_method']
-        if comms_method == 'openocd':
-            server_addr = config['server_addr']
-            server_port = config['server_port']
-        elif comms_method == 'host':
-            server_addr = ''
+        comms_method = config["comms_method"]
+        if comms_method == "openocd":
+            server_addr = config["server_addr"]
+            server_port = config["server_port"]
+        elif comms_method == "host":
+            server_addr = ""
             server_port = 0
         else:
-            raise RuntimeError(f'unknown communication method: f{self.comms_method}')
+            raise RuntimeError(f"unknown communication method: f{self.comms_method}")
 
         assert all(map(lambda sec: sec in self.mem_layout, DEVICE_SECTIONS)), \
-            'not all sections have an assigned memory layout'
+            "not all sections have an assigned memory layout"
         self.module = _CreateSession(
             comms_method,
             runtime_obj_path,
             self.toolchain_prefix,
-            self.mem_layout['text'].get('start', 0),
-            self.mem_layout['text']['size'],
-            self.mem_layout['rodata'].get('start', 0),
-            self.mem_layout['rodata']['size'],
-            self.mem_layout['data'].get('start', 0),
-            self.mem_layout['data']['size'],
-            self.mem_layout['bss'].get('start', 0),
-            self.mem_layout['bss']['size'],
-            self.mem_layout['args'].get('start', 0),
-            self.mem_layout['args']['size'],
-            self.mem_layout['heap'].get('start', 0),
-            self.mem_layout['heap']['size'],
-            self.mem_layout['workspace'].get('start', 0),
-            self.mem_layout['workspace']['size'],
-            self.mem_layout['stack'].get('start', 0),
-            self.mem_layout['stack']['size'],
+            self.mem_layout["text"].get("start", 0),
+            self.mem_layout["text"]["size"],
+            self.mem_layout["rodata"].get("start", 0),
+            self.mem_layout["rodata"]["size"],
+            self.mem_layout["data"].get("start", 0),
+            self.mem_layout["data"]["size"],
+            self.mem_layout["bss"].get("start", 0),
+            self.mem_layout["bss"]["size"],
+            self.mem_layout["args"].get("start", 0),
+            self.mem_layout["args"]["size"],
+            self.mem_layout["heap"].get("start", 0),
+            self.mem_layout["heap"]["size"],
+            self.mem_layout["workspace"].get("start", 0),
+            self.mem_layout["workspace"]["size"],
+            self.mem_layout["stack"].get("start", 0),
+            self.mem_layout["stack"]["size"],
             self.word_size_bits,
             self.thumb_mode,
             self.use_device_timer,
             server_addr,
             server_port)
-        self._enter = self.module['enter']
-        self._exit = self.module['exit']
-        self.get_last_batch_time = self.module['get_last_batch_time']
-        self.get_last_batch_cycles = self.module['get_last_batch_cycles']
+        self._enter = self.module["enter"]
+        self._exit = self.module["exit"]
+        self.get_last_batch_time = self.module["get_last_batch_time"]
+        self.get_last_batch_cycles = self.module["get_last_batch_cycles"]
 
     def _check_system(self):
         """Check if the user's system is supported by MicroTVM.
 
         Raises error if not supported.
         """
-        if not sys.platform.startswith('linux'):
-            raise RuntimeError('MicroTVM is currently only supported on Linux')
+        if not sys.platform.startswith("linux"):
+            raise RuntimeError("MicroTVM is currently only supported on Linux")
         # TODO(weberlo): Add 32-bit support.
         # It's primarily the compilation pipeline that isn't compatible.
         if sys.maxsize <= 2**32:
-            raise RuntimeError('MicroTVM is currently only supported on 64-bit host platforms')
+            raise RuntimeError("MicroTVM is currently only supported on 64-bit host platforms")
 
     def __enter__(self):
         self._enter()
@@ -159,8 +159,8 @@ def _calc_max_workspace_usage(src):
     free_re = re.compile(r'.*if \(TVMBackendFreeWorkspace\(.+, .+, (\(void\*\))? (.+)\) != 0\) {.*')
     max_usage = 0
     alloc_map = {}
-    for line in src.split('\n'):
-        if line.strip().startswith('//'):
+    for line in src.split("\n"):
+        if line.strip().startswith("//"):
             continue
         match = alloc_re.match(line)
         if match is not None:
@@ -198,7 +198,7 @@ def create_micro_mod(c_mod, dev_config, lib_src_paths=None, lib_headers=None,
         micro module for the target device
     """
     temp_dir = _util.tempdir()
-    lib_obj_path = temp_dir.relpath('dev_lib.obj')
+    lib_obj_path = temp_dir.relpath("dev_lib.obj")
     # TODO use dev config to dispatch on the type of C codegen to run through
     # (e.g., CodeGenCArm, CodeGenCHost, CodeGenCRiscV)
     c_mod.export_library(
@@ -252,7 +252,7 @@ def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None,
       c_mod.export_library('dev_lib.obj', fcompile=fcompile)
     """
     assert (lib_headers is None) == (lib_include_paths is None), \
-        'must specify both `lib_headers` and `lib_include_paths` or neither'
+        "must specify both `lib_headers` and `lib_include_paths` or neither"
 
     if lib_src_paths is None:
         lib_src_paths = []
@@ -260,39 +260,39 @@ def cross_compiler(dev_config, lib_type, lib_src_paths=None, lib_headers=None,
         lib_include_paths = []
     include_options = []
     for include_path in lib_include_paths:
-        include_options.append('-I')
+        include_options.append("-I")
         include_options.append(include_path)
     create_micro_lib = tvm.micro.device.get_device_funcs(
-        dev_config['device_id'])['create_micro_lib']
-    mem_layout = dev_config['mem_layout']
+        dev_config["device_id"])["create_micro_lib"]
+    mem_layout = dev_config["mem_layout"]
 
     def compile_func(obj_path, src_path, **kwargs):
         if isinstance(obj_path, list):
             obj_path = obj_path[0]
         if isinstance(src_path, list):
             src_path = src_path[0]
-        options = kwargs.get('options', [])
+        options = kwargs.get("options", [])
         options += include_options
 
         # check that workspace allocations don't exceed available workspace memory
         with open(src_path) as f:
             src_contents = f.read()
             max_ws_usage = _calc_max_workspace_usage(src_contents)
-            available_mem = mem_layout['workspace']['size']
+            available_mem = mem_layout["workspace"]["size"]
             if max_ws_usage > available_mem:
-                raise RuntimeError(f'workspace allocations in library ({max_ws_usage}) '
-                                   f'exceed available memory ({available_mem})')
+                raise RuntimeError(f"workspace allocations in library ({max_ws_usage}) "
+                                   f"exceed available memory ({available_mem})")
         # inject headers into new source path, if requested
         if lib_headers:
-            headers_to_inject = '\n'.join(map(lambda s: f'#include <{s}>', lib_headers)) + '\n'
+            headers_to_inject = "\n".join(map(lambda s: f"#include <{s}>", lib_headers)) + "\n"
             new_src_contents = headers_to_inject + src_contents
             tmp_dir = _util.tempdir()
             src_path = tmp_dir.relpath(os.path.basename(src_path))
-            with open(src_path, 'w') as f:
+            with open(src_path, "w") as f:
                 f.write(new_src_contents)
 
         create_micro_lib(obj_path, src_path, lib_type, options, lib_src_paths=lib_src_paths)
-    return _cc.cross_compiler(compile_func, output_format='obj')
+    return _cc.cross_compiler(compile_func, output_format="obj")
 
 
 def get_micro_host_driven_dir():
@@ -304,8 +304,8 @@ def get_micro_host_driven_dir():
         directory path
     """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    micro_host_driven_dir = os.path.join(micro_dir, '..', '..', '..',
-                                         'src', 'runtime', 'micro', 'host_driven')
+    micro_host_driven_dir = os.path.join(micro_dir, "..", "..", "..",
+                                         "src", "runtime", "micro", "host_driven")
     return micro_host_driven_dir
 
 
@@ -318,9 +318,9 @@ def get_micro_device_dir():
         directory path
     """
     micro_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
-    micro_device_dir = os.path.join(micro_dir, '..', '..', '..',
-                                    'src', 'runtime', 'micro', 'device')
+    micro_device_dir = os.path.join(micro_dir, "..", "..", "..",
+                                    "src", "runtime", "micro", "device")
     return micro_device_dir
 
 
-tvm._ffi._init_api('tvm.micro', 'tvm.micro.base')
+tvm._ffi._init_api("tvm.micro", "tvm.micro.base")

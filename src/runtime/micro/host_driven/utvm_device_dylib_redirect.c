@@ -32,7 +32,8 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-// TODO(areusch): compiler errors say volatile qualifier is discarded. should we just get rid of em?
+// TODO(weberlo, areusch): compiler errors say volatile qualifier is discarded.
+// should we just get rid of em?
 void* (* volatile TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) = NULL;
 int (* volatile TVMBackendFreeWorkspace_)(int, int, void*) = NULL;
 void (* volatile TVMAPISetLastError_)(const char*) = NULL;
@@ -52,9 +53,9 @@ void TVMAPISetLastError(const char* msg) {
 }
 
 void *memset(void *s, int c, size_t n) {
-  char *p = (char*) s;
+  char *p = (char*) s;  // NOLINT(readability/casting): linter is configured for c++
   while (n > 0) {
-    *p = (char) c;
+    *p = (char) c;  // NOLINT(readability/casting): linter is configured for c++
     p++;
     n--;
   }
@@ -62,21 +63,23 @@ void *memset(void *s, int c, size_t n) {
 }
 
 void *memmove(void *to, const void *from, size_t n) {
-  // TODO will need to factor memmove calls into workspace size calculation
+  // TODO(weberlo, areusch): will need to factor memmove calls into workspace size calculation
+  // NOLINTNEXTLINE(readability/casting): linter is configured for c++
   char *temp = (char*) TVMBackendAllocWorkspace(1, 1, (uint64_t) n, 2, 8);
   if (temp == NULL) {
     return NULL;
   }
 
-  const char *from_pp = (char*) from;
+  const char *from_pp = (char*) from;  // NOLINT(readability/casting): linter is configured for c++
   for (size_t i = 0; i < n; i++) {
     temp[i] = from_pp[i];
   }
-  char *to_pp = (char*) to;
+  char *to_pp = (char*) to;  // NOLINT(readability/casting): linter is configured for c++
   for (size_t i = 0; i < n; i++) {
     to_pp[i] = temp[i];
   }
 
+  // NOLINTNEXTLINE(readability/casting): linter is configured for c++
   if (TVMBackendFreeWorkspace(1, (uint64_t) 1, (void*) temp) != 0) {
     return NULL;
   }

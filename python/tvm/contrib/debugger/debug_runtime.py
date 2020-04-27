@@ -181,7 +181,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         """
         self.debug_datum._time_list = [
             [float(t) * 1e-6] for t in self.run_individual(10, 1, 1)
-            #[float(t) * 1e-6] for t in self.run_individual(1, 1, 1)
         ]
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)

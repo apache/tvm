@@ -73,9 +73,7 @@ build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
 cpplint:
 	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
-	# Note: exclude src/runtime/micro/host_driven becuase it contains C99 files.
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
-	 --exclude_path=src/runtime/micro/host_driven \
 	 include src \
 	 examples/extension/src examples/graph_executor/src
 

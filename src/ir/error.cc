@@ -62,21 +62,16 @@ void ErrorReporter::RenderErrors(const IRModule& module, bool use_color) {
 
     CHECK(has_errs != this->node_to_error_.end());
 
-    const auto& error_indices = has_errs->second;
+    const auto& error_indicies = has_errs->second;
 
     std::stringstream err_msg;
 
-    if (error_indices.size() != 0) {
-      err_msg << rang::fg::red;
-      err_msg << " ";
-      // the errors are in reverse order, so print them with a reversed iteration
-      err_msg << this->errors_[error_indices[error_indices.size()-1]].what();
-      for (int i = error_indices.size() - 2; i >= 0; i--) {
-        size_t err_idx = error_indices[i];
-        err_msg << "; " << this->errors_[err_idx].what();
-      }
-      err_msg << rang::fg::reset;
+    err_msg << rang::fg::red;
+    err_msg << " ";
+    for (auto index : error_indicies) {
+      err_msg << this->errors_[index].what() << "; ";
     }
+    err_msg << rang::fg::reset;
 
     // Setup error map.
     auto it = error_maps.find(global);

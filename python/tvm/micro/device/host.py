@@ -19,21 +19,21 @@ import sys
 
 from . import create_micro_lib_base, register_device, gen_mem_layout, MemConstraint
 
-DEVICE_ID = 'host'
-TOOLCHAIN_PREFIX = ''
+DEVICE_ID = "host"
+TOOLCHAIN_PREFIX = ""
 WORD_SIZE_BITS = 64 if sys.maxsize > 2**32 else 32
 
 # we pretend we only have 320kb in the default case, so we can use `gen_mem_layout`
 DEFAULT_AVAILABLE_MEM = 3200000
 DEFAULT_SECTION_CONSTRAINTS = {
-    'text': (20480, MemConstraint.ABSOLUTE_BYTES),
-    'rodata': (20480, MemConstraint.ABSOLUTE_BYTES),
-    'data': (768, MemConstraint.ABSOLUTE_BYTES),
-    'bss': (4096, MemConstraint.ABSOLUTE_BYTES),
-    'args': (4096, MemConstraint.ABSOLUTE_BYTES),
-    'heap': (262144, MemConstraint.ABSOLUTE_BYTES),
-    'workspace': (64000, MemConstraint.ABSOLUTE_BYTES),
-    'stack': (80, MemConstraint.ABSOLUTE_BYTES),
+    "text": (20480, MemConstraint.ABSOLUTE_BYTES),
+    "rodata": (20480, MemConstraint.ABSOLUTE_BYTES),
+    "data": (768, MemConstraint.ABSOLUTE_BYTES),
+    "bss": (4096, MemConstraint.ABSOLUTE_BYTES),
+    "args": (4096, MemConstraint.ABSOLUTE_BYTES),
+    "heap": (262144, MemConstraint.ABSOLUTE_BYTES),
+    "workspace": (64000, MemConstraint.ABSOLUTE_BYTES),
+    "stack": (80, MemConstraint.ABSOLUTE_BYTES),
 }
 
 def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=None):
@@ -61,9 +61,9 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
     else:
         options = list(options)
     # Cannot increase optimization level on host due to code loading method.
-    options.append('-O0')
-    if sys.maxsize > 2**32 and sys.platform.startswith('linux'):
-        options += ['-mcmodel=large']
+    options.append("-O0")
+    if sys.maxsize > 2**32 and sys.platform.startswith("linux"):
+        options += ["-mcmodel=large"]
     create_micro_lib_base(
         obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
         lib_src_paths=lib_src_paths)
@@ -98,19 +98,19 @@ def generate_config(available_mem=None, section_constraints=None):
     # need to zero out all start addresses, because they don't make sense for a
     # host device (the memory region is allocated in the backend)
     for section in mem_layout:
-        mem_layout[section]['start'] = 0
+        mem_layout[section]["start"] = 0
     return {
-        'device_id': DEVICE_ID,
-        'toolchain_prefix': TOOLCHAIN_PREFIX,
-        'mem_layout': mem_layout,
-        'word_size_bits': WORD_SIZE_BITS,
-        'thumb_mode': False,
-        'use_device_timer': False,
-        'comms_method': 'host',
+        "device_id": DEVICE_ID,
+        "toolchain_prefix": TOOLCHAIN_PREFIX,
+        "mem_layout": mem_layout,
+        "word_size_bits": WORD_SIZE_BITS,
+        "thumb_mode": False,
+        "use_device_timer": False,
+        "comms_method": "host",
     }
 
 
 register_device(DEVICE_ID, {
-    'create_micro_lib': create_micro_lib,
-    'generate_config': generate_config,
+    "create_micro_lib": create_micro_lib,
+    "generate_config": generate_config,
 })

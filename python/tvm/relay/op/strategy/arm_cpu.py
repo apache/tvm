@@ -262,7 +262,7 @@ def conv2d_transpose_strategy_arm_cpu(attrs, inputs, out_type, target):
         name="conv2d_tranpose_nchw.arm_cpu")
     return strategy
 
-@bitserial_conv2d_strategy.register(["arm_cpu", "micro_dev"])
+@bitserial_conv2d_strategy.register("arm_cpu")
 def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     """bitserial_conv2d x86 strategy"""
     strategy = _op.OpStrategy()
@@ -281,7 +281,7 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
         raise ValueError("Data layout {} not supported.".format(layout))
     return strategy
 
-@bitserial_dense_strategy.register(["arm_cpu", "micro_dev"])
+@bitserial_dense_strategy.register("arm_cpu")
 def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
     """bitserial_dense arm cpu strategy"""
     strategy = _op.OpStrategy()

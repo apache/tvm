@@ -34,7 +34,8 @@ extern "C" {
 
 #include "utvm_runtime.h"
 
-// TODO(areusch): move defines into header
+// TODO(weberlo, areusch): move defines into header
+// TODO(weberlo, areusch): unify TASK_QUEUE_SIZE and MicroSession::kTaskQueueCapacity.
 #define TASK_QUEUE_SIZE 20
 volatile UTVMTask utvm_tasks[TASK_QUEUE_SIZE] = { };
 volatile uint32_t utvm_num_tasks = 0;
@@ -139,7 +140,7 @@ void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
 }
 
 int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
-  // TODO(areusch): add dev type check
+  // TODO(weberlo, areusch): add dev type check
   if (utvm_num_active_allocs == 0) {
     TVMAPISetLastError("free called with no active workspace allocations");
     // Reset allocations and workspace (for future task executions).
@@ -153,7 +154,6 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
       // it's the first allocation
       utvm_alloc_ends[0] = NULL;
     } else {
-      // TODO(areusch): reverse loop iteration since usually it's the last alloc being freed
       for (uint32_t i = utvm_alloc_idx - 1; i >= 0; i--) {
         if (utvm_alloc_ends[i] == ptr) {
           utvm_alloc_ends[i + 1] = NULL;
@@ -167,8 +167,8 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
     if (utvm_alloc_idx == 0) {
       utvm_workspace_curr = utvm_workspace_start;
     } else {
-      // TODO(areusch): could you possibly have utvm_alloc_idx pointing to a NULL entry in this
-      // branch?
+      // TODO(weberlo, areusch): could you possibly have utvm_alloc_idx pointing to a NULL entry in
+      // this branch?
       utvm_workspace_curr = utvm_alloc_ends[utvm_alloc_idx - 1];
     }
     return 0;

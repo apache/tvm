@@ -102,18 +102,18 @@ def create_micro_lib_base(
     # look at these (specifically `strip`):
     #   https://stackoverflow.com/questions/15314581/g-compiler-flag-to-minimize-binary-size
     base_compile_cmd = [
-        f'{toolchain_prefix}gcc',
-        '-std=c11',
-        '-Wall',
-        '-Wextra',
-        '--pedantic',
-        '-c',
-        '-g',
-        '-nostartfiles',
-        '-nodefaultlibs',
-        '-nostdlib',
-        '-fdata-sections',
-        '-ffunction-sections',
+        f"{toolchain_prefix}gcc",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "--pedantic",
+        "-c",
+        "-g",
+        "-nostartfiles",
+        "-nodefaultlibs",
+        "-nostdlib",
+        "-fdata-sections",
+        "-ffunction-sections",
         ]
     if options is not None:
         base_compile_cmd += options
@@ -126,24 +126,24 @@ def create_micro_lib_base(
     if lib_type == LibType.RUNTIME:
         dev_dir = _get_device_source_dir(device_id)
 
-        dev_src_paths = glob.glob(f'{dev_dir}/*.[csS]')
+        dev_src_paths = glob.glob(f"{dev_dir}/*.[csS]")
         # there needs to at least be a utvm_timer.c file
         assert dev_src_paths
-        assert 'utvm_timer.c' in map(os.path.basename, dev_src_paths)
+        assert "utvm_timer.c" in map(os.path.basename, dev_src_paths)
 
         src_paths += dev_src_paths
     elif lib_type == LibType.OPERATOR:
         # create a temporary copy of the operator source, so we can inject the dev lib
         # header without modifying the original.
-        temp_src_path = tmp_dir.relpath('temp.c')
-        with open(in_src_path, 'r') as f:
+        temp_src_path = tmp_dir.relpath("temp.c")
+        with open(in_src_path, "r") as f:
             src_lines = f.read().splitlines()
         src_lines.insert(0, '#include "utvm_device_dylib_redirect.c"')
-        with open(temp_src_path, 'w') as f:
-            f.write('\n'.join(src_lines))
+        with open(temp_src_path, "w") as f:
+            f.write("\n".join(src_lines))
         new_in_src_path = temp_src_path
     else:
-        raise RuntimeError('unknown lib type')
+        raise RuntimeError("unknown lib type")
 
     src_paths += [new_in_src_path]
 
@@ -151,23 +151,23 @@ def create_micro_lib_base(
     if lib_src_paths is not None:
         src_paths += lib_src_paths
 
-    # print(f'include paths: {include_paths}')
+    # print(f"include paths: {include_paths}")
     for path in include_paths:
-        base_compile_cmd += ['-I', path]
+        base_compile_cmd += ["-I", path]
 
     prereq_obj_paths = []
     # print(src_paths)
     for src_path in src_paths:
-        curr_obj_path = tmp_dir.relpath(pathlib.Path(src_path).with_suffix('.o').name)
+        curr_obj_path = tmp_dir.relpath(pathlib.Path(src_path).with_suffix(".o").name)
         assert curr_obj_path not in prereq_obj_paths
         prereq_obj_paths.append(curr_obj_path)
-        curr_compile_cmd = base_compile_cmd + [src_path, '-o', curr_obj_path]
+        curr_compile_cmd = base_compile_cmd + [src_path, "-o", curr_obj_path]
         # TODO(weberlo): make compilation fail if there are any warnings
         run_cmd(curr_compile_cmd)
 
-    ld_cmd = [f'{toolchain_prefix}ld', '-relocatable']
+    ld_cmd = [f"{toolchain_prefix}ld", "-relocatable"]
     ld_cmd += prereq_obj_paths
-    ld_cmd += ['-o', out_obj_path]
+    ld_cmd += ["-o", out_obj_path]
     run_cmd(ld_cmd)
 
 
@@ -195,7 +195,7 @@ def gen_mem_layout(base_addr, available_mem, word_size_bits, section_constraints
     section_constraints: Optional[Dict[str, [Number, MemConstraint]]]
         maps section name to the quantity of available memory
     """
-    assert word_size_bits in (32, 64), 'only 32- or 64-bit devices are supported now'
+    assert word_size_bits in (32, 64), "only 32- or 64-bit devices are supported now"
     word_size_bytes = word_size_bits // 8
     byte_sum = sum(x[0]
                    for x in section_constraints.values()
@@ -212,18 +212,18 @@ def gen_mem_layout(base_addr, available_mem, word_size_bits, section_constraints
         (val, cons_type) = section_constraints[section]
         if cons_type == MemConstraint.ABSOLUTE_BYTES:
             assert val % word_size_bytes == 0, \
-                f'constraint {val} for {section} section is not word-aligned'
+                f"constraint {val} for {section} section is not word-aligned"
             size = val
             res[section] = {
-                'start': curr_addr,
-                'size': size,
+                "start": curr_addr,
+                "size": size,
             }
         else:
             size = int((val / weight_sum) * available_weight_mem)
             size = (size // word_size_bytes) * word_size_bytes
             res[section] = {
-                'start': curr_addr,
-                'size': size,
+                "start": curr_addr,
+                "size": size,
             }
         curr_addr += size
 
@@ -232,5 +232,5 @@ def gen_mem_layout(base_addr, available_mem, word_size_bits, section_constraints
 
 def _get_device_source_dir(device_id):
     """Grabs the source directory for device-specific uTVM files"""
-    dev_subdir = '/'.join(device_id.split('.'))
-    return get_micro_device_dir() + '/' + dev_subdir
+    dev_subdir = "/".join(device_id.split("."))
+    return get_micro_device_dir() + "/" + dev_subdir

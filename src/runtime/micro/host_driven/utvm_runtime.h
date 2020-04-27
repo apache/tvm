@@ -63,27 +63,35 @@ typedef struct {
 } UTVMTask;
 
 /*!
- * \brief TODO
+ * \brief microTVM processor startup.
+ * Expected to reset the stack pointer, configure any hardware required to support the CRT
+ * (i.e. FPU), and then jump to UTVMMain.
  */
 extern void UTVMInit();
 
 /*!
- * \brief TODO
+ * \brief Start the on-device timer.
+ * \return UTVMReturnCode indicating the outcome of the operation.
  */
 extern int32_t UTVMTimerStart();
 
 /*!
- * \brief TODO
+ * \brief Stop the on-device timer.
+ * TODO(areusch): Use an SI specification of timer units here.
+ * \param err Receives a UTVMReturnCode indicating the outcome of the operation.
+ * \return elapsed time since UTVMTimerStart returned, in device timer ticks.
  */
 extern uint32_t UTVMTimerStop(int32_t* err);
 
 /*!
- * \brief TODO
+ * \brief Main entry point for UTVM runtime.
+ * Waits for "go" signal, then executes tasks and reports result. Should never return.
  */
 void UTVMMain();
 
 /*!
- * \brief TODO
+ * \brief Function entered when UTVMMain is complete.
+ * Should never return. The host sets a breakpoint here to detect end of computation.
  */
 void UTVMDone();
 

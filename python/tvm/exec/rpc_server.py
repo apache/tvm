@@ -42,7 +42,7 @@ def main(args):
         tracker_addr = (url, port)
         if not args.key:
             raise RuntimeError(
-                "Need key to present type of resource when tracker is available")
+                'Need key to present type of resource when tracker is available')
     else:
         tracker_addr = None
 

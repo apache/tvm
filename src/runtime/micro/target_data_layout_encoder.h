@@ -30,7 +30,7 @@
 namespace tvm {
 namespace runtime {
 
-// TODO(weberlo): Handle endianness.
+// TODO(weberlo, areusch): Handle endianness.
 
 /*!
  * \brief data encoder for uTVM that builds a host-side buffer
@@ -159,7 +159,7 @@ class TargetDataLayoutEncoder {
   size_t curr_offset_;
   /*! \brief start address of the encoder in device memory */
   TargetPtr start_addr_;
-  /*! \brief TODO */
+  /*! \brief number of bytes available in device memory */
   size_t capacity_;
   /*! \brief number of bytes in a word on the target device */
   TargetWordSize word_size_;
@@ -178,8 +178,8 @@ TargetDataLayoutEncoder::Slot<T>::Slot(TargetDataLayoutEncoder* parent,
 
 template <typename T>
 TargetDataLayoutEncoder::Slot<T>::~Slot() {
-  // TODO(areusch): this can mask the exception thrown by slot allocation... even though that
-  // doesn't make sense.
+  // TODO(weberlo, areusch): this can mask the exception thrown by slot allocation... even though
+  // that doesn't make sense.
   CHECK(curr_offset_ == size_) << "unwritten space in slot; curr_offset="
                                << curr_offset_ << ", size=" << size_;
 }
