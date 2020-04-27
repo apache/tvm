@@ -64,6 +64,7 @@ class OperatorConverter(object):
         self.convert_map = {
             'ABS': self.convert_abs,
             'ADD': self.convert_add,
+            'ADD_N': self.convert_add_n,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'CAST': self.convert_cast,
@@ -774,6 +775,21 @@ class OperatorConverter(object):
 
         return out
 
+    def get_tensor_or_const_expr(self, tensor):
+        if self.has_expr(tensor.tensor_idx):
+            # In most cases, we can assume that TOCO fuses elemwise operators
+            # with constants - it means both will be tensors.
+            expr = self.get_expr(tensor.tensor_idx)
+        else:
+            # However, in some corner cases, the elemwise operator is not fused,
+            # we can receive as constant.
+            type_str = self.get_tensor_type_str(tensor.tensor.Type())
+            expr = self.exp_tab.new_const(self.get_tensor_value(tensor),
+                                              dtype=type_str)
+
+        return expr
+
+
     def _convert_elemwise(self, relay_op, op):
         """Generic method to Convert TFLite elemwise"""
         try:
@@ -789,29 +805,10 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        lhs_tensor = input_tensors[0]
-        if self.has_expr(lhs_tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses elemwise operators
-            # with constants - it means both will be tensors.
-            lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
-        else:
-            # However, in some corner cases, the elemwise operator is not fused,
-            # we can receive as constant.
-            lhs_type_str = self.get_tensor_type_str(lhs_tensor.tensor.Type())
-            lhs_expr = self.exp_tab.new_const(self.get_tensor_value(lhs_tensor),
-                                              dtype=lhs_type_str)
-
+        lhs_tensor= input_tensors[0]
         rhs_tensor = input_tensors[1]
-        if self.has_expr(rhs_tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses elemwise operators
-            # with constants - it means both will be tensors.
-            rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
-        else:
-            # However, in some corner cases, the elemwise operator is not fused,
-            # we can receive as constant.
-            rhs_type_str = self.get_tensor_type_str(rhs_tensor.tensor.Type())
-            rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
-                                              dtype=rhs_type_str)
+        lhs_expr = self.get_tensor_or_const_expr(lhs_tensor)
+        rhs_expr = self.get_tensor_or_const_expr(rhs_tensor)
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
@@ -862,6 +859,22 @@ class OperatorConverter(object):
         if self.is_quantized(op):
             return self._convert_elemwise(_qnn.op.add, op)
         return self._convert_elemwise(_op.add, op)
+
+    def convert_add_n(self, op):
+        """Convert TFLite ADD"""
+        # TFLite does not have support for quantized form of ADD_N
+        # Hence not adding checks for it.
+
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        input_tensors = self.get_input_tensors(op)
+        lhs_expr = self.get_tensor_or_const_expr(input_tensors[0])
+        for rhs_tensor in input_tensors[1:]:
+            rhs_expr = self.get_tensor_or_const_expr(rhs_tensor)
+            lhs_expr = _op.add(lhs_expr, rhs_expr)
+        return lhs_expr
+
 
     def convert_sub(self, op):
         """Convert TFLite SUB"""
