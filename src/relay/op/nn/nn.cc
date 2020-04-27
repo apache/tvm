@@ -1035,6 +1035,54 @@ Do log on the data - do not accept logits.
 .add_type_rel("CrossEntropy", CrossEntropyRel);
 
 
+// relay.nn.dilate
+TVM_REGISTER_NODE_TYPE(DilateAttrs);
+
+bool DilateRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* x = types[0].as<TensorTypeNode>();
+  const DilateAttrs* param = attrs.as<DilateAttrs>();
+  if (x == nullptr) return false;
+  CHECK_EQ(x->shape.size(), param->strides.size());
+
+  std::vector<IndexExpr> oshape;
+  for (size_t i = 0; i < param->strides.size(); ++i) {
+    if (!x->shape[i].as<tir::AnyNode>()) {
+      oshape.push_back((x->shape[i] - 1) * param->strides[i] + 1);
+    } else {
+      oshape.push_back(x->shape[i]);
+    }
+  }
+
+  reporter->Assign(types[1], TensorType(Array<IndexExpr>(oshape), x->dtype));
+  return true;
+}
+
+// Positional relay function to create dilate operator used by frontend FFI.
+Expr MakeDilate(Expr data, Array<IndexExpr> strides) {
+  auto attrs = make_object<DilateAttrs>();
+  attrs->strides = std::move(strides);
+  static const Op& op = Op::Get("nn.dilate");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_GLOBAL("relay.op.nn._make.dilate")
+.set_body_typed(MakeDilate);
+
+
+RELAY_REGISTER_OP("nn.dilate")
+.describe(R"code(
+Dilate data with zeros.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("x", "1D Tensor", "Data to dilate.")
+.set_support_level(10)
+.add_type_rel("Dilate", DilateRel);
+
 // Positional relay function to create cross_entropy_with_logits operator used by frontend FFI.
 Expr MakeCrossEntropyWithLogits(Expr predictions, Expr targets) {
   static const Op& op = Op::Get("nn.cross_entropy_with_logits");
