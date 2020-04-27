@@ -200,10 +200,10 @@ def test_pool_grad():
     verify_pool_grad(1, 256, 32, 2, 2, [0, 0, 0, 0], 'max', False, add_relu=True)
 
 
-def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
+def verify_global_pool(dshape, pool_type, layout='NCHW'):
 
     assert layout in ["NCHW", "NHWC"]
-    A = te.placeholder((n, c, h, w), name='A')
+    A = te.placeholder(shape=dshape, name='A')
     B = topi.nn.global_pool(A, pool_type=pool_type, layout=layout)
     B = topi.nn.relu(B)
 
@@ -224,7 +224,10 @@ def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s_func = topi.testing.dispatch(device, _adaptive_pool_schedule)
-            s = s_func(B)
+            if device == "cuda":
+                s = s_func(B, layout)
+            else:
+                s = s_func(B)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)
@@ -235,14 +238,14 @@ def verify_global_pool(n, c, h, w, pool_type, layout='NCHW'):
         check_device(device)
 
 def test_global_pool():
-    verify_global_pool(1, 1024, 7, 7, 'avg')
-    verify_global_pool(4, 1024, 7, 7, 'avg')
-    verify_global_pool(1, 1024, 7, 7, 'max')
-    verify_global_pool(4, 1024, 7, 7, 'max')
-    verify_global_pool(1, 1024, 7, 7, 'avg', 'NHWC')
-    verify_global_pool(4, 1024, 7, 7, 'avg', 'NHWC')
-    verify_global_pool(1, 1024, 7, 7, 'max', 'NHWC')
-    verify_global_pool(4, 1024, 7, 7, 'max', 'NHWC')
+    verify_global_pool((1, 1024, 7, 7), 'avg')
+    verify_global_pool((4, 1024, 7, 7), 'avg')
+    verify_global_pool((1, 1024, 7, 7), 'max')
+    verify_global_pool((4, 1024, 7, 7), 'max')
+    verify_global_pool((1, 7, 7, 1024), 'avg', 'NHWC')
+    verify_global_pool((4, 7, 7, 1024), 'avg', 'NHWC')
+    verify_global_pool((1, 7, 7, 1024), 'max', 'NHWC')
+    verify_global_pool((4, 7, 7, 1024), 'max', 'NHWC')
 
 
 def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="float32"):
@@ -265,7 +268,10 @@ def verify_adaptive_pool(dshape, out_size, pool_type, layout="NCHW", dtype="floa
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s_func = topi.testing.dispatch(device, _adaptive_pool_schedule)
-            s = s_func(out)
+            if device == "cuda":
+               s = s_func(out, layout)
+            else:
+               s = s_func(out)
         a = tvm.nd.array(np_data, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(oshape), dtype=out.dtype), ctx)
         f = tvm.build(s, [data, out], device)
