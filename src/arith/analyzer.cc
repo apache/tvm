@@ -36,31 +36,31 @@ Analyzer::Analyzer()
       int_set(this) {
 }
 
-void Analyzer::Bind(const Var& var, const PrimExpr& expr) {
+void Analyzer::Bind(const Var& var, const PrimExpr& expr, bool override) {
   PrimExpr new_expr = expr;
   new_expr = this->canonical_simplify(new_expr);
   new_expr = this->rewrite_simplify(new_expr);
 
-  this->const_int_bound.Update(var, this->const_int_bound(new_expr));
-  this->modular_set.Update(var, this->modular_set(new_expr));
-  this->rewrite_simplify.Update(var, new_expr);
-  this->canonical_simplify.Update(var, new_expr);
+  this->const_int_bound.Update(var, this->const_int_bound(new_expr), override);
+  this->modular_set.Update(var, this->modular_set(new_expr), override);
+  this->rewrite_simplify.Update(var, new_expr, override);
+  this->canonical_simplify.Update(var, new_expr, override);
 }
 
-void Analyzer::Bind(const Var& var, const Range& range) {
+void Analyzer::Bind(const Var& var, const Range& range, bool override) {
   CHECK(range.defined());
   if (tir::is_one(range->extent)) {
-    this->Bind(var, range->min);
+    this->Bind(var, range->min, override);
   } else {
-    this->const_int_bound.Bind(var, range);
+    this->const_int_bound.Bind(var, range, override);
   }
   // skip modular_set
   // skip rewrite simplify
 }
 
-void Analyzer::Bind(const Map<Var, Range>& variables) {
+void Analyzer::Bind(const Map<Var, Range>& variables, bool override) {
   for (const auto& iter : variables) {
-    this->Bind(iter.first, iter.second);
+    this->Bind(iter.first, iter.second, override);
   }
 }
 
@@ -89,6 +89,15 @@ bool Analyzer::CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound) {
   }
   auto bd = this->const_int_bound(this->rewrite_simplify(expr));
   if (bd->min_value >= lower_bound) return true;
+  return false;
+}
+
+bool Analyzer::CanProveLess(const PrimExpr& expr, int64_t upper_bound) {
+  if (const auto* ptr = expr.as<tir::IntImmNode>()) {
+    return ptr->value < upper_bound;
+  }
+  auto bd = this->const_int_bound(this->rewrite_simplify(expr));
+  if (bd->max_value < upper_bound) return true;
   return false;
 }
 
