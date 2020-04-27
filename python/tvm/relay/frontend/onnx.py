@@ -1067,6 +1067,11 @@ class ReduceProd(Reduce):
     """
     name = 'prod'
 
+class ReduceLogSumExp(Reduce):
+    """ Operator converter for ReduceLogSumExp.
+    """
+    name = 'logsumexp'
+
 class ArgMax(OnnxOpConverter):
     """ Operator converter for ArgMax.
     """
@@ -1598,8 +1603,7 @@ def _get_convert_map(opset):
         'ReduceSum': ReduceSum.get_converter(opset),
         'ReduceMean': ReduceMean.get_converter(opset),
         'ReduceProd': ReduceProd.get_converter(opset),
-        # 'ReduceProd'
-        # 'ReduceLogSumExp'
+        'ReduceLogSumExp': ReduceLogSumExp.get_converter(opset),
 
         #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),
