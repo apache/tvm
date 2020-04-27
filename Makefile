@@ -57,7 +57,7 @@ cpptest:
 
 # SYSTEM DEPENDENCIES: llvm
 # make sure llvm is in your path
-# Example with a "brew install llvm" setup: PATH="/usr/local/opt/llvm/bin:$PATH" make build-llvm
+# Example with a "brew install llvm" setup: PATH="/usr/local/opt/llvm/bin:$PATH" LDFLAGS="-lc++abi" make build-llvm MAKE_ARGS="-j8 -v"
 build-llvm:
 	$(MAKE) all CMAKE_ARGS="-DUSE_LLVM=ON" MAKE_ARGS=$(MAKE_ARGS)
 
