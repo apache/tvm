@@ -442,6 +442,16 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
   }
 };
 
+/*! \brief Attributes used in dilate operator */
+struct DilateAttrs : public tvm::AttrsNode<DilateAttrs> {
+  Array<IndexExpr> strides;
+
+  TVM_DECLARE_ATTRS(DilateAttrs, "relay.attrs.DilateAttrs") {
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
+      .describe("Dilation stride on each dimension, 1 means no dilation.");
+  }
+};
+
 /*! \brief Attributes used in 1D transposed convolution operator */
 struct Conv1DTransposeAttrs : public tvm::AttrsNode<Conv1DTransposeAttrs> {
   IndexExpr channels;

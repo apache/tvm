@@ -502,6 +502,15 @@ reg.register_reduce_schedule("nn.cross_entropy")
 reg.register_pattern("nn.cross_entropy", OpPattern.OPAQUE)
 
 
+# dilate
+@reg.register_compute("nn.dilate")
+def compute_dilate(attrs, inputs, out_dtype):
+    return [topi.nn.dilate(inputs[0], attrs.strides)]
+
+reg.register_broadcast_schedule("nn.dilate")
+reg.register_pattern("nn.dilate", OpPattern.INJECTIVE)
+
+
 # cross_entropy_with_logits
 @reg.register_compute("nn.cross_entropy_with_logits")
 def compute_cross_entropy_with_logits(attrs, inputs, out_dtype):
@@ -696,6 +705,21 @@ def pad_shape_func(attrs, inputs, _):
     for pair in attrs.pad_width:
         pad_width.append(get_const_tuple(pair))
     return [_pad_shape_func(inputs[0], convert(pad_width))]
+
+@script
+def _dilate_shape_func(data_shape, strides):
+    out = output_tensor((data_shape.shape[0],), "int64")
+    for i in const_range(out.shape[0]):
+        out[i] = (data_shape[i] - 1) * strides[i] + 1
+
+    return out
+
+@reg.register_shape_func("nn.dilate", False)
+def dilate_shape_func(attrs, inputs, _):
+    """
+    Shape function for dilate op.
+    """
+    return [_dilate_shape_func(inputs[0], convert(attrs.strides))]
 
 reg.register_shape_func("nn.bias_add", False, elemwise_shape_func)
 reg.register_shape_func("nn.softmax", False, elemwise_shape_func)
