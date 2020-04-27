@@ -59,16 +59,22 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_spatial_pack),
                     wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_spatial_pack),
                     name="conv2d_nchw_spatial_pack.arm_cpu")
+
                 # Intel x86 conv2d schedule.
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.x86.conv2d_nchw),
                     wrap_topi_schedule(topi.x86.schedule_conv2d_nchw),
                     name="conv2d_nchw.x86")
+
                 # check if winograd algorithm is applicable
                 _, _, kh, kw = get_const_tuple(kernel.shape)
                 pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
-                if kh == 3 and kw == 3 and stride_h == 1 and stride_w == 1 and \
-                    dilation_h == 1 and dilation_w == 1:
+                is_winograd_applicable = "float" in data.dtype and \
+                                         "float" in kernel.dtype and \
+                                         kh == 3 and kw == 3 and \
+                                         stride_h == 1 and stride_w == 1 and \
+                                         dilation_h == 1 and dilation_w == 1
+                if is_winograd_applicable:
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.conv2d_nchw_winograd),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_nchw_winograd),

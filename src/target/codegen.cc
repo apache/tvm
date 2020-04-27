@@ -25,7 +25,6 @@
 #include <tvm/target/target.h>
 
 #include <tvm/ir/module.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/function.h>
 
@@ -47,6 +46,7 @@ runtime::Module Build(IRModule mod, const Target& target) {
   if (BuildConfig::Current()->disable_assert) {
     mod = tir::transform::SkipAssert()(mod);
   }
+
   std::string build_f_name = "target.build." + target->target_name;
   // the build function.
   const PackedFunc* bf = runtime::Registry::Get(build_f_name);

@@ -23,8 +23,8 @@
 #include <iomanip>
 #include <cctype>
 #include "codegen_c.h"
+#include "../../arith/pattern_match.h"
 #include "../../arith/compute_expr.h"
-#include "../../tir/pass/ir_util.h"
 
 namespace tvm {
 namespace codegen {
@@ -94,7 +94,6 @@ void CodeGenC::AddFunction(const PrimFunc& f) {
       auto it = alloc_storage_scope_.find(v.get());
       if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
-        stream << ' ';
       }
 
       PrintType(GetType(v), stream);
@@ -179,7 +178,6 @@ std::string CodeGenC::GetBufferRef(
       if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
-      os << ' ';
       PrintType(t, os);
       os << "*)" << vid << ')';
     } else {
@@ -198,8 +196,8 @@ std::string CodeGenC::GetBufferRef(
     // optimize for case where it is in register,
     if (HandleTypeMatch(buffer, t) && !is_vol) {
       // optimize for constant access
-      int offset;
-      if (arith::GetConstInt(index, &offset)) {
+      if (auto* ptr = index.as<tir::IntImmNode>()) {
+        int64_t offset = ptr->value;
         CHECK_EQ(offset % t.lanes(), 0)
             << "Find unaligned vector load to a vector type";
         os << vid << '[' << (offset / t.lanes()) << ']';
@@ -213,7 +211,6 @@ std::string CodeGenC::GetBufferRef(
     if (!scope.empty() && IsScopePartOfType()) {
       PrintStorageScope(scope, os);
     }
-    os << ' ';
     PrintType(t, os);
     os << "*)(";
     if (!HandleTypeMatch(buffer, t.element_of())) {
@@ -221,7 +218,6 @@ std::string CodeGenC::GetBufferRef(
       if (!scope.empty() && IsScopePartOfType()) {
         PrintStorageScope(scope, os);
       }
-      os << ' ';
       PrintType(t.element_of(), os);
       os << "*)";
     }
@@ -663,9 +659,10 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
   } else {
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
-    PrimExpr base;
-    if (GetRamp1Base(op->index, op->dtype.lanes(), &base)) {
-      std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base);
+
+    arith::PVar<PrimExpr> base;
+    if (arith::ramp(base, 1, op->dtype.lanes()).Match(op->index)) {
+      std::string ref = GetVecLoad(op->dtype, op->buffer_var.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
       std::ostringstream svalue_expr;
@@ -680,7 +677,6 @@ void CodeGenC::VisitExpr_(const LoadNode* op, std::ostream& os) {  // NOLINT(*)
             auto it = alloc_storage_scope_.find(op->buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, value_temp);
-              value_temp << ' ';
             }
           }
           PrintType(elem_type, value_temp);
@@ -708,10 +704,10 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
   } else {
     CHECK(is_one(op->predicate))
         << "Predicated store is not supported";
-    PrimExpr base;
-    if (GetRamp1Base(op->index, t.lanes(), &base)) {
+    arith::PVar<PrimExpr> base;
+    if (arith::ramp(base, 1, t.lanes()).Match(op->index)) {
       std::string value = this->PrintExpr(op->value);
-      this->PrintVecStore(op->buffer_var.get(), t, base, value);
+      this->PrintVecStore(op->buffer_var.get(), t, base.Eval(), value);
     } else {
       // The assignment below introduces side-effect, and the resulting value cannot
       // be reused across multiple expression, thus a new scope is needed
@@ -730,7 +726,6 @@ void CodeGenC::VisitStmt_(const StoreNode* op) {
             auto it = alloc_storage_scope_.find(op->buffer_var.get());
             if (it != alloc_storage_scope_.end()) {
               PrintStorageScope(it->second, stream);
-              stream << ' ';
             }
           }
           PrintType(elem_type, stream);
@@ -822,10 +817,8 @@ void CodeGenC::VisitStmt_(const AllocateNode* op) {
     const VarNode* buffer = op->buffer_var.as<VarNode>();
     std::string scope = alloc_storage_scope_.at(buffer);
     PrintStorageScope(scope, stream);
-    stream << ' ';
     PrintType(op->dtype, stream);
-    stream << ' '<< vid << '['
-           << constant_size << "];\n";
+    stream << ' ' << vid << '[' << constant_size << "];\n";
 
   RegisterHandleType(op->buffer_var.get(), op->dtype);
   this->PrintStmt(op->body);

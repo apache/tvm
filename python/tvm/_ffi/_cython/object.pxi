@@ -39,16 +39,47 @@ cdef inline object make_ret_object(void* chandle):
     object_type = OBJECT_TYPE
     handle = ctypes_handle(chandle)
     CALL(TVMObjectGetTypeIndex(chandle, &tindex))
+
     if tindex < len(OBJECT_TYPE):
         cls = OBJECT_TYPE[tindex]
         if cls is not None:
+            if issubclass(cls, PyNativeObject):
+                obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
+                (<ObjectBase>obj).chandle = chandle
+                return cls.__from_tvm_object__(cls, obj)
             obj = cls.__new__(cls)
         else:
             obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
     else:
         obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
+
     (<ObjectBase>obj).chandle = chandle
     return obj
+
+
+class PyNativeObject:
+    """Base class of all TVM objects that also subclass python's builtin types."""
+    __slots__ = []
+
+    def __init_tvm_object_by_constructor__(self, fconstructor, *args):
+        """Initialize the internal tvm_object by calling constructor function.
+
+        Parameters
+        ----------
+        fconstructor : Function
+            Constructor function.
+
+        args: list of objects
+            The arguments to the constructor
+
+        Note
+        ----
+        We have a special calling convention to call constructor functions.
+        So the return object is directly set into the object
+        """
+        obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
+        obj.__init_handle_by_constructor__(fconstructor, *args)
+        self.__tvm_object__ = obj
 
 
 cdef class ObjectBase:

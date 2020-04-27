@@ -23,7 +23,6 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include "message_passing.h"
 #include "../../arith/compute_expr.h"
 
@@ -324,6 +323,7 @@ void PassUpDomain(const FuseNode* s,
   CHECK(dom_map.count(s->outer));
   CHECK(dom_map.count(s->inner));
   CHECK(dom_map.count(s->fused));
+  arith::Analyzer ana;
 
   if (fused.match_range(dom_map.at(s->fused))) {
     *outer = IntSet::range(dom_map.at(s->outer));
@@ -348,15 +348,15 @@ void PassUpDomain(const FuseNode* s,
     *outer = IntSet::interval(
         outer_min + indexdiv(fused.min(), inner_extent),
         outer_min + indexdiv(fused.max(), inner_extent));
-    if (is_zero(Simplify(indexmod(inner_extent, fused_extent))) &&
-        is_zero(Simplify(indexmod(fused.min(), fused_extent)))) {
+    if (is_zero(ana.Simplify(indexmod(inner_extent, fused_extent))) &&
+        is_zero(ana.Simplify(indexmod(fused.min(), fused_extent)))) {
       // fused never spans multiple rows, make a tight bounding box
       // there may be other cases when bounding box could be tightened
       *inner = IntSet::interval(inner_min + indexmod(fused.min(), inner_extent),
                                 inner_min + indexmod(fused.max(), inner_extent));
     } else {  // fused may span multiple rows, use full row widths
-      if (!is_zero(Simplify(indexmod(fused_extent, inner_extent))) ||
-          !is_zero(Simplify(indexmod(fused.min(), inner_extent)))) {
+      if (!is_zero(ana.Simplify(indexmod(fused_extent, inner_extent))) ||
+          !is_zero(ana.Simplify(indexmod(fused.min(), inner_extent)))) {
         LOG(WARNING) <<
           "fused and original axes are not aligned, this may cause redundant computations";
       }
@@ -579,11 +579,15 @@ std::vector<PrimExpr> MakeBoundCheck(
   PassUpBoundCheck(stage, dom_map, &bound_state, &analyzer);
 
   std::vector<PrimExpr> preds;
-  std::unordered_map<const VarNode*, IntSet> iset_dmap;
+  Map<Var, IntSet> iset_dmap;
 
   // setup domain map for set analysis
   for (const auto& kv : dom_map) {
-    iset_dmap[kv.first->var.get()] = IntSet::range(kv.second);
+    iset_dmap.Set(kv.first->var, IntSet::range(kv.second));
+  }
+
+  for (auto entry : dom_map) {
+    analyzer.Bind(entry.first->var, entry.second);
   }
 
   for (const IterVar& iv : stage->all_iter_vars) {
@@ -591,7 +595,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     if (bound_state.at(iv)) {
       Range dom = dom_map.at(iv);
       PrimExpr value = value_map.at(iv) - dom->min;
-      PrimExpr vmax = EvalSet(value, iset_dmap).max();
+      PrimExpr vmax = analyzer.int_set(value, iset_dmap).max();
       if (vmax.dtype() != value.dtype() || !analyzer.CanProve(vmax < dom->extent)) {
         preds.emplace_back(value < dom->extent);
       }
@@ -603,7 +607,7 @@ std::vector<PrimExpr> MakeBoundCheck(
     CHECK(iv->dom.defined());
     if (!skip_ivar_domain && !IsRangeSame(iv->dom, dom)) {
       PrimExpr value = value_map.at(iv) - iv->dom->min;
-      IntSet s = EvalSet(value, iset_dmap);
+      IntSet s = analyzer.int_set(value, iset_dmap);
       PrimExpr vmin = s.min();
       PrimExpr vmax = s.max();
       // The range of `value` resides in [vmin, vmax]

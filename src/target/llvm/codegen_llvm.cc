@@ -30,6 +30,7 @@
 
 #include "codegen_llvm.h"
 #include "codegen_cpu.h"
+#include "../../arith/pattern_match.h"
 #include "../build_common.h"
 namespace tvm {
 namespace codegen {
@@ -363,27 +364,27 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
         md_builder_->createTBAAStructTagNode(meta, meta, 0));
     return;
   }
-  int base = 0, width = 0;
+
+  int64_t base = 0, width = 0;
+  arith::PVar<IntImm> pbase, pstride;
+  arith::PVar<int> planes;
   // create meta-data for alias analysis
   // Use a group of binary tree ranges of memory banks.
   if (index.defined()) {
-    const RampNode* ramp = index.as<RampNode>();
-    if (ramp) {
-      int base, stride;
-      if (arith::GetConstInt(ramp->base, &base) &&
-          arith::GetConstInt(ramp->stride, &stride)) {
-        int xwith = ramp->lanes * stride;
-        width = 1;
-        while (width < xwith) {
-          width *= 2;
-        }
-        while (base % width) {
-          base -= base % width;
-          width *= 2;
-        }
+    if (arith::ramp(pbase, pstride, planes).Match(index)) {
+      base = pbase.Eval()->value;
+      int64_t xwith = planes.Eval() * pstride.Eval()->value;
+      width = 1;
+      while (width < xwith) {
+        width *= 2;
       }
-    } else {
-      if (arith::GetConstInt(index, &base)) width = 1;
+      while (base % width) {
+        base -= base % width;
+        width *= 2;
+      }
+    } else if (auto* ptr = index.as<tir::IntImmNode>()) {
+      width = 1;
+      base = ptr->value;
     }
   }
   llvm::MDNode* meta = md_tbaa_root_;
@@ -394,8 +395,8 @@ void CodeGenLLVM::AddAliasInfo(llvm::Instruction* inst,
   meta = md_builder_->createTBAAScalarTypeNode(buffer_type.str(), meta);
   // create a tree-shape access structure.
   if (width != 0) {
-    for (int w = 1024; w >= width; w /= 2) {
-      int b = (base / w) * w;
+    for (int64_t w = 1024; w >= width; w /= 2) {
+      int64_t b = (base / w) * w;
       std::stringstream os;
       os << buffer << ".w" << w << ".b" << b;
       meta = md_builder_->createTBAAScalarTypeNode(os.str(), meta);
@@ -473,7 +474,7 @@ llvm::Value* CodeGenLLVM::CreateBroadcast(llvm::Value* value, int lanes) {
 }
 
 llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent) {
-  int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
+  int num_elems = llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
   if (extent == num_elems && begin == 0) return vec;
   CHECK(begin >= 0 && extent <= num_elems) << "Slicing out of bound!\n";
   std::vector<llvm::Constant*> indices;
@@ -489,8 +490,12 @@ llvm::Value* CodeGenLLVM::CreateVecSlice(llvm::Value* vec, int begin, int extent
 }
 
 llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
-  int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
+  int num_elems = llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
+#if TVM_LLVM_VERSION >= 110
+  std::vector<int> indices;
+#else
   std::vector<unsigned> indices;
+#endif
   for (int i = 0; i < num_elems; ++i) {
     indices.push_back(num_elems - i - 1);
   }
@@ -500,7 +505,7 @@ llvm::Value* CodeGenLLVM::CreateVecFlip(llvm::Value* vec) {
 llvm::Value* CodeGenLLVM::CreateVecPad(llvm::Value* vec, int target_lanes) {
   llvm::Value* mask = llvm::UndefValue::get(
       DTypeToLLVMType(DataType::Int(32, target_lanes)));
-  int num_elems = static_cast<int>(vec->getType()->getVectorNumElements());
+  int num_elems = llvm::cast<llvm::VectorType>(vec->getType())->getNumElements();
   if (num_elems == target_lanes) return vec;
   CHECK_LT(num_elems, target_lanes);
   for (int i = 0; i < num_elems; ++i) {
@@ -514,23 +519,26 @@ llvm::Value* CodeGenLLVM::CreateVecConcat(std::vector<llvm::Value*> vecs) {
   int total_lanes = 0;
 
   for (llvm::Value* v : vecs) {
-    total_lanes += static_cast<int>(
-        v->getType()->getVectorNumElements());
+    total_lanes += llvm::cast<llvm::VectorType>(v->getType())->getNumElements();
   }
   while (vecs.size() > 1) {
     std::vector<llvm::Value*> new_vecs;
     for (size_t i = 0; i < vecs.size() - 1; i += 2) {
       llvm::Value* lhs = vecs[i];
       llvm::Value* rhs = vecs[i + 1];
-      const size_t lhs_lanes = lhs->getType()->getVectorNumElements();
-      const size_t rhs_lanes = rhs->getType()->getVectorNumElements();
+      const size_t lhs_lanes = llvm::cast<llvm::VectorType>(lhs->getType())->getNumElements();
+      const size_t rhs_lanes = llvm::cast<llvm::VectorType>(rhs->getType())->getNumElements();
       if (lhs_lanes < rhs_lanes) {
         lhs = CreateVecPad(lhs, rhs_lanes);
       } else if (rhs_lanes < lhs_lanes) {
         rhs = CreateVecPad(rhs, lhs_lanes);
       }
       const size_t shared_lanes = std::max(lhs_lanes, rhs_lanes);
+#if TVM_LLVM_VERSION >= 110
+      std::vector<int> mask;
+#else
       std::vector<unsigned> mask;
+#endif
       for (size_t i = 0; i < lhs_lanes; ++i) {
         mask.push_back(i);
       }
@@ -861,17 +869,21 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return builder_->CreateFCmpUNO(a, a);
   } else if (op->is_intrinsic("vectorlow")) {
     llvm::Value *v = MakeValue(op->args[0]);
-    int l = v->getType()->getVectorNumElements();
+    int l = llvm::cast<llvm::VectorType>(v->getType())->getNumElements();
     return CreateVecSlice(v, 0, l/2);
   } else if (op->is_intrinsic("vectorhigh")) {
     llvm::Value *v = MakeValue(op->args[0]);
-    int l = v->getType()->getVectorNumElements();
+    int l = llvm::cast<llvm::VectorType>(v->getType())->getNumElements();
     return CreateVecSlice(v, l/2, l/2);
   } else if (op->is_intrinsic("vectorcombine")) {
     llvm::Value *v0 = MakeValue(op->args[0]);
     llvm::Value *v1 = MakeValue(op->args[1]);
-    int num_elems = static_cast<int>(v0->getType()->getVectorNumElements()) * 2;
+    int num_elems = llvm::cast<llvm::VectorType>(v0->getType())->getNumElements() * 2;
+#if TVM_LLVM_VERSION >= 110
+    std::vector<int> indices;
+#else
     std::vector<unsigned> indices;
+#endif
     for (int i = 0; i < num_elems; ++i) {
       indices.push_back(i);
     }

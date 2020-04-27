@@ -58,6 +58,11 @@ TVM_REGISTER_GLOBAL("testing.nop")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
   });
 
+TVM_REGISTER_GLOBAL("testing.echo")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+  *ret = args[0];
+  });
+
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     PackedFunc pf = args[0];

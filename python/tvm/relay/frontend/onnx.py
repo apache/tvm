@@ -57,8 +57,7 @@ class onnx_input():
         if isinstance(item, int):
             self.input_dict[self.input_keys[item]] = value
         elif isinstance(item, str):
-            if item not in self.input_dict:
-                self.input_keys.append(item)
+            self.input_keys.append(item)
             self.input_dict[item] = value
         else:
             raise ValueError("Only integer and string indexed writes allowed.")
@@ -943,6 +942,14 @@ class Gather(OnnxOpConverter):
                        extras={'axis': axis})(inputs, {})
 
 
+class GatherND(OnnxOpConverter):
+    """ Operator converter for GatherND.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.gather_nd(inputs[0], inputs[1])
+
+
 class Greater(OnnxOpConverter):
     """ Operator logical greater.
     """
@@ -1471,6 +1478,22 @@ class NonZero(OnnxOpConverter):
         output = AttrCvt(op_name='argwhere')(inputs, attr, params)
         return _op.transpose(output, axes=(1, 0))
 
+class TopK(OnnxOpConverter):
+    """Operator converter for TopK
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if len(inputs) != 2:
+            raise ValueError("Expect 2 input only")
+        axis = attr.get("axis", -1)
+        largest = attr.get("largest", 1)
+
+        if largest == 0:
+            raise ValueError("TVM only supports finding TopK largest elements")
+
+        K = int(infer_value(inputs[1], params).asnumpy()[0])
+
+        return _op.topk(inputs[0], k=K, axis=axis)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1521,6 +1544,9 @@ def _get_convert_map(opset):
         'Reciprocal': Reciprocal.get_converter(opset),
         'Floor': Renamer('floor'),
         'Ceil': Renamer('ceil'),
+        'Round': Renamer('round'),
+        'IsInf': Renamer('isinf'),
+        'IsNaN': Renamer('isnan'),
         'Sqrt': Renamer('sqrt'),
         'Relu': Renamer('relu'),
         'LeakyRelu': Renamer('leaky_relu'),
@@ -1574,8 +1600,11 @@ def _get_convert_map(opset):
         'ReduceProd': ReduceProd.get_converter(opset),
         # 'ReduceProd'
         # 'ReduceLogSumExp'
+
+        #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),
         'ArgMin': ArgMin.get_converter(opset),
+        'TopK': TopK.get_converter(opset),
 
         # defs/tensor
         'Cast': Cast.get_converter(opset),
@@ -1588,6 +1617,7 @@ def _get_convert_map(opset):
         'DepthToSpace': DepthToSpace.get_converter(opset),
         'SpaceToDepth': SpaceToDepth.get_converter(opset),
         'Gather': Gather.get_converter(opset),
+        'GatherND': GatherND.get_converter(opset),
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),

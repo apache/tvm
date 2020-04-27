@@ -25,12 +25,13 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/arith/analyzer.h>
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include "ir_util.h"
 #include "../../arith/compute_expr.h"
 
 namespace tvm {
@@ -50,16 +51,13 @@ class LoopUnroller : public StmtExprMutator {
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = 0;
-      CHECK(arith::GetConstInt(op->value, &value));
+      int value = static_cast<int>(Downcast<Integer>(op->value)->value);
       std::swap(value, auto_max_step_);
       Stmt ret = this->VisitStmt(op->body);
       std::swap(value, auto_max_step_);
       return ret;
     } else if (op->attr_key == "pragma_unroll_explicit") {
-      int value = 0;
-      CHECK(arith::GetConstInt(op->value, &value));
-      bool explicit_unroll = value;
+      bool explicit_unroll = Downcast<Integer>(op->value)->value;
       std::swap(explicit_unroll, explicit_unroll_);
       Stmt ret = this->VisitStmt(op->body);
       std::swap(explicit_unroll, explicit_unroll_);
@@ -160,7 +158,7 @@ class LoopUnroller : public StmtExprMutator {
   // returns the extent of the loop if it's a constant integer, otherwise return -1
   int GetExtent(const ForNode* op) {
     // constant folding.
-    PrimExpr extent = tir::Simplify(op->extent);
+    PrimExpr extent = analyzer_.Simplify(op->extent);
     const IntImmNode  *v1 = extent.as<IntImmNode>();
     int value = -1;
     // integers that do not fit in int32_t are treated as symbolic,
@@ -184,6 +182,8 @@ class LoopUnroller : public StmtExprMutator {
   int unroll_depth_{0};
   // Number of total steps unrolled
   int step_count_{0};
+  // analyzer
+  arith::Analyzer analyzer_;
 };
 
 
@@ -203,9 +203,6 @@ Stmt UnrollLoop(Stmt stmt,
     return ret;
   }
 }
-
-TVM_REGISTER_GLOBAL("ir_pass.UnrollLoop")
-.set_body_typed(UnrollLoop);
 
 namespace transform {
 

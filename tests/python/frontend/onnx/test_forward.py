@@ -542,6 +542,70 @@ def test_clip():
                               {'min': -1.0, 'max': 1.0})
 
 
+
+def test_round():
+    _test_onnx_op_elementwise((2, 4, 5, 6), np.round, {}, 'float32', 'Round', {})
+
+
+def _test_finite_ops(inshape, outfunc, npargs, dtype, opname, kwargs):
+    indata = np.random.choice(a=[np.nan, np.inf, -np.inf, 0.5, 1.0, 0], size=inshape).astype(dtype)
+
+    outdata = outfunc(indata, **npargs)
+    y = helper.make_node(opname, ['in'], ['out'], **kwargs)
+
+    graph = helper.make_graph([y],
+                              opname+'_test',
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(indata.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.BOOL, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name=opname+'_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, indata, target, ctx, outdata.shape, dtype)
+
+    tvm.testing.assert_allclose(outdata, tvm_out)
+
+
+def test_isinf():
+    _test_finite_ops((2, 4, 5, 6), np.isinf, {}, 'float32', 'IsInf', {})
+
+
+def test_isnan():
+    _test_finite_ops((2, 4, 5, 6), np.isnan, {}, 'float32', 'IsNaN', {})
+
+
+def verify_gather_nd(in_shape, indices, dtype):
+    x = np.random.uniform(size=in_shape).astype(dtype)
+    indices = np.array(indices, dtype="int32")
+    out_np = topi.testing.gather_nd_python(x, indices)
+
+    y = helper.make_node("GatherND", ['in', 'indices'], ['out'])
+
+    graph = helper.make_graph([y],
+                              'gather_test',
+                              inputs=[helper.make_tensor_value_info("in",
+                                                                    TensorProto.FLOAT, list(in_shape)),
+                                      helper.make_tensor_value_info("indices",
+                                                                    TensorProto.INT32, list(indices.shape))],
+                              outputs=[helper.make_tensor_value_info("out",
+                                                                     TensorProto.FLOAT, list(out_np.shape))])
+    model = helper.make_model(graph, producer_name='gather_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(
+            model, [x, indices], target, ctx, out_np.shape)
+        tvm.testing.assert_allclose(out_np, tvm_out)
+
+
+def test_gather_nd():
+    verify_gather_nd((2, 2), [[0,0],[1,1]], 'int32')
+    verify_gather_nd((3, 3, 3), [[0,1],[1,0]] , 'float32')
+    verify_gather_nd((4, 3, 5, 6), [[2, 1, 0, 0]], 'float32')
+
+
 def test_onehot():
     indices_shape = [10]
     indices_array = np.random.randint(
@@ -1366,16 +1430,16 @@ def test_binary_ops():
     dtype = "float32"
     out_shape = in_shape
 
-    def verify_binary_ops(op, x, y, out_np, broadcast=None):
+    def verify_binary_ops(op, x, y, out_np, x_name='in1', y_name='in2', broadcast=None):
         if broadcast is None:
-            z = helper.make_node(op, ['in1', 'in2'], ['out'])
+            z = helper.make_node(op, [x_name, y_name], ['out'])
         else:
-            z = helper.make_node(op, ['in1', 'in2'], ['out'], broadcast=1)
+            z = helper.make_node(op, [x_name, y_name], ['out'], broadcast=1)
         graph = helper.make_graph([z],
                                   '_test',
-                                  inputs=[helper.make_tensor_value_info("in1",
+                                  inputs=[helper.make_tensor_value_info(x_name,
                                                                         TensorProto.FLOAT, list(in_shape)),
-                                          helper.make_tensor_value_info("in2",
+                                          helper.make_tensor_value_info(y_name,
                                                                         TensorProto.FLOAT, list(in_shape))],
                                   outputs=[helper.make_tensor_value_info("out",
                                                                          TensorProto.FLOAT, list(out_shape))])
@@ -1393,6 +1457,7 @@ def test_binary_ops():
     verify_binary_ops("Sub", x, z, x - z, broadcast=True)
     verify_binary_ops("Mul", x, y, x * y, broadcast=None)
     verify_binary_ops("Mul", x, z,  x * z, broadcast=True)
+    verify_binary_ops("Mul", x, x, x * x, x_name='in1', y_name='in1', broadcast=None)
     verify_binary_ops("Div", x, y, x / y, broadcast=None)
     verify_binary_ops("Div", x, z, x / z, broadcast=True)
     verify_binary_ops("Sum", x, y, x + y, broadcast=None)
@@ -2329,6 +2394,43 @@ def test_nonzero():
     result = np.array((np.nonzero(input_data)))  # expected output [[0, 1, 2, 2], [0, 1, 0, 1]]
     verify_nonzero(input_data, result, dtype=np.int64)
 
+def test_topk():
+    def verify_topk(input_dims, K, axis=-1):
+        output_dims = list(input_dims)
+        output_dims[axis] = K
+
+        node = helper.make_node('TopK',
+                                inputs=['X', 'K'],
+                                outputs=['Values', 'Indicies'],
+                                axis=axis)
+
+        graph = helper.make_graph([node],
+                                  "topk_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
+                                          helper.make_tensor_value_info("K", TensorProto.INT64, [1,])],
+                                  initializer=[helper.make_tensor("K", TensorProto.INT64, [1], [K])],
+                                  outputs=[helper.make_tensor_value_info("Values", TensorProto.FLOAT, output_dims), 
+                                           helper.make_tensor_value_info("Indicies", TensorProto.INT64, output_dims)])
+
+        model = helper.make_model(graph, producer_name='topk_test')
+
+        indata = np.random.uniform(-10, 10, input_dims).astype(np.float32)
+        onnx_out = get_onnxruntime_output(model, [indata, k])
+
+        for target, ctx in [('llvm', tvm.cpu())]:
+            tvm_out = get_tvm_output(model, indata, target, ctx, [output_dims, output_dims], 
+                    output_dtype=['float32', 'int64'])
+            tvm.testing.assert_allclose(onnx_out, tvm_out, rtol=1e-05, atol=1e-05)
+    
+    for n in [12, 32]:
+        for shape in [[n], [n, n], [n, n, n]]:
+            for k in [1, 5, 10]:
+                verify_topk(shape, k)
+
+        verify_topk([n, n, n], 5, 0)
+        verify_topk([n, n, n], 5, 1)
+        verify_topk([n, n, n], 5, 2)
+    
 
 if __name__ == '__main__':
     test_flatten()
@@ -2341,11 +2443,15 @@ if __name__ == '__main__':
     test_slice()
     test_floor()
     test_ceil()
+    test_round()
+    test_isinf()
+    test_isnan()
     test_clip()
     test_onehot()
     test_matmul()
     test_batch_matmul()
     test_gather()
+    test_gather_nd()
     test_lrn()
     test_instance_norm()
     test_upsample()
@@ -2391,3 +2497,4 @@ if __name__ == '__main__':
     test_lstm()
     test_resize()
     test_nonzero()
+    test_topk()

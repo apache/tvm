@@ -20,7 +20,7 @@ import numpy
 
 def collect_visit(stmt, f):
     ret = []
-    tvm.tir.ir_pass.PostOrderVisit(stmt, lambda x : ret.append(f(x)))
+    tvm.tir.stmt_functor.post_order_visit(stmt, lambda x : ret.append(f(x)))
     return ret
 
 

@@ -215,10 +215,6 @@ Stmt InstrumentBoundCheckers(Stmt stmt) {
   return BoundChecker(bound_collector.mem_to_shape)(std::move(stmt));
 }
 
-
-TVM_REGISTER_GLOBAL("ir_pass.InstrumentBoundCheckers")
-.set_body_typed(InstrumentBoundCheckers);
-
 namespace transform {
 
 Pass InstrumentBoundCheckers() {

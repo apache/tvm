@@ -19,7 +19,7 @@
 set -e
 set -u
 
-export PYTHONPATH=python:topi/python
+source tests/scripts/setup-pytest-env.sh
 
 # Rebuild cython
 make cython3
@@ -27,4 +27,4 @@ make cython3
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-python3 -m pytest -v topi/tests/python/nightly
+python3 -m pytest topi/tests/python/nightly

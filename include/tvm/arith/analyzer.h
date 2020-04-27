@@ -112,7 +112,7 @@ class ConstIntBoundAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  ConstIntBound operator()(const PrimExpr& expr);
+  TVM_DLL ConstIntBound operator()(const PrimExpr& expr);
 
   /*!
    * \brief analyze the expr with the intermediate memorized to avoid redundant computation
@@ -120,8 +120,8 @@ class ConstIntBoundAnalyzer {
    * \param bound The lookup table to store the intermediate results
    * \return the result of the analysis.
    */
-  ConstIntBound operator()(const PrimExpr& expr,
-                           std::unordered_map<const PrimExprNode*, ConstIntBound>* bound);
+  TVM_DLL ConstIntBound operator()(const PrimExpr& expr,
+                                   std::unordered_map<const PrimExprNode*, ConstIntBound>* bound);
 
   /*!
    * \brief Update constant int bound information of var.
@@ -130,22 +130,23 @@ class ConstIntBoundAnalyzer {
    * \param info The bound information.
    * \param override Whether do we allow override of existing information.
    */
-  void Update(const Var& var,
-              const ConstIntBound& info,
-              bool override = false);
+  TVM_DLL void Update(const Var& var,
+                      const ConstIntBound& info,
+                      bool override = false);
   /*!
    * \brief Bind variable to a range.
    *
    * \param var The variable.
    * \param range The range we bind to.
+   * \param override Whether we allow overriding an existing var's range.
    */
-  void Bind(const Var& var, const Range& range);
+  TVM_DLL void Bind(const Var& var, const Range& range, bool override = false);
 
  private:
   friend class Analyzer;
   friend class ConstraintContext;
   explicit ConstIntBoundAnalyzer(Analyzer* parent);
-  ~ConstIntBoundAnalyzer();
+  TVM_DLL ~ConstIntBoundAnalyzer();
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -212,7 +213,7 @@ class ModularSetAnalyzer {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  ModularSet operator()(const PrimExpr& expr);
+  TVM_DLL ModularSet operator()(const PrimExpr& expr);
   /*!
    * \brief Update constant int bound information of var.
    *
@@ -220,15 +221,15 @@ class ModularSetAnalyzer {
    * \param info The bound information.
    * \param override Whether do we allow override of existing information.
    */
-  void Update(const Var& var,
-              const ModularSet& info,
-              bool override = false);
+  TVM_DLL void Update(const Var& var,
+                      const ModularSet& info,
+                      bool override = false);
 
  private:
   friend class Analyzer;
   friend class ConstraintContext;
   explicit ModularSetAnalyzer(Analyzer* parent);
-  ~ModularSetAnalyzer();
+  TVM_DLL ~ModularSetAnalyzer();
   /*!
    * \brief Update the internal state to enter constraint.
    * \param constraint A constraint expression.
@@ -252,7 +253,7 @@ class RewriteSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  PrimExpr operator()(const PrimExpr& expr);
+  TVM_DLL PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -261,9 +262,9 @@ class RewriteSimplifier {
    * \param new_expr
    * \param override Whether do we allow override of existing information.
    */
-  void Update(const Var& var,
-              const PrimExpr& new_expr,
-              bool override = false);
+  TVM_DLL void Update(const Var& var,
+                      const PrimExpr& new_expr,
+                      bool override = false);
 
   std::function<void()> EnterConstraint(const PrimExpr& constraint);
 
@@ -272,7 +273,7 @@ class RewriteSimplifier {
   friend class ConstraintContext;
   friend class CanonicalSimplifier;
   explicit RewriteSimplifier(Analyzer* parent);
-  ~RewriteSimplifier();
+  TVM_DLL ~RewriteSimplifier();
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -288,7 +289,7 @@ class CanonicalSimplifier {
    * \param expr The expression of interest.
    * \return the result of the analysis.
    */
-  PrimExpr operator()(const PrimExpr& expr);
+  TVM_DLL PrimExpr operator()(const PrimExpr& expr);
 
   /*!
    * \brief Update binding of var to a new expression.
@@ -297,15 +298,15 @@ class CanonicalSimplifier {
    * \param new_expr
    * \param override Whether do we allow override of existing information.
    */
-  void Update(const Var& var,
-              const PrimExpr& new_expr,
-              bool override = false);
+  TVM_DLL void Update(const Var& var,
+                      const PrimExpr& new_expr,
+                      bool override = false);
 
  private:
   friend class Analyzer;
   friend class ConstraintContext;
   explicit CanonicalSimplifier(Analyzer* parent);
-  ~CanonicalSimplifier();
+  TVM_DLL ~CanonicalSimplifier();
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -363,12 +364,12 @@ class IntSetAnalyzer {
    * \param dom_map The domain map to indicate which variable to relax.
    * \return the result of the analysis.
    */
-  IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
+  TVM_DLL IntSet operator()(const PrimExpr& expr, const Map<Var, IntSet>& dom_map);
 
  private:
   friend class Analyzer;
   explicit IntSetAnalyzer(Analyzer* parent);
-  ~IntSetAnalyzer();
+  TVM_DLL ~IntSetAnalyzer();
   class Impl;
   /*! \brief Internal impl */
   Impl* impl_;
@@ -384,7 +385,7 @@ class IntSetAnalyzer {
  * If the analyzer uses memoization, we need to clear the internal
  * cache when information about a Var has been overridden.
  */
-class Analyzer {
+class TVM_DLL Analyzer {
  public:
   /*
    * Disable copy constructor.
@@ -411,8 +412,9 @@ class Analyzer {
    *
    * \param var The variable.
    * \param expr The expression we bind to.
+   * \param override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Var& var, const PrimExpr& expr);
+  void Bind(const Var& var, const PrimExpr& expr, bool override = false);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -421,14 +423,16 @@ class Analyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
+   * \param override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Var& var, const Range& range);
+  void Bind(const Var& var, const Range& range, bool override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
+   * \param override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Map<Var, Range>& variables);
+  void Bind(const Map<Var, Range>& variables, bool override = false);
   /*!
    * \brief Whether can we prove expr >= val.
 
@@ -442,6 +446,19 @@ class Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   bool CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound);
+  /*!
+   * \brief Whether can we prove expr < val.
+
+   *  Non-negative proof is very useful in integer analysis
+   *  to lower divisions and mods given difference in trunc and ceil mode.
+   *
+   * \param expr The expression.
+   * \param upper_bound The upper bound.
+   * \return Whether we can prove it.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  bool CanProveLess(const PrimExpr& expr, int64_t upper_bound);
   /*!
    * \brief Whether can we prove condition.
    *

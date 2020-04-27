@@ -22,7 +22,6 @@
  * \brief Generate SPIRV block
  */
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/runtime/container.h>
 #include <string>
 #include "codegen_spirv.h"
@@ -103,11 +102,11 @@ spirv::Value CodeGenSPIRV::GetThreadIndex(
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
-    int size = 0;
-    CHECK(arith::GetConstInt(extent, &size))
+    auto* sizeptr = extent.as<tir::IntImmNode>();
+    CHECK(sizeptr)
         << "SPIRV only allows constant thread group size " << " get " << extent;
     CHECK_LT(ts.dim_index, 3);
-    workgroup_size_[ts.dim_index] = static_cast<uint32_t>(size);
+    workgroup_size_[ts.dim_index] = static_cast<uint32_t>(sizeptr->value);
   } else {
     v = builder_->GetWorkgroupID(ts.dim_index);
   }
@@ -414,7 +413,7 @@ spirv::Value CodeGenSPIRV::VisitExpr_(const LoadNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          PrimExpr vec_index = tir::Simplify(
+          PrimExpr vec_index = analyzer_->Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));
@@ -492,7 +491,7 @@ void CodeGenSPIRV::VisitStmt_(const StoreNode* op) {
           CHECK((me->coeff % ramp->lanes) == 0 &&
                 (me->base % ramp->lanes)  == 0)
               << "Only aligned vector access is allowed in SPIRV";
-          PrimExpr vec_index = tir::Simplify(
+          PrimExpr vec_index = analyzer_->Simplify(
               ramp->base / make_const(ramp->base.dtype(), ramp->lanes));
           spirv::Value ptr = builder_->StructArrayAccess(
               ptr_type, buffer, MakeValue(vec_index));

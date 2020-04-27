@@ -17,6 +17,7 @@
 
 import numpy as np
 import tvm
+import pickle
 from tvm import te
 from tvm import nd, relay
 from tvm.runtime import container as _container
@@ -56,6 +57,29 @@ def test_tuple_object():
     tvm.testing.assert_allclose(out.asnumpy(), np.array(11))
 
 
+def test_string():
+    s = tvm.runtime.String("xyz")
+
+    assert isinstance(s, tvm.runtime.String)
+    assert isinstance(s, str)
+    assert s.startswith("xy")
+    assert s + "1" == "xyz1"
+    y = tvm.testing.echo(s)
+    assert isinstance(y, tvm.runtime.String)
+    assert s.__tvm_object__.same_as(y.__tvm_object__)
+    assert s == y
+
+    x = tvm.ir.load_json(tvm.ir.save_json(y))
+    assert isinstance(x, tvm.runtime.String)
+    assert x == y
+
+    # test pickle
+    z = pickle.loads(pickle.dumps(s))
+    assert isinstance(z, tvm.runtime.String)
+    assert s == z
+
+
 if __name__ == "__main__":
+    test_string()
     test_adt_constructor()
     test_tuple_object()

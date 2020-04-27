@@ -23,7 +23,6 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/arith/analyzer.h>
@@ -98,36 +97,6 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
 }  // namespace arith
 
 namespace tir {
-
-Stmt CanonicalSimplify(Stmt stmt, Map<Var, Range> vrange) {
-  arith::Analyzer analyzer;
-  for (auto kv : vrange) {
-    analyzer.Bind(kv.first, kv.second);
-  }
-  return arith::StmtSimplifier(&analyzer).Simplify(std::move(stmt));
-}
-
-PrimExpr CanonicalSimplify(PrimExpr expr, Map<Var, Range> vrange) {
-  arith::Analyzer analyzer;
-  for (auto kv : vrange) {
-    analyzer.Bind(kv.first, kv.second);
-  }
-  return analyzer.canonical_simplify(expr);
-}
-
-PrimExpr Simplify(PrimExpr expr, Map<Var, Range> vrange) {
-  arith::Analyzer analyzer;
-  for (auto kv : vrange) {
-    analyzer.Bind(kv.first, kv.second);
-  }
-  expr = analyzer.Simplify(expr);
-  return expr;
-}
-
-Stmt Simplify(Stmt stmt, Map<Var, Range> vrange) {
-  return CanonicalSimplify(std::move(stmt), vrange);
-}
-
 namespace transform {
 
 Pass Simplify() {

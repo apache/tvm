@@ -78,7 +78,6 @@ struct ConvEntry {
   runtime::DeviceAPI *cuda_api;
   void *workspace{nullptr};
   size_t workspace_size{0};
-  int group_count {0};
   ConvEntry();
   ~ConvEntry();
   void UpdateWorkspace(const size_t wsize);

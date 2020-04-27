@@ -36,7 +36,7 @@ except (RuntimeError, ImportError):
     from tvm._ffi._ctypes.ndarray import NDArrayBase
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("runtime.NDArray")
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
 

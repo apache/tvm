@@ -86,7 +86,8 @@ class TypeContext {
       return it->second;
     }
     // try to allocate from parent's type table.
-    CHECK_LT(parent_tindex, type_table_.size());
+    CHECK_LT(parent_tindex, type_table_.size())
+        << " skey= " << skey << "static_index=" << static_tindex;
     TypeInfo& pinfo = type_table_[parent_tindex];
     CHECK_EQ(pinfo.index, parent_tindex);
 
@@ -108,7 +109,7 @@ class TypeContext {
           << " between " << type_table_[allocated_tindex].name
           << " and "
           << skey;
-    } else if (pinfo.allocated_slots + num_slots < pinfo.num_slots) {
+    } else if (pinfo.allocated_slots + num_slots <= pinfo.num_slots) {
       // allocate the slot from parent's reserved pool
       allocated_tindex = parent_tindex + pinfo.allocated_slots;
       // update parent's state
@@ -119,8 +120,8 @@ class TypeContext {
       // allocate new entries.
       allocated_tindex = type_counter_;
       type_counter_ += num_slots;
-      CHECK_LE(type_table_.size(), allocated_tindex);
-      type_table_.resize(allocated_tindex + 1, TypeInfo());
+      CHECK_LE(type_table_.size(), type_counter_);
+      type_table_.resize(type_counter_, TypeInfo());
     }
     CHECK_GT(allocated_tindex, parent_tindex);
     // initialize the slot.
@@ -161,6 +162,25 @@ class TypeContext {
     return it->second;
   }
 
+  void Dump(int min_children_count) {
+    std::vector<int> num_children(type_table_.size(), 0);
+    // reverse accumulation so we can get total counts in a bottom-up manner.
+    for (auto it = type_table_.rbegin(); it != type_table_.rend(); ++it) {
+      if (it->index != 0) {
+        num_children[it->parent_index] += num_children[it->index] + 1;
+      }
+    }
+
+    for (const auto& info : type_table_) {
+      if (info.index != 0 && num_children[info.index] >= min_children_count) {
+        std::cerr <<'[' << info.index << "] "<< info.name
+                  << "\tparent=" << type_table_[info.parent_index].name
+                  << "\tnum_child_slots=" << info.num_slots - 1
+                  << "\tnum_children=" << num_children[info.index] << std::endl;
+      }
+    }
+  }
+
   static TypeContext* Global() {
     static TypeContext inst;
     return &inst;
@@ -169,6 +189,7 @@ class TypeContext {
  private:
   TypeContext() {
     type_table_.resize(TypeIndex::kStaticIndexEnd, TypeInfo());
+    type_table_[0].name = "runtime.Object";
   }
   // mutex to avoid registration from multiple threads.
   std::mutex mutex_;
@@ -207,6 +228,11 @@ uint32_t Object::TypeKey2Index(const std::string& key) {
 TVM_REGISTER_GLOBAL("runtime.ObjectHash")
 .set_body_typed([](ObjectRef obj) {
   return static_cast<int64_t>(ObjectHash()(obj));
+});
+
+TVM_REGISTER_GLOBAL("runtime.DumpTypeTable")
+.set_body_typed([](int min_child_count) {
+  TypeContext::Global()->Dump(min_child_count);
 });
 }  // namespace runtime
 }  // namespace tvm

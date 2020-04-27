@@ -375,12 +375,12 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
   for (auto t : inputs) {
     axis_sizes.push_back(t->shape[axis]);
   }
-
+  arith::Analyzer analyzer;
   PrimExpr join_size = axis_sizes[0];
   for (size_t i = 1; i < axis_sizes.size(); ++i) {
     join_size += axis_sizes[i];
   }
-  join_size = tvm::tir::Simplify(join_size);
+  join_size = analyzer.Simplify(join_size);
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < inputs[0]->shape.size(); ++i) {
     out_shape.push_back(i == static_cast<size_t>(axis) ? join_size : inputs[0]->shape[i]);

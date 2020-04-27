@@ -133,9 +133,6 @@ Stmt RewriteUnsafeSelect(Stmt stmt) {
   return UnsafeSelectRewriter()(std::move(stmt));
 }
 
-TVM_REGISTER_GLOBAL("ir_pass.RewriteUnsafeSelect")
-.set_body_typed(RewriteUnsafeSelect);
-
 namespace transform {
 
 Pass RewriteUnsafeSelect() {

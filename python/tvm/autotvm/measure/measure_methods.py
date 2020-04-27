@@ -35,7 +35,6 @@ import numpy as np
 
 import tvm._ffi
 from tvm import nd, rpc as _rpc, target as _target
-from tvm.tir import ir_pass
 from tvm.error import TVMError
 from tvm.target import build_config
 from tvm.driver import build
@@ -615,9 +614,9 @@ def gpu_verify_pass(**kwargs):
     """Verify the validity of a gpu kernel.
     This pass will check memory usage and number of threads per block.
     """
-    def verify_pass(stmt):
-        valid = ir_pass.VerifyGPUCode(stmt, kwargs)
+    def verify_pass(f, *_):
+        valid = tvm.tir.analysis.verify_gpu_code(f, kwargs)
         if not valid:
             raise InstantiationError("Skipped because of invalid gpu kernel")
-        return stmt
-    return verify_pass
+        return f
+    return tvm.tir.transform.prim_func_pass(verify_pass, opt_level=0)

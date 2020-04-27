@@ -29,7 +29,6 @@
 #include <tvm/te/operation.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/op.h>
-#include <tvm/tir/ir_pass.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/target/target_info.h>
 #include <tvm/target/target.h>
@@ -508,7 +507,7 @@ class BufferAnalyser : public StmtExprVisitor {
           return;
         }
         auto index = rel_index[i];
-        auto simplified_index = tir::Simplify(index);
+        auto simplified_index = analyzer_.Simplify(index);
         index_visitor(simplified_index);
       }
 
@@ -611,7 +610,7 @@ class BufferAnalyser : public StmtExprVisitor {
           index_visitor.scaling_factor_ = shape->value;
         }
         auto index = rel_index[i];
-        auto simplified_index = tir::Simplify(index);
+        auto simplified_index = analyzer_.Simplify(index);
         index_visitor(simplified_index);
       }
     }
@@ -645,7 +644,7 @@ class BufferAnalyser : public StmtExprVisitor {
             PrimExpr offset = make_const(stride.dtype(), avec[dim].align_offset);
             stride = stride + \
               indexmod(factor + offset - indexmod(stride, factor), factor);
-            stride = tir::Simplify(stride);
+            stride = analyzer_.Simplify(stride);
           }
           rstrides.push_back(stride);
           stride = stride * shape[dim];
@@ -773,6 +772,7 @@ class BufferAnalyser : public StmtExprVisitor {
   IndexVisitor index_visitor;
   Tile warp_tile_;
   Tile thread_tile_;
+  arith::Analyzer analyzer_;
   int warp_threads_y_{-1};
   bool invalid_{false};
 };
@@ -1148,7 +1148,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
     buffer_node->strides = strides;
     buffer_node->shape = shape;
     buffer_node->data_alignment = 1;
-    buffer_node->elem_offset = Simplify(elem_offset);
+    buffer_node->elem_offset = analyzer_.Simplify(elem_offset);
     buffer_node->offset_factor = 1;
     Buffer buffer(buffer_node);
 
@@ -1184,6 +1184,7 @@ class TensorCoreIRMutator : public StmtExprMutator {
   std::unordered_map<const ProvideNode*, PrimExpr> frag_load_;
   std::unordered_map<const ProvideNode*, PrimExpr> frag_store_;
   std::unordered_map<TensorKey, Region> bounds_;
+  arith::Analyzer analyzer_;
   Tile warp_tile_;
   int warp_threads_y_{-1};
 };
