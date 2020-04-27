@@ -36,18 +36,30 @@ INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
 PKG_CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
 
+# a way to pass in extra args to the various cmake calls
+# for an example see `make build-llvm`
+CMAKE_ARGS =
+
+# a way to pass in extra args to the make calls, ex: running with 8 threads via "MAKE_ARGS='-j8'"
+MAKE_ARGS =
 
 all:
-	@mkdir -p build && cd build && cmake .. && $(MAKE)
+	mkdir -p build && cd build && cmake $(CMAKE_ARGS) .. && $(MAKE) $(MAKE_ARGS)
 
 runtime:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) runtime
+	@mkdir -p build && cd build && cmake $(CMAKE_ARGS) .. && $(MAKE) $(MAKE_ARGS) runtime
 
 vta:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) vta
+	@mkdir -p build && cd build && cmake $(CMAKE_ARGS) .. && $(MAKE) $(MAKE_ARGS) vta
 
 cpptest:
-	@mkdir -p build && cd build && cmake .. && $(MAKE) cpptest
+	@mkdir -p build && cd build && cmake $(CMAKE_ARGS) .. && $(MAKE) $(MAKE_ARGS) cpptest
+
+# SYSTEM DEPENDENCIES: llvm
+# make sure llvm is in your path
+# Example with a "brew install llvm" setup: PATH="/usr/local/opt/llvm/bin:$PATH" make build-llvm
+build-llvm:
+	$(MAKE) all CMAKE_ARGS="-DUSE_LLVM=ON" MAKE_ARGS=$(MAKE_ARGS)
 
 # EMCC; Web related scripts
 EMCC_FLAGS= -std=c++11 -DDMLC_LOG_STACK_TRACE=0\
@@ -98,14 +110,16 @@ javadoc:
 
 # gonna try and run https://docs.tvm.ai/tutorials/relay_quick_start.html
 # PYTHON DEPENDENCIES: cython wheel
-build-wheel: cython
+build-wheel-with-llvm: cython build-llvm
 	cd python; python3 setup.py sdist
 	cd python; python3 setup.py bdist_wheel
+	@echo "New wheel created at: "$(shell pwd)/python/dist/$(shell ls `pwd`/python/dist | grep .whl)
 
 # PYTHON DEPENDENCIES: wheel
 build-wheel-topi:
 	cd topi/python; python3 setup.py sdist
 	cd topi/python; python3 setup.py bdist_wheel
+	@echo "New wheel created at: "$(shell pwd)/python/dist/$(shell ls `pwd`/python/dist | grep .whl)
 
 # Cython build
 # NOTE: make sure you run `make` first
