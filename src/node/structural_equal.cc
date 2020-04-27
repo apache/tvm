@@ -29,9 +29,9 @@
 
 namespace tvm {
 
-// Define the dispatch functio here since primary user is in this file.
-bool ReflectionVTable::SEqualReduce(const Object* self, const Object* other,
-                                    SEqualReducer equal) const {
+// Define the dispatch function here since primary user is in this file.
+bool ReflectionVTable::
+SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const {
   uint32_t tindex = self->type_index();
   if (tindex >= fsequal_reduce_.size() || fsequal_reduce_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: SEqualReduce of " << self->GetTypeKey()

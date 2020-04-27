@@ -249,17 +249,123 @@ struct SemVer {
     int patch;
 };
 
+class MetaRefExpr;
+class MetaRefExprNode : public TempExprNode {
+ public:
+    std::string type_key;
+    uint64_t node_index;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+  }
+
+  Expr Realize() const final {
+      return Expr();
+  }
+
+  static constexpr const char* _type_key = "relay.MetaRefExpr";
+  TVM_DECLARE_FINAL_OBJECT_INFO(MetaRefExprNode, TempExprNode);
+};
+
+class MetaRefExpr : public TempExpr {
+ public:
+  /*!
+   * \brief The constructor
+   * \param expr The original relay expression.
+   * \param kind The annotation kind.
+   */
+  TVM_DLL MetaRefExpr(std::string type_key, uint64_t node_index);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(MetaRefExpr, TempExpr, MetaRefExprNode);
+};
+
+MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
+  auto rnode = make_object<MetaRefExprNode>();
+  rnode->type_key = type_key;
+  rnode->node_index = node_index;
+  data_ = std::move(rnode);
+}
+
 struct Parser {
     int pos;
     std::vector<Token> tokens;
+    bool ignore_whitespace;
+
+    std::unordered_map<int, Expr> graph_ctx;
 
     Parser(std::vector<Token> tokens) : pos(0), tokens(tokens) {}
+
+    void DisplayNextN(int n) {
+        std::cout << "remaining tokens: " << std::endl;
+        auto bound = std::min(pos + n, (int)tokens.size());
+        for (int i = 0; i < bound - pos; i++) {
+            std::cout << tokens[pos + i] << std::endl;
+        }
+    }
     // // A Relay program is a list of global definitions or an expression.
 // prog: SEMVER (defn* | expr) METADATA? EOF ;
-    void Consume(const TokenType& token) {
-        if (tokens[pos]->token_type != token) {
-            throw std::runtime_error("does not match");
+    Token Peek() {
+        while (ignore_whitespace &&
+               tokens.at(pos)->token_type == TokenType::Whitespace) {
+            pos++;
         }
+
+        return this->tokens.at(pos);
+    }
+
+    void Consume(const TokenType& token) {
+        std::cout << token << std::endl;
+        if (tokens[pos]->token_type != token) {
+            throw std::runtime_error("expected a " + ToString(token)
+                + " found " + ToString(Peek()->token_type)
+                + " at " + std::to_string(tokens[pos]->line) + ":"
+                + std::to_string(tokens[pos]->column));
+        }
+        pos++;
+    }
+
+    Token Match(const TokenType& token_type) {
+        auto tok = Peek();
+        Consume(token_type);
+        return tok;
+    }
+
+    bool WhenMatch(const TokenType& token_type) {
+        if (Peek()->token_type == token_type) {
+            Consume(token_type);
+            return true;
+        } else {
+            std::cout << "doesn't match"
+                << ToString(Peek()->token_type)
+                << ToString(token_type);
+            return false;
+        }
+    }
+
+    void AddGraphBinding(const Token& token, const Expr& expr) {
+        auto graph_no = token.ToNumber();
+        this->graph_ctx.insert({graph_no, expr});
+    }
+
+    Expr LookupGraphBinding(const Token& token) {
+        auto graph_no = token.ToNumber();
+        std::cout << "graph_no" << graph_no;
+        std::cout << this->graph_ctx.size() << std::endl;
+        return this->graph_ctx.at(graph_no);
+    }
+
+    NDArray NumberToNDArray(const Token& token_type) {
+        DLContext ctx({ .device_type = DLDeviceType::kDLCPU, .device_id = 0 });
+        auto dtype = String2DLDataType("int32");
+        auto data = NDArray::Empty({}, dtype, ctx);
+        auto array = reinterpret_cast<int32_t*>(data->data);
+        // revisit this, literal node issue.
+        int64_t value = Downcast<Integer>(token_type->data);
+        array[0] = (int32_t)value;
+        return data;
+    }
+
+    [[noreturn]] void ParseError(const Token& token, const std::string& msg) {
+        throw std::runtime_error(msg);
     }
 
     IRModule ParseModule() {
@@ -267,6 +373,7 @@ struct Parser {
         auto defs = ParseDefinitions();
         auto metadata = ParseMetadata();
         Consume(TokenType::EndOfFile);
+        return IRModule();
     }
 
     SemVer ParseSemVer() {
@@ -281,8 +388,83 @@ struct Parser {
         return defs;
     }
 
-    ObjectRef ParseMetadata() {
+    Expr ParseExpr() {
+        return ConsumeWhitespace<Expr>([this] {
+            auto next = Peek();
+            switch (next->token_type) {
+            case TokenType::Graph: {
+                Consume(TokenType::Graph);
+                if (WhenMatch(TokenType::Equal)) {
+                    return ParseGraphExpr(next);
+                } else {
+                    return LookupGraphBinding(next);
+                }
+            }
+            case TokenType::Number: {
+                Consume(TokenType::Number);
+                auto data = NumberToNDArray(next);
+                Expr e = Constant(data);
+                return e;
+            }
+            case TokenType::OpenParen: {
+                Consume(TokenType::OpenParen);
+                // parse '(' ')'
+                if (WhenMatch(TokenType::CloseParen)) {
+                    Expr e = Tuple(Array<Expr>());
+                    return e;
+                } else {
+                    auto expr = ParseExpr();
+                    // parse '(' expr ')'
+                    if (WhenMatch(TokenType::CloseParen)) {
+                        return expr;
+                    // parse '( expr ',' * ')'
+                    } else if (WhenMatch(TokenType::Comma)) {
+                        Array<Expr> exprs = { expr };
+                        while (true) {
+                            if (WhenMatch(TokenType::CloseParen)) {
+                                break;
+                            } else {
+                                auto expr = ParseExpr();
+                                WhenMatch(TokenType::Comma);
+                                exprs.push_back(expr);
+                            }
+                        }
+                        return static_cast<Expr>(Tuple(exprs));
+                    }
+                }
+            }
+            default:
+                ParseError(next,
+                    "expected an expression found  " + ToString(next->token_type)
+                    + std::to_string(next->line) + ":" + std::to_string(next->column));
+            }
+        });
+    }
 
+    Expr ParseGraphExpr(const Token& graph_var) {
+        std::cout << "IN HERE";
+        DisplayNextN(10);
+        auto val = ParseExpr();
+        AddGraphBinding(graph_var, val);
+        Consume(TokenType::Semicolon);
+        auto body = ParseExpr();
+        return body;
+    }
+
+    template<typename R>
+    R ConsumeWhitespace(std::function<R()> func) {
+        auto old = this->ignore_whitespace;
+        this->ignore_whitespace = true;
+        while (tokens[pos]->token_type == TokenType::Whitespace) {
+            pos++;
+        }
+        auto res = func();
+        this->ignore_whitespace = old;
+        return res;
+    }
+
+    ObjectRef ParseMetadata() {
+        return ObjectRef();
     }
 };
 
@@ -296,13 +478,13 @@ IRModule ParseModule(std::string file_name, std::string file_content) {
 }
 
 
-IRModule ParseExpr(std::string file_name, std::string file_content) {
+Expr ParseExpr(std::string file_name, std::string file_content) {
     auto tokens = Tokenize(file_content);
     for (auto token : tokens) {
         std::cout << token << std::endl;
     }
     Parser parser(tokens);
-    return parser.ParseModule();
+    return parser.ParseExpr();
 }
 
 TVM_REGISTER_GLOBAL("parser.ParseModule")

@@ -36,6 +36,10 @@ enum TokenType {
     Newline,
     StringLiteral,
     Identifier,
+    Local,
+    Global,
+    Op,
+    Graph,
     OpenParen,
     CloseParen,
     AtSymbol,
@@ -65,6 +69,14 @@ std::string ToString(const TokenType& token_type) {
             return "StringLiteral";
         case TokenType::Identifier:
             return "Identifier";
+        case TokenType::Local:
+            return "Local";
+        case TokenType::Global:
+            return "Global";
+        case TokenType::Graph:
+            return "Graph";
+        case TokenType::Op:
+            return "Op";
         case TokenType::OpenParen:
             return "OpenParen";
         case TokenType::CloseParen:
@@ -123,6 +135,7 @@ class Token : public ObjectRef {
  public:
   TVM_DLL explicit Token(int line, int column, TokenType token_type, ObjectRef data = ObjectRef());
 
+  int64_t ToNumber() const;
   TVM_DEFINE_OBJECT_REF_METHODS(Token, ObjectRef, TokenNode);
 };
 
@@ -135,12 +148,15 @@ Token::Token(int line, int column, TokenType token_type, ObjectRef data) {
   data_ = std::move(n);
 }
 
+int64_t Token::ToNumber() const {
+    return Downcast<tvm::Integer>(this->operator->()->data);
+}
 
 bool IsDigit(char c) {
     return '0' <= c && c <= '9';
 }
 
-bool isWhitespace(char c) {
+bool IsWhitespace(char c) {
     return ' ' == c || c == '\t' || c == '\n';
 }
 
@@ -192,7 +208,7 @@ struct Tokenizer {
         } else if (next == '"') {
             LOG(FATAL) << "string not working yet";
             return NewToken(TokenType::Unknown);
-        } else if (isWhitespace(next)) {
+        } else if (IsWhitespace(next)) {
             auto token = NewToken(TokenType::Whitespace);
             Next();
             return token;
@@ -207,6 +223,10 @@ struct Tokenizer {
             return token;
         } else if (next == '.') {
             auto token = NewToken(TokenType::Period);
+            Next();
+            return token;
+        } else if (next == ',') {
+            auto token = NewToken(TokenType::Comma);
             Next();
             return token;
         } else if (next == '=') {
@@ -225,10 +245,14 @@ struct Tokenizer {
             auto token = NewToken(TokenType::CloseParen);
             Next();
             return token;
+         } else if (next == '%') {
+            auto token = NewToken(TokenType::Percent);
+            Next();
+            return token;
         } else {
             auto token = NewToken(TokenType::Unknown);
             std::stringstream ss;
-            while (More() && !isWhitespace(Peek())) {
+            while (More() && !IsWhitespace(Peek())) {
                 ss << Next();
             }
             token->data = tvm::String(ss.str());
@@ -247,10 +271,40 @@ struct Tokenizer {
     }
 };
 
+std::vector<Token> Condense(const std::vector<Token>& tokens) {
+    std::vector<Token> out;
+
+    for (auto i = 0; i < tokens.size(); i++) {
+        auto current = tokens.at(i);
+        switch (current->token_type) {
+            case TokenType::Percent: {
+                auto next = tokens.at(i + 1);
+                if (next->token_type == TokenType::Identifier) {
+                    // Match this token.
+                    i += 1;
+                    out.push_back(Token(current->line, current->column, TokenType::Local, next->data));
+                    continue;
+                } else if (next->token_type == TokenType::Number) {
+                    i += 1;
+                    out.push_back(Token(current->line, current->column, TokenType::Graph, next->data));
+                    continue;
+                } else {
+                    out.push_back(current);
+                }
+            }
+            default: {
+                out.push_back(current);
+            }
+        }
+    }
+
+    return out;
+}
+
 std::vector<Token> Tokenize(std::string source) {
     auto tokenizer = Tokenizer(source);
     tokenizer.Tokenize();
-    return tokenizer.tokens;
+    return Condense(tokenizer.tokens);
 }
 
 }  // namespace parser

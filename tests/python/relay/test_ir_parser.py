@@ -76,6 +76,7 @@ def graph_equal(lhs, rhs):
 
 def roundtrip(expr):
     x = relay.fromtext(expr.astext())
+    import pdb; pdb.set_trace()
     assert_graph_equal(x, expr)
 
 
