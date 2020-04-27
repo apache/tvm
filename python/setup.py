@@ -21,7 +21,6 @@ import os
 import shutil
 import sys
 import sysconfig
-import platform
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
@@ -128,7 +127,11 @@ setup_kwargs = {}
 if wheel_include_libs:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
-            shutil.copy(path, os.path.join(CURRENT_DIR, 'tvm'))
+            try:
+                shutil.copy(path, os.path.join(CURRENT_DIR, 'tvm'))
+            except shutil.SameFileError:
+                # NOTE: this happens with `make cython3`
+                pass
             _, libname = os.path.split(path)
             fo.write("include tvm/%s\n" % libname)
     setup_kwargs = {

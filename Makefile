@@ -96,12 +96,24 @@ javadoc:
 	# build artifact is in jvm/core/target/site/apidocs
 	cd jvm && mvn javadoc:javadoc -Dnotimestamp=true
 
+# gonna try and run https://docs.tvm.ai/tutorials/relay_quick_start.html
+# PYTHON DEPENDENCIES: cython wheel
+build-wheel: cython
+	cd python; python3 setup.py sdist
+	cd python; python3 setup.py bdist_wheel
+
+# PYTHON DEPENDENCIES: wheel
+build-wheel-topi:
+	cd topi/python; python3 setup.py sdist
+	cd topi/python; python3 setup.py bdist_wheel
+
 # Cython build
+# NOTE: make sure you run `make` first
+# SYSTEM DEPENDENCIES: cmake
 cython:
 	cd python; python3 setup.py build_ext --inplace
 
-cython3:
-	cd python; python3 setup.py build_ext --inplace
+cython3: cython
 
 cyclean:
 	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.dylib python/tvm/*/*/*.cpp
