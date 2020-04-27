@@ -138,8 +138,9 @@ class ConstIntBoundAnalyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
+   * \param override Whether we allow overriding an existing var's range.
    */
-  TVM_DLL void Bind(const Var& var, const Range& range);
+  TVM_DLL void Bind(const Var& var, const Range& range, bool override = false);
 
  private:
   friend class Analyzer;
@@ -411,8 +412,9 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param expr The expression we bind to.
+   * \param override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Var& var, const PrimExpr& expr);
+  void Bind(const Var& var, const PrimExpr& expr, bool override = false);
   /*!
    * \brief Notify all the sub-analyzers that var
    *        is created and binded to a range.
@@ -421,14 +423,16 @@ class TVM_DLL Analyzer {
    *
    * \param var The variable.
    * \param range The range we bind to.
+   * \param override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Var& var, const Range& range);
+  void Bind(const Var& var, const Range& range, bool override = false);
   /*!
    * \brief Bind all the vars in the Map
    *
    * \param variables The {variable -> range} map.
+   * \param override Whether we allow overriding an existing var's expression.
    */
-  void Bind(const Map<Var, Range>& variables);
+  void Bind(const Map<Var, Range>& variables, bool override = false);
   /*!
    * \brief Whether can we prove expr >= val.
 
@@ -442,6 +446,19 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   bool CanProveGreaterEqual(const PrimExpr& expr, int64_t lower_bound);
+  /*!
+   * \brief Whether can we prove expr < val.
+
+   *  Non-negative proof is very useful in integer analysis
+   *  to lower divisions and mods given difference in trunc and ceil mode.
+   *
+   * \param expr The expression.
+   * \param upper_bound The upper bound.
+   * \return Whether we can prove it.
+   *
+   * \note Analyzer will call into sub-analyzers to get the result.
+   */
+  bool CanProveLess(const PrimExpr& expr, int64_t upper_bound);
   /*!
    * \brief Whether can we prove condition.
    *

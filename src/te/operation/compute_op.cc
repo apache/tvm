@@ -231,7 +231,7 @@ void ComputeOpNode::PropBoundToInputs(
           // undefined behaviour), so we can intersect the estimated set of the argument with the
           // range expected by the tensor. However, intersection may result in overly complex
           // expressions, so we perform a more relaxed form of intersection.
-          IntSet arg_intset = EvalSet(call->args[i], dom_map);
+          IntSet arg_intset = analyzer->int_set(call->args[i], ConvertDomMap(dom_map));
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
             PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());
@@ -239,12 +239,14 @@ void ComputeOpNode::PropBoundToInputs(
             PrimExpr min_value = arg_interval->min_value;
             PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
-            if (arith::is_neg_inf(min_value) ||
-                analyzer->CanProve(shape_i_min_value >= min_value)) {
+            // We must update bound's ends in pairs.  Here is an counter example: shape_i is
+            // [0, 0] and arg_interval is [threadIdx.y, threadIdx.y], where threadIdx.y's range is
+            // [0, 7]. If we allowed updating one end, the bound would become [threadIdx.y, 0],
+            // awkward for further analysis.
+            if ((arith::is_pos_inf(max_value) && arith::is_neg_inf(min_value)) ||
+                (analyzer->CanProve(shape_i_min_value >= min_value) &&
+                 analyzer->CanProve(shape_i_max_value <= max_value))) {
               min_value = shape_i_min_value;
-            }
-            if (arith::is_pos_inf(max_value) ||
-                analyzer->CanProve(shape_i_max_value <= max_value)) {
               max_value = shape_i_max_value;
             }
             dom.data[i].push_back(IntSet::interval(min_value, max_value));

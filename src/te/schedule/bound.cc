@@ -137,7 +137,7 @@ void InferRootBound(const Stage& stage,
   Array<IterVar> stage_attach = ctx.attach_path.at(stage->op);
   // The parent set.
   for (const Operation& op : consumers) {
-    std::unordered_map<const VarNode*, IntSet> relax_set;
+    Map<Var, IntSet> relax_set;
     std::unordered_map<IterVar, IntSet> up_state;
     bool found_attach = false;
     CHECK(ctx.op2stage_.count(op.get()));
@@ -176,9 +176,9 @@ void InferRootBound(const Stage& stage,
           << "InferBound requires every leaf iter var's min equals 0, "
           << "call schedule.normalize to achieve this.";
       if (NeedRelax(iv, found_attach, ctx.bind_map, scope)) {
-        relax_set[iv->var.get()] = IntSet::range(vrange);
+        relax_set.Set(iv->var, IntSet::range(vrange));
         if (ctx.bind_map.count(iv)) {
-          relax_set[ctx.bind_map.at(iv)->var.get()] = IntSet::range(vrange);
+          relax_set.Set(ctx.bind_map.at(iv)->var, IntSet::range(vrange));
         }
       }
     }
@@ -190,6 +190,9 @@ void InferRootBound(const Stage& stage,
     // Relax if needed.
     std::unordered_map<const VarNode*, IntSet> dom_map;
     arith::Analyzer analyzer;
+    for (auto entry : *rmap) {
+      analyzer.Bind(entry.first->var, entry.second);
+    }
     for (auto iv : op->root_iter_vars()) {
       Range r;
       if (up_state.count(iv)) {
@@ -198,11 +201,13 @@ void InferRootBound(const Stage& stage,
         r = iv->dom;
       }
       if (relax_set.size() != 0) {
-        dom_map[iv->var.get()] = EvalSet(r, relax_set);
+        dom_map[iv->var.get()] = IntSet::interval(
+            analyzer.int_set(r->min, relax_set).min(),
+            analyzer.int_set(r->min + r->extent - 1, relax_set).max());
       } else {
         dom_map[iv->var.get()] = IntSet::range(r);
       }
-      analyzer.Bind(iv->var, r);
+      analyzer.Bind(iv->var, r, true);
     }
     op->PropBoundToInputs(op, &analyzer, dom_map, &tmap);
   }
