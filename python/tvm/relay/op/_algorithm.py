@@ -55,6 +55,9 @@ def _topk_shape_func(data, k, axis):
 
 @_reg.register_shape_func("topk", True)
 def topk_shape_func(attrs, inputs, _):
+    """
+    Shape func for topk.
+    """
     axis = attrs.axis
     if axis < 0:
         axis += len(inputs[0].shape)
