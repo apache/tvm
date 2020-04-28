@@ -508,6 +508,34 @@ def test_any_pad():
     verify_any_pad(any_dims(3), ((0, 0), (1, 1), (2, 2)), (1, 2, 3))
     verify_any_pad(any_dims(4), ((1, 0), (1, 3), (0, 2), (9, 0)), (13, 11, 3, 1))
 
+def verify_any_dilate(data_shape, strides, static_data_shape):
+    assert len(data_shape) == len(strides)
+    mod = tvm.IRModule()
+    dtype = "float32"
+    data = relay.var('data', shape=data_shape, dtype=dtype)
+    y = relay.nn.dilate(data, strides)
+    mod["main"] = relay.Function([data], y)
+    data_np = np.random.uniform(size=static_data_shape).astype(dtype)
+    ref_shape = tuple((static_data_shape[i] - 1) * strides[i] + 1
+                      for i in range(len(static_data_shape)))
+    ref_out = np.zeros(shape=ref_shape, dtype=dtype)
+    ref_out[tuple(slice(None, None, strides[i]) for i in range(len(data_shape)))] = data_np
+
+    for kind in ["debug", "vm"]:
+        ex = relay.create_executor(kind, mod=mod, ctx=tvm.cpu(), target="llvm")
+        result = ex.evaluate()(data_np)
+        tvm.testing.assert_allclose(result.asnumpy(), ref_out)
+
+def test_any_dilate():
+    verify_any_dilate(any_dims(1), (1,), (1,))
+    verify_any_dilate(any_dims(1), (1,), (5,))
+    verify_any_dilate(any_dims(1), (5,), (5,))
+    verify_any_dilate(any_dims(3), (1, 1, 1), (1, 2, 3))
+    verify_any_dilate(any_dims(3), (1, 1, 2), (1, 2, 3))
+    verify_any_dilate(any_dims(3), (1, 1, 5), (1, 2, 3))
+    verify_any_dilate(any_dims(3), (3, 7, 5), (1, 2, 3))
+    verify_any_dilate(any_dims(4), (3, 7, 1, 5), (1, 2, 3, 4))
+
 def verify_any_softmax(data_shape, axis, static_data_shape, ref_out_shape):
     mod = tvm.IRModule()
     dtype = "float32"
