@@ -39,7 +39,7 @@ from .op import call_llvm_intrin, all, any, min_value, max_value, trace
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp
 from .op import cos, sin, cosh, sinh, tan, tanh, atan, atan2
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
-from .op import trunc, abs, round, nextafter, nearbyint, power, popcount, fmod, if_then_else
+from .op import trunc, abs, round, nextafter, nearbyint, power, popcount, fmod, if_then_else, likely
 from .op import isnan, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum

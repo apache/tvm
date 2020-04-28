@@ -138,6 +138,16 @@ def LiftAttrScope(attr_key):
     return _ffi_api.LiftAttrScope(attr_key)
 
 
+def IfThenElseIntrinToStmt():
+    """ Convert tvm_if_then_else intrinsics to be IfThenElse statements
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.IfThenElseIntrinToStmt()
+
 def LoopPartition(split_const_loop):
     """Inject virtual thread loops.
 

@@ -111,6 +111,14 @@ TVM_DLL Pass CoProcSync();
 TVM_DLL Pass LiftAttrScope(std::string attr_key);
 
 /*!
+ * \brief Convert tvm_if_then_else intrinsics to be IfThenElse
+ * statements
+ *
+ * \return The pass.
+ */
+TVM_DLL Pass IfThenElseIntrinToStmt();
+
+/*!
  * \brief partition loops in the stmt.
  *
  * \param split_const_loop flag to enable partition for const loop

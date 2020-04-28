@@ -182,7 +182,10 @@ def lower(sch,
 
     # Phase 2
     if not simple_mode:
-        pass_list += [(tvm.tir.transform.LoopPartition(cfg.partition_const_loop))]
+        pass_list += [
+            tvm.tir.transform.IfThenElseIntrinToStmt(),
+            tvm.tir.transform.LoopPartition(cfg.partition_const_loop),
+        ]
 
     pass_list += [
         tvm.tir.transform.VectorizeLoop(not cfg.disable_vectorize),

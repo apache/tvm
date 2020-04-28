@@ -909,7 +909,7 @@ def if_then_else(cond, t, f):
     Parameters
     ----------
     cond : PrimExpr
-        The condition
+        The condition, which can be wrapped with likely
 
     t : PrimExpr
         The result expression if cond is true.
@@ -931,6 +931,22 @@ def if_then_else(cond, t, f):
     if some lanes in the vector have different conditions.
     """
     return _ffi_api._OpIfThenElse(convert(cond), convert(t), convert(f))
+
+
+def likely(cond):
+    """Tag a condition to be likely to happen
+
+    Parameters
+    ----------
+    cond : PrimExpr
+        The condition
+
+    Returns
+    -------
+    result : Node
+        The tagged condition
+    """
+    return _ffi_api._OpLikely(convert(cond))
 
 
 def div(a, b):
