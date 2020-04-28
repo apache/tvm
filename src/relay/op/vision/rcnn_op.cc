@@ -36,6 +36,8 @@ bool ROIAlignRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* rois = types[1].as<TensorTypeNode>();
+  CHECK(data);
+  CHECK(rois);
   const auto& dshape = data->shape;
   const auto& rshape = rois->shape;
   CHECK(roi_align_attrs);
