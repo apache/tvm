@@ -1776,8 +1776,11 @@ class OperatorConverter(object):
                         "qnn.op.max_pool2d requires input and output qnn params to be same"
             out = _op.nn.max_pool2d(in_expr, **params)
         elif pool_type == "l2":
-            # l2_pool_2d is equivalent to square_root(avg_pool(square(in_data)))
-            # TFLite does not have support for quantised l2_pool_2d op.
+            # L2_POOL_2D is equivalent to square_root(avg_pool(square(in_data)))
+            # TFLite does not have support for quantised L2_POOL_2D op.
+            assert not input_tensor.qnn_params, \
+                "As TFLite does not have support for quantized L2_POOL_2D, \
+                Quantized input is not expected."
             exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
             square_exp = _op.power(in_expr, relay.const(2, exp_type))
             avg_pool_exp = _op.nn.avg_pool2d(square_exp, **params)
