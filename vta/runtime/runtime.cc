@@ -145,6 +145,7 @@ struct DataBuffer {
  */
 class UopKernel {
  public:
+  static const size_t kDefaultAccDepDistance = 3U;
   /*! \brief Loop information. */
   struct LoopEntry {
     uint32_t extent;
@@ -159,6 +160,12 @@ class UopKernel {
    */
   UopKernel(const char* signature, int nbytes)
       : signature_(signature, signature + nbytes) {
+    const char* d_str = std::getenv("VTA_ACC_DEP_DISTANCE");
+    if (d_str) {
+      acc_dep_distance_ = std::atoi(d_str);
+    } else {
+      acc_dep_distance_ = kDefaultAccDepDistance;
+    }
   }
   /*!
    * \brief Verify if the signature is correct.
@@ -288,7 +295,7 @@ class UopKernel {
  private:
   // Verify that we don't write to the same acc_mem index two cycles in a row
   void VerifyDep(uint32_t dst_index) {
-    size_t step = std::min(static_cast<size_t>(2U), seq_.size());
+    size_t step = std::min(acc_dep_distance_ - 1, seq_.size());
     for (size_t i = seq_.size() - step; i < seq_.size(); ++i) {
       CHECK(seq_[i].dst_idx != dst_index);
     }
@@ -308,6 +315,8 @@ class UopKernel {
   std::vector<LoopEntry> loop_;
   // The loop pointer
   size_t loop_ptr_{0};
+  // acc dep distance
+  size_t acc_dep_distance_{0};
 };
 
 /*!
