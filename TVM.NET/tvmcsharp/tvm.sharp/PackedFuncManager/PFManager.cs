@@ -49,6 +49,11 @@ namespace TVMRuntime
 
     public static class PFManager
     {
+        /// <summary>
+        /// Runs the packed func.
+        /// </summary>
+        /// <param name="funcHandle">Func handle.</param>
+        /// <param name="inputArgs">Input arguments.</param>
         public static void RunPackedFunc(UIntPtr funcHandle, object [] inputArgs)
         {
             int numArgs = inputArgs.Length;
@@ -104,6 +109,38 @@ namespace TVMRuntime
             UnamangedPFManagerWrapper.InvokeTVMRuntimePackedFunc(funcHandle,
                 args, typeCodes, numArgs, ref retVal, ref retTypeCode);
 
+        }
+
+        /// <summary>
+        /// Runs the packed func.
+        /// </summary>
+        /// <param name="funcHandle">Func handle.</param>
+        /// <param name="inputArgs">Input arguments.</param>
+        public static void RunPackedFunc(UIntPtr funcHandle, string[] inputArgs)
+        {
+            int numArgs = inputArgs.Length;
+            int[] typeCodes = new int[numArgs];
+
+            for (int i = 0; i < numArgs; i++)
+            {
+                typeCodes[i] = (int)TVMTypeCode.TVMStr;
+            }
+
+            TVMValue retVal = new TVMValue();
+            int retTypeCode = 0;
+
+            UnamangedPFManagerWrapper.InvokeTVMRuntimePackedFuncStr(funcHandle,
+                inputArgs, typeCodes, numArgs, ref retVal, ref retTypeCode);
+
+        }
+
+        /// <summary>
+        /// Disposes the packed func.
+        /// </summary>
+        /// <param name="funcHandle">Func handle.</param>
+        public static void DisposePackedFunc(UIntPtr funcHandle)
+        {
+            UnamangedPFManagerWrapper.DisposeTVMRuntimeFuncHandle(funcHandle);
         }
     }
 }

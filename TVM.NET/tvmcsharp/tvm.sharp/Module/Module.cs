@@ -96,10 +96,7 @@ namespace TVMRuntime
         /// </summary>
         ~Module()
         {
-            if (!UIntPtr.Zero.Equals(_moduleHandle))
-            {
-                UnmanagedModuleWrapper.DisposeModule(_moduleHandle);
-            }
+            DisposeModule();
         }
     }
 }

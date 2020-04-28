@@ -76,6 +76,14 @@ namespace TVMRuntime
         /// <summary>
         /// Initializes a new instance of the <see cref="T:TVMRuntime.NDArray"/> class.
         /// </summary>
+        public NDArray()
+        {
+
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="T:TVMRuntime.NDArray"/> class.
+        /// </summary>
         /// <param name="shapeInp">Shape inp.</param>
         /// <param name="ndimInp">Ndim inp.</param>
         /// <param name="dataType">Data type.</param>
@@ -117,10 +125,43 @@ namespace TVMRuntime
         }
 
         /// <summary>
-        /// Gets the ND Array handle.
+        /// Gets or sets the NDArray handle.
         /// </summary>
-        /// <value>The NDA rray handle.</value>
-        public IntPtr NDArrayHandle { get => _arrayHandle; }
+        /// <value>The NDArray handle.</value>
+        public IntPtr NDArrayHandle
+        {
+            get => _arrayHandle; set
+            {
+                // To make sure there is no memory leak
+                if (!IntPtr.Zero.Equals(_arrayHandle))
+                {
+                    UnmanagedNDArrayWrapper.DisposeNDArray(_arrayHandle);
+                }
+                _arrayHandle = value;
+                _shape = UnmanagedNDArrayWrapper.GetNDArrayShape(_arrayHandle);
+                _ndim = UnmanagedNDArrayWrapper.GetNDArrayNdim(_arrayHandle);
+                _arraySize = 1;
+                Array.ForEach(_shape, i => _arraySize *= i);
+            }
+        }
+
+        /// <summary>
+        /// Gets the shape.
+        /// </summary>
+        /// <value>The shape.</value>
+        public int [] Shape { get => _shape; }
+
+        /// <summary>
+        /// Gets the ndim.
+        /// </summary>
+        /// <value>The ndim.</value>
+        public int Ndim { get => _ndim; }
+
+        /// <summary>
+        /// Gets the size.
+        /// </summary>
+        /// <value>The size.</value>
+        public int Size { get => _arraySize; }
 
         /// <summary>
         /// Gets or sets the <see cref="T:TVMRuntime.NDArray"/> with the specified i.
@@ -133,12 +174,24 @@ namespace TVMRuntime
         }
 
         /// <summary>
+        /// Disposes the NDArray.
+        /// </summary>
+        public void DisposeNDArray()
+        {
+            if (!IntPtr.Zero.Equals(_arrayHandle))
+            {
+                UnmanagedNDArrayWrapper.DisposeNDArray(_arrayHandle);
+                _arrayHandle = IntPtr.Zero;
+            }
+        }
+
+        /// <summary>
         /// Releases unmanaged resources and performs other cleanup operations before the
         /// <see cref="T:TVMRuntime.NDArray"/> is reclaimed by garbage collection.
         /// </summary>
         ~NDArray()
         {
-            UnmanagedNDArrayWrapper.DisposeNDArray(_arrayHandle);
+            DisposeNDArray();
         }
     }
 }

@@ -126,7 +126,21 @@ namespace TVMRuntime
                 {
                     shapeOut[i] = ((TVMTensor*)arrayHandle)->shape[i];
                 }
+
                 return shapeOut;
+            }
+        }
+
+        /// <summary>
+        /// Gets the NDArray ndim.
+        /// </summary>
+        /// <returns>The NDA rray ndim.</returns>
+        /// <param name="arrayHandle">Array handle.</param>
+        public static int GetNDArrayNdim(IntPtr arrayHandle)
+        {
+            unsafe
+            {
+                return ((TVMTensor*)arrayHandle)->ndim;
             }
         }
 
