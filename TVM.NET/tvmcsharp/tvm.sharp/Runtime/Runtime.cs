@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using static TVMRuntime.Utils;
 
@@ -42,6 +43,7 @@ namespace TVMRuntime
         private UIntPtr _runtimeHandle = UIntPtr.Zero;
 
         // all embeded func handles
+        // TODO: Convert to Map[name, funchandles]
         private UIntPtr _runtimeRunFuncHandle = UIntPtr.Zero;
         private UIntPtr _runtimeSetInputFuncHandle = UIntPtr.Zero;
         private UIntPtr _runtimeLoadParamHandle = UIntPtr.Zero;
@@ -53,6 +55,11 @@ namespace TVMRuntime
         /// <param name="runtimeParam">Runtime parameter.</param>
         private void CreateInstance(RuntimeParams runtimeParam)
         {
+            string errMsg = "";
+            if (!ValidateInputs(runtimeParam, ref errMsg))
+            {
+                throw new System.ArgumentException("Please provide valid path for ", errMsg);
+            }
             _module = new Module(runtimeParam.modLibPath,
                                 runtimeParam.modLibFormat);
 
@@ -110,6 +117,12 @@ namespace TVMRuntime
         }
 
         /// <summary>
+        /// Gets the runtime handle.
+        /// </summary>
+        /// <value>The runtime handle.</value>
+        public UIntPtr RuntimeHandle { get => _runtimeHandle; }
+
+        /// <summary>
         /// Run this instance.
         /// </summary>
         public void Run ()
@@ -148,7 +161,7 @@ namespace TVMRuntime
         /// </summary>
         /// <param name="outputIndex">Output index.</param>
         /// <param name="outputTensor">Output tensor.</param>
-        public void GetOutput(int outputIndex, ref TVMTensor outputTensor)
+        public void GetOutput(int outputIndex, ref NDArray outputTensor)
         {
             if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
 
@@ -156,6 +169,58 @@ namespace TVMRuntime
                 outputIndex, ref outputTensor);
         }
 
-        // TODO: Destructor
+        /// <summary>
+        /// Disposes the runtime.
+        /// </summary>
+        public void DisposeRuntime()
+        {
+            if (_isInstantiated)
+            {
+                // Release all resources from runtime module
+                PFManager.DisposePackedFunc(_runtimeRunFuncHandle);
+                PFManager.DisposePackedFunc(_runtimeSetInputFuncHandle);
+                PFManager.DisposePackedFunc(_runtimeLoadParamHandle);
+                PFManager.DisposePackedFunc(_runtimeGetOutputFuncHandle);
+                UnmanagedRuntimeWrapper.DisposeRuntime(_runtimeHandle);
+                _runtimeHandle = UIntPtr.Zero;
+                _module.DisposeModule();
+                _isInstantiated = false;
+            }
+        }
+
+        /// <summary>
+        /// Validates the inputs.
+        /// </summary>
+        /// <returns><c>true</c>, if inputs are valid, <c>false</c> otherwise.</returns>
+        /// <param name="runtimeParams">Runtime parameters.</param>
+        public static bool ValidateInputs(RuntimeParams runtimeParams, ref string errMsg)
+        {
+            if ((!File.Exists(runtimeParams.modLibPath)))
+            {
+                errMsg = "RuntimeParams.modLibPath : module(lib) file path.";
+                return false;
+            }
+            if ((!File.Exists(runtimeParams.graphJsonPath)))
+            {
+                errMsg = "RuntimeParams.graphJsonPath : graph(json) file path.";
+                return false;
+            }
+            if ((!File.Exists(runtimeParams.paramDictPath)))
+            {
+                errMsg = "RuntimeParams.paramDictPath : params file path.";
+                return false;
+            }
+            return true;
+        }
+
+
+        /// <summary>
+        /// Releases unmanaged resources and performs other cleanup operations before the
+        /// <see cref="T:TVMRuntime.Runtime"/> is reclaimed by garbage collection.
+        /// </summary>
+        ~Runtime()
+        {
+            DisposeRuntime();
+        }
     }
 }

@@ -85,24 +85,6 @@ namespace TVMRuntime
             ref int retTypeCode);
 
         /// <summary>
-        /// TVM func call.
-        /// </summary>
-        /// <returns>The unc call.</returns>
-        /// <param name="funcHandle">Func handle.</param>
-        /// <param name="args">Arguments.</param>
-        /// <param name="argTypeCodes">Argument type codes.</param>
-        /// <param name="numArgs">Number arguments.</param>
-        /// <param name="retVal">Ret value.</param>
-        /// <param name="retTypeCode">Ret type code.</param>
-        [DllImport(Utils.libName)]
-        private static extern int TVMFuncCall(UIntPtr funcHandle,
-            int args,
-            [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
-            int numArgs,
-            ref TVMTensor retVal,
-            ref int retTypeCode);
-
-        /// <summary>
         /// Invokes the TVM Runtime create packed func.
         /// </summary>
         /// <param name="funcHandle">Func handle.</param>
@@ -150,23 +132,6 @@ namespace TVMRuntime
             ref UIntPtr retVal, ref int retTypeCode)
         {
             TVMFuncCall(funcHandle, ref args, argTypeCodes, numArgs,
-                ref retVal, ref retTypeCode);
-        }
-
-        /// <summary>
-        /// Invokes the TVM Runtime get output func.
-        /// </summary>
-        /// <param name="funcHandle">Func handle.</param>
-        /// <param name="arg">Argument.</param>
-        /// <param name="argTypeCodes">Argument type codes.</param>
-        /// <param name="numArgs">Number arguments.</param>
-        /// <param name="retVal">Ret value.</param>
-        /// <param name="retTypeCode">Ret type code.</param>
-        private static void InvokeTVMRuntimeGetOutputFunc(UIntPtr funcHandle,
-            int arg, int[] argTypeCodes, int numArgs,
-            ref TVMTensor retVal, ref int retTypeCode)
-        {
-            TVMFuncCall(funcHandle, arg, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
         }
 
@@ -317,15 +282,21 @@ namespace TVMRuntime
         public static void InvokeRuntimeGetOutputFunc(
                             UIntPtr getOutputFuncHandle,
                             int outputIndex,
-                            ref TVMTensor outputTensor)
+                            ref NDArray outputTensor)
         {
             int retTypeCode = 0;
-            
-            InvokeTVMRuntimeGetOutputFunc(
-                getOutputFuncHandle,
-                outputIndex,
+            TVMValue retOutput = new TVMValue();
+
+            UnamangedPFManagerWrapper.InvokeTVMRuntimePackedFunc(getOutputFuncHandle,
+                new TVMValue[] { new TVMValue(outputIndex) },
                 new int[] { (int)TVMDataTypeCode.Int }, 1,
-                ref outputTensor, ref retTypeCode);
+                ref retOutput, ref retTypeCode);
+
+            // Update the NDArray
+            unsafe
+            {
+                outputTensor.NDArrayHandle = (IntPtr)retOutput.handle.ToPointer();
+            }
         }
 
         /// <summary>
@@ -367,6 +338,15 @@ namespace TVMRuntime
                 Marshal.FreeHGlobal(pnt);
                 Marshal.FreeHGlobal(pnt1);
             }
+        }
+
+        /// <summary>
+        /// Disposes the runtime.
+        /// </summary>
+        /// <param name="runtimeHandle">Runtime handle.</param>
+        public static void DisposeRuntime(UIntPtr runtimeHandle)
+        {
+            UnmanagedModuleWrapper.DisposeModule(runtimeHandle);
         }
 
         // TODO: Add other runtime member function as well
