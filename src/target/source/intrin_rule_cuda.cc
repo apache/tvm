@@ -81,14 +81,34 @@ struct CUDAPopcount {
   }
 };
 
+
+struct CUDAWarpIntrinsic {
+  const char* operator()(DataType t, const std::string& name) const {
+    if (name == intrinsic::tvm_warp_shuffle) {
+      return "__shfl_sync";
+    }
+    if (name == intrinsic::tvm_warp_shuffle_up) {
+      return "__shfl_up_sync";
+    }
+    if (name == intrinsic::tvm_warp_shuffle_down) {
+      return "__shfl_down_sync";
+    }
+    if (name == intrinsic::tvm_warp_activemask) {
+      return "__activemask";
+    }
+    return "";
+  }
+};
+
+template <typename T>
 static void DispatchCUDAShuffle(const TVMArgs& args, TVMRetValue* rv) {
   PrimExpr e = args[0];
   const CallNode* call = e.as<CallNode>();
   CHECK(call != nullptr);
-  CHECK_EQ(call->args.size(), 4);  // value, warp_id, width, warp_size
+  CHECK_EQ(call->args.size(), 5);  // mask, value, warp_id, width, warp_size
   Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2]}};
-  *rv = CallNode::make(
-      call->dtype, "__shfl", cuda_args, CallNode::PureExtern);
+  const char* name = T()(call->dtype, call->name);
+  *rv = CallNode::make(call->dtype, name, cuda_args, CallNode::PureExtern);
 }
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.floor")
@@ -158,7 +178,16 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
 .set_body(DispatchExtern<CUDAPopcount>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
-.set_body(DispatchCUDAShuffle);
+.set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_up")
+.set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle_down")
+.set_body(DispatchCUDAShuffle<CUDAWarpIntrinsic>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_activemask")
+.set_body(DispatchExtern<CUDAWarpIntrinsic>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod")
 .set_body(DispatchExtern<CUDAMath>);

@@ -1234,22 +1234,43 @@ constexpr const char *tvm_call_trace_packed_lowered =
  *  }
  */
 constexpr const char* tvm_storage_sync = "tvm_storage_sync";
+
 /*!
  * \brief See pseudo code
  *
- *  Type tvm_warp_shuffle(Type value, warp_id, width, warp_size) {
- *     return (value passed in by warp indicated by warp_id);
+ *  Type tvm_warp_shuffle(mask, Type value, warp_id, width, warp_size) {
+ *    return (value passed in by warp indicated by this_warp_id);
+ *  }
+ *
+ *  Type tvm_warp_shuffle_up(mask, Type value, offset, width, warp_size) {
+ *    return (value passed in by warp indicated by this_warp_id - offset);
+ *  }
+ *
+ *  Type tvm_warp_shuffle_down(mask, Type value, offset, width, warp_size) {
+ *    return (value passed in by warp indicated by this_warp_id + offset);
+ *  }
+ *
+ *  unsigned tvm_warp_activemask() {
+ *    return (32-bit mask of currently active threads in the calling warp);
  *  }
  *
  *  Parameter warp_id indicates the source thread ID in a warp.
  *
+ *  Parameter offset indicates the relative distance to this_warp_id.
+ *
  *  Parameter width indicates the number of threads involved in one
- *  shuffle. See CUDA document for __shfl.
+ *  shuffle. See CUDA document for __shfl_sync, __shfl_up_sync,
+ *  __shfl_down_sync and __activemask.
  *
  *  Parameter warp_size is the size of a warp, which helps a backend
  *  to determine wheter the width paramter is legal.
+ *
  */
 constexpr const char* tvm_warp_shuffle = "tvm_warp_shuffle";
+constexpr const char* tvm_warp_shuffle_up = "tvm_warp_shuffle_up";
+constexpr const char* tvm_warp_shuffle_down = "tvm_warp_shuffle_down";
+constexpr const char* tvm_warp_activemask = "tvm_warp_activemask";
+
 /*!
  * \brief Initialize the global barrier.
  *  Call this at beginning of kernel that need global barrier.
