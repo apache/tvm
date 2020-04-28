@@ -227,6 +227,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
     warp_coeff_ = WarpStoreCoeffFinder(
         buffer_, warp_index_, analyzer_).Find(op->body);
+    if (warp_coeff_ == 0) {  // no store at all. maybe simplified by previous passes
+      return StmtExprMutator::VisitStmt_(op);
+    }
     CHECK_EQ(alloc_size % (width_ * warp_coeff_), 0)
         << "Warp memory must be multiple of the extent of threadIdx.x";
     warp_group_ = alloc_size / (width_ * warp_coeff_);
