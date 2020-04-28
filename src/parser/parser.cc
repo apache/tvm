@@ -22,10 +22,11 @@
  * \brief A parser for TVM IR.
  */
 #include <tvm/ir/module.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/function.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/relay/function.h>
-#include <tvm/relay/expr.h>
+
 #include <fstream>
 
 #include "./tokenizer.h"
@@ -95,8 +96,6 @@ using namespace relay;
 
 // METADATA: 'METADATA:' .*;
 // // Parsing
-
-
 
 // // Covers both operator and type idents
 // generalIdent: CNAME ('.' CNAME)*;
@@ -224,33 +223,30 @@ using namespace relay;
 //   ;
 
 struct GlobalFunc {
-    GlobalVar global;
-    Function function;
+  GlobalVar global;
+  Function function;
 };
 
 struct Definitions {
-    std::vector<GlobalFunc> funcs;
-    std::vector<TypeData> types;
+  std::vector<GlobalFunc> funcs;
+  std::vector<TypeData> types;
 };
 
 struct SemVer {
-    int major;
-    int minor;
-    int patch;
+  int major;
+  int minor;
+  int patch;
 };
 
 class MetaRefExpr;
 class MetaRefExprNode : public TempExprNode {
  public:
-    std::string type_key;
-    uint64_t node_index;
+  std::string type_key;
+  uint64_t node_index;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  Expr Realize() const final {
-      return Expr();
-  }
+  Expr Realize() const final { return Expr(); }
 
   static constexpr const char* _type_key = "relay.MetaRefExpr";
   TVM_DECLARE_FINAL_OBJECT_INFO(MetaRefExprNode, TempExprNode);
@@ -276,241 +272,277 @@ MetaRefExpr::MetaRefExpr(std::string type_key, uint64_t node_index) {
 }
 
 struct Parser {
-    int pos;
-    std::vector<Token> tokens;
-    bool ignore_whitespace;
+  int pos;
+  std::vector<Token> tokens;
+  bool ignore_whitespace;
 
-    std::unordered_map<int, Expr> graph_ctx;
+  std::unordered_map<int, Expr> graph_ctx;
 
-    Parser(std::vector<Token> tokens) : pos(0), tokens(tokens) {}
+  Parser(std::vector<Token> tokens) : pos(0), tokens(tokens) {}
 
-    void DisplayNextN(int n) {
-        std::cout << "remaining tokens: " << std::endl;
-        auto bound = std::min(pos + n, (int)tokens.size());
-        for (int i = 0; i < bound - pos; i++) {
-            std::cout << tokens[pos + i] << std::endl;
-        }
+  void DisplayNextN(int n) {
+    std::cout << "remaining tokens: " << std::endl;
+    auto bound = std::min(pos + n, (int)tokens.size());
+    for (int i = 0; i < bound - pos; i++) {
+      std::cout << tokens[pos + i] << std::endl;
+    }
+  }
+
+  Token Peek() {
+    // For now we ignore all whitespace tokens and comments.
+    // We can tweak this behavior later to enable white space sensitivity in the parser.
+    while (ignore_whitespace && (tokens.at(pos)->token_type == TokenType::Whitespace ||
+                                 tokens.at(pos)->token_type == TokenType::Newline ||
+                                 tokens.at(pos)->token_type == TokenType::LineComment ||
+                                 tokens.at(pos)->token_type == TokenType::Comment)) {
+      pos++;
     }
 
-    Token Peek() {
-        // For now we ignore all whitespace tokens and comments.
-        // We can tweak this behavior later to enable white space sensitivity in the parser.
-        while (ignore_whitespace &&
-               (tokens.at(pos)->token_type == TokenType::Whitespace ||
-               tokens.at(pos)->token_type == TokenType::Newline ||
-               tokens.at(pos)->token_type == TokenType::LineComment ||
-               tokens.at(pos)->token_type == TokenType::Comment)) {
-            pos++;
-        }
+    return this->tokens.at(pos);
+  }
 
-        return this->tokens.at(pos);
+  void Consume(const TokenType& token) {
+    std::cout << token << std::endl;
+    if (tokens[pos]->token_type != token) {
+      throw std::runtime_error(
+          "expected a " + ToString(token) + " found " + ToString(Peek()->token_type) + " at " +
+          std::to_string(tokens[pos]->line) + ":" + std::to_string(tokens[pos]->column));
     }
+    pos++;
+  }
 
-    void Consume(const TokenType& token) {
-        std::cout << token << std::endl;
-        if (tokens[pos]->token_type != token) {
-            throw std::runtime_error("expected a " + ToString(token)
-                + " found " + ToString(Peek()->token_type)
-                + " at " + std::to_string(tokens[pos]->line) + ":"
-                + std::to_string(tokens[pos]->column));
-        }
-        pos++;
+  Token Match(const TokenType& token_type) {
+    auto tok = Peek();
+    Consume(token_type);
+    return tok;
+  }
+
+  bool WhenMatch(const TokenType& token_type) {
+    if (Peek()->token_type == token_type) {
+      Consume(token_type);
+      return true;
+    } else {
+      std::cout << "doesn't match" << ToString(Peek()->token_type) << ToString(token_type);
+      return false;
     }
+  }
 
-    Token Match(const TokenType& token_type) {
-        auto tok = Peek();
-        Consume(token_type);
-        return tok;
+  void AddGraphBinding(const Token& token, const Expr& expr) {
+    auto graph_no = token.ToNumber();
+    this->graph_ctx.insert({graph_no, expr});
+  }
+
+  Expr LookupGraphBinding(const Token& token) {
+    auto graph_no = token.ToNumber();
+    std::cout << "graph_no" << graph_no;
+    std::cout << this->graph_ctx.size() << std::endl;
+    return this->graph_ctx.at(graph_no);
+  }
+
+  NDArray NumberToNDArray(const Token& token_type) {
+    DLContext ctx({.device_type = DLDeviceType::kDLCPU, .device_id = 0});
+    auto dtype = String2DLDataType("int32");
+    auto data = NDArray::Empty({}, dtype, ctx);
+    auto array = reinterpret_cast<int32_t*>(data->data);
+    // revisit this, literal node issue.
+    int64_t value = Downcast<Integer>(token_type->data);
+    array[0] = (int32_t)value;
+    return data;
+  }
+
+  [[noreturn]] void ParseError(const Token& token, const std::string& msg) {
+    throw std::runtime_error(msg);
+  }
+
+  IRModule ParseModule() {
+    // Parse the semver header at the top of the module.
+    auto _version = ParseSemVer();
+    // Parse the definitions.
+    auto defs = ParseDefinitions();
+    // Parse the metadata section at the end.
+    auto metadata = ParseMetadata();
+    Consume(TokenType::EndOfFile);
+    return IRModule();
+  }
+
+  SemVer ParseSemVer() {
+    Consume(TokenType::Unknown);
+    return SemVer{.major = 0, .minor = 0, .patch = 0};
+  }
+
+  Definitions ParseDefinitions() {
+    Definitions defs;
+
+    return defs;
+  }
+
+  template <typename R>
+  R Bracket(TokenType open, TokenType close, std::function<R()> parser) {
+    Consume(open);
+    R result;
+    if (WhenMatch(close)) {
+      return result;
+    } else {
+      result = parser();
     }
+  }
 
-    bool WhenMatch(const TokenType& token_type) {
-        if (Peek()->token_type == token_type) {
-            Consume(token_type);
-            return true;
+  template <typename R>
+  R Parens(std::function<R()> parser) {
+    return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
+  }
+
+  Expr ParseBindingExpr() {
+    // We use a loop here so that the stack depth
+    // does not grow linearly with a sequence of
+    // graph or let bindings.
+    //
+    // Assuming we start at call depth k, we will
+    // enter k + c call frames to parse the RHS
+    // of the bindings where `c` is the depth
+    // of recursion needed by RHS.
+    //
+    // If RHS is a call expresssion the c=1.
+    //
+    // Once we have parsed the RHS we will be
+    // back at depth K, and will return to
+    // this loop header to parse another
+    // graph or let binding.
+    //
+    // This ensures for n sequential bindings
+    // the call depth will be the same before
+    // and after parsing the n bindings.
+    std::vector<std::pair<Var, Expr>> bindings;
+    while (true) {
+      auto next = Peek();
+      if (next->token_type == TokenType::Graph) {
+        Consume(TokenType::Graph);
+        if (WhenMatch(TokenType::Equal)) {
+          auto val = this->ParseExpr();
+          AddGraphBinding(next, val);
+          Consume(TokenType::Semicolon);
         } else {
-            std::cout << "doesn't match"
-                << ToString(Peek()->token_type)
-                << ToString(token_type);
-            return false;
+          // This case is a little weird to put here,
+          // if we don't find an equal right after
+          // a graph expression it is simply a reference
+          // to the graph expression and not a binding
+          // but for now we handle the case here.
+          return LookupGraphBinding(next);
         }
-    }
-
-    void AddGraphBinding(const Token& token, const Expr& expr) {
-        auto graph_no = token.ToNumber();
-        this->graph_ctx.insert({graph_no, expr});
-    }
-
-    Expr LookupGraphBinding(const Token& token) {
-        auto graph_no = token.ToNumber();
-        std::cout << "graph_no" << graph_no;
-        std::cout << this->graph_ctx.size() << std::endl;
-        return this->graph_ctx.at(graph_no);
-    }
-
-    NDArray NumberToNDArray(const Token& token_type) {
-        DLContext ctx({ .device_type = DLDeviceType::kDLCPU, .device_id = 0 });
-        auto dtype = String2DLDataType("int32");
-        auto data = NDArray::Empty({}, dtype, ctx);
-        auto array = reinterpret_cast<int32_t*>(data->data);
-        // revisit this, literal node issue.
-        int64_t value = Downcast<Integer>(token_type->data);
-        array[0] = (int32_t)value;
-        return data;
-    }
-
-    [[noreturn]] void ParseError(const Token& token, const std::string& msg) {
-        throw std::runtime_error(msg);
-    }
-
-    IRModule ParseModule() {
-        // Parse the semver header at the top of the module.
-        auto _version = ParseSemVer();
-        // Parse the definitions.
-        auto defs = ParseDefinitions();
-        // Parse the metadata section at the end.
-        auto metadata = ParseMetadata();
-        Consume(TokenType::EndOfFile);
-        return IRModule();
-    }
-
-    SemVer ParseSemVer() {
-        Consume(TokenType::Unknown);
-        return SemVer { .major = 0, .minor = 0, .patch = 0 };
-    }
-
-
-    Definitions ParseDefinitions() {
-        Definitions defs;
-
-        return defs;
-    }
-
-    template<typename R>
-    R Bracket(TokenType open, TokenType close, std::function<R()> parser) {
-        Consume(open);
-        R result;
-        if (WhenMatch(close)) {
-            return result;
-        } else {
-            result = parser();
-        }
-    }
-
-    template<typename R>
-    R Parens(std::function<R()> parser) {
-        return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
-    }
-
-    Expr ParseExpr() {
-        return ConsumeWhitespace<Expr>([this] {
-            auto next = Peek();
-            switch (next->token_type) {
-            case TokenType::Graph: {
-                Consume(TokenType::Graph);
-                if (WhenMatch(TokenType::Equal)) {
-                    return ParseGraphExpr(next);
-                } else {
-                    return LookupGraphBinding(next);
-                }
-            }
-            case TokenType::Number: {
-                Consume(TokenType::Number);
-                auto data = NumberToNDArray(next);
-                Expr e = Constant(data);
-                return e;
-            }
-            case TokenType::OpenParen: {
-                Consume(TokenType::OpenParen);
-                // parse '(' ')'
-                if (WhenMatch(TokenType::CloseParen)) {
-                    Expr e = Tuple(Array<Expr>());
-                    return e;
-                } else {
-                    auto expr = ParseExpr();
-                    // parse '(' expr ')'
-                    if (WhenMatch(TokenType::CloseParen)) {
-                        return expr;
-                    // parse '( expr ',' * ')'
-                    } else if (WhenMatch(TokenType::Comma)) {
-                        Array<Expr> exprs = { expr };
-                        while (true) {
-                            if (WhenMatch(TokenType::CloseParen)) {
-                                break;
-                            } else {
-                                auto expr = ParseExpr();
-                                WhenMatch(TokenType::Comma);
-                                exprs.push_back(expr);
-                            }
-                        }
-                        return static_cast<Expr>(Tuple(exprs));
-                    }
-                }
-            }
-            default:
-                ParseError(next,
-                    "expected an expression found  " + ToString(next->token_type)
-                    + std::to_string(next->line) + ":" + std::to_string(next->column));
-            }
-        });
-    }
-
-    Expr ParseGraphExpr(const Token& graph_var) {
-        std::cout << "IN HERE";
-        DisplayNextN(10);
-        auto val = ParseExpr();
-        AddGraphBinding(graph_var, val);
+      } else if (next->token_type == TokenType::Let) {
+        LOG(FATAL) << "parse let binding";
+        auto val = this->ParseExpr();
+        // TODO add to binding context.
         Consume(TokenType::Semicolon);
-        auto body = ParseExpr();
-        return body;
-    }
-
-    template<typename R>
-    R ConsumeWhitespace(std::function<R()> func) {
-        auto old = this->ignore_whitespace;
-        this->ignore_whitespace = true;
-        while (tokens[pos]->token_type == TokenType::Whitespace) {
-            pos++;
+      } else {
+        // This is the only case we will increase the stack
+        // depth.
+        //
+        // If we parse a program which is a sequence of N bindings
+        // followed by a single body expression we will end up with
+        // a call depth of 3, the first call to ParseExpr, then
+        // ParseBindingExpr, then finally ParseExpr once more.
+        auto body = this->ParseExpr();
+        if (bindings.size()) {
+          return body;
+        } else {
+          LOG(FATAL) << "let bindings case";
         }
-        auto res = func();
-        this->ignore_whitespace = old;
-        return res;
+      }
     }
+  }
 
-    ObjectRef ParseMetadata() {
-        return ObjectRef();
+  Expr ParseExpr() {
+    return ConsumeWhitespace<Expr>([this] {
+      auto next = Peek();
+      switch (next->token_type) {
+        // For graph or let, match first rhs, then invoke ParseBindingExpr
+        // ParseBindingExpression then parse_lhs() parse_rhs() ';' continue
+        case TokenType::Graph:
+        case TokenType::Let:
+          return ParseBindingExpr();
+        case TokenType::Number: {
+          Consume(TokenType::Number);
+          auto data = NumberToNDArray(next);
+          Expr e = Constant(data);
+          return e;
+        }
+        case TokenType::OpenParen: {
+          Consume(TokenType::OpenParen);
+          // parse '(' ')'
+          if (WhenMatch(TokenType::CloseParen)) {
+            Expr e = Tuple(Array<Expr>());
+            return e;
+          } else {
+            auto expr = ParseExpr();
+            // parse '(' expr ')'
+            if (WhenMatch(TokenType::CloseParen)) {
+              return expr;
+              // parse '( expr ',' * ')'
+            } else if (WhenMatch(TokenType::Comma)) {
+              Array<Expr> exprs = {expr};
+              while (true) {
+                if (WhenMatch(TokenType::CloseParen)) {
+                  break;
+                } else {
+                  auto expr = ParseExpr();
+                  WhenMatch(TokenType::Comma);
+                  exprs.push_back(expr);
+                }
+              }
+              return static_cast<Expr>(Tuple(exprs));
+            }
+          }
+        }
+        default:
+          ParseError(next, "expected an expression found  " + ToString(next->token_type) +
+                               std::to_string(next->line) + ":" + std::to_string(next->column));
+      }
+    });
+  }
+
+  template <typename R>
+  R ConsumeWhitespace(std::function<R()> func) {
+    auto old = this->ignore_whitespace;
+    this->ignore_whitespace = true;
+    while (tokens[pos]->token_type == TokenType::Whitespace) {
+      pos++;
     }
+    auto res = func();
+    this->ignore_whitespace = old;
+    return res;
+  }
+
+  ObjectRef ParseMetadata() { return ObjectRef(); }
 };
 
 IRModule ParseModule(std::string file_name, std::string file_content) {
-    auto tokens = Tokenize(file_content);
-    for (auto token : tokens) {
-        std::cout << token << std::endl;
-    }
-    Parser parser(tokens);
-    return parser.ParseModule();
+  auto tokens = Tokenize(file_content);
+  for (auto token : tokens) {
+    std::cout << token << std::endl;
+  }
+  Parser parser(tokens);
+  return parser.ParseModule();
 }
 
-
 Expr ParseExpr(std::string file_name, std::string file_content) {
-    auto tokens = Tokenize(file_content);
-    for (auto token : tokens) {
-        std::cout << token << std::endl;
-    }
-    Parser parser(tokens);
-    return parser.ParseExpr();
+  auto tokens = Tokenize(file_content);
+  for (auto token : tokens) {
+    std::cout << token << std::endl;
+  }
+  Parser parser(tokens);
+  return parser.ParseExpr();
 }
 
 TVM_REGISTER_GLOBAL("parser.ParseModule")
-.set_body_typed([](std::string file_name, std::string file_content) {
-  return ParseModule(file_name, file_content);
-});
+    .set_body_typed([](std::string file_name, std::string file_content) {
+      return ParseModule(file_name, file_content);
+    });
 
 TVM_REGISTER_GLOBAL("parser.ParseExpr")
-.set_body_typed([](std::string file_name, std::string file_content) {
-  return ParseExpr(file_name, file_content);
-});
-
-
+    .set_body_typed([](std::string file_name, std::string file_content) {
+      return ParseExpr(file_name, file_content);
+    });
 
 }  // namespace parser
 }  // namespace tvm

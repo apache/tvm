@@ -54,6 +54,7 @@ enum TokenType {
     Colon,
     Number,
     Division,
+    Let,
     Unknown,
     EndOfFile,
 };
@@ -108,6 +109,8 @@ std::string ToString(const TokenType& token_type) {
             return "Number";
         case TokenType::Division:
             return "Division";
+        case TokenType::Let:
+            return "Let";
         case TokenType::Unknown:
             return "Unknown";
         case TokenType::EndOfFile:
