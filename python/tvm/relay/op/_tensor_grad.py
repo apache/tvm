@@ -232,14 +232,14 @@ def divide_grad(orig, grad):
 
 @register_gradient("zeros")
 def zeros_grad(orig, grad):
-    """Returns []"""
-    return []
+    """Returns [shape]"""
+    return [orig.args[0]]
 
 
 @register_gradient("ones")
 def ones_grad(orig, grad):
-    """Returns []"""
-    return []
+    """Returns [shape]"""
+    return [orig.args[0]]
 
 
 @register_gradient("zeros_like")
