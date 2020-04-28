@@ -32,6 +32,8 @@ using namespace runtime;
 enum TokenType {
     CommentStart,
     CommentEnd,
+    LineComment,
+    Comment,
     Whitespace,
     Newline,
     StringLiteral,
@@ -51,6 +53,7 @@ enum TokenType {
     Semicolon,
     Colon,
     Number,
+    Division,
     Unknown,
     EndOfFile,
 };
@@ -61,6 +64,10 @@ std::string ToString(const TokenType& token_type) {
             return "CommentStart";
         case TokenType::CommentEnd:
             return "CommentEnd";
+        case TokenType::LineComment:
+            return "LineComment";
+        case TokenType::Comment:
+            return "Comment";
         case TokenType::Whitespace:
             return "WhiteSpace";
         case TokenType::Newline:
@@ -99,6 +106,8 @@ std::string ToString(const TokenType& token_type) {
             return "Equal";
         case TokenType::Number:
             return "Number";
+        case TokenType::Division:
+            return "Division";
         case TokenType::Unknown:
             return "Unknown";
         case TokenType::EndOfFile:
@@ -193,6 +202,59 @@ struct Tokenizer {
         return Token(this->line, this->col, token_type, data);
     }
 
+    enum CommentParserState {
+        Proceed,
+        Forward,
+        Backward,
+    };
+
+    void MatchComment(std::string& buffer) {
+        // We only invoke this after we have matched the first start
+        // token assume, we are proceeding the parse forward with
+        // nesting = 1.
+        //
+        // When we are done we should be at nesting zero and be
+        // in the stop state.
+        CommentParserState state = CommentParserState::Proceed;
+        int nesting = 1;
+
+        while (true) {
+            switch (state) {
+                case CommentParserState::Proceed: {
+                    if (Peek() == '/') {
+                        state = CommentParserState::Forward;
+                    } else if (Peek() == '*') {
+                        state = CommentParserState::Backward;
+                    }
+                    buffer += Next();
+                    continue;
+                }
+                case CommentParserState::Forward: {
+                    if (Peek() == '*') {
+                        nesting += 1;
+                        buffer += Next();
+                    }
+                    state = CommentParserState::Proceed;
+                    continue;
+                }
+                case CommentParserState::Backward: {
+                    if (Peek() == '/') {
+                        nesting -= 1;
+                        if (nesting == 0) {
+                            Next();
+                            buffer.pop_back();
+                            return;
+                        } else {
+                            buffer += Next();
+                            state = CommentParserState::Proceed;
+                        };
+                    }
+                    continue;
+                }
+            }
+        }
+    }
+
     inline Token TokenizeOnce() {
         auto next = Peek();
         std::cout << next << std::endl;
@@ -249,6 +311,28 @@ struct Tokenizer {
             auto token = NewToken(TokenType::Percent);
             Next();
             return token;
+        } else if (next == '/') {
+            Next();
+            if (Peek() == '/') {
+                auto token = NewToken(TokenType::LineComment);
+                // Consume the /
+                Next();
+                std::stringstream comment;
+                while (More() && Peek() != '\n') {
+                    comment << Next();
+                }
+                token->data = tvm::String(comment.str());
+                return token;
+            } else if (Peek() == '*') {
+                // Eat the first /* pair before entering the state machine.
+                Next();
+                std::string comment;
+                MatchComment(comment);
+                auto token = NewToken(TokenType::Comment, tvm::String(comment));
+                return token;
+            } else {
+                return NewToken(TokenType::Division);
+            }
         } else {
             auto token = NewToken(TokenType::Unknown);
             std::stringstream ss;

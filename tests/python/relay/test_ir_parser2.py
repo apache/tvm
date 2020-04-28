@@ -76,7 +76,6 @@ def graph_equal(lhs, rhs):
 
 def roundtrip(expr):
     x = relay.fromtext(expr.astext())
-    import pdb; pdb.set_trace()
     assert_graph_equal(x, expr)
 
 
@@ -200,14 +199,7 @@ def test_op_assoc():
     assert graph_equal(parse_text("1 == 1 < 1 + 1 * 1"), parse_text("1 == (1 < (1 + (1 * 1)))"))
 
 
-@pytest.mark.skip
 def test_vars():
-    # temp vars won't work b/c they start with a digit
-    # # temp var
-    # temp_var = parse_text("%1")
-    # assert isinstance(temp_var, relay.Var)
-    # assert temp_var.name == "1"
-
     # var
     var = parse_text("let %foo = (); %foo")
     assert isinstance(var.body, relay.Var)
@@ -881,7 +873,7 @@ def test_import_grad():
 
 if __name__ == "__main__":
     test_graph()
-    # test_comments()
+    test_comments()
     # test_int_literal()
     # test_float_literal()
     # test_bool_literal()

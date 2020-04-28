@@ -59,16 +59,6 @@ using namespace relay;
  * NOTE: All upper-case rules are *lexer* rules and all camel-case rules are *parser* rules.
  */
 
-// grammar Relay;
-
-// SEMVER: 'v0.0.4' ;
-
-// // Lexing
-// // comments
-// COMMENT : '/*' (COMMENT|.)*? '*/' -> skip;
-// WS : [ \t\n\r]+ -> skip;
-// LINE_COMMENT : '//' .*? '\n' -> skip;
-
 // fragment ESCAPED_QUOTE : '\\"';
 // QUOTED_STRING :   '"' ( ESCAPED_QUOTE | ~('\n'|'\r') )*? '"';
 
@@ -301,11 +291,15 @@ struct Parser {
             std::cout << tokens[pos + i] << std::endl;
         }
     }
-    // // A Relay program is a list of global definitions or an expression.
-// prog: SEMVER (defn* | expr) METADATA? EOF ;
+
     Token Peek() {
+        // For now we ignore all whitespace tokens and comments.
+        // We can tweak this behavior later to enable white space sensitivity in the parser.
         while (ignore_whitespace &&
-               tokens.at(pos)->token_type == TokenType::Whitespace) {
+               (tokens.at(pos)->token_type == TokenType::Whitespace ||
+               tokens.at(pos)->token_type == TokenType::Newline ||
+               tokens.at(pos)->token_type == TokenType::LineComment ||
+               tokens.at(pos)->token_type == TokenType::Comment)) {
             pos++;
         }
 
@@ -369,8 +363,11 @@ struct Parser {
     }
 
     IRModule ParseModule() {
-        auto version = ParseSemVer();
+        // Parse the semver header at the top of the module.
+        auto _version = ParseSemVer();
+        // Parse the definitions.
         auto defs = ParseDefinitions();
+        // Parse the metadata section at the end.
         auto metadata = ParseMetadata();
         Consume(TokenType::EndOfFile);
         return IRModule();
@@ -401,7 +398,7 @@ struct Parser {
 
     template<typename R>
     R Parens(std::function<R()> parser) {
-        return Bracket(open, close, parser);
+        return Bracket(TokenType::OpenParen, TokenType::CloseParen, parser);
     }
 
     Expr ParseExpr() {
