@@ -58,7 +58,7 @@ def schedule_pool_grad_cuda(attrs, outs, target):
 def schedule_adaptive_pool_cuda(attrs, outs, target):
     """schedule adaptive pooling ops for cuda"""
     with target:
-        return topi.cuda.schedule_adaptive_pool(outs)
+        return topi.cuda.schedule_adaptive_pool(outs, attrs.layout)
 
 @softmax_strategy.register(["cuda", "gpu"])
 def softmax_strategy_cuda(attrs, inputs, out_type, target):
