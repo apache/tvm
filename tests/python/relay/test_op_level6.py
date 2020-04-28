@@ -86,7 +86,6 @@ def test_topk():
         for axis in [0, -1, 1]:
             for ret_type in ["both", "values", "indices"]:
                 verify_topk(k, axis, ret_type, True, "int64")
-                print(k, axis, ret_type)
                 verify_topk(k, axis, ret_type, False, "float32")
 
 

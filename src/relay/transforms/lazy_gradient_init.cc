@@ -203,9 +203,10 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator {
       }
 
       if (op_expr == Op::Get("ones") || op_expr == Op::Get("zeros")) {
-        // fn() -> T, function returns result of the operation
+        // ones and zeros need TensorType input
+        Expr result = CallPrimitiveOp(call_node);
         Expr func =
-            Function({}, {ExprMutator::VisitExpr_(call_node)}, {call_node->checked_type()}, {});
+            Function({}, result, {call_node->checked_type()}, Array<TypeVar>());
         // call appropriate GradCell constructor
         std::string constructor_name = op_expr == Op::Get("ones") ? "One" : "Zero";
         return Call(module_->GetConstructor("GradCell", constructor_name), {func}, Attrs(),
@@ -288,7 +289,7 @@ class LazyGradientInitializer : public ExprMutator, public TypeMutator {
       args.push_back(Call(fromFunc, {VisitExpr(expr)}, Attrs(), {expr->checked_type()}));
     }
     // result of operation
-    return Call(call_node->op, args);
+    return Call(call_node->op, args, call_node->attrs);
   }
 };
 
