@@ -31,7 +31,7 @@
 #include <vector>
 #include <string>
 
-#include "../../src/runtime/rpc/rpc_session.h"
+#include "../../src/runtime/rpc/rpc_end_point.h"
 #include "../../src/support/socket.h"
 
 namespace tvm {

@@ -142,6 +142,18 @@ cdef inline int make_arg(object arg,
         value[0].v_ctx = (<DLContext*>(
             <unsigned long long>ctypes.addressof(arg)))[0]
         tcode[0] = kTVMContext
+    elif isinstance(arg, bytes):
+        byte_arr = bytearray(arg)
+        arr = TVMByteArray()
+        arr.data = ctypes.cast(
+            (ctypes.c_byte * len(arg)).from_buffer(byte_arr),
+            ctypes.POINTER(ctypes.c_byte))
+        arr.size = len(arg)
+        value[0].v_handle = <void*>(
+            <unsigned long long>ctypes.addressof(arr))
+        tcode[0] = kTVMBytes
+        temp_args.append(byte_arr)
+        temp_args.append(arr)
     elif isinstance(arg, bytearray):
         arr = TVMByteArray()
         arr.data = ctypes.cast(

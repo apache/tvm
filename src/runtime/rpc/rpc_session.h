@@ -24,230 +24,166 @@
 #ifndef TVM_RUNTIME_RPC_RPC_SESSION_H_
 #define TVM_RUNTIME_RPC_RPC_SESSION_H_
 
+
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
-#include <mutex>
-#include <string>
+#include <functional>
 #include <memory>
-#include <utility>
-#include "../../support/ring_buffer.h"
+#include <string>
 
 namespace tvm {
 namespace runtime {
 
-// Magic header for RPC data plane
-const int kRPCMagic = 0xff271;
-// magic header for RPC tracker(control plane)
-const int kRPCTrackerMagic = 0x2f271;
-// sucess response
-const int kRPCSuccess = kRPCMagic + 0;
-// cannot found matched key in server
-const int kRPCMismatch = kRPCMagic + 2;
-
-/*! \brief Enumeration code for the RPC tracker */
-enum class TrackerCode : int {
-    kFail = -1,
-    kSuccess = 0,
-    kPing = 1,
-    kStop = 2,
-    kPut = 3,
-    kRequest = 4,
-    kUpdateInfo = 5,
-    kSummary = 6,
-    kGetPendingMatchKeys = 7
-};
-/*! \brief The remote functio handle */
-using RPCFuncHandle = void*;
-
-struct RPCArgBuffer;
-
-/*! \brief The RPC code */
-enum class RPCCode : int {
-  kNone,
-  kCallFunc,
-  kReturn,
-  kException,
-  kShutdown,
-  kCopyFromRemote,
-  kCopyToRemote,
-  kCopyAck,
-  // The following are code that can send over CallRemote
-  kSystemFuncStart,
-  kGetGlobalFunc,
-  kGetTimeEvaluator,
-  kFreeFunc,
-  kDevSetDevice,
-  kDevGetAttr,
-  kDevAllocData,
-  kDevFreeData,
-  kDevStreamSync,
-  kCopyAmongRemote,
-  kModuleLoad,
-  kModuleImport,
-  kModuleFree,
-  kModuleGetFunc,
-  kModuleGetSource,
-  kNDArrayFree
-};
-
 /*!
- * \brief Function that unwraps a remote object to its handle.
- * \param rpc_sess_table_index RPC session table index for validation.
- * \param obj Handle to the object argument.
- * \return The corresponding handle.
+ * \brief The interface of all remote RPC sessions.
+ *
+ *  It contains all the necessary interface to implement
+ *  remote call and resource management.
+ *
+ *  The interface is designed to allow easy proxy-chaining
+ *  by forward requests to another RPCSession.
  */
-typedef void* (*FUnwrapRemoteObject)(
-    int rpc_sess_table_index,
-    const TVMArgValue& obj);
-
-/*!
- * \brief Abstract channel interface used to create RPCSession.
- */
-class RPCChannel {
- public:
-  /*! \brief virtual destructor */
-  virtual ~RPCChannel() {}
-  /*!
-   * \brief Send data over to the channel.
-   * \param data The data pointer.
-   * \param size The size fo the data.
-   * \return The actual bytes sent.
-   */
-  virtual size_t Send(const void* data, size_t size) = 0;
-  /*!
-   * \brief Recv data from channel.
-   *
-   * \param data The data pointer.
-   * \param size The size fo the data.
-   * \return The actual bytes received.
-   */
-  virtual size_t Recv(void* data, size_t size) = 0;
-};
-
-// Bidirectional Communication Session of PackedRPC
 class RPCSession {
  public:
-  /*! \brief virtual destructor */
-  ~RPCSession();
+  /*! \brief PackedFunc Handle in the remote. */
+  using PackedFuncHandle = void*;
+
+  /*! \brief Module handle in the remote. */
+  using ModuleHandle = void*;
+
+  /*! \brief NDArray handle in the remote. */
+  using NDArrayHandle = void*;
+
   /*!
-   *  \brief The server loop that server runs to handle RPC calls.
-   */
-  void ServerLoop();
-  /*!
-   * \brief Message handling function for event driven server.
-   *  Called when the server receives a message.
-   *  Event driven handler will never call recv on the channel
-   *  and always relies on the ServerEventHandler.
-   *  to receive the data.
+   * \brief Callback to send an encoded return values via encode_args.
    *
-   * \param in_bytes The incoming bytes.
-   * \param event_flag  1: read_available, 2: write_avaiable.
-   * \return State flag.
-   *     1: continue running, no need to write,
-   *     2: need to write
-   *     0: shutdown
+   * \param encode_args The arguments that we can encode the return values into.
+   * \param ret_tcode The actual remote type code of the return value.
+   *
+   * Encoding convention (as list of arguments):
+   * - str/float/int/byte: [tcode: int, value: TVMValue] value follows PackedFunc convention.
+   * - PackedFunc/Module: [tcode: int, handle: void*]
+   * - NDArray: [tcode: int,  meta: DLTensor*, nd_handle: void*]
+   *            DLTensor* contains the meta-data as well as handle into the remote data.
+   *            nd_handle can be used for deletion.
    */
-  int ServerEventHandler(const std::string& in_bytes,
-                         int event_flag);
+  using FEncodeReturn = std::function<void(TVMArgs encoded_args)>;
+
+  /*! \brief Destructor.*/
+  virtual ~RPCSession() {}
+
   /*!
-   * \brief Call into remote function
-   * \param handle The function handle
-   * \param args The arguments
-   * \param rv The return value.
-   * \param funpwrap Function that takes a remote object and returns the raw handle.
-   * \param fwrap Wrapper function to turn Function/Module handle into real return.
+   * \brief Get function in the session.
+   * \param name The name of the function.
+   * \return The function handle.
    */
-  void CallFunc(RPCFuncHandle handle,
-                TVMArgs args,
-                TVMRetValue* rv,
-                FUnwrapRemoteObject funwrap,
-                const PackedFunc* fwrap);
+  virtual PackedFuncHandle GetFunction(const std::string& name) = 0;
+
+  /*!
+   * \brief Call into a remote Packed function.
+   *
+   *  Calling convention:
+   *
+   *  - type_code is follows the PackedFunc convention.
+   *  - int/float/string/bytes follows the PackedFunc convention, all data are local.
+   *  - PackedFunc/Module and future remote objects: pass remote handle instead.
+   *  - NDArray/DLTensor: pass a DLTensor pointer, the data field of DLTensor
+   *                      points to a remote data handle returned by the Device API.
+   *                      The meta-data of the DLTensor sits on local.
+   *
+   *  The caller populates the arguments and manages these arguments.
+   *
+   *  The callee can change the content of arg_values and arg_type_codes
+   *  if they want to do inplace modify and forward.
+   *
+   *  The callee need to store the return value into ret_value.
+   *  - PackedFunc/Module are stored as void*
+   *  - NDArray is stored as local NDArray, whose data field is a remote handle.
+   *    Notably the NDArray's deleter won't delete remote handle.
+   *    It is up to the user of the RPCSession to such wrapping.
+   *  - In short, remote handles are "moved" as return values
+   *    and the callee needs to explicitly manage them by calling
+   *    the deleter functions when they are no longer needed.
+   *
+   * \param func The function handle.
+   * \param arg_values The argument values.
+   * \param arg_type_codes the type codes of the argument.
+   * \param num_args Number of arguments.
+   * \param fencode_return The function to set the return value,
+   *                       if not called, return value is null.
+   */
+  virtual void CallFunc(PackedFuncHandle func,
+                        const TVMValue* arg_values,
+                        const int* arg_type_codes,
+                        int num_args,
+                        const FEncodeReturn& fencode_return) = 0;
+
   /*!
    * \brief Copy bytes into remote array content.
-   * \param from The source host data.
-   * \param from_offset The byte offeset in the from.
-   * \param to The target array.
-   * \param to_offset The byte offset in the to.
+   * \param local_from The source host data.
+   * \param local_from_offset The byte offeset in the from.
+   * \param remote_to The target array.
+   * \param remote_to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_to The target context.
+   * \param remote_ctx_to The target context.
    * \param type_hint Hint of content data type.
    */
-  void CopyToRemote(void* from,
-                    size_t from_offset,
-                    void* to,
-                    size_t to_offset,
-                    size_t nbytes,
-                    TVMContext ctx_to,
-                    DLDataType type_hint);
+  virtual void CopyToRemote(void* local_from,
+                            size_t local_from_offset,
+                            void* remote_to,
+                            size_t remote_to_offset,
+                            size_t nbytes,
+                            TVMContext remote_ctx_to,
+                            DLDataType type_hint) = 0;
   /*!
    * \brief Copy bytes from remote array content.
-   * \param from The source host data.
-   * \param from_offset The byte offeset in the from.
+   * \param remote_from The source host data.
+   * \param remote_from_offset The byte offeset in the from.
    * \param to The target array.
    * \param to_offset The byte offset in the to.
    * \param nbytes The size of the memory in bytes.
-   * \param ctx_from The source context.
+   * \param remote_ctx_from The source context in the remote.
    * \param type_hint Hint of content data type.
    */
-  void CopyFromRemote(void* from,
-                      size_t from_offset,
-                      void* to,
-                      size_t to_offset,
-                      size_t nbytes,
-                      TVMContext ctx_from,
-                      DLDataType type_hint);
+  virtual void CopyFromRemote(void* remote_from,
+                              size_t remote_from_offset,
+                              void* local_to,
+                              size_t local_to_offset,
+                              size_t nbytes,
+                              TVMContext remote_ctx_from,
+                              DLDataType type_hint) = 0;
+
   /*!
-   * \brief Get a remote timer function on ctx.
-   *  This function consumes fhandle, caller should not call Free on fhandle.
+   * \brief Free a remote function.
+   * \param handle The remote handle, can be NDArray/PackedFunc/Module
+   * \param type_code The type code of the underlying type.
+   */
+  virtual void FreeHandle(void* handle, int type_code) = 0;
+
+  /*!
+   * \brief Get device API that represents the remote
+   *  actions that can be taken on the remote.
    *
-   * \param fhandle The function handle.
-   * \param ctx The ctx to run measurement on.
-   * \param number The number of times to run this function for taking average.
-          We call these runs as one `repeat` of measurement.
-   * \param repeat The number of times to repeat the measurement.
-          In total, the function will be invoked (1 + number x repeat) times,
-          where the first one is warm up and will be discarded.
-          The returned result contains `repeat` costs,
-          each of which is an average of `number` costs.
-   * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
-          By default, one `repeat` contains `number` runs. If this parameter is set,
-          the parameters `number` will be dynamically adjusted to meet the
-          minimum duration requirement of one `repeat`.
-          i.e., When the run time of one `repeat` falls below this time,
-          the `number` parameter will be automatically increased.
-   * \return A remote timer function
+   *  The caller can then call into the Alloc/Free functions
+   *  to allocate free spaces and taking the pointer as the handle.
+   *
+   *  The device API is guaranteed to be alive during the
+   *  lifetime of the Session.
+   *
+   * \param ctx The remote context.
+   * \param allow_missing Whether can we return nullptr if it is not available.
+   *
+   * \return The device API.
    */
-  RPCFuncHandle GetTimeEvaluator(RPCFuncHandle fhandle,
-                                 TVMContext ctx,
-                                 int number,
-                                 int repeat,
-                                 int min_repeat_ms);
-  /*!
-   * \brief Call a remote defined system function with arguments.
-   * \param fcode The function code.
-   * \param args The arguments
-   * \return The returned remote value.
-   */
-  template<typename... Args>
-  inline TVMRetValue CallRemote(RPCCode fcode, Args&& ...args);
+  virtual DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) = 0;
+
   /*!
    * \return The session table index of the session.
    */
   int table_index() const {
     return table_index_;
   }
-  /*!
-   * \brief Create a RPC session with given channel.
-   * \param channel The communication channel.
-   * \param name The local name of the session, used for debug
-   * \param remote_key The remote key of the session
-   *   if remote_key equals "%toinit", we need to re-intialize
-   *   it by event handler.
-   */
-  static std::shared_ptr<RPCSession> Create(
-      std::unique_ptr<RPCChannel> channel,
-      std::string name,
-      std::string remote_key);
+
   /*!
    * \brief Try get session from the global session table by table index.
    * \param table_index The table index of the session.
@@ -256,62 +192,25 @@ class RPCSession {
   static std::shared_ptr<RPCSession> Get(int table_index);
 
  private:
-  class EventHandler;
-  // Handle events until receives a return
-  // Also flushes channels so that the function advances.
-  RPCCode HandleUntilReturnEvent(
-      TVMRetValue* rv, bool client_mode, const PackedFunc* fwrap);
-  // Initalization
-  void Init();
-  // Shutdown
-  void Shutdown();
-  // Internal channel.
-  std::unique_ptr<RPCChannel> channel_;
-  // Internal mutex
-  std::recursive_mutex mutex_;
-  // Internal ring buffer.
-  support::RingBuffer reader_, writer_;
-  // Event handler.
-  std::shared_ptr<EventHandler> handler_;
-  // call remote with specified function code.
-  PackedFunc call_remote_;
-  // The index of this session in RPC session table.
+  /*! \brief index of this session in RPC session table */
   int table_index_{0};
-  // The name of the session.
-  std::string name_;
-  // The remote key
-  std::string remote_key_;
+  /*! \brief Insert the current session to the session table.*/
+  static void InsertToSessionTable(std::shared_ptr<RPCSession> sess);
+  // friend declaration
+  friend Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 };
 
 /*!
- * \brief RPC channel which callback
- * frontend (Python/Java/etc.)'s send & recv function
+ * \brief Remote space handle cell used by the RPC runtime API.
+ *
+ *  When we allocate space using a rpc context, the data pointer
+ *  points to an allocated RemoteSpace.
  */
-class CallbackChannel final : public RPCChannel {
- public:
-  explicit CallbackChannel(PackedFunc fsend, PackedFunc frecv)
-      : fsend_(std::move(fsend)), frecv_(std::move(frecv)) {}
-
-  ~CallbackChannel() {}
-  /*!
-   * \brief Send data over to the channel.
-   * \param data The data pointer.
-   * \param size The size fo the data.
-   * \return The actual bytes sent.
-   */
-  size_t Send(const void* data, size_t size) final;
-  /*!
-   * \brief Recv data from channel.
-   *
-   * \param data The data pointer.
-   * \param size The size fo the data.
-   * \return The actual bytes received.
-   */
-  size_t Recv(void* data, size_t size) final;
-
- private:
-  PackedFunc fsend_;
-  PackedFunc frecv_;
+struct RemoteSpace {
+  /*! \brief The remote data handle. */
+  void* data;
+  /*! \brief Reference to the underlying RPC session. */
+  std::shared_ptr<RPCSession> sess;
 };
 
 /*!
@@ -319,18 +218,18 @@ class CallbackChannel final : public RPCChannel {
  * \param f The function argument.
  * \param ctx The context.
  * \param number The number of times to run this function for taking average.
-          We call these runs as one `repeat` of measurement.
+ *        We call these runs as one `repeat` of measurement.
  * \param repeat The number of times to repeat the measurement.
-          In total, the function will be invoked (1 + number x repeat) times,
-          where the first one is warm up and will be discarded.
-          The returned result contains `repeat` costs,
-          each of which is an average of `number` costs.
+ *        In total, the function will be invoked (1 + number x repeat) times,
+ *        where the first one is warm up and will be discarded.
+ *        The returned result contains `repeat` costs,
+ *        each of which is an average of `number` costs.
  * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
-          By default, one `repeat` contains `number` runs. If this parameter is set,
-          the parameters `number` will be dynamically adjusted to meet the
-          minimum duration requirement of one `repeat`.
-          i.e., When the run time of one `repeat` falls below this time,
-          the `number` parameter will be automatically increased.
+ *        By default, one `repeat` contains `number` runs. If this parameter is set,
+ *        the parameters `number` will be dynamically adjusted to meet the
+ *        minimum duration requirement of one `repeat`.
+ *        i.e., When the run time of one `repeat` falls below this time,
+ *        the `number` parameter will be automatically increased.
  * \return f_timer A timer function.
  */
 PackedFunc WrapTimeEvaluator(PackedFunc f,
@@ -344,21 +243,15 @@ PackedFunc WrapTimeEvaluator(PackedFunc f,
  * \param sess The RPC session of the global module.
  * \return The created module.
  */
-Module CreateRPCModule(std::shared_ptr<RPCSession> sess);
+Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 
-// Remote space pointer.
-struct RemoteSpace {
-  void* data;
-  std::shared_ptr<RPCSession> sess;
-};
+/*!
+ * \brief Get the session module from a RPC session Module.
+ * \param mod The input module(must be an RPCModule).
+ * \return The internal RPCSession.
+ */
+std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod);
 
-// implementation of inline functions
-template<typename... Args>
-inline TVMRetValue RPCSession::CallRemote(RPCCode code, Args&& ...args) {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  writer_.Write(&code, sizeof(code));
-  return call_remote_(std::forward<Args>(args)...);
-}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_SESSION_H_

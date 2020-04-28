@@ -157,9 +157,9 @@ class TVM_DLL DeviceAPI {
    * \param event_dst The destination stream to synchronize.
    */
   virtual void SyncStreamFromTo(TVMContext ctx,
-                                        TVMStreamHandle event_src,
-                                        TVMStreamHandle event_dst);
-  /*!
+                                TVMStreamHandle event_src,
+                                TVMStreamHandle event_dst);
+ /*!
    * \brief Allocate temporal workspace for backend execution.
    *
    *  \note We have the following assumption about backend temporal
@@ -176,8 +176,8 @@ class TVM_DLL DeviceAPI {
    * as OpenGL, as nbytes is sufficient for most backends.
    */
   virtual void* AllocWorkspace(TVMContext ctx,
-                                       size_t nbytes,
-                                       DLDataType type_hint = {});
+                               size_t nbytes,
+                               DLDataType type_hint = {});
   /*!
    * \brief Free temporal workspace in backend execution.
    *

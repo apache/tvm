@@ -48,8 +48,11 @@ def _load_lib():
     """Load libary by searching possible path."""
     lib_path = libinfo.find_lib_path()
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
-    # DMatrix functions
     lib.TVMGetLastError.restype = ctypes.c_char_p
+    # Put the libpath to LD_LIBRARY_PATH
+    # will be useful for pipe session to find libtvm
+    os.environ["LD_LIBRARY_PATH"] = "%s:%s" % (
+        os.path.dirname(lib_path[0]), os.environ.get("LD_LIBRARY_PATH", ""))
     return lib, os.path.basename(lib_path[0])
 
 # version number

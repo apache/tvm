@@ -16,21 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <dlpack/dlpack.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/packed_func.h>
 
-#include "../../src/runtime/c_runtime_api.cc"
-#include "../../src/runtime/cpu_device_api.cc"
-#include "../../src/runtime/workspace_pool.cc"
-#include "../../src/runtime/library_module.cc"
-#include "../../src/runtime/module.cc"
-#include "../../src/runtime/registry.cc"
-#include "../../src/runtime/file_util.cc"
-#include "../../src/runtime/threading_backend.cc"
-#include "../../src/runtime/thread_pool.cc"
-#include "../../src/runtime/ndarray.cc"
-#include "../../src/runtime/object.cc"
-#include "../../src/runtime/system_library.cc"
-#include "../../src/runtime/graph/graph_runtime.cc"
+/*!
+ * \file rpc_channel.cc
+ */
+#include <string>
+#include "rpc_channel.h"
+
+namespace tvm {
+namespace runtime {
+
+size_t CallbackChannel::Send(const void* data, size_t size) {
+  TVMByteArray bytes;
+  bytes.data = static_cast<const char*>(data);
+  bytes.size = size;
+  int64_t n = fsend_(bytes);
+  if (n == -1) {
+    LOG(FATAL) << "CallbackChannel::Send";
+  }
+  return static_cast<size_t>(n);
+}
+
+size_t CallbackChannel::Recv(void* data, size_t size) {
+  TVMRetValue ret = frecv_(size);
+
+  if (ret.type_code() != kTVMBytes) {
+    LOG(FATAL) << "CallbackChannel::Recv";
+  }
+  std::string* bytes = ret.ptr<std::string>();
+  memcpy(static_cast<char*>(data), bytes->c_str(), bytes->length());
+  return bytes->length();
+}
+
+}  // namespace runtime
+}  // namespace tvm

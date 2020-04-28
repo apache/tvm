@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,11 +19,12 @@
 
 /*!
  * \file rpc_event_impl.cc
- * \brief Event based RPC server implementation.
+ * \brief Event driven RPC server implementation.
  */
 #include <tvm/runtime/registry.h>
 #include <memory>
-#include "rpc_session.h"
+#include "rpc_endpoint.h"
+#include "rpc_local_session.h"
 
 namespace tvm {
 namespace runtime {
@@ -35,16 +36,17 @@ PackedFunc CreateEventDrivenServer(PackedFunc fsend,
     LOG(FATAL) << "Do not allow explicit receive";
     return 0;
   });
+
   std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend, frecv));
-  std::shared_ptr<RPCSession> sess =
-      RPCSession::Create(std::move(ch), name, remote_key);
+  std::shared_ptr<RPCEndpoint> sess =
+      RPCEndpoint::Create(std::move(ch), name, remote_key);
   return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
-      int ret = sess->ServerEventHandler(args[0], args[1]);
+      int ret = sess->ServerAsyncIOEventHandler(args[0], args[1]);
       *rv = ret;
     });
 }
 
-TVM_REGISTER_GLOBAL("rpc._CreateEventDrivenServer")
+TVM_REGISTER_GLOBAL("rpc.CreateEventDrivenServer")
 .set_body_typed(CreateEventDrivenServer);
 }  // namespace runtime
 }  // namespace tvm
