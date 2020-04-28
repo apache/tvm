@@ -432,12 +432,29 @@ inline Expr ZerosLike(Expr e) {
   return Call(op, {e});
 }
 
-inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
+inline Expr Zeros(Expr shape, DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
+  attrs->shape = shape;
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
-  return Call(op, {}, Attrs(attrs), {});
+  return Call(op, {shape}, Attrs(attrs), {});
+}
+
+inline Expr Zeros(Array<IndexExpr> shape, DataType dtype) {
+  DLContext ctx;
+  ctx.device_type = kDLCPU;
+  ctx.device_id = 0;
+  auto shape_array = runtime::NDArray::Empty({int64_t(shape.size())},
+                                             DataType::Int(64), ctx);
+  auto* shape_data = static_cast<int64_t*>(shape_array->data);
+  for (size_t i = 0; i < shape.size(); ++i) {
+    const auto &dim_val = shape[i].as<IntImmNode>();
+    CHECK(dim_val) << "Do not support symbolic shape for "
+        "Array format. Pass shape as Expr instead.";
+    shape_data[i] = dim_val->value;
+  }
+
+  return Zeros(Constant(shape_array), dtype);
 }
 
 inline Expr OnesLike(Expr e) {
@@ -503,12 +520,33 @@ static inline Expr GreaterEqual(const Expr& lhs, const Expr& rhs) {
   return Call(op, {lhs, rhs}, Attrs(), {});
 }
 
-static inline Expr Full(Expr fill_value, Array<IndexExpr> shape, DataType dtype) {
+static inline Expr Full(Expr fill_value,
+                        Expr shape,
+                        DataType dtype) {
   auto attrs = make_object<InitOpAttrs>();
-  attrs->shape = std::move(shape);
+  attrs->shape = shape;
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
-  return Call(op, {fill_value}, Attrs(attrs), {});
+  return Call(op, {fill_value, shape}, Attrs(attrs), {});
+}
+
+static inline Expr Full(Expr fill_value,
+                        Array<IndexExpr> shape,
+                        DataType dtype) {
+  DLContext ctx;
+  ctx.device_type = kDLCPU;
+  ctx.device_id = 0;
+  auto shape_array = runtime::NDArray::Empty({int64_t(shape.size())},
+                                              DataType::Int(64), ctx);
+  auto* shape_data = static_cast<int64_t*>(shape_array->data);
+  for (size_t i = 0; i < shape.size(); ++i) {
+    const auto &dim_val = shape[i].as<IntImmNode>();
+    CHECK(dim_val) << "Do not support symbolic shape for "
+        "Array format. Pass shape as Expr instead.";
+    shape_data[i] = dim_val->value;
+  }
+
+  return Full(fill_value, Constant(shape_array), dtype);
 }
 
 static inline Expr Conv2D(Expr data, Expr weight, Array<IndexExpr> strides,
@@ -586,7 +624,29 @@ static inline Expr Tile(Expr data, Array<Integer> reps) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape);
+static inline Expr BroadCastTo(Expr data, Expr shape) {
+  auto attrs = make_object<InitOpAttrs>();
+  attrs->shape = shape;
+  static const Op& op = Op::Get("broadcast_to");
+  return Call(op, {data, shape}, Attrs(attrs), {});
+}
+
+static inline Expr BroadCastTo(Expr data, Array<IndexExpr> shape) {
+  DLContext ctx;
+  ctx.device_type = kDLCPU;
+  ctx.device_id = 0;
+  auto shape_array = runtime::NDArray::Empty({int64_t(shape.size())},
+                                             DataType::Int(64), ctx);
+  auto* shape_data = static_cast<int64_t*>(shape_array->data);
+  for (size_t i = 0; i < shape.size(); ++i) {
+    const auto &dim_val = shape[i].as<IntImmNode>();
+    CHECK(dim_val) << "Do not support symbolic shape for "
+        "Array format. Pass shape as Expr instead.";
+    shape_data[i] = dim_val->value;
+  }
+
+  return BroadCastTo(data, Constant(shape_array));
+}
 
 Expr MakeConcatenate(Expr data, int axis);
 

@@ -93,7 +93,7 @@ register_broadcast_schedule("fast_erf")
 # zeros
 @register_compute("zeros")
 def zeros_compute(attrs, inputs, output_type):
-    assert not inputs
+    assert len(inputs) == 1
     return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
 register_broadcast_schedule("zeros")
@@ -110,7 +110,7 @@ register_broadcast_schedule("zeros_like")
 # ones
 @register_compute("ones")
 def ones_compute(attrs, inputs, output_type):
-    assert not inputs
+    assert len(inputs) == 1
     return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
 register_broadcast_schedule("ones")
@@ -132,20 +132,10 @@ def clip_compute(attrs, inputs, output_type):
 
 register_injective_schedule("clip")
 
-@script
-def _cast_shape_function(x):
-    out_ndim = len(x)
-    out = output_tensor((out_ndim,), "int64")
-    for i in const_range(out_ndim):
-        out[i] = x[i]
-    return out
-
-def cast_shape_func(attrs, inputs, out_ndims):
-    return [_cast_shape_function(*inputs)]
-
+# full
 @script
 def _full_shape_func(shape):
-    out_ndim = len(shape)
+    out_ndim = shape.shape[0]
     out = output_tensor((out_ndim,), "int64")
     for i in const_range(out_ndim):
         out[i] = int64(shape[i])
@@ -153,10 +143,15 @@ def _full_shape_func(shape):
 
 def full_shape_func(attrs, inputs, out_ndims):
     """
-    Shape func for zeros, zeros_like, ones, ones_like.
+    Shape func for full.
     """
-    shape = get_const_tuple(attrs.shape)
-    return [_full_shape_func(convert(shape))]
+    return [_full_shape_func(inputs[1])]
+
+def no_data_full_shape_func(attrs, inputs, out_ndims):
+    """
+    Shape func for zeros and ones.
+    """
+    return [_full_shape_func(inputs[0])]
 
 @script
 def _broadcast_shape_func(x, y, ndim):
@@ -198,13 +193,14 @@ def elemwise_shape_func(attrs, inputs, _):
     """
     return [topi.math.identity(inputs[0])]
 
-register_shape_func("cast", False, cast_shape_func)
-register_shape_func("zeros", False, full_shape_func)
+register_shape_func("cast", False, elemwise_shape_func)
+register_shape_func("zeros", True, no_data_full_shape_func)
 register_shape_func("zeros_like", False, elemwise_shape_func)
-register_shape_func("ones", False, full_shape_func)
+register_shape_func("ones", True, no_data_full_shape_func)
 register_shape_func("ones_like", False, elemwise_shape_func)
-register_shape_func("full", False, full_shape_func)
+register_shape_func("full", True, full_shape_func)
 register_shape_func("full_like", False, elemwise_shape_func)
+register_shape_func("broadcast_to", True, full_shape_func)
 
 register_shape_func("add", False, broadcast_shape_func)
 register_shape_func("subtract", False, broadcast_shape_func)

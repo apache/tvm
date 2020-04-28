@@ -21,6 +21,7 @@ import logging
 import re
 import topi
 from topi.util import get_const_int, get_const_float, get_const_tuple, get_float_tuple
+from ...expr import Constant
 from .. import op as _op
 from ....target import generic_func, override_native_generic_func
 
@@ -598,7 +599,9 @@ def argsort_strategy(attrs, inputs, out_type, target):
 def wrap_compute_topk(topi_compute):
     """Wrap topk compute"""
     def _compute_topk(attrs, inputs, out_type):
-        k = get_const_int(attrs.k)
+        k = inputs[1]
+        if isinstance(k, Constant):
+            k = k.data.asnumpy().tolist()[0]
         axis = get_const_int(attrs.axis)
         ret_type = attrs.ret_type
         is_ascend = bool(get_const_int(attrs.is_ascend))
