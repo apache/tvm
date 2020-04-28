@@ -351,6 +351,9 @@ class BaseQueue {
    */
   virtual void Reset() {
     dram_buffer_.clear();
+    // reset to 0 as we always copy data to area starting from fpga_buff base
+    // we do mem copy for every DeviceRun
+    sram_end_ = 0;
     sram_begin_ = sram_end_;
   }
 
@@ -446,6 +449,13 @@ class UopQueue : public BaseQueue<VTAUop> {
   }
   /*! \brief clear cache and reset base queue buffer.*/
   void Reset() {
+    // unmark "cached" status
+    // as we cannot assume it is still in SRAM across DeviceRun
+    for (UopKernel* kernel : cache_) {
+      kernel->sram_begin_ = 0;
+      kernel->sram_end_ = 0;
+    }
+
     cache_.clear();
     cache_idx_ = 0;
     BaseQueue<VTAUop>::Reset();
