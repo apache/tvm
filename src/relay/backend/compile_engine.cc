@@ -552,6 +552,13 @@ class MakeShapeFunc : public backend::MemoizedExprTranslator<Array<te::Tensor>> 
     return fields;
   }
 
+  Array<te::Tensor> VisitExpr_(const TupleGetItemNode* op) final {
+    Array<te::Tensor> input_shapes = VisitExpr(op->tuple);
+    Array<te::Tensor> out;
+    out.push_back(input_shapes[op->index]);
+    return out;
+  }
+
  private:
   /*! \brief String stream for function name */
   std::ostringstream readable_name_stream_;

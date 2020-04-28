@@ -360,12 +360,27 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   auto tuple = TupleType(func_type->arg_types);
   auto in_types = FlattenTupleType(tuple);
   auto out_types = FlattenTupleType(func_type->ret_type);
+  int num_types = 0;
+  std::unordered_map<size_t, bool> is_input_map;
+  for (size_t i = 0; i < func_type->arg_types.size(); ++i) {
+    auto const& ft = func_type->arg_types[i];
+    if (auto tupletype = ft.as<TupleTypeNode>()) {
+      for (size_t j = num_types; j < num_types + tupletype->fields.size(); ++j) {
+        is_input_map[j] = shape_func_attrs->is_input[i];
+      }
+      num_types += tupletype->fields.size();
+    }
+    else {
+      is_input_map[num_types] = shape_func_attrs->is_input[i];
+      num_types += 1;
+    }
+  }
 
   Array<Type> shape_func_ins, shape_func_outs;
   for (size_t i = 0; i < in_types.size(); i++) {
     auto in_type = in_types[i];
 
-    if (shape_func_attrs->is_input[i]) {
+    if (is_input_map[i]) {
       shape_func_ins.push_back(in_type);
     } else {
       auto shape = RankShape(in_type->shape);
