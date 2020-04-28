@@ -270,7 +270,7 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
  */
 template <typename T>
 static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> shape,
-                                          std::vector<T> value) {
+                                          T value) {
   runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
   TVM_DTYPE_DISPATCH(dtype, DType, {
     for (size_t i = 0; i < value.size(); i++) {
@@ -549,15 +549,13 @@ static inline Expr Sum(Expr data, Array<Integer> axis, bool keepdims, bool exclu
   return Call(op, {data}, Attrs(attrs), {});
 }
 
+Expr MakeReshape(Expr data, Expr newshape);
+
 static inline Expr Reshape(Expr data, Array<Integer> newshape) {
-  auto attrs = make_object<ReshapeAttrs>();
-  attrs->newshape = std::move(newshape);
-  attrs->reverse = false;
-  static const Op& op = Op::Get("reshape");
-  std::vector<int> value{1};
-  auto dummy_newshape_tensor = MakeConstantTensor(DataType::Int(32), {1}, value);
-  // dummy_newshape_tensor won't be used since attrs->newshape has been set
-  return Call(op, {data, dummy_newshape_tensor}, Attrs(attrs), {});
+  auto newshape_tensor = MakeConstantTensor(DataType::Int(32),
+                                            {static_cast<int64_t>(newshape.size())},
+                                            newshape);
+  return MakeReshape(data, newshape_tensor);
 }
 
 static inline Expr AvgPool2D(Expr data, Array<IndexExpr> pool_size, Array<IndexExpr> strides,
