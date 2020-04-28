@@ -1873,7 +1873,6 @@ def _test_sparse_to_dense(sparse_indices, sparse_values, default_value, output_s
             )
 
 def test_forward_sparse_to_dense():
-
     '''
     Works in tvm/topi/tensorflow. But tflite converter breaks this test case
     _test_sparse_to_dense(
@@ -1883,7 +1882,6 @@ def test_forward_sparse_to_dense():
         np.array([5]).astype("int32")
     )
     '''
-
     # vector
     _test_sparse_to_dense(
         np.array([0, 1, 4]).astype("int32"),

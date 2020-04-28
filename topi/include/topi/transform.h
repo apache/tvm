@@ -1323,13 +1323,13 @@ inline Tensor one_hot(const Tensor& indices, const PrimExpr on_value, const Prim
  * \return Tensor of output_shape.
  */
 inline Tensor sparse_to_dense(const Tensor& sparse_indices,
-                    const Tensor& sparse_values,
-                    const Tensor& default_value,
-                    const Array<Integer>& output_shape,
-                    const std::string name = "T_sparse_to_dense",
-                    const std::string tag = kInjective) {
+                              const Tensor& sparse_values,
+                              const Tensor& default_value,
+                              const Array<Integer>& output_shape,
+                              const std::string name = "T_sparse_to_dense",
+                              const std::string tag = kInjective) {
   CHECK(sparse_indices->dtype.is_int())
-    << "sparse_indices only accepts integer indices";
+    << "sparse_indices only accepts integer values";
 
   CHECK_LE(sparse_indices->shape.size(), 3)
     << "sparse_indices tensor should be 0D, 1D, or 2D only";

@@ -596,7 +596,6 @@ def verify_unravel_index(indices, shape, dtype):
         check_device(device)
 
 def verify_sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape, xpected):
-
     sparse_indices_data = np.array(sparse_indices)
     sparse_values_data = np.array(sparse_values)
     output_shape_data = np.array(output_shape)

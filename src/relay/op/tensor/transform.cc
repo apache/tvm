@@ -2528,9 +2528,9 @@ Example::
 TVM_REGISTER_NODE_TYPE(SparseToDenseAttrs);
 
 bool SparseToDenseRel(const Array<Type>& types,
-                int num_inputs,
-                const Attrs& attrs,
-                const TypeReporter& reporter) {
+                      int num_inputs,
+                      const Attrs& attrs,
+                      const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 3);
   auto sparse_indices = types[0].as<TensorTypeNode>();
   auto sparse_values  = types[1].as<TensorTypeNode>();
@@ -2561,8 +2561,8 @@ bool SparseToDenseRel(const Array<Type>& types,
 }
 
 Array<te::Tensor> SparseToDenseCompute(const Attrs& attrs,
-                                 const Array<te::Tensor>& inputs,
-                                 const Type& out_type) {
+                                       const Array<te::Tensor>& inputs,
+                                       const Type& out_type) {
   CHECK_EQ(inputs.size(), 3);
   const auto* param = attrs.as<SparseToDenseAttrs>();
   CHECK(param != nullptr);
@@ -2598,7 +2598,6 @@ RELAY_REGISTER_OP("sparse_to_dense")
 .add_argument("sparse_indices", "Tensor", "Contains sparse indices.")
 .add_argument("sparse_values",  "Tensor", "Contains values for sparse indices.")
 .add_argument("default_value",  "Tensor", "Value to set for non-sparse indices. Defaults to 0.")
-.add_argument("output_shape",  "List of integers", "Shape of the dense output tensor.")
 .add_type_rel("SparseToDense", SparseToDenseRel)
 .set_attr<TOpIsStateful>("TOpIsStateful", false)
 .set_attr<TOpPattern>("TOpPattern", kOpaque)
