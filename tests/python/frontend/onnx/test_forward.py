@@ -2432,6 +2432,68 @@ def test_topk():
         verify_topk([n, n, n], 5, 2)
     
 
+def test_roi_align():
+    def verify_roi_align(input_dims, num_roi, output_height, output_width, sampling_ratio=0, spatial_scale=1.0):
+        output_dims = [num_roi, input_dims[1], output_height, output_width]
+
+        node = helper.make_node('RoiAlign',
+                                inputs=['X', 'rois', 'batch_indicies'],
+                                outputs=['Y'],
+                                mode="avg",
+                                output_height=output_height,
+                                output_width=output_width,
+                                sampling_ratio=sampling_ratio,
+                                spatial_scale=spatial_scale,
+                                )
+
+        graph = helper.make_graph([node],
+                                  "roialign_test",
+                                  inputs=[helper.make_tensor_value_info("X", TensorProto.FLOAT, list(input_dims)),
+                                          helper.make_tensor_value_info(
+                                              "rois", TensorProto.FLOAT, [num_roi, 4]),
+                                          helper.make_tensor_value_info(
+                                              "batch_indicies", TensorProto.INT64, [num_roi, ]),
+                                          ],
+                                  outputs=[helper.make_tensor_value_info("Y", TensorProto.FLOAT, output_dims)])
+
+        model = helper.make_model(graph, producer_name='roialign_test')
+
+        np_data = np.random.uniform(size=input_dims).astype("float32")
+        np_rois = np.random.uniform(size=[num_roi, 4]).astype(
+            'float32') * input_dims[2]
+        np_batch_indicies = np.random.randint(
+            low=0, high=input_dims[0], size=num_roi)
+
+        onnx_out = get_onnxruntime_output(
+            model, [np_data, np_rois, np_batch_indicies])
+        for target, ctx in [('llvm', tvm.cpu())]:
+            tvm_out = get_tvm_output(model, [np_data, np_rois, np_batch_indicies], target, ctx, output_dims,
+                                     output_dtype='float32')
+            tvm.testing.assert_allclose(
+                onnx_out[0], tvm_out, rtol=1e-05, atol=1e-05)
+
+    verify_roi_align((1, 4, 16, 16), 32, 7, 7,
+                     sampling_ratio=0, spatial_scale=1.0)
+    verify_roi_align((4, 4, 16, 32), 32, 7, 7,
+                     sampling_ratio=0, spatial_scale=1.0)
+    verify_roi_align((1, 8, 16, 16), 32, 7, 7,
+                     sampling_ratio=0, spatial_scale=1.0)
+    verify_roi_align((1, 4, 8, 8), 32, 7, 7,
+                     sampling_ratio=0, spatial_scale=1.0)
+    verify_roi_align((1, 4, 16, 16), 16, 5, 7,
+                     sampling_ratio=0, spatial_scale=1.0)
+    verify_roi_align((1, 4, 16, 12), 8, 7, 3,
+                     sampling_ratio=0, spatial_scale=1.0)
+    verify_roi_align((1, 4, 16, 16), 32, 7, 7,
+                     sampling_ratio=0, spatial_scale=0.5)
+    verify_roi_align((3, 4, 12, 16), 32, 7, 7,
+                     sampling_ratio=0, spatial_scale=1.5)
+    verify_roi_align((5, 4, 16, 14), 32, 7, 7,
+                     sampling_ratio=1, spatial_scale=1.0)
+    verify_roi_align((1, 4, 16, 16), 32, 7, 7,
+                     sampling_ratio=2, spatial_scale=1.0)
+
+
 if __name__ == '__main__':
     test_flatten()
     test_reshape()
@@ -2498,3 +2560,4 @@ if __name__ == '__main__':
     test_resize()
     test_nonzero()
     test_topk()
+    test_roialign()
