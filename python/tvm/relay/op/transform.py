@@ -917,4 +917,5 @@ def sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape):
     result : relay.Expr
         Dense tensor of shape output_shape. Has the same type as sparse_values.
     """
+
     return _make.sparse_to_dense(sparse_indices, sparse_values, default_value, output_shape)
