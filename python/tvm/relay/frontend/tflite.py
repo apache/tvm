@@ -861,16 +861,15 @@ class OperatorConverter(object):
         return self._convert_elemwise(_op.add, op)
 
     def convert_add_n(self, op):
-        """Convert TFLite ADD"""
-        # TFLite does not have support for quantized form of ADD_N
-        # Hence not adding checks for it.
-
+        """Convert TFLite ADD_N"""
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
 
         input_tensors = self.get_input_tensors(op)
+        assert not input_tensors[0].qnn_params, "TFLite does not support quantized ADD_N."
         lhs_expr = self.get_tensor_or_const_expr(input_tensors[0])
         for rhs_tensor in input_tensors[1:]:
+            assert not rhs_tensor.qnn_params, "TFLite does not support quantized ADD_N"
             rhs_expr = self.get_tensor_or_const_expr(rhs_tensor)
             lhs_expr = _op.add(lhs_expr, rhs_expr)
         return lhs_expr
