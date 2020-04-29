@@ -272,9 +272,17 @@ void CodeGenCUDA::PrintVecElemLoad(
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if ((t.is_int()) && t.bits() == 8) {
-    os << "((char)(" << vec << " >> " << i * 8 << "))";
+    if (t.lanes() == 2 || t.lanes() == 3) {
+      os << vec << "." << access[i % t.lanes()];
+    } else {
+      os << "((char)(" << vec << " >> " << i * 8 << "))";
+    }
   } else if ((t.is_uint()) && t.bits() == 8) {
-    os << "((unsigned char)(" << vec << " >> " << i * 8 << "))";
+    if (t.lanes() == 2 || t.lanes() == 3) {
+      os << vec << "." << access[i % t.lanes()];
+    } else {
+      os << "((unsigned char)(" << vec << " >> " << i * 8 << "))";
+    }
   } else if (t.is_float16()) {
     os << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->"
        << access[i % 2];
@@ -289,12 +297,17 @@ void CodeGenCUDA::PrintVecElemStore(
   static const char access[] = {'x', 'y', 'z', 'w'};
   CHECK(i >= 0 && i < (t.is_float16() ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
-    stream << vec << "=";
-    // Do not read the first undef lane.
-    if (i != 0) {
-      stream << vec << " & ~(0x000000ff << " << i * 8 << ") |";
+    if (t.lanes() == 2 || t.lanes() == 3) {
+      stream << vec << '.' << access[i % t.lanes()] << "="
+             << "(" << value << ");\n";
+    } else {
+      stream << vec << "=";
+      // Do not read the first undef lane.
+      if (i != 0) {
+        stream << vec << " & ~(0x000000ff << " << i * 8 << ") |";
+      }
+      stream << "(" << value << " << " << i * 8 << ");\n";
     }
-    stream << "(" << value << " << " << i * 8 << ");\n";
   } else if (t.is_float16()) {
     stream << "((half2*)(&(" << vec << "." << access[i / 2] << ")))->"
            << access[i % 2] << " = " << value << ";\n";
@@ -789,11 +802,13 @@ void CodeGenCUDA::PrintVecElemLoadExpr(
     DataType t, int i, const std::string& value, std::ostream& os) {
   CHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
-    if (i != 0) {
-      os << "|";
+    if (!(t.lanes() == 2 || t.lanes() == 3)) {
+      if (i != 0) {
+        os << "|";
+      }
+      os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8   << "))";
+      return;
     }
-    os << "((0x000000ff << " << i * 8 << ") & (" << value << " << " << i * 8 << "))";
-    return;
   }
 
   if (t.is_float16()) {
