@@ -283,7 +283,7 @@ def process_docstring(app, what, name, obj, options, lines):
 
 def setup(app):
     app.connect('autodoc-process-docstring', process_docstring)
-    app.add_stylesheet('css/tvm_theme.css')
+    app.add_css_file('css/tvm_theme.css')
     app.add_config_value('recommonmark_config', {
         'url_resolver': lambda url: github_doc_root + url,
         'auto_doc_ref': True
