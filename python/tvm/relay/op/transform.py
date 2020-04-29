@@ -740,7 +740,7 @@ def reverse_reshape(data, newshape):
     """
     if isinstance(newshape, int):
         newshape = [newshape]
-    return _make._contrib_reverse_reshape(data, list(newshape))
+    return _make._contrib_reverse_reshape(data, const(list(newshape)))
 
 
 def gather_nd(data, indices):

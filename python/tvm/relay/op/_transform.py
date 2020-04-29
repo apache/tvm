@@ -194,12 +194,7 @@ def _reshape_shape_func(data, newshape, ndim):
 
 @_reg.register_shape_func("reshape", True)
 def reshape_shape_func(attrs, inputs, out_ndims):
-    if len(attrs.newshape):
-        newshape = convert(get_const_tuple(attrs.newshape))
-    else:
-        newshape = inputs[1]
-
-    return [_reshape_shape_func(inputs[0], newshape, out_ndims[0])]
+    return [_reshape_shape_func(*inputs, out_ndims[0])]
 
 @script
 def _take_no_axis_shape_func(indices_shape, out_ndim):
