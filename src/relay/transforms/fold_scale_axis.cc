@@ -28,6 +28,9 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <tvm/tir/data_layout.h>
+#include "../op/tensor/transform.h"
+#include "pattern_util.h"
+#include "pass_util.h"
 
 #include "pass_util.h"
 #include "pattern_util.h"
@@ -39,9 +42,6 @@ namespace relay {
  *
  * Use namespace to reduce potential naming conflict.
  */
-
-extern Expr MakeReshape(Expr data,
-                 Array<Integer> newshape);
 
 namespace fold_scale_axis {
 
