@@ -2278,6 +2278,7 @@ class OperatorConverter(object):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
     def get_tensor_or_const_expr(self, tensor):
+        """ Returns constant expr for constant else a tensor expr"""
         if self.has_expr(tensor.tensor_idx):
             # In most cases, we can assume that TOCO fuses elemwise operators
             # with constants - it means both will be tensors.
@@ -2286,8 +2287,7 @@ class OperatorConverter(object):
             # However, in some corner cases, the elemwise operator is not fused,
             # we can receive as constant.
             type_str = self.get_tensor_type_str(tensor.tensor.Type())
-            expr = self.exp_tab.new_const(self.get_tensor_value(tensor),
-                                              dtype=type_str)
+            expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
 
         return expr
 
