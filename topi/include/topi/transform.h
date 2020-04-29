@@ -194,6 +194,74 @@ inline Tensor flip(const Tensor& x,
 }
 
 /*!
+* \brief flip/reverse elements of an array in a particular axis
+*
+* \param x The input tensor
+* \param axis The axis along which the tensors will be reveresed
+* (allows negative indices)
+* \param name The name of the operation
+* \param tag The tag to mark the operation
+*
+* \return A Tensor whose op member is the reverse operation
+*/
+inline Tensor flip_sequence(const Tensor& x,
+                   const Tensor& seq_lengths,
+                   int batch_axis = 0,
+                   int sequence_axis = 1,
+                   std::string name = "T_flip_sequence",
+                   std::string tag = kInjective) {
+  std::cout << "in compute\n" ;
+  size_t src_tensor_dim = x->shape.size();
+
+  int axis_inp = batch_axis;
+
+  if (batch_axis < 0) {
+    batch_axis = static_cast<int>(x->shape.size()) + batch_axis;
+  }
+
+  if (sequence_axis < 0) {
+    sequence_axis = static_cast<int>(x->shape.size()) + sequence_axis;
+  }
+
+  CHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
+    << "batch_axis=" << axis_inp << " is invalid for the "
+    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
+
+  CHECK((0 <= sequence_axis) && (sequence_axis < static_cast<int>(x->shape.size())))
+    << "sequence_axis=" << axis_inp << " is invalid for the "
+    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
+
+ std::cout << "in compute 111111\n" ;
+Array<PrimExpr> seq_lengths_expr;
+
+
+  // Reverse the Input Tensor in the axis specified
+  return compute(
+    x->shape, [&](const Array<Var>& indices) {
+      Array<PrimExpr> real_indices;
+
+      // PrimExpr length_idx = 0;
+      //     for (int i = 0; i < src_tensor_dim; ++i) {
+      //         length_idx = tvm::if_then_else(i == indices[batch_axis], i, length_idx);
+      //     }
+
+      for (size_t i = 0; i < src_tensor_dim; ++i) {
+        if (i == static_cast<size_t>(sequence_axis)) {
+          // x->shape[i]
+          
+          std::cout << "getting const int 2222\n";
+          //seq_lengths_expr[GetConstInt(length_idx)]
+          //auto l = seq_lengths[GetConstInt(  )];
+          real_indices.push_back(seq_lengths(indices[batch_axis])- indices[i]);
+        } else {
+          real_indices.push_back(indices[i]);
+        }
+      }
+      return x(real_indices);
+    }, name, tag);
+}
+
+/*!
 * \brief Reshape a tensor
 *
 * \param x The input tensor

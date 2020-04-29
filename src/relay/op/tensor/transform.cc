@@ -1466,6 +1466,78 @@ RELAY_REGISTER_OP("reverse")
 .set_attr<FTVMCompute>("FTVMCompute", ReverseCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
+// reverse sequence operator
+TVM_REGISTER_NODE_TYPE(ReverseSequenceAttrs);
+
+bool ReverseSequenceRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "reverse: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<ReverseSequenceAttrs>();
+  const int ndim = static_cast<int>(data->shape.size());
+  
+  const int batch_axis = param->batch_axis;
+  CHECK(-ndim <= batch_axis && batch_axis < ndim)
+    << "reverse only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
+    << ", but got axis = " << batch_axis
+    << ", and data.ndim = " << ndim;
+  
+  const int seq_axis = param->seq_axis;
+  CHECK(-ndim <= seq_axis && seq_axis < ndim)
+    << "reverse only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
+    << ", but got seq_axis = " << seq_axis
+    << ", and data.ndim = " << ndim;
+  
+  reporter->Assign(types[2], types[0]);
+  return true;
+}
+
+Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs,
+                                 const Array<te::Tensor>& inputs,
+                                 const Type& out_type) {
+  const ReverseSequenceAttrs *param = attrs.as<ReverseSequenceAttrs>();
+  CHECK(param != nullptr);
+  return { topi::flip_sequence(inputs[0], inputs[1], param->batch_axis, param->seq_axis) };
+}
+
+Expr MakeReverseSequence(Expr data,
+                 Expr seq_lengths,
+                 int batch_axis,
+                 int seq_axis) {
+  auto attrs = make_object<ReverseSequenceAttrs>();
+  attrs->batch_axis = batch_axis;
+  attrs->seq_axis = seq_axis;
+  static const Op& op = Op::Get("reverse_sequence");
+  return Call(op, {data, seq_lengths}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relay.op._make.reverse_sequence")
+.set_body_typed(MakeReverseSequence);
+
+RELAY_REGISTER_OP("reverse_sequence")
+.describe(R"code(Reverses the order of elements along given `axis` while preserving array shape.
+
+- **data**: The input data to the operator.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.set_attrs_type<ReverseSequenceAttrs>()
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("seq_lengths", "Tensor", "The seq_lengths tensor.")
+.set_support_level(3)
+.add_type_rel("ReverseSequence", ReverseSequenceRel)
+.set_attr<FTVMCompute>("FTVMCompute", ReverseSequenceCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
 // where operator
 bool WhereRel(const Array<Type>& types,
               int num_inputs,

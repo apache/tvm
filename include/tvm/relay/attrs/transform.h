@@ -181,6 +181,21 @@ struct ReverseAttrs : public tvm::AttrsNode<ReverseAttrs> {
   }
 };  // struct ReverseAttrs
 
+/*! \brief Attributes used in reverse_sequence operators */
+struct ReverseSequenceAttrs : public tvm::AttrsNode<ReverseSequenceAttrs> {
+  Integer batch_axis;
+  Integer seq_axis;
+
+  TVM_DECLARE_ATTRS(ReverseSequenceAttrs, "relay.attrs.ReverseSequenceAttrs") {
+    TVM_ATTR_FIELD(batch_axis).set_default(NullValue<Integer>())
+        .describe("The batch axis along which to reverse elements.");
+    TVM_ATTR_FIELD(seq_axis).set_default(NullValue<Integer>())
+        .describe("The batch axis along which to reverse elements.");
+  }
+
+
+};  // struct ReverseAttrs
+
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   // use axis to make the name numpy compatible.

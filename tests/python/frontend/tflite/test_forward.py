@@ -182,6 +182,12 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
+        print(in_data)
+        print("------")
+        print(tflite_output)
+        print("------")
+        return 0
+
         for device in ["llvm"]:
             ctx = tvm.context(device, 0)
             if not ctx.exist:
@@ -1584,6 +1590,49 @@ def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
 #######################################################################
+# ReverseSequence
+# ---------------
+
+def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis):
+    """ One iteration of reverse_sequence operation with given data and attributes """
+
+    data = np.random.uniform(0, 100, size=shape).astype(dtype)
+
+    print(data)
+    print(data[:,0])
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
+        out = tf.reverse_sequence(in_data, seq_lengths=seq_lengths, batch_axis=batch_axis,
+                                   seq_axis=seq_axis)
+
+        compare_tflite_with_tvm(data, 'input', [in_data], [out])
+
+
+def test_forward_reverse_sequence():
+    test_parameters = [{
+        "input_dtype": [tf.float32, tf.int32, tf.int64],
+        "input_shape": [[8, 4, 5, 5, 6], [4, 4, 3, 5]],
+        "seq_lengths": [[2, 2, 2, 2], [2, 1, 1, 0]],
+        "seq_axis": [0, 3],
+        "batch_axis": [1]
+    }, {
+        "input_dtype": [tf.float32],
+        "input_shape": [[2, 4, 5, 5, 6]],
+        "seq_lengths": [[2, 1]],
+        "seq_axis": [2],
+        "batch_axis": [0]
+    }, {
+        "input_dtype": [tf.float32],
+        "input_shape": [[4, 2]],
+        "seq_lengths": [[3, 1]],
+        "seq_axis": [0],
+        "batch_axis": [1]
+    }]
+
+    _test_reverse_sequence([4, 3], "int32", [4, 1,1], 1, 0)
+
+
+#######################################################################
 # Fully Connected
 # ---------------
 
@@ -1932,6 +1981,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_reverse_sequence()
 
     # NN
     test_forward_convolution()

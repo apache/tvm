@@ -663,6 +663,32 @@ def test_reverse():
     verify_reverse((2, 3, 4), -1)
 
 
+
+def test_reverse_sequence():
+    def verify_reverse_sequence(dshape, seq_lengths, batch_axis, seq_axis, dtype):
+        seq_lengths_data = np.array(seq_lengths).astype("int32")
+        x = relay.var("x", relay.TensorType(dshape, dtype))
+        y = relay.var("y", relay.TensorType(seq_lengths_data.shape, "int32"))
+        z = relay.reverse_sequence(x, y, batch_axis, seq_axis)
+
+        #zz = run_infer_type(z)
+
+        func = relay.Function([x, y], z)
+        x_data = np.random.uniform(low=1, high=100, size=dshape).astype(dtype)
+        #ref_res = np.flip(x_data, axis)
+        for target, ctx in ctx_list():
+            for kind in ["graph"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, seq_lengths_data)
+                print(x_data)
+                print(op_res)
+                #tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    # verify_reverse((2, 3, 4), 1)
+    # verify_reverse((4, 7), 0)
+    # verify_reverse((2, 3, 4), -1)
+
+    verify_reverse_sequence((4,4), [3,1,1,1], 1, 0, "int32")
+
 def test_gather_nd():
     def verify_gather_nd(xshape, yshape, y_data):
         x = relay.var("x", relay.TensorType(xshape, "float32"))
