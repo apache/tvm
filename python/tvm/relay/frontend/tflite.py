@@ -775,21 +775,6 @@ class OperatorConverter(object):
 
         return out
 
-    def get_tensor_or_const_expr(self, tensor):
-        if self.has_expr(tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses elemwise operators
-            # with constants - it means both will be tensors.
-            expr = self.get_expr(tensor.tensor_idx)
-        else:
-            # However, in some corner cases, the elemwise operator is not fused,
-            # we can receive as constant.
-            type_str = self.get_tensor_type_str(tensor.tensor.Type())
-            expr = self.exp_tab.new_const(self.get_tensor_value(tensor),
-                                              dtype=type_str)
-
-        return expr
-
-
     def _convert_elemwise(self, relay_op, op):
         """Generic method to Convert TFLite elemwise"""
         try:
@@ -805,7 +790,7 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        lhs_tensor= input_tensors[0]
+        lhs_tensor = input_tensors[0]
         rhs_tensor = input_tensors[1]
         lhs_expr = self.get_tensor_or_const_expr(lhs_tensor)
         rhs_expr = self.get_tensor_or_const_expr(rhs_tensor)
@@ -2291,6 +2276,20 @@ class OperatorConverter(object):
 
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
+
+    def get_tensor_or_const_expr(self, tensor):
+        if self.has_expr(tensor.tensor_idx):
+            # In most cases, we can assume that TOCO fuses elemwise operators
+            # with constants - it means both will be tensors.
+            expr = self.get_expr(tensor.tensor_idx)
+        else:
+            # However, in some corner cases, the elemwise operator is not fused,
+            # we can receive as constant.
+            type_str = self.get_tensor_type_str(tensor.tensor.Type())
+            expr = self.exp_tab.new_const(self.get_tensor_value(tensor),
+                                              dtype=type_str)
+
+        return expr
 
 
 def get_scalar_from_constant(expr):
