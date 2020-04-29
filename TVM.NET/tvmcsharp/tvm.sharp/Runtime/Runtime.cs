@@ -129,20 +129,20 @@ namespace TVMRuntime
         {
             if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeRunFunc(_runtimeHandle);
+            UnmanagedRuntimeWrapper.InvokeRuntimeRunFunc(_runtimeRunFuncHandle);
         }
 
         /// <summary>
         /// Sets the input.
         /// </summary>
         /// <param name="inputName">Input name.</param>
-        /// <param name="inputTensorHandle">Input tensor handle.</param>
-        public void SetInput(string inputName, UIntPtr inputTensorHandle)
+        /// <param name="inputTensor">Input tensor handle.</param>
+        public void SetInput(string inputName, NDArray inputTensor)
         {
             if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
 
             UnmanagedRuntimeWrapper.InvokeRuntimeSetInputFunc(_runtimeSetInputFuncHandle,
-                inputName, inputTensorHandle);
+                inputName, inputTensor.NDArrayHandle);
         }
 
         /// <summary>

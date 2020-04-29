@@ -84,16 +84,16 @@ namespace TVMRuntime
 
                 // TODO: UIntPtr/IntPtr does not mean only NDArray Handle
                 //      so find a generic solution
-                else if (t.Equals(typeof(UIntPtr)))
+                else if (t.Equals(typeof(IntPtr)))
                 {
-                    args[i].handle = (UIntPtr)inputArgs[i];
+                    args[i].handle = (IntPtr)inputArgs[i];
                     typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
                 }
-                else if (t.Equals(typeof(IntPtr)))
+                else if (t.Equals(typeof(UIntPtr)))
                 {
                     unsafe
                     {
-                        args[i].handle = (UIntPtr)((IntPtr)inputArgs[i]).ToPointer();
+                        args[i].handle = (IntPtr)((UIntPtr)inputArgs[i]).ToPointer();
                     }
                     typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
                 }

@@ -20,7 +20,7 @@ namespace TVMRuntime
     struct TVMRuntimeSetInputArgs
     {
         public string inputName;
-        public UIntPtr inputTensorHandle;
+        public IntPtr inputTensorHandle;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -214,7 +214,7 @@ namespace TVMRuntime
         public static void InvokeRuntimeSetInputFunc(
                             UIntPtr setInputFuncHandle,
                             int inputIndex,
-                            UIntPtr inputTensorHandle)
+                            IntPtr inputTensorHandle)
         {
             TVMValue arg0 = new TVMValue(inputIndex);
 
@@ -240,7 +240,7 @@ namespace TVMRuntime
         public static void InvokeRuntimeSetInputFunc(
                             UIntPtr setInputFuncHandle,
                             string inputName,
-                            UIntPtr inputTensorHandle)
+                            IntPtr inputTensorHandle)
         {
             TVMRuntimeSetInputArgs tvmSetInputArgs = new TVMRuntimeSetInputArgs();
             tvmSetInputArgs.inputName = inputName;
@@ -261,7 +261,7 @@ namespace TVMRuntime
                 int retTypeCode = 0;
                 UIntPtr retVal = UIntPtr.Zero;
 
-                InvokeTVMRuntimeSetInputPackedFunc(tvmCreateFuncHandle,
+                InvokeTVMRuntimeSetInputPackedFunc(setInputFuncHandle,
                     pnt, argTypeCodes, numArgs,
                     ref retVal, ref retTypeCode);
             }
@@ -293,10 +293,7 @@ namespace TVMRuntime
                 ref retOutput, ref retTypeCode);
 
             // Update the NDArray
-            unsafe
-            {
-                outputTensor.NDArrayHandle = (IntPtr)retOutput.handle.ToPointer();
-            }
+            outputTensor.NDArrayHandle = retOutput.handle;
         }
 
         /// <summary>

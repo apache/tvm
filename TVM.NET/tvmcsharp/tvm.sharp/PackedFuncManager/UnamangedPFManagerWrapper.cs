@@ -20,7 +20,7 @@ namespace TVMRuntime
         public double vFloat64;
 
         [FieldOffset(0)]
-        public UIntPtr handle;
+        public IntPtr handle;
 
         public TVMValue(long inpInt64) : this()
         {
@@ -32,7 +32,7 @@ namespace TVMRuntime
             vFloat64 = vinpFloat64;
         }
 
-        public TVMValue(UIntPtr vinpHandle) : this()
+        public TVMValue(IntPtr vinpHandle) : this()
         {
             handle = vinpHandle;
         }

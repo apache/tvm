@@ -73,10 +73,10 @@ namespace Tests
             TVMContext ctx = new TVMContext(0);
             NDArray input_1 = new NDArray(shape, shape.Length, "float32", ctx);
 
-            unsafe
-            {
-                runtime.SetInput("input_1", (UIntPtr)(input_1.NDArrayHandle.ToPointer()));
-            }
+            runtime.SetInput("input_1", input_1);
+
+            // Run the graph
+            runtime.Run();
 
             NDArray output = new NDArray();
             Assert.Equal(output.NDArrayHandle, IntPtr.Zero);
@@ -86,14 +86,20 @@ namespace Tests
 
             Assert.NotEqual(output.NDArrayHandle, IntPtr.Zero);
 
+            // Check Output Data
+            Assert.Equal(2, output.Ndim);
+            Assert.Equal(new int[] { 1, 1000 }, output.Shape);
+            Assert.Equal(1000, output.Size);
+
+            // Release all resources
             runtime.DisposeRuntime();
             Assert.Equal(runtime.RuntimeHandle, UIntPtr.Zero);
 
-            Console.WriteLine("Ndim: " + output.Ndim);
-            Console.WriteLine("Size: " + output.Size);
-
             output.DisposeNDArray();
             Assert.Equal(output.NDArrayHandle, IntPtr.Zero);
+
+            input_1.DisposeNDArray();
+            Assert.Equal(input_1.NDArrayHandle, IntPtr.Zero);
         }
     }
 }
