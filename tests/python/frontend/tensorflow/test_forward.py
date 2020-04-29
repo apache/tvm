@@ -27,6 +27,7 @@ try:
     import tensorflow.compat.v1 as tf
 except ImportError:
     import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
@@ -2528,6 +2529,84 @@ def test_forward_selu():
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Selu:0')
 
 
+def test_forward_gelu():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.gelu(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
+def test_forward_hardshrink():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.hardshrink(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.hardshrink(in1, lower=0.1, upper=1.4)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
+def test_forward_softshrink():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.softshrink(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.softshrink(in1, lower=0.1, upper=1.4)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
+def test_forward_tanhshrink():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.tanhshrink(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
+def test_forward_rrelu():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.rrelu(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.rrelu(in1, lower=0.1, upper=0.4)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
+def test_forward_lisht():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.lisht(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
+def test_forward_mish():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        op = tfa.activations.mish(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', op.name)
+
+
 def test_forward_tanh():
     ishape = (1, 3, 10, 10)
     inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
@@ -3247,6 +3326,13 @@ if __name__ == '__main__':
     test_forward_leaky_relu()
     test_forward_elu()
     test_forward_selu()
+    test_forward_gelu()
+    test_forward_hardshrink()
+    test_forward_softshrink()
+    test_forward_tanhshrink()
+    test_forward_rrelu()
+    test_forward_lisht()
+    test_forward_mish()
     test_forward_tanh()
 
     # Tensor

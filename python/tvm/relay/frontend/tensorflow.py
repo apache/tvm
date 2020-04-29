@@ -1646,6 +1646,80 @@ def _selu():
                                             - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
     return _impl
 
+
+def _gelu():
+    def _impl(inputs, attr, params, mod):
+        import math
+        data = inputs[0]
+
+        def _pow3(x):
+            return x * x * x
+        return _expr.const(0.5) * data * (_expr.const(1.0) +
+                                          _op.tanh(_expr.const(math.sqrt(2.0 / math.pi)) *
+                                                   (data + _expr.const(0.044715) * _pow3(data))))
+    return _impl
+
+
+def _hardshrink():
+    def _impl(inputs, attr, params, mod):
+        dtype = attr['T'].name
+        data = inputs[0]
+        lower = _expr.const(attr.get("lower", -0.5))
+        upper = _expr.const(attr.get("upper", 0.5))
+
+        mask_lower = _op.less(data, lower)
+        mask_upper = _op.greater(data, upper)
+        mask = _op.cast(_op.logical_or(mask_lower, mask_upper), dtype)
+
+        return data * mask
+
+    return _impl
+
+
+def _softshrink():
+    def _impl(inputs, attr, params, mod):
+        dtype = attr['T'].name
+        data = inputs[0]
+        lower = _expr.const(attr.get("lower", -0.5))
+        upper = _expr.const(attr.get("upper", 0.5))
+
+        mask_lower = _op.less(data, lower)
+        mask_upper = _op.greater(data, upper)
+        data_lower = (data - lower) * _op.cast(mask_lower, dtype)
+        data_upper = (data - upper) * _op.cast(mask_upper, dtype)
+
+        return data_lower + data_upper
+
+    return _impl
+
+
+def _tanhshrink():
+    def _impl(inputs, attr, params, mod):
+        data = inputs[0]
+        return data - _op.tanh(data)
+
+    return _impl
+
+
+def _lisht():
+    def _impl(inputs, attr, params, mod):
+        data = inputs[0]
+        return data * _op.tanh(data)
+
+    return _impl
+
+
+def _mish():
+    def _impl(inputs, attr, params, mod):
+        data = inputs[0]
+        def _softplus(x):
+            return _op.log(_op.exp(x) + _expr.const(1.))
+
+        return data * _op.tanh(_softplus(data))
+
+    return _impl
+
+
 def _mean():
     def _impl(inputs, attr, params, mod):
         axis = _get_tuple_param(params, inputs[1])
@@ -2046,6 +2120,7 @@ _convert_map = {
     'Round'                             : AttrCvt('round'),
     'Rsqrt'                             : _rsqrt(),
     'Select'                            : _where(),
+    'SelectV2'                          : _where(),
     'Selu'                              : _selu(),
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
@@ -2085,6 +2160,13 @@ _convert_map = {
     'UnravelIndex'                      : _unravel_index(),
     'Where'                             : _where(),
     'ZerosLike'                         : AttrCvt('zeros_like'),
+    # Ops from Tensorflow Add-ons
+    'Addons>Gelu'                       : _gelu(),
+    'Addons>Hardshrink'                 : _hardshrink(),
+    'Addons>Softshrink'                 : _softshrink(),
+    'Addons>Tanhshrink'                 : _tanhshrink(),
+    'Addons>Lisht'                      : _lisht(),
+    'Addons>Mish'                       : _mish(),
 
 }
 
