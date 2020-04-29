@@ -2257,6 +2257,7 @@ class OperatorConverter(object):
         assert len(inputs) == 3, "inputs length should be 3"
         cls_pred = self.get_expr(inputs[1].tensor_idx)
         loc_prob = self.get_expr(inputs[0].tensor_idx)
+        batch_size = inputs[1].tensor.Shape(0)
         anchor_values = self.get_tensor_value(inputs[2])
         anchor_boxes = len(anchor_values)
         anchor_type = self.get_tensor_type_str(inputs[2].tensor.Type())
@@ -2284,7 +2285,7 @@ class OperatorConverter(object):
         loc_prob = _op.concatenate(
             [loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2
         )
-        loc_prob = _op.reshape(loc_prob, [1, anchor_boxes*4])
+        loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes*4])
 
         # anchor coords are in yxhw format
         # need to convert to ltrb
@@ -2327,10 +2328,14 @@ class OperatorConverter(object):
         ret = _op.vision.non_max_suppression(ret[0], ret[1], **non_max_suppression_attrs)
         ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]
+        # keep only the top 'max_detections' rows
+        ret = _op.strided_slice(ret[1],
+                                [0, 0, 0],
+                                [batch_size, custom_options["max_detections"], anchor_boxes])
         # the output needs some reshaping to match tflite
-        ret = _op.split(ret[1], 6, axis=2)
-        cls_ids = ret[0]
-        scores = ret[1]
+        ret = _op.split(ret, 6, axis=2)
+        cls_ids = _op.reshape(ret[0], [batch_size, -1])
+        scores = _op.reshape(ret[1], [batch_size, -1])
         boxes = _op.concatenate([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret

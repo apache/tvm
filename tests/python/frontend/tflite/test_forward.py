@@ -1731,7 +1731,14 @@ def test_detection_postprocess():
                                ["raw_outputs/box_encodings", "raw_outputs/class_predictions"], num_output=4)
     # check valid count is the same
     assert tvm_output[3] == tflite_output[3]
+    # check all the output shapes are the same
+    assert tvm_output[0].shape == tflite_output[0].shape
+    assert tvm_output[1].shape == tflite_output[1].shape
+    assert tvm_output[2].shape == tflite_output[2].shape
     valid_count = tvm_output[3][0]
+    # only check the valid detections are the same
+    # tvm has a different convention to tflite for invalid detections, it uses all -1s whereas
+    # tflite appears to put in nonsense data instead
     tvm_boxes = tvm_output[0][0][:valid_count]
     tvm_classes = tvm_output[1][0][:valid_count]
     tvm_scores = tvm_output[2][0][:valid_count]
