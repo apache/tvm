@@ -216,15 +216,19 @@ def with_fused_activation_function(input_tensor, fn_name):
         return math_ops.tanh(input_tensor)
     raise AssertionError("Unknown fused_activation_function {}".format(fn_name))
 
-def _test_split(in_shape, axis, num_Splits, dtype):
-    '''internal split tester taking as parameters in_shape, number of tensors to split into
-       and dtype (data type)'''
+
+def _test_split(in_shape, axis, num_splits, dtype):
+    """internal split tester taking as parameters in_shape, number of tensors to split into
+       and dtype (data type)"""
+
     np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=in_shape, dtype=dtype)
-        out = array_ops.split(in_data, num_Splits, axis=axis)
-        out_names = ['out_' + str(n) + ':0' for n in range(num_Splits)]
-        compare_tflite_with_tvm([np_data], ['Placeholder:0'],  [in_data], out,
+        in_data = array_ops.placeholder(shape=in_shape, dtype=dtype, name="in_data")
+        out = array_ops.split(in_data, num_splits, axis=axis)
+        num_splits = len(num_splits) if isinstance(num_splits, list) \
+            else num_splits
+        out_names = ['out_' + str(n) + ':0' for n in range(num_splits)]
+        compare_tflite_with_tvm([np_data], ['in_data'],  [in_data], out,
                                 out_names=out_names)
 
 def test_forward_split():
@@ -252,6 +256,9 @@ def test_forward_split():
     _test_split((1, 6, 3, 5), -3, 3, 'float32')
     _test_split((1, 3, 6, 5), -2, 3, 'float32')
     _test_split((1, 3, 5, 6), -1, 3, 'float32')
+    # size_splits split
+    _test_split((6,), 0, [1, 2, 3], 'float32')
+    _test_split((3, 6, 4), -2, [1, 4, 1], 'float32')
 
 #######################################################################
 # slice
@@ -1210,6 +1217,39 @@ def test_forward_zeros_like():
     """ ZEROS LIKE """
     _test_zeros_like(np.arange(6.0, dtype=np.float32).reshape((1, 6)))
 
+
+#######################################################################
+# Fill
+# ----
+
+def _test_fill(dims, value_data, value_dtype):
+    """ Use the fill op to create a tensor of value_data with constant dims."""
+
+    value_data = np.array(value_data, dtype=value_dtype)
+    # TF 1.13 TFLite convert method does not accept empty shapes
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        with tf.Graph().as_default():
+            value = array_ops.placeholder(dtype=value_dtype, name="value", shape=[])
+            out = tf.fill(dims,  value)
+            compare_tflite_with_tvm([value_data], ["value"], [value], [out])
+
+    with tf.Graph().as_default():
+        input1 = array_ops.placeholder(dtype=value_dtype, name="input1", shape=dims)
+        # Fill op gets converted to static tensor during conversion
+        out = tf.fill(dims,  value_data)
+        out1 = tf.add(out, input1)
+        input1_data = np.random.uniform(0, 5, size=dims).astype(value_dtype)
+        compare_tflite_with_tvm([input1_data], ["input1"], [input1], [out1])
+
+
+def test_forward_fill():
+    """ Test FILL op """
+
+    _test_fill((1, 2, 2, 4), 5, "int32")
+    _test_fill((1, 2, 2, 4), 5, "float32")
+    _test_fill((5, ), 5, "int32")
+
+
 #######################################################################
 # Reduce
 # ------
@@ -1979,6 +2019,9 @@ if __name__ == '__main__':
     test_all_unary_elemwise()
     # Zeros Like
     test_forward_zeros_like()
+
+    # Fill
+    test_forward_fill()
 
     # Reduce
     test_all_reduce()

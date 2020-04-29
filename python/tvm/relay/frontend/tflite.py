@@ -78,6 +78,7 @@ class OperatorConverter(object):
             'ELU': self.convert_elu,
             'EQUAL': self.convert_equal,
             'EXP': self.convert_exp,
+            'FILL': self.convert_fill,
             'FLOOR_DIV': self.convert_floor_div,
             'FLOOR_MOD': self.convert_floor_mod,
             'FLOOR': self.convert_floor,
@@ -123,6 +124,7 @@ class OperatorConverter(object):
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'SPACE_TO_DEPTH': self.convert_space_to_depth,
             'SPLIT': self.convert_split,
+            'SPLIT_V': self.convert_split_v,
             'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
@@ -1212,6 +1214,21 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_fill(self, op):
+        """Convert TFLite FILL"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        if self.has_expr(input_tensors[0].tensor_idx):
+            raise tvm.error.OpNotImplemented("For dims parameter of Fill operator,"
+                                             " only constant values are supported.")
+
+        in_dims = list(self.get_tensor_value(input_tensors[0]))
+        in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
+        out = _op.full(in_value_expr, in_dims)
+
+        return out
+
     def _convert_reduce(self, relay_op, op):
         """Generic method to Convert TFLite MEAN operators"""
         try:
@@ -1614,6 +1631,35 @@ class OperatorConverter(object):
         if isinstance(out, _expr.TupleWrapper):
             if out.size == 1:
                 out = out[0]
+
+        return out
+
+    def convert_split_v(self, op):
+        """SPLIT_V implementation."""
+        input_tensors = self.get_input_tensors(op)
+
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+
+        if self.has_expr(input_tensors[1].tensor_idx):
+            raise tvm.error.OpNotImplemented("For size_splits parameter of SPLIT_V operator, "
+                                             "only constant values are supported.")
+        size_splits = list(self.get_tensor_value(input_tensors[1]))
+        size_splits = tuple(np.cumsum(size_splits)[:-1])
+
+        axis_tensor = input_tensors[2]
+        split_axis = self.get_tensor_value(axis_tensor)
+
+        out = _op.split(in_expr, size_splits, axis=int(split_axis))
+        # Relay does not like a TupleWrapper of 1 element, further this
+        # only shows up with tf1.13 if we use a split with num_splits==1.
+        # In tf 1.14 this doesn't appear as it is automatically a reshape
+        # operation.
+        if isinstance(out, _expr.TupleWrapper) and out.size == 1:
+            out = out[0]
 
         return out
 
