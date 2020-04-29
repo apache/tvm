@@ -369,8 +369,7 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
         is_input_map[j] = shape_func_attrs->is_input[i];
       }
       num_types += tupletype->fields.size();
-    }
-    else {
+    } else {
       is_input_map[num_types] = shape_func_attrs->is_input[i];
       num_types += 1;
     }
