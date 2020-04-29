@@ -561,6 +561,31 @@ def test_forward_pooling():
                       strides=[2, 1])
 
 
+def _test_l2_pool2d(input_shape, ksize, strides, padding, data_format, fused_func_name=None):
+    x = np.arange(np.prod(input_shape), dtype=np.float32).reshape(input_shape) - 1
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(
+            dtype=tf.float32, name="input", shape=input_shape)
+        out = tf.sqrt(tf.nn.avg_pool(
+            tf.square(in_data), ksize=ksize, strides=strides,
+            padding=padding, data_format=data_format))
+        out = with_fused_activation_function(out, fused_func_name)
+
+        compare_tflite_with_tvm(x, 'input', [in_data], [out])
+
+
+def test_forward_l2_pool2d():
+    _test_l2_pool2d([1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 'SAME', "NHWC", "RELU6")
+    _test_l2_pool2d([2, 9, 10, 2], [1, 1, 1, 1], [1, 1, 1, 1], 'SAME', "NHWC", "RELU6")
+    _test_l2_pool2d([2, 9, 10, 2], [1, 2, 1, 1], [1, 1, 1, 1], 'SAME', "NHWC")
+    _test_l2_pool2d([2, 9, 10, 2], [1, 2, 1, 1], [1, 1, 2, 1], 'SAME', "NHWC")
+    _test_l2_pool2d([1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], 'VALID', "NHWC", "RELU")
+    _test_l2_pool2d([2, 9, 10, 2], [1, 1, 1, 1], [1, 1, 1, 1], 'VALID', "NHWC")
+    _test_l2_pool2d([2, 9, 10, 2], [1, 2, 1, 1], [1, 1, 1, 1], 'VALID', "NHWC")
+    _test_l2_pool2d([2, 9, 10, 2], [1, 2, 1, 1], [1, 1, 2, 1], 'VALID', "NHWC", "RELU6")
+
+
 #######################################################################
 # Convolution
 # -----------
@@ -1938,6 +1963,7 @@ if __name__ == '__main__':
     test_forward_transpose_conv()
     test_forward_logistic()
     test_forward_pooling()
+    test_forward_l2_pool2d()
     test_forward_softmax()
     test_forward_tanh()
     test_forward_relu()
