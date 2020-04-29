@@ -67,7 +67,6 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=N
     options += [
         # TODO(weberlo): make a debug flag
         "-O2",
-        "-march=armv7e-m",
         "-mcpu=cortex-m7",
         "-mlittle-endian",
         "-mfloat-abi=hard",

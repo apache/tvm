@@ -101,20 +101,20 @@ if __name__ == "__main__":
     parser.add_argument('--port-end', type=int, default=9199,
                         help='The end search port of the RPC')
     parser.add_argument('--tracker', type=str,
-                        help=('The address of RPC tracker in host:port format. '
-                              'e.g. (10.77.1.234:9190)'))
+                        help=("The address of RPC tracker in host:port format. "
+                              "e.g. (10.77.1.234:9190)"))
     parser.add_argument('--key', type=str, default="",
-                        help='The key used to identify the device type in tracker.')
+                        help="The key used to identify the device type in tracker.")
     parser.add_argument('--silent', action='store_true',
-                        help='Whether run in silent mode.')
+                        help="Whether run in silent mode.")
     parser.add_argument('--load-library', type=str,
-                        help='Additional library to load')
+                        help="Additional library to load")
     parser.add_argument('--no-fork', dest='fork', action='store_false',
-                        help=('Use spawn mode to avoid fork. This option '
-                              'is able to avoid potential fork problems with Metal, OpenCL '
-                              'and ROCM compilers.'))
+                        help="Use spawn mode to avoid fork. This option \
+                        is able to avoid potential fork problems with Metal, OpenCL \
+                        and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
-                        help='Custom IP Address to Report to RPC Tracker')
+                        help="Custom IP Address to Report to RPC Tracker")
     parser.add_argument('--utvm-dev-config', type=str,
                         help=('JSON config file for the target device (if using MicroTVM). '
                               'This file should contain serialized output similar to that returned '
