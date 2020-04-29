@@ -1183,7 +1183,12 @@ def _test_logical_binary(logical_bin_op, data):
     with tf.Graph().as_default():
         in_data = [array_ops.placeholder(shape=data[0].shape, dtype='bool', name='in_0'),
                    array_ops.placeholder(shape=data[1].shape, dtype='bool', name='in_1')]
-        out = logical_bin_op(in_data[0], in_data[1], name='out')
+        if logical_bin_op == math_ops.logical_not:
+            out = math_ops.logical_or(in_data[0], in_data[1], name='out1')
+            out = logical_bin_op(out, name='out')
+        else:
+            out = logical_bin_op(in_data[0], in_data[1], name='out')
+
         compare_tflite_with_tvm(data, ['in_0:0', 'in_1:0'], in_data, [out])
 
 def _test_forward_logical_and(data):
@@ -1194,6 +1199,10 @@ def _test_forward_logical_or(data):
     """ One iteration of logical or """
     return _test_logical_binary(math_ops.logical_or, data)
 
+def _test_forward_logical_not(data):
+    """ One iteration of logical not """
+    return _test_logical_binary(math_ops.logical_not, data)
+
 def test_all_logical():
     data = [np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool'),
             np.random.choice(a=[False, True], size=(2, 3, 4)).astype('bool')]
@@ -1201,6 +1210,7 @@ def test_all_logical():
     if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
         _test_forward_logical_and(data)
         _test_forward_logical_or(data)
+        _test_forward_logical_not(data)
 
 #######################################################################
 # Zeros like
