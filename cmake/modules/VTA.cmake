@@ -108,6 +108,7 @@ elseif(PYTHON)
     endforeach()
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
+      target_include_directories(vta PUBLIC ${VTA_HW_PATH}/include)
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
      #target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
