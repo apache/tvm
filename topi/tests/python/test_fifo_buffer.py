@@ -172,12 +172,12 @@ def verify_conv1d_integration():
             update_context(inc_input_tvm, context_tvm, new_context_tvm)
             conv2d_inc(new_context_tvm, kernel_tvm, inc_output_tvm)
             update_output_window(inc_output_tvm, output_window_tvm, new_output_window_tvm)
-            context_tvm = new_context_tvm
-            output_window_tvm = new_output_window_tvm
+            context_tvm, new_context_tvm = new_context_tvm, context_tvm
+            output_window_tvm, new_output_window_tvm = new_output_window_tvm, output_window_tvm
 
             # Compute full input window, so that we have a baseline
             update_input_window(inc_input_tvm, input_window_tvm, new_input_window_tvm)
-            input_window_tvm = new_input_window_tvm
+            input_window_tvm, new_input_window_tvm = new_input_window_tvm, input_window_tvm
             conv2d(input_window_tvm, kernel_tvm, output_window_ref_tvm)
             # Incrementally updating the output window should be equivalent to computing it from
             # scratch using the input window
