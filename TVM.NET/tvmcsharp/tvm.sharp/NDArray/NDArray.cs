@@ -72,6 +72,7 @@ namespace TVMRuntime
         private int _ndim = 0;
         private int[] _shape;
         private int _arraySize = 0;
+        private TVMDataType _dataType;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="T:TVMRuntime.NDArray"/> class.
@@ -100,6 +101,7 @@ namespace TVMRuntime
             _ndim = ndimInp;
             _arraySize = 1;
             Array.ForEach(_shape, i => _arraySize *= i);
+            _dataType = dataType;
         }
 
         /// <summary>
@@ -122,6 +124,7 @@ namespace TVMRuntime
             _ndim = ndimInp;
             _arraySize = 1;
             Array.ForEach(_shape, i => _arraySize *= i);
+            _dataType = dataType;
         }
 
         /// <summary>
@@ -142,6 +145,7 @@ namespace TVMRuntime
                 _ndim = UnmanagedNDArrayWrapper.GetNDArrayNdim(_arrayHandle);
                 _arraySize = 1;
                 Array.ForEach(_shape, i => _arraySize *= i);
+                UnmanagedNDArrayWrapper.GetNDArrayDtype(_arrayHandle, ref _dataType);
             }
         }
 
@@ -171,6 +175,22 @@ namespace TVMRuntime
         {
             get { return UnmanagedNDArrayWrapper.GetNDArrayElem(_arrayHandle, i, _arraySize); }
             set { UnmanagedNDArrayWrapper.SetNDArrayElem(_arrayHandle, i, value, _arraySize); }
+        }
+
+        /// <summary>
+        /// Copies from float data.
+        /// </summary>
+        /// <param name="from">From.</param>
+        public void CopyFrom(float[] from)
+        {
+            // Check whether the NDArray is float type
+            if ((_dataType.code != (byte)TVMDataTypeCode.Float)
+                || (_dataType.bits != 32))
+            {
+                throw new System.ArrayTypeMismatchException("Do not accept Float type");
+            }
+
+            UnmanagedNDArrayWrapper.CopyFloatDataToNDArray(_arrayHandle, from);
         }
 
         /// <summary>

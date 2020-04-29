@@ -47,8 +47,8 @@ namespace TVMRuntime
         public TensorContextUnmanaged ctx;
         public int ndim;
         public TVMDataTypeUnmanaged dtype;
-        public int* shape;
-        public int* strides;
+        public IntPtr shape;
+        public IntPtr strides;
         public uint byte_offset;
     }
 
@@ -88,6 +88,18 @@ namespace TVMRuntime
                           IntPtr tensorHandle);
 
         /// <summary>
+        /// TVMArray copy from bytes.
+        /// </summary>
+        /// <returns>The NDArray copy from bytes.</returns>
+        /// <param name="handle">Handle.</param>
+        /// <param name="data">Data.</param>
+        /// <param name="nbytes">Nbytes.</param>
+        [DllImport(Utils.libName)]
+        private static extern int TVMArrayCopyFromBytes(IntPtr handle,
+                                  IntPtr data,
+                                  long nbytes);
+
+        /// <summary>
         /// Creates the NDArray.
         /// </summary>
         /// <param name="shape">Shape.</param>
@@ -114,40 +126,47 @@ namespace TVMRuntime
         /// <summary>
         /// Gets the NDArray shape.
         /// </summary>
-        /// <returns>The NDA rray shape.</returns>
+        /// <returns>The NDArray shape.</returns>
         /// <param name="arrayHandle">Array handle.</param>
         public static int [] GetNDArrayShape(IntPtr arrayHandle)
         {
-            unsafe
-            {
-                int ndim = ((TVMTensor*)arrayHandle)->ndim;
-                int[] shapeOut = new int[ndim];
-                for (int i = 0; i < ndim; i++)
-                {
-                    shapeOut[i] = ((TVMTensor*)arrayHandle)->shape[i];
-                }
+            TVMTensor tensor = Marshal.PtrToStructure<TVMTensor>(arrayHandle);
+            int ndim = tensor.ndim;
+            long[] shapeOut = new long[ndim];
+            
+            Marshal.Copy(tensor.shape, shapeOut, 0, shapeOut.Length);
 
-                return shapeOut;
-            }
+            return Array.ConvertAll<long, int>(shapeOut,
+                            delegate (long i) {return (int)i;});
         }
 
         /// <summary>
         /// Gets the NDArray ndim.
         /// </summary>
-        /// <returns>The NDA rray ndim.</returns>
+        /// <returns>The NDArray ndim.</returns>
         /// <param name="arrayHandle">Array handle.</param>
         public static int GetNDArrayNdim(IntPtr arrayHandle)
         {
-            unsafe
-            {
-                return ((TVMTensor*)arrayHandle)->ndim;
-            }
+            return Marshal.PtrToStructure<TVMTensor>(arrayHandle).ndim;
+        }
+
+        /// <summary>
+        /// Gets the NDArray dtype.
+        /// </summary>
+        /// <param name="arrayHandle">Array handle.</param>
+        /// <param name="dataType">Data type.</param>
+        public static void GetNDArrayDtype(IntPtr arrayHandle, ref TVMDataType dataType)
+        {
+            TVMTensor tensor = Marshal.PtrToStructure<TVMTensor>(arrayHandle);
+            dataType.code = tensor.dtype.code;
+            dataType.bits = tensor.dtype.bits;
+            dataType.lanes = tensor.dtype.lanes;
         }
 
         /// <summary>
         /// Gets the NDArray element.
         /// </summary>
-        /// <returns>The NDA rray element.</returns>
+        /// <returns>The NDArray element.</returns>
         /// <param name="arrayHandle">Array handle.</param>
         /// <param name="index">Index.</param>
         /// <param name="arraySize">Array size.</param>
@@ -215,6 +234,32 @@ namespace TVMRuntime
                 {
                     Console.WriteLine(code + " not supported!");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Copies the float data to NDArray.
+        /// </summary>
+        /// <param name="arrayHandle">Array handle.</param>
+        /// <param name="from">From.</param>
+        public static void CopyFloatDataToNDArray(IntPtr arrayHandle, float [] from)
+        {
+            int total_size = from.Length * 4;
+            byte [] byteArray = new byte[total_size];
+
+            Buffer.BlockCopy(from, 0, byteArray, 0, byteArray.Length);
+
+            IntPtr unmanagedPointer = Marshal.AllocHGlobal(byteArray.Length);
+            try
+            {
+                Marshal.Copy(byteArray, 0, unmanagedPointer, byteArray.Length);
+
+                TVMArrayCopyFromBytes(arrayHandle, unmanagedPointer, byteArray.LongLength);
+            }
+            finally
+            {
+                // Free the unmanaged memory.
+                Marshal.FreeHGlobal(unmanagedPointer);
             }
         }
 
