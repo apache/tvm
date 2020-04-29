@@ -1366,6 +1366,26 @@ def test_all_reduce():
 
 
 #######################################################################
+# Argmin/Argmax
+# -------------
+
+def _test_argx(func, data, **kwargs):
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        out = func(in_data, output_type=tf.int32, **kwargs)
+
+        compare_tflite_with_tvm(data, 'Placeholder:0', [in_data], [out])
+
+
+def test_forward_argmin_argmax():
+    for axis in [None, 0, 1, 2]:
+        data = np.random.uniform(size=(8, 4, 9)).astype('float32')
+        _test_argx(tf.argmax, data=data, axis=axis)
+        _test_argx(tf.argmin, data=data, axis=axis)
+
+
+#######################################################################
 # Squeeze
 # -------
 
@@ -2025,6 +2045,7 @@ if __name__ == '__main__':
 
     # Reduce
     test_all_reduce()
+    test_forward_argmin_argmax()
 
     # Logical
     test_all_logical()

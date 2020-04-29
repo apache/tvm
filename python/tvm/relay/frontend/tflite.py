@@ -64,6 +64,8 @@ class OperatorConverter(object):
         self.convert_map = {
             'ABS': self.convert_abs,
             'ADD': self.convert_add,
+            'ARG_MAX': self.convert_argmax,
+            'ARG_MIN': self.convert_argmin,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'CAST': self.convert_cast,
@@ -108,10 +110,10 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
-            'REDUCE_ANY': self._convert_reduce_any,
-            'REDUCE_MAX': self._convert_reduce_max,
-            'REDUCE_MIN': self._convert_reduce_min,
-            'REDUCE_PROD': self._convert_reduce_prod,
+            'REDUCE_ANY': self.convert_reduce_any,
+            'REDUCE_MAX': self.convert_reduce_max,
+            'REDUCE_MIN': self.convert_reduce_min,
+            'REDUCE_PROD': self.convert_reduce_prod,
             'RELU':self.convert_relu,
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
@@ -131,7 +133,7 @@ class OperatorConverter(object):
             'SQUEEZE': self.convert_squeeze,
             'STRIDED_SLICE': self.convert_strided_slice,
             'SUB': self.convert_sub,
-            'SUM': self._convert_reduce_sum,
+            'SUM': self.convert_reduce_sum,
             'TAN': self.convert_tan,
             'TANH':self.convert_tanh,
             'TILE': self.convert_tile,
@@ -1230,7 +1232,7 @@ class OperatorConverter(object):
         return out
 
     def _convert_reduce(self, relay_op, op):
-        """Generic method to Convert TFLite MEAN operators"""
+        """Generic method to Convert TFLite REDUCE operators"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ReducerOptions import ReducerOptions
@@ -1274,23 +1276,45 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_reduce_min(self, op):
+    def convert_reduce_min(self, op):
         return self._convert_reduce(_op.reduce.min, op)
 
-    def _convert_reduce_max(self, op):
+    def convert_reduce_max(self, op):
         return self._convert_reduce(_op.reduce.max, op)
 
-    def _convert_reduce_mean(self, op):
+    def convert_reduce_mean(self, op):
         return self._convert_reduce(_op.reduce.mean, op)
 
-    def _convert_reduce_prod(self, op):
+    def convert_reduce_prod(self, op):
         return self._convert_reduce(_op.reduce.prod, op)
 
-    def _convert_reduce_sum(self, op):
+    def convert_reduce_sum(self, op):
         return self._convert_reduce(_op.reduce.sum, op)
 
-    def _convert_reduce_any(self, op):
+    def convert_reduce_any(self, op):
         return self._convert_reduce(_op.reduce.any, op)
+
+    def _convert_argx(self, relay_op, op):
+        """Convert TFLite ARG_MAX/ARG_MIN operators"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+        if self.is_quantized(op):
+            op_name = self.get_op_code_str(op)
+            msg = "TFlite quantized " + op_name + " operator is not supported yet."
+            raise tvm.error.OpNotImplemented(msg)
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        axis = int(self.get_tensor_value(input_tensors[1]))
+        out = relay_op(in_expr, axis)
+
+        return out
+
+    def convert_argmax(self, op):
+        return self._convert_argx(_op.reduce.argmax, op)
+
+    def convert_argmin(self, op):
+        return self._convert_argx(_op.reduce.argmin, op)
 
     def convert_fully_connected(self, op):
         """Convert TFLite fully connected"""
