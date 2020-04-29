@@ -28,79 +28,80 @@
 namespace tvm {
 namespace tir {
 
-// Find the condition of the out-most if_then_else expression
-class IfThenElseExprFinder : public ExprVisitor {
+/*
+ * Find the condition of the out-most if_then_else intrinsic and
+ * count the total number of if_then_else intrinsics
+ */
+class IfThenElseFinder : public ExprVisitor {
  public:
-  PrimExpr Find(const IfThenElseNode *op) {
+  std::pair<PrimExpr, int> Find(const IfThenElseNode *op) {
     operator()(op->condition);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const LetStmtNode *op) {
+  std::pair<PrimExpr, int> Find(const LetStmtNode *op) {
     operator()(op->value);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const ForNode *op) {
+  std::pair<PrimExpr, int> Find(const ForNode *op) {
     operator()(op->min);
     operator()(op->extent);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const AllocateNode *op) {
+  std::pair<PrimExpr, int> Find(const AllocateNode *op) {
     for (const auto &item : op->extents) {
       operator()(item);
     }
     operator()(op->condition);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const StoreNode *op) {
+  std::pair<PrimExpr, int> Find(const StoreNode *op) {
     operator()(op->value);
     operator()(op->index);
     operator()(op->predicate);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const ProvideNode *op) {
+  std::pair<PrimExpr, int> Find(const ProvideNode *op) {
     operator()(op->value);
     for (const auto &item : op->args) {
       operator()(item);
     }
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const RealizeNode *op) {
+  std::pair<PrimExpr, int> Find(const RealizeNode *op) {
     operator()(op->condition);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
-  PrimExpr Find(const EvaluateNode *op) {
+  std::pair<PrimExpr, int> Find(const EvaluateNode *op) {
     operator()(op->value);
-    return condition_;
+    return std::make_pair(condition_, cnt_);
   }
 
  protected:
   void VisitExpr_(const CallNode *op) override {
-    if (condition_.defined()) {
-      return;
-    }
     if (op->is_intrinsic(tir::intrinsic::tvm_if_then_else)) {
-      condition_ = op->args[0];
-      // no recursion
-    } else {
-      ExprVisitor::VisitExpr_(op);
+      if (!condition_.defined())
+        condition_ = op->args[0];
+      cnt_++;
     }
+    ExprVisitor::VisitExpr_(op);
   }
 
  private:
   PrimExpr condition_;
+  int cnt_{0};
 };
 
-// Remove the out-most IfThenElse expression and leave one branch
-class IfThenElseExprRemover : public ExprMutator {
+// Remove the out-most IfThenElse intrinsic and leave one branch
+class IfThenElseOutMostRemover : public ExprMutator {
  public:
-  explicit IfThenElseExprRemover(bool branch_to_keep)
+  explicit IfThenElseOutMostRemover(bool branch_to_keep)
       : branch_to_keep_(branch_to_keep) {}
 
   Stmt Mutate(const IfThenElseNode *op) {
@@ -177,8 +178,21 @@ class IfThenElseExprRemover : public ExprMutator {
   bool found_ = false;
 };
 
-// Replace if_then_else expressions to be If statements
-class IfThenElseExprReplacer : public StmtMutator {
+/*
+ * Replace if_then_else intrinsics to be If statements
+ *
+ * Algorithm:
+ * 1. For each statement.
+ * 2. Stop if there are too many tvm_if_then_else intrinsics.
+ * 3. Find the out-most tvm_if_then_else intrinsic in it.
+ * 4. Put the statement into a new IfThenElse statement, and remove the out-most tvm_if_then_else intrinsic.
+ * 5. Recurse until no more tvm_if_then_else.
+ */
+class IfThenElseReplacer : public StmtMutator {
+ public:
+  explicit IfThenElseReplacer(int max_cascading_intrin)
+      : max_cascading_intrin_(max_cascading_intrin) {}
+
  protected:
   Stmt VisitStmt_(const IfThenElseNode *op) override {
     return Replace_(op);
@@ -215,11 +229,12 @@ class IfThenElseExprReplacer : public StmtMutator {
  private:
   template <class Node>
   Stmt Replace_(const Node *op) {
-    IfThenElseExprFinder finder;
-    PrimExpr condition = finder.Find(op);
-    if (condition.defined()) {
-      IfThenElseExprRemover keep_true(true);
-      IfThenElseExprRemover keep_false(false);
+    PrimExpr condition;
+    int cnt;
+    std::tie(condition, cnt) = IfThenElseFinder().Find(op);
+    if (cnt > 0 && cnt <= max_cascading_intrin_) {
+      IfThenElseOutMostRemover keep_true(true);
+      IfThenElseOutMostRemover keep_false(false);
       auto true_branch = keep_true.Mutate(CopyOnWrite(op).get());
       auto false_branch = keep_false.Mutate(CopyOnWrite(op).get());
       Stmt ret = IfThenElseNode::make(condition,
@@ -231,15 +246,18 @@ class IfThenElseExprReplacer : public StmtMutator {
       return StmtMutator::VisitStmt_(op);
     }
   }
+
+ private:
+  int max_cascading_intrin_;
 };
 
 
 namespace transform {
 
-Pass IfThenElseIntrinToStmt() {
+Pass IfThenElseIntrinToStmt(int max_cascading_intrin) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = IfThenElseExprReplacer()(std::move(n->body));
+    n->body = IfThenElseReplacer(max_cascading_intrin)(std::move(n->body));
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.IfThenElseIntrinToStmt", {});

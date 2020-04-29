@@ -138,15 +138,22 @@ def LiftAttrScope(attr_key):
     return _ffi_api.LiftAttrScope(attr_key)
 
 
-def IfThenElseIntrinToStmt():
+def IfThenElseIntrinToStmt(max_cascading_intrin):
     """ Convert tvm_if_then_else intrinsics to be IfThenElse statements
+
+    Parameters
+    ----------
+    max_cascading_intrin : int
+        Max number of tvm_if_then_else intrinsics in one expression.
+        Please note that n intrinsics lead to 2^n branches when converted
+        to IfThenElse statements
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.IfThenElseIntrinToStmt()
+    return _ffi_api.IfThenElseIntrinToStmt(max_cascading_intrin)
 
 def LoopPartition(split_const_loop):
     """Inject virtual thread loops.

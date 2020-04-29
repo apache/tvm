@@ -114,9 +114,13 @@ TVM_DLL Pass LiftAttrScope(std::string attr_key);
  * \brief Convert tvm_if_then_else intrinsics to be IfThenElse
  * statements
  *
+ * \param max_cascading_intrin : Max number of tvm_if_then_else
+ * intrinsics in one expression. Please note that n intrinsics
+ * lead to 2^n branches when converted to IfThenElse statements
+ *
  * \return The pass.
  */
-TVM_DLL Pass IfThenElseIntrinToStmt();
+TVM_DLL Pass IfThenElseIntrinToStmt(int max_cascading_intrin);
 
 /*!
  * \brief partition loops in the stmt.
