@@ -1155,8 +1155,8 @@ def test_duplicate_merge_and_tuplegetitem():
     partitioned = seq(mod)
     assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
 
-def test_constant_partitioning():
-    @reg.register("qnn.concatenate", "target.const_test")
+def test_constant_tuples():
+    @reg.register("qnn.concatenate", "target.const_tuples")
     def add(attrs, args):  # pylint: disable=unused-variable
         return True
 
@@ -1179,13 +1179,13 @@ def test_constant_partitioning():
         return mod
 
     seq = tvm.transform.Sequential([
-        transform.AnnotateTarget("const_test"),
+        transform.AnnotateTarget("const_tuples"),
         transform.MergeCompilerRegions(),
         transform.PartitionGraph(),
     ])
 
     partitioned = seq(create_graph())
-    concat = partitioned["const_test_0"].body
+    concat = partitioned["const_tuples_0"].body
     assert type(concat.args[1]) == relay.Tuple
     assert type(concat.args[2]) == relay.Tuple
     assert type(concat.args[3]) == relay.Constant
@@ -1207,4 +1207,4 @@ if __name__ == "__main__":
     test_multiple_use_of_an_output()
     test_duplicate_outputs()
     test_duplicate_merge_and_tuplegetitem()
-    test_constant_partitioning()
+    test_constant_tuples()
