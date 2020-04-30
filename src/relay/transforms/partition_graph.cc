@@ -283,17 +283,11 @@ class Partitioner : public MixedModeMutator {
     Map<Var, Expr> params_bind;
 
     auto IsConstant = [](const Expr& expr) {
-      if (expr->IsInstance<ConstantNode>())
-        return true;
-      if (expr->IsInstance<TupleNode>()) {
-        auto tuple = expr.as<TupleNode>();
-        for (const auto& field : tuple->fields) {
-          if (!field->IsInstance<ConstantNode>())
-            return false;
-        }
-        return true;
-      }
-      return false;
+      if (expr->IsInstance<ConstantNode>()) return true;
+      if (!expr->IsInstance<TupleNode>()) return false;
+      const auto* tn = expr.as<TupleNode>();
+      return std::all_of(tn->fields.begin(), tn->fields.end(),
+                         [](const Expr& e) { return e->IsInstance<ConstantNode>(); });
     };
 
     for (auto pair : region_func_meta_[region].args) {
