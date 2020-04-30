@@ -309,6 +309,9 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
+  } else if (dtype.is_bfloat()) {
+    CHECK_EQ(dtype.bits(), 16);
+    etype = llvm::Type::getInt16Ty(*ctx_);
   }
   if (dtype.lanes() != 1) {
     return llvm::VectorType::get(etype, dtype.lanes());
@@ -561,6 +564,20 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
   if (value->getType() == target) return value;
   if (to.is_handle()) {
     return builder_->CreateBitCast(value, target);
+  } else if (to.is_float() && from.is_bfloat()) {
+    CHECK_EQ(from.bits(), 16);
+    CHECK_EQ(to.bits(), 32);
+    auto v = builder_->CreateZExt(value, builder_->getInt32Ty());
+    if (module_->getDataLayout().isLittleEndian())
+      v = builder_->CreateShl(v, 16);
+    return builder_->CreateBitCast(v, target);
+  } else if (to.is_bfloat() && from.is_float()) {
+    CHECK_EQ(to.bits(), 16);
+    CHECK_EQ(from.bits(), 32);
+    auto v = builder_->CreateBitCast(value, builder_->getInt32Ty());
+    if (module_->getDataLayout().isLittleEndian())
+      v = builder_->CreateLShr(v, 16);
+    return builder_->CreateTrunc(v, target);
   } else if (to.is_uint() && to.bits() == 1) {
     if (from.is_float()) {
       llvm::Constant* zero = llvm::ConstantFP::get(DTypeToLLVMType(from), 0.);
@@ -906,7 +923,7 @@ DEFINE_CODEGEN_BINARY_OP(Mul);
   llvm::Value* CodeGenLLVM::Create##Op(DataType t, llvm::Value* a, llvm::Value* b) { \
     if (t.is_int()) {                                                                \
       return builder_->CreateICmpS##Op(a, b);                                        \
-    } else if (t.is_uint()) {                                                        \
+    } else if (t.is_uint() || t.is_bfloat()) {                                       \
       return builder_->CreateICmpU##Op(a, b);                                        \
     } else {                                                                         \
       CHECK(t.is_float());                                                           \

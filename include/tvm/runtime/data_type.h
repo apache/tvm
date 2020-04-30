@@ -46,6 +46,7 @@ class DataType {
     kUInt = kDLUInt,
     kFloat = kDLFloat,
     kHandle = TVMTypeCode::kTVMOpaqueHandle,
+    kBFloat = kTVMBFloat,
   };
   /*! \brief default constructor */
   DataType() {}
@@ -81,6 +82,10 @@ class DataType {
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
+  /*! \return whether type is a bfloat type. */
+  bool is_bfloat() const { return code() == DataType::kBFloat; }
+  /*! \return whether type is a bfloat16 type. */
+  bool is_bf16() const { return code() == DataType::kBFloat && bits() == 16; }
   /*! \return whether type is an int type. */
   bool is_int() const { return code() == DataType::kInt; }
   /*! \return whether type is an uint type. */
@@ -297,6 +302,8 @@ inline const char* TypeCode2Str(int type_code) {
       return "Object";
     case kTVMObjectRValueRefArg:
       return "ObjectRValueRefArg";
+    case kTVMBFloat:
+      return "bf";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
       return "";
@@ -363,6 +370,9 @@ inline DLDataType String2DLDataType(std::string s) {
     t.bits = 1;
     t.lanes = 1;
     return t;
+  } else if (s.substr(0, 2) == "bf") {
+    t.code = kTVMBFloat;
+    scan = s.c_str() + 2;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);
   } else {

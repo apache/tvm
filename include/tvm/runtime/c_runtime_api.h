@@ -114,6 +114,7 @@ typedef enum {
   kTVMNNVMLast = 20U,
   // The following section of code is used for non-reserved types.
   kTVMExtReserveEnd = 64U,
+  kTVMBFloat = 65U,
   kTVMExtEnd = 128U,
   // The rest of the space is used for custom, user-supplied datatypes
   kTVMCustomBegin = 129U,

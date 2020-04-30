@@ -149,6 +149,7 @@ IRModule lower(te::Schedule sch, const Array<te::Tensor>& args, const std::strin
   pass_list.push_back(tir::transform::InjectPrefetch());
   pass_list.push_back(tir::transform::StorageFlatten(64, config->instrument_bound_checkers));
   // Phase 1
+  pass_list.push_back(tir::transform::BF16Legalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::LoopPartition(config->partition_const_loop));

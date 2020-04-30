@@ -175,6 +175,7 @@ def lower(sch,
     pass_list += [
         tvm.tir.transform.InjectPrefetch(),
         tvm.tir.transform.StorageFlatten(64, cfg.instrument_bound_checkers),
+        tvm.tir.transform.BF16Legalize(),
         tvm.tir.transform.NarrowDataType(32),
         tvm.tir.transform.Simplify(),
     ]
