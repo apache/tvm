@@ -25,10 +25,10 @@
 
 namespace tvm {
 
-ObjectPtr<Object> GetSourceNameNode(const std::string& name) {
+ObjectPtr<Object> GetSourceNameNode(const String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr
-  static std::unordered_map<std::string, ObjectPtr<SourceNameNode> > source_map;
+  static std::unordered_map<String, ObjectPtr<SourceNameNode> > source_map;
 
   auto sn = source_map.find(name);
   if (sn == source_map.end()) {
@@ -41,7 +41,11 @@ ObjectPtr<Object> GetSourceNameNode(const std::string& name) {
   }
 }
 
-SourceName SourceName::Get(const std::string& name) {
+ObjectPtr<Object> GetSourceNameNodeByStr(const std::string& name) {
+  return GetSourceNameNode(name);
+}
+
+SourceName SourceName::Get(const String& name) {
   return SourceName(GetSourceNameNode(name));
 }
 
@@ -55,10 +59,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
   });
 
 TVM_REGISTER_NODE_TYPE(SourceNameNode)
-.set_creator(GetSourceNameNode)
-.set_repr_bytes([](const Object* n) {
-    return static_cast<const SourceNameNode*>(n)->name;
-  });
+.set_creator(GetSourceNameNodeByStr)
+.set_repr_bytes([](const Object* n) -> std::string {
+  return static_cast<const SourceNameNode*>(n)->name;
+});
 
 Span SpanNode::make(SourceName source, int lineno, int col_offset) {
   auto n = make_object<SpanNode>();

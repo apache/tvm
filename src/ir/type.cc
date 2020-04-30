@@ -66,7 +66,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 });
 
 
-TypeVar::TypeVar(std::string name, TypeKind kind) {
+TypeVar::TypeVar(String name, TypeKind kind) {
   ObjectPtr<TypeVarNode> n = make_object<TypeVarNode>();
   n->name_hint = std::move(name);
   n->kind = std::move(kind);
@@ -76,7 +76,7 @@ TypeVar::TypeVar(std::string name, TypeKind kind) {
 TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
 TVM_REGISTER_GLOBAL("ir.TypeVar")
-.set_body_typed([](std::string name, int kind) {
+.set_body_typed([](String name, int kind) {
   return TypeVar(name, static_cast<TypeKind>(kind));
 });
 
