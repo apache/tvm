@@ -59,9 +59,8 @@ Type GetType(const PrimExpr& expr) {
   }
   // Default: return the type indicated by the dtype.
   runtime::DataType dtype = expr.dtype();
-  // These types already implies the specific type.
-  if (dtype.is_int() || dtype.is_uint() || dtype.is_float()) {
-    return PrimType(dtype);
+  if (dtype.is_void()) {
+    return VoidType();
   }
   return PrimType(dtype);
 }
