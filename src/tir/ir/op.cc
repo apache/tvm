@@ -38,6 +38,8 @@ runtime::DataType GetRuntimeDataType(const Type& type) {
     return n->dtype;
   } else if (type.as<PointerTypeNode>()) {
     return DataType::Handle();
+  } else if (IsVoidType(type)) {
+    return DataType::Void();
   } else {
     LOG(FATAL) << "Type " << type
                << " does not have a corresponding runtime::DataType";
