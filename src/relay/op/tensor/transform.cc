@@ -1482,20 +1482,42 @@ bool ReverseSequenceRel(const Array<Type>& types,
         << types[0];
     return false;
   }
+  const auto* seq_lengths = types[1].as<TensorTypeNode>();
+  if (seq_lengths == nullptr) {
+    CHECK(types[1].as<IncompleteTypeNode>())
+        << "reverse: expect input type to be TensorType but get "
+        << types[1];
+    return false;
+  }
   const auto* param = attrs.as<ReverseSequenceAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
+  const int seq_lengths_dim = static_cast<int>(seq_lengths->shape.size());
+
   
-  const int batch_axis = param->batch_axis;
+  int batch_axis = param->batch_axis;
   CHECK(-ndim <= batch_axis && batch_axis < ndim)
     << "reverse only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
     << ", but got axis = " << batch_axis
     << ", and data.ndim = " << ndim;
+  
+  CHECK(seq_lengths_dim == 1)
+    << "seq_lengths should be 1D vector";
+
+
+  if (batch_axis < 0) {
+    batch_axis = static_cast<int>(data->shape.size()) + batch_axis;
+  }
+  CHECK(reporter->Assert(seq_lengths->shape[0] == data->shape[batch_axis]))
+    << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
+    << ", but got dimension of batch_axis = " << data->shape[batch_axis]
+    << ", and seq_length size = " << seq_lengths->shape[0];
   
   const int seq_axis = param->seq_axis;
   CHECK(-ndim <= seq_axis && seq_axis < ndim)
     << "reverse only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
     << ", but got seq_axis = " << seq_axis
     << ", and data.ndim = " << ndim;
+
   
   reporter->Assign(types[2], types[0]);
   return true;
@@ -1506,7 +1528,7 @@ Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs,
                                  const Type& out_type) {
   const ReverseSequenceAttrs *param = attrs.as<ReverseSequenceAttrs>();
   CHECK(param != nullptr);
-  return { topi::flip_sequence(inputs[0], inputs[1], param->batch_axis, param->seq_axis) };
+  return { topi::reverse_sequence(inputs[0], inputs[1], param->batch_axis, param->seq_axis) };
 }
 
 Expr MakeReverseSequence(Expr data,

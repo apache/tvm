@@ -182,11 +182,11 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
-        print(in_data)
-        print("------")
-        print(tflite_output)
-        print("------")
-        return 0
+        # print(in_data)
+        # print("------")
+        # print(tflite_output)
+        # print("------")
+
 
         for device in ["llvm"]:
             ctx = tvm.context(device, 0)
@@ -1597,9 +1597,6 @@ def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis):
     """ One iteration of reverse_sequence operation with given data and attributes """
 
     data = np.random.uniform(0, 100, size=shape).astype(dtype)
-
-    print(data)
-    print(data[:,0])
     with tf.Graph().as_default():
         in_data = array_ops.placeholder(dtype=dtype, name="input", shape=shape)
         out = tf.reverse_sequence(in_data, seq_lengths=seq_lengths, batch_axis=batch_axis,
@@ -1609,27 +1606,11 @@ def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis):
 
 
 def test_forward_reverse_sequence():
-    test_parameters = [{
-        "input_dtype": [tf.float32, tf.int32, tf.int64],
-        "input_shape": [[8, 4, 5, 5, 6], [4, 4, 3, 5]],
-        "seq_lengths": [[2, 2, 2, 2], [2, 1, 1, 0]],
-        "seq_axis": [0, 3],
-        "batch_axis": [1]
-    }, {
-        "input_dtype": [tf.float32],
-        "input_shape": [[2, 4, 5, 5, 6]],
-        "seq_lengths": [[2, 1]],
-        "seq_axis": [2],
-        "batch_axis": [0]
-    }, {
-        "input_dtype": [tf.float32],
-        "input_shape": [[4, 2]],
-        "seq_lengths": [[3, 1]],
-        "seq_axis": [0],
-        "batch_axis": [1]
-    }]
-
-    _test_reverse_sequence([4, 3], "int32", [4, 1,1], 1, 0)
+    _test_reverse_sequence([4, 3], "float32", [3, 2, 1], 1, 0)
+    _test_reverse_sequence([4, 3], "float32", [3, 2, 1, 3], 0, 1)
+    _test_reverse_sequence([2, 3, 3, 3], "float32", [2, 3, 2], 2, 1)
+    _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3], 0, 2)
+    _test_reverse_sequence([2, 4, 6, 4, 5], "float32", [5, 3, 1, 4], 3, 2)
 
 
 #######################################################################
@@ -1981,7 +1962,8 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
-    test_forward_reverse_sequence()
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        test_forward_reverse_sequence()
 
     # NN
     test_forward_convolution()

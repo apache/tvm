@@ -131,6 +131,23 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
+def reverse_sequence(a, seq_lengths, batch_axis=0, seq_axis=1):
+    """Flip/reverse elements of an array in a particular axis.
+
+    Parameters
+    ----------
+    a : tvm.te.Tensor
+        The tensor to be expanded.
+
+    axis : int, optional
+        The axis along which the tensors will be reveresed.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    return cpp.reverse_sequence(a, seq_lengths, batch_axis, seq_axis)
+
 def strided_slice(a, begin, end, strides=None):
     """Slice of an array.
 

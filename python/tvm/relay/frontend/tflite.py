@@ -116,6 +116,7 @@ class OperatorConverter(object):
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
+            'REVERSE_SEQUENCE': self.convert_reverse_sequence,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
@@ -1651,6 +1652,35 @@ class OperatorConverter(object):
             out = _op.transpose(in_expr)
         else:
             out = _op.transpose(in_expr, in_axis)
+
+        return out
+
+    def convert_reverse_sequence(self, op):
+        """Convert TFLite REVERSE_SEQUENCE"""
+        try:
+            from tflite.BuiltinOptions import BuiltinOptions
+            from tflite.ReverseSequenceOptions import ReverseSequenceOptions
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        in_expr = self.get_expr(input_tensors[0].tensor_idx)
+        length_tensor = input_tensors[1]
+        if self.has_expr(length_tensor.tensor_idx):
+            length_expr = self.get_expr(length_tensor.tensor_idx)
+        else:
+            type_str = self.get_tensor_type_str(length_tensor.tensor.Type())
+            length_expr = self.exp_tab.new_const(self.get_tensor_value(length_tensor), dtype=type_str)
+
+        assert op.BuiltinOptionsType() == BuiltinOptions.ReverseSequenceOptions
+        op_options = op.BuiltinOptions()
+        options = ReverseSequenceOptions()
+        options.Init(op_options.Bytes, op_options.Pos)
+        batch_axis = options.BatchDim()
+        seq_axis = options.SeqDim()
+        out = _op.reverse_sequence(in_expr, length_expr, batch_axis, seq_axis)
 
         return out
 

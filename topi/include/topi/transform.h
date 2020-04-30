@@ -204,7 +204,7 @@ inline Tensor flip(const Tensor& x,
 *
 * \return A Tensor whose op member is the reverse operation
 */
-inline Tensor flip_sequence(const Tensor& x,
+inline Tensor reverse_sequence(const Tensor& x,
                    const Tensor& seq_lengths,
                    int batch_axis = 0,
                    int sequence_axis = 1,
@@ -252,7 +252,10 @@ Array<PrimExpr> seq_lengths_expr;
           std::cout << "getting const int 2222\n";
           //seq_lengths_expr[GetConstInt(length_idx)]
           //auto l = seq_lengths[GetConstInt(  )];
-          real_indices.push_back(seq_lengths(indices[batch_axis])- indices[i]);
+          auto l= seq_lengths(indices[batch_axis]);
+          auto idx= if_then_else(l <= 1 || l <= indices[i], indices[i], 
+                    if_then_else(l > x->shape[i], x->shape[i] -1 -indices[i], l-1-indices[i]));
+          real_indices.push_back(idx);
         } else {
           real_indices.push_back(indices[i]);
         }
