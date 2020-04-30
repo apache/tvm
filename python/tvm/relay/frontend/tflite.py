@@ -1703,9 +1703,9 @@ class OperatorConverter(object):
         """Convert TFLite SELECT"""
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 3, "input tensors length should be == 3"
-        cond = self.get_tensor_or_const_expr(input_tensors[0])
-        x = self.get_tensor_or_const_expr(input_tensors[1])
-        y = self.get_tensor_or_const_expr(input_tensors[2])
+        cond = self.get_tensor_expr(input_tensors[0])
+        x = self.get_tensor_expr(input_tensors[1])
+        y = self.get_tensor_expr(input_tensors[2])
 
         out = _op.where(cond, x, y)
 
@@ -2371,7 +2371,7 @@ class OperatorConverter(object):
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
-    def get_tensor_or_const_expr(self, tensor):
+    def get_tensor_expr(self, tensor):
         """ Returns constant expr for constant else a tensor expr"""
         if self.has_expr(tensor.tensor_idx):
             # In most cases, we can assume that TOCO fuses elemwise operators
