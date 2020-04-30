@@ -54,6 +54,23 @@ namespace partitioning {
 static const Op& compiler_begin_op = Op::Get("annotation.compiler_begin");
 static const Op& compiler_end_op = Op::Get("annotation.compiler_end");
 
+/*! \brief This struct maintains the required metadata for a region to generate a corresponding
+ * global function and function call. Global function will be passed to the target specific codegen
+ * and function call will be used in the transform Relay graph to invoke the function in runtime.
+ */
+struct RegionFuncMetadata {
+  /*! \brief The call node of the generated global function for this region. */
+  Call func_call;
+
+  /*! \brief A list of argument pairs. Each pair includes (var, expr). var is used
+   * as a function node argument; input expression is used as a function call parameter.
+   */
+  std::vector<std::pair<Var, Expr>> args;
+
+  /*! \brief Map from each region output expr node to its output index and TupleGetItem node. */
+  std::unordered_map<Expr, std::pair<int, TupleGetItem>, ObjectHash, ObjectEqual> out_expr_indices;
+};
+
 /*! \brief This class partitions the expr labeled with begin and end annotations
  * into function containing multiple regions. Each region is labeled with
  * a compiler attribute so that it will be handled by any compilers that are not
@@ -96,10 +113,15 @@ class Partitioner : public MixedModeMutator {
       GlobalVar f_var = f.first;
       BaseFunc f_func = f.second;
 
-      // Creating regionset per function in the module
+      // Creating regionset per function in the module.
       auto region_set = AnnotatedRegionSet::Create(f_func, partitioning::compiler_begin_op,
                                                    partitioning::compiler_end_op);
       regions_sets_[region_set] = f_func;
+
+      // Initial region function metadata.
+      for (auto region : region_set) {
+        region_func_meta_[region] = RegionFuncMetadata();
+      }
     }
   }
 
@@ -108,8 +130,7 @@ class Partitioner : public MixedModeMutator {
     if (op_node == nullptr || call->attrs.as<CompilerAttrs>() == nullptr) {
       return post;
     } else if (call->op == compiler_begin_op) {
-      // The annotation node is inserted on edge so it must have only one
-      // argument.
+      // The annotation node is inserted on edge so it must have only one argument.
       CHECK_EQ(call->args.size(), 1U);
 
       // Traverse the rest graph.
@@ -118,8 +139,7 @@ class Partitioner : public MixedModeMutator {
 
       // Backtrace the parent to find the first ancestor node that is not a begin or end op
       while (const auto* parent_call = parent.as<CallNode>()) {
-        if (parent_call->op == compiler_begin_op ||
-            parent_call->op == compiler_end_op) {
+        if (parent_call->op == compiler_begin_op || parent_call->op == compiler_end_op) {
           parent = parent_call->args[0];
         } else {
           break;
@@ -142,9 +162,9 @@ class Partitioner : public MixedModeMutator {
 
         std::pair<Var, Expr> cand = std::make_pair(var, input_expr);
 
-        if (std::find(region_args_[sg].begin(), region_args_[sg].end(), cand) ==
-            region_args_[sg].end()) {
-          region_args_[sg].push_back(cand);
+        if (std::find(region_func_meta_[sg].args.begin(), region_func_meta_[sg].args.end(), cand) ==
+            region_func_meta_[sg].args.end()) {
+          region_func_meta_[sg].args.push_back(cand);
         }
         shared_output_[parent][sg] = var;
         return std::move(var);
@@ -167,10 +187,8 @@ class Partitioner : public MixedModeMutator {
       // functions are created for each annotated regions,
       // when their first output is encountered.
       // If multiple outputs are there, a tuple node is inserted at the end.
-      // region_function_calls_ is map that maintains
-      // (each annotated regions) --> created function
 
-      if (region_function_calls_.find(region) == region_function_calls_.end()) {
+      if (!region_func_meta_[region].func_call.defined()) {
         // First time this region is encountered in the traversal.
         // Creating the function.
         CreateFunction(region, call);
@@ -246,19 +264,16 @@ class Partitioner : public MixedModeMutator {
    * node to create the function for the subgraph.
    */
   void CreateFunction(AnnotatedRegion region, const CallNode* call) {
-    // Create fields which is a unique list of outputs. Also populate
-    // region_return_indices_ map which maps parent of compiler_end node to
-    // corresponding index in fields.
+    // Create fields which is a unique list of outputs.
     Array<Expr> fields;
     int i = 0;
     for (auto ret : region->GetOutputs()) {
       auto ret_node = Downcast<Call>(ret)->args[0];
       // Don't duplicate outputs.
-      if (!region_return_indices_.count(region) ||
-          !region_return_indices_[region].count(ret_node)) {
+      if (!region_func_meta_[region].out_expr_indices.count(ret_node)) {
         auto ret_expr = MixedModeMutator::VisitExpr(ret_node);
         fields.push_back(ret_expr);
-        region_return_indices_[region][ret_node] = i;
+        region_func_meta_[region].out_expr_indices[ret_node] = {i, TupleGetItem()};
         i++;
       }
     }
@@ -281,7 +296,7 @@ class Partitioner : public MixedModeMutator {
       return false;
     };
 
-    for (auto pair : region_args_[region]) {
+    for (auto pair : region_func_meta_[region].args) {
       params.push_back(pair.first);
       if (IsConstant(pair.second)) {
         params_bind.Set(pair.first, pair.second);
@@ -303,14 +318,12 @@ class Partitioner : public MixedModeMutator {
     std::string target = call->attrs.as<CompilerAttrs>()->compiler;
     std::string name = target + "_" + std::to_string(region->GetID());
 
-    global_region_func = WithAttr(std::move(global_region_func), tvm::attr::kGlobalSymbol,
-                                  runtime::String(name));
     global_region_func =
-        WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
-    global_region_func = WithAttr(std::move(global_region_func), attr::kCompiler,
-                                  tvm::runtime::String(target));
+        WithAttr(std::move(global_region_func), tvm::attr::kGlobalSymbol, runtime::String(name));
+    global_region_func = WithAttr(std::move(global_region_func), attr::kPrimitive, tvm::Integer(1));
     global_region_func =
-        WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
+        WithAttr(std::move(global_region_func), attr::kCompiler, tvm::runtime::String(target));
+    global_region_func = WithAttr(std::move(global_region_func), attr::kInline, tvm::Integer(1));
 
     // Constant propagation
     if (!params_bind.empty()) {
@@ -318,8 +331,7 @@ class Partitioner : public MixedModeMutator {
     }
 
     std::string fname = name;
-    CHECK(!module_->ContainGlobalVar(fname))
-        << "Global function " << fname << " already exists";
+    CHECK(!module_->ContainGlobalVar(fname)) << "Global function " << fname << " already exists";
     // Create a global function and add it to the IRModule for the region.
     // This way we lift the functions that should be handled by external
     // codegen to the module scope and rely on the pass manager to prevent
@@ -328,10 +340,9 @@ class Partitioner : public MixedModeMutator {
     GlobalVar glob_func(fname);
     module_->Add(glob_func, global_region_func);
 
-    // The return type of callnode is the same as the type of the
-    // compiler_end node.
+    // The return type of callnode is the same as the type of the compiler_end node.
     auto ret = Call(glob_func, param_expr);
-    region_function_calls_[region] = ret;
+    region_func_meta_[region].func_call = ret;
   }
 
   /*!
@@ -342,67 +353,41 @@ class Partitioner : public MixedModeMutator {
   Expr GetFunctionOutput(AnnotatedRegion region, const Expr& end_arg) {
     Expr arg = Downcast<Call>(end_arg)->args[0];
     // Function has one output.
-    if (region_return_indices_[region].size() == 1) {
-      return region_function_calls_[region];
+    if (region_func_meta_[region].out_expr_indices.size() == 1) {
+      return region_func_meta_[region].func_call;
     }
+
     // Function has multiple outputs.
     // Use already made TupleGetItem.
-    if (region_return_tuplegetitem_.count(region) &&
-        region_return_tuplegetitem_[region].count(arg)) {
-      return region_return_tuplegetitem_[region][arg];
+    if (region_func_meta_[region].out_expr_indices.count(arg) &&
+        region_func_meta_[region].out_expr_indices[arg].second.defined()) {
+      return region_func_meta_[region].out_expr_indices[arg].second;
     }
     // Create new TupleGetItem.
-    CHECK(region_return_indices_.count(region) &&
-          region_return_indices_[region].count(arg));
-    int index = region_return_indices_[region][arg];
+    CHECK(region_func_meta_[region].out_expr_indices.count(arg));
+    int index = region_func_meta_[region].out_expr_indices[arg].first;
 
-    auto func_call = region_function_calls_[region];
+    auto func_call = region_func_meta_[region].func_call;
     auto tuple_get_item_ = TupleGetItem(func_call, index);
     tuple_get_item_->checked_type_ = arg->checked_type_;
-    region_return_tuplegetitem_[region][arg] = tuple_get_item_;
+    region_func_meta_[region].out_expr_indices[arg].second = tuple_get_item_;
     return std::move(tuple_get_item_);
   }
 
-  /*!
-   * \brief This map maintains the already created function calls.
-   * This is required in the multi-output scenario, to link rest of the outputs
-   * to call
-   */
-  std::unordered_map<AnnotatedRegion, Call, ObjectHash, ObjectEqual> region_function_calls_;
+  /*! \brief Map from each region to its metadata of the generated function. */
+  std::unordered_map<AnnotatedRegion, RegionFuncMetadata, ObjectHash, ObjectEqual>
+      region_func_meta_;
 
-  /*!
-   * \brief This map maintains arguments (of region) visits through visitor
-   * patterns. Those argument var and expression will be used to when creating
-   * the function.
-   */
-  std::unordered_map<AnnotatedRegion, std::vector<std::pair<Var, Expr>>, ObjectHash, ObjectEqual>
-      region_args_;
-
-  /*!
-   * \brief This map maintains the index of an output in the subgraph function
-   * for a given region. If there are multiple entries for a region, then the
-   * function has a tuple of multiple outputs for its return.
-   */
-  using RegionRetIndexMap = std::unordered_map<Expr, int, ObjectHash, ObjectEqual>;
-  std::unordered_map<AnnotatedRegion, RegionRetIndexMap, ObjectHash, ObjectEqual>
-      region_return_indices_;
-
-  /*!
-   * \brief This map holds already created TupleGetItem nodes for accessing
-   * outputs of a function.
-   */
-  using RegionRetTupleGetItemMap = std::unordered_map<Expr, TupleGetItem, ObjectHash, ObjectEqual>;
-  std::unordered_map<AnnotatedRegion, RegionRetTupleGetItemMap, ObjectHash, ObjectEqual>
-      region_return_tuplegetitem_;
-
-  /*!
-   * \brief Each region set is associated with a function in the module.
+  /*! \brief Each region set is associated with a function in the module.
    * This map maintains the mapping between regionsets and the function it
    * belongs to
    */
   std::unordered_map<AnnotatedRegionSet, BaseFunc, ObjectHash, ObjectEqual> regions_sets_;
 
-  /*!\brief Cache the output that is shared by different nodes. */
+  /*! \brief Map from region output exprs to descendant region inputs (vars). This cache is used
+   * to make sure descendant region will not have duplicated inputs even it refers the same expr
+   * multuple times.
+   */
   using RegionOutputMap = std::unordered_map<AnnotatedRegion, Var, ObjectHash, ObjectEqual>;
   std::unordered_map<Expr, RegionOutputMap, ObjectHash, ObjectEqual> shared_output_;
 
@@ -444,13 +429,13 @@ IRModule Remove(IRModule module) {
 namespace transform {
 
 Pass PartitionGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func =
-      [=](IRModule m, PassContext pc) {
-        // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
-        // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
-        // all "default" annotations and should be deleted in the future.
-        auto new_m = partitioning::Remove(m);
-        return partitioning::Partitioner(new_m).Partition();
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> part_func = [=](IRModule m,
+                                                                            PassContext pc) {
+    // TODO(@comaniac, @zhiics): We should also handle the annotation with "default" attribute
+    // by treating them as un-annotated, but we don't have it yet. This workaround pass removes
+    // all "default" annotations and should be deleted in the future.
+    auto new_m = partitioning::Remove(m);
+    return partitioning::Partitioner(new_m).Partition();
   };
   auto partitioned = CreateModulePass(part_func, 0, "PartitionGraph", {});
   return Sequential({partitioned, InferType()});
