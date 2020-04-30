@@ -468,6 +468,18 @@ TEST(Optional, PackedCall) {
   CHECK(packedfunc("xyz", false).operator String() == "xyz");
   CHECK(packedfunc("xyz", false).operator Optional<String>() == "xyz");
   CHECK(packedfunc(nullptr, true).operator Optional<String>() == nullptr);
+
+  // test FFI convention.
+  auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    int tcode = args[1];
+    CHECK_EQ(args[0].type_code(), tcode);
+  });
+  String s = "xyz";
+  auto nd = NDArray::Empty({0, 1}, DataType::Float(32), DLContext{kDLCPU, 0});
+  test_ffi(Optional<NDArray>(nd), static_cast<int>(kTVMNDArrayHandle));
+  test_ffi(Optional<String>(s), static_cast<int>(kTVMObjectRValueRefArg));
+  test_ffi(s, static_cast<int>(kTVMObjectHandle));
+  test_ffi(String(s), static_cast<int>(kTVMObjectRValueRefArg));
 }
 
 int main(int argc, char** argv) {
