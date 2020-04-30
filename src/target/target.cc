@@ -140,7 +140,7 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back("hexagon");
     t->device_type = kDLHexagon;
   } else {
-    LOG(ERROR) << "Unknown target name " << target_name;
+    LOG(ERROR) << "Unknown target name " << target_name << "; falling back to stackvm";
     return target::stackvm();
   }
 
