@@ -1730,12 +1730,12 @@ def _mx_logical_not(inputs, input_types):
 
 def _mx_broadcast_logical(logical_op):
     def impl(inputs, input_types):
-        dtype0 = _infer_type(inputs[0]).checked_type.dtype
-        dtype1 = _infer_type(inputs[1]).checked_type.dtype
-        lhs = _op.cast(inputs[0], "bool") if dtype0 != "bool" else inputs[0]
-        rhs = _op.cast(inputs[1], "bool") if dtype1 != "bool" else inputs[1]
+        lhs_type = _infer_type(inputs[0]).checked_type.dtype
+        rhs_type = _infer_type(inputs[1]).checked_type.dtype
+        lhs = _op.cast(inputs[0], "bool") if lhs_type != "bool" else inputs[0]
+        rhs = _op.cast(inputs[1], "bool") if rhs_type != "bool" else inputs[1]
 
-        return _op.cast(logical_op(lhs, rhs), dtype0)
+        return _op.cast(logical_op(lhs, rhs), lhs_type)
     return impl
 
 
