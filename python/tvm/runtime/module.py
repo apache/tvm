@@ -109,7 +109,6 @@ class Module(object):
         # pylint: disable=not-callable
         return self.entry_func(*args)
 
-
     def __repr__(self):
         return "Module(%s, %x)" % (self.type_key, self.handle.value)
 

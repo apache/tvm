@@ -23,8 +23,8 @@
 #include <tvm/target/codegen.h>
 #include <vector>
 #include <string>
-#include "codegen_c_host.h"
 #include "../build_common.h"
+#include "codegen_c_host.h"
 
 namespace tvm {
 namespace codegen {
@@ -35,9 +35,10 @@ CodeGenCHost::CodeGenCHost() {
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts) {
   emit_asserts_ = emit_asserts;
+  declared_globals_.clear();
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
-  decl_stream << "extern void* " << module_name_ << " = NULL;\n";
+  decl_stream << "void* " << module_name_ << " = NULL;\n";
   CodeGenC::Init(output_ssa);
 }
 
@@ -182,8 +183,15 @@ void CodeGenCHost::VisitExpr_(const CallNode *op, std::ostream& os) { // NOLINT(
     int64_t num_args = end - begin;
     CHECK_GE(num_args, 0);
     std::string func_name = s->value;
-    std::string packed_func_name = GetUniqueName(func_name + "_packed");
-    decl_stream << "static void* " << packed_func_name << " = NULL;\n";
+    // NOTE: cannot rely on GetUnique for global decl_stream declarations
+    // because it is reset between AddFunction().
+    std::string packed_func_name = func_name + "_packed";
+    if (declared_globals_.insert(packed_func_name).second) {
+      // Still reserve the name among unique names.
+      CHECK(GetUniqueName(packed_func_name) == packed_func_name) <<
+        "Expected name " << packed_func_name << " to not be taken";
+      decl_stream << "static void* " << packed_func_name << " = NULL;\n";
+    }
     this->PrintGetFuncFromBackend(func_name, packed_func_name);
     this->PrintFuncCall(packed_func_name, num_args);
   } else if (op->is_intrinsic(intrinsic::tvm_throw_last_error)) {
@@ -241,7 +249,7 @@ runtime::Module BuildCHost(IRModule mod) {
   CodeGenCHost cg;
   cg.Init(output_ssa, emit_asserts);
 
-  for (auto kv :  mod->functions) {
+  for (auto kv : mod->functions) {
     CHECK(kv.second->IsInstance<PrimFuncNode>())
         << "CodegenCHost: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
@@ -254,7 +262,7 @@ runtime::Module BuildCHost(IRModule mod) {
 
 TVM_REGISTER_GLOBAL("target.build.c")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildCHost(args[0]);
-  });
+  *rv = BuildCHost(args[0]);
+});
 }  // namespace codegen
 }  // namespace tvm
