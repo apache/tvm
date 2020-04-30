@@ -247,8 +247,10 @@ In order to specify the layouts to convert to, we create a mapping of heavily-la
 The example above only considers data layout, the kernel layout is automatically converted to one that is supported by TVM. If we wish to also convert to a specific kernel layout this can be done like so:
 
 .. code-block:: python
+
     desired_layouts = {'nn.conv2d': ['NCHW', 'HWIO']}
     pass = relay.transform.ConvertLayout(desired_layouts)
+
 
 If we wish to select the default choice for a specific layout then the layout should be declared as "default". In the first example, the kernel layout is implicitly defined as "default".
 
