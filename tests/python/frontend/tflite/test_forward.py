@@ -1659,6 +1659,44 @@ def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
 #######################################################################
+# Select
+# ------
+
+def _test_select(data, use_placeholder = True):
+    """ One iteration of select with placeholders """
+    assert len(data) == 3
+
+    data[0] = np.array(data[0], dtype='bool')
+    data[1] = None if data[1] is None else np.array(data[1]).astype('int32')
+    data[2] = None if data[2] is None else np.array(data[2]).astype('int32')
+
+    with tf.Graph().as_default():
+        condition = tf.placeholder(dtype='bool', shape=data[0].shape, name="condition")
+        if use_placeholder:
+            x = tf.placeholder(dtype='int32', shape=data[1].shape, name="x")
+            y = tf.placeholder(dtype='int32', shape=data[2].shape, name="y")
+            out = tf.where(condition, x, y)
+
+            compare_tflite_with_tvm(data, ['condition:0', 'x:0', 'y:0'], [condition, x, y], [out])
+        else:
+            x = tf.constant(data[1], dtype='int32', shape=data[1].shape, name="x")
+            y = tf.constant(data[2], dtype='int32', shape=data[2].shape, name="y")
+            out = tf.where(condition, x, y)
+
+            compare_tflite_with_tvm([data[0]], ['condition:0'], [condition], [out])
+
+
+def test_forward_select():
+    #tf converter to tflite has bool data type support in tf version 1.15
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.15.0'):
+        _test_select([[1, 0], [[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        _test_select([[[False, True], [True, False]], [[1, 2], [3, 4]], [[5, 6], [7, 8]]])
+        _test_select([[[False, True], [True, False]], [[1, 2], [3, 4]], [[5, 6], [7, 8]]], False)
+
+    #Not supported at topi/relay layer
+    #_test_where([[[False, False], [True, True]], None, None])
+
+#######################################################################
 # Fully Connected
 # ---------------
 
@@ -2014,6 +2052,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_select()
 
     # NN
     test_forward_convolution()

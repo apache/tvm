@@ -119,6 +119,7 @@ class OperatorConverter(object):
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
+            'SELECT': self.convert_select,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
@@ -140,6 +141,7 @@ class OperatorConverter(object):
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'TRANSPOSE': self.convert_transpose,
             'UNPACK': self.convert_unpack,
+            'WHERE': self.convert_select,
             'ZEROS_LIKE': self.convert_zeros_like,
         }
 
@@ -2001,6 +2003,38 @@ class OperatorConverter(object):
                              for split_item in splitted]), len(splitted))
 
         return squeezed
+
+    def convert_select(self, op):
+        """Convert TFLite select"""
+        try:
+            from tflite.TensorType import TensorType
+        except ImportError:
+            raise ImportError("The tflite package must be installed")
+
+        input_tensors = self.get_input_tensors(op)
+
+        for t in input_tensors:
+            assert not t.qnn_params, "Quantized input is not expected."
+
+        assert len(input_tensors) == 3
+
+        condition, x, y = input_tensors[0], input_tensors[1], input_tensors[1]
+        assert condition.tensor.Type() in (TensorType.INT32, TensorType.INT64, TensorType.BOOL)
+
+        for type in [x.tensor.Type(), y.tensor.Type()]:
+            assert type in (TensorType.INT32, TensorType.INT64)
+
+        expressions = []
+
+        for t in input_tensors:
+            if self.has_expr(t.tensor_idx):
+                expressions.append(self.get_expr(t.tensor_idx))
+            else:
+                tensor_type = self.get_tensor_type_str(t.tensor.Type())
+                tensor_value = self.get_tensor_value(t)
+                expressions.append(self.exp_tab.new_const(tensor_value, dtype=tensor_type))
+
+        return _op.where(expressions[0], expressions[1], expressions[2])
 
     def convert_batch_to_space_nd(self, op):
         """batch_to_space_nd implementation."""
