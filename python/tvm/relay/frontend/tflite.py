@@ -2021,8 +2021,8 @@ class OperatorConverter(object):
         condition, x, y = input_tensors[0], input_tensors[1], input_tensors[1]
         assert condition.tensor.Type() in (TensorType.INT32, TensorType.INT64, TensorType.BOOL)
 
-        for type in [x.tensor.Type(), y.tensor.Type()]:
-            assert type in (TensorType.INT32, TensorType.INT64)
+        for t_type in [x.tensor.Type(), y.tensor.Type()]:
+            assert t_type in (TensorType.INT32, TensorType.INT64)
 
         expressions = []
 
