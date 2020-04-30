@@ -46,6 +46,7 @@ def test_llvm_intrin():
 def test_llvm_void_intrin():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("uint8", name="A")
+    # Create an intrinsic that returns void.
     x = tvm.tir.call_llvm_intrin('', 'llvm.va_start', tvm.tir.const(1, 'uint32'), A)
     ib.emit(x)
     body = ib.get()

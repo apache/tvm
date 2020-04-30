@@ -107,7 +107,7 @@ class DataType {
   }
   /*! \return whether type is a handle type. */
   bool is_handle() const {
-    return code() == DataType::kHandle && !is_none();
+    return code() == DataType::kHandle && !is_void();
   }
   /*! \return whether type is a vector type. */
   bool is_vector() const {
@@ -117,8 +117,8 @@ class DataType {
   bool is_vector_bool() const {
     return is_vector() && bits() == 1;
   }
-  /*! \return whether type is a None type. */
-  bool is_none() const {
+  /*! \return whether type is a Void type. */
+  bool is_void() const {
     return code() == DataType::kHandle && bits() == 0 && lanes() == 0;
   }
   /*!
@@ -216,10 +216,10 @@ class DataType {
     return DataType(kHandle, bits, lanes);
   }
   /*!
-   * \brief Construct a None type.
+   * \brief Construct a Void type.
    * \return The constructed data type.
    */
-  static DataType None() {
+  static DataType Void() {
     return DataType(kHandle, 0, 0);
   }
   /*!
@@ -346,8 +346,8 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
-  if (DataType(t).is_none()) {
-    return os << "none";
+  if (DataType(t).is_void()) {
+    return os << "void";
   }
   if (t.code < kTVMCustomBegin) {
     os << TypeCode2Str(t.code);
@@ -375,9 +375,9 @@ inline std::string DLDataType2String(DLDataType t) {
 
 inline DLDataType String2DLDataType(std::string s) {
   DLDataType t;
-  // handle None type
+  // handle void type
   if (s.length() == 0) {
-    t = DataType::None();
+    t = DataType::Void();
     return t;
   }
   t.bits = 32; t.lanes = 1;
