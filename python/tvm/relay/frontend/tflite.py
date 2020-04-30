@@ -94,6 +94,7 @@ class OperatorConverter(object):
             'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
             'LOG': self.convert_log,
             'LOGICAL_AND': self.convert_logical_and,
+            'LOGICAL_NOT': self.convert_logical_not,
             'LOGICAL_OR': self.convert_logical_or,
             'LOGISTIC': self.convert_logistic,
             'MAX_POOL_2D': self.convert_max_pool2d,
@@ -991,6 +992,16 @@ class OperatorConverter(object):
     def convert_logical_or(self, op):
         """Convert tflite LOGICAL_OR"""
         return self._convert_logical_binary(_op.logical_or, op)
+
+    def convert_logical_not(self, op):
+        """Convert tflite LOGICAL_NOT"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        data = self.get_expr(input_tensors[0].tensor_idx)
+        out = _op.logical_not(data)
+
+        return out
 
     def convert_gather(self, op):
         """Method to Convert TFLite GATHER operator"""
