@@ -89,7 +89,7 @@ elseif(PYTHON)
 
   # VTA FPGA driver sources
   if(USE_VTA_FPGA)
-    file(GLOB FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/*.cc)
+    file(GLOB FPGA_RUNTIME_SRCS vta/runtime/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
        ${VTA_TARGET} STREQUAL "ultra96")
