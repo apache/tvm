@@ -182,7 +182,7 @@ def concatenate(data,
 
     if isinstance(data, (list, tuple)):
         data = Tuple(data)
-    if isinstance(data, TupleWrapper):
+    elif isinstance(data, TupleWrapper):
         data = data.tuple_value
     if not isinstance(axis, int):
         raise ValueError("For now, we only support integer axis")
