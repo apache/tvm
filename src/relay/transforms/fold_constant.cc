@@ -203,6 +203,7 @@ class ConstantFolder : public ExprMutator {
   // Constant evaluate a expression.
   Expr ConstEvaluate(Expr expr) {
     std::vector<transform::Pass> passes = {transform::FuseOps(0),
+                                           transform::ToANormalForm(),
                                            transform::InferType()};
     Function func;
     if (expr.as<FunctionNode>()) {
