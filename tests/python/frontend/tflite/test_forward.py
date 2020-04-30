@@ -1945,6 +1945,49 @@ def test_forward_qnn_mobilenet_v3_net():
     tvm_sorted_labels = tvm_predictions.argsort()[-3:][::-1]
     tvm.testing.assert_allclose(tvm_sorted_labels, tflite_sorted_labels)
 
+
+#######################################################################
+# SSD Mobilenet
+# -------------
+
+def test_forward_qnn_coco_ssd_mobilenet_v1():
+    """Test the quantized Coco SSD Mobilenet V1 TF Lite model."""
+    pytest.skip("Unsupported op - use_regular_nms")
+    tflite_model_file = tf_testing.get_workload_official(
+        "https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
+        "detect.tflite")
+
+    with open(tflite_model_file, "rb") as f:
+        tflite_model_buf = f.read()
+
+    np.random.seed(0)
+    data = np.random.uniform(size=(1, 300, 300, 3)).astype('uint8')
+    tflite_output = run_tflite_graph(tflite_model_buf, data)
+    tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=4)
+
+    # Check all output shapes are equal
+    assert all([tvm_tensor.shape == tflite_tensor.shape \
+                for (tvm_tensor, tflite_tensor) in zip(tvm_output, tflite_output)])
+
+    # Check valid count is the same
+    assert tvm_output[3] == tflite_output[3]
+    valid_count = tvm_output[3][0]
+
+    # For boxes that do not have any detections, TFLite puts random values. Therefore, we compare
+    # tflite and tvm tensors for only valid boxes.
+    for i in range(0, valid_count):
+        # Check bounding box co-ords
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
+                                    rtol=1e-5, atol=1e-5)
+        # Check the class
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]),
+                                    rtol=1e-5, atol=1e-5)
+        # Check the score
+        tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
+                                    rtol=1e-5, atol=1e-5)
+
+
+
 #######################################################################
 # SSD Mobilenet
 # -------------
@@ -1957,7 +2000,7 @@ def test_forward_coco_ssd_mobilenet_v1():
 
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
-    
+
     np.random.seed(0)
     data = np.random.uniform(size=(1, 300, 300, 3)).astype('float32')
     tflite_output = run_tflite_graph(tflite_model_buf, data)
