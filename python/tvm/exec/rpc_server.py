@@ -20,6 +20,7 @@ from __future__ import absolute_import
 
 import argparse
 import ast
+import json
 import multiprocessing
 import sys
 import logging
@@ -41,7 +42,7 @@ def main(args):
         tracker_addr = (url, port)
         if not args.key:
             raise RuntimeError(
-                "Need key to present type of resource when tracker is available")
+                'Need key to present type of resource when tracker is available')
     else:
         tracker_addr = None
 
@@ -75,8 +76,8 @@ def init_utvm(args):
             dev_config = json.load(dev_conf_file)
     else:
         dev_config_args = ast.literal_eval(args.utvm_dev_config_args)
-        default_config_func = micro.device.get_device_funcs(args.utvm_dev_id)['default_config']
-        dev_config = default_config_func(*dev_config_args)
+        generate_config_func = micro.device.get_device_funcs(args.utvm_dev_id)['generate_config']
+        dev_config = generate_config_func(*dev_config_args)
 
     if args.utvm_dev_config or args.utvm_dev_id:
         # add MicroTVM overrides
@@ -100,8 +101,8 @@ if __name__ == "__main__":
     parser.add_argument('--port-end', type=int, default=9199,
                         help='The end search port of the RPC')
     parser.add_argument('--tracker', type=str,
-                        help="The address of RPC tracker in host:port format. "
-                             "e.g. (10.77.1.234:9190)")
+                        help=("The address of RPC tracker in host:port format. "
+                              "e.g. (10.77.1.234:9190)"))
     parser.add_argument('--key', type=str, default="",
                         help="The key used to identify the device type in tracker.")
     parser.add_argument('--silent', action='store_true',
@@ -110,17 +111,24 @@ if __name__ == "__main__":
                         help="Additional library to load")
     parser.add_argument('--no-fork', dest='fork', action='store_false',
                         help="Use spawn mode to avoid fork. This option \
-                         is able to avoid potential fork problems with Metal, OpenCL \
-                         and ROCM compilers.")
+                        is able to avoid potential fork problems with Metal, OpenCL \
+                        and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
                         help="Custom IP Address to Report to RPC Tracker")
     parser.add_argument('--utvm-dev-config', type=str,
-                        help='JSON config file for the target device (if using MicroTVM)')
-    parser.add_argument('--utvm-dev-id', type=str,
-                        help='Unique ID for the target device (if using MicroTVM)')
+                        help=('JSON config file for the target device (if using MicroTVM). '
+                              'This file should contain serialized output similar to that returned '
+                              "from the device module's generate_config. Can't be specified when "
+                              '--utvm-dev-config-args is specified.'))
     parser.add_argument('--utvm-dev-config-args', type=str,
-                        help=('Python list of literals required to generate a default'
-                              ' MicroTVM config (if --utvm-dev-id is specified)'))
+                        help=("Arguments to the device module's generate_config function. "
+                              'Must be a python literal parseable by literal_eval. If specified, '
+                              "the device configuration is generated using the device module's "
+                              "generate_config. Can't be specified when --utvm-dev-config is "
+                              "specified."))
+    parser.add_argument('--utvm-dev-id', type=str,
+                        help=('Unique ID for the target device (if using MicroTVM). Should '
+                              'match the name of a module underneath tvm.micro.device).'))
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

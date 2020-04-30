@@ -73,7 +73,8 @@ build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
 cpplint:
 	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
-	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp include src \
+	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp \
+	 include src \
 	 examples/extension/src examples/graph_executor/src
 
 pylint:

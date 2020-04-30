@@ -43,14 +43,15 @@ class HostLowLevelDevice final : public LowLevelDevice {
    * \brief constructor to initialize on-host memory region to act as device
    * \param num_bytes size of the emulated on-device memory region
    */
-  explicit HostLowLevelDevice(size_t num_bytes, void** base_addr) : size_(num_bytes) {
+  explicit HostLowLevelDevice(size_t num_bytes, TargetPtr* base_addr) : size_(num_bytes) {
     size_t size_in_pages = (num_bytes + kPageSize - 1) / kPageSize;
     // TODO(weberlo): Set permissions per section (e.g., read-write perms for
     // the heap, execute perms for text, etc.).
     int mmap_prot = PROT_READ | PROT_WRITE | PROT_EXEC;
     int mmap_flags = MAP_ANONYMOUS | MAP_PRIVATE;
     base_addr_ = mmap(nullptr, size_in_pages * kPageSize, mmap_prot, mmap_flags, -1, 0);
-    *base_addr = base_addr_;
+    *base_addr = TargetPtr(TargetWordSize(sizeof(size_t) * 8),
+                           reinterpret_cast<uint64_t>(base_addr_));
   }
 
   /*!
@@ -60,16 +61,16 @@ class HostLowLevelDevice final : public LowLevelDevice {
     munmap(base_addr_, size_);
   }
 
-  void Read(DevPtr addr, void* buf, size_t num_bytes) {
+  void Read(TargetPtr addr, void* buf, size_t num_bytes) {
     std::memcpy(buf, addr.cast_to<void*>(), num_bytes);
   }
 
-  void Write(DevPtr addr, const void* buf, size_t num_bytes) {
+  void Write(TargetPtr addr, const void* buf, size_t num_bytes) {
     std::memcpy(addr.cast_to<void*>(), buf, num_bytes);
   }
 
-  void Execute(DevPtr func_addr, DevPtr breakpoint_addr) {
-    reinterpret_cast<void (*)(void)>(func_addr.value().val64)();
+  void Execute(TargetPtr func_addr, TargetPtr breakpoint_addr) {
+    reinterpret_cast<void (*)(void)>(func_addr.value().uint64())();
   }
 
   const char* device_type() const final {
@@ -83,9 +84,9 @@ class HostLowLevelDevice final : public LowLevelDevice {
   size_t size_;
 };
 
-const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes, void** base_addr) {
-  std::shared_ptr<LowLevelDevice> lld =
-      std::make_shared<HostLowLevelDevice>(num_bytes, base_addr);
+const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes,
+                                                               TargetPtr* base_addr) {
+  std::shared_ptr<LowLevelDevice> lld = std::make_shared<HostLowLevelDevice>(num_bytes, base_addr);
   return lld;
 }
 

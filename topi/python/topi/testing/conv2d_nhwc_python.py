@@ -35,10 +35,8 @@ def _conv2d_nhwc_python(a_np, w_np, stride, padding):
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str or a list/tuple of 2 or 4 ints
-        Padding size, or ['VALID', 'SAME'], or
-        [pad_height, pad_width] for 2 ints, or
-        [pad_top, pad_left, pad_bottom, pad_right] for 2 ints
+    padding : int or str or a list/tuple of two ints
+        Padding size, or ['VALID', 'SAME'], or [pad_height, pad_width]
 
     Returns
     -------

@@ -51,18 +51,18 @@ const char* SectionToString(SectionKind section) {
 
 std::string RelocateBinarySections(
     const std::string& binary_path,
-    size_t word_size,
-    DevPtr text_start,
-    DevPtr rodata_start,
-    DevPtr data_start,
-    DevPtr bss_start,
-    DevPtr stack_end,
+    TargetWordSize word_size,
+    TargetPtr text_start,
+    TargetPtr rodata_start,
+    TargetPtr data_start,
+    TargetPtr bss_start,
+    TargetPtr stack_end,
     const std::string& toolchain_prefix) {
   const auto* f = Registry::Get("tvm_callback_relocate_binary");
   CHECK(f != nullptr)
     << "Require tvm_callback_relocate_binary to exist in registry";
   std::string relocated_bin = (*f)(binary_path,
-                                   word_size,
+                                   word_size.bytes(),
                                    text_start.cast_to<uint64_t>(),
                                    rodata_start.cast_to<uint64_t>(),
                                    data_start.cast_to<uint64_t>(),
@@ -91,7 +91,7 @@ std::string ReadSection(const std::string& binary,
 size_t GetSectionSize(const std::string& binary_path,
                       SectionKind section,
                       const std::string& toolchain_prefix,
-                      size_t align) {
+                      TargetWordSize word_size) {
   CHECK(section == SectionKind::kText || section == SectionKind::kRodata ||
         section == SectionKind::kData || section == SectionKind::kBss)
       << "GetSectionSize requires section to be one of text, rodata, data, or bss.";
@@ -99,7 +99,7 @@ size_t GetSectionSize(const std::string& binary_path,
   CHECK(f != nullptr)
     << "Require tvm_callback_get_section_size to exist in registry";
   int size = (*f)(binary_path, SectionToString(section), toolchain_prefix);
-  return UpperAlignValue(size, align);
+  return UpperAlignValue(size, word_size.bytes());
 }
 
 }  // namespace runtime

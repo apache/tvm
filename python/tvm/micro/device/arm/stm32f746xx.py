@@ -14,13 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Compilation and config definitions for ARM STM32F746XX devices"""
-from .. import create_micro_lib_base, register_device
+"""Compilation and config definitions for Arm STM32F746XX devices"""
+import os
+from .. import create_micro_lib_base, register_device, gen_mem_layout, MemConstraint
 
 DEVICE_ID = "arm.stm32f746xx"
 TOOLCHAIN_PREFIX = "arm-none-eabi-"
+WORD_SIZE_BITS = 32
+#
+# [Device Memory Layout]
+#   RAM   (rwx) : START = 0x20000000, LENGTH = 320K
+#   Flash (rx)  : START = 0x8000000,  LENGTH = 1024K
+#
+BASE_ADDR = 0x20000000
+AVAILABLE_MEM = 320000
+DEFAULT_SECTION_CONSTRAINTS = {
+    "text": (18000, MemConstraint.ABSOLUTE_BYTES),
+    "rodata": (100, MemConstraint.ABSOLUTE_BYTES),
+    "data": (100, MemConstraint.ABSOLUTE_BYTES),
+    "bss": (600, MemConstraint.ABSOLUTE_BYTES),
+    "args": (4096, MemConstraint.ABSOLUTE_BYTES),
+    "heap": (100.0, MemConstraint.WEIGHT),
+    "workspace": (64000, MemConstraint.ABSOLUTE_BYTES),
+    "stack": (32, MemConstraint.ABSOLUTE_BYTES),
+}
 
-def create_micro_lib(obj_path, src_path, lib_type, options=None):
+def create_micro_lib(obj_path, src_path, lib_type, options=None, lib_src_paths=None):
     """Wrapper over `create_micro_lib_base` to add device-specific options
 
     Parameters
@@ -36,23 +55,40 @@ def create_micro_lib(obj_path, src_path, lib_type, options=None):
 
     options : Optional[List[str]]
         additional options to pass to GCC
+
+    lib_src_paths : Optional[List[str]]
+        TODO
     """
     if options is None:
         options = []
+    else:
+        options = list(options)
+
     options += [
+        # TODO(weberlo): make a debug flag
+        "-O2",
         "-mcpu=cortex-m7",
         "-mlittle-endian",
         "-mfloat-abi=hard",
         "-mfpu=fpv5-sp-d16",
         "-mthumb",
+        "-ffast-math",
         "-gdwarf-5",
+        "-DARM_MATH_CM7",
+        "-D__FPU_PRESENT=1U",
+        "-DARM_MATH_DSP",
+        "-Wno-unused-variable",
+        "-Wno-unused-parameter",
+        "-I{}".format(os.environ["CMSIS_ST_PATH"]),
+        "-I{}/Core/Include".format(os.environ["CMSIS_ST_PATH"])
         ]
     create_micro_lib_base(
-        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options)
+        obj_path, src_path, TOOLCHAIN_PREFIX, DEVICE_ID, lib_type, options=options,
+        lib_src_paths=lib_src_paths)
 
 
-def default_config(server_addr, server_port):
-    """Generates a default configuration for ARM STM32F746XX devices
+def generate_config(server_addr, server_port, section_constraints=None):
+    """Generates a configuration for Arm STM32F746XX devices
 
     Parameters
     ----------
@@ -62,55 +98,23 @@ def default_config(server_addr, server_port):
     server_port : int
         port of OpenOCD server to connect to
 
+    section_constraints: Optional[Dict[str, [Number, MemConstraint]]]
+        maps section name to the quantity of available memory
+
     Return
     ------
     config : Dict[str, Any]
         MicroTVM config dict for this device
     """
+    if section_constraints is None:
+        section_constraints = DEFAULT_SECTION_CONSTRAINTS
     return {
         "device_id": DEVICE_ID,
         "toolchain_prefix": TOOLCHAIN_PREFIX,
-        #
-        # [Device Memory Layout]
-        #   RAM   (rwx) : START = 0x20000000, LENGTH = 320K
-        #   FLASH (rx)  : START = 0x8000000,  LENGTH = 1024K
-        #
-        "mem_layout": {
-            "text": {
-                "start": 0x20000180,
-                "size": 20480,
-            },
-            "rodata": {
-                "start": 0x20005180,
-                "size": 20480,
-            },
-            "data": {
-                "start": 0x2000a180,
-                "size": 768,
-            },
-            "bss": {
-                "start": 0x2000a480,
-                "size": 768,
-            },
-            "args": {
-                "start": 0x2000a780,
-                "size": 1280,
-            },
-            "heap": {
-                "start": 0x2000ac80,
-                "size": 262144,
-            },
-            "workspace": {
-                "start": 0x2004ac80,
-                "size": 20480,
-            },
-            "stack": {
-                "start": 0x2004fc80,
-                "size": 80,
-            },
-        },
-        "word_size": 4,
+        "mem_layout": gen_mem_layout(BASE_ADDR, AVAILABLE_MEM, WORD_SIZE_BITS, section_constraints),
+        "word_size_bits": WORD_SIZE_BITS,
         "thumb_mode": True,
+        "use_device_timer": True,
         "comms_method": "openocd",
         "server_addr": server_addr,
         "server_port": server_port,
@@ -119,5 +123,5 @@ def default_config(server_addr, server_port):
 
 register_device(DEVICE_ID, {
     "create_micro_lib": create_micro_lib,
-    "default_config": default_config,
+    "generate_config": generate_config,
 })

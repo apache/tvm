@@ -325,7 +325,10 @@ class Server(object):
                  key="",
                  load_library=None,
                  custom_addr=None,
-                 silent=False):
+                 silent=False,
+                 utvm_dev_id=None,
+                 utvm_dev_config_args=None,
+                 ):
         try:
             if base._ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
@@ -355,6 +358,10 @@ class Server(object):
                 cmd += ["--custom-addr", custom_addr]
             if silent:
                 cmd += ["--silent"]
+            if utvm_dev_id is not None:
+                assert utvm_dev_config_args is not None
+                cmd += [f"--utvm-dev-id={utvm_dev_id}"]
+                cmd += [f"--utvm-dev-config-args={utvm_dev_config_args}"]
 
             # prexec_fn is not thread safe and may result in deadlock.
             # python 3.2 introduced the start_new_session parameter as

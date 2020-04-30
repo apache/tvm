@@ -19,13 +19,14 @@
 
 /*!
  * \file utvm_timer.c
- * \brief uTVM timer API stubs for the host emulated device
+ * \brief uTVM timer API stubs for Spike
  */
 
-#include <stdint.h>
-#include "utvm_runtime.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// TODO(weberlo): use this? https://stackoverflow.com/questions/5141960/get-the-current-time-in-c
+#include "utvm_runtime.h"
 
 int32_t UTVMTimerStart() {
   return UTVM_ERR_OK;
@@ -35,3 +36,7 @@ uint32_t UTVMTimerStop(int32_t* err) {
   *err = UTVM_ERR_OK;
   return 0;
 }
+
+#ifdef __cplusplus
+}  // TVM_EXTERN_C
+#endif

@@ -272,7 +272,7 @@ runtime::Module build(const Map<Target, IRModule>& inputs,
   Target target_host_val = target_host;
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
-      if (it.first->device_type == kDLCPU) {
+      if (it.first->device_type == kDLCPU || it.first->device_type == kDLMicroDev) {
         target_host_val = it.first;
         break;
       }

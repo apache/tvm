@@ -45,6 +45,7 @@ void TclSocket::SendCommand() {
   const char terminate_token = kCommandTerminateToken;
   cmd_builder_ << terminate_token;
   std::string full_cmd = cmd_builder_.str();
+
   CHECK(tcp_socket_.Send(full_cmd.data(), full_cmd.length()) != -1)
     << "failed to send command";
   cmd_builder_.str(std::string());

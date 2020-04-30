@@ -245,6 +245,8 @@ class RPCRunner(Runner):
 
             if 'cuda' in self.task.target.keys:
                 kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+        if self.task.target.device_name == 'micro_dev':
+            kwargs.setdefault('build_option', {})['disable_vectorize'] = True
 
         return kwargs
 
@@ -273,8 +275,9 @@ class RPCRunner(Runner):
                 if isinstance(res, Exception):   # executor error or timeout
                     results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
                                                  self.timeout, time.time()))
-                else:
-                    results.append(res)
+                    raise Exception(f'encountered exception during measurement: {results}')
+
+                results.append(res)
 
         return results
 
