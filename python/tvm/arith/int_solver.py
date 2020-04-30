@@ -97,3 +97,9 @@ def solve_linear_equations(equations, variables=None, ranges=None):
     if isinstance(equations, IntConstraints):
         return _ffi_api.SolveLinearEquations(equations)
     return _ffi_api.SolveLinearEquations(variables, ranges, equations)
+
+
+def solve_linear_inequalities(equations, variables=None, ranges=None):
+    if isinstance(equations, IntConstraints):
+        return _ffi_api.SolveLinearInequalities(equations)
+    return _ffi_api.SolveLinearInequalities(variables, ranges, equations)

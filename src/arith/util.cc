@@ -27,6 +27,16 @@
 namespace tvm {
 namespace arith {
 
+int gcd(int a, int b) {
+  if (a < b) std::swap(a, b);
+  while (b != 0) {
+      int64_t tmp = b;
+      b = a % b;
+      a = tmp;
+  }
+  return a;
+}
+
 std::tuple<int64_t, int64_t, int64_t> xgcd(int64_t a, int64_t b) {
   int64_t s = 0, old_s = 1;
   int64_t t = 1, old_t = 0;
@@ -47,6 +57,10 @@ std::tuple<int64_t, int64_t, int64_t> xgcd(int64_t a, int64_t b) {
   CHECK(old_r == old_s*a + old_t*b);
 
   return std::make_tuple(old_r, old_s, old_t);
+}
+
+int lcm(int a, int b) {
+  return (a*b)/gcd(a, b);
 }
 
 }  // namespace arith

@@ -32,6 +32,14 @@ namespace tvm {
 namespace arith {
 
 /*!
+ * \brief Calculate the greatest common divisor for two values.
+ * \param a an integer number
+ * \param b an integer number
+ * \return the greatest common divisor.
+ */
+int gcd(int a, int b);
+
+/*!
  * \brief Calculate the extended greatest common divisor for two values.
  *        See https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm.
  * \param a an integer number
@@ -39,6 +47,14 @@ namespace arith {
  * \return 3 integers (div, m, n) where div = gcd(a, b) and a*m + b*n = div
  */
 std::tuple<int64_t, int64_t, int64_t> xgcd(int64_t a, int64_t b);
+
+/*!
+ * \brief Calculate the least common multiple for two values.
+ * \param a an integer number
+ * \param b an integer number
+ * \return the least common multiple.
+ */
+int lcm(int a, int b);
 
 }  // namespace arith
 }  // namespace tvm

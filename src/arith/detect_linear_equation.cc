@@ -142,7 +142,7 @@ class LinearEqDetector
 };
 
 Array<PrimExpr> DetectLinearEquation(const PrimExpr& e,
-                                          const Array<Var>& vars) {
+                                     const Array<Var>& vars) {
   PrimExpr base = e;
   Array<PrimExpr> coeff;
 
