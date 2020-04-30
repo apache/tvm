@@ -99,7 +99,7 @@ class OperatorConverter(object):
             'LOGISTIC': self.convert_logistic,
             'MAX_POOL_2D': self.convert_max_pool2d,
             'MAXIMUM': self.convert_maximum,
-            'MEAN': self._convert_reduce_mean,
+            'MEAN': self.convert_reduce_mean,
             'MINIMUM': self.convert_minimum,
             'MIRROR_PAD': self.convert_mirror_pad,
             'MUL': self.convert_mul,
@@ -109,16 +109,17 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
-            'REDUCE_ANY': self._convert_reduce_any,
-            'REDUCE_MAX': self._convert_reduce_max,
-            'REDUCE_MIN': self._convert_reduce_min,
-            'REDUCE_PROD': self._convert_reduce_prod,
+            'REDUCE_ANY': self.convert_reduce_any,
+            'REDUCE_MAX': self.convert_reduce_max,
+            'REDUCE_MIN': self.convert_reduce_min,
+            'REDUCE_PROD': self.convert_reduce_prod,
             'RELU':self.convert_relu,
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
+            'SELECT': self.convert_select,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
@@ -132,7 +133,7 @@ class OperatorConverter(object):
             'SQUEEZE': self.convert_squeeze,
             'STRIDED_SLICE': self.convert_strided_slice,
             'SUB': self.convert_sub,
-            'SUM': self._convert_reduce_sum,
+            'SUM': self.convert_reduce_sum,
             'TAN': self.convert_tan,
             'TANH':self.convert_tanh,
             'TILE': self.convert_tile,
@@ -140,6 +141,7 @@ class OperatorConverter(object):
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'TRANSPOSE': self.convert_transpose,
             'UNPACK': self.convert_unpack,
+            'WHERE': self.convert_select,
             'ZEROS_LIKE': self.convert_zeros_like,
         }
 
@@ -1241,7 +1243,7 @@ class OperatorConverter(object):
         return out
 
     def _convert_reduce(self, relay_op, op):
-        """Generic method to Convert TFLite MEAN operators"""
+        """Generic method to Convert TFLite REDUCE operators"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ReducerOptions import ReducerOptions
@@ -1285,22 +1287,22 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_reduce_min(self, op):
+    def convert_reduce_min(self, op):
         return self._convert_reduce(_op.reduce.min, op)
 
-    def _convert_reduce_max(self, op):
+    def convert_reduce_max(self, op):
         return self._convert_reduce(_op.reduce.max, op)
 
-    def _convert_reduce_mean(self, op):
+    def convert_reduce_mean(self, op):
         return self._convert_reduce(_op.reduce.mean, op)
 
-    def _convert_reduce_prod(self, op):
+    def convert_reduce_prod(self, op):
         return self._convert_reduce(_op.reduce.prod, op)
 
-    def _convert_reduce_sum(self, op):
+    def convert_reduce_sum(self, op):
         return self._convert_reduce(_op.reduce.sum, op)
 
-    def _convert_reduce_any(self, op):
+    def convert_reduce_any(self, op):
         return self._convert_reduce(_op.reduce.any, op)
 
     def convert_fully_connected(self, op):
@@ -1694,6 +1696,18 @@ class OperatorConverter(object):
                 end[i] += begin[i]
 
         out = _op.strided_slice(in_expr, begin, end)
+
+        return out
+
+    def convert_select(self, op):
+        """Convert TFLite SELECT"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be == 3"
+        cond = self.get_tensor_or_const_expr(input_tensors[0])
+        x = self.get_tensor_or_const_expr(input_tensors[1])
+        y = self.get_tensor_or_const_expr(input_tensors[2])
+
+        out = _op.where(cond, x, y)
 
         return out
 
@@ -2356,6 +2370,20 @@ class OperatorConverter(object):
 
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
+
+    def get_tensor_or_const_expr(self, tensor):
+        """ Returns constant expr for constant else a tensor expr"""
+        if self.has_expr(tensor.tensor_idx):
+            # In most cases, we can assume that TOCO fuses elemwise operators
+            # with constants - it means both will be tensors.
+            expr = self.get_expr(tensor.tensor_idx)
+        else:
+            # However, in some corner cases, the elemwise operator is not fused,
+            # we can receive as constant.
+            type_str = self.get_tensor_type_str(tensor.tensor.Type())
+            expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
+
+        return expr
 
 
 def get_scalar_from_constant(expr):
