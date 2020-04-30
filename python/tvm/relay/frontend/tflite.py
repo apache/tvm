@@ -859,7 +859,6 @@ class OperatorConverter(object):
             lhs_expr = _op.add(lhs_expr, rhs_expr)
         return lhs_expr
 
-
     def convert_sub(self, op):
         """Convert TFLite SUB"""
         # Check if the input tensor is quantized, call QNN op
