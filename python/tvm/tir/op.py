@@ -522,6 +522,38 @@ def cosh(x):
     return call_pure_intrin(x.dtype, "cosh", x)
 
 
+def acos(x):
+    """Take acos of input x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "acos", x)
+
+
+def acosh(x):
+    """Take acos of input x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "acosh", x)
+
+
 def sin(x):
     """Take sin of input x.
 
@@ -554,6 +586,38 @@ def sinh(x):
     return call_pure_intrin(x.dtype, "sinh", x)
 
 
+def asin(x):
+    """Take asin of input x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "asin", x)
+
+
+def asinh(x):
+    """Take asinh of input x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "asinh", x)
+
+
 def atan(x):
     """Take atan of input x.
 
@@ -568,6 +632,22 @@ def atan(x):
         The result.
     """
     return call_pure_intrin(x.dtype, "atan", x)
+
+
+def atanh(x):
+    """Take atanh of input x.
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument.
+
+    Returns
+    -------
+    y : PrimExpr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "atanh", x)
 
 
 def atan2(x1, x2):
