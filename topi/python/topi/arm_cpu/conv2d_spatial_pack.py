@@ -152,13 +152,13 @@ def schedule_conv2d_spatial_pack_nchw(cfg, s, data_vec, kernel_vec,
     cfg["ann_reduce"].apply(s, conv, [kh, kw],
                             axis_lens=[get_const_int(kh.dom.extent),
                                        get_const_int(kw.dom.extent)],
-                            max_unroll=16,
+                            max_unroll=None,
                             cfg=cfg)
     cfg["ann_spatial"].apply(s, conv, [vh, vw, vc],
                              axis_lens=[cfg['tile_oh'].size[-1],
                                         cfg['tile_ow'].size[-1],
                                         cfg['tile_co'].size[-1]],
-                             max_unroll=16,
+                             max_unroll=None,
                              cfg=cfg)
 
     # schedule fusion

@@ -38,6 +38,7 @@
 #include "../object_internal.h"
 #include "../../support/ring_buffer.h"
 #include "../../support/socket.h"
+#include "../micro/micro_session.h"
 
 namespace tvm {
 namespace runtime {
@@ -1246,43 +1247,15 @@ void RPCSession::EventHandler::HandlePackedCall() {
   CHECK_EQ(state_, kRecvCode);
 }
 
-PackedFunc MicroTimeEvaluator(
-    PackedFunc pf,
-    TVMContext ctx,
-    int number,
-    int repeat) {
-  auto ftimer = [pf, ctx, number, repeat](TVMArgs args, TVMRetValue *rv) mutable {
-    TVMRetValue temp;
-    std::ostringstream os;
-    // skip first time call, to activate lazy compilation components.
-    pf.CallPacked(args, &temp);
-    DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-    for (int i = 0; i < repeat; ++i) {
-      double speed = 0.0;
-      for (int j = 0; j < number; ++j) {
-        pf.CallPacked(args, &temp);
-        DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-        speed += (temp.operator double()) / number;
-      }
-      os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
-    }
-    std::string blob = os.str();
-    TVMByteArray arr;
-    arr.size = blob.length();
-    arr.data = blob.data();
-    // return the time.
-    *rv = arr;
-  };
-  return PackedFunc(ftimer);
-}
-
 PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              TVMContext ctx,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
   if (static_cast<int>(ctx.device_type) == static_cast<int>(kDLMicroDev)) {
-    return MicroTimeEvaluator(pf, ctx, number, repeat);
+    auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
+    CHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
+    return (*get_micro_time_evaluator)(pf, ctx, number, repeat);
   }
 
   auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
