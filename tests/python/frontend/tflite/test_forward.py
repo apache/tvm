@@ -79,12 +79,12 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
     # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
         import tflite.Model
-        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
-    except ImportError:
-        raise ImportError("The tflite package must be installed")
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
     except AttributeError:
         import tflite
-        tflite_model = tflite.GetRootAsModel(tflite_model_buf, 0)
+        tflite_model = tflite.Mode.GetRootAsModel(tflite_model_buf, 0)
+    except ImportError:
+        raise ImportError("The tflite package must be installed")
 
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
