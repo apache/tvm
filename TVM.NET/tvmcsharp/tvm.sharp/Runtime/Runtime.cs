@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.InteropServices;
-using static TVMRuntime.Utils;
+using System.Collections.Generic;
 
 namespace TVMRuntime
 {
@@ -40,14 +39,57 @@ namespace TVMRuntime
         private byte[] _paramsDict;
         private string _graphJsonString;
         private bool _isInstantiated = false;
-        private UIntPtr _runtimeHandle = UIntPtr.Zero;
+        private IntPtr _runtimeHandle = IntPtr.Zero;
 
         // all embeded func handles
-        // TODO: Convert to Map[name, funchandles]
-        private UIntPtr _runtimeRunFuncHandle = UIntPtr.Zero;
-        private UIntPtr _runtimeSetInputFuncHandle = UIntPtr.Zero;
-        private UIntPtr _runtimeLoadParamHandle = UIntPtr.Zero;
-        private UIntPtr _runtimeGetOutputFuncHandle = UIntPtr.Zero;
+        private Dictionary<string, IntPtr> _funcHandleDict = BuildDictionary();
+
+        /// <summary>
+        /// Builds the dictionary for embeded functions in runtime.
+        /// </summary>
+        /// <returns>The dictionary.</returns>
+        private static Dictionary<string, IntPtr> BuildDictionary()
+        {
+            var elements = new Dictionary<string, IntPtr>();
+
+            elements.Add(key: "run", value: new IntPtr());
+            elements.Add(key: "set_input", value: new IntPtr());
+            elements.Add(key: "load_params", value: new IntPtr());
+            elements.Add(key: "get_output", value: new IntPtr());
+
+            return elements;
+        }
+
+        /// <summary>
+        /// Loads the func handles through dictionary.
+        /// </summary>
+        /// <param name="runtime">Runtime.</param>
+        private static void LoadFuncHandlesThruDictionary(Runtime runtime)
+        {
+            List<string> keys = new List<string>(runtime._funcHandleDict.Keys);
+            foreach (string funcName in keys)
+            {
+                IntPtr handle = IntPtr.Zero;
+
+                UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc(funcName,
+                runtime._runtimeHandle, ref handle);
+
+                runtime._funcHandleDict[funcName] = handle;
+            }
+        }
+
+        /// <summary>
+        /// Releases the func handles through dictionary.
+        /// </summary>
+        /// <param name="runtime">Runtime.</param>
+        private static void ReleaseFuncHandlesThruDictionary(Runtime runtime)
+        {
+            foreach (IntPtr funcHandle in runtime._funcHandleDict.Values)
+            {
+                PFManager.DisposePackedFunc(funcHandle);
+            }
+            runtime._funcHandleDict.Clear();
+        }
 
         /// <summary>
         /// Creates the instance.
@@ -60,6 +102,8 @@ namespace TVMRuntime
             {
                 throw new System.ArgumentException("Please provide valid path for ", errMsg);
             }
+
+            // Load Module
             _module = new Module(runtimeParam.modLibPath,
                                 runtimeParam.modLibFormat);
 
@@ -67,23 +111,14 @@ namespace TVMRuntime
 
             _graphJsonString = Utils.ReadStringFromFile(runtimeParam.graphJsonPath);
 
+            // Create Runtime
             UnmanagedRuntimeWrapper.CreateTVMRuntime(_module.ModuleHandle,
                                             _graphJsonString,
                                             runtimeParam.context,
                                             ref _runtimeHandle);
 
-            // Load all embeded func handles
-            UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("run",
-                _runtimeHandle, ref _runtimeRunFuncHandle);
-
-            UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("set_input",
-                _runtimeHandle, ref _runtimeSetInputFuncHandle);
-
-            UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("load_params",
-                _runtimeHandle, ref _runtimeLoadParamHandle);
-
-            UnmanagedRuntimeWrapper.GetTVMRuntimeEmbededFunc("get_output",
-                _runtimeHandle, ref _runtimeGetOutputFuncHandle);
+            // Load all required embeded func handles
+            LoadFuncHandlesThruDictionary(this);
 
             _isInstantiated = true;
         }
@@ -92,17 +127,9 @@ namespace TVMRuntime
         /// Initializes a new instance of the <see cref="T:TVMRuntime.Runtime"/> class.
         /// </summary>
         /// <param name="runtimeParam">Runtime parameter.</param>
-        public Runtime(RuntimeParams runtimeParam)
+        private Runtime(RuntimeParams runtimeParam)
         {
             CreateInstance(runtimeParam);
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="T:TVMRuntime.Runtime"/> class.
-        /// </summary>
-        public Runtime()
-        {
-
         }
 
         /// <summary>
@@ -110,26 +137,25 @@ namespace TVMRuntime
         /// </summary>
         /// <returns>The create.</returns>
         /// <param name="runtimeParam">Runtime parameter.</param>
-        public Runtime Create(RuntimeParams runtimeParam)
+        public static Runtime Create(RuntimeParams runtimeParam)
         {
-            if (!_isInstantiated) { CreateInstance(runtimeParam); }
-            return this;
+            return new Runtime(runtimeParam);
         }
 
         /// <summary>
         /// Gets the runtime handle.
         /// </summary>
         /// <value>The runtime handle.</value>
-        public UIntPtr RuntimeHandle { get => _runtimeHandle; }
+        public IntPtr RuntimeHandle { get => _runtimeHandle; }
 
         /// <summary>
         /// Run this instance.
         /// </summary>
         public void Run ()
         {
-            if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
+            if (!_isInstantiated) { throw new System.NullReferenceException("Runtime not initialized"); }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeRunFunc(_runtimeRunFuncHandle);
+            UnmanagedRuntimeWrapper.InvokeRuntimeRunFunc(_funcHandleDict["run"]);
         }
 
         /// <summary>
@@ -139,9 +165,9 @@ namespace TVMRuntime
         /// <param name="inputTensor">Input tensor handle.</param>
         public void SetInput(string inputName, NDArray inputTensor)
         {
-            if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
+            if (!_isInstantiated) { throw new System.NullReferenceException("Runtime not initialized"); }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeSetInputFunc(_runtimeSetInputFuncHandle,
+            UnmanagedRuntimeWrapper.InvokeRuntimeSetInputFunc(_funcHandleDict["set_input"],
                 inputName, inputTensor.NDArrayHandle);
         }
 
@@ -150,23 +176,26 @@ namespace TVMRuntime
         /// </summary>
         public void LoadParams()
         {
-            if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
+            if (!_isInstantiated) { throw new System.NullReferenceException("Runtime not initialized"); }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeLoadParamFunc(_runtimeLoadParamHandle,
+            UnmanagedRuntimeWrapper.InvokeRuntimeLoadParamFunc(_funcHandleDict["load_params"],
                 _paramsDict);
         }
 
         /// <summary>
         /// Gets the output.
         /// </summary>
+        /// <returns>The output.</returns>
         /// <param name="outputIndex">Output index.</param>
-        /// <param name="outputTensor">Output tensor.</param>
-        public void GetOutput(int outputIndex, ref NDArray outputTensor)
+        public NDArray GetOutput(int outputIndex)
         {
-            if (!_isInstantiated) { Console.WriteLine("Not instantiated yet!"); return; }
+            if (!_isInstantiated) { throw new System.NullReferenceException("Runtime not initialized"); }
 
-            UnmanagedRuntimeWrapper.InvokeRuntimeGetOutputFunc(_runtimeGetOutputFuncHandle,
+            NDArray outputTensor = NDArray.Empty();
+            UnmanagedRuntimeWrapper.InvokeRuntimeGetOutputFunc(_funcHandleDict["get_output"],
                 outputIndex, ref outputTensor);
+
+            return outputTensor;
         }
 
         /// <summary>
@@ -177,13 +206,12 @@ namespace TVMRuntime
             if (_isInstantiated)
             {
                 // Release all resources from runtime module
-                PFManager.DisposePackedFunc(_runtimeRunFuncHandle);
-                PFManager.DisposePackedFunc(_runtimeSetInputFuncHandle);
-                PFManager.DisposePackedFunc(_runtimeLoadParamHandle);
-                PFManager.DisposePackedFunc(_runtimeGetOutputFuncHandle);
+                ReleaseFuncHandlesThruDictionary(this);
                 UnmanagedRuntimeWrapper.DisposeRuntime(_runtimeHandle);
-                _runtimeHandle = UIntPtr.Zero;
+                _runtimeHandle = IntPtr.Zero;
                 _module.DisposeModule();
+                _paramsDict = null;
+                _graphJsonString = null;
                 _isInstantiated = false;
             }
         }
@@ -193,7 +221,7 @@ namespace TVMRuntime
         /// </summary>
         /// <returns><c>true</c>, if inputs are valid, <c>false</c> otherwise.</returns>
         /// <param name="runtimeParams">Runtime parameters.</param>
-        public static bool ValidateInputs(RuntimeParams runtimeParams, ref string errMsg)
+        private static bool ValidateInputs(RuntimeParams runtimeParams, ref string errMsg)
         {
             if ((!File.Exists(runtimeParams.modLibPath)))
             {

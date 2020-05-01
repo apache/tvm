@@ -51,7 +51,7 @@ namespace TVMRuntime
         /// So TVMFuncFree should not be called when it get deleted.
         /// </remarks>
         [DllImport(Utils.libName)]
-        private static extern int TVMFuncGetGlobal([MarshalAs(UnmanagedType.LPStr)] string name, ref UIntPtr funcHandle);
+        private static extern int TVMFuncGetGlobal([MarshalAs(UnmanagedType.LPStr)] string name, ref IntPtr funcHandle);
 
 
         /// <summary>
@@ -63,7 +63,7 @@ namespace TVMRuntime
         /// @brief Free the function when it is no longer needed.
         /// </remarks>
         [DllImport(Utils.libName)]
-        private static extern int TVMFuncFree(UIntPtr funcHandle);
+        private static extern int TVMFuncFree(IntPtr funcHandle);
 
         /// <summary>
         /// TVM func call.
@@ -76,7 +76,7 @@ namespace TVMRuntime
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
         [DllImport(Utils.libName)]
-        private static extern int TVMFuncCall(UIntPtr funcHandle,
+        private static extern int TVMFuncCall(IntPtr funcHandle,
             [MarshalAs(UnmanagedType.LPArray)] TVMValue[] args,
             [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
             int numArgs,
@@ -94,7 +94,7 @@ namespace TVMRuntime
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
         [DllImport(Utils.libName)]
-        private static extern int TVMFuncCall(UIntPtr funcHandle,
+        private static extern int TVMFuncCall(IntPtr funcHandle,
             [MarshalAs(UnmanagedType.LPArray)] string[] args,
             [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
             int numArgs,
@@ -106,7 +106,7 @@ namespace TVMRuntime
         /// </summary>
         /// <param name="funcName">Func name.</param>
         /// <param name="funcHandle">Func handle.</param>
-        public static void GetTVMRuntimeGlobalPackedFunc(string funcName, ref UIntPtr funcHandle)
+        public static void GetTVMRuntimeGlobalPackedFunc(string funcName, ref IntPtr funcHandle)
         {
             TVMFuncGetGlobal(funcName, ref funcHandle);
         }
@@ -115,7 +115,7 @@ namespace TVMRuntime
         /// Disposes the TVM Runtime func handle.
         /// </summary>
         /// <param name="funcHandle">Func handle.</param>
-        public static void DisposeTVMRuntimeFuncHandle(UIntPtr funcHandle)
+        public static void DisposeTVMRuntimeFuncHandle(IntPtr funcHandle)
         {
             TVMFuncFree(funcHandle);
         }
@@ -134,7 +134,7 @@ namespace TVMRuntime
         /// <param name="numArgs">Number arguments.</param>
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
-        public static void InvokeTVMRuntimePackedFunc(UIntPtr funcHandle,
+        public static void InvokeTVMRuntimePackedFunc(IntPtr funcHandle,
             TVMValue[] args, int[] argTypeCodes, int numArgs,
             ref TVMValue retVal, ref int retTypeCode)
         {
@@ -151,7 +151,7 @@ namespace TVMRuntime
         /// <param name="numArgs">Number arguments.</param>
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
-        public static void InvokeTVMRuntimePackedFuncStr(UIntPtr funcHandle,
+        public static void InvokeTVMRuntimePackedFuncStr(IntPtr funcHandle,
             string[] args, int[] argTypeCodes, int numArgs,
             ref TVMValue retVal, ref int retTypeCode)
         {

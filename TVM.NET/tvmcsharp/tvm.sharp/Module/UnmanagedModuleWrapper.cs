@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using static TVMRuntime.Utils;
 
 namespace TVMRuntime
 {
-    public static class UnmanagedModuleWrapper
+    internal static class UnmanagedModuleWrapper
     {
         /// <summary>
         ///
@@ -19,7 +18,7 @@ namespace TVMRuntime
         /// </remarks>
         [DllImport(Utils.libName)]
         private static extern int TVMModLoadFromFile([MarshalAs(UnmanagedType.LPStr)] string fileName,
-            [MarshalAs(UnmanagedType.LPStr)] string format, ref UIntPtr outHandle);
+            [MarshalAs(UnmanagedType.LPStr)] string format, ref IntPtr outHandle);
 
 
         /// <summary>
@@ -33,7 +32,7 @@ namespace TVMRuntime
         /// This allows functions in this module to use modules.
         /// </remarks>
         [DllImport(Utils.libName)]
-        private static extern int TVMModImport(UIntPtr mod, UIntPtr dep);
+        private static extern int TVMModImport(IntPtr mod, IntPtr dep);
 
 
         /// <summary>
@@ -49,9 +48,9 @@ namespace TVMRuntime
         /// @brief Get function from the module.
         /// </remarks>
         [DllImport(Utils.libName)]
-        private static extern int TVMModGetFunction(UIntPtr mod,
+        private static extern int TVMModGetFunction(IntPtr mod,
             [MarshalAs(UnmanagedType.LPStr)] string funcName,
-            int queryImports, ref UIntPtr outHandle);
+            int queryImports, ref IntPtr outHandle);
 
 
         /// <summary>
@@ -66,7 +65,7 @@ namespace TVMRuntime
         /// The all functions remains valid until TVMFuncFree is called.
         /// </remarks>
         [DllImport(Utils.libName)]
-        private static extern int TVMModFree(UIntPtr mod);
+        private static extern int TVMModFree(IntPtr mod);
 
 
         /// <summary>
@@ -76,7 +75,7 @@ namespace TVMRuntime
         /// <param name="format">Format.</param>
         /// <param name="modHandle">Module handle.</param>
         public static void LoadModuleFromFile(string fileName,
-            string format, ref UIntPtr modHandle)
+            string format, ref IntPtr modHandle)
         {
             // TODO: Error handling
             int result = TVMModLoadFromFile(fileName, format, 
@@ -88,7 +87,7 @@ namespace TVMRuntime
         /// </summary>
         /// <param name="mod">Mod.</param>
         /// <param name="dep">Dep.</param>
-        public static void ImportModule(UIntPtr mod, UIntPtr dep)
+        public static void ImportModule(IntPtr mod, IntPtr dep)
         {
             // TODO: Error handling
             int result = TVMModImport(mod, dep);
@@ -101,8 +100,8 @@ namespace TVMRuntime
         /// <param name="funcName">Func name.</param>
         /// <param name="queryImports">Query imports.</param>
         /// <param name="funcHandle">Func handle.</param>
-        public static void GetModuleEmbededFunc(UIntPtr mod, string funcName,
-            int queryImports, ref UIntPtr funcHandle)
+        public static void GetModuleEmbededFunc(IntPtr mod, string funcName,
+            int queryImports, ref IntPtr funcHandle)
         {
             // TODO: Error handling
             int result = TVMModGetFunction(mod, funcName, queryImports,
@@ -114,7 +113,7 @@ namespace TVMRuntime
         /// Disposes the module.
         /// </summary>
         /// <param name="mod">Mod.</param>
-        public static void DisposeModule(UIntPtr mod)
+        public static void DisposeModule(IntPtr mod)
         {
             // TODO: Error handling
             int result = TVMModFree(mod);

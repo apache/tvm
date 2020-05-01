@@ -7,37 +7,37 @@ using System.Text;
 namespace TVMRuntime
 {
     [StructLayout(LayoutKind.Sequential)]
-    struct TVMRuntimeCreateArgs
+    internal struct TVMRuntimeCreateArgs
     {
         public string graphJsonString;
-        public UIntPtr moduleHandle;
+        public IntPtr moduleHandle;
         public int deviceType;
         public int deviceId;
 
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    struct TVMRuntimeSetInputArgs
+    internal struct TVMRuntimeSetInputArgs
     {
         public string inputName;
         public IntPtr inputTensorHandle;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    struct TVMRuntimeLoadParamsArgs
+    internal struct TVMRuntimeLoadParamsArgs
     {
         public IntPtr paramPtr;
         public long size;
     }
 
-    public static class UnmanagedRuntimeWrapper
+    internal static class UnmanagedRuntimeWrapper
     {
         /// <summary>
         /// The global registry name of the tvm create func.
         /// </summary>
         private static string tvmCreateFuncName = "tvm.graph_runtime.create";
 
-        private static UIntPtr tvmCreateFuncHandle = UIntPtr.Zero;
+        private static IntPtr tvmCreateFuncHandle = IntPtr.Zero;
 
         /// <summary>
         /// Initializes the <see cref="T:TVMRuntime.UnmanagedRuntimeWrapper"/> class.
@@ -59,11 +59,11 @@ namespace TVMRuntime
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
         [DllImport(Utils.libName)]
-        private static extern int TVMFuncCall(UIntPtr funcHandle,
+        private static extern int TVMFuncCall(IntPtr funcHandle,
             IntPtr args,
             [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
             int numArgs,
-            ref UIntPtr retVal,
+            ref IntPtr retVal,
             ref int retTypeCode);
 
         /// <summary>
@@ -77,11 +77,11 @@ namespace TVMRuntime
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
         [DllImport(Utils.libName)]
-        private static extern int TVMFuncCall(UIntPtr funcHandle,
+        private static extern int TVMFuncCall(IntPtr funcHandle,
             ref IntPtr args,
             [MarshalAs(UnmanagedType.LPArray)] int[] argTypeCodes,
             int numArgs,
-            ref UIntPtr retVal,
+            ref IntPtr retVal,
             ref int retTypeCode);
 
         /// <summary>
@@ -93,9 +93,9 @@ namespace TVMRuntime
         /// <param name="numArgs">Number arguments.</param>
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
-        private static void InvokeTVMRuntimeCreatePackedFunc(UIntPtr funcHandle,
+        private static void InvokeTVMRuntimeCreatePackedFunc(IntPtr funcHandle,
             IntPtr args, int[] argTypeCodes, int numArgs,
-            ref UIntPtr retVal, ref int retTypeCode)
+            ref IntPtr retVal, ref int retTypeCode)
         {
             TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
@@ -110,9 +110,9 @@ namespace TVMRuntime
         /// <param name="numArgs">Number arguments.</param>
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
-        private static void InvokeTVMRuntimeSetInputPackedFunc(UIntPtr funcHandle,
+        private static void InvokeTVMRuntimeSetInputPackedFunc(IntPtr funcHandle,
             IntPtr args, int[] argTypeCodes, int numArgs,
-            ref UIntPtr retVal, ref int retTypeCode)
+            ref IntPtr retVal, ref int retTypeCode)
         {
             TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
@@ -127,9 +127,9 @@ namespace TVMRuntime
         /// <param name="numArgs">Number arguments.</param>
         /// <param name="retVal">Ret value.</param>
         /// <param name="retTypeCode">Ret type code.</param>
-        private static void InvokeTVMRuntimeLoadParamFunc(UIntPtr funcHandle,
+        private static void InvokeTVMRuntimeLoadParamFunc(IntPtr funcHandle,
             ref IntPtr args, int[] argTypeCodes, int numArgs,
-            ref UIntPtr retVal, ref int retTypeCode)
+            ref IntPtr retVal, ref int retTypeCode)
         {
             TVMFuncCall(funcHandle, ref args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
@@ -142,8 +142,8 @@ namespace TVMRuntime
         /// <param name="graphJsonString">Graph json string.</param>
         /// <param name="ctx">Context.</param>
         /// <param name="runtimeHandle">Runtime handle.</param>
-        public static void CreateTVMRuntime(UIntPtr moduleHandle,
-            string graphJsonString, TVMContext ctx, ref UIntPtr runtimeHandle)
+        public static void CreateTVMRuntime(IntPtr moduleHandle,
+            string graphJsonString, TVMContext ctx, ref IntPtr runtimeHandle)
         {
             TVMRuntimeCreateArgs tvmCreateArgs = new TVMRuntimeCreateArgs();
             tvmCreateArgs.moduleHandle = moduleHandle;
@@ -186,7 +186,7 @@ namespace TVMRuntime
         /// <param name="runtimeHandle">Runtime handle.</param>
         /// <param name="funcHandle">Func handle.</param>
         public static void GetTVMRuntimeEmbededFunc(string funcName,
-                        UIntPtr runtimeHandle, ref UIntPtr funcHandle)
+                        IntPtr runtimeHandle, ref IntPtr funcHandle)
         {
             UnmanagedModuleWrapper.GetModuleEmbededFunc(runtimeHandle,
                 funcName, 0, ref funcHandle);
@@ -196,7 +196,7 @@ namespace TVMRuntime
         /// Invokes the runtime run func.
         /// </summary>
         /// <param name="runFuncHandle">Run func handle.</param>
-        public static void InvokeRuntimeRunFunc(UIntPtr runFuncHandle)
+        public static void InvokeRuntimeRunFunc(IntPtr runFuncHandle)
         {
             int retTypeCode = 0;
             TVMValue emptyOutput = new TVMValue();
@@ -212,7 +212,7 @@ namespace TVMRuntime
         /// <param name="inputIndex">Input index.</param>
         /// <param name="inputTensorHandle">Input tensor handle.</param>
         public static void InvokeRuntimeSetInputFunc(
-                            UIntPtr setInputFuncHandle,
+                            IntPtr setInputFuncHandle,
                             int inputIndex,
                             IntPtr inputTensorHandle)
         {
@@ -238,7 +238,7 @@ namespace TVMRuntime
         /// <param name="inputName">Input name.</param>
         /// <param name="inputTensorHandle">Input tensor handle.</param>
         public static void InvokeRuntimeSetInputFunc(
-                            UIntPtr setInputFuncHandle,
+                            IntPtr setInputFuncHandle,
                             string inputName,
                             IntPtr inputTensorHandle)
         {
@@ -259,7 +259,7 @@ namespace TVMRuntime
 
                 int numArgs = 2;
                 int retTypeCode = 0;
-                UIntPtr retVal = UIntPtr.Zero;
+                IntPtr retVal = IntPtr.Zero;
 
                 InvokeTVMRuntimeSetInputPackedFunc(setInputFuncHandle,
                     pnt, argTypeCodes, numArgs,
@@ -280,7 +280,7 @@ namespace TVMRuntime
         /// <param name="outputIndex">Output index.</param>
         /// <param name="outputTensor">Output tensor.</param>
         public static void InvokeRuntimeGetOutputFunc(
-                            UIntPtr getOutputFuncHandle,
+                            IntPtr getOutputFuncHandle,
                             int outputIndex,
                             ref NDArray outputTensor)
         {
@@ -302,7 +302,7 @@ namespace TVMRuntime
         /// <param name="loadParamFuncHandle">Load parameter func handle.</param>
         /// <param name="paramDict">Parameter dict.</param>
         public static void InvokeRuntimeLoadParamFunc(
-                            UIntPtr loadParamFuncHandle,
+                            IntPtr loadParamFuncHandle,
                             byte [] paramDict)
         {
             // Initialize unmanged memory to hold the struct.
@@ -321,7 +321,7 @@ namespace TVMRuntime
                 Marshal.StructureToPtr(loadParamsArgs, pnt1, false);
 
                 int retTypeCode = 0;
-                UIntPtr retVal = UIntPtr.Zero;
+                IntPtr retVal = IntPtr.Zero;
 
                 InvokeTVMRuntimeLoadParamFunc(
                     loadParamFuncHandle,
@@ -341,7 +341,7 @@ namespace TVMRuntime
         /// Disposes the runtime.
         /// </summary>
         /// <param name="runtimeHandle">Runtime handle.</param>
-        public static void DisposeRuntime(UIntPtr runtimeHandle)
+        public static void DisposeRuntime(IntPtr runtimeHandle)
         {
             UnmanagedModuleWrapper.DisposeModule(runtimeHandle);
         }

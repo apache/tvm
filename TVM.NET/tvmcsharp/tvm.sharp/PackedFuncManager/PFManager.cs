@@ -54,7 +54,7 @@ namespace TVMRuntime
         /// </summary>
         /// <param name="funcHandle">Func handle.</param>
         /// <param name="inputArgs">Input arguments.</param>
-        public static void RunPackedFunc(UIntPtr funcHandle, object [] inputArgs)
+        public static void RunPackedFunc(IntPtr funcHandle, object [] inputArgs)
         {
             int numArgs = inputArgs.Length;
             int[] typeCodes = new int[numArgs];
@@ -64,8 +64,7 @@ namespace TVMRuntime
             {
                 Type t = inputArgs[i].GetType();
                 if (t.Equals(typeof(byte)) || t.Equals(typeof(sbyte))
-                    || t.Equals(typeof(int)) || t.Equals(typeof(long))
-                    || t.Equals(typeof(double)))
+                    || t.Equals(typeof(int)) || t.Equals(typeof(long)))
                 {
                     args[i].vInt64 = (long)inputArgs[i];
                     typeCodes[i] = (int)TVMDataTypeCode.Int;
@@ -80,6 +79,11 @@ namespace TVMRuntime
                 {
                     args[i].vFloat64 = (double)inputArgs[i];
                     typeCodes[i] = (int)TVMDataTypeCode.Float;
+                }
+                else if (t.Equals(typeof(NDArray)))
+                {
+                    args[i].handle = ((NDArray)inputArgs[i]).NDArrayHandle;
+                    typeCodes[i] = (int)TVMTypeCode.TVMNDArrayHandle;
                 }
 
                 // TODO: UIntPtr/IntPtr does not mean only NDArray Handle
@@ -99,7 +103,7 @@ namespace TVMRuntime
                 }
                 else
                 {
-                    Console.WriteLine("'{0}' is unsupported data type.", t);
+                    throw new System.ArgumentException(t + " not supported!");
                 }
             }
 
@@ -108,7 +112,6 @@ namespace TVMRuntime
 
             UnamangedPFManagerWrapper.InvokeTVMRuntimePackedFunc(funcHandle,
                 args, typeCodes, numArgs, ref retVal, ref retTypeCode);
-
         }
 
         /// <summary>
@@ -116,7 +119,7 @@ namespace TVMRuntime
         /// </summary>
         /// <param name="funcHandle">Func handle.</param>
         /// <param name="inputArgs">Input arguments.</param>
-        public static void RunPackedFunc(UIntPtr funcHandle, string[] inputArgs)
+        public static void RunPackedFunc(IntPtr funcHandle, string[] inputArgs)
         {
             int numArgs = inputArgs.Length;
             int[] typeCodes = new int[numArgs];
@@ -138,7 +141,7 @@ namespace TVMRuntime
         /// Disposes the packed func.
         /// </summary>
         /// <param name="funcHandle">Func handle.</param>
-        public static void DisposePackedFunc(UIntPtr funcHandle)
+        public static void DisposePackedFunc(IntPtr funcHandle)
         {
             UnamangedPFManagerWrapper.DisposeTVMRuntimeFuncHandle(funcHandle);
         }
