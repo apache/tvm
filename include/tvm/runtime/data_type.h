@@ -107,7 +107,7 @@ class DataType {
   }
   /*! \return whether type is a handle type. */
   bool is_handle() const {
-    return code() == DataType::kHandle;
+    return code() == DataType::kHandle && !is_void();
   }
   /*! \return whether type is a vector type. */
   bool is_vector() const {
@@ -116,6 +116,10 @@ class DataType {
   /*! \return whether type is a bool vector type. */
   bool is_vector_bool() const {
     return is_vector() && bits() == 1;
+  }
+  /*! \return whether type is a Void type. */
+  bool is_void() const {
+    return code() == DataType::kHandle && bits() == 0 && lanes() == 0;
   }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
@@ -210,6 +214,13 @@ class DataType {
    */
   static DataType Handle(int bits = 64, int lanes = 1) {
     return DataType(kHandle, bits, lanes);
+  }
+  /*!
+   * \brief Construct a Void type.
+   * \return The constructed data type.
+   */
+  static DataType Void() {
+    return DataType(kHandle, 0, 0);
   }
   /*!
    * \brief Get the corresponding type of TVMShapeIndex.
@@ -335,6 +346,9 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
+  if (DataType(t).is_void()) {
+    return os << "void";
+  }
   if (t.code < kTVMCustomBegin) {
     os << TypeCode2Str(t.code);
   } else {
@@ -361,9 +375,9 @@ inline std::string DLDataType2String(DLDataType t) {
 
 inline DLDataType String2DLDataType(std::string s) {
   DLDataType t;
-  // handle None type
+  // handle void type
   if (s.length() == 0) {
-    t.bits = 0; t.lanes = 0; t.code = kTVMOpaqueHandle;
+    t = DataType::Void();
     return t;
   }
   t.bits = 32; t.lanes = 1;

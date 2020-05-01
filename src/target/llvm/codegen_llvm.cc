@@ -309,6 +309,9 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     CHECK_EQ(dtype.lanes(), 1);
     return t_void_p_;
   }
+  if (dtype.is_void()) {
+    return t_void_;
+  }
   llvm::Type* etype = nullptr;
   if (dtype.is_int() || dtype.is_uint()) {
     etype = llvm::Type::getIntNTy(*ctx_, dtype.bits());
