@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python3
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,24 +16,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -e
-set -u
-set -o pipefail
+"""Prepares a simple TVM library for testing."""
 
-apt-get update && apt-get install -y --no-install-recommends curl
+from os import path as osp
+import sys
 
-export RUSTUP_HOME=/opt/rust
-export CARGO_HOME=/opt/rust
-# this rustc is one supported by the installed version of rust-sgx-sdk
-curl -s -S -L https://sh.rustup.rs -sSf | sh -s -- -y --no-modify-path --default-toolchain stable
-. $CARGO_HOME/env
-rustup component add rustfmt
+import tvm
+from tvm import te
 
-# install wasmtime
-export WASMTIME_HOME=/opt/wasmtime
-curl https://wasmtime.dev/install.sh -sSf | bash
-export PATH="${WASMTIME_HOME}/bin:${PATH}"
-rustup target add wasm32-wasi
+def main():
+    n = te.var('n')
+    A = te.placeholder((n,), name='A')
+    B = te.placeholder((n,), name='B')
+    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+    s = tvm.te.create_schedule(C.op)
+    s[C].parallel(s[C].op.axis[0])
+    print(tvm.lower(s, [A, B, C], simple_mode=True))
+    tvm.build(s, [A, B, C], 'llvm -target=wasm32-unknown-unknown --system-lib').save(osp.join(sys.argv[1], 'test.o'))
 
-# make rust usable by all users
-chmod -R a+w /opt/rust
+if __name__ == '__main__':
+    main()
