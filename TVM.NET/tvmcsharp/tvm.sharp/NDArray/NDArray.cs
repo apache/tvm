@@ -324,6 +324,7 @@ namespace TVMRuntime
         public object this[int i]
         {
             get { return UnmanagedNDArrayWrapper.GetNDArrayElem(this, i); }
+            set { UnmanagedNDArrayWrapper.SetNDArrayElem(this, i, value); }
         }
 
         /// <summary>

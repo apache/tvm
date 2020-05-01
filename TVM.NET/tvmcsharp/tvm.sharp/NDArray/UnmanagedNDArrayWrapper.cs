@@ -239,6 +239,66 @@ namespace TVMRuntime
         }
 
         /// <summary>
+        /// Sets the NDArray element.
+        /// </summary>
+        /// <param name="array">Array.</param>
+        /// <param name="index">Index.</param>
+        /// <param name="value">Value.</param>
+        public static void SetNDArrayElem(NDArray array, int index, object value)
+        {
+            if (index < 0 || index >= array.Size)
+            {
+                throw new System.ArgumentOutOfRangeException("Index should be in range [0, " + (array.Size - 1) + "].");
+            }
+
+            TVMTensor tensor = Marshal.PtrToStructure<TVMTensor>(array.NDArrayHandle);
+            byte[] to = array.InternalBuffer;
+            Marshal.Copy(tensor.data, to, 0, to.Length);
+
+
+            if (array.DataType.IsFloat32())
+            {
+                byte[] inputValue = BitConverter.GetBytes((float)value);
+                Buffer.BlockCopy(inputValue, 0, to, GetOffset(array.DataType.numOfBytes, index), inputValue.Length);
+            }
+            else if (array.DataType.IsFloat64())
+            {
+                byte[] inputValue = BitConverter.GetBytes((double)value);
+                Buffer.BlockCopy(inputValue, 0, to, GetOffset(array.DataType.numOfBytes, index), inputValue.Length);
+            }
+            else if (array.DataType.IsInt32())
+            {
+                byte[] inputValue = BitConverter.GetBytes((int)value);
+                Buffer.BlockCopy(inputValue, 0, to, GetOffset(array.DataType.numOfBytes, index), inputValue.Length);
+            }
+            else if (array.DataType.IsInt64())
+            {
+                byte[] inputValue = BitConverter.GetBytes((long)value);
+                Buffer.BlockCopy(inputValue, 0, to, GetOffset(array.DataType.numOfBytes, index), inputValue.Length);
+            }
+            else if (array.DataType.IsInt16())
+            {
+                byte[] inputValue = BitConverter.GetBytes((short)value);
+                Buffer.BlockCopy(inputValue, 0, to, GetOffset(array.DataType.numOfBytes, index), inputValue.Length);
+            }
+            else if (array.DataType.IsUint16())
+            {
+                byte[] inputValue = BitConverter.GetBytes((char)value);
+                Buffer.BlockCopy(inputValue, 0, to, GetOffset(array.DataType.numOfBytes, index), inputValue.Length);
+            }
+            else if (array.DataType.IsInt8())
+            {
+                to[index] = (byte)value;
+            }
+            else
+            {
+                throw new System.ArrayTypeMismatchException("Unknown type");
+            }
+
+            Marshal.Copy(to, 0, tensor.data, to.Length);
+        }
+
+        /// <summary>
         /// Copies the float data to NDArray.
         /// </summary>
         /// <param name="array">Array.</param>
