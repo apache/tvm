@@ -177,8 +177,6 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             sess.run(variables.global_variables_initializer())
         final_graph_def = tf_testing.AddShapesToGraphDef(sess, out_node)
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
-        print(tf_output)
-        return
 
         for device in ["llvm", "cuda"]:
             ctx = tvm.context(device, 0)

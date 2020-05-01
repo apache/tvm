@@ -178,7 +178,6 @@ inline Tensor reverse_sequence(const Tensor& x,
   if (seq_lengths.defined()) {
     size_t seq_lengths_dim = seq_lengths->shape.size();
     int batch_axis_inp = batch_axis;
-    
     if (batch_axis < 0) {
     batch_axis = static_cast<int>(x->shape.size()) + batch_axis;
     }
@@ -193,9 +192,9 @@ inline Tensor reverse_sequence(const Tensor& x,
 
     CHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
       << "batch_axis=" << batch_axis_inp << " is invalid for the "
-      << static_cast<int>(x->shape.size()) << "-dimensional input tensor";      
+      << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
   }
-  
+
   if (seq_axis < 0) {
     seq_axis = static_cast<int>(x->shape.size()) + seq_axis;
   }
@@ -207,14 +206,13 @@ inline Tensor reverse_sequence(const Tensor& x,
     Array<PrimExpr> real_indices;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       if (i == static_cast<size_t>(seq_axis)) {
-
         if (seq_lengths.defined()) {
           auto len = seq_lengths(indices[batch_axis]);
-          auto idx = if_then_else(len <= 1 || len <= indices[i], indices[i], 
+          auto idx = if_then_else(len <= 1 || len <= indices[i], indices[i],
                       if_then_else(len > x->shape[i], x->shape[i] - 1 - indices[i],
                       len - 1 - indices[i]));
-          real_indices.push_back(idx); 
-        } else{
+          real_indices.push_back(idx);
+        } else {
           real_indices.push_back(x->shape[i] - 1 - indices[i]);
         }
       } else {
@@ -223,7 +221,7 @@ inline Tensor reverse_sequence(const Tensor& x,
       }
       return x(real_indices);
     };
-  
+
   return compute(x->shape, func, name, tag);
 }
 

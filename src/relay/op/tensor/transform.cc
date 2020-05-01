@@ -1505,7 +1505,7 @@ bool ReverseSequenceRel(const Array<Type>& types,
     << "reverse_sequence only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
     << ", but got batch_axis = " << batch_axis
     << ", and data.ndim = " << ndim;
-  
+
   if (batch_axis < 0) {
     batch_axis = static_cast<int>(data->shape.size()) + batch_axis;
   }
@@ -1513,13 +1513,13 @@ bool ReverseSequenceRel(const Array<Type>& types,
     << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
     << ", but got dimension of batch_axis = " << data->shape[batch_axis]
     << ", and seq_length size = " << seq_lengths->shape[0];
-  
+
   const int seq_axis = param->seq_axis;
   CHECK(-ndim <= seq_axis && seq_axis < ndim)
     << "reverse_sequnece only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
     << ", but got seq_axis = " << seq_axis
     << ", and data.ndim = " << ndim;
-  
+
   reporter->Assign(types[2], types[0]);
   return true;
 }
