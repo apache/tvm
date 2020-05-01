@@ -165,8 +165,8 @@ int tvm_remote_get_symbol(remote_handle64 handle, tvm_remote_handle_t lib,
  */
 int tvm_remote_kernel(
     remote_handle64 handle, tvm_remote_handle_t lib,
-    tvm_remote_handle_t symbol, int* scalar, int scalar_len, int* stack,
-    int stack_len, const tvm_remote_buffer* scalar_in_octet,
+    tvm_remote_handle_t symbol, const int* scalar, int scalar_len,
+    const int* stack, int stack_len, const tvm_remote_buffer* scalar_in_octet,
     int scalar_in_octet_len, tvm_remote_buffer* scalar_out_octet,
     int scalar_out_octet_len, const tvm_remote_buffer* stack_in_octet,
     int stack_in_octet_len, tvm_remote_buffer* stack_out_octet,

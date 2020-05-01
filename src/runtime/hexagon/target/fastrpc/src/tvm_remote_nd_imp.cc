@@ -262,8 +262,8 @@ static void print_msg_call(const msg_call& mc) {
  * only. They are not used for procesing.
  */
 int tvm_remote_nd_kernel(
-    tvm_remote_nd_handle_t lib, tvm_remote_nd_handle_t symbol, int* scalar,
-    int scalar_len, int* stack, int stack_len,
+    tvm_remote_nd_handle_t lib, tvm_remote_nd_handle_t symbol,
+    const int* scalar, int scalar_len, const int* stack, int stack_len,
     const tvm_remote_nd_buffer* scalar_in_octet, int scalar_in_octet_len,
     tvm_remote_nd_buffer* scalar_out_octet, int scalar_out_octet_len,
     const tvm_remote_nd_buffer* stack_in_octet, int stack_in_octet_len,
