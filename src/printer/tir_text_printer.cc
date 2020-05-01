@@ -199,7 +199,7 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
     auto it = name_alloc_map_.find(prefix);
     if (it != name_alloc_map_.end()) {
       while (name_alloc_map_.count(
-          unique_prefix = prefix + "_" + std::to_string(++it->second)) > 0);
+          unique_prefix = prefix + "_" + std::to_string(++it->second)) > 0) {}
     }
     name_alloc_map_[unique_prefix] = 0;
     return Doc::Text(unique_prefix);
