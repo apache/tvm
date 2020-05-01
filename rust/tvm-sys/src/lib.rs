@@ -17,10 +17,16 @@
  * under the License.
  */
 
-//! This crate contains the refactored basic components required
-//! for `runtime` and `frontend` TVM crates.
+//! This crate contains the minimal interface over TVM's
+//! C runtime API.
+//!
+//! These common bindings are useful to both runtimes
+//! written in Rust, as well as higher level API bindings.
+//!
+//! See the `tvm-rt` or `tvm` crates for full bindings to
+//! the TVM API.
 
-/// Unified ffi module for both runtime and frontend crates.
+/// The low-level C runtime FFI API for TVM.
 pub mod ffi {
     #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, unused)]
 
@@ -32,12 +38,16 @@ pub mod ffi {
         extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
 }
 
-pub mod array;
+pub mod byte_array;
+pub mod context;
+pub mod datatype;
 pub mod errors;
 #[macro_use]
 pub mod packed_func;
 pub mod value;
 
 pub use errors::*;
-pub use ffi::{DLDataType as TVMType, TVMByteArray, TVMContext};
-pub use packed_func::{TVMArgValue, TVMRetValue};
+pub use context::Context;
+pub use byte_array::ByteArray;
+pub use datatype::DataType;
+pub use packed_func::{RetValue, ArgValue};

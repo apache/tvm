@@ -27,16 +27,16 @@ pub use crate::ffi::TVMValue;
 use crate::{errors::ValueDowncastError, ffi::*};
 
 pub trait PackedFunc:
-    Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync
+    Fn(&[ArgValue]) -> Result<RetValue, crate::errors::FuncCallError> + Send + Sync
 {
 }
 
 impl<T> PackedFunc for T where
-    T: Fn(&[TVMArgValue]) -> Result<TVMRetValue, crate::errors::FuncCallError> + Send + Sync
+    T: Fn(&[ArgValue]) -> Result<RetValue, crate::errors::FuncCallError> + Send + Sync
 {
 }
 
-/// Calls a packed function and returns a `TVMRetValue`.
+/// Calls a packed function and returns a `RetValue`.
 ///
 /// # Example
 ///
@@ -149,8 +149,8 @@ macro_rules! TVMPODValue {
 
 TVMPODValue! {
     /// A borrowed TVMPODValue. Can be constructed using `into()` but the preferred way
-    /// to obtain a `TVMArgValue` is automatically via `call_packed!`.
-    TVMArgValue<'a> {
+    /// to obtain a `ArgValue` is automatically via `call_packed!`.
+    ArgValue<'a> {
         Bytes(&'a TVMByteArray),
         Str(&'a CStr),
     },
@@ -174,16 +174,16 @@ TVMPODValue! {
     ///
     /// ```
     /// use std::convert::{TryFrom, TryInto};
-    /// use tvm_sys::TVMRetValue;
+    /// use tvm_sys::RetValue;
     ///
     /// let a = 42u32;
-    /// let b: u32 = tvm_sys::TVMRetValue::from(a).try_into().unwrap();
+    /// let b: u32 = tvm_sys::RetValue::from(a).try_into().unwrap();
     ///
     /// let s = "hello, world!";
-    /// let t: TVMRetValue = s.to_string().into();
+    /// let t: RetValue = s.to_string().into();
     /// assert_eq!(String::try_from(t).unwrap(), s);
     /// ```
-    TVMRetValue {
+    RetValue {
         Bytes(TVMByteArray),
         Str(&'static CStr),
     },
@@ -212,46 +212,46 @@ macro_rules! try_downcast {
     };
 }
 
-/// Creates a conversion to a `TVMArgValue` for a primitive type and DLDataTypeCode.
+/// Creates a conversion to a `ArgValue` for a primitive type and DLDataTypeCode.
 macro_rules! impl_pod_value {
     ($variant:ident, $inner_ty:ty, [ $( $type:ty ),+ ] ) => {
         $(
-            impl<'a> From<$type> for TVMArgValue<'a> {
+            impl<'a> From<$type> for ArgValue<'a> {
                 fn from(val: $type) -> Self {
                     Self::$variant(val as $inner_ty)
                 }
             }
 
-            impl<'a, 'v> From<&'a $type> for TVMArgValue<'v> {
+            impl<'a, 'v> From<&'a $type> for ArgValue<'v> {
                 fn from(val: &'a $type) -> Self {
                     Self::$variant(*val as $inner_ty)
                 }
             }
 
-            impl<'a> TryFrom<TVMArgValue<'a>> for $type {
+            impl<'a> TryFrom<ArgValue<'a>> for $type {
                 type Error = $crate::errors::ValueDowncastError;
-                fn try_from(val: TVMArgValue<'a>) -> Result<Self, Self::Error> {
-                    try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { val as $type })
+                fn try_from(val: ArgValue<'a>) -> Result<Self, Self::Error> {
+                    try_downcast!(val -> $type, |ArgValue::$variant(val)| { val as $type })
                 }
             }
 
-            impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $type {
+            impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for $type {
                 type Error = $crate::errors::ValueDowncastError;
-                fn try_from(val: &'a TVMArgValue<'v>) -> Result<Self, Self::Error> {
-                    try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { *val as $type })
+                fn try_from(val: &'a ArgValue<'v>) -> Result<Self, Self::Error> {
+                    try_downcast!(val -> $type, |ArgValue::$variant(val)| { *val as $type })
                 }
             }
 
-            impl From<$type> for TVMRetValue {
+            impl From<$type> for RetValue {
                 fn from(val: $type) -> Self {
                     Self::$variant(val as $inner_ty)
                 }
             }
 
-            impl TryFrom<TVMRetValue> for $type {
+            impl TryFrom<RetValue> for $type {
               type Error = $crate::errors::ValueDowncastError;
-                fn try_from(val: TVMRetValue) -> Result<Self, Self::Error> {
-                    try_downcast!(val -> $type, |TVMRetValue::$variant(val)| { val as $type })
+                fn try_from(val: RetValue) -> Result<Self, Self::Error> {
+                    try_downcast!(val -> $type, |RetValue::$variant(val)| { val as $type })
                 }
             }
         )+
@@ -264,110 +264,110 @@ impl_pod_value!(Float, f64, [f32, f64]);
 impl_pod_value!(DataType, DLDataType, [DLDataType]);
 impl_pod_value!(Context, TVMContext, [TVMContext]);
 
-impl<'a> From<&'a str> for TVMArgValue<'a> {
+impl<'a> From<&'a str> for ArgValue<'a> {
     fn from(s: &'a str) -> Self {
         Self::String(CString::new(s).unwrap())
     }
 }
 
-impl<'a> From<String> for TVMArgValue<'a> {
+impl<'a> From<String> for ArgValue<'a> {
     fn from(s: String) -> Self {
         Self::String(CString::new(s).unwrap())
     }
 }
 
-impl<'a> From<&'a CStr> for TVMArgValue<'a> {
+impl<'a> From<&'a CStr> for ArgValue<'a> {
     fn from(s: &'a CStr) -> Self {
         Self::Str(s)
     }
 }
 
-impl<'a> From<&'a TVMByteArray> for TVMArgValue<'a> {
+impl<'a> From<&'a TVMByteArray> for ArgValue<'a> {
     fn from(s: &'a TVMByteArray) -> Self {
         Self::Bytes(s)
     }
 }
 
-impl<'a> TryFrom<TVMArgValue<'a>> for &'a str {
+impl<'a> TryFrom<ArgValue<'a>> for &'a str {
     type Error = ValueDowncastError;
-    fn try_from(val: TVMArgValue<'a>) -> Result<Self, Self::Error> {
-        try_downcast!(val -> &str, |TVMArgValue::Str(s)| { s.to_str().unwrap() })
+    fn try_from(val: ArgValue<'a>) -> Result<Self, Self::Error> {
+        try_downcast!(val -> &str, |ArgValue::Str(s)| { s.to_str().unwrap() })
     }
 }
 
-impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for &'v str {
+impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for &'v str {
     type Error = ValueDowncastError;
-    fn try_from(val: &'a TVMArgValue<'v>) -> Result<Self, Self::Error> {
-        try_downcast!(val -> &str, |TVMArgValue::Str(s)| { s.to_str().unwrap() })
+    fn try_from(val: &'a ArgValue<'v>) -> Result<Self, Self::Error> {
+        try_downcast!(val -> &str, |ArgValue::Str(s)| { s.to_str().unwrap() })
     }
 }
 
-/// Converts an unspecialized handle to a TVMArgValue.
-impl<T> From<*const T> for TVMArgValue<'static> {
+/// Converts an unspecialized handle to a ArgValue.
+impl<T> From<*const T> for ArgValue<'static> {
     fn from(ptr: *const T) -> Self {
         Self::Handle(ptr as *mut c_void)
     }
 }
 
-/// Converts an unspecialized mutable handle to a TVMArgValue.
-impl<T> From<*mut T> for TVMArgValue<'static> {
+/// Converts an unspecialized mutable handle to a ArgValue.
+impl<T> From<*mut T> for ArgValue<'static> {
     fn from(ptr: *mut T) -> Self {
         Self::Handle(ptr as *mut c_void)
     }
 }
 
-impl<'a> From<&'a mut DLTensor> for TVMArgValue<'a> {
+impl<'a> From<&'a mut DLTensor> for ArgValue<'a> {
     fn from(arr: &'a mut DLTensor) -> Self {
         Self::ArrayHandle(arr as *mut DLTensor)
     }
 }
 
-impl<'a> From<&'a DLTensor> for TVMArgValue<'a> {
+impl<'a> From<&'a DLTensor> for ArgValue<'a> {
     fn from(arr: &'a DLTensor) -> Self {
         Self::ArrayHandle(arr as *const _ as *mut DLTensor)
     }
 }
 
-impl TryFrom<TVMRetValue> for String {
+impl TryFrom<RetValue> for String {
     type Error = ValueDowncastError;
-    fn try_from(val: TVMRetValue) -> Result<String, Self::Error> {
+    fn try_from(val: RetValue) -> Result<String, Self::Error> {
         try_downcast!(
             val -> String,
-            |TVMRetValue::String(s)| { s.into_string().unwrap() },
-            |TVMRetValue::Str(s)| { s.to_str().unwrap().to_string() }
+            |RetValue::String(s)| { s.into_string().unwrap() },
+            |RetValue::Str(s)| { s.to_str().unwrap().to_string() }
         )
     }
 }
 
-impl From<String> for TVMRetValue {
+impl From<String> for RetValue {
     fn from(s: String) -> Self {
         Self::String(std::ffi::CString::new(s).unwrap())
     }
 }
 
-impl From<TVMByteArray> for TVMRetValue {
+impl From<TVMByteArray> for RetValue {
     fn from(arr: TVMByteArray) -> Self {
         Self::Bytes(arr)
     }
 }
 
-impl TryFrom<TVMRetValue> for TVMByteArray {
+impl TryFrom<RetValue> for TVMByteArray {
     type Error = ValueDowncastError;
-    fn try_from(val: TVMRetValue) -> Result<Self, Self::Error> {
-        try_downcast!(val -> TVMByteArray, |TVMRetValue::Bytes(val)| { val })
+    fn try_from(val: RetValue) -> Result<Self, Self::Error> {
+        try_downcast!(val -> TVMByteArray, |RetValue::Bytes(val)| { val })
     }
 }
 
-impl Default for TVMRetValue {
+impl Default for RetValue {
     fn default() -> Self {
         Self::Int(0)
     }
 }
 
-impl TryFrom<TVMRetValue> for std::ffi::CString {
+impl TryFrom<RetValue> for std::ffi::CString {
     type Error = ValueDowncastError;
-    fn try_from(val: TVMRetValue) -> Result<CString, Self::Error> {
+    fn try_from(val: RetValue) -> Result<CString, Self::Error> {
         try_downcast!(val -> std::ffi::CString,
-            |TVMRetValue::Str(val)| { val.into() })
+            |RetValue::Str(val)| { val.into() })
     }
 }

@@ -17,16 +17,20 @@
  * under the License.
  */
 
- use std::{
+use std::{
     any::TypeId,
     mem,
     os::raw::{c_int, c_void},
 };
 
+use std::str::FromStr;
+use thiserror::Error;
+
 use crate::ffi::{
     DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
     DLDeviceType_kDLCPU, DLTensor,
 };
+
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DataType {
@@ -88,7 +92,6 @@ impl From<DLDataType> for DataType {
     }
 }
 
-
 impl DLDataType {
     fn new(type_code: u8, bits: u8, lanes: u16) -> Self {
         Self {
@@ -96,6 +99,75 @@ impl DLDataType {
             bits,
             lanes,
         }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ParseTvmTypeError {
+    #[error("invalid number: {0}")]
+    InvalidNumber(std::num::ParseIntError),
+    #[error("unknown type: {0}")]
+    UnknownType(String),
+}
+
+/// Implements TVMType conversion from `&str` of general format `{dtype}{bits}x{lanes}`
+/// such as "int32", "float32" or with lane "float32x1".
+impl FromStr for DLDataType {
+    type Err = ParseTvmTypeError;
+    fn from_str(type_str: &str) -> Result<Self, Self::Err> {
+        if type_str == "bool" {
+            return Ok(DLDataType::new(1, 1, 1));
+        }
+
+        let mut type_lanes = type_str.split('x');
+        let typ = type_lanes.next().expect("Missing dtype");
+        let lanes = type_lanes
+            .next()
+            .map(|l| <u16>::from_str_radix(l, 10))
+            .unwrap_or(Ok(1))
+            .map_err(ParseTvmTypeError::InvalidNumber)?;
+        let (type_name, bits) = match typ.find(char::is_numeric) {
+            Some(idx) => {
+                let (name, bits_str) = typ.split_at(idx);
+                (
+                    name,
+                    u8::from_str_radix(bits_str, 10).map_err(ParseTvmTypeError::InvalidNumber)?,
+                )
+            }
+            None => (typ, 32),
+        };
+
+        let type_code = match type_name {
+            "int" => 0,
+            "uint" => 1,
+            "float" => 2,
+            "handle" => 3,
+            _ => return Err(ParseTvmTypeError::UnknownType(type_name.to_string())),
+        };
+
+        Ok(DLDataType::new(type_code, bits, lanes))
+    }
+}
+
+impl std::fmt::Display for DLDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.bits == 1 && self.lanes == 1 {
+            return write!(f, "bool");
+        }
+        let mut type_str = match self.code {
+            0 => "int",
+            1 => "uint",
+            2 => "float",
+            4 => "handle",
+            _ => "unknown",
+        }
+        .to_string();
+
+        type_str += &self.bits.to_string();
+        if self.lanes > 1 {
+            type_str += &format!("x{}", self.lanes);
+        }
+        f.write_str(&type_str)
     }
 }
 

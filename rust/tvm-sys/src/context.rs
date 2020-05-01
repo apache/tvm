@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -17,37 +18,33 @@
  * under the License.
  */
 
-use std::{str::FromStr};
-
+use crate::ffi::*;
+use std::str::FromStr;
 use thiserror::Error;
 
-use crate::ffi::*;
+ #[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Context {
+    pub device_type: usize,
+    pub device_id: usize,
+}
 
-macro_rules! impl_pod_tvm_value {
-    ($field:ident, $field_ty:ty, $( $ty:ty ),+) => {
-        $(
-            impl From<$ty> for TVMValue {
-                fn from(val: $ty) -> Self {
-                    TVMValue { $field: val as $field_ty }
-                }
-            }
-
-            impl From<TVMValue> for $ty {
-                fn from(val: TVMValue) -> Self {
-                    unsafe { val.$field as $ty }
-                }
-            }
-        )+
-    };
-    ($field:ident, $ty:ty) => {
-        impl_pod_tvm_value!($field, $ty, $ty);
+impl<'a> From<&'a Context> for DLContext {
+    fn from(ctx: &'a Context) -> Self {
+        Self {
+            device_type: ctx.device_type as _,
+            device_id: ctx.device_id as i32,
+        }
     }
 }
 
-impl_pod_tvm_value!(v_int64, i64, i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
-impl_pod_tvm_value!(v_float64, f64, f32, f64);
-impl_pod_tvm_value!(v_type, DLDataType);
-impl_pod_tvm_value!(v_ctx, TVMContext);
+impl Default for Context {
+    fn default() -> Self {
+        Self {
+            device_type: DLDeviceType_kDLCPU as usize,
+            device_id: 0,
+        }
+    }
+}
 
 #[derive(Debug, Error)]
 #[error("unsupported device: {0}")]
@@ -55,13 +52,13 @@ pub struct UnsupportedDeviceError(String);
 
 macro_rules! impl_tvm_context {
     ( $( $dev_type:ident : [ $( $dev_name:ident ),+ ] ),+ ) => {
-        /// Creates a TVMContext from a string (e.g., "cpu", "gpu", "ext_dev")
-        impl FromStr for TVMContext {
+        /// Creates a Context from a string (e.g., "cpu", "gpu", "ext_dev")
+        impl FromStr for Context {
             type Err = UnsupportedDeviceError;
             fn from_str(type_str: &str) -> Result<Self, Self::Err> {
                 Ok(Self {
                     device_type: match type_str {
-                         $( $(  stringify!($dev_name)  )|+ => $dev_type ),+,
+                         $( $(  stringify!($dev_name)  )|+ => $dev_type as usize),+,
                         _ => return Err(UnsupportedDeviceError(type_str.to_string())),
                     },
                     device_id: 0,
@@ -69,13 +66,13 @@ macro_rules! impl_tvm_context {
             }
         }
 
-        impl TVMContext {
+        impl Context {
             $(
                 $(
                     pub fn $dev_name(device_id: usize) -> Self {
                         Self {
-                            device_type: $dev_type,
-                            device_id: device_id as i32,
+                            device_type: $dev_type as usize,
+                            device_id: device_id,
                         }
                     }
                 )+
