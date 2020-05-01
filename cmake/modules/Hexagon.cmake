@@ -87,7 +87,11 @@ elseif(USE_HEXAGON_DEVICE STREQUAL "${PICK_HW}")
   include_directories(
       "${HEXAGON_SDK_ROOT}/libs/common/remote/ship/android_Release_aarch64")
   include_directories("${HEXAGON_TOOLCHAIN}/include/iss")
-  list(APPEND TVM_RUNTIME_LINKER_LIBS "-ldl")
+  list(APPEND TVM_RUNTIME_LINKER_LIBS "dl")
+  if(BUILD_FOR_ANDROID)
+    # Hexagon runtime uses __android_log_print, which is in liblog.
+    list(APPEND TVM_RUNTIME_LINKER_LIBS "log")
+  endif()
 endif()
 
 file(GLOB RUNTIME_HEXAGON_SRCS src/runtime/hexagon/*.cc)
