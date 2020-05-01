@@ -1473,37 +1473,39 @@ bool ReverseSequenceRel(const Array<Type>& types,
                int num_inputs,
                const Attrs& attrs,
                const TypeReporter& reporter) {
-  // `types` contains: [data, result]
+  // `types` contains: [data, seq_lengths, result]
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
+
   if (data == nullptr) {
     CHECK(types[0].as<IncompleteTypeNode>())
-        << "reverse: expect input type to be TensorType but get "
+        << "reverse_sequence: expect input type to be TensorType but get "
         << types[0];
     return false;
   }
+
   const auto* seq_lengths = types[1].as<TensorTypeNode>();
   if (seq_lengths == nullptr) {
     CHECK(types[1].as<IncompleteTypeNode>())
-        << "reverse: expect input type to be TensorType but get "
+        << "reverse_sequence: expect input type to be TensorType but get "
         << types[1];
     return false;
   }
+
+  const int seq_lengths_dim = static_cast<int>(seq_lengths->shape.size());
+  CHECK(seq_lengths_dim == 1)
+    << "For reverse_sequnece, seq_lengths must be a 1D vector";
+  CHECK(seq_lengths->dtype.is_int())
+    << "For reverse_sequnece, seq_lengths must be tensor of integer";
+
   const auto* param = attrs.as<ReverseSequenceAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
-  const int seq_lengths_dim = static_cast<int>(seq_lengths->shape.size());
-
-  
   int batch_axis = param->batch_axis;
   CHECK(-ndim <= batch_axis && batch_axis < ndim)
-    << "reverse only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
-    << ", but got axis = " << batch_axis
+    << "reverse_sequence only accepts `batch_axis` in [-data.ndim, data.ndim - 1]"
+    << ", but got batch_axis = " << batch_axis
     << ", and data.ndim = " << ndim;
   
-  CHECK(seq_lengths_dim == 1)
-    << "seq_lengths should be 1D vector";
-
-
   if (batch_axis < 0) {
     batch_axis = static_cast<int>(data->shape.size()) + batch_axis;
   }
@@ -1514,10 +1516,9 @@ bool ReverseSequenceRel(const Array<Type>& types,
   
   const int seq_axis = param->seq_axis;
   CHECK(-ndim <= seq_axis && seq_axis < ndim)
-    << "reverse only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
+    << "reverse_sequnece only accepts `seq_axis` in [-data.ndim, data.ndim - 1]"
     << ", but got seq_axis = " << seq_axis
     << ", and data.ndim = " << ndim;
-
   
   reporter->Assign(types[2], types[0]);
   return true;
@@ -1528,7 +1529,7 @@ Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs,
                                  const Type& out_type) {
   const ReverseSequenceAttrs *param = attrs.as<ReverseSequenceAttrs>();
   CHECK(param != nullptr);
-  return { topi::reverse_sequence(inputs[0], inputs[1], param->batch_axis, param->seq_axis) };
+  return {topi::reverse_sequence(inputs[0], inputs[1], param->batch_axis, param->seq_axis)};
 }
 
 Expr MakeReverseSequence(Expr data,
@@ -1546,15 +1547,22 @@ TVM_REGISTER_GLOBAL("relay.op._make.reverse_sequence")
 .set_body_typed(MakeReverseSequence);
 
 RELAY_REGISTER_OP("reverse_sequence")
-.describe(R"code(Reverses the order of elements along given `axis` while preserving array shape.
+.describe(R"code(Reverses the tensor for variable length slices.
+Input is first sliced along batch axis and then elements are reversed along seq axis.
 
 - **data**: The input data to the operator.
+
+- **seq_lengths**: A 1D Tensor with length data.dims[batch_axis].
+
+- **seq_axis**: The axis along which the elements will be reversed. Default is 1.
+
+- **batch_axis**: The axis along which the tensor will be sliced. Default is 0.
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(2)
 .set_attrs_type<ReverseSequenceAttrs>()
 .add_argument("data", "Tensor", "The input tensor.")
-.add_argument("seq_lengths", "Tensor", "The seq_lengths tensor.")
+.add_argument("seq_lengths", "Tensor", "A 1D Tensor with length data.dims[batch_axis]")
 .set_support_level(3)
 .add_type_rel("ReverseSequence", ReverseSequenceRel)
 .set_attr<FTVMCompute>("FTVMCompute", ReverseSequenceCompute)

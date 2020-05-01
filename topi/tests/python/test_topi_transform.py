@@ -290,12 +290,14 @@ def verify_flip(in_shape, axis):
     for device in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+
 def test_reverse_sequence():
     def verify_reverse_sequence(in_data, seq_lengths, batch_axis, seq_axis, ref_res):
         seq_lengths = np.array(seq_lengths).astype("int32")
         A = te.placeholder(shape=in_data.shape, name="A", dtype=str(in_data.dtype))
-        A1 = te.placeholder(shape=seq_lengths.shape, name="A1", dtype=str(seq_lengths.dtype))
-        B = topi.reverse_sequence(A, A1, batch_axis, seq_axis)
+        B = te.placeholder(shape=seq_lengths.shape, name="B", dtype=str(seq_lengths.dtype))
+        C = topi.reverse_sequence(A, B, seq_axis, batch_axis)
+
         def check_device(device):
             ctx = tvm.context(device, 0)
             if not ctx.exist:
@@ -303,10 +305,9 @@ def test_reverse_sequence():
                 return
             print("Running on target: %s" % device)
             with tvm.target.create(device):
-                s = topi.testing.get_injective_schedule(device)(B)
+                s = topi.testing.get_injective_schedule(device)(C)
 
-            foo = tvm.build(s, [A, A1, B], device, name="reverse")
-            print(tvm.lower(s, [A, A1, B], device))
+            foo = tvm.build(s, [A, B, C], device, name="reverse_sequence")
 
             data_nd = tvm.nd.array(in_data, ctx)
             seq_lengths_nd = tvm.nd.array(seq_lengths, ctx)
@@ -314,7 +315,7 @@ def test_reverse_sequence():
             foo(data_nd, seq_lengths_nd, out_nd)
             tvm.testing.assert_allclose(out_nd.asnumpy(), ref_res)
 
-        for device in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
+        for device in get_all_backend():
             check_device(device)
 
     indata = np.array(np.arange(0, 16)).reshape([4, 4]).astype("int32")

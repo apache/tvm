@@ -667,7 +667,7 @@ def test_reverse_sequence():
     def verify_reverse_sequence(x_data, seq_lengths, batch_axis, seq_axis, ref_res):
         seq_lengths_data = np.array(seq_lengths).astype("int32")
         x = relay.var("x", relay.TensorType(x_data.shape, str(x_data.dtype)))
-        z = relay.reverse_sequence(x, relay.const(seq_lengths_data), batch_axis, seq_axis)
+        z = relay.reverse_sequence(x, relay.const(seq_lengths_data), seq_axis, batch_axis)
         zz = run_infer_type(z)
         assert zz.checked_type == x.type_annotation
         func = relay.Function([x], z)

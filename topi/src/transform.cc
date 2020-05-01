@@ -47,6 +47,18 @@ TVM_REGISTER_GLOBAL("topi.flip")
   *rv = flip(args[0], args[1]);
   });
 
+/*!
+ * \brief Create a NodeRef type that represents null.
+ * \tparam TNodeRef the type to be created.
+ * \return A instance that will represent None.
+ */
+template<typename TObjectRef>
+inline TObjectRef NullValue() {
+  static_assert(TObjectRef::_type_is_nullable,
+                "Can only get NullValue for nullable types");
+  return TObjectRef(ObjectPtr<Object>(nullptr));
+}
+
 TVM_REGISTER_GLOBAL("topi.reverse_sequence")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = reverse_sequence(args[0], args[1], args[2], args[3]);

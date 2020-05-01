@@ -1666,13 +1666,8 @@ class OperatorConverter(object):
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
-        in_expr = self.get_expr(input_tensors[0].tensor_idx)
-        length_tensor = input_tensors[1]
-        if self.has_expr(length_tensor.tensor_idx):
-            length_expr = self.get_expr(length_tensor.tensor_idx)
-        else:
-            type_str = self.get_tensor_type_str(length_tensor.tensor.Type())
-            length_expr = self.exp_tab.new_const(self.get_tensor_value(length_tensor), dtype=type_str)
+        in_expr = self.get_tensor_expr(input_tensors[0])
+        length_expr = self.get_tensor_expr(input_tensors[1])
 
         assert op.BuiltinOptionsType() == BuiltinOptions.ReverseSequenceOptions
         op_options = op.BuiltinOptions()
@@ -1680,7 +1675,8 @@ class OperatorConverter(object):
         options.Init(op_options.Bytes, op_options.Pos)
         batch_axis = options.BatchDim()
         seq_axis = options.SeqDim()
-        out = _op.reverse_sequence(in_expr, length_expr, batch_axis, seq_axis)
+
+        out = _op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
 
         return out
 
@@ -2309,6 +2305,16 @@ class OperatorConverter(object):
 
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
+
+    def get_tensor_expr(self, tensor):
+        """ Return the expr for tensor. """
+        if self.has_expr(tensor.tensor_idx):
+            expr = self.get_expr(tensor.tensor_idx)
+        else:
+            type_str = self.get_tensor_type_str(tensor.tensor.Type())
+            expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
+
+        return expr
 
 
 def get_scalar_from_constant(expr):

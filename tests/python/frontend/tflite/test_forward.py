@@ -1589,6 +1589,7 @@ def test_forward_spacetodepth():
     _test_spacetodepth(np.random.normal(size=[1, 32, 32, 4]).astype("float32"), 2)
     _test_spacetodepth(np.random.normal(size=[1, 16, 8, 32]).astype("float32"), 4)
 
+
 #######################################################################
 # ReverseSequence
 # ---------------

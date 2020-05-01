@@ -194,74 +194,70 @@ inline Tensor flip(const Tensor& x,
 }
 
 /*!
-* \brief flip/reverse elements of an array in a particular axis
+* \brief Reverse the tensor for variable length slices.
+* Input is first sliced along batch axis and then elements are reversed along seq axis.
 *
 * \param x The input tensor
-* \param axis The axis along which the tensors will be reveresed
-* (allows negative indices)
+* \param seq_lengths A 1D Tensor with length x.dims[batch_axis]
+* \param seq_axis The axis along which the elements will be reveresed
+* \param batch_axis The axis along which the tensor will be sliced
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *
-* \return A Tensor whose op member is the reverse operation
+* \return A Tensor whose op member is the reverse_sequence operation
 */
 inline Tensor reverse_sequence(const Tensor& x,
                    const Tensor& seq_lengths,
+                   int seq_axis = 1,
                    int batch_axis = 0,
-                   int sequence_axis = 1,
-                   std::string name = "T_flip_sequence",
+                   std::string name = "T_reverse_sequence",
                    std::string tag = kInjective) {
-  std::cout << "in compute\n" ;
   size_t src_tensor_dim = x->shape.size();
-
-  int axis_inp = batch_axis;
+  size_t seq_lengths_dim = seq_lengths->shape.size();
+  int batch_axis_inp = batch_axis;
+  int seq_axis_inp = seq_axis;
 
   if (batch_axis < 0) {
     batch_axis = static_cast<int>(x->shape.size()) + batch_axis;
   }
+  if (seq_axis < 0) {
+    seq_axis = static_cast<int>(x->shape.size()) + seq_axis;
+  }
+  CHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
+    << "batch_axis=" << batch_axis_inp << " is invalid for the "
+    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
+  CHECK((0 <= seq_axis) && (seq_axis < static_cast<int>(x->shape.size())))
+    << "seq_axis=" << seq_axis_inp << " is invalid for the "
+    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
 
-  if (sequence_axis < 0) {
-    sequence_axis = static_cast<int>(x->shape.size()) + sequence_axis;
+  if (seq_axis != NULL){
+  CHECK(seq_lengths_dim == 1)
+    << "seq_lengths should be 1D vector";
+
+  CHECK(GetConstInt(seq_lengths->shape[0]) == GetConstInt(x->shape[batch_axis]))
+    << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
+    << ", but got dimension of batch_axis = " << GetConstInt(x->shape[batch_axis])
+    << ", and seq_length size = " << GetConstInt(seq_lengths->shape[0]);
   }
 
-  CHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
-    << "batch_axis=" << axis_inp << " is invalid for the "
-    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
-
-  CHECK((0 <= sequence_axis) && (sequence_axis < static_cast<int>(x->shape.size())))
-    << "sequence_axis=" << axis_inp << " is invalid for the "
-    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
-
- std::cout << "in compute 111111\n" ;
-Array<PrimExpr> seq_lengths_expr;
-
-
-  // Reverse the Input Tensor in the axis specified
-  return compute(
-    x->shape, [&](const Array<Var>& indices) {
-      Array<PrimExpr> real_indices;
-
-      // PrimExpr length_idx = 0;
-      //     for (int i = 0; i < src_tensor_dim; ++i) {
-      //         length_idx = tvm::if_then_else(i == indices[batch_axis], i, length_idx);
-      //     }
-
-      for (size_t i = 0; i < src_tensor_dim; ++i) {
-        if (i == static_cast<size_t>(sequence_axis)) {
-          // x->shape[i]
-          
-          std::cout << "getting const int 2222\n";
-          //seq_lengths_expr[GetConstInt(length_idx)]
-          //auto l = seq_lengths[GetConstInt(  )];
-          auto l= seq_lengths(indices[batch_axis]);
-          auto idx= if_then_else(l <= 1 || l <= indices[i], indices[i], 
-                    if_then_else(l > x->shape[i], x->shape[i] -1 -indices[i], l-1-indices[i]));
-          real_indices.push_back(idx);
+  // TODO(@maheshambule) - can flip compute be combined with this?
+  auto func = [&](const Array<Var>& indices) {
+    Array<PrimExpr> real_indices;
+    for (size_t i = 0; i < src_tensor_dim; ++i) {
+      if (i == static_cast<size_t>(seq_axis)) {
+        auto len = seq_lengths(indices[batch_axis]);
+        auto idx = if_then_else(len <= 1 || len <= indices[i], indices[i], 
+                    if_then_else(len > x->shape[i], x->shape[i] - 1 - indices[i],
+                    len - 1 - indices[i]));
+        real_indices.push_back(idx); 
         } else {
           real_indices.push_back(indices[i]);
         }
       }
       return x(real_indices);
-    }, name, tag);
+    };
+  
+  return compute(x->shape, func, name, tag);
 }
 
 /*!
