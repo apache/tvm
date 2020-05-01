@@ -7,23 +7,17 @@ namespace Tests
     public class UnitTestModule
     {
         [Fact]
-        public void EmptyModuleCreateSuccess()
-        {
-            Module module = new Module();
-            module.DisposeModule();
-        }
-
-        [Fact]
         public void ModuleCreateInvalidPath()
         {
-            Module module = new Module("Non existing path", "");
-            Assert.Equal(module.ModuleHandle, UIntPtr.Zero);
+            var exception = Assert.Throws<ArgumentException>(() => new Module("Non existing path", ""));
+            Assert.Contains("provide valid path", exception.Message);
         }
 
         [Fact]
         public void ModuleCreateSuccess()
         {
             Module module = new Module("asset/test_addone_dll.so", "");
+            Assert.NotEqual(module.ModuleHandle, IntPtr.Zero);
             module.DisposeModule();
         }
 
@@ -31,9 +25,9 @@ namespace Tests
         public void ModuleLoadEmbedFuncInvalid()
         {
             Module module = new Module("asset/test_addone_dll.so", "");
-            UIntPtr funcHandle = UIntPtr.Zero;
+            IntPtr funcHandle = IntPtr.Zero;
             module.GetModuleEmbededFunc("empty", queryImports: 0, ref funcHandle);
-            Assert.Equal(funcHandle, UIntPtr.Zero);
+            Assert.Equal(funcHandle, IntPtr.Zero);
             module.DisposeModule();
         }
 
@@ -41,22 +35,25 @@ namespace Tests
         public void ModuleLoadEmbedFuncValid()
         {
             Module module = new Module("asset/test_addone_dll.so", "");
-            UIntPtr funcHandle = UIntPtr.Zero;
+            IntPtr funcHandle = IntPtr.Zero;
             module.GetModuleEmbededFunc("addone", 0, ref funcHandle);
-            Assert.NotEqual(module.ModuleHandle, UIntPtr.Zero);
+            Assert.NotEqual(module.ModuleHandle, IntPtr.Zero);
 
             // Execute the embedded function in the module
             // NOTE: Here the function f = addone(x) => x + 1
-            int[] shape = { 10 };
+            long[] shape = { 10 };
+            float[] data = new float[shape[0]];
             TVMContext ctx = new TVMContext(0);
 
-            NDArray x_nd = new NDArray(shape, 1, "float32", ctx);
-            NDArray y_nd = new NDArray(shape, 1, "float32", ctx);
+            NDArray x_nd = NDArray.Empty(shape, "float32", ctx);
+            NDArray y_nd = NDArray.Empty(shape, "float32", ctx);
 
             for (int i = 0; i < shape[0]; ++i)
             {
-                x_nd[i] = (float)i;
+                data[i] = (float)i;
             }
+
+            x_nd.CopyFrom(data);
 
             PFManager.RunPackedFunc(funcHandle,
                 new object[] { x_nd.NDArrayHandle, y_nd.NDArrayHandle });

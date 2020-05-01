@@ -7,14 +7,6 @@ namespace Tests
     public class UnitTestRuntime
     {
         [Fact]
-        public void EmptyRuntimeCreateSuccess()
-        {
-            Runtime runtime = new Runtime();
-            Assert.Equal(runtime.RuntimeHandle, UIntPtr.Zero);
-            runtime.DisposeRuntime();
-        }
-
-        [Fact]
         public void RuntimeCreateInvalidInputs()
         {
             RuntimeParams runtimeParams = new RuntimeParams();
@@ -24,15 +16,15 @@ namespace Tests
             runtimeParams.graphJsonPath = "";
             runtimeParams.context = new TVMContext(0);
 
-            var exception = Assert.Throws<ArgumentException>(() => new Runtime(runtimeParams));
+            var exception = Assert.Throws<ArgumentException>(() => Runtime.Create(runtimeParams));
             Assert.Contains("RuntimeParams.modLibPath", exception.Message);
 
             runtimeParams.modLibPath = "asset/resnet50tvm.so";
-            exception = Assert.Throws<ArgumentException>(() => new Runtime(runtimeParams));
+            exception = Assert.Throws<ArgumentException>(() => Runtime.Create(runtimeParams));
             Assert.Contains("RuntimeParams.graphJsonPath", exception.Message);
 
             runtimeParams.graphJsonPath = "asset/resnet50tvm-graph.json";
-            exception = Assert.Throws<ArgumentException>(() => new Runtime(runtimeParams));
+            exception = Assert.Throws<ArgumentException>(() => Runtime.Create(runtimeParams));
             Assert.Contains("RuntimeParams.paramDictPath", exception.Message);
         }
 
@@ -46,10 +38,10 @@ namespace Tests
             runtimeParams.graphJsonPath = "asset/resnet50tvm-graph.json";
             runtimeParams.context = new TVMContext(0);
 
-            Runtime runtime = new Runtime(runtimeParams);
-            Assert.NotEqual(runtime.RuntimeHandle, UIntPtr.Zero);
+            Runtime runtime = Runtime.Create(runtimeParams);
+            Assert.NotEqual(runtime.RuntimeHandle, IntPtr.Zero);
             runtime.DisposeRuntime();
-            Assert.Equal(runtime.RuntimeHandle, UIntPtr.Zero);
+            Assert.Equal(runtime.RuntimeHandle, IntPtr.Zero);
         }
 
         [Fact]
@@ -62,43 +54,40 @@ namespace Tests
             runtimeParams.graphJsonPath = "asset/resnet50tvm-graph.json";
             runtimeParams.context = new TVMContext(0);
 
-            Runtime runtime = new Runtime(runtimeParams);
-            Assert.NotEqual(runtime.RuntimeHandle, UIntPtr.Zero);
+            Runtime runtime = Runtime.Create(runtimeParams);
+            Assert.NotEqual(runtime.RuntimeHandle, IntPtr.Zero);
 
             // Load Params
             runtime.LoadParams();
 
             // Set Inputs
-            int[] shape = { 1, 224, 224, 3 };
+            long[] shape = { 1, 224, 224, 3 };
             TVMContext ctx = new TVMContext(0);
-            NDArray input_1 = new NDArray(shape, shape.Length, "float32", ctx);
+            NDArray input_1 = NDArray.Empty(shape, "float32", ctx);
 
             runtime.SetInput("input_1", input_1);
 
             // Run the graph
             runtime.Run();
 
-            NDArray output = new NDArray();
-            Assert.Equal(output.NDArrayHandle, IntPtr.Zero);
-
             // Get Output
-            runtime.GetOutput(0, ref output);
+            NDArray output = runtime.GetOutput(0);
 
             Assert.NotEqual(output.NDArrayHandle, IntPtr.Zero);
 
             // Check Output Data
             Assert.Equal(2, output.Ndim);
-            Assert.Equal(new int[] { 1, 1000 }, output.Shape);
+            Assert.Equal(new long[] { 1, 1000 }, output.Shape);
             Assert.Equal(1000, output.Size);
 
             // Release all resources
             runtime.DisposeRuntime();
-            Assert.Equal(runtime.RuntimeHandle, UIntPtr.Zero);
+            Assert.Equal(runtime.RuntimeHandle, IntPtr.Zero);
 
-            output.DisposeNDArray();
+            output.Dispose();
             Assert.Equal(output.NDArrayHandle, IntPtr.Zero);
 
-            input_1.DisposeNDArray();
+            input_1.Dispose();
             Assert.Equal(input_1.NDArrayHandle, IntPtr.Zero);
         }
     }
