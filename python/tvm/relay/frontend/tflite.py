@@ -1738,9 +1738,7 @@ class OperatorConverter(object):
         batch_axis = options.BatchDim()
         seq_axis = options.SeqDim()
 
-        out = _op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
-
-        return out
+        return _op.reverse_sequence(in_expr, length_expr, seq_axis, batch_axis)
 
     def convert_cast(self, op):
         """Convert TFLite CAST"""
@@ -2384,7 +2382,7 @@ class OperatorConverter(object):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
     def get_tensor_expr(self, tensor):
-        """ Return the expr for tensor. """
+        """ Return the Relay expr for tensor. """
         if self.has_expr(tensor.tensor_idx):
             expr = self.get_expr(tensor.tensor_idx)
         else:

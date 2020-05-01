@@ -1438,6 +1438,7 @@ Array<te::Tensor> ReverseCompute(const Attrs& attrs,
                                  const Type& out_type) {
   const ReverseAttrs *param = attrs.as<ReverseAttrs>();
   CHECK(param != nullptr);
+  //pass empty seq_length tensor to reverse_sequence
   return { topi::reverse_sequence(inputs[0], te::Tensor(), param->axis)};
 }
 

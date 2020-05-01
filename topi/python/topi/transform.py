@@ -138,7 +138,7 @@ def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    a : tvm.te.Tensor
        The tensor to be reversed.
 
     seq_lengths : tvm.te.Tensor
