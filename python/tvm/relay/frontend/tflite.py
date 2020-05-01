@@ -2550,7 +2550,7 @@ def from_tflite(model, shape_dict, dtype_dict):
     try:
         import tflite
         assert isinstance(model, tflite.Model)
-    except (TypeError):
+    except TypeError:
         import tflite.Model
         assert isinstance(model, tflite.Model.Model)
 
