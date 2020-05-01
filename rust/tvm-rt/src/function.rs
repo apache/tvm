@@ -37,7 +37,10 @@ use std::{
 use anyhow::{ensure, Result};
 use lazy_static::lazy_static;
 
-use crate::{errors, ffi, Module, TVMArgValue, TVMRetValue};
+pub use tvm_sys::{ffi, ArgValue, RetValue};
+
+use crate::{errors, Module};
+use super::to_function::ToFunction;
 
 lazy_static! {
     static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
@@ -146,15 +149,15 @@ impl Drop for Function {
 #[derive(Default)]
 pub struct Builder<'a, 'm> {
     pub func: Option<&'m Function>,
-    pub arg_buf: Vec<TVMArgValue<'a>>,
-    pub ret_buf: Option<TVMRetValue>,
+    pub arg_buf: Vec<ArgValue<'a>>,
+    pub ret_buf: Option<RetValue>,
 }
 
 impl<'a, 'm> Builder<'a, 'm> {
     pub fn new(
         func: Option<&'m Function>,
-        arg_buf: Vec<TVMArgValue<'a>>,
-        ret_buf: Option<TVMRetValue>,
+        arg_buf: Vec<ArgValue<'a>>,
+        ret_buf: Option<RetValue>,
     ) -> Self {
         Self {
             func,
@@ -168,20 +171,20 @@ impl<'a, 'm> Builder<'a, 'm> {
         self
     }
 
-    /// Pushes a [`TVMArgValue`] into the function argument buffer.
+    /// Pushes a [`ArgValue`] into the function argument buffer.
     pub fn arg<T: 'a>(&mut self, arg: T) -> &mut Self
     where
-        TVMArgValue<'a>: From<T>,
+        ArgValue<'a>: From<T>,
     {
         self.arg_buf.push(arg.into());
         self
     }
 
-    /// Pushes multiple [`TVMArgValue`]s into the function argument buffer.
+    /// Pushes multiple [`ArgValue`]s into the function argument buffer.
     pub fn args<T: 'a, I>(&mut self, args: I) -> &mut Self
     where
         I: IntoIterator<Item = T>,
-        TVMArgValue<'a>: From<T>,
+        ArgValue<'a>: From<T>,
     {
         args.into_iter().for_each(|arg| {
             self.arg(arg);
@@ -193,14 +196,14 @@ impl<'a, 'm> Builder<'a, 'm> {
     /// See the `basics` in tests for an example.
     pub fn set_output<T>(&mut self, ret: T) -> &mut Self
     where
-        TVMRetValue: From<T>,
+        RetValue: From<T>,
     {
         self.ret_buf = Some(ret.into());
         self
     }
 
     /// Calls the function that created from `Builder`.
-    pub fn invoke(&mut self) -> Result<TVMRetValue> {
+    pub fn invoke(&mut self) -> Result<RetValue> {
         #![allow(unused_unsafe)]
         ensure!(self.func.is_some(), errors::FunctionNotFoundError);
 
@@ -219,7 +222,7 @@ impl<'a, 'm> Builder<'a, 'm> {
             &mut ret_type_code as *mut _
         ));
 
-        Ok(unsafe { TVMRetValue::from_tvm_value(ret_val, ret_type_code as u32) })
+        Ok(unsafe { RetValue::from_tvm_value(ret_val, ret_type_code as u32) })
     }
 }
 
@@ -238,187 +241,8 @@ impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
     }
 }
 
-trait ToFunction: Sized {
-    type Resource;
-
-    fn to_function(self) -> Function {
-        let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
-        let resource_handle = self.to_ptr();
-        check_call!(ffi::TVMFuncCreateFromCFunc(
-            Some(Self::tvm_callback),
-            resource_handle as *mut c_void,
-            Some(Self::tvm_finalizer),
-            &mut fhandle as *mut _
-        ));
-        Function::new(fhandle)
-    }
-
-    fn to_ptr(self) -> *mut Self::Resource;
-
-    /// The callback function which is wrapped converted by TVM
-    /// into a packed function stored in fhandle.
-    unsafe extern "C" fn tvm_callback(
-        args: *mut ffi::TVMValue,
-        type_codes: *mut c_int,
-        num_args: c_int,
-        ret: ffi::TVMRetValueHandle,
-        fhandle: *mut c_void,
-    ) -> c_int;
-
-    /// The finalizer which is invoked when the packed function's
-    /// reference count is zero.
-    unsafe extern "C" fn tvm_finalizer(fhandle: *mut c_void);
-}
-
-impl ToFunction for fn(&[TVMArgValue]) -> Result<TVMRetValue> {
-    type Resource = Self;
-
-    fn to_ptr(self) -> *mut Self::Resource {
-        self as *mut Self
-    }
-
-    unsafe extern "C" fn tvm_callback(
-        args: *mut ffi::TVMValue,
-        type_codes: *mut c_int,
-        num_args: c_int,
-        ret: ffi::TVMRetValueHandle,
-        fhandle: *mut c_void,
-    ) -> c_int {
-        // turning off the incorrect linter complaints
-        #![allow(unused_assignments, unused_unsafe)]
-        let len = num_args as usize;
-        let args_list = slice::from_raw_parts_mut(args, len);
-        let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
-        let mut local_args: Vec<TVMArgValue> = Vec::new();
-        let mut value = MaybeUninit::uninit().assume_init();
-        let mut tcode = MaybeUninit::uninit().assume_init();
-        let rust_fn =
-            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
-        for i in 0..len {
-            value = args_list[i];
-            println!("{:?}", value.v_handle);
-            tcode = type_codes_list[i];
-            if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
-                || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
-                || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
-            {
-                check_call!(ffi::TVMCbArgToReturn(
-                    &mut value as *mut _,
-                    &mut tcode as *mut _
-                ));
-                println!("{:?}", value.v_handle);
-            }
-            let arg_value = TVMArgValue::from_tvm_value(value, tcode as u32);
-            println!("{:?}", arg_value);
-            local_args.push(arg_value);
-        }
-
-        let rv = match rust_fn(local_args.as_slice()) {
-            Ok(v) => v,
-            Err(msg) => {
-                crate::set_last_error(&msg);
-                return -1;
-            }
-        };
-
-        let (mut ret_val, ret_tcode) = rv.to_tvm_value();
-        let mut ret_type_code = ret_tcode as c_int;
-        check_call!(ffi::TVMCFuncSetReturn(
-            ret,
-            &mut ret_val as *mut _,
-            &mut ret_type_code as *mut _,
-            1 as c_int
-        ));
-        0
-    }
-
-    unsafe extern "C" fn tvm_finalizer(fhandle: *mut c_void) {
-        let _rust_fn =
-            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
-        // XXX: give converted functions lifetimes so they're not called after use
-    }
-}
-
-impl<'v, 'a> ToFunction for Box<fn(&'v [TVMArgValue<'a>]) -> Result<TVMRetValue>> {
-    type Resource = fn(&'v [TVMArgValue<'a>]) -> Result<TVMRetValue>;
-
-    fn to_ptr(self) -> *mut Self::Resource {
-        Box::into_raw(self)
-    }
-
-    unsafe extern "C" fn tvm_callback(
-        args: *mut ffi::TVMValue,
-        type_codes: *mut c_int,
-        num_args: c_int,
-        ret: ffi::TVMRetValueHandle,
-        fhandle: *mut c_void,
-    ) -> c_int {
-        // turning off the incorrect linter complaints
-        #![allow(unused_assignments, unused_unsafe)]
-        let len = num_args as usize;
-        let args_list = slice::from_raw_parts_mut(args, len);
-        let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
-        let mut local_args: Vec<TVMArgValue> = Vec::new();
-        let mut value = MaybeUninit::uninit().assume_init();
-        let mut tcode = MaybeUninit::uninit().assume_init();
-        let rust_fn =
-            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
-        for i in 0..len {
-            value = args_list[i];
-            println!("{:?}", value.v_handle);
-            tcode = type_codes_list[i];
-            if tcode == ffi::TVMTypeCode_kTVMObjectHandle as c_int
-                || tcode == ffi::TVMTypeCode_kTVMPackedFuncHandle as c_int
-                || tcode == ffi::TVMTypeCode_kTVMModuleHandle as c_int
-            {
-                check_call!(ffi::TVMCbArgToReturn(
-                    &mut value as *mut _,
-                    &mut tcode as *mut _
-                ));
-                println!("{:?}", value.v_handle);
-            }
-            let arg_value = TVMArgValue::from_tvm_value(value, tcode as u32);
-            println!("{:?}", arg_value);
-            local_args.push(arg_value);
-        }
-
-        let rv = match rust_fn(local_args.as_slice()) {
-            Ok(v) => v,
-            Err(msg) => {
-                crate::set_last_error(&msg);
-                return -1;
-            }
-        };
-
-        let (mut ret_val, ret_tcode) = rv.to_tvm_value();
-        let mut ret_type_code = ret_tcode as c_int;
-        check_call!(ffi::TVMCFuncSetReturn(
-            ret,
-            &mut ret_val as *mut _,
-            &mut ret_type_code as *mut _,
-            1 as c_int
-        ));
-        0
-    }
-
-    unsafe extern "C" fn tvm_finalizer(fhandle: *mut c_void) {
-        let _rust_fn =
-            mem::transmute::<*mut c_void, fn(&[TVMArgValue]) -> Result<TVMRetValue>>(fhandle);
-        // XXX: give converted functions lifetimes so they're not called after use
-    }
-}
-
-impl<I, O, F> ToFunction for F where F: Fn(I) -> O {
-    type Resource = dyn Fn(I) -> O;
-
-    fn to_ptr(self) -> *mut Self::Resource {
-        let ptr = Box::new(self);
-        Box::into_raw(ptr)
-    }
-}
-
 /// Registers a Rust function with signature
-/// `fn(&[TVMArgValue]) -> Result<TVMRetValue, Error>`
+/// `fn(&[ArgValue]) -> Result<RetValue, Error>`
 /// as a **global TVM packed function** from frontend to TVM backend.
 ///
 /// Use [`register_global_func`] if overriding an existing global TVM function
@@ -427,18 +251,18 @@ impl<I, O, F> ToFunction for F where F: Fn(I) -> O {
 /// ## Example
 ///
 /// ```
-/// # use tvm_rt::{TVMArgValue, function, TVMRetValue};
+/// # use tvm_rt::{ArgValue, function, RetValue};
 /// # use tvm_rt::function::Builder;
 /// # use anyhow::Error;
 /// use std::convert::TryInto;
 ///
-/// fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
+/// fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
 ///     let mut ret = 0i64;
 ///     for arg in args.iter() {
 ///         let arg: i64 = arg.try_into()?;
 ///         ret += arg;
 ///     }
-///     let ret_val = TVMRetValue::from(ret);
+///     let ret_val = RetValue::from(ret);
 ///     Ok(ret_val)
 /// }
 ///
@@ -450,7 +274,7 @@ impl<I, O, F> ToFunction for F where F: Fn(I) -> O {
 /// assert_eq!(ret, 60);
 /// ```
 pub fn register<S: AsRef<str>>(
-    f: fn(&[TVMArgValue]) -> Result<TVMRetValue>,
+    f: fn(&[ArgValue]) -> Result<RetValue>,
     name: S,
     override_: bool,
 ) -> Result<()> {
@@ -472,18 +296,18 @@ pub fn register<S: AsRef<str>>(
 ///
 /// ```
 /// # use std::convert::TryInto;
-/// # use tvm_rt::{register_global_func, TVMArgValue, TVMRetValue};
+/// # use tvm_rt::{register_global_func, ArgValue, RetValue};
 /// # use anyhow::Error;
 /// # use tvm_rt::function::Builder;
 ///
 /// register_global_func! {
-///     fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
+///     fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
 ///         let mut ret = 0f64;
 ///         for arg in args.iter() {
 ///             let arg: f64 = arg.try_into()?;
 ///             ret += arg;
 ///         }
-///         let ret_val = TVMRetValue::from(ret);
+///         let ret_val = RetValue::from(ret);
 ///         Ok(ret_val)
 ///     }
 /// }
@@ -498,12 +322,12 @@ pub fn register<S: AsRef<str>>(
 macro_rules! register_global_func {
     {
         $(#[$m:meta])*
-        fn $fn_name:ident($args:ident : &[TVMArgValue]) -> Result<TVMRetValue, Error> {
+        fn $fn_name:ident($args:ident : &[ArgValue]) -> Result<RetValue, Error> {
             $($code:tt)*
         }
     } => {{
         $(#[$m])*
-        fn $fn_name($args: &[TVMArgValue]) -> Result<TVMRetValue, Error> {
+        fn $fn_name($args: &[ArgValue]) -> Result<RetValue, Error> {
             $($code)*
         }
 

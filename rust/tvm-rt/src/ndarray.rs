@@ -29,7 +29,7 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_rt::{NDArray, TVMContext, DataType};
+//! # use tvm_rt::{NDArray, Context, DataType};
 //! # use ndarray::{Array, ArrayD};
 //! # use std::str::FromStr;
 //! use std::convert::TryFrom;
@@ -37,7 +37,7 @@
 //! let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
 //!     .unwrap()
 //!     .into_dyn(); // Rust's ndarray
-//! let nd = NDArray::from_rust_ndarray(&a, TVMContext::cpu(0), DataType::from_str("float32").unwrap()).unwrap();
+//! let nd = NDArray::from_rust_ndarray(&a, Context::cpu(0), DataType::from_str("float32").unwrap()).unwrap();
 //! assert_eq!(nd.shape(), Some(&mut [2, 2][..]));
 //! let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
 //! assert!(rnd.all_close(&a, 1e-8f32));
@@ -55,9 +55,8 @@ use rust_ndarray::{Array, ArrayD};
 use std::convert::TryInto;
 use std::ffi::c_void;
 use tvm_sys::ffi::DLTensor;
-use tvm_sys::{ffi, TVMType};
-
-use crate::{errors, TVMByteArray, TVMContext};
+use tvm_sys::{ffi, DataType, ByteArray, Context};
+use crate::errors;
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 ///
@@ -119,12 +118,12 @@ impl NDArray {
     }
 
     /// Returns the context which the NDArray was defined.
-    pub fn ctx(&self) -> TVMContext {
+    pub fn ctx(&self) -> Context {
         self.as_dltensor().ctx.into()
     }
 
     /// Returns the type of the entries of the NDArray.
-    pub fn dtype(&self) -> TVMType {
+    pub fn dtype(&self) -> DataType {
         self.as_dltensor().dtype
     }
 
@@ -179,11 +178,11 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// # use tvm_rt::{TVMContext, DataType, NDArray};
+    /// # use tvm_rt::{Context, DataType, NDArray};
     /// # use std::str::FromStr;
     /// let mut shape = [4];
     /// let mut data = vec![1i32, 2, 3, 4];
-    /// let ctx = TVMContext::cpu(0);
+    /// let ctx = Context::cpu(0);
     /// let mut ndarray = NDArray::empty(&mut shape, ctx, DataType::from_str("int32").unwrap());
     /// ndarray.copy_from_buffer(&mut data);
     /// assert_eq!(ndarray.shape(), Some(&mut shape[..]));
@@ -193,7 +192,7 @@ impl NDArray {
         ensure!(self.shape().is_some(), errors::EmptyArrayError);
         let earr = NDArray::empty(
             self.shape().ok_or(errors::MissingShapeError)?,
-            TVMContext::cpu(0),
+            Context::cpu(0),
             self.dtype(),
         );
         let target = self.copy_to_ndarray(earr)?;
@@ -208,10 +207,10 @@ impl NDArray {
         Ok(v)
     }
 
-    /// Converts the NDArray to [`TVMByteArray`].
-    pub fn to_bytearray(&self) -> Result<TVMByteArray> {
+    /// Converts the NDArray to [`ByteArray`].
+    pub fn to_bytearray(&self) -> Result<ByteArray> {
         let v = self.to_vec::<u8>()?;
-        Ok(TVMByteArray::from(v))
+        Ok(ByteArray::from(v))
     }
 
     /// Creates an NDArray from a mutable buffer of types i32, u32 or f32 in cpu.
@@ -219,11 +218,11 @@ impl NDArray {
     /// ## Example
     ///
     /// ```
-    /// # use tvm_rt::{TVMContext, DataType, NDArray};
+    /// # use tvm_rt::{Context, DataType, NDArray};
     /// # use std::str::FromStr;
     /// let shape = &mut [2];
     /// let mut data = vec![1f32, 2.0];
-    /// let ctx = TVMContext::cpu(0);
+    /// let ctx = Context::cpu(0);
     /// let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
     /// ndarray.copy_from_buffer(&mut data);
     /// ```
@@ -258,7 +257,7 @@ impl NDArray {
     }
 
     /// Copies the NDArray to a target context.
-    pub fn copy_to_ctx(&self, target: &TVMContext) -> Result<NDArray> {
+    pub fn copy_to_ctx(&self, target: &Context) -> Result<NDArray> {
         let tmp = NDArray::empty(
             self.shape().ok_or(errors::MissingShapeError)?,
             *target,
@@ -271,8 +270,8 @@ impl NDArray {
     /// Converts a Rust's ndarray to TVM NDArray.
     pub fn from_rust_ndarray<T: Num32 + Copy>(
         rnd: &ArrayD<T>,
-        ctx: TVMContext,
-        dtype: TVMType,
+        ctx: Context,
+        dtype: DataType,
     ) -> Result<Self> {
         let shape = rnd.shape().to_vec();
         let mut nd = NDArray::empty(&shape, ctx, dtype);
@@ -285,7 +284,7 @@ impl NDArray {
     }
 
     /// Allocates and creates an empty NDArray given the shape, context and dtype.
-    pub fn empty(shape: &[usize], ctx: TVMContext, dtype: TVMType) -> NDArray {
+    pub fn empty(shape: &[usize], ctx: Context, dtype: DataType) -> NDArray {
         let mut handle = ptr::null_mut() as ffi::TVMArrayHandle;
         check_call!(ffi::TVMArrayAlloc(
             shape.as_ptr() as *const i64,
@@ -307,7 +306,7 @@ macro_rules! impl_from_ndarray_rustndarray {
             type Error = anyhow::Error;
             fn try_from(nd: &NDArray) -> Result<ArrayD<$type>> {
                 ensure!(nd.shape().is_some(), errors::MissingShapeError);
-                assert_eq!(nd.dtype(), TVMType::from_str($type_name)?, "Type mismatch");
+                assert_eq!(nd.dtype(), DataType::from_str($type_name)?, "Type mismatch");
                 Ok(Array::from_shape_vec(
                     &*nd.shape().ok_or(errors::MissingShapeError)?,
                     nd.to_vec::<$type>()?,
@@ -319,7 +318,7 @@ macro_rules! impl_from_ndarray_rustndarray {
             type Error = anyhow::Error;
             fn try_from(nd: &mut NDArray) -> Result<ArrayD<$type>> {
                 ensure!(nd.shape().is_some(), errors::MissingShapeError);
-                assert_eq!(nd.dtype(), TVMType::from_str($type_name)?, "Type mismatch");
+                assert_eq!(nd.dtype(), DataType::from_str($type_name)?, "Type mismatch");
                 Ok(Array::from_shape_vec(
                     &*nd.shape().ok_or(errors::MissingShapeError)?,
                     nd.to_vec::<$type>()?,
@@ -369,8 +368,8 @@ mod tests {
     #[test]
     fn basics() {
         let shape = &mut [1, 2, 3];
-        let ctx = TVMContext::cpu(0);
-        let ndarray = NDArray::empty(shape, ctx, TVMType::from_str("int32").unwrap());
+        let ctx = Context::cpu(0);
+        let ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
         assert_eq!(ndarray.shape().unwrap(), shape);
         assert_eq!(
             ndarray.size().unwrap(),
@@ -385,8 +384,8 @@ mod tests {
     fn copy() {
         let shape = &mut [4];
         let mut data = vec![1i32, 2, 3, 4];
-        let ctx = TVMContext::cpu(0);
-        let mut ndarray = NDArray::empty(shape, ctx, TVMType::from_str("int32").unwrap());
+        let ctx = Context::cpu(0);
+        let mut ndarray = NDArray::empty(shape, ctx, DataType::from_str("int32").unwrap());
         assert!(ndarray.to_vec::<i32>().is_ok());
         ndarray.copy_from_buffer(&mut data);
         assert_eq!(ndarray.shape().unwrap(), shape);
@@ -397,8 +396,8 @@ mod tests {
         let shape = vec![4];
         let e = NDArray::empty(
             &shape,
-            TVMContext::cpu(0),
-            TVMType::from_str("int32").unwrap(),
+            Context::cpu(0),
+            DataType::from_str("int32").unwrap(),
         );
         let nd = ndarray.copy_to_ndarray(e);
         assert!(nd.is_ok());
@@ -410,10 +409,10 @@ mod tests {
     fn copy_wrong_dtype() {
         let shape = vec![4];
         let mut data = vec![1f32, 2., 3., 4.];
-        let ctx = TVMContext::cpu(0);
-        let mut nd_float = NDArray::empty(&shape, ctx, TVMType::from_str("float32").unwrap());
+        let ctx = Context::cpu(0);
+        let mut nd_float = NDArray::empty(&shape, ctx, DataType::from_str("float32").unwrap());
         nd_float.copy_from_buffer(&mut data);
-        let empty_int = NDArray::empty(&shape, ctx, TVMType::from_str("int32").unwrap());
+        let empty_int = NDArray::empty(&shape, ctx, DataType::from_str("int32").unwrap());
         nd_float.copy_to_ndarray(empty_int).unwrap();
     }
 
@@ -424,8 +423,8 @@ mod tests {
             .into_dyn();
         let nd = NDArray::from_rust_ndarray(
             &a,
-            TVMContext::cpu(0),
-            TVMType::from_str("float32").unwrap(),
+            Context::cpu(0),
+            DataType::from_str("float32").unwrap(),
         )
         .unwrap();
         assert_eq!(nd.shape().unwrap(), &mut [2, 2]);

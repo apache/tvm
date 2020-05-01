@@ -17,14 +17,14 @@
  * under the License.
  */
 
-//! This module implements [`TVMArgValue`] and [`TVMRetValue`] types
+//! This module implements [`ArgValue`] and [`RetValue`] types
 //! and their conversions needed for the types used in frontend crate.
-//! `TVMRetValue` is the owned version of `TVMPODValue`.
+//! `RetValue` is the owned version of `TVMPODValue`.
 
 use std::convert::TryFrom;
 // use std::ffi::c_void;
 
-use crate::{Function, Module, NDArray, TVMArgValue, TVMRetValue};
+use crate::{Function, Module, NDArray, ArgValue, RetValue};
 use tvm_sys::{
     errors::ValueDowncastError,
     ffi::{TVMFunctionHandle, TVMModuleHandle},
@@ -33,42 +33,42 @@ use tvm_sys::{
 
 macro_rules! impl_handle_val {
     ($type:ty, $variant:ident, $inner_type:ty, $ctor:path) => {
-        impl<'a> From<&'a $type> for TVMArgValue<'a> {
+        impl<'a> From<&'a $type> for ArgValue<'a> {
             fn from(arg: &'a $type) -> Self {
-                TVMArgValue::$variant(arg.handle() as $inner_type)
+                ArgValue::$variant(arg.handle() as $inner_type)
             }
         }
 
-        impl<'a> From<&'a mut $type> for TVMArgValue<'a> {
+        impl<'a> From<&'a mut $type> for ArgValue<'a> {
             fn from(arg: &'a mut $type) -> Self {
-                TVMArgValue::$variant(arg.handle() as $inner_type)
+                ArgValue::$variant(arg.handle() as $inner_type)
             }
         }
 
-        impl<'a> TryFrom<TVMArgValue<'a>> for $type {
+        impl<'a> TryFrom<ArgValue<'a>> for $type {
             type Error = ValueDowncastError;
-            fn try_from(val: TVMArgValue<'a>) -> Result<$type, Self::Error> {
-                try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { $ctor(val) })
+            fn try_from(val: ArgValue<'a>) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |ArgValue::$variant(val)| { $ctor(val) })
             }
         }
 
-        impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for $type {
+        impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for $type {
             type Error = ValueDowncastError;
-            fn try_from(val: &'a TVMArgValue<'v>) -> Result<$type, Self::Error> {
-                try_downcast!(val -> $type, |TVMArgValue::$variant(val)| { $ctor(*val) })
+            fn try_from(val: &'a ArgValue<'v>) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |ArgValue::$variant(val)| { $ctor(*val) })
             }
         }
 
-        impl From<$type> for TVMRetValue {
-            fn from(val: $type) -> TVMRetValue {
-                TVMRetValue::$variant(val.handle() as $inner_type)
+        impl From<$type> for RetValue {
+            fn from(val: $type) -> RetValue {
+                RetValue::$variant(val.handle() as $inner_type)
             }
         }
 
-        impl TryFrom<TVMRetValue> for $type {
+        impl TryFrom<RetValue> for $type {
             type Error = ValueDowncastError;
-            fn try_from(val: TVMRetValue) -> Result<$type, Self::Error> {
-                try_downcast!(val -> $type, |TVMRetValue::$variant(val)| { $ctor(val) })
+            fn try_from(val: RetValue) -> Result<$type, Self::Error> {
+                try_downcast!(val -> $type, |RetValue::$variant(val)| { $ctor(val) })
             }
         }
     };
@@ -77,57 +77,57 @@ macro_rules! impl_handle_val {
 impl_handle_val!(Function, FuncHandle, TVMFunctionHandle, Function::new);
 impl_handle_val!(Module, ModuleHandle, TVMModuleHandle, Module::new);
 
-impl<'a> From<&'a NDArray> for TVMArgValue<'a> {
+impl<'a> From<&'a NDArray> for ArgValue<'a> {
     fn from(arg: &'a NDArray) -> Self {
         match arg {
-            &NDArray::Borrowed { handle } => TVMArgValue::ArrayHandle(handle),
-            &NDArray::Owned { handle } => TVMArgValue::NDArrayHandle(handle),
+            &NDArray::Borrowed { handle } => ArgValue::ArrayHandle(handle),
+            &NDArray::Owned { handle } => ArgValue::NDArrayHandle(handle),
         }
     }
 }
 
-impl<'a> From<&'a mut NDArray> for TVMArgValue<'a> {
+impl<'a> From<&'a mut NDArray> for ArgValue<'a> {
     fn from(arg: &'a mut NDArray) -> Self {
         match arg {
-            &mut NDArray::Borrowed { handle } => TVMArgValue::ArrayHandle(handle),
-            &mut NDArray::Owned { handle } => TVMArgValue::NDArrayHandle(handle),
+            &mut NDArray::Borrowed { handle } => ArgValue::ArrayHandle(handle),
+            &mut NDArray::Owned { handle } => ArgValue::NDArrayHandle(handle),
         }
     }
 }
 
-impl<'a> TryFrom<TVMArgValue<'a>> for NDArray {
+impl<'a> TryFrom<ArgValue<'a>> for NDArray {
     type Error = ValueDowncastError;
-    fn try_from(val: TVMArgValue<'a>) -> Result<NDArray, Self::Error> {
+    fn try_from(val: ArgValue<'a>) -> Result<NDArray, Self::Error> {
         try_downcast!(val -> NDArray,
-            |TVMArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
-            |TVMArgValue::ArrayHandle(val)| { NDArray::new(val) })
+            |ArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
+            |ArgValue::ArrayHandle(val)| { NDArray::new(val) })
     }
 }
 
-impl<'a, 'v> TryFrom<&'a TVMArgValue<'v>> for NDArray {
+impl<'a, 'v> TryFrom<&'a ArgValue<'v>> for NDArray {
     type Error = ValueDowncastError;
-    fn try_from(val: &'a TVMArgValue<'v>) -> Result<NDArray, Self::Error> {
+    fn try_from(val: &'a ArgValue<'v>) -> Result<NDArray, Self::Error> {
         try_downcast!(val -> NDArray,
-            |TVMArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(*val) },
-            |TVMArgValue::ArrayHandle(val)| { NDArray::new(*val) })
+            |ArgValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(*val) },
+            |ArgValue::ArrayHandle(val)| { NDArray::new(*val) })
     }
 }
 
-impl From<NDArray> for TVMRetValue {
-    fn from(val: NDArray) -> TVMRetValue {
+impl From<NDArray> for RetValue {
+    fn from(val: NDArray) -> RetValue {
         match val {
-            NDArray::Owned { handle } => TVMRetValue::NDArrayHandle(handle),
+            NDArray::Owned { handle } => RetValue::NDArrayHandle(handle),
             _ => panic!("NYI"),
         }
     }
 }
 
-impl TryFrom<TVMRetValue> for NDArray {
+impl TryFrom<RetValue> for NDArray {
     type Error = ValueDowncastError;
-    fn try_from(val: TVMRetValue) -> Result<NDArray, Self::Error> {
+    fn try_from(val: RetValue) -> Result<NDArray, Self::Error> {
         try_downcast!(val -> NDArray,
-            |TVMRetValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
-            |TVMRetValue::ArrayHandle(val)| { NDArray::new(val) })
+            |RetValue::NDArrayHandle(val)| { NDArray::from_ndarray_handle(val) },
+            |RetValue::ArrayHandle(val)| { NDArray::new(val) })
     }
 }
 
@@ -135,15 +135,15 @@ impl TryFrom<TVMRetValue> for NDArray {
 mod tests {
     use std::{convert::TryInto, str::FromStr};
 
-    use tvm_sys::{TVMByteArray, TVMContext, TVMType};
+    use tvm_sys::{ByteArray, TVMContext, TVMType};
 
     use super::*;
 
     #[test]
     fn bytearray() {
         let w = vec![1u8, 2, 3, 4, 5];
-        let v = TVMByteArray::from(w.as_slice());
-        let tvm: TVMByteArray = TVMRetValue::from(v).try_into().unwrap();
+        let v = ByteArray::from(w.as_slice());
+        let tvm: ByteArray = RetValue::from(v).try_into().unwrap();
         assert_eq!(
             tvm.data(),
             w.iter().copied().collect::<Vec<u8>>().as_slice()
@@ -153,14 +153,14 @@ mod tests {
     #[test]
     fn ty() {
         let t = TVMType::from_str("int32").unwrap();
-        let tvm: TVMType = TVMRetValue::from(t).try_into().unwrap();
+        let tvm: TVMType = RetValue::from(t).try_into().unwrap();
         assert_eq!(tvm, t);
     }
 
     #[test]
     fn ctx() {
         let c = TVMContext::from_str("gpu").unwrap();
-        let tvm: TVMContext = TVMRetValue::from(c).try_into().unwrap();
+        let tvm: TVMContext = RetValue::from(c).try_into().unwrap();
         assert_eq!(tvm, c);
     }
 }

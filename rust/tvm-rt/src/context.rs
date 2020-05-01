@@ -50,7 +50,7 @@ use anyhow::Result;
 
 use tvm_sys::ffi;
 
-use crate::{function, TVMArgValue};
+use crate::{function, ArgValue};
 
 /// Device type can be from a supported device name. See the supported devices
 /// in [TVM](https://github.com/apache/incubator-tvm).
@@ -145,7 +145,7 @@ impl<'a> From<&'a str> for TVMDeviceType {
     }
 }
 
-impl<'a> From<&TVMDeviceType> for TVMArgValue<'a> {
+impl<'a> From<&TVMDeviceType> for ArgValue<'a> {
     fn from(dev: &TVMDeviceType) -> Self {
         Self::Int(dev.0)
     }

@@ -96,10 +96,10 @@ fn main() {
     let ref load_param_fn = graph_runtime_module
         .get_function("load_params", false)
         .unwrap();
-    // parse parameters and convert to TVMByteArray
+    // parse parameters and convert to ByteArray
     let params: Vec<u8> =
         fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/deploy_param.params")).unwrap();
-    let barr = TVMByteArray::from(&params);
+    let barr = ByteArray::from(&params);
     // load the parameters
     call_packed!(load_param_fn, &barr).unwrap();
     // get the set_input function

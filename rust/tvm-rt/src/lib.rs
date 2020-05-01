@@ -31,6 +31,7 @@
 //! Checkout the `examples` repository for more details.
 
 extern crate ndarray as rust_ndarray;
+
 pub use crate as tvm_rt;
 pub mod object;
 pub mod string;
@@ -53,13 +54,11 @@ pub use crate::{
     ndarray::NDArray,
 };
 
-pub use tvm_sys::{
-    errors as common_errors,
-    ffi::{self, DLDataType, TVMByteArray},
-    packed_func::{TVMArgValue, TVMRetValue},
-};
+pub use tvm_sys::datatype::DataType;
+pub use tvm_sys::byte_array::ByteArray;
+pub use function::{ArgValue, RetValue};
 
-pub type DataType = DLDataType;
+use tvm_sys::ffi;
 
 // Macro to check the return call to TVM runtime shared library.
 #[macro_export]
@@ -94,6 +93,7 @@ pub mod context;
 pub mod errors;
 pub mod module;
 pub mod ndarray;
+pub mod to_function;
 pub mod value;
 
 /// Outputs the current TVM version.

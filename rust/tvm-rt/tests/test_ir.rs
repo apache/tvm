@@ -3,7 +3,7 @@
 // use tvm_rt::string::String as TString;
 // use tvm::runtime::{debug_print, Object, ObjectPtr, ObjectRef};
 // use tvm::{call_packed, DLDataType, Function};
-// use tvm_sys::TVMRetValue;
+// use tvm_sys::RetValue;
 
 // #[test]
 // fn test_new_object() -> anyhow::Result<()> {

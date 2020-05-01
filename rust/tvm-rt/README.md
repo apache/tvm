@@ -77,9 +77,9 @@ as demostrated in the following Rust snippet
     let ref load_param_fn = graph_runtime_module
         .get_function("load_params", false)
         .unwrap();
-    // parse parameters and convert to TVMByteArray
+    // parse parameters and convert to ByteArray
     let params: Vec<u8> = fs::read("deploy_param.params")?;
-    let barr = TVMByteArray::from(&params);
+    let barr = ByteArray::from(&params);
     // load the parameters
     call_packed!(load_param_fn, &barr)?;
     // get the set_input function
@@ -191,7 +191,7 @@ See the tests and examples custom `build.rs` for more details.
 ### Convert and Register a Rust Function as a TVM Packed Function
 
 One can use `register_global_func!` macro to convert and register a Rust
-function of type `fn(&[TVMArgValue]) -> Result<TVMRetValue>` to a global TVM **packed function** as follows
+function of type `fn(&[ArgValue]) -> Result<RetValue>` to a global TVM **packed function** as follows
 
 ```rust
 #[macro_use]
@@ -201,7 +201,7 @@ use tvm::*;
 
 fn main() {
     register_global_func! {
-        fn sum(args: &[TVMArgValue]) -> Result<TVMRetValue> {
+        fn sum(args: &[ArgValue]) -> Result<RetValue> {
             let mut ret = 0f32;
             let shape = &mut [2];
             for arg in args.iter() {
@@ -211,7 +211,7 @@ fn main() {
                 let rnd: ArrayD<f32> = ArrayD::try_from(&arr).unwrap();
                 ret += rnd.scalar_sum();
             }
-            let ret_val = TVMRetValue::from(&ret);
+            let ret_val = RetValue::from(&ret);
             Ok(ret_val)
         }
     }

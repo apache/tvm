@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
-use tvm_sys::{TVMArgValue, TVMRetValue};
+use tvm_sys::{ArgValue, RetValue};
 
 mod object_ptr;
 
@@ -32,60 +32,60 @@ impl ToObjectRef for ObjectRef {
 //     }
 // }
 
-impl TryFrom<TVMRetValue> for ObjectRef {
+impl TryFrom<RetValue> for ObjectRef {
     type Error = anyhow::Error;
 
-    fn try_from(ret_val: TVMRetValue) -> Result<ObjectRef, Self::Error> {
+    fn try_from(ret_val: RetValue) -> Result<ObjectRef, Self::Error> {
         let optr = ret_val.try_into()?;
         Ok(ObjectRef(Some(optr)))
     }
 }
 
-impl From<ObjectRef> for TVMRetValue {
-    fn from(object_ref: ObjectRef) -> TVMRetValue {
+impl From<ObjectRef> for RetValue {
+    fn from(object_ref: ObjectRef) -> RetValue {
         use std::ffi::c_void;
         let object_ptr = &object_ref.0;
         match object_ptr {
-            None => TVMRetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
+            None => RetValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
             Some(value) => value.clone().into(),
         }
     }
 }
 
-impl<'a> std::convert::TryFrom<TVMArgValue<'a>> for ObjectRef {
+impl<'a> std::convert::TryFrom<ArgValue<'a>> for ObjectRef {
     type Error = anyhow::Error;
 
-    fn try_from(arg_value: TVMArgValue<'a>) -> Result<ObjectRef, Self::Error> {
+    fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectRef, Self::Error> {
         let optr = arg_value.try_into()?;
         Ok(ObjectRef(Some(optr)))
     }
 }
 
-impl<'a> std::convert::TryFrom<&TVMArgValue<'a>> for ObjectRef {
+impl<'a> std::convert::TryFrom<&ArgValue<'a>> for ObjectRef {
     type Error = anyhow::Error;
 
-    fn try_from(arg_value: &TVMArgValue<'a>) -> Result<ObjectRef, Self::Error> {
+    fn try_from(arg_value: &ArgValue<'a>) -> Result<ObjectRef, Self::Error> {
         // TODO(@jroesch): remove the clone
-        let value: TVMArgValue<'a> = arg_value.clone();
+        let value: ArgValue<'a> = arg_value.clone();
         ObjectRef::try_from(value)
     }
 }
 
-impl<'a> From<ObjectRef> for TVMArgValue<'a> {
-    fn from(object_ref: ObjectRef) -> TVMArgValue<'a> {
+impl<'a> From<ObjectRef> for ArgValue<'a> {
+    fn from(object_ref: ObjectRef) -> ArgValue<'a> {
         use std::ffi::c_void;
         let object_ptr = &object_ref.0;
         match object_ptr {
-            None => TVMArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
+            None => ArgValue::ObjectHandle(std::ptr::null::<c_void>() as *mut c_void),
             Some(value) => value.clone().into(),
         }
     }
 }
 
-impl<'a> From<&ObjectRef> for TVMArgValue<'a> {
-    fn from(object_ref: &ObjectRef) -> TVMArgValue<'a> {
+impl<'a> From<&ObjectRef> for ArgValue<'a> {
+    fn from(object_ref: &ObjectRef) -> ArgValue<'a> {
         let oref: ObjectRef = object_ref.clone();
-        TVMArgValue::<'a>::from(oref)
+        ArgValue::<'a>::from(oref)
     }
 }
 

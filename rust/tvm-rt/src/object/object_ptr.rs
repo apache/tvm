@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use std::ffi::CString;
 use std::ptr::NonNull;
 use tvm_sys::ffi::{self, /* TVMObjectFree, */ TVMObjectRetain, TVMObjectTypeKey2Index};
-use tvm_sys::{TVMArgValue, TVMRetValue};
+use tvm_sys::{ArgValue, RetValue};
 
 type Deleter<T> = unsafe extern "C" fn(object: *mut T) -> ();
 
@@ -173,21 +173,21 @@ impl<T> std::ops::Deref for ObjectPtr<T> {
     }
 }
 
-impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMRetValue {
-    fn from(object_ptr: ObjectPtr<T>) -> TVMRetValue {
+impl<'a, T: IsObject> From<ObjectPtr<T>> for RetValue {
+    fn from(object_ptr: ObjectPtr<T>) -> RetValue {
         let raw_object_ptr = object_ptr.ptr.as_ptr();
         // Should be able to hide this unsafety in raw bindings.
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
-        TVMRetValue::ObjectHandle(void_ptr)
+        RetValue::ObjectHandle(void_ptr)
     }
 }
 
-impl<'a, T: IsObject> TryFrom<TVMRetValue> for ObjectPtr<T> {
+impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
     type Error = anyhow::Error;
 
-    fn try_from(ret_value: TVMRetValue) -> Result<ObjectPtr<T>, Self::Error> {
+    fn try_from(ret_value: RetValue) -> Result<ObjectPtr<T>, Self::Error> {
         match ret_value {
-            TVMRetValue::ObjectHandle(handle) => {
+            RetValue::ObjectHandle(handle) => {
                 let handle: *mut Object = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
                 optr.downcast()
@@ -197,20 +197,20 @@ impl<'a, T: IsObject> TryFrom<TVMRetValue> for ObjectPtr<T> {
     }
 }
 
-impl<'a, T: IsObject> From<ObjectPtr<T>> for TVMArgValue<'a> {
-    fn from(object_ptr: ObjectPtr<T>) -> TVMArgValue<'a> {
+impl<'a, T: IsObject> From<ObjectPtr<T>> for ArgValue<'a> {
+    fn from(object_ptr: ObjectPtr<T>) -> ArgValue<'a> {
         let raw_object_ptr = object_ptr.ptr.as_ptr();
         // Should be able to hide this unsafety in raw bindings.
         let void_ptr = unsafe { std::mem::transmute(raw_object_ptr) };
-        TVMArgValue::ObjectHandle(void_ptr)
+        ArgValue::ObjectHandle(void_ptr)
     }
 }
 
-impl<'a, T: IsObject> TryFrom<TVMArgValue<'a>> for ObjectPtr<T> {
+impl<'a, T: IsObject> TryFrom<ArgValue<'a>> for ObjectPtr<T> {
     type Error = anyhow::Error;
-    fn try_from(arg_value: TVMArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
+    fn try_from(arg_value: ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
         match arg_value {
-            TVMArgValue::ObjectHandle(handle) => {
+            ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
                 optr.downcast()
@@ -220,11 +220,11 @@ impl<'a, T: IsObject> TryFrom<TVMArgValue<'a>> for ObjectPtr<T> {
     }
 }
 
-impl<'a, T: IsObject> TryFrom<&TVMArgValue<'a>> for ObjectPtr<T> {
+impl<'a, T: IsObject> TryFrom<&ArgValue<'a>> for ObjectPtr<T> {
     type Error = anyhow::Error;
-    fn try_from(arg_value: &TVMArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
+    fn try_from(arg_value: &ArgValue<'a>) -> Result<ObjectPtr<T>, Self::Error> {
         match arg_value {
-            TVMArgValue::ObjectHandle(handle) => {
+            ArgValue::ObjectHandle(handle) => {
                 let handle = unsafe { std::mem::transmute(handle) };
                 let optr = ObjectPtr::from_raw(handle).context("unable to convert nullptr")?;
                 optr.downcast()
@@ -239,7 +239,7 @@ mod tests {
     use super::{Object, ObjectPtr};
     use anyhow::{ensure, Result};
     use std::convert::TryInto;
-    use tvm_sys::{TVMArgValue, TVMRetValue};
+    use tvm_sys::{ArgValue, RetValue};
 
     #[test]
     fn test_new_object() -> anyhow::Result<()> {
@@ -252,7 +252,7 @@ mod tests {
     #[test]
     fn roundtrip_retvalue() -> Result<()> {
         let ptr = ObjectPtr::new(Object::base_object::<Object>());
-        let ret_value: TVMRetValue = ptr.clone().into();
+        let ret_value: RetValue = ptr.clone().into();
         let ptr2: ObjectPtr<Object> = ret_value.try_into()?;
         ensure!(
             ptr.type_index == ptr2.type_index,

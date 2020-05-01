@@ -105,11 +105,11 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     };
 
     let fns = quote! {
-        use tvm_runtime::{ffi::TVMValue, TVMArgValue, TVMRetValue, FuncCallError};
+        use tvm_runtime::{ffi::TVMValue, ArgValue, RetValue, FuncCallError};
         #extern_fns
 
         #(
-            pub fn #fn_names(args: &[TVMArgValue]) -> Result<TVMRetValue, FuncCallError> {
+            pub fn #fn_names(args: &[ArgValue]) -> Result<RetValue, FuncCallError> {
                 let (values, type_codes): (Vec<TVMValue>, Vec<i32>) = args
                    .into_iter()
                    .map(|arg| {
@@ -121,7 +121,7 @@ pub fn macro_impl(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     ext::#fn_names(values.as_ptr(), type_codes.as_ptr(), values.len() as i32)
                 };
                 if exit_code == 0 {
-                    Ok(TVMRetValue::default())
+                    Ok(RetValue::default())
                 } else {
                     Err(FuncCallError::get_with_context(stringify!(#fn_names).to_string()))
                 }
