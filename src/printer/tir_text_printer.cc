@@ -181,10 +181,10 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
    * \param data The pointer to hold the data.
    */
   template <typename T>
-  static Doc PrintConstScalar(DataType dtype, const T* data) {
+  static Doc PrintConstScalar(DataType dtype, const T& data) {
     Doc doc;
     std::ostringstream os;
-    os << data[0];
+    os << data;
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
     } else {
@@ -198,15 +198,8 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
     std::string unique_prefix = prefix;
     auto it = name_alloc_map_.find(prefix);
     if (it != name_alloc_map_.end()) {
-      while (true) {
-        std::ostringstream os;
-        os << prefix << "_" << (++it->second);
-        std::string name = os.str();
-        if (name_alloc_map_.count(name) == 0) {
-          unique_prefix = name;
-          break;
-        }
-      }
+      while (name_alloc_map_.count(
+          unique_prefix = prefix + "_" + std::to_string(++it->second)) > 0);
     }
     name_alloc_map_[unique_prefix] = 0;
     return Doc::Text(unique_prefix);
@@ -279,25 +272,25 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
 
 Doc TIRTextPrinter::Print(const ObjectRef& node) {
   if (!node.defined()) return Doc::Text("(nullptr)");
-  if (node.as<StmtNode>()) {
+  if (node->IsInstance<StmtNode>()) {
     return VisitStmt(Downcast<Stmt>(node));
-  } else if (node.as<PrimExprNode>()) {
+  } else if (node->IsInstance<PrimExprNode>()) {
     return VisitExpr(Downcast<PrimExpr>(node));
-  } else if (node.as<TypeNode>()) {
+  } else if (node->IsInstance<TypeNode>()) {
     return VisitType(Downcast<Type>(node));
-  } else if (node.as<PrimFuncNode>()) {
+  } else if (node->IsInstance<PrimFuncNode>()) {
     return PrintPrimFunc(Downcast<PrimFunc>(node));
-  } else if (node.as<IRModuleNode>()) {
+  } else if (node->IsInstance<IRModuleNode>()) {
     return PrintIRModule(Downcast<IRModule>(node));
-  } else if (node.as<ArrayNode>()) {
+  } else if (node->IsInstance<ArrayNode>()) {
     return PrintArray(node.as<ArrayNode>());
-  } else if (node.as<IterVarNode>()) {
+  } else if (node->IsInstance<IterVarNode>()) {
     return PrintIterVar(node.as<IterVarNode>());
-  } else if (node.as<RangeNode>()) {
+  } else if (node->IsInstance<RangeNode>()) {
     return PrintRange(node.as<RangeNode>());
-  } else if (node.as<BufferNode>()) {
+  } else if (node->IsInstance<BufferNode>()) {
     return PrintBuffer(node.as<BufferNode>());
-  } else if (node.as<StringObj>()) {
+  } else if (node->IsInstance<StringObj>()) {
     return PrintString(node.as<StringObj>());
   } else {
     return this->meta_.GetMetaNode(node);
@@ -410,9 +403,14 @@ Doc TIRTextPrinter::PrintArray(const ArrayNode* op) {
 
 Doc TIRTextPrinter::PrintIterVar(const IterVarNode* op) {
   Doc doc;
-  doc << "IterVar(" << Print(op->var) << ", [" << Print(op->dom) << "], "
-      << Doc::StrLiteral(IterVarType2String(op->iter_type)) << ", "
-      << Doc::StrLiteral(op->thread_tag) << ")";
+  doc << "IterVar(" << Print(op->var);
+  if (op->dom.defined()) {
+    doc << ", [" << Print(op->dom) << "], ";
+  } else {
+    doc << ", " << Print(op->dom) << ", ";
+  }
+  doc << Doc::StrLiteral(IterVarType2String(op->iter_type)) << ", ";
+  doc << Doc::StrLiteral(op->thread_tag) << ")";
   return doc;
 }
 
@@ -435,11 +433,11 @@ Doc TIRTextPrinter::VisitStmtDefault_(const Object* op) {
 }
 
 Doc TIRTextPrinter::VisitExpr_(const IntImmNode* op) {
-  return PrintConstScalar<int64_t>(op->dtype, &(op->value));
+  return PrintConstScalar<int64_t>(op->dtype, op->value);
 }
 
 Doc TIRTextPrinter::VisitExpr_(const FloatImmNode* op) {
-  return PrintConstScalar<double>(op->dtype, &(op->value));
+  return PrintConstScalar<double>(op->dtype, op->value);
 }
 
 Doc TIRTextPrinter::VisitExpr_(const StringImmNode* op) { return Doc::StrLiteral(op->value); }
@@ -524,7 +522,7 @@ Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
   doc << "load(" << PrintDType(op->dtype) << ", "
       << Print(op->buffer_var) << "[" << Print(op->index) << "])";
   if (!is_one(op->predicate)) {
-    doc << "if " << Print(op->predicate);
+    doc << " if " << Print(op->predicate);
   }
   return doc;
 }
@@ -556,6 +554,7 @@ inline const char* CallType2String(CallNode::CallType t) {
     case CallNode::Intrinsic:return "intrin";
     case CallNode::PureIntrinsic:return "pure_intrin";
   }
+  LOG(FATAL) << "Unknown CallType";
   return "Unknown";
 }
 
@@ -632,11 +631,15 @@ Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
 Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
   doc << "allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-      << Print(op->extents) << ") ";
+      << Print(op->extents) << ")";
   if (!is_one(op->condition)) {
-    doc << "if " << Print(op->condition);
+    doc << " if " << Print(op->condition);
   }
-  doc << PrintBody(op->body);
+  if (op->body->IsInstance<SeqStmtNode>()) {
+    doc << PrintBody(op->body);
+  } else {
+    doc << ";" << Doc::NewLine() << Print(op->body);
+  }
   return doc;
 }
 
@@ -650,7 +653,7 @@ Doc TIRTextPrinter::VisitStmt_(const IfThenElseNode* op) {
   Doc doc;
   doc << "if " << Print(op->condition) << PrintBody(op->then_case);
   if (!is_one(op->condition) && op->else_case.defined()) {
-    doc << "else" << PrintBody(op->else_case);
+    doc << " else" << PrintBody(op->else_case);
   }
   return doc;
 }
@@ -667,7 +670,7 @@ Doc TIRTextPrinter::VisitStmt_(const SeqStmtNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const EvaluateNode* op) {
   Doc doc;
-  doc << "eval(" << Print(op->value) << ")";
+  doc << Print(op->value);
   return doc;
 }
 
@@ -678,6 +681,7 @@ inline const char* ForType2String(ForType t) {
     case ForType::Vectorized:return "vectorized";
     case ForType::Unrolled:return "unroll";
   }
+  LOG(FATAL) << "Unknown ForType";
   return "Unknown";
 }
 
