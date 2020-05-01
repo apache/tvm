@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("topi.transpose")
 
 TVM_REGISTER_GLOBAL("topi.flip")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  //pass empty seq_lengths tensor to reverse_sequence
+  // pass empty seq_lengths tensor to reverse_sequence
   *rv = reverse_sequence(args[0], Tensor(), args[1]);
   });
 
