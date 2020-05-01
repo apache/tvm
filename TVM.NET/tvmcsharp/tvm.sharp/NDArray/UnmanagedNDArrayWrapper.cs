@@ -131,8 +131,10 @@ namespace TVMRuntime
                           int deviceId,
                           ref IntPtr arrayHandle)
         {
-            TVMArrayAlloc(shape, ndim, dtypeCode, dtypeBits, dtypeLanes,
+            int result = TVMArrayAlloc(shape, ndim, dtypeCode, dtypeBits, dtypeLanes,
                     deviceType, deviceId, ref arrayHandle);
+
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -560,7 +562,9 @@ namespace TVMRuntime
         /// <param name="arrayHandle">Array handle.</param>
         public static void DisposeNDArray(IntPtr arrayHandle)
         {
-            TVMArrayFree(arrayHandle);
+            int result = TVMArrayFree(arrayHandle);
+
+            Utils.CheckSuccess(0, result);
         }
     }
 }

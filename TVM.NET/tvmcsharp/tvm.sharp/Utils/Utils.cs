@@ -6,6 +6,7 @@ namespace TVMRuntime
     public static class Utils
     {
         public const string libName = "tvmlibs/libtvm_runtime.so";
+	//public const string libName = "tvm_runtime.so";
 
         /// <summary>
         /// Reads the byte array from file.
@@ -37,6 +38,17 @@ namespace TVMRuntime
             }
 
             return File.ReadAllText(filePath);
+        }
+
+        /// <summary>
+        /// Checks the result for successful operation.
+        /// </summary>
+        public static void CheckSuccess<T>(T expected, T actual)
+        {
+            if (!expected.Equals(actual))
+            {
+                throw new System.InvalidOperationException("Unsuccessful operation!");
+            }
         }
     }
 }

@@ -32,6 +32,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsFloatArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < data.Length; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -60,6 +66,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsFloatArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < testND.Size; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -82,6 +94,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsDoubleArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < data.Length; i++)
             {
@@ -111,6 +129,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsDoubleArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < testND.Size; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -133,6 +157,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsIntArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < data.Length; i++)
             {
@@ -162,6 +192,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsIntArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < testND.Size; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -184,6 +220,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsLongArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < data.Length; i++)
             {
@@ -213,6 +255,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsLongArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < testND.Size; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -235,6 +283,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsShortArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < data.Length; i++)
             {
@@ -263,6 +317,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsShortArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < testND.Size; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -284,6 +344,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsCharArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < data.Length; i++)
             {
@@ -312,6 +378,12 @@ namespace Tests
 
             Assert.Equal(data, testND.AsCharArray());
 
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
+
             for (int i = 0; i < testND.Size; i++)
             {
                 Assert.Equal(data[i], testND[i]);
@@ -333,6 +405,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsByteArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < data.Length; i++)
             {
@@ -360,6 +438,12 @@ namespace Tests
             testND.CopyFrom(data);
 
             Assert.Equal(data, testND.AsByteArray());
+
+            // Check Indexer wise Set, Get
+            for (int i = 0; i < data.Length; i++)
+            {
+                testND[i] = data[i];
+            }
 
             for (int i = 0; i < testND.Size; i++)
             {

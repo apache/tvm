@@ -108,7 +108,8 @@ namespace TVMRuntime
         /// <param name="funcHandle">Func handle.</param>
         public static void GetTVMRuntimeGlobalPackedFunc(string funcName, ref IntPtr funcHandle)
         {
-            TVMFuncGetGlobal(funcName, ref funcHandle);
+            int result = TVMFuncGetGlobal(funcName, ref funcHandle);
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -117,7 +118,8 @@ namespace TVMRuntime
         /// <param name="funcHandle">Func handle.</param>
         public static void DisposeTVMRuntimeFuncHandle(IntPtr funcHandle)
         {
-            TVMFuncFree(funcHandle);
+            int result = TVMFuncFree(funcHandle);
+            Utils.CheckSuccess(0, result);
         }
 
         // TODO: String marshalling is tricky, currently assume only input has
@@ -138,8 +140,9 @@ namespace TVMRuntime
             TVMValue[] args, int[] argTypeCodes, int numArgs,
             ref TVMValue retVal, ref int retTypeCode)
         {
-            TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
+            int result = TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -155,8 +158,9 @@ namespace TVMRuntime
             string[] args, int[] argTypeCodes, int numArgs,
             ref TVMValue retVal, ref int retTypeCode)
         {
-            TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
+            int result = TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
+            Utils.CheckSuccess(0, result);
         }
     }
 }

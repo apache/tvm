@@ -67,7 +67,6 @@ namespace TVMRuntime
         [DllImport(Utils.libName)]
         private static extern int TVMModFree(IntPtr mod);
 
-
         /// <summary>
         /// Loads the module from file.
         /// </summary>
@@ -77,9 +76,9 @@ namespace TVMRuntime
         public static void LoadModuleFromFile(string fileName,
             string format, ref IntPtr modHandle)
         {
-            // TODO: Error handling
             int result = TVMModLoadFromFile(fileName, format, 
                     ref modHandle);
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -89,8 +88,8 @@ namespace TVMRuntime
         /// <param name="dep">Dep.</param>
         public static void ImportModule(IntPtr mod, IntPtr dep)
         {
-            // TODO: Error handling
             int result = TVMModImport(mod, dep);
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -103,9 +102,9 @@ namespace TVMRuntime
         public static void GetModuleEmbededFunc(IntPtr mod, string funcName,
             int queryImports, ref IntPtr funcHandle)
         {
-            // TODO: Error handling
             int result = TVMModGetFunction(mod, funcName, queryImports,
                     ref funcHandle);
+            Utils.CheckSuccess(0, result);
 
         }
 
@@ -115,8 +114,8 @@ namespace TVMRuntime
         /// <param name="mod">Mod.</param>
         public static void DisposeModule(IntPtr mod)
         {
-            // TODO: Error handling
             int result = TVMModFree(mod);
+            Utils.CheckSuccess(0, result);
         }
     }
 }

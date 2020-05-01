@@ -97,8 +97,10 @@ namespace TVMRuntime
             IntPtr args, int[] argTypeCodes, int numArgs,
             ref IntPtr retVal, ref int retTypeCode)
         {
-            TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
+            int result = TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
+
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -114,8 +116,11 @@ namespace TVMRuntime
             IntPtr args, int[] argTypeCodes, int numArgs,
             ref IntPtr retVal, ref int retTypeCode)
         {
-            TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
+            int result = TVMFuncCall(funcHandle, args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
+
+            Utils.CheckSuccess(0, result);
+
         }
 
         /// <summary>
@@ -131,8 +136,10 @@ namespace TVMRuntime
             ref IntPtr args, int[] argTypeCodes, int numArgs,
             ref IntPtr retVal, ref int retTypeCode)
         {
-            TVMFuncCall(funcHandle, ref args, argTypeCodes, numArgs,
+            int result = TVMFuncCall(funcHandle, ref args, argTypeCodes, numArgs,
                 ref retVal, ref retTypeCode);
+
+            Utils.CheckSuccess(0, result);
         }
 
         /// <summary>
@@ -170,6 +177,9 @@ namespace TVMRuntime
                 InvokeTVMRuntimeCreatePackedFunc(tvmCreateFuncHandle,
                         pnt, argTypeCodes, numArgs,
                         ref runtimeHandle, ref retTypeCode);
+
+                // Check Return type code
+                Utils.CheckSuccess((int)TVMTypeCode.TVMModuleHandle, retTypeCode);
             }
             finally
             {
@@ -203,6 +213,9 @@ namespace TVMRuntime
             UnamangedPFManagerWrapper.InvokeTVMRuntimePackedFunc(runFuncHandle,
                 new TVMValue[] { }, new int[] { }, 0,
                 ref emptyOutput, ref retTypeCode);
+
+            // Check Return type code
+            Utils.CheckSuccess((int)TVMTypeCode.TVMNullptr, retTypeCode);
         }
 
         /// <summary>
@@ -229,6 +242,9 @@ namespace TVMRuntime
                 new int[] { (int)TVMDataTypeCode.Int,
                 (int)TVMTypeCode.TVMNDArrayHandle}, 2,
                 ref emptyOutput, ref retTypeCode);
+
+            // Check Return type code
+            Utils.CheckSuccess((int)TVMTypeCode.TVMNullptr, retTypeCode);
         }
 
         /// <summary>
@@ -264,6 +280,9 @@ namespace TVMRuntime
                 InvokeTVMRuntimeSetInputPackedFunc(setInputFuncHandle,
                     pnt, argTypeCodes, numArgs,
                     ref retVal, ref retTypeCode);
+
+                // Check Return type code
+                Utils.CheckSuccess((int)TVMTypeCode.TVMNullptr, retTypeCode);
             }
             finally
             {
@@ -291,6 +310,9 @@ namespace TVMRuntime
                 new TVMValue[] { new TVMValue(outputIndex) },
                 new int[] { (int)TVMDataTypeCode.Int }, 1,
                 ref retOutput, ref retTypeCode);
+
+            // Check Return type code
+            Utils.CheckSuccess((int)TVMTypeCode.TVMNDArrayHandle, retTypeCode);
 
             // Update the NDArray
             outputTensor.NDArrayHandle = retOutput.handle;
@@ -328,6 +350,9 @@ namespace TVMRuntime
                     ref pnt1,
                     new int[] { (int)TVMTypeCode.TVMBytes }, 1,
                     ref retVal, ref retTypeCode);
+
+                // Check Return type code
+                Utils.CheckSuccess((int)TVMTypeCode.TVMNullptr, retTypeCode);
             }
             finally
             {
