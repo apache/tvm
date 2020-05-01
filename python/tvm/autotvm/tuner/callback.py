@@ -147,7 +147,7 @@ def progress_bar(total, prefix='', si_prefix='G'):
         flops = 0
         for inp, res in zip(inputs, results):
             if res.error_no == 0:
-                flops = inp.task.flop / np.mean(res.costs)
+                flops = max(inp.task.flop / np.mean(res.costs), flops)
 
         if not logger.isEnabledFor(logging.DEBUG):  # only print progress bar in non-debug mode
             ctx.cur_flops = flops
