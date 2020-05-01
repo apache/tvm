@@ -792,8 +792,8 @@ class OperatorConverter(object):
 
         lhs_tensor = input_tensors[0]
         rhs_tensor = input_tensors[1]
-        lhs_expr = self.get_tensor_or_const_expr(lhs_tensor)
-        rhs_expr = self.get_tensor_or_const_expr(rhs_tensor)
+        lhs_expr = self.get_tensor_expr(lhs_tensor)
+        rhs_expr = self.get_tensor_expr(rhs_tensor)
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
@@ -852,10 +852,10 @@ class OperatorConverter(object):
 
         input_tensors = self.get_input_tensors(op)
         assert not input_tensors[0].qnn_params, "TFLite does not support quantized ADD_N."
-        lhs_expr = self.get_tensor_or_const_expr(input_tensors[0])
+        lhs_expr = self.get_tensor_expr(input_tensors[0])
         for rhs_tensor in input_tensors[1:]:
             assert not rhs_tensor.qnn_params, "TFLite does not support quantized ADD_N"
-            rhs_expr = self.get_tensor_or_const_expr(rhs_tensor)
+            rhs_expr = self.get_tensor_expr(rhs_tensor)
             lhs_expr = _op.add(lhs_expr, rhs_expr)
         return lhs_expr
 
@@ -2277,7 +2277,7 @@ class OperatorConverter(object):
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
 
-    def get_tensor_or_const_expr(self, tensor):
+    def get_tensor_expr(self, tensor):
         """ Returns constant expr for constant else a tensor expr"""
         if self.has_expr(tensor.tensor_idx):
             # In most cases, we can assume that TOCO fuses elemwise operators
