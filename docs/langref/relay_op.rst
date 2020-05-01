@@ -129,6 +129,7 @@ This level enables additional math and transform operators.
    tvm.relay.repeat
    tvm.relay.tile
    tvm.relay.reverse
+   tvm.relay.reverse_sequence
    tvm.relay.unravel_index
 
 

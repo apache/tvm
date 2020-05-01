@@ -726,9 +726,9 @@ def test_reverse_sequence():
     with pytest.raises(Exception) as exexcinfo:
         verify_reverse_sequence(indata, [2, 3, 2, 4, 5], 1, 0, np.array(result))
 
-    assert "For reverse_sequence seq_lengths size should" \
-           " match with dimension of batch axis, but got dimension " \
-           "of batch_axis = 4, and seq_length size = 5" in exexcinfo.value.args[0]
+    assert "For reverse_sequnece seq_lengths size should match with dimension of batch axis," \
+           " but got dimension of batch_axis = 4, and seq_length size = 5" in exexcinfo.value.args[0]
+
 
 def test_gather_nd():
     def verify_gather_nd(xshape, yshape, y_data):

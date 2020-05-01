@@ -1529,16 +1529,16 @@ Array<te::Tensor> ReverseSequenceCompute(const Attrs& attrs,
                                  const Type& out_type) {
   const ReverseSequenceAttrs *param = attrs.as<ReverseSequenceAttrs>();
   CHECK(param != nullptr);
-  return {topi::reverse_sequence(inputs[0], inputs[1], param->batch_axis, param->seq_axis)};
+  return {topi::reverse_sequence(inputs[0], inputs[1], param->seq_axis, param->batch_axis)};
 }
 
 Expr MakeReverseSequence(Expr data,
                  Expr seq_lengths,
-                 int batch_axis,
-                 int seq_axis) {
+                 int seq_axis,
+                 int batch_axis) {
   auto attrs = make_object<ReverseSequenceAttrs>();
-  attrs->batch_axis = batch_axis;
   attrs->seq_axis = seq_axis;
+  attrs->batch_axis = batch_axis;
   static const Op& op = Op::Get("reverse_sequence");
   return Call(op, {data, seq_lengths}, Attrs(attrs), {});
 }

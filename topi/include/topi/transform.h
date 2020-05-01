@@ -230,7 +230,6 @@ inline Tensor reverse_sequence(const Tensor& x,
     << "seq_axis=" << seq_axis_inp << " is invalid for the "
     << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
 
-  if (seq_axis != NULL){
   CHECK(seq_lengths_dim == 1)
     << "seq_lengths should be 1D vector";
 
@@ -238,7 +237,7 @@ inline Tensor reverse_sequence(const Tensor& x,
     << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
     << ", but got dimension of batch_axis = " << GetConstInt(x->shape[batch_axis])
     << ", and seq_length size = " << GetConstInt(seq_lengths->shape[0]);
-  }
+  
 
   // TODO(@maheshambule) - can flip compute be combined with this?
   auto func = [&](const Array<Var>& indices) {

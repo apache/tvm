@@ -182,12 +182,6 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
         tflite_model_buffer = converter.convert()
         tflite_output = run_tflite_graph(tflite_model_buffer, in_data)
 
-        # print(in_data)
-        # print("------")
-        # print(tflite_output)
-        # print("------")
-
-
         for device in ["llvm"]:
             ctx = tvm.context(device, 0)
             if not ctx.exist:
