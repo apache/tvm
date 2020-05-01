@@ -36,8 +36,8 @@ interface tvm_remote_nd {
                    rout handle_t sym_ptr);
    long kernel(in handle_t mod,
                in handle_t symbol,
-               inrout sequence <long> scalar,
-               inrout sequence <long> stack,
+               in sequence <long> scalar,
+               in sequence <long> stack,
                in sequence<buffer> scalar_in_octet,
                rout sequence<buffer> scalar_out_octet,
                in sequence<buffer> stack_in_octet,

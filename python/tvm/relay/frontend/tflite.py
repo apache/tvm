@@ -78,6 +78,7 @@ class OperatorConverter(object):
             'ELU': self.convert_elu,
             'EQUAL': self.convert_equal,
             'EXP': self.convert_exp,
+            'FILL': self.convert_fill,
             'FLOOR_DIV': self.convert_floor_div,
             'FLOOR_MOD': self.convert_floor_mod,
             'FLOOR': self.convert_floor,
@@ -87,11 +88,13 @@ class OperatorConverter(object):
             'GREATER': self.convert_greater,
             'HARD_SWISH': self.convert_hard_swish,
             'L2_NORMALIZATION': self.convert_l2_normalization,
+            'L2_POOL_2D': self.convert_l2_pool2d,
             'LESS_EQUAL': self.convert_less_equal,
             'LESS': self.convert_less,
             'LOCAL_RESPONSE_NORMALIZATION': self.convert_lrn,
             'LOG': self.convert_log,
             'LOGICAL_AND': self.convert_logical_and,
+            'LOGICAL_NOT': self.convert_logical_not,
             'LOGICAL_OR': self.convert_logical_or,
             'LOGISTIC': self.convert_logistic,
             'MAX_POOL_2D': self.convert_max_pool2d,
@@ -123,6 +126,7 @@ class OperatorConverter(object):
             'SPACE_TO_BATCH_ND': self.convert_space_to_batch_nd,
             'SPACE_TO_DEPTH': self.convert_space_to_depth,
             'SPLIT': self.convert_split,
+            'SPLIT_V': self.convert_split_v,
             'SQRT': self.convert_sqrt,
             'SQUARE': self.convert_square,
             'SQUARED_DIFFERENCE': self.convert_squared_difference,
@@ -332,6 +336,10 @@ class OperatorConverter(object):
     def convert_max_pool2d(self, op):
         """Convert TFLite max pool2d"""
         return self.convert_pool2d(op, "max")
+
+    def convert_l2_pool2d(self, op):
+        """Convert TFLite l2 pool2d"""
+        return self.convert_pool2d(op, "l2")
 
     def convert_reshape(self, op):
         """Convert TFLite reshape"""
@@ -986,6 +994,16 @@ class OperatorConverter(object):
         """Convert tflite LOGICAL_OR"""
         return self._convert_logical_binary(_op.logical_or, op)
 
+    def convert_logical_not(self, op):
+        """Convert tflite LOGICAL_NOT"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        data = self.get_expr(input_tensors[0].tensor_idx)
+        out = _op.logical_not(data)
+
+        return out
+
     def convert_gather(self, op):
         """Method to Convert TFLite GATHER operator"""
         try:
@@ -1205,6 +1223,21 @@ class OperatorConverter(object):
         input_tensor = input_tensors[0]
         in_expr = self.get_expr(input_tensor.tensor_idx)
         out = _op.zeros_like(in_expr)
+
+        return out
+
+    def convert_fill(self, op):
+        """Convert TFLite FILL"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 2, "input tensors length should be 2"
+
+        if self.has_expr(input_tensors[0].tensor_idx):
+            raise tvm.error.OpNotImplemented("For dims parameter of Fill operator,"
+                                             " only constant values are supported.")
+
+        in_dims = list(self.get_tensor_value(input_tensors[0]))
+        in_value_expr = self.get_expr(input_tensors[1].tensor_idx)
+        out = _op.full(in_value_expr, in_dims)
 
         return out
 
@@ -1613,6 +1646,35 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_split_v(self, op):
+        """SPLIT_V implementation."""
+        input_tensors = self.get_input_tensors(op)
+
+        assert len(input_tensors) == 3, "input tensors length should be 3"
+
+        input_tensor = input_tensors[0]
+        input_tensor_idx = input_tensor.tensor_idx
+        in_expr = self.get_expr(input_tensor_idx)
+
+        if self.has_expr(input_tensors[1].tensor_idx):
+            raise tvm.error.OpNotImplemented("For size_splits parameter of SPLIT_V operator, "
+                                             "only constant values are supported.")
+        size_splits = list(self.get_tensor_value(input_tensors[1]))
+        size_splits = tuple(np.cumsum(size_splits)[:-1])
+
+        axis_tensor = input_tensors[2]
+        split_axis = self.get_tensor_value(axis_tensor)
+
+        out = _op.split(in_expr, size_splits, axis=int(split_axis))
+        # Relay does not like a TupleWrapper of 1 element, further this
+        # only shows up with tf1.13 if we use a split with num_splits==1.
+        # In tf 1.14 this doesn't appear as it is automatically a reshape
+        # operation.
+        if isinstance(out, _expr.TupleWrapper) and out.size == 1:
+            out = out[0]
+
+        return out
+
     def convert_slice(self, op):
         """Convert TFLite SLICE"""
         input_tensors = self.get_input_tensors(op)
@@ -1796,6 +1858,16 @@ class OperatorConverter(object):
                 assert self.has_same_qnn_params(input_tensor, output_tensor), \
                         "qnn.op.max_pool2d requires input and output qnn params to be same"
             out = _op.nn.max_pool2d(in_expr, **params)
+        elif pool_type == "l2":
+            # L2_POOL_2D is equivalent to square_root(avg_pool(square(in_data)))
+            # TFLite does not have support for quantised L2_POOL_2D op.
+            assert not input_tensor.qnn_params, \
+                "As TFLite does not have support for quantized L2_POOL_2D, \
+                Quantized input is not expected."
+            exp_type = self.get_tensor_type_str(output_tensor.tensor.Type())
+            square_exp = _op.power(in_expr, relay.const(2, exp_type))
+            avg_pool_exp = _op.nn.avg_pool2d(square_exp, **params)
+            out = _op.sqrt(avg_pool_exp)
         else:
             raise tvm.error.OpNotImplemented(
                 'Operator {} is not supported for frontend TFLite.'.format(pool_type + ' pool'))
@@ -2222,6 +2294,7 @@ class OperatorConverter(object):
         assert len(inputs) == 3, "inputs length should be 3"
         cls_pred = self.get_expr(inputs[1].tensor_idx)
         loc_prob = self.get_expr(inputs[0].tensor_idx)
+        batch_size = inputs[1].tensor.Shape(0)
         anchor_values = self.get_tensor_value(inputs[2])
         anchor_boxes = len(anchor_values)
         anchor_type = self.get_tensor_type_str(inputs[2].tensor.Type())
@@ -2249,7 +2322,7 @@ class OperatorConverter(object):
         loc_prob = _op.concatenate(
             [loc_coords[1], loc_coords[0], loc_coords[3], loc_coords[2]], axis=2
         )
-        loc_prob = _op.reshape(loc_prob, [1, anchor_boxes*4])
+        loc_prob = _op.reshape(loc_prob, [batch_size, anchor_boxes*4])
 
         # anchor coords are in yxhw format
         # need to convert to ltrb
@@ -2292,10 +2365,14 @@ class OperatorConverter(object):
         ret = _op.vision.non_max_suppression(ret[0], ret[1], **non_max_suppression_attrs)
         ret = _op.vision.get_valid_counts(ret, 0)
         valid_count = ret[0]
+        # keep only the top 'max_detections' rows
+        ret = _op.strided_slice(ret[1],
+                                [0, 0, 0],
+                                [batch_size, custom_options["max_detections"], anchor_boxes])
         # the output needs some reshaping to match tflite
-        ret = _op.split(ret[1], 6, axis=2)
-        cls_ids = ret[0]
-        scores = ret[1]
+        ret = _op.split(ret, 6, axis=2)
+        cls_ids = _op.reshape(ret[0], [batch_size, -1])
+        scores = _op.reshape(ret[1], [batch_size, -1])
         boxes = _op.concatenate([ret[3], ret[2], ret[5], ret[4]], axis=2)
         ret = _expr.TupleWrapper(_expr.Tuple([boxes, cls_ids, scores, valid_count]), size=4)
         return ret

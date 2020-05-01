@@ -177,6 +177,16 @@ TEST(BuildModule, Heterogeneous) {
   runtime::Module mod = (*graph_runtime)(
       json, module, cpu_dev_ty, cpu_dev_id, gpu_dev_ty, gpu_dev_id);
 
+  // test FFI for module.
+  auto test_ffi = PackedFunc([](TVMArgs args, TVMRetValue* rv) {
+    int tcode = args[1];
+    CHECK_EQ(args[0].type_code(), tcode);
+  });
+
+  test_ffi(runtime::Module(mod), static_cast<int>(kTVMModuleHandle));
+  test_ffi(Optional<runtime::Module>(mod), static_cast<int>(kTVMModuleHandle));
+
+
   PackedFunc set_input = mod.GetFunction("set_input", false);
   PackedFunc run = mod.GetFunction("run", false);
   PackedFunc get_output = mod.GetFunction("get_output", false);

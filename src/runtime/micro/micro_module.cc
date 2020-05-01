@@ -54,6 +54,8 @@ class MicroModuleNode final : public ModuleNode {
    * \param binary_path path of the binary to be loaded
    */
   void InitMicroModule(const std::string& binary_path) {
+    // std::cout << "[MicroModuleNode::InitMicroModule]" << std::endl;
+    // std::cout << "  start" << std::endl;
     session_ = MicroSession::Current();
     symbol_map_ = session_->LoadBinary(binary_path, true).symbol_map;
   }
@@ -67,26 +69,26 @@ class MicroModuleNode final : public ModuleNode {
 class MicroWrappedFunc {
  public:
   MicroWrappedFunc(ObjectPtr<MicroSession> session,
-                   DevPtr func_ptr) {
+                   TargetPtr func_ptr) {
     session_ = session;
     func_ptr_ = func_ptr;
   }
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
-    *rv = session_->PushToExecQueue(func_ptr_, args);
+    session_->PushToTaskQueue(func_ptr_, args);
   }
 
  private:
   /*! \brief reference to the session for this function (to keep the session alive) */
   ObjectPtr<MicroSession> session_;
   /*! \brief offset of the function to be called */
-  DevPtr func_ptr_;
+  TargetPtr func_ptr_;
 };
 
 PackedFunc MicroModuleNode::GetFunction(
     const std::string& name,
     const ObjectPtr<Object>& sptr_to_self) {
-  DevPtr func_ptr;
+  TargetPtr func_ptr;
   if (name == tvm::runtime::symbol::tvm_module_main) {
     if (symbol_map_.HasSymbol(tvm::runtime::symbol::tvm_module_main)) {
       func_ptr = symbol_map_[tvm::runtime::symbol::tvm_module_main];

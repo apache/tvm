@@ -393,12 +393,26 @@ class Partitioner : public ExprMutator {
 
     Array<Var> params;
     Array<Expr> param_expr;
-    std::unordered_map<std::string, runtime::NDArray> params_bind;
+    Map<Var, Expr> params_bind;
+
+    auto IsConstant = [](const Expr& expr) {
+      if (expr->IsInstance<ConstantNode>())
+        return true;
+      if (expr->IsInstance<TupleNode>()) {
+        auto tuple = expr.as<TupleNode>();
+        for (const auto& field : tuple->fields) {
+          if (!field->IsInstance<ConstantNode>())
+            return false;
+        }
+        return true;
+      }
+      return false;
+    };
 
     for (auto pair : region_args[region]) {
       params.push_back(pair.first);
-      if (const auto* cn = pair.second.as<ConstantNode>()) {
-        params_bind[pair.first->name_hint()] = cn->data;
+      if (IsConstant(pair.second)) {
+        params_bind.Set(pair.first, pair.second);
       } else {
         param_expr.push_back(pair.second);
       }
@@ -428,7 +442,7 @@ class Partitioner : public ExprMutator {
 
     // Constant propagation
     if (!params_bind.empty()) {
-      global_region_func = backend::BindParamsByName(global_region_func, params_bind);
+      global_region_func = Downcast<Function>(relay::Bind(global_region_func, params_bind));
     }
 
     std::string fname = name;

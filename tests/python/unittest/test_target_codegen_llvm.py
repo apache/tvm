@@ -43,6 +43,18 @@ def test_llvm_intrin():
     fcode = tvm.build(mod, None, "llvm")
 
 
+def test_llvm_void_intrin():
+    ib = tvm.tir.ir_builder.create()
+    A = ib.pointer("uint8", name="A")
+    # Create an intrinsic that returns void.
+    x = tvm.tir.call_llvm_intrin('', 'llvm.va_start', tvm.tir.const(1, 'uint32'), A)
+    ib.emit(x)
+    body = ib.get()
+    mod = tvm.IRModule.from_expr(
+        tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
+    fcode = tvm.build(mod, None, "llvm")
+
+
 def test_llvm_overloaded_intrin():
     # Name lookup for overloaded intrinsics in LLVM 4- requires a name
     # that includes the overloaded types.

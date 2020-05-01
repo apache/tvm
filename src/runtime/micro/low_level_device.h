@@ -45,7 +45,7 @@ class LowLevelDevice {
    * \param buffer on-host buffer to be read into
    * \param num_bytes number of bytes to read
    */
-  virtual void Read(DevPtr addr,
+  virtual void Read(TargetPtr addr,
                     void* buffer,
                     size_t num_bytes) = 0;
 
@@ -55,7 +55,7 @@ class LowLevelDevice {
    * \param buffer host buffer to write from
    * \param num_bytes number of bytes to write
    */
-  virtual void Write(DevPtr addr,
+  virtual void Write(TargetPtr addr,
                      const void* buffer,
                      size_t num_bytes) = 0;
 
@@ -64,7 +64,7 @@ class LowLevelDevice {
    * \param func_addr offset of the init stub function
    * \param breakpoint_addr address at which to stop function execution
    */
-  virtual void Execute(DevPtr func_addr, DevPtr breakpoint_addr) = 0;
+  virtual void Execute(TargetPtr func_addr, TargetPtr breakpoint_addr) = 0;
 
   /*!
    * \brief getter function for low-level device type
@@ -78,7 +78,8 @@ class LowLevelDevice {
  * \param num_bytes size of the memory region
  * \param base_addr pointer to write the host device's resulting base address into
  */
-const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes, void** base_addr);
+const std::shared_ptr<LowLevelDevice> HostLowLevelDeviceCreate(size_t num_bytes,
+                                                               TargetPtr* base_addr);
 
 /*!
  * \brief connect to OpenOCD and create an OpenOCD low-level device
