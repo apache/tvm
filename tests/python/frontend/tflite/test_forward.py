@@ -1989,18 +1989,27 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
     # For boxes that do not have any detections, TFLite puts random values. Therefore, we compare
     # tflite and tvm tensors for only valid boxes.
     for i in range(0, valid_count):
-        # Check bounding box co-ords. The tolerances have to be adjusted because of differences between
-        # for requantiize operator in TFLite and TVM.
-        tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
-                                    rtol=1e-1, atol=1e-1)
+        # We compare the bounding boxes whose prediction score is above 60%. This is typical in end
+        # to end application where a low prediction score is discarded. This is also needed because
+        # multiple low score bounding boxes can have same score and TFlite and TVM can have
+        # different orderings for same score bounding boxes. Another reason for minor differences in
+        # low score bounding boxes is the difference between TVM and TFLite for requantize operator.
+        if tvm_output[2][0][i] > 0.6:
+            # Check bounding box co-ords. The tolerances have to be adjusted, from 1e-5 to 1e-2,
+            # because of differences between for requantiize operator in TFLite and TVM.
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]),
+                                        np.squeeze(tflite_output[0][0][i]),
+                                        rtol=1e-2, atol=1e-2)
 
-        # Check the class
-        # Stricter check to ensure class remains same
-        np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]))
+            # Check the class
+            # Stricter check to ensure class remains same
+            np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]),
+                                    np.squeeze(tflite_output[1][0][i]))
 
-        # Check the score
-        tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
-                                    rtol=1e-2, atol=1e-2)
+            # Check the score
+            tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]),
+                                        np.squeeze(tflite_output[2][0][i]),
+                                        rtol=1e-5, atol=1e-5)
 
 
 #######################################################################
@@ -2008,7 +2017,7 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
 # -------------
 
 def test_forward_coco_ssd_mobilenet_v1():
-    """Test the quantized Coco SSD Mobilenet V1 TF Lite model."""
+    """Test the FP32 Coco SSD Mobilenet V1 TF Lite model."""
     tflite_model_file = tf_testing.get_workload_official(
         "https://raw.githubusercontent.com/dmlc/web-data/master/tensorflow/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28.tgz",
         "ssd_mobilenet_v1_coco_2018_01_28.tflite")
