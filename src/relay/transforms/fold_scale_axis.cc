@@ -318,7 +318,7 @@ static bool IsIntInArray(const Array<Integer>& axis, int v) {
 }
 
 static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
-  const Array<Integer>& axis) {
+                               const Array<Integer>& axis) {
   Array<Integer> arr;
   for (size_t i = 0; i < shape.size(); i++) {
     if (IsIntInArray(axis, i)) {
@@ -337,7 +337,7 @@ static Expr ReshapeToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
 
 // if only one axis, use expand dim. Else, use reshape
 static Expr ReshapeOrExpandToMatchAxis(Expr scale, const Array<PrimExpr>& shape,
-  const Array<Integer>& axis) {
+                                       const Array<Integer>& axis) {
   if (axis.size() > 1) {
     return ReshapeToMatchAxis(scale, shape, axis);
   } else {
@@ -407,8 +407,9 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
     CHECK(MatchBroadcastToLeftAxes(tlhs, trhs, slhs->axes));
     Expr scale = ReshapeOrExpandToMatchAxis(
         slhs->scale, tlhs->shape, slhs->axes);
-    if (!scale.defined())
+    if (!scale.defined()) {
       return Expr();
+    }
     Expr rhs = Divide(new_args[1], scale);
     rnode->value = Call(ref_call->op, {slhs->value, rhs}, ref_call->attrs, ref_call->type_args);
     rnode->scale = slhs->scale;
@@ -418,8 +419,9 @@ Expr AddSubForwardRewrite(const Call& ref_call, const Array<Expr>& new_args,
     CHECK(MatchBroadcastToLeftAxes(trhs, tlhs, srhs->axes));
     Expr scale = ReshapeOrExpandToMatchAxis(
         srhs->scale, trhs->shape, srhs->axes);
-    if (!scale.defined())
+    if (!scale.defined()) {
       return Expr();
+    }
     Expr lhs = Divide(new_args[0], scale);
     rnode->value = Call(ref_call->op, {lhs, srhs->value}, ref_call->attrs, ref_call->type_args);
     rnode->scale = srhs->scale;
