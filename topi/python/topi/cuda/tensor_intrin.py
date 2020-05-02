@@ -85,11 +85,11 @@ def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape,
 
     A = te.placeholder(A_shape, name='A', dtype=in_dtype)
     BA = tvm.tir.decl_buffer(A.shape, A.dtype,
-                             scope='shared', strides=strides_from,
+                             scope='shared', strides=[te.var("s1"), te.var("s2"), te.var("s3"), te.var("s4")],
                              data_alignment=32, offset_factor=8)
     C = te.compute(C_shape, lambda *i: A(*i), name='C')
     BC = tvm.tir.decl_buffer(C.shape, C.dtype,
-                             scope="wmma.matrix_a", strides=strides_dst,
+                             scope="wmma.matrix_a", strides=[te.var("s1"), te.var("s2"), te.var("s3"), te.var("s4")],
                              data_alignment=32, offset_factor=8)
 
     def intrin_func(ins, outs):
@@ -110,14 +110,13 @@ def intrin_wmma_load_matrix_A(strides_dst, strides_from, shape, layout, A_shape,
 def intrin_wmma_load_matrix_W(strides_dst, strides_from, shape, layout, A_shape, C_shape, in_dtype):
     """Intrin function for loading data from shared memory to wmma.matrix_b"""
     wmma_m, wmma_n, wmma_k = shape
-
     A = te.placeholder(A_shape, name='A', dtype=in_dtype)
     BA = tvm.tir.decl_buffer(A.shape, A.dtype,
-                             scope='shared', strides=strides_from,
+                             scope='shared', strides=[te.var("s1"), te.var("s2")],
                              data_alignment=32, offset_factor=8)
     C = te.compute(C_shape, lambda *i: A(*i), name='C')
     BC = tvm.tir.decl_buffer(C.shape, C.dtype,
-                             scope="wmma.matrix_b", strides=strides_dst,
+                             scope="wmma.matrix_b", strides=[te.var("s3"), te.var("s4")],
                              data_alignment=32, offset_factor=8)
 
     def intrin_func(ins, outs):
@@ -183,25 +182,25 @@ def intrin_wmma_gemm(AL_gemm, WL_gemm, CL_compute, strides_A,
 
     BA = tvm.tir.decl_buffer(A.shape, A.dtype, name='BA',
                              scope='wmma.matrix_a', data_alignment=32,
-                             offset_factor=8, strides=strides_A)
+                             offset_factor=8, strides=[te.var("s1"), te.var("s2"), te.var("s3"), te.var("s4")])
     BB = tvm.tir.decl_buffer(B.shape, B.dtype, name='BB',
                              scope='wmma.matrix_b', data_alignment=32,
-                             offset_factor=8, strides=strides_W)
+                             offset_factor=8, strides=[te.var("s1"), te.var("s2")])
     BC = tvm.tir.decl_buffer(C.shape, C.dtype, name='BC',
                              scope='wmma.accumulator', data_alignment=32,
-                             offset_factor=8, strides=strides_Conv)
+                             offset_factor=8, strides=[te.var("s1"), te.var("s2"), te.var("s3"), te.var("s4")])
 
     def intrin_func(ins, outs):
         BA, BB = ins
         BC, = outs
 
-        def warp_idnex(offset, row, col):
+        def warp_index(offset, row, col):
             row = row * col
             return offset // row + offset % row // col
 
-        warp_index_A = warp_idnex(BA.elem_offset, wmma_m, wmma_k)
-        warp_index_B = warp_idnex(BB.elem_offset, wmma_k, wmma_n)
-        warp_index_C = warp_idnex(BC.elem_offset, wmma_m, wmma_n)
+        warp_index_A = warp_index(BA.elem_offset, wmma_m, wmma_k)
+        warp_index_B = warp_index(BB.elem_offset, wmma_k, wmma_n)
+        warp_index_C = warp_index(BC.elem_offset, wmma_m, wmma_n)
 
         def init():
             ib = tvm.tir.ir_builder.create()
