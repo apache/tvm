@@ -364,10 +364,10 @@ bool ShapeFuncRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   for (size_t i = 0; i < func_type->arg_types.size(); ++i) {
     auto const& aty = func_type->arg_types[i];
     size_t num_types = 1;
-    if (const auto& tupletype = aty.as<TupleTypeNode>()) {
+    if (aty.as<TupleTypeNode>()) {
       num_types = FlattenTupleType(aty).size();
     }
-    for (int j = 0; j < num_types; ++j) {
+    for (size_t j = 0; j < num_types; ++j) {
       is_input.push_back(shape_func_attrs->is_input[i]);
     }
   }
