@@ -73,6 +73,16 @@ def get_real_image(im_height, im_width):
     data = np.reshape(x, (1, im_height, im_width, 3))
     return data
 
+def get_real_image_object_detection(im_height, im_width):
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/gluoncv/detection/'
+    img_name = 'street_small.jpg'
+    image_url = os.path.join(repo_base, img_name)
+    img_path = download_testdata(image_url, img_name, module='data')
+    image = Image.open(img_path).resize((im_height, im_width))
+    x = np.array(image).astype('uint8')
+    data = np.reshape(x, (1, im_height, im_width, 3))
+    return data
+
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
                   out_names=None):
     """ Generic function to compile on relay and execute on tvm """
@@ -98,6 +108,7 @@ def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target
     mod, params = relay.frontend.from_tflite(tflite_model,
                                              shape_dict=shape_dict,
                                              dtype_dict=dtype_dict)
+
     with relay.build_config(opt_level=3):
         graph, lib, params = relay.build(mod, target, params=params)
 
@@ -1952,7 +1963,10 @@ def test_forward_qnn_mobilenet_v3_net():
 
 def test_forward_qnn_coco_ssd_mobilenet_v1():
     """Test the quantized Coco SSD Mobilenet V1 TF Lite model."""
-    pytest.skip("Unsupported op - use_regular_nms")
+    pytest.skip("LLVM bug - getExtendedVectorNumElements - "
+                + "https://discuss.tvm.ai/t/segfault-in-llvm/3567. The workaround is to use a "
+                + "specific target, for example, llvm -mpcu=core-avx2")
+
     tflite_model_file = tf_testing.get_workload_official(
         "https://storage.googleapis.com/download.tensorflow.org/models/tflite/coco_ssd_mobilenet_v1_1.0_quant_2018_06_29.zip",
         "detect.tflite")
@@ -1960,8 +1974,7 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
     with open(tflite_model_file, "rb") as f:
         tflite_model_buf = f.read()
 
-    np.random.seed(0)
-    data = np.random.uniform(size=(1, 300, 300, 3)).astype('uint8')
+    data = get_real_image_object_detection(300, 300)
     tflite_output = run_tflite_graph(tflite_model_buf, data)
     tvm_output = run_tvm_graph(tflite_model_buf, data, 'normalized_input_image_tensor', num_output=4)
 
@@ -1976,16 +1989,18 @@ def test_forward_qnn_coco_ssd_mobilenet_v1():
     # For boxes that do not have any detections, TFLite puts random values. Therefore, we compare
     # tflite and tvm tensors for only valid boxes.
     for i in range(0, valid_count):
-        # Check bounding box co-ords
+        # Check bounding box co-ords. The tolerances have to be adjusted because of differences between
+        # for requantiize operator in TFLite and TVM.
         tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
-                                    rtol=1e-5, atol=1e-5)
+                                    rtol=1e-1, atol=1e-1)
+
         # Check the class
-        tvm.testing.assert_allclose(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]),
-                                    rtol=1e-5, atol=1e-5)
+        # Stricter check to ensure class remains same
+        np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]))
+
         # Check the score
         tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
-                                    rtol=1e-5, atol=1e-5)
-
+                                    rtol=1e-2, atol=1e-2)
 
 
 #######################################################################
@@ -2021,13 +2036,11 @@ def test_forward_coco_ssd_mobilenet_v1():
         tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
                                     rtol=1e-5, atol=1e-5)
         # Check the class
-        tvm.testing.assert_allclose(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]),
-                                    rtol=1e-5, atol=1e-5)
+        np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]))
+
         # Check the score
         tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
                                     rtol=1e-5, atol=1e-5)
->>>>>>> Fix test
-
 
 #######################################################################
 # MediaPipe
@@ -2135,3 +2148,4 @@ if __name__ == '__main__':
     #This also fails with a segmentation fault in my run
     #with Tflite 1.15.2
     test_forward_qnn_mobilenet_v3_net()
+    test_forward_qnn_coco_ssd_mobilenet_v1()
