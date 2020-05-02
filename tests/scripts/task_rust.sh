@@ -54,6 +54,12 @@ cd tests/test_tvm_dso
 cargo run
 cd -
 
+# # run wasm32 test
+# cd tests/test_wasm32
+# cargo build
+# wasmtime $RUST_DIR/target/wasm32-wasi/debug/test-wasm32.wasm
+# cd -
+
 # run nn graph test
 cd tests/test_nn
 cargo run
