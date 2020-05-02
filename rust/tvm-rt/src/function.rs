@@ -51,11 +51,11 @@ lazy_static! {
             &mut names_ptr as *mut _,
         ));
         let names_list = unsafe { slice::from_raw_parts(names_ptr, out_size as usize) };
+        println!("{:?}", names_list);
         let names_list = names_list
             .iter()
             .map(|&p| (unsafe { CStr::from_ptr(p).to_str().unwrap() }, None))
             .collect();
-
         Mutex::new(names_list)
     };
 }
@@ -89,6 +89,8 @@ impl Function {
     pub fn get<S: AsRef<str>>(name: S) -> Option<&'static Function> {
         let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
         globals.get_mut(name.as_ref()).and_then(|maybe_func| {
+            println!("Function {:?}", name.as_ref());
+            println!("maybe_func {:?}", maybe_func);
             if maybe_func.is_none() {
                 let name = CString::new(name.as_ref()).unwrap();
                 let mut handle = ptr::null_mut() as ffi::TVMFunctionHandle;
@@ -102,6 +104,7 @@ impl Function {
                     is_cloned: false,
                 });
             }
+            println!("maybe_func {:?}", maybe_func);
             unsafe {
                 mem::transmute::<Option<&Function>, Option<&'static Function>>(maybe_func.as_ref())
             }
@@ -266,18 +269,57 @@ impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
 ///     Ok(ret_val)
 /// }
 ///
-/// function::register(sum, "mysum".to_owned(), false).unwrap();
+/// function::register(sum, "mysum".to_owned()).unwrap();
 /// let mut registered = Builder::default();
 /// registered.get_function("mysum");
 /// assert!(registered.func.is_some());
 /// let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
 /// assert_eq!(ret, 60);
 /// ```
-pub fn register<S: AsRef<str>>(
-    f: fn(&[ArgValue]) -> Result<RetValue>,
+pub fn register<'a, F, I, O, S: AsRef<str>>(
+    f: F,
+    name: S,
+) -> Result<()> where F: ToFunction<'a, I, O> {
+    register_override(f, name, false)
+}
+
+/// Registers a Rust function with signature
+/// `fn(&[ArgValue]) -> Result<RetValue, Error>`
+/// as a **global TVM packed function** from frontend to TVM backend.
+///
+/// Use [`register_global_func`] if overriding an existing global TVM function
+/// is not required.
+///
+/// ## Example
+///
+/// ```
+/// # use tvm_rt::{ArgValue, function, RetValue};
+/// # use tvm_rt::function::Builder;
+/// # use anyhow::Error;
+/// use std::convert::TryInto;
+///
+/// fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
+///     let mut ret = 0i64;
+///     for arg in args.iter() {
+///         let arg: i64 = arg.try_into()?;
+///         ret += arg;
+///     }
+///     let ret_val = RetValue::from(ret);
+///     Ok(ret_val)
+/// }
+///
+/// function::register_override(sum, "mysum".to_owned(), false).unwrap();
+/// let mut registered = Builder::default();
+/// registered.get_function("mysum");
+/// assert!(registered.func.is_some());
+/// let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
+/// assert_eq!(ret, 60);
+/// ```
+pub fn register_override<'a, F, I, O, S: AsRef<str>>(
+    f: F,
     name: S,
     override_: bool,
-) -> Result<()> {
+) -> Result<()> where F: ToFunction<'a, I, O> {
     let func = f.to_function();
     let name = CString::new(name.as_ref())?;
     check_call!(ffi::TVMFuncRegisterGlobal(
@@ -286,53 +328,6 @@ pub fn register<S: AsRef<str>>(
         override_ as c_int
     ));
     Ok(())
-}
-
-/// Convenient macro for registering functions from frontend to backend as global
-/// TVM packed functions without overriding. If overriding an existing function is needed
-/// use the [`function::register`] function instead.
-///
-/// ## Example
-///
-/// ```
-/// # use std::convert::TryInto;
-/// # use tvm_rt::{register_global_func, ArgValue, RetValue};
-/// # use anyhow::Error;
-/// # use tvm_rt::function::Builder;
-///
-/// register_global_func! {
-///     fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
-///         let mut ret = 0f64;
-///         for arg in args.iter() {
-///             let arg: f64 = arg.try_into()?;
-///             ret += arg;
-///         }
-///         let ret_val = RetValue::from(ret);
-///         Ok(ret_val)
-///     }
-/// }
-///
-/// let mut registered = Builder::default();
-/// registered.get_function("sum");
-/// assert!(registered.func.is_some());
-/// let ret: f64 = registered.args(&[10f64, 20f64, 30f64]).invoke().unwrap().try_into().unwrap();
-/// assert_eq!(ret, 60f64);
-/// ```
-#[macro_export]
-macro_rules! register_global_func {
-    {
-        $(#[$m:meta])*
-        fn $fn_name:ident($args:ident : &[ArgValue]) -> Result<RetValue, Error> {
-            $($code:tt)*
-        }
-    } => {{
-        $(#[$m])*
-        fn $fn_name($args: &[ArgValue]) -> Result<RetValue, Error> {
-            $($code)*
-        }
-
-        $crate::function::register($fn_name, stringify!($fn_name).to_owned(), false).unwrap();
-    }}
 }
 
 /// Convenient macro for calling TVM packed functions by providing a
@@ -394,5 +389,92 @@ mod tests {
             .arg(20)
             .arg(str_arg.as_c_str());
         assert_eq!(func.arg_buf.len(), 3);
+    }
+
+    // #[test]
+    // fn register_and_call_fn() {
+    //     use crate::{ArgValue, function, RetValue};
+    //     use crate::function::Builder;
+    //     use anyhow::Error;
+    //     use std::convert::TryInto;
+
+    //     fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
+    //         let mut ret = 0i64;
+    //         for arg in args.iter() {
+    //             let arg: i64 = arg.try_into()?;
+    //             ret += arg;
+    //         }
+    //         let ret_val = RetValue::from(ret);
+    //         Ok(ret_val)
+    //     }
+
+    //     function::register_override(sum, "mysum".to_owned(), true).unwrap();
+    //     let mut registered = Builder::default();
+    //     registered.get_function("mysum");
+    //     println!("{:?}", registered.func);
+    //     assert!(registered.func.is_some());
+    //     let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
+    //     assert_eq!(ret, 60);
+    // }
+
+
+    #[test]
+    fn register_and_call_closure0() {
+        use crate::{ArgValue, function, RetValue};
+        use crate::function::Builder;
+        use anyhow::Error;
+        use std::convert::TryInto;
+
+        fn sum() -> i64 {
+            return 10;
+        }
+
+        function::register_override(sum, "mysum".to_owned(), true).unwrap();
+        let mut registered = Builder::default();
+        registered.get_function("mysum");
+        println!("{:?}", registered.func);
+        assert!(registered.func.is_some());
+        let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
+        assert_eq!(ret, 60);
+    }
+
+    #[test]
+    fn register_and_call_closure1() {
+        use crate::{ArgValue, function, RetValue};
+        use crate::function::Builder;
+        use anyhow::Error;
+        use std::convert::TryInto;
+
+        fn sum(x: i64) -> i64 {
+            return 10;
+        }
+
+        function::register_override(sum, "mysum".to_owned(), true).unwrap();
+        let mut registered = Builder::default();
+        registered.get_function("mysum");
+        println!("{:?}", registered.func);
+        assert!(registered.func.is_some());
+        let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
+        assert_eq!(ret, 60);
+    }
+
+    #[test]
+    fn register_and_call_closure() {
+        use crate::{ArgValue, function, RetValue};
+        use crate::function::Builder;
+        use anyhow::Error;
+        use std::convert::TryInto;
+
+        fn sum(a: i64, b: i64, c: i64) -> i64 {
+            return a + b + c;
+        }
+
+        function::register_override(sum, "mysum".to_owned(), true).unwrap();
+        let mut registered = Builder::default();
+        registered.get_function("mysum");
+        println!("{:?}", registered.func);
+        assert!(registered.func.is_some());
+        let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
+        assert_eq!(ret, 60);
     }
 }

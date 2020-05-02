@@ -52,7 +52,6 @@ impl String {
 #[cfg(test)]
 mod tests {
     use super::String;
-    use super::{IsObject, Object, ObjectPtr, ObjectRef};
     use crate::object::debug_print;
     use crate::ToObjectRef;
     use anyhow::{ensure, Result};

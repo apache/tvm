@@ -19,17 +19,16 @@
 
 use std::{
     any::TypeId,
-    mem,
-    os::raw::{c_int, c_void},
 };
 
 use std::str::FromStr;
+use std::convert::TryFrom;
+
+use crate::packed_func::RetValue;
+
 use thiserror::Error;
 
-use crate::ffi::{
-    DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
-    DLDeviceType_kDLCPU, DLTensor,
-};
+use crate::ffi::DLDataType;
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -165,36 +164,20 @@ impl std::fmt::Display for DataType {
     }
 }
 
-/// `From` conversions to `DLTensor` for `ndarray::Array`.
-/// Takes a reference to the `ndarray` since `DLTensor` is not owned.
-macro_rules! impl_dltensor_from_ndarray {
-    ($type:ty, $typecode:expr) => {
-        impl<'a, D: ndarray::Dimension> From<&'a mut ndarray::Array<$type, D>> for DLTensor {
-            fn from(arr: &'a mut ndarray::Array<$type, D>) -> Self {
-                DLTensor {
-                    data: arr.as_mut_ptr() as *mut c_void,
-                    ctx: DLContext {
-                        device_type: DLDeviceType_kDLCPU,
-                        device_id: 0,
-                    },
-                    ndim: arr.ndim() as c_int,
-                    dtype: DLDataType {
-                        code: $typecode as u8,
-                        bits: 8 * mem::size_of::<$type>() as u8,
-                        lanes: 1,
-                    },
-                    shape: arr.shape().as_ptr() as *const i64 as *mut i64,
-                    strides: arr.strides().as_ptr() as *const isize as *mut i64,
-                    byte_offset: 0,
-                }
-            }
-        }
-    };
+
+impl From<DataType> for RetValue {
+    fn from(dt: DataType) -> RetValue {
+        RetValue::DataType((&dt).into())
+    }
 }
 
-impl_dltensor_from_ndarray!(f32, DLDataTypeCode_kDLFloat);
-impl_dltensor_from_ndarray!(f64, DLDataTypeCode_kDLFloat);
-impl_dltensor_from_ndarray!(i32, DLDataTypeCode_kDLInt);
-impl_dltensor_from_ndarray!(i64, DLDataTypeCode_kDLInt);
-impl_dltensor_from_ndarray!(u32, DLDataTypeCode_kDLUInt);
-impl_dltensor_from_ndarray!(u64, DLDataTypeCode_kDLUInt);
+impl TryFrom<RetValue> for DataType {
+    type Error = anyhow::Error;
+    fn try_from(ret_value: RetValue) -> anyhow::Result<DataType> {
+        match ret_value {
+            RetValue::DataType(dt) => Ok(dt.into()),
+            // TODO(@jroesch): improve
+            _ => Err(anyhow::anyhow!("unable to convert datatype from ..."))
+        }
+    }
+}

@@ -41,9 +41,10 @@
 //! ```
 
 use crate::ffi::{self, *};
-use crate::packed_func::ArgValue;
+use crate::packed_func::{RetValue, ArgValue};
 
 use std::str::FromStr;
+use std::convert::TryFrom;
 use thiserror::Error;
 
 use std::{
@@ -254,6 +255,24 @@ impl From<Context> for ffi::DLContext {
 impl Display for Context {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}({})", self.device_type, self.device_id)
+    }
+}
+
+impl From<Context> for RetValue {
+
+    fn from(ret_value: Context) -> RetValue {
+        RetValue::Context(ret_value.into())
+    }
+}
+
+impl TryFrom<RetValue> for Context {
+    type Error = anyhow::Error;
+    fn try_from(ret_value: RetValue) -> anyhow::Result<Context> {
+        match ret_value {
+            RetValue::Context(dt) => Ok(dt.into()),
+            // TODO(@jroesch): improve
+            _ => Err(anyhow::anyhow!("unable to convert datatype from ..."))
+        }
     }
 }
 

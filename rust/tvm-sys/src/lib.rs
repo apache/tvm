@@ -38,6 +38,7 @@ pub mod ffi {
         extern "C" fn(args: *const TVMValue, type_codes: *const c_int, num_args: c_int) -> c_int;
 }
 
+pub mod array;
 pub mod byte_array;
 pub mod context;
 pub mod datatype;

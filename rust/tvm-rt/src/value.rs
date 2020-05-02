@@ -135,7 +135,7 @@ impl TryFrom<RetValue> for NDArray {
 mod tests {
     use std::{convert::TryInto, str::FromStr};
 
-    use tvm_sys::{ByteArray, TVMContext, TVMType};
+    use crate::{ByteArray, Context, DataType};
 
     use super::*;
 
@@ -152,15 +152,15 @@ mod tests {
 
     #[test]
     fn ty() {
-        let t = TVMType::from_str("int32").unwrap();
-        let tvm: TVMType = RetValue::from(t).try_into().unwrap();
+        let t = DataType::from_str("int32").unwrap();
+        let tvm: DataType = RetValue::from(t).try_into().unwrap();
         assert_eq!(tvm, t);
     }
 
     #[test]
     fn ctx() {
-        let c = TVMContext::from_str("gpu").unwrap();
-        let tvm: TVMContext = RetValue::from(c).try_into().unwrap();
+        let c = Context::from_str("gpu").unwrap();
+        let tvm: Context = RetValue::from(c).try_into().unwrap();
         assert_eq!(tvm, c);
     }
 }

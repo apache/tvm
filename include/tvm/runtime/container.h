@@ -385,6 +385,10 @@ class String : public ObjectRef {
    */
   inline String operator=(std::string other);
 
+  inline String operator+(std::string other) const;
+
+  inline String operator+(const char* data) const;
+
   /*!
    * \brief Compare is equal to other std::string
    *
@@ -575,6 +579,16 @@ inline String String::operator=(std::string other) {
   String replace{std::move(other)};
   data_.swap(replace.data_);
   return Downcast<String>(*this);
+}
+
+inline String String::operator+(std::string other) const {
+  std::string lhs = this->operator std::string();
+  return lhs + other;
+}
+
+inline String String::operator+(const char* str) const {
+  std::string lhs = this->operator std::string();
+  return lhs + std::string(str);
 }
 
 inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count,

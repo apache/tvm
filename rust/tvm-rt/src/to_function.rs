@@ -37,11 +37,11 @@ pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 use super::Function;
 
-pub trait ToFunction<I, O>: Sized {
+pub trait ToFunction<'a, I, O>: Sized {
     type Handle;
 
     fn into_raw(self) -> *mut Self::Handle;
-    fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> anyhow::Result<RetValue>;
+    fn call(handle: *mut Self::Handle, args: &[ArgValue<'a>]) -> anyhow::Result<RetValue>;
     fn drop(handle: *mut Self::Handle);
 
     fn to_function(self) -> Function {
@@ -53,6 +53,7 @@ pub trait ToFunction<I, O>: Sized {
             Some(Self::tvm_finalizer),
             &mut fhandle as *mut _
         ));
+        println!("fnhandle: {:?}", fhandle);
         Function::new(fhandle)
     }
 
@@ -67,6 +68,7 @@ pub trait ToFunction<I, O>: Sized {
     ) -> c_int {
         // turning off the incorrect linter complaints
         #![allow(unused_assignments, unused_unsafe)]
+        println!("here");
         let len = num_args as usize;
         let args_list = slice::from_raw_parts_mut(args, len);
         let type_codes_list = slice::from_raw_parts_mut(type_codes, len);
@@ -92,7 +94,7 @@ pub trait ToFunction<I, O>: Sized {
             println!("{:?}", arg_value);
             local_args.push(arg_value);
         }
-
+        println!("before call");
         let rv = match Self::call(rust_fn, local_args.as_slice()) {
             Ok(v) => v,
             Err(msg) => {
@@ -100,6 +102,7 @@ pub trait ToFunction<I, O>: Sized {
                 return -1;
             }
         };
+        println!("after call");
 
         let (mut ret_val, ret_tcode) = rv.to_tvm_value();
         let mut ret_type_code = ret_tcode as c_int;
@@ -120,22 +123,26 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
-impl<'a, 'b> ToFunction<&'a [ArgValue<'b>], RetValue> for fn(&[ArgValue]) -> Result<RetValue> {
-    type Handle = for <'x, 'y> fn(&'x [ArgValue<'y>]) -> Result<RetValue>;
+// impl<'a, 'b> ToFunction<&'a [ArgValue<'b>], RetValue> for fn(&[ArgValue]) -> Result<RetValue> {
+//     type Handle = for <'x, 'y> fn(&'x [ArgValue<'y>]) -> Result<RetValue>;
 
-    fn into_raw(self) -> *mut Self::Handle {
-        self as *mut Self::Handle
-    }
+//     fn into_raw(self) -> *mut Self::Handle {
+//         self as *mut Self::Handle
+//     }
 
-    fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
-        unsafe { (*handle)(args) }
-    }
+//     fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
+//         println!("calls");
+//         let handle: Self::Handle = unsafe { std::mem::transmute(handle) };
+//         let r = handle(args);
+//         println!("afters");
+//         r
+//     }
 
-    // Function's don't need de-allocation because the pointers are into the code section of memory.
-    fn drop(_: *mut Self::Handle) {}
-}
+//     // Function's don't need de-allocation because the pointers are into the code section of memory.
+//     fn drop(_: *mut Self::Handle) {}
+// }
 
-impl<'a, O: Into<RetValue>, F> ToFunction<(), O> for F where F: Fn() -> O + 'static {
+impl<'a, O: Into<RetValue>, F> ToFunction<'a, (), O> for F where F: Fn() -> O + 'static {
     type Handle = Box<dyn Fn() -> O + 'static>;
 
     fn into_raw(self) -> *mut Self::Handle {
@@ -143,7 +150,7 @@ impl<'a, O: Into<RetValue>, F> ToFunction<(), O> for F where F: Fn() -> O + 'sta
         Box::into_raw(ptr)
     }
 
-    fn call(handle: *mut Self::Handle, _: &[ArgValue]) -> Result<RetValue> {
+    fn call(handle: *mut Self::Handle, _: &[ArgValue<'a>]) -> Result<RetValue> {
         // Ideally we shouldn't need to clone, probably doesn't really matter.
         unsafe { Ok((*handle)().into()) }
     }
@@ -153,9 +160,10 @@ impl<'a, O: Into<RetValue>, F> ToFunction<(), O> for F where F: Fn() -> O + 'sta
 
 macro_rules! to_function_instance {
     ($(($param:ident,$index:expr),)+) => {
-        impl<'a, $($param,)+ O: Into<RetValue>, F> ToFunction<($($param,)+), O> for
+        impl<'a, $($param,)+ O: Into<RetValue>, F> ToFunction<'a, ($($param,)+), O> for
         F where F: Fn($($param,)+) -> O + 'static,
-                $($param: for<'x> From<ArgValue<'x>>,)+  {
+                $($param: From<ArgValue<'a>>,)+
+                $($param: 'a,)+ {
             type Handle = Box<dyn Fn($($param,)+) -> O + 'static>;
 
             fn into_raw(self) -> *mut Self::Handle {
@@ -163,7 +171,7 @@ macro_rules! to_function_instance {
                 Box::into_raw(ptr)
             }
 
-            fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
+            fn call(handle: *mut Self::Handle, args: &[ArgValue<'a>]) -> Result<RetValue> {
                 // Ideally we shouldn't need to clone, probably doesn't really matter.
                 let res = unsafe {
                     (*handle)($(args[$index].clone().into(),)+)
@@ -175,6 +183,25 @@ macro_rules! to_function_instance {
         }
     }
 }
+
+// impl<'a, A, O: Into<RetValue>, F> ToFunction<'a, (A,), O> for F
+// where
+//     F: Fn(A) -> O + 'static,
+//     A: From<ArgValue<'a>>,
+//     A: 'a,
+// {
+//     type Handle = Box<dyn Fn(A) -> O + 'static>;
+//     fn into_raw(self) -> *mut Self::Handle {
+//         let ptr: Box<Self::Handle> = Box::new(Box::new(self));
+//         Box::into_raw(ptr)
+//     }
+//     fn call(handle: *mut Self::Handle, args: &[ArgValue<'a>]) -> Result<RetValue> {
+//         let res = unsafe { (*handle)(args[0].clone().into()) };
+//         Ok(res.into())
+//     }
+
+//     fn drop(_: *mut Self::Handle) {}
+// }
 
 to_function_instance!((A, 0),);
 to_function_instance!((A, 0), (B, 1),);

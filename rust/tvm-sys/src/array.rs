@@ -18,7 +18,6 @@
  */
 
  use std::{
-    any::TypeId,
     mem,
     os::raw::{c_int, c_void},
 };
@@ -27,77 +26,6 @@ use crate::ffi::{
     DLContext, DLDataType, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt,
     DLDeviceType_kDLCPU, DLTensor,
 };
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DataType {
-    pub code: usize,
-    pub bits: usize,
-    pub lanes: usize,
-}
-
-impl DataType {
-    /// Returns the number of bytes occupied by an element of this `DataType`.
-    pub fn itemsize(&self) -> usize {
-        (self.bits * self.lanes) >> 3
-    }
-
-    /// Returns whether this `DataType` represents primitive type `T`.
-    pub fn is_type<T: 'static>(&self) -> bool {
-        if self.lanes != 1 {
-            return false;
-        }
-        let typ = TypeId::of::<T>();
-        (typ == TypeId::of::<i32>() && self.code == 0 && self.bits == 32)
-            || (typ == TypeId::of::<i64>() && self.code == 0 && self.bits == 64)
-            || (typ == TypeId::of::<u32>() && self.code == 1 && self.bits == 32)
-            || (typ == TypeId::of::<u64>() && self.code == 1 && self.bits == 64)
-            || (typ == TypeId::of::<f32>() && self.code == 2 && self.bits == 32)
-            || (typ == TypeId::of::<f64>() && self.code == 2 && self.bits == 64)
-    }
-
-    pub fn code(&self) -> usize {
-        self.code
-    }
-
-    pub fn bits(&self) -> usize {
-        self.bits
-    }
-
-    pub fn lanes(&self) -> usize {
-        self.lanes
-    }
-}
-
-impl<'a> From<&'a DataType> for DLDataType {
-    fn from(dtype: &'a DataType) -> Self {
-        Self {
-            code: dtype.code as u8,
-            bits: dtype.bits as u8,
-            lanes: dtype.lanes as u16,
-        }
-    }
-}
-
-impl From<DLDataType> for DataType {
-    fn from(dtype: DLDataType) -> Self {
-        Self {
-            code: dtype.code as usize,
-            bits: dtype.bits as usize,
-            lanes: dtype.lanes as usize,
-        }
-    }
-}
-
-
-impl DLDataType {
-    fn new(type_code: u8, bits: u8, lanes: u16) -> Self {
-        Self {
-            code: type_code,
-            bits,
-            lanes,
-        }
-    }
-}
 
 /// `From` conversions to `DLTensor` for `ndarray::Array`.
 /// Takes a reference to the `ndarray` since `DLTensor` is not owned.
