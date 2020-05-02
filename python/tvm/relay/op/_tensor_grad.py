@@ -35,6 +35,7 @@ from .tensor import (
     power,
     sin,
     sinh,
+    sqrt,
     zeros_like,
     equal,
     shape_of,
@@ -116,12 +117,60 @@ def sinh_grad(orig, grad):
     x = orig.args[0]
     return [grad * cosh(x)]
 
+
+@register_gradient("acos")
+def acos_grad(orig, grad):
+    """Returns [grad * -1/((1 - (x ^ 2)) ^ 1/2)]"""
+    x = orig.args[0]
+    a = const(2.0)
+    ones = ones_like(x)
+    return [grad * (-ones / sqrt(ones_like(x) - power(x, a)))]
+
+
+@register_gradient("acosh")
+def acosh_grad(orig, grad):
+    """Returns [grad * 1/((x - 1) ^ 1/2 * (x + 1) ^ 1/2)]"""
+    x = orig.args[0]
+    a = const(2.0)
+    ones = ones_like(x)
+    return [grad * ones / sqrt(power(x, a) - ones)]
+
+
+@register_gradient("asin")
+def asin_grad(orig, grad):
+    """Returns [grad * 1/((1 - (x ^ 2)) ^ (1/2))]"""
+    x = orig.args[0]
+    a = const(2.0)
+    ones = ones_like(x)
+    return [grad * ones / sqrt(ones - power(x, a))]
+
+
+@register_gradient("asinh")
+def asinh_grad(orig, grad):
+    """Returns [grad * 1/((1 + (x ^ 2)) ^ (1/2))]"""
+    x = orig.args[0]
+    a = const(2.0)
+    ones = ones_like(x)
+    return [grad * ones / sqrt(ones + power(x, a))]
+
+
 @register_gradient("atan")
 def atan_grad(orig, grad):
     """Returns [grad * 1 / (1 + x ^ 2)]"""
     x = orig.args[0]
     a = const(2.0)
-    return [grad * ones_like(x) / (ones_like(x) + power(x, a))]
+    ones = ones_like(x)
+    return [grad * ones / (ones + power(x, a))]
+
+
+@register_gradient("atanh")
+def atanh_grad(orig, grad):
+    """Returns xx[grad * 1 / (1 - x ^ 2)]"""
+    x = orig.args[0]
+    a = const(2.0)
+    ones = ones_like(x)
+    return [grad * ones / (ones - power(x, a))]
+
 
 @register_gradient("exp")
 def exp_grad(orig, grad):

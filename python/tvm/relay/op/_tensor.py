@@ -16,10 +16,10 @@
 # under the License.
 #pylint: disable=invalid-name, unused-argument, len-as-condition
 """Backend compiler related feature registration"""
-import topi
 
 from tvm.runtime import convert
 from tvm.te.hybrid import script
+import topi
 from topi.util import get_const_tuple
 from .op import register_compute, register_shape_func
 from .op import register_broadcast_schedule, register_injective_schedule
@@ -34,7 +34,12 @@ register_broadcast_schedule("cos")
 register_broadcast_schedule("cosh")
 register_broadcast_schedule("sin")
 register_broadcast_schedule("sinh")
+register_broadcast_schedule("acos")
+register_broadcast_schedule("acosh")
+register_broadcast_schedule("asin")
+register_broadcast_schedule("asinh")
 register_broadcast_schedule("atan")
+register_broadcast_schedule("atanh")
 register_broadcast_schedule("exp")
 register_broadcast_schedule("erf")
 register_broadcast_schedule("sqrt")
