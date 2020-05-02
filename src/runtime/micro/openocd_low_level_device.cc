@@ -20,8 +20,8 @@
 /*!
  * \file openocd_low_level_device.cc
  */
-#include <sstream>
 #include <iomanip>
+#include <sstream>
 
 #include "micro_common.h"
 #include "low_level_device.h"
@@ -46,7 +46,10 @@ class OpenOCDLowLevelDevice final : public LowLevelDevice {
     port_ = port;
 
     socket_.Connect(tvm::support::SockAddr(server_addr_.c_str(), port_));
-    socket_.cmd_builder() << "halt 0";
+    socket_.cmd_builder() << "reset run";
+    socket_.SendCommand();
+
+    socket_.cmd_builder() << "halt 500";
     socket_.SendCommand();
   }
 
