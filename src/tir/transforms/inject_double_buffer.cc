@@ -254,7 +254,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     // The switch variable for reading.
     PrimExpr switch_read_var;
     // The storage scope.
-    std::string scope;
+    String scope;
   };
   // Whether split loop
   int32_t split_loop_;

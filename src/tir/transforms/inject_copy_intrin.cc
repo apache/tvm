@@ -36,7 +36,7 @@ using runtime::PackedFunc;
 
 class CopyIntrinInjector : public StmtMutator {
  public:
-  CopyIntrinInjector(const std::string& pragma_key,
+  CopyIntrinInjector(const String& pragma_key,
                      const PackedFunc& flower_copy_fromto)
       : pragma_key_(attr::pragma_scope_prefix+  pragma_key),
         flower_copy_fromto_(flower_copy_fromto) {
@@ -176,7 +176,7 @@ class CopyIntrinInjector : public StmtMutator {
     return true;
   }
   // Get storage scope
-  std::string GetStorageScope(const VarNode* var) const {
+  String GetStorageScope(const VarNode* var) const {
     auto it = storage_scope_.find(var);
     if (it != storage_scope_.end()) {
       return it->second;
@@ -185,17 +185,17 @@ class CopyIntrinInjector : public StmtMutator {
     }
   }
   // pragma key
-  std::string pragma_key_;
+  String pragma_key_;
   // function to lower copy intrinsics.
   const PackedFunc& flower_copy_fromto_;
   // Storage scope
-  std::unordered_map<const VarNode*, std::string> storage_scope_;
+  std::unordered_map<const VarNode*, String> storage_scope_;
   // arith analyzer
   arith::Analyzer analyzer_;
 };
 
 Stmt InjectCopyIntrin(Stmt stmt,
-                      const std::string& pragma_key,
+                      const String& pragma_key,
                       const PackedFunc& flower_copy_fromto) {
   return CopyIntrinInjector(pragma_key, flower_copy_fromto)(std::move(stmt));
 }
@@ -203,7 +203,7 @@ Stmt InjectCopyIntrin(Stmt stmt,
 
 namespace transform {
 
-Pass InjectCopyIntrin(std::string pragma_key,
+Pass InjectCopyIntrin(String pragma_key,
                       PackedFunc flower_copy_fromto) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();

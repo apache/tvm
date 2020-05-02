@@ -76,7 +76,7 @@ class ArgBinder {
    */
   void Bind(const PrimExpr& arg,
             const PrimExpr& value,
-            const std::string& arg_name,
+            const String& arg_name,
             bool with_let = false);
   /*!
    * \brief Bind array to array
@@ -86,7 +86,7 @@ class ArgBinder {
    */
   void BindArray(const Array<PrimExpr>& arg,
                  const Array<PrimExpr>& value,
-                 const std::string& arg_name);
+                 const String& arg_name);
   /*!
    * \brief Bind symbolic buffer to another symbolic buffer
    * \param arg The argument to be binded.
@@ -96,7 +96,7 @@ class ArgBinder {
    */
   void BindBuffer(const Buffer& arg,
                   const Buffer& value,
-                  const std::string& arg_name,
+                  const String& arg_name,
                   bool fuzzy_match);
   /*!
    * \brief Bind symbolic buffer to a DLTensor handle.
@@ -110,7 +110,7 @@ class ArgBinder {
                     const PrimExpr& device_type,
                     const PrimExpr& device_id,
                     const Var& handle,
-                    const std::string& arg_name);
+                    const String& arg_name);
 
   /*! \return The defs generated in binding. */
   const std::vector<Var>& defs() const {
@@ -143,7 +143,7 @@ class ArgBinder {
   // Internal bind function
   bool Bind_(const PrimExpr& arg,
              const PrimExpr& value,
-             const std::string& arg_name,
+             const String& arg_name,
              bool with_lets);
   /*! \brief The definition map, can be uses to substitute */
   std::unordered_map<const VarNode*, PrimExpr>* def_map_;

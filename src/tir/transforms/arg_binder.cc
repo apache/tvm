@@ -32,7 +32,7 @@ namespace tir {
 
 void BinderAddAssert(arith::Analyzer* ana,
                      PrimExpr cond,
-                     const std::string& arg_name,
+                     const String& arg_name,
                      std::vector<Stmt>* asserts) {
   PrimExpr scond = ana->Simplify(cond);
   if (is_zero(scond)) {
@@ -49,7 +49,7 @@ void BinderAddAssert(arith::Analyzer* ana,
 
 bool ArgBinder::Bind_(const PrimExpr& arg,
                       const PrimExpr& value,
-                      const std::string& arg_name,
+                      const String& arg_name,
                       bool with_lets) {
   CHECK_EQ(arg.dtype(), value.dtype());
   if (const VarNode* v = arg.as<VarNode>()) {
@@ -75,14 +75,14 @@ bool ArgBinder::Bind_(const PrimExpr& arg,
 
 void ArgBinder::Bind(const PrimExpr& arg,
                      const PrimExpr& value,
-                     const std::string& arg_name,
+                     const String& arg_name,
                      bool with_let) {
   Bind_(arg, value, arg_name, with_let);
 }
 
 void ArgBinder::BindArray(const Array<PrimExpr>& arg,
                           const Array<PrimExpr>& value,
-                          const std::string& arg_name) {
+                          const String& arg_name) {
   CHECK_EQ(arg.size(), value.size())
       << "Argument " << arg_name << " array size mismatch";
   for (size_t i = 0; i < arg.size(); ++i) {
@@ -94,7 +94,7 @@ void ArgBinder::BindArray(const Array<PrimExpr>& arg,
 
 void ArgBinder::BindBuffer(const Buffer& arg,
                            const Buffer& value,
-                           const std::string& arg_name,
+                           const String& arg_name,
                            bool fuzzy_match) {
   CHECK_EQ(arg->scope, value->scope)
       << "Argument " << arg_name
@@ -163,7 +163,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
                              const PrimExpr& device_type,
                              const PrimExpr& device_id,
                              const Var& handle,
-                             const std::string& arg_name) {
+                             const String& arg_name) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = EvaluateNode::make(0);

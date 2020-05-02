@@ -39,7 +39,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::VisitStmt_;
   using IRMutatorWithAnalyzer::VisitExpr_;
 
-  IntrinInjecter(arith::Analyzer* analyzer, std::string target_name)
+  IntrinInjecter(arith::Analyzer* analyzer, String target_name)
       : IRMutatorWithAnalyzer(analyzer) {
     patterns_.push_back("tvm.intrin.rule." + target_name + ".");
     patterns_.push_back("tvm.intrin.rule.default.");
@@ -251,9 +251,9 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::VisitExpr_(op);
   }
 
-  PrimExpr ApplyPattern(const std::string& name, const PrimExpr& e) {
+  PrimExpr ApplyPattern(const String& name, const PrimExpr& e) {
     for (size_t i = 0; i < patterns_.size(); ++i) {
-      std::string& p = patterns_[i];
+      String& p = patterns_[i];
       size_t psize = p.length();
       p.resize(psize + name.length());
       name.copy(&p[0] + psize, name.length());
@@ -272,12 +272,12 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
   }
 
   // patterns
-  std::vector<std::string> patterns_;
+  std::vector<String> patterns_;
   const PackedFunc* fma_{nullptr};
   bool support_bitwise_op_{true};
 };
 
-Stmt LowerIntrinStmt(Stmt stmt, const std::string target_name) {
+Stmt LowerIntrinStmt(Stmt stmt, const String target_name) {
   arith::Analyzer analyzer;
   return IntrinInjecter(&analyzer, target_name)(std::move(stmt));
 }

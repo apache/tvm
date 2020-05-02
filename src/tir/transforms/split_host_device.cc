@@ -176,7 +176,7 @@ class HostDeviceSplitter : public StmtMutator {
  public:
   explicit HostDeviceSplitter(IRModule* device_mod,
                               Target device_target,
-                              std::string name_prefix)
+                              String name_prefix)
       : device_mod_(device_mod),
         device_target_(device_target),
         name_prefix_(name_prefix) {
@@ -200,7 +200,7 @@ class HostDeviceSplitter : public StmtMutator {
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
     os << name_prefix_ << "_kernel" << device_func_counter_++;
-    std::string kernel_symbol = os.str();
+    String kernel_symbol = os.str();
     // isolate the device function.
     VarUseDefAnalysis m;
     m.visit_thread_extent_ = false;
@@ -262,7 +262,7 @@ class HostDeviceSplitter : public StmtMutator {
   // Device target
   Target device_target_;
   // function name hint
-  std::string name_prefix_;
+  String name_prefix_;
   // Number of device functions.
   int device_func_counter_{0};
   std::unordered_map<const VarNode*, PrimExpr> handle_data_type_;
@@ -280,7 +280,7 @@ PrimFunc SplitHostDevice(PrimFunc&& func, IRModule* device_mod) {
   HostDeviceSplitter splitter(
       device_mod,
       target.value(),
-      static_cast<std::string>(global_symbol.value()));
+      static_cast<String>(global_symbol.value()));
 
   auto* n = func.CopyOnWrite();
   n->body = splitter(std::move(n->body));

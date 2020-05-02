@@ -179,7 +179,7 @@ class StorageFlattener : public StmtExprMutator {
       CHECK(it != storage_scope_.end())
           << "Cannot find storage scope of " << op->buffer;
       StorageScope skey;
-      const std::string& strkey = it->second;
+      const String& strkey = it->second;
       if (strkey.length() == 0) {
         if (curr_thread_scope_.size() != 0) {
           skey.rank = runtime::DefaultStorageRank(
@@ -541,7 +541,7 @@ class StorageFlattener : public StmtExprMutator {
   std::unordered_map<Buffer, std::vector<DimAlignInfo>,
                      ObjectHash, ObjectEqual> dim_align_;
   // Storage scope
-  std::unordered_map<const Object*, std::string> storage_scope_;
+  std::unordered_map<const Object*, String> storage_scope_;
   // The current thread scope.
   std::vector<ThreadScope> curr_thread_scope_;
   // Collects shapes.
