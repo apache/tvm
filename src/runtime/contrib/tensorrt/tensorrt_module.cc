@@ -80,9 +80,11 @@ class TensorRTModule : public runtime::ModuleNode {
         auto func = Downcast<relay::Function>(
             LoadJSON(this->serialized_subgraphs_[name]));
         auto inputs = ConvertInputs(args);
+        std::string key = GetSubgraphKey(serialized_subgraphs_[name]);
+        this->serialized_subgraphs_[name].clear();
         relay::contrib::TensorRTBuilder builder(&logger_, inputs, max_workspace_size_);
         auto engine_and_context = builder.BuildEngine(func);
-        CacheEngineToDisk(name, engine_and_context);
+        CacheEngineToDisk(key, engine_and_context);
         LOG(INFO) << "Finished building TensorRT engine for subgraph " << name;
         this->trt_engine_cache_[name] = engine_and_context;
         this->ExecuteEngine(engine_and_context, args, rv);
@@ -222,6 +224,15 @@ class TensorRTModule : public runtime::ModuleNode {
     *rv = bindings[num_bindings - num_outputs];
   }
 
+  std::string GetSubgraphKey(const std::string& serialized_subgraph) {
+    if (dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string("")).empty()) return "";
+    std::string key = std::to_string(std::hash<std::string>()(serialized_subgraph));
+    if (dmlc::GetEnv("TVM_TENSORRT_USE_FP16", false)) {
+      key += "_fp16";
+    }
+    return key;
+  }
+
   /*! \brief If TVM_TENSORRT_CACHE_DIR is set, will check that directory for
    * already built TRT engines and load into trt_engine_cache_ so they don't
    * have to be built at first inference.
@@ -230,7 +241,7 @@ class TensorRTModule : public runtime::ModuleNode {
     std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return;
     for (auto it : serialized_subgraphs_) {
-      std::string key = std::to_string(std::hash<std::string>()(it.second));
+      std::string key = GetSubgraphKey(it.second);
       std::string path = cache_dir + "/" + key + ".plan";
       // Check if engine is in the cache.
       std::ifstream infile(path, std::ios::binary);
@@ -266,10 +277,9 @@ class TensorRTModule : public runtime::ModuleNode {
    * \param name Subgraph name
    * \param engine_and_context Engine to cache
    */
-  void CacheEngineToDisk(const std::string& name, const TrtEngineAndContext& engine_and_context) {
+  void CacheEngineToDisk(const std::string& key, const TrtEngineAndContext& engine_and_context) {
     std::string cache_dir = dmlc::GetEnv("TVM_TENSORRT_CACHE_DIR", std::string(""));
     if (cache_dir.empty()) return;
-    std::string key = std::to_string(std::hash<std::string>()(serialized_subgraphs_[name]));
     std::string path = cache_dir + "/" + key + ".plan";
     LOG(INFO) << "Caching TensorRT engine to " << path;
     // Serialize engine to disk

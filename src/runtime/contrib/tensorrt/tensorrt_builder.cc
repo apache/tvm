@@ -151,6 +151,9 @@ void TensorRTBuilder::ProcessOutputs(const Expr& expr) {
     if (out_tensor->isNetworkOutput()) {
       LOG(WARNING) << output_name << " is a duplicate output.";
       out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
+    } else if (out_tensor->isNetworkInput()) {
+      LOG(WARNING) << output_name << " is also an input.";
+      out_tensor = network_->addIdentity(*out_tensor)->getOutput(0);
     }
     out_tensor->setName(output_name.c_str());
     network_output_names_.push_back(output_name);

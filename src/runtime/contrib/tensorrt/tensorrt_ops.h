@@ -178,7 +178,6 @@ class TrtOpConverter {
     return axis;
   }
 
-  // Create constant that is broadcastable against input.
   /*!
    * \brief Create constant that is broadcastable.
    * \param params Parameters for this op.
@@ -198,6 +197,40 @@ class TrtOpConverter {
                               static_cast<void*>(values), 1};
     params->trt_weights->push_back(weights);
     return params->network->addConstant(dims, weights)->getOutput(0);
+  }
+
+  /*!
+   * \brief Get pre/post padding values from padding attributes array.
+   * \param padding Padding from relay op attributes.
+   * \param padding_is_asymmetric True if both pre and post are needed for asymmetric padding.
+   * \param prepadding Prepadding value or symmetric padding values if !padding_is_asymmetric.
+   * \param postpadding Postpadding value if padding_is_asymmetric.
+   */
+  void GetPadding(const Array<IndexExpr>& padding, bool* use_asymmetric_padding,
+                  nvinfer1::DimsHW* prepadding, nvinfer1::DimsHW* postpadding) const {
+    CHECK(padding.size() == 1 || padding.size() == 2 || padding.size() == 4);
+    if (padding.size() == 4) {
+      // four int : padding width in the order of (top, left, bottom, right).
+      *prepadding = nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value,
+                                     padding[1].as<IntImmNode>()->value);
+      *postpadding = nvinfer1::DimsHW(padding[2].as<IntImmNode>()->value,
+                                      padding[3].as<IntImmNode>()->value);
+      *use_asymmetric_padding = true;
+    } else if (padding.size() == 2) {
+      // two int : bottom, right will use same padding as top, left
+      *prepadding = nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value,
+                                     padding[1].as<IntImmNode>()->value);
+      *postpadding = nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value,
+                                      padding[1].as<IntImmNode>()->value);
+      *use_asymmetric_padding = false;
+    } else {
+      // one int : same padding used on all sides
+      *prepadding = nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value,
+                                     padding[0].as<IntImmNode>()->value);
+      *postpadding = nvinfer1::DimsHW(padding[0].as<IntImmNode>()->value,
+                                      padding[0].as<IntImmNode>()->value);
+      *use_asymmetric_padding = false;
+    }
   }
 };
 
@@ -335,22 +368,14 @@ class Conv2DOpConverter : public TrtOpConverter {
         params->network->addConvolution(*input_tensor, num_outputs, kernel_size,
                                         params->inputs.at(1).weight, bias);
     CHECK(conv_layer != nullptr);
-    // CHECK_EQ(conv2d_attr->padding.size(), 2);
-    if (conv2d_attr->padding.size() == 2) {
-      const auto padding =
-          nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImmNode>()->value,
-                           conv2d_attr->padding[1].as<IntImmNode>()->value);
-      conv_layer->setPadding(padding);
-    } else if (conv2d_attr->padding.size() == 4) {
-      // (top, left, bottom, right)
-      const auto pre_padding =
-          nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImmNode>()->value,
-                           conv2d_attr->padding[1].as<IntImmNode>()->value);
-      const auto post_padding =
-          nvinfer1::DimsHW(conv2d_attr->padding[2].as<IntImmNode>()->value,
-                           conv2d_attr->padding[3].as<IntImmNode>()->value);
-      conv_layer->setPrePadding(pre_padding);
-      conv_layer->setPostPadding(post_padding);
+    nvinfer1::DimsHW prepadding, postpadding;
+    bool use_asymmetric_padding;
+    GetPadding(conv2d_attr->padding, &use_asymmetric_padding, &prepadding, &postpadding);
+    if (use_asymmetric_padding) {
+      conv_layer->setPrePadding(prepadding);
+      conv_layer->setPostPadding(postpadding);
+    } else {
+      conv_layer->setPadding(prepadding);
     }
     CHECK_EQ(conv2d_attr->strides.size(), 2);
     const auto strides =
@@ -511,23 +536,7 @@ class PoolingOpConverter : public TrtOpConverter {
                     nvinfer1::DimsHW* window_size, nvinfer1::DimsHW* strides,
                     bool* ceil_mode, bool* use_asymmetric_padding) const {
     CHECK_EQ(attrs->layout, "NCHW");
-    CHECK(attrs->padding.size() == 2 || attrs->padding.size() == 4);
-    if (attrs->padding.size() == 4) {
-      // Asymmetric padding.
-      *prepadding =
-          nvinfer1::DimsHW(attrs->padding[0].template as<IntImmNode>()->value,
-                           attrs->padding[1].template as<IntImmNode>()->value);
-      *postpadding =
-          nvinfer1::DimsHW(attrs->padding[2].template as<IntImmNode>()->value,
-                           attrs->padding[3].template as<IntImmNode>()->value);
-      *use_asymmetric_padding = true;
-    } else if (attrs->padding.size() == 2) {
-      // Symmetric padding.
-      *prepadding =
-          nvinfer1::DimsHW(attrs->padding[0].template as<IntImmNode>()->value,
-                           attrs->padding[1].template as<IntImmNode>()->value);
-      *use_asymmetric_padding = false;
-    }
+    GetPadding(attrs->padding, use_asymmetric_padding, prepadding, postpadding);
     *window_size =
         nvinfer1::DimsHW(attrs->pool_size[0].template as<IntImmNode>()->value,
                          attrs->pool_size[1].template as<IntImmNode>()->value);
@@ -786,16 +795,33 @@ class Conv2DTransposeOpConverter : public TrtOpConverter {
         *input_tensor, num_outputs, kernel_size, params->inputs.at(1).weight,
         bias);
     CHECK(deconv_layer != nullptr);
-    const auto padding =
-        nvinfer1::DimsHW(conv2d_attr->padding[0].as<IntImmNode>()->value,
-                         conv2d_attr->padding[1].as<IntImmNode>()->value);
-    deconv_layer->setPadding(padding);
+    nvinfer1::DimsHW prepadding, postpadding;
+    bool use_asymmetric_padding;
+    GetPadding(conv2d_attr->padding, &use_asymmetric_padding, &prepadding, &postpadding);
+    if (use_asymmetric_padding) {
+      deconv_layer->setPrePadding(prepadding);
+      deconv_layer->setPostPadding(postpadding);
+    } else {
+      deconv_layer->setPadding(prepadding);
+    }
     const auto strides =
         nvinfer1::DimsHW(conv2d_attr->strides[0].as<IntImmNode>()->value,
                          conv2d_attr->strides[1].as<IntImmNode>()->value);
     deconv_layer->setStride(strides);
     deconv_layer->setNbGroups(conv2d_attr->groups);
-    params->outputs.push_back(deconv_layer->getOutput(0));
+    nvinfer1::ITensor* output = deconv_layer->getOutput(0);
+    // Output padding.
+    if (conv2d_attr->output_padding.size()) {
+      GetPadding(conv2d_attr->output_padding, &use_asymmetric_padding, &prepadding, &postpadding);
+      if (prepadding.h() != 0 || prepadding.w() != 0 || postpadding.h() != 0 ||
+          postpadding.w() != 0) {
+        // Output padding for Conv2D transpose is always asymmetric and applied to post only.
+        prepadding = nvinfer1::DimsHW(0, 0);
+        auto pad_layer = params->network->addPadding(*output, prepadding, postpadding);
+        output = pad_layer->getOutput(0);
+      }
+    }
+    params->outputs.push_back(output);
   }
 };
 
@@ -844,8 +870,9 @@ class PadOpConverter : public TrtOpConverter {
     const int input_rank_with_batch =
         input->getDimensions().nbDims + (TRT_HAS_IMPLICIT_BATCH ? 1 : 0);
     CHECK_EQ(input_rank_with_batch, attrs->pad_width.size());
-    CHECK(attrs->pad_width[0][0].as<IntImmNode>()->value == 0 &&
-          attrs->pad_width[0][1].as<IntImmNode>()->value == 0)
+    CHECK(!TRT_HAS_IMPLICIT_BATCH ||
+          (attrs->pad_width[0][0].as<IntImmNode>()->value == 0 &&
+           attrs->pad_width[0][1].as<IntImmNode>()->value == 0))
         << "Cannot pad on batch dimension.";
 
     nvinfer1::DimsHW prepadding, postpadding;
