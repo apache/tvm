@@ -76,13 +76,15 @@ def get_real_image(im_height, im_width):
 def run_tvm_graph(tflite_model_buf, input_data, input_node, num_output=1, target='llvm',
                   out_names=None):
     """ Generic function to compile on relay and execute on tvm """
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
     try:
         import tflite.Model
+        tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
+    except AttributeError:
+        import tflite
+        tflite_model = tflite.Model.GetRootAsModel(tflite_model_buf, 0)
     except ImportError:
         raise ImportError("The tflite package must be installed")
-
-    # get TFLite model from buffer
-    tflite_model = tflite.Model.Model.GetRootAsModel(tflite_model_buf, 0)
 
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
