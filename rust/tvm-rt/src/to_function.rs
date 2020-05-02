@@ -26,35 +26,30 @@
 //! See the tests and examples repository for more examples.
 
 use std::{
-    collections::BTreeMap,
-    ffi::{CStr, CString},
-    mem::{self, MaybeUninit},
-    os::raw::{c_char, c_int, c_void},
-    ptr, slice, str,
-    sync::Mutex,
+    mem::{MaybeUninit},
+    os::raw::{c_int, c_void},
+    ptr, slice,
 };
 
-use anyhow::{ensure, Result};
-use lazy_static::lazy_static;
+use anyhow::{Result};
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
-use crate::{errors, Module};
 use super::Function;
 
 pub trait ToFunction<I, O>: Sized {
     type Handle;
 
-    fn into_raw(self) -> Self::Handle;
-    fn call(handle: Self::Handle, args: &[ArgValue]) -> anyhow::Result<RetValue>;
-    fn drop(handle: Self::Handle);
+    fn into_raw(self) -> *mut Self::Handle;
+    fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> anyhow::Result<RetValue>;
+    fn drop(handle: *mut Self::Handle);
 
     fn to_function(self) -> Function {
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         let resource_handle = self.into_raw();
         check_call!(ffi::TVMFuncCreateFromCFunc(
             Some(Self::tvm_callback),
-            std::mem::transmute(resource_handle),
+            resource_handle as *mut _,
             Some(Self::tvm_finalizer),
             &mut fhandle as *mut _
         ));
@@ -78,7 +73,7 @@ pub trait ToFunction<I, O>: Sized {
         let mut local_args: Vec<ArgValue> = Vec::new();
         let mut value = MaybeUninit::uninit().assume_init();
         let mut tcode = MaybeUninit::uninit().assume_init();
-        let rust_fn = std::mem::transmute::<*mut c_void, Self::Handle>(fhandle);
+        let rust_fn = fhandle as *mut Self::Handle;
         for i in 0..len {
             value = args_list[i];
             println!("{:?}", value.v_handle);
@@ -128,29 +123,60 @@ pub trait ToFunction<I, O>: Sized {
 impl<'a, 'b> ToFunction<&'a [ArgValue<'b>], RetValue> for fn(&[ArgValue]) -> Result<RetValue> {
     type Handle = for <'x, 'y> fn(&'x [ArgValue<'y>]) -> Result<RetValue>;
 
-    fn into_raw(self) -> Self::Handle {
-        self
+    fn into_raw(self) -> *mut Self::Handle {
+        self as *mut Self::Handle
     }
 
-    fn call(handle: Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
-        return handle(args);
+    fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
+        unsafe { (*handle)(args) }
     }
 
     // Function's don't need de-allocation because the pointers are into the code section of memory.
-    fn drop(_: Self::Handle) {}
+    fn drop(_: *mut Self::Handle) {}
 }
 
-impl<'a, I: for<'x> From<ArgValue<'x>>, O: Into<RetValue>, F> ToFunction<I, O> for F where F: Fn(I) -> O + 'static {
-    type Handle = *mut (dyn Fn(I) -> O + 'static);
+impl<'a, O: Into<RetValue>, F> ToFunction<(), O> for F where F: Fn() -> O + 'static {
+    type Handle = Box<dyn Fn() -> O + 'static>;
 
-    fn into_raw(self) -> Self::Handle {
-        let ptr: Box<dyn Fn(I) -> O + 'static> = Box::new(self);
-        unsafe { Box::into_raw(ptr) }
+    fn into_raw(self) -> *mut Self::Handle {
+        let ptr: Box<Self::Handle> = Box::new(Box::new(self));
+        Box::into_raw(ptr)
     }
 
-    fn call(handle: Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
-        Ok((*handle)(args[0].into()).into())
+    fn call(handle: *mut Self::Handle, _: &[ArgValue]) -> Result<RetValue> {
+        // Ideally we shouldn't need to clone, probably doesn't really matter.
+        unsafe { Ok((*handle)().into()) }
     }
 
-    fn drop(_: Self::Handle) {}
+    fn drop(_: *mut Self::Handle) {}
 }
+
+macro_rules! to_function_instance {
+    ($(($param:ident,$index:expr),)+) => {
+        impl<'a, $($param,)+ O: Into<RetValue>, F> ToFunction<($($param,)+), O> for
+        F where F: Fn($($param,)+) -> O + 'static,
+                $($param: for<'x> From<ArgValue<'x>>,)+  {
+            type Handle = Box<dyn Fn($($param,)+) -> O + 'static>;
+
+            fn into_raw(self) -> *mut Self::Handle {
+                let ptr: Box<Self::Handle> = Box::new(Box::new(self));
+                Box::into_raw(ptr)
+            }
+
+            fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
+                // Ideally we shouldn't need to clone, probably doesn't really matter.
+                let res = unsafe {
+                    (*handle)($(args[$index].clone().into(),)+)
+                };
+                Ok(res.into())
+            }
+
+            fn drop(_: *mut Self::Handle) {}
+        }
+    }
+}
+
+to_function_instance!((A, 0),);
+to_function_instance!((A, 0), (B, 1),);
+to_function_instance!((A, 0), (B, 1), (C, 2),);
+to_function_instance!((A, 0), (B, 1), (C, 2), (D, 3),);

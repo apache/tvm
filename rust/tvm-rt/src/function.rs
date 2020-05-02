@@ -29,7 +29,7 @@ use std::{
     collections::BTreeMap,
     ffi::{CStr, CString},
     mem::{self, MaybeUninit},
-    os::raw::{c_char, c_int, c_void},
+    os::raw::{c_char, c_int},
     ptr, slice, str,
     sync::Mutex,
 };

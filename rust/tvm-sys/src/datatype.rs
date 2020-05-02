@@ -34,15 +34,19 @@ use crate::ffi::{
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DataType {
-    pub code: usize,
-    pub bits: usize,
-    pub lanes: usize,
+    pub code: u8,
+    pub bits: u8,
+    pub lanes: u16,
 }
 
 impl DataType {
+    pub fn new(code: u8, bits: u8, lanes: u16) -> DataType {
+        DataType { code, bits, lanes }
+    }
+
     /// Returns the number of bytes occupied by an element of this `DataType`.
     pub fn itemsize(&self) -> usize {
-        (self.bits * self.lanes) >> 3
+        (self.bits as usize * self.lanes as usize) >> 3
     }
 
     /// Returns whether this `DataType` represents primitive type `T`.
@@ -60,15 +64,15 @@ impl DataType {
     }
 
     pub fn code(&self) -> usize {
-        self.code
+        self.code as usize
     }
 
     pub fn bits(&self) -> usize {
-        self.bits
+        self.bits as usize
     }
 
     pub fn lanes(&self) -> usize {
-        self.lanes
+        self.lanes as usize
     }
 }
 
@@ -85,19 +89,9 @@ impl<'a> From<&'a DataType> for DLDataType {
 impl From<DLDataType> for DataType {
     fn from(dtype: DLDataType) -> Self {
         Self {
-            code: dtype.code as usize,
-            bits: dtype.bits as usize,
-            lanes: dtype.lanes as usize,
-        }
-    }
-}
-
-impl DLDataType {
-    fn new(type_code: u8, bits: u8, lanes: u16) -> Self {
-        Self {
-            code: type_code,
-            bits,
-            lanes,
+            code: dtype.code,
+            bits: dtype.bits,
+            lanes: dtype.lanes,
         }
     }
 }
@@ -112,11 +106,11 @@ pub enum ParseTvmTypeError {
 
 /// Implements TVMType conversion from `&str` of general format `{dtype}{bits}x{lanes}`
 /// such as "int32", "float32" or with lane "float32x1".
-impl FromStr for DLDataType {
+impl FromStr for DataType {
     type Err = ParseTvmTypeError;
     fn from_str(type_str: &str) -> Result<Self, Self::Err> {
         if type_str == "bool" {
-            return Ok(DLDataType::new(1, 1, 1));
+            return Ok(DataType::new(1, 1, 1));
         }
 
         let mut type_lanes = type_str.split('x');
@@ -145,11 +139,11 @@ impl FromStr for DLDataType {
             _ => return Err(ParseTvmTypeError::UnknownType(type_name.to_string())),
         };
 
-        Ok(DLDataType::new(type_code, bits, lanes))
+        Ok(DataType::new(type_code, bits, lanes))
     }
 }
 
-impl std::fmt::Display for DLDataType {
+impl std::fmt::Display for DataType {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         if self.bits == 1 && self.lanes == 1 {
             return write!(f, "bool");

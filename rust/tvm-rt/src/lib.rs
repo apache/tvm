@@ -33,6 +33,9 @@
 extern crate ndarray as rust_ndarray;
 
 pub use crate as tvm_rt;
+
+
+
 pub mod object;
 pub mod string;
 
@@ -47,7 +50,7 @@ use std::{
 use anyhow::Error;
 
 pub use crate::{
-    context::{TVMContext, TVMDeviceType},
+    context::{Context, TVMDeviceType},
     errors::*,
     function::Function,
     module::Module,

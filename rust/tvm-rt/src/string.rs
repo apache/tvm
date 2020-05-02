@@ -1,7 +1,7 @@
 use std::ffi::{CString, NulError};
 use std::os::raw::c_char;
 
-use super::{IsObject, Object, ObjectPtr, ObjectRef};
+use super::{Object, ObjectPtr, ObjectRef};
 use crate as tvm_rt;
 use tvm_macros::Object;
 
@@ -18,7 +18,7 @@ pub struct StringObj {
 impl String {
     pub fn new(string: std::string::String) -> Result<String, NulError> {
         let cstring = CString::new(string)?;
-        println!("{:?}", cstring);
+
         // The string is being corrupted.
         // why is this wrong
         let length = cstring.as_bytes().len();

@@ -124,7 +124,7 @@ impl NDArray {
 
     /// Returns the type of the entries of the NDArray.
     pub fn dtype(&self) -> DataType {
-        self.as_dltensor().dtype
+        self.as_dltensor().dtype.into()
     }
 
     /// Returns the number of dimensions of the NDArray.
