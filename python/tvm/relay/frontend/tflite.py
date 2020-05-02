@@ -2524,7 +2524,7 @@ def from_tflite(model, shape_dict, dtype_dict):
     Parameters
     ----------
     model:
-        tflite.Model.Model
+        tflite.Model or tflite.Model.Model (depending on tflite version)
 
     shape_dict : dict of str to int list/tuple
         Input shapes of the model.
@@ -2541,12 +2541,18 @@ def from_tflite(model, shape_dict, dtype_dict):
         The parameter dict to be used by relay
     """
     try:
-        import tflite.Model
         import tflite.SubGraph
         import tflite.BuiltinOperator
     except ImportError:
         raise ImportError("The tflite package must be installed")
-    assert isinstance(model, tflite.Model.Model)
+
+    # TFLite.Model.Model has changed to TFLite.Model from 1.14 to 2.1
+    try:
+        import tflite
+        assert isinstance(model, tflite.Model)
+    except TypeError:
+        import tflite.Model
+        assert isinstance(model, tflite.Model.Model)
 
     # keep the same as tflite
     assert model.SubgraphsLength() == 1, "only support one subgraph (main subgraph)"
