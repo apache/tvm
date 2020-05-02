@@ -60,7 +60,7 @@ class FlexBufferType(IntEnum):
     FBT_VECTOR_BOOL = 36 # To Allow the same type of conversion of type to vector type
 
 
-class FlexBufferDecode(object):
+class FlexBufferDecoder(object):
     """
     This implements partial flexbuffer deserialization to be able
     to read custom options. It is not intended to be a general
@@ -129,9 +129,6 @@ class FlexBufferDecode(object):
         # Find keys
         keys_offset = mid_loc - byte_width * 3
         keys_end = self.indirect_jump(keys_offset, byte_width)
-        keys_byte_width = struct.unpack(\
-                "<i",
-                self.buffer[keys_offset + byte_width:keys_offset + 2 * byte_width:])[0]
         keys = self.decode_keys(keys_end, map_size, 1)
 
         # Find values
@@ -140,14 +137,15 @@ class FlexBufferDecode(object):
         return dict(zip(keys, values))
 
     def decode(self):
+        """ Decode the buffer. Decoding is paritally implemented """
         root_end = len(self.buffer) - 1
         root_byte_width = self.buffer[root_end]
         root_end -= 1
         root_packed_type = self.buffer[root_end]
         root_end -= root_byte_width
 
-        root_type = FlexBufferType(root_packed_type >> 2);
-        byte_width = 1 << BitWidth(root_packed_type & 3);
+        root_type = FlexBufferType(root_packed_type >> 2)
+        byte_width = 1 << BitWidth(root_packed_type & 3)
 
         if root_type == FlexBufferType.FBT_MAP:
             return self.decode_map(root_end, byte_width, root_byte_width)
