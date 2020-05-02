@@ -56,7 +56,6 @@ TVM_REGISTER_GLOBAL("topi.atanh")
   *rv = atanh(args[0]);
   });
 
-
 TVM_REGISTER_GLOBAL("topi.exp")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = exp(args[0]);
