@@ -15,17 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-[workspace]
-members = [
-	"common",
-	"macros",
-	"runtime",
-	"runtime/tests/test_tvm_basic",
-	"runtime/tests/test_tvm_dso",
-	"runtime/tests/test_wasm32",
-	"runtime/tests/test_nn",
-	"frontend",
-	"frontend/tests/basics",
-	"frontend/tests/callback",
-	"frontend/examples/resnet"
-]
+[package]
+name = "test-wasm32"
+version = "0.0.0"
+license = "Apache-2.0"
+authors = ["TVM Contributors"]
+
+[dependencies]
+ndarray="0.12"
+tvm-runtime = { path = "../../" }
