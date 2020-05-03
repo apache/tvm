@@ -50,7 +50,7 @@ PACKAGE_VERSION = {
     'llvm':             "v0.04",
 
     'cuda':             "v0.08",
-    'rocm':             "v0.04",
+    'rocm':             "v0.05",
     'opencl':           "v0.04",
     'mali':             "v0.06",
     'intel_graphics':   "v0.02",
