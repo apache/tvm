@@ -19,14 +19,18 @@
 
 // Load Emscripten Module, need to change path to root/lib
 const path = require("path");
-process.chdir(path.join(__dirname, "../../build"));
-var Module = require("../../build/test_module.js");
-// Bootstrap TVMruntime with emscripten module.
-const tvm_runtime = require("../../web/tvm_runtime.js");
-const tvm = tvm_runtime.create(Module);
+const fs = require("fs");
+const assert = require("assert");
+const tvmjs = require("../../dist");
+
+const wasmPath = tvmjs.wasmPath();
+const EmccWASI = require(path.join(wasmPath, "tvmjs_runtime.wasi.js"));
+const wasmSource = fs.readFileSync(path.join(wasmPath, "test_addone.wasm"));
+
+const tvm = new tvmjs.Instance(new WebAssembly.Module(wasmSource), new EmccWASI());
 
 // Load system library
-var sysLib = tvm.systemLib();
+const sysLib = tvm.systemLib();
 
 function randomArray(length, max) {
   return Array.apply(null, Array(length)).map(function() {
@@ -36,23 +40,22 @@ function randomArray(length, max) {
 
 function testAddOne() {
   // grab pre-loaded function
-  var faddOne = sysLib.getFunction("add_one");
-  var assert = require('assert');
-  tvm.assert(tvm.isPackedFunc(faddOne));
-  var n = 124;
-  var A = tvm.empty(n).copyFrom(randomArray(n, 1));
-  var B = tvm.empty(n);
+  const faddOne = sysLib.getFunction("add_one");
+  assert(tvm.isPackedFunc(faddOne));
+  const n = 124;
+  const A = tvm.empty(n).copyFrom(randomArray(n, 1));
+  const B = tvm.empty(n);
   // call the function.
   faddOne(A, B);
-  AA = A.asArray();  // retrieve values in js array
-  BB = B.asArray();  // retrieve values in js array
+  const AA = A.toArray();  // retrieve values in js array
+  const BB = B.toArray();  // retrieve values in js array
   // verify
   for (var i = 0; i < BB.length; ++i) {
     assert(Math.abs(BB[i] - (AA[i] + 1)) < 1e-5);
   }
-  faddOne.release();
+  faddOne.dispose();
 }
 
 testAddOne();
-sysLib.release();
+sysLib.dispose();
 console.log("Finish verifying test_module_load");
