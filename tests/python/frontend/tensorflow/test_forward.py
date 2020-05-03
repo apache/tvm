@@ -2662,26 +2662,25 @@ def test_forward_pow_exp():
 
 
 def test_forward_unary():
-    def _test_forward_unary(op):
+    def _test_forward_unary(op, a_min=1, a_max=5, dtype=np.float32):
         """test unary operators"""
-        dtype = np.float32
-        np_data = np.random.uniform(1, 100, size=(2, 3, 5)).astype(dtype)
+        np_data = np.random.uniform(a_min, a_max, size=(2, 3, 5)).astype(dtype)
         tf.reset_default_graph()
         with tf.Graph().as_default():
             in_data = tf.placeholder(dtype, (2, 3, 5), name="in_data")
             out = op(in_data)
             compare_tf_with_tvm([np_data], ['in_data:0'], out.name)
 
-    _test_forward_unary(tf.asin)
-    _test_forward_unary(tf.asinh)
-    _test_forward_unary(tf.acos)
-    _test_forward_unary(tf.acosh)
-    _test_forward_unary(tf.atan)
-    _test_forward_unary(tf.atanh)
-    _test_forward_unary(tf.sin)
+    _test_forward_unary(tf.acos, -1, 1)
+    _test_forward_unary(tf.asin, -1, 1)
+    _test_forward_unary(tf.atanh, -1, 1)
     _test_forward_unary(tf.sinh)
-    _test_forward_unary(tf.cos)
     _test_forward_unary(tf.cosh)
+    _test_forward_unary(tf.acosh)
+    _test_forward_unary(tf.asinh)
+    _test_forward_unary(tf.atan)
+    _test_forward_unary(tf.sin)
+    _test_forward_unary(tf.cos)
     _test_forward_unary(tf.tan)
     _test_forward_unary(tf.tanh)
     _test_forward_unary(tf.erf)
