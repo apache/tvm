@@ -126,7 +126,7 @@ def test_floormod_simplify():
     x, y = te.var("x"), te.var("y")
     ck.verify(flm(flm((x*4) + y  - 466036, 24528) - 24512,  16),
               flm((x*4) + y  + 12, 16))
-
+    ck.verify(flm(flm((x*4), 16), 8), flm(x, 2) * 4)
 
 
 def test_canonical_mixed():
