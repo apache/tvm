@@ -92,7 +92,7 @@ impl WorkspacePool {
                 break;
             }
         }
-        let ws_idx = ws_idx.ok_or(format_err!("Invalid pointer"))?;
+        let ws_idx = ws_idx.ok_or_else(|| format_err!("Invalid pointer"))?;
         self.free.push(ws_idx);
         Ok(())
     }
