@@ -64,7 +64,7 @@ impl WorkspacePool {
             .iter()
             .fold(None, |cur_ws_idx: Option<usize>, &idx| {
                 let ws_size = self.workspaces[idx].size();
-                if !ws_size >= size {
+                if ws_size < size {
                     return cur_ws_idx;
                 }
                 cur_ws_idx.or(Some(idx)).and_then(|cur_idx| {
@@ -92,9 +92,8 @@ impl WorkspacePool {
                 break;
             }
         }
-        if let Some(ws_idx) = ws_idx {
-            self.free.push(ws_idx);
-        }
+        let ws_idx = ws_idx.ok_or_else(|| format_err!("Invalid pointer"))?;
+        self.free.push(ws_idx);
         Ok(())
     }
 }
@@ -135,6 +134,5 @@ pub extern "C" fn TVMBackendFreeWorkspace(
             Ok(()) => 0,
             Err(_) => -1,
         }) as c_int
-    });
-    0
+    })
 }
