@@ -26,6 +26,7 @@
 
 #include <tvm/relay/dataflow_pattern.h>
 #include <unordered_set>
+#include <utility>
 
 namespace tvm {
 namespace relay {

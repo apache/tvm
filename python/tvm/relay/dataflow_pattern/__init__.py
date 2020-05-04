@@ -16,13 +16,13 @@
 # under the License.
 """The Relay Pattern Language and tooling."""
 from tvm.relay import Expr
+import tvm._ffi
 from ...ir.base import Node
 from ...ir import make_node
 from ...runtime import Object
 from ... import _ffi as tvm_ffi
 from ..op import get
 from . import _ffi as ffi
-import tvm._ffi
 
 
 def register_df_node(type_key=None):

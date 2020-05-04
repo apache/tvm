@@ -21,8 +21,8 @@
  * \file src/relay/ir/indexed_graph.h
  * \brief A pattern matcher for matching dataflow properties.
  */
-#ifndef TVM_RELAY_INDEXED_GRAPH_H_
-#define TVM_RELAY_INDEXED_GRAPH_H_
+#ifndef TVM_RELAY_IR_INDEXED_GRAPH_H_
+#define TVM_RELAY_IR_INDEXED_GRAPH_H_
 
 #include <tvm/relay/dataflow_pattern.h>
 #include <memory>
@@ -134,4 +134,4 @@ IndexedGraph<DFPattern> CreateIndexedGraph(const DFPattern& pattern);
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_INDEXED_GRAPH_H_
+#endif  // TVM_RELAY_IR_INDEXED_GRAPH_H_
