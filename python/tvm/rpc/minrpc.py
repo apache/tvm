@@ -52,7 +52,7 @@ def with_minrpc(compile_func,
 
     Parameters
     ----------
-    compile_func : function
+    compile_func : Union[str, Callable[[str, str, Optional[str]], None]]
         The compilation function to decorate.
 
     server : str

@@ -18,6 +18,7 @@ import tvm
 from tvm import te
 import tvm.testing
 import os
+import stat
 import logging
 import time
 import multiprocessing
@@ -129,7 +130,7 @@ def test_rpc_echo():
     server = rpc.Server("localhost")
     client = rpc.connect(
         server.host, server.port,
-        session_constructor=["rpc.PopenSession",
+        session_constructor_args=["rpc.PopenSession",
                              open(minrpc_exec, "rb").read()])
     check(client)
 
@@ -185,6 +186,10 @@ def test_rpc_remote_module():
         f = tvm.build(s, [A, B], "llvm --system-lib", name="myadd")
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, rpc.with_minrpc("g++"))
+
+        with pytest.raises(RuntimeError):
+            rpc.PopenSession("filenotexist")
+
         # statrt the minrpc session.
         remote = tvm.rpc.PopenSession(path_minrpc)
         ctx = remote.cpu(0)
@@ -194,6 +199,12 @@ def test_rpc_remote_module():
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
         cost = time_f(a, b).mean
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+        # change to not executable
+        os.chmod(path_minrpc, stat.S_IRUSR)
+        with pytest.raises(RuntimeError):
+            rpc.PopenSession(path_minrpc)
+
 
     def check_remote_link_cl(remote):
         """Test function to run remote code such as cl
@@ -261,7 +272,7 @@ def test_rpc_return_func():
     assert fadd(12) == 22
 
 
-def test_rpc_session_constructor():
+def test_rpc_session_constructor_args():
     # start server
     server0 = rpc.Server("localhost", key="x0")
     server1 = rpc.Server("localhost", key="x1")
@@ -270,7 +281,7 @@ def test_rpc_session_constructor():
         # use server0 as proxy to connect to server1
         client = rpc.connect(
             server0.host, server0.port, key="x0",
-            session_constructor=[
+            session_constructor_args=[
                 "rpc.Connect", server1.host, server1.port, "x1"])
 
         fecho = client.get_function("testing.echo")
@@ -286,7 +297,7 @@ def test_rpc_session_constructor():
         with pytest.raises(tvm.error.RPCError):
             client = rpc.connect(
                 server0.host, server0.port, key="x0",
-                session_constructor=["rpc.NonExistingConstructor"])
+                session_constructor_args=["rpc.NonExistingConstructor"])
 
     check_multi_hop()
     check_error_handling()
@@ -425,7 +436,7 @@ def test_rpc_tracker_request():
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     test_rpc_echo()
-    test_rpc_session_constructor()
+    test_rpc_session_constructor_args()
     test_rpc_return_ndarray()
     test_rpc_return_func()
     test_bigendian_rpc()

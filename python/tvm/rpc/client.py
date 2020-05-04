@@ -210,10 +210,14 @@ def _popen_session(binary):
         path_exec = temp.relpath("server.minrpc")
         with open(path_exec, "wb") as outfile:
             outfile.write(binary)
-        os.chmod(path_exec, stat.S_IXUSR)
+        os.chmod(path_exec, stat.S_IXUSR | stat.S_IRUSR)
         path_exec = os.path.abspath(path_exec)
     else:
         path_exec = os.path.abspath(binary)
+        if not os.path.isfile(path_exec):
+            raise RuntimeError(f"{path_exec} does not exist.")
+        if not os.access(path_exec, os.X_OK):
+            raise RuntimeError(f"{path_exec} is not executable.")
 
     sess = _ffi_api.CreatePipeClient(path_exec)
     return sess
@@ -402,7 +406,7 @@ class TrackerSession(object):
                 key, max_retry, str(last_err)))
 
 
-def connect(url, port, key="", session_timeout=0, session_constructor=None):
+def connect(url, port, key="", session_timeout=0, session_constructor_args=None):
     """Connect to RPC Server
 
     Parameters
@@ -421,8 +425,10 @@ def connect(url, port, key="", session_timeout=0, session_constructor=None):
         the connection when duration is longer than this value.
         When duration is zero, it means the request must always be kept alive.
 
-    session_constructor: List
+    session_constructor_args: List
         List of additional arguments to passed as the remote session constructor.
+        The first element of the list is always a string specifying the name of
+        the session constructor, the following args are the positional args to that function.
 
     Returns
     -------
@@ -445,17 +451,17 @@ def connect(url, port, key="", session_timeout=0, session_constructor=None):
 
         client_via_proxy = rpc.connect(
             proxy_server_url, proxy_server_port, proxy_server_key,
-            session_constructor=[
+            session_constructor_args=[
                 "rpc.Connect", internal_url, internal_port, internal_key])
 
     """
     try:
         if session_timeout:
             key += " -timeout=%s" % str(session_timeout)
-        session_constructor = session_constructor if session_constructor else []
-        if not isinstance(session_constructor, (list, tuple)):
+        session_constructor_args = session_constructor_args if session_constructor_args else []
+        if not isinstance(session_constructor_args, (list, tuple)):
             raise TypeError("Expect the session constructor to be a list or tuple")
-        sess = _ffi_api.Connect(url, port, key, *session_constructor)
+        sess = _ffi_api.Connect(url, port, key, *session_constructor_args)
     except NameError:
         raise RuntimeError("Please compile with USE_RPC=1")
     return RPCSession(sess)

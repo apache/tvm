@@ -173,12 +173,12 @@ class MinRPCServer {
     this->Read(&ctx);
     this->Read(&type_hint);
 
-    char* data_ptr;
+    uint8_t* data_ptr;
     int call_ecode = 0;
     if (ctx.device_type == kDLCPU) {
-      data_ptr = reinterpret_cast<char*>(handle) + offset;
+      data_ptr = reinterpret_cast<uint8_t*>(handle) + offset;
     } else {
-      data_ptr = this->ArenaAlloc<char>(num_bytes);
+      data_ptr = this->ArenaAlloc<uint8_t>(num_bytes);
       call_ecode = TVMDeviceCopyDataFromTo(
               reinterpret_cast<void*>(handle), offset,
               data_ptr, 0, num_bytes,
@@ -211,10 +211,10 @@ class MinRPCServer {
     int call_ecode = 0;
 
     if (ctx.device_type == kDLCPU) {
-       char* dptr = reinterpret_cast<char*>(handle) + offset;
-       this->ReadArray(dptr, num_bytes);
+      uint8_t* dptr = reinterpret_cast<uint8_t*>(handle) + offset;
+      this->ReadArray(dptr, num_bytes);
     } else {
-      char* temp_data = this->ArenaAlloc<char>(num_bytes);
+      uint8_t* temp_data = this->ArenaAlloc<uint8_t>(num_bytes);
       this->ReadArray(temp_data, num_bytes);
 
       call_ecode = TVMDeviceCopyDataFromTo(
@@ -551,7 +551,7 @@ class MinRPCServer {
   }
 
   void ReadRawBytes(void* data, size_t size) {
-    char* buf = reinterpret_cast<char*>(data);
+    uint8_t* buf = reinterpret_cast<uint8_t*>(data);
     size_t ndone = 0;
     while (ndone <  size) {
       ssize_t ret = io_.PosixRead(buf, size - ndone);
@@ -572,7 +572,7 @@ class MinRPCServer {
   }
 
   void WriteRawBytes(const void* data, size_t size) {
-    const char *buf = reinterpret_cast<const char*>(data);
+    const uint8_t *buf = reinterpret_cast<const uint8_t*>(data);
     size_t ndone = 0;
     while (ndone <  size) {
       ssize_t ret = io_.PosixWrite(buf, size - ndone);

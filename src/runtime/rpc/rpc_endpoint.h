@@ -93,13 +93,13 @@ class RPCEndpoint {
    *
    *  If no session constructor arguments is passed, LocalSession will be used in the remote.
    *  Otherwise the remote serving session will be constructed using the arguments
-   *  specified in the session_constructor.
+   *  specified in the session_constructor_args.
    *
    *  The construction rule can be summarized as follows:
    *
    * \code
    *
-   *  auto args = session_constructor;
+   *  auto args = session_constructor_args;
    *  int n = args.size();
    *  if (n != 0) {
    *    std::string constructor = args[0];
@@ -110,9 +110,9 @@ class RPCEndpoint {
    *  }
    * \endcode
    *
-   * \param session_constructor Optional sequence of the remote sesssion constructor.
+   * \param session_constructor_args Optional sequence of the remote sesssion constructor.
    */
-  void InitRemoteSession(TVMArgs session_constructor);
+  void InitRemoteSession(TVMArgs session_constructor_args);
 
   /*!
    * \brief Call into remote function
