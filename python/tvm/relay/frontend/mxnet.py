@@ -701,6 +701,21 @@ def _mx_reverse(inputs, attrs):
     return _op.reverse(inputs[0], **new_attrs)
 
 
+def _mx_sequence_reverse(inputs, attrs):
+    new_attrs = {}
+    use_seq_lengths = attrs.get_bool("use_sequence_length")
+    if not use_seq_lengths:
+        assert len(inputs) == 1
+        new_attrs["axis"] = attrs.get_int("axis")
+        return _op.reverse(inputs[0], **new_attrs)
+
+    assert len(inputs) == 2
+    new_attrs["seq_axis"] = attrs.get_int("axis")
+    # MXNet assumes batch_axis as 1.
+    new_attrs["batch_axis"] = 1
+    return _op.reverse_sequence(inputs[0], inputs[1], **new_attrs)
+
+
 def _mx_roi_align(inputs, attrs):
     new_attrs = {}
     new_attrs["pooled_size"] = attrs.get_int_tuple("pooled_size")
@@ -1858,6 +1873,7 @@ _convert_map = {
     "Pad"           : _mx_pad,
     "take"          : _mx_take,
     "reverse"       : _mx_reverse,
+    "SequenceReverse"  : _mx_sequence_reverse,
     "squeeze"       : _mx_squeeze,
     "broadcast_axis": _mx_broadcast_axis,
     "BlockGrad"     : _mx_BlockGrad,
