@@ -204,6 +204,41 @@ class JSONGraphNode {
   uint32_t GetNumOutput() const { return num_outputs_; }
 
   /*!
+   * \brief Return the input entries.
+   *
+   * \return The input entries.
+   */
+  std::vector<JSONGraphNodeEntry> GetInputs() const { return inputs_; }
+
+  /*!
+   * \brief Return the op type.
+   *
+   * \return The op type.
+   */
+  std::string GetOpType() const { return op_type_; }
+
+  /*!
+   * \brief Return the op name.
+   *
+   * \return The op name.
+   */
+  std::string GetOpName() const { return name_; }
+
+  /*!
+   * \brief Return the op output shapes.
+   *
+   * \return The shapes.
+   */
+  std::vector<std::vector<int64_t>> GetOpShape() const { return shape_; }
+
+  /*!
+   * \brief Return the op types.
+   *
+   * \return The types.
+   */
+  std::vector<DLDataType> GetOpDataType() const { return dtype_; }
+
+  /*!
    * \brief Set the number of outputs of the node.
    *
    * \param num_outputs The number of output.

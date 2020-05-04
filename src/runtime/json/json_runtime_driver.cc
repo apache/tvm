@@ -59,7 +59,7 @@ class JSONRuntimeDriver : public ModuleNode {
     Deserialize();
   }
 
-  const char* type_key() const { return "JSONRuntime"; }
+  const char* type_key() const { return "jsonruntime"; }
 
   /*!
    * \brief Get a packed function.

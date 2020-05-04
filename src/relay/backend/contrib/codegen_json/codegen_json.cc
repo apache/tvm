@@ -127,8 +127,15 @@ class OpAttrExtractor : public AttrVisitor {
       SetNodeAttr(key, attr);
     } else if (!(*value).defined()) {  // Skip NullValue
       SetNodeAttr(key, std::vector<std::string>{""});
+    } else if (const auto* im = (*value).as<IntImmNode>()) {
+      SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
+    } else if (const auto* fm = (*value).as<FloatImmNode>()) {
+      SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
+    } else if (const auto* str = (*value).as<StringObj>()) {
+      String s = GetRef<String>(str);
+      SetNodeAttr(key, std::vector<std::string>{s.operator std::string()});
     } else {
-      LOG(FATAL) << "Not yet supprted type: " << (*value)->GetTypeKey();
+      LOG(FATAL) << "Not yet supprted type: " << (*value)->GetTypeKey() << ": " << *value;
     }
   }
 
