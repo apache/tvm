@@ -860,6 +860,7 @@ SplitModConst(SplitExpr lhs, int64_t cval, DivMode div_mode) {
           lhs->upper_factor != SplitExprNode::kPosInf) {
         auto updated = ToSplitExpr(Mutate(ModImpl(
             lhs->index, make_const(lhs.type(), new_upper_factor), div_mode)));
+        updated.CopyOnWrite()->scale = lhs->scale;
         // re-apply the lower_factor
         if (lhs->lower_factor != 1) {
           return SplitDivConst(updated, lhs->lower_factor, div_mode);
