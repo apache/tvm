@@ -27,6 +27,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/transform.h>
 #include <stack>
+#include "indexed_graph.h"
 
 namespace tvm {
 namespace relay {

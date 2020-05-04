@@ -22,6 +22,7 @@ from ...runtime import Object
 from ... import _ffi as tvm_ffi
 from ..op import get
 from . import _ffi as ffi
+import tvm._ffi
 
 
 def register_df_node(type_key=None):
@@ -33,9 +34,9 @@ def register_df_node(type_key=None):
         The type key of the node.
     """
     if not isinstance(type_key, str):
-        return tvm_ffi.register_object(
+        return tvm._ffi.register_object(
             "relay.dataflow_pattern." + type_key.__name__)(type_key)
-    return tvm_ffi.register_object(type_key)
+    return tvm._ffi.register_object(type_key)
 
 
 class DFPattern(Node):
