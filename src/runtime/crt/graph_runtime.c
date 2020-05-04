@@ -672,6 +672,7 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
       pool_entry_count = sid + 1;
     }
     pool_entry[sid].size = MAX(pool_entry[sid].size, bytes);
+    pool_entry[sid].bits = MAX(pool_entry[sid].bits, t.bits);
     pool_entry[sid].device_type = device_type;
   }
 
@@ -682,8 +683,23 @@ void TVMGraphRuntime_SetupStorage(TVMGraphRuntime * runtime) {
     TVMGraphRuntimePoolEntry pit = pool_entry[idx];
     int64_t shape[TVM_CRT_MAX_NDIM] = {0, };
     TVMContext ctx = runtime->ctxs[0];
-    DLDataType dtype = {kDLFloat, 32, 1};
-    shape[0] = (pit.size + 3) / 4;
+    DLDataType dtype;
+    if (pit.bits == 8) {
+      dtype.code = kDLInt;
+      dtype.bits = 8;
+      dtype.lanes = 1;
+      shape[0] = pit.size;
+    }  else if (pit.bits == 16) {
+      dtype.code = kDLInt;
+      dtype.bits = 16;
+      dtype.lanes = 1;
+      shape[0] = (pit.size + 1) / 2;
+    }  else {
+      dtype.code = kDLFloat;
+      dtype.bits = 32;
+      dtype.lanes = 1;
+      shape[0] = (pit.size + 3) / 4;
+    }
     runtime->storage_pool[runtime->storage_pool_count] = TVMNDArray_Empty(1, shape, dtype, ctx);
     CHECK_NE(runtime->storage_pool[runtime->storage_pool_count].dl_tensor.data, 0,
              "fail to create storage_pool with idx=%d\n", idx);
