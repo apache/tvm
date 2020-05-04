@@ -70,9 +70,16 @@ def with_minrpc(compile_func,
     runtime_path = libinfo.find_lib_path(
         [runtime, runtime + ".so", runtime + ".dylib"])[0]
 
+    runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
+    options = ["-std=c++14"]
+    # Make sure the rpath to the libtvm is set so we can do local tests.
+    # Note that however, this approach won't work on remote.
+    # Always recommend to to link statically.
+    options += ["-Wl,-rpath=" + runtime_dir]
+    options += ["-I" + path for path in libinfo.find_include_path()]
     fcompile = cc.cross_compiler(
         compile_func,
-        options=["-std=c++14"] + ["-I" + path for path in libinfo.find_include_path()],
+        options=options,
         add_files=[server_path, runtime_path])
     fcompile.__name__ = "with_minrpc"
     fcompile.need_system_lib = True
