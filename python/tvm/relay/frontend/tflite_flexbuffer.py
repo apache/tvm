@@ -137,7 +137,7 @@ class FlexBufferDecoder(object):
         return dict(zip(keys, values))
 
     def decode(self):
-        """ Decode the buffer. Decoding is paritally implemented """
+        """ Decode the buffer. Decoding is partially implemented """
         root_end = len(self.buffer) - 1
         root_byte_width = self.buffer[root_end]
         root_end -= 1

@@ -1767,9 +1767,12 @@ def test_detection_postprocess():
         # Check bounding box co-ords
         tvm.testing.assert_allclose(np.squeeze(tvm_output[0][0][i]), np.squeeze(tflite_output[0][0][i]),
                                     rtol=1e-5, atol=1e-5)
+
         # Check the class
-        tvm.testing.assert_allclose(np.squeeze(tvm_output[1][0][i]), np.squeeze(tflite_output[1][0][i]),
-                                    rtol=1e-5, atol=1e-5)
+        # Stricter check to ensure class remains same
+        np.testing.assert_equal(np.squeeze(tvm_output[1][0][i]),
+                                np.squeeze(tflite_output[1][0][i]))
+
         # Check the score
         tvm.testing.assert_allclose(np.squeeze(tvm_output[2][0][i]), np.squeeze(tflite_output[2][0][i]),
                                     rtol=1e-5, atol=1e-5)
@@ -1958,7 +1961,7 @@ def test_forward_qnn_mobilenet_v3_net():
 
 
 #######################################################################
-# SSD Mobilenet
+# Quantized SSD Mobilenet
 # -------------
 
 def test_forward_qnn_coco_ssd_mobilenet_v1():
