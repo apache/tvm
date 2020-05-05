@@ -98,6 +98,9 @@ void LocalSession::CopyToRemote(void* from,
       from, from_offset,
       to, to_offset,
       nbytes, cpu_ctx, ctx_to, type_hint, nullptr);
+  // Copy can happen asynchrously
+  // synchronize to make sure that copy is completed
+  this->GetDeviceAPI(ctx_to)->StreamSync(ctx_to, nullptr);
 }
 
 void LocalSession::CopyFromRemote(void* from,
@@ -115,6 +118,9 @@ void LocalSession::CopyFromRemote(void* from,
       from, from_offset,
       to, to_offset,
       nbytes, ctx_from, cpu_ctx, type_hint, nullptr);
+  // Copy can happen asynchrously
+  // synchronize to make sure that copy is completed
+  this->GetDeviceAPI(ctx_from)->StreamSync(ctx_from, nullptr);
 }
 
 void LocalSession::FreeHandle(void* handle, int type_code) {
