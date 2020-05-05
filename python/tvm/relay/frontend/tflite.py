@@ -1332,9 +1332,17 @@ class OperatorConverter(object):
         # Weight should have only 2 dimensions(TFLite convention)
         assert len(weight_tensor_shape) == 2, "Weight should be only 2-dim"
 
+        # Input shape: [i_batch_size, ..., n_inputs]
+        # Filter shape: [n_inputs, n_units]
+        #
+        # As we will transform Fully_Connected Input to Dense Op inputs as below
+        # Dense expected Input shape: [batch_size, n_units]
+        # Dense expected Weight shape: [out_dim, n_units]
+        # Dense output shape: [batch_size, out_dim]
+        # So it is evident that input shape: [batch_size = input_size / n_units, n_units]
         input_size = 1
-        for s in range(0, len(input_tensor_shape)):
-            input_size *= input_tensor_shape[s]
+        for _, shape in enumerate(input_tensor_shape):
+            input_size *= shape
 
         # First get the batch size
         batch_size = int(input_size / weight_tensor_shape[1])
