@@ -184,6 +184,11 @@ class MinRPCServer {
               data_ptr, 0, num_bytes,
               ctx, DLContext{kDLCPU, 0},
               type_hint, nullptr);
+      // need sync to make sure that the copy is completed.
+      if (call_ecode == 0) {
+        call_ecode = TVMSynchronize(
+            ctx.device_type, ctx.device_id, nullptr);
+      }
     }
 
     if (call_ecode == 0) {
@@ -223,6 +228,11 @@ class MinRPCServer {
               num_bytes,
               DLContext{kDLCPU, 0}, ctx,
               type_hint, nullptr);
+      // need sync to make sure that the copy is completed.
+      if (call_ecode == 0) {
+        call_ecode = TVMSynchronize(
+            ctx.device_type, ctx.device_id, nullptr);
+      }
     }
 
     if (call_ecode == 0) {
