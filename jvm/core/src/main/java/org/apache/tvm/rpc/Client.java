@@ -29,7 +29,7 @@ public class Client {
    * @return The connected session.
    */
   public static RPCSession connect(String url, int port, String key) {
-    Function doConnect = RPC.getApi("_Connect");
+    Function doConnect = RPC.getApi("Connect");
     if (doConnect == null) {
       throw new RuntimeException("Please compile with USE_RPC=1");
     }

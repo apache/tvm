@@ -23,6 +23,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <utility>
 #include "rpc_session.h"
 
 namespace tvm {
@@ -31,20 +32,24 @@ namespace runtime {
 class RPCDeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(TVMContext ctx) final {
-    GetSess(ctx)->CallRemote(
-        RPCCode::kDevSetDevice, ctx);
+    auto remote_ctx = RemoveSessMask(ctx);
+    GetSess(ctx)->GetDeviceAPI(remote_ctx)->SetDevice(remote_ctx);
   }
+
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final {
-    *rv = GetSess(ctx)->CallRemote(
-        RPCCode::kDevGetAttr, ctx, static_cast<int>(kind));
+    auto remote_ctx = RemoveSessMask(ctx);
+    GetSess(ctx)->GetDeviceAPI(remote_ctx)->GetAttr(remote_ctx, kind, rv);
   }
+
   void* AllocDataSpace(TVMContext ctx,
                        size_t nbytes,
                        size_t alignment,
                        DLDataType type_hint) final {
     auto sess = GetSess(ctx);
-    void *data = sess->CallRemote(
-            RPCCode::kDevAllocData, ctx, nbytes, alignment, type_hint);
+    auto remote_ctx = RemoveSessMask(ctx);
+    void *data = sess->GetDeviceAPI(remote_ctx)->AllocDataSpace(
+        remote_ctx, nbytes, alignment, type_hint);
+
     RemoteSpace* space = new RemoteSpace();
     space->data = data;
     space->sess = std::move(sess);
@@ -52,9 +57,10 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
   void FreeDataSpace(TVMContext ctx, void* ptr) final {
     RemoteSpace* space = static_cast<RemoteSpace*>(ptr);
+    auto remote_ctx = RemoveSessMask(ctx);
     try {
-      GetSess(ctx)->CallRemote(
-          RPCCode::kDevFreeData, ctx, space->data);
+      GetSess(ctx)->GetDeviceAPI(remote_ctx)->FreeDataSpace(
+          remote_ctx, space->data);
     } catch (const dmlc::Error& e) {
       // fault tolerance to remote close.
     }
@@ -75,29 +81,35 @@ class RPCDeviceAPI final : public DeviceAPI {
         to_dev_type > kRPCSessMask) {
       CHECK(ctx_from.device_type == ctx_to.device_type)
           << "Cannot copy across two different remote session";
-      GetSess(ctx_from)->CallRemote(
-          RPCCode::kCopyAmongRemote,
-          static_cast<const RemoteSpace*>(from)->data, from_offset,
-          static_cast<const RemoteSpace*>(to)->data, to_offset,
-          size,  ctx_from, ctx_to, type_hint, stream);
+      auto remote_ctx_from = RemoveSessMask(ctx_from);
+      auto remote_ctx_to = RemoveSessMask(ctx_to);
+      auto remote_ctx = remote_ctx_from;
+      if (remote_ctx.device_type == kDLCPU) remote_ctx = remote_ctx_to;
+      GetSess(ctx_from)->GetDeviceAPI(remote_ctx)
+          ->CopyDataFromTo(static_cast<const RemoteSpace*>(from)->data, from_offset,
+                           static_cast<const RemoteSpace*>(to)->data, to_offset,
+                           size, remote_ctx_from, remote_ctx_to, type_hint, stream);
     } else if (from_dev_type > kRPCSessMask &&
                to_dev_type == kDLCPU) {
+      auto remote_ctx_from = RemoveSessMask(ctx_from);
       GetSess(ctx_from)->CopyFromRemote(
           static_cast<const RemoteSpace*>(from)->data, from_offset,
-          to, to_offset, size, ctx_from, type_hint);
+          to, to_offset, size, remote_ctx_from, type_hint);
     } else if (from_dev_type == kDLCPU &&
                to_dev_type > kRPCSessMask) {
+      auto remote_ctx_to = RemoveSessMask(ctx_to);
       GetSess(ctx_to)->CopyToRemote(
-          (void*)from, from_offset,  // NOLINT(*)
+          const_cast<void*>(from), from_offset,
           static_cast<const RemoteSpace*>(to)->data, to_offset,
-          size, ctx_to, type_hint);
+          size, remote_ctx_to, type_hint);
     } else {
       LOG(FATAL) << "expect copy from/to remote or between remote";
     }
   }
+
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
-    GetSess(ctx)->CallRemote(
-        RPCCode::kDevStreamSync, ctx, stream);
+    auto remote_ctx = RemoveSessMask(ctx);
+    GetSess(ctx)->GetDeviceAPI(remote_ctx)->StreamSync(ctx, stream);
   }
 
  private:
@@ -106,6 +118,11 @@ class RPCDeviceAPI final : public DeviceAPI {
     CHECK_GE(dev_type, kRPCSessMask);
     int tbl_index = dev_type / kRPCSessMask -  1;
     return RPCSession::Get(tbl_index);
+  }
+
+  static TVMContext RemoveSessMask(TVMContext ctx) {
+    ctx.device_type = static_cast<DLDeviceType>(ctx.device_type % kRPCSessMask);
+    return ctx;
   }
 };
 
