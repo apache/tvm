@@ -149,7 +149,7 @@ class RingBuffer {
     bytes_available_ += size;
   }
   /*!
-   * \brief Writen data into the buffer by give it a non-blocking callback function.
+   * \brief Written data into the buffer by give it a non-blocking callback function.
    *
    * \param frecv A receive function handle
    * \param max_nbytes Maximum number of bytes can write.
@@ -180,9 +180,9 @@ class RingBuffer {
  private:
   // buffer head
   size_t head_ptr_{0};
-  // number of bytes in the buffer.
+  // number of bytes occupied in the buffer.
   size_t bytes_available_{0};
-  // The internald ata ring.
+  // The internal data ring.
   std::vector<char> ring_;
 };
 }  // namespace support
