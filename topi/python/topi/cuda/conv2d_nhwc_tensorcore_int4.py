@@ -24,6 +24,7 @@ from tvm import autotvm
 from ..util import get_const_tuple, traverse_inline, simplify
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
+from topi.cuda.injective import schedule_injective_from_existing
 # from .tensor_intrin import intrin_wmma_load_matrix_A
 # from .tensor_intrin import intrin_wmma_load_matrix_W
 # from .tensor_intrin import intrin_wmma_store_matrix
@@ -65,7 +66,7 @@ def intrin_wmma_gemm():
     n = m = 8
     l = 32
     A = te.placeholder((n, l), name='A', dtype='int4')
-    B = te.placeholder((n, l), name='B', dtype='int4')
+    B = te.placeholder((m, l), name='B', dtype='int4')
     k = te.reduce_axis((0, l), name="k")
     C = te.compute((n, n),
                     lambda ii, jj:
@@ -135,15 +136,14 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
     wmma_n = wmma_m = 8
     wmma_k = 32
 
-    batch, in_height, in_width, in_channels, wmma_m, wmma_k = get_const_tuple(Input.shape)
+    batch, in_height, in_width, in_channels= get_const_tuple(Input.shape)
     if in_dtype == 'int4':
-        kernel_h, kernel_w, _, num_filter, wmma_n, wmma_k  = get_const_tuple(Filter.shape)
+        kernel_h, kernel_w, num_filter, _ = get_const_tuple(Filter.shape)
     else:
         kernel_h, kernel_w, _, num_filter = get_const_tuple(Filter.shape)
 
     if in_dtype == 'int4':
-        pass
-        # assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
+        assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
     else:
         assert (batch % 16 == 0 and in_channels % 16 == 0 and num_filter % 16 == 0) or \
                (batch % 8 == 0 and in_channels % 16 == 0 and num_filter % 32 == 0) or \
@@ -164,61 +164,69 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
     pad_after = [0, pad_down, pad_right, 0]
     # PaddedInput = pad(Input, pad_before, pad_after, name="PaddedInput")
     # Input feature map: (N, H, W, IC, n, ic)
-    data_shape = (batch,
+    data_shape = (batch // wmma_m,
                 in_height,
                 in_width,
-                in_channels,
+                in_channels // wmma_k,
                 wmma_m,
                 wmma_k)
     # Kernel: (H, W, IC, OC, ic, oc)
     kernel_shape = (kernel_h,
                     kernel_w,
-                    in_channels,
-                    out_channels,
+                    in_channels // wmma_k,
+                    out_channels // wmma_n,
                     wmma_n,
                     wmma_k)
     output_shape = (batch,
                     out_height,
                     out_width,
-                    out_channels,
-                    wmma_m,
-                    wmma_n)   
+                    out_channels)   
     # rc = te.reduce_axis((0, in_channel), name='rc')
     # ry = te.reduce_axis((0, kernel_h), name='ry')
     # rx = te.reduce_axis((0, kernel_w), name='rx')
     # Reduction axes
     kh = te.reduce_axis((0, kernel_h), name='kh')
     kw = te.reduce_axis((0, kernel_w), name='kw')
-    ic = te.reduce_axis((0, in_channels), name='ic')
+    ic = te.reduce_axis((0, in_channels // wmma_k), name='ic')
     ii = te.reduce_axis((0, wmma_k), name='ii')
     # Algorithm
     # A = te.placeholder(data_shape, name='A', dtype="int4")
     # W = te.placeholder(kernel_shape, name='W', dtype="int4")
-    Apad = te.compute(
-        (batch, in_height + 2 * padding, in_width + 2 * padding, in_channels, wmma_m,
+    A_transpose = te.compute(data_shape, 
+        lambda n, h, w, i, nn, ii: Input[n * wmma_m + nn, h, w, i * wmma_k + ii]
+    )
+    Filter_transpose = te.compute(kernel_shape, 
+        lambda kh, kw, i, o, oo, ii: Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii]
+    )
+    Apad_transpose = te.compute(
+        (batch // wmma_m, in_height + 2 * padding, in_width + 2 * padding, in_channels // wmma_k, wmma_m,
         wmma_k),
         lambda n, h, w, i, nn, ii: tvm.tir.if_then_else(
             tvm.tir.all(h >= padding, h - padding < in_height,
                     w >= padding, w - padding < in_width),
-            Input[n, h - padding, w - padding, i, nn, ii], tvm.tir.const(0., "int4")),
+            A_transpose[n, h - padding, w - padding, i, nn, ii], tvm.tir.const(0., "int4")),
         name='Apad')
-    Conv = te.compute(output_shape,
+    Conv = te.compute((batch // wmma_m, out_height, out_width, out_channels // wmma_n, wmma_m, wmma_n),
                     lambda n, h, w, o, nn, oo: te.sum(
-                        Apad[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("int32") *
-                        Filter[kh, kw, ic, o, oo, ii].astype("int32"),
+                        Apad_transpose[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("int32") *
+                        Filter_transpose[kh, kw, ic, o, oo, ii].astype("int32"),
                         axis=[ic, kh, kw, ii]),
-                    name="Conv", tag="conv2d_nhwc_tensorcore_int4")
+                    name="Conv")
+    Out = te.compute(output_shape,
+                    lambda n, h, w, o: Conv[n // wmma_m, h, w, o // wmma_n, n % wmma_m, o % wmma_n],
+                    name="Out", tag="conv2d_nhwc_tensorcore_int4")
+    return Out
 
-    return Conv
 
-
-def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Conv):
+def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     """Schedule tensorcore template"""
+    Conv = s[Out].op.input_tensors[0]
     ic, kh, kw, ii = s[Conv].op.reduce_axis
     out_dtype = Conv.dtype
     # trans_paddata, kernel = s[Conv].op.input_tensors
     Apad, kernel = s[Conv].op.input_tensors
-    s[Apad].compute_inline()
+    A_transpose = s[Apad].op.input_tensors[0]
+
     in_dtype = Apad.dtype
     batch, _, _, _, _, _ = get_const_tuple(Conv.shape)
     if in_dtype == 'int4':
@@ -282,14 +290,35 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Conv):
     chunk = cfg["chunk"].val
     # offset = cfg["offset"].val
     vector_width = cfg["vector_width"].val
-    block_row_warps = 1
-    block_col_warps = 8
-    warp_row_tiles = 2
-    warp_col_tiles = 1
-    chunk = 4
-    vector_width = 1
+    # block_row_warps = 1
+    # block_col_warps = 1
+    # warp_row_tiles = 1
+    # warp_col_tiles = 1
+    # chunk = 1
+    # vector_width = 1
 
     # offset = 0
+
+    with tvm.target.create('cuda'):
+        schedule_injective_from_existing(s, Out)
+        schedule_injective_from_existing(s, kernel)
+    s[Apad].compute_inline()
+    s[A_transpose].compute_inline()
+    # s[Out].compute_inline()
+    # s[kernel].compute_inline()
+    # if inline_apad:
+    #     s[Apad].compute_inline()
+    # else:
+    #     with tvm.target.create('cuda'):
+    #         schedule_injective_from_existing(s, Apad)
+    # if inline_atranspose:
+    #     s[A_transpose].compute_inline()
+    # else:
+    #     with tvm.target.create('cuda'):
+    #         schedule_injective_from_existing(s, A_transpose)
+
+
+
 
     if in_dtype == 'int4':
         wmma_m = wmma_n = 8
@@ -343,7 +372,7 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Conv):
     ty, yo = s[AS].split(xo, nparts=block_col_warps)
     t = s[AS].fuse(nn, ii)
     to, ti = s[AS].split(t, factor=warp_size)
-    # ti, _t = s[AS].split(ti, factor=vector_width)
+    # ti, _t = s[AS].split(ti, factor=8)
     s[AS].bind(tx, thread_y)
     s[AS].bind(ty, thread_z)
     s[AS].bind(ti, thread_x)
