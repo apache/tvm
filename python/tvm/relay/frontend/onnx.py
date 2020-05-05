@@ -576,7 +576,12 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        return _op.nn.prelu(inputs[0], inputs[1])
+        alpha_shape = infer_shape(inputs[1])
+        if len(alpha_shape) != 1:
+            alpha = _op.reshape(inputs[1], (-1,))
+        else:
+            alpha = inputs[1]
+        return _op.nn.prelu(inputs[0], alpha)
 
 
 class Reciprocal(OnnxOpConverter):
