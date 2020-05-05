@@ -47,8 +47,8 @@ pub mod errors;
 pub mod packed_func;
 pub mod value;
 
-pub use errors::*;
-pub use context::Context;
 pub use byte_array::ByteArray;
+pub use context::Context;
 pub use datatype::DataType;
-pub use packed_func::{RetValue, ArgValue};
+pub use errors::*;
+pub use packed_func::{ArgValue, RetValue};

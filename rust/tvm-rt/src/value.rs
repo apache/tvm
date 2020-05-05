@@ -24,7 +24,7 @@
 use std::convert::TryFrom;
 // use std::ffi::c_void;
 
-use crate::{Function, Module, NDArray, ArgValue, RetValue};
+use crate::{ArgValue, Function, Module, NDArray, RetValue};
 use tvm_sys::{
     errors::ValueDowncastError,
     ffi::{TVMFunctionHandle, TVMModuleHandle},

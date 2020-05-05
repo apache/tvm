@@ -17,19 +17,16 @@
  * under the License.
  */
 
-use std::{
-    any::TypeId,
-};
+use std::any::TypeId;
 
-use std::str::FromStr;
 use std::convert::TryFrom;
+use std::str::FromStr;
 
 use crate::packed_func::RetValue;
 
 use thiserror::Error;
 
 use crate::ffi::DLDataType;
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DataType {
@@ -164,7 +161,6 @@ impl std::fmt::Display for DataType {
     }
 }
 
-
 impl From<DataType> for RetValue {
     fn from(dt: DataType) -> RetValue {
         RetValue::DataType((&dt).into())
@@ -177,7 +173,7 @@ impl TryFrom<RetValue> for DataType {
         match ret_value {
             RetValue::DataType(dt) => Ok(dt.into()),
             // TODO(@jroesch): improve
-            _ => Err(anyhow::anyhow!("unable to convert datatype from ..."))
+            _ => Err(anyhow::anyhow!("unable to convert datatype from ...")),
         }
     }
 }

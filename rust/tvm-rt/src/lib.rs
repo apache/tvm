@@ -34,8 +34,6 @@ extern crate ndarray as rust_ndarray;
 
 pub use crate as tvm_rt;
 
-
-
 pub mod object;
 pub mod string;
 
@@ -57,9 +55,9 @@ pub use crate::{
     ndarray::NDArray,
 };
 
-pub use tvm_sys::datatype::DataType;
-pub use tvm_sys::byte_array::ByteArray;
 pub use function::{ArgValue, RetValue};
+pub use tvm_sys::byte_array::ByteArray;
+pub use tvm_sys::datatype::DataType;
 
 use tvm_sys::ffi;
 

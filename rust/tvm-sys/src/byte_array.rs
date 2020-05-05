@@ -1,12 +1,6 @@
-use std::{
-    os::raw::{c_char},
-};
+use std::os::raw::c_char;
 
-
-use crate::ffi::{
-    TVMByteArray,
-};
-
+use crate::ffi::TVMByteArray;
 
 /// A struct holding TVM byte-array.
 ///

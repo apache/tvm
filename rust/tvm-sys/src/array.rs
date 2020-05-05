@@ -17,7 +17,7 @@
  * under the License.
  */
 
- use std::{
+use std::{
     mem,
     os::raw::{c_int, c_void},
 };

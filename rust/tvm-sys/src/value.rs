@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use std::{str::FromStr};
+use std::str::FromStr;
 
 use thiserror::Error;
 

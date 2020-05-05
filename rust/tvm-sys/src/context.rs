@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -41,15 +40,13 @@
 //! ```
 
 use crate::ffi::{self, *};
-use crate::packed_func::{RetValue, ArgValue};
+use crate::packed_func::{ArgValue, RetValue};
 
-use std::str::FromStr;
 use std::convert::TryFrom;
+use std::str::FromStr;
 use thiserror::Error;
 
-use std::{
-    fmt::{self, Display, Formatter},
-};
+use std::fmt::{self, Display, Formatter};
 
 use anyhow::Result;
 
@@ -152,7 +149,7 @@ impl<'a> From<&TVMDeviceType> for ArgValue<'a> {
     }
 }
 
- #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct Context {
     pub device_type: TVMDeviceType,
     pub device_id: usize,
@@ -160,7 +157,10 @@ pub struct Context {
 
 impl Context {
     pub fn new(device_type: TVMDeviceType, device_id: usize) -> Context {
-        Context { device_type, device_id }
+        Context {
+            device_type,
+            device_id,
+        }
     }
 }
 
@@ -233,7 +233,6 @@ impl<'a> From<&'a str> for Context {
     }
 }
 
-
 impl From<ffi::DLContext> for Context {
     fn from(ctx: ffi::DLContext) -> Self {
         Context {
@@ -259,7 +258,6 @@ impl Display for Context {
 }
 
 impl From<Context> for RetValue {
-
     fn from(ret_value: Context) -> RetValue {
         RetValue::Context(ret_value.into())
     }
@@ -271,7 +269,7 @@ impl TryFrom<RetValue> for Context {
         match ret_value {
             RetValue::Context(dt) => Ok(dt.into()),
             // TODO(@jroesch): improve
-            _ => Err(anyhow::anyhow!("unable to convert datatype from ..."))
+            _ => Err(anyhow::anyhow!("unable to convert datatype from ...")),
         }
     }
 }

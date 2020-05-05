@@ -49,14 +49,14 @@
 
 use std::{convert::TryFrom, mem, os::raw::c_int, ptr, slice, str::FromStr};
 
+use crate::errors;
 use anyhow::{bail, ensure, Result};
 use num_traits::Num;
 use rust_ndarray::{Array, ArrayD};
 use std::convert::TryInto;
 use std::ffi::c_void;
 use tvm_sys::ffi::DLTensor;
-use tvm_sys::{ffi, DataType, ByteArray, Context};
-use crate::errors;
+use tvm_sys::{ffi, ByteArray, Context, DataType};
 
 /// See the [`module-level documentation`](../ndarray/index.html) for more details.
 ///
@@ -421,12 +421,9 @@ mod tests {
         let a = Array::from_shape_vec((2, 2), vec![1f32, 2., 3., 4.])
             .unwrap()
             .into_dyn();
-        let nd = NDArray::from_rust_ndarray(
-            &a,
-            Context::cpu(0),
-            DataType::from_str("float32").unwrap(),
-        )
-        .unwrap();
+        let nd =
+            NDArray::from_rust_ndarray(&a, Context::cpu(0), DataType::from_str("float32").unwrap())
+                .unwrap();
         assert_eq!(nd.shape().unwrap(), &mut [2, 2]);
         let rnd: ArrayD<f32> = ArrayD::try_from(&nd).unwrap();
         assert!(rnd.all_close(&a, 1e-8f32));
