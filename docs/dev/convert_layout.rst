@@ -258,7 +258,7 @@ The example above only considers data layout because the kernel layout is automa
 
 The ordering of layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the example above its [data_layout, kernel_layout].
 
-If we wish to select the default choice for a specific layout then the layout should be declared as "default". For nn.conv2d the following two statements are equivalent: `{'nn.conv2d': ['NCHW', 'default']} == {'nn.conv2d': ['NCHW', 'HWIO']}` since the default kernel layout in TVM is HWIO. In the first example, the kernel layout is implicitly defined as "default". The example below shows how this can be used:
+If we wish to select the default choice for a specific layout then the layout should be declared as "default". For nn.conv2d the following two statements are equivalent: `{'nn.conv2d': ['NHWC', 'default']} == {'nn.conv2d': ['NHWC', 'HWIO']}` since the default kernel layout in TVM is HWIO for NHWC. In the first example, the kernel layout is implicitly defined as "default". The example below shows how this can be used:
 
 .. code-block:: python
 
