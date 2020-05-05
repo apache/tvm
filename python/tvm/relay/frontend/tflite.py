@@ -2220,8 +2220,10 @@ class OperatorConverter(object):
         padding = deconv_options.Padding()
         stride_h = deconv_options.StrideH()
         stride_w = deconv_options.StrideW()
-        assert padding in (Padding.VALID, Padding.SAME), \
-            'Padding format {} is not supported for operator TRANSPOSE_CONV'.format(padding)
+
+        if padding not in (Padding.VALID, Padding.SAME):
+            raise tvm.error.OpAttributeUnImplemented('Padding format {} is not supported'\
+                                                     'for operator TRANSPOSE_CONV'.format(padding))
 
         # Data
         in_expr = self.get_expr(input_tensor.tensor_idx)
