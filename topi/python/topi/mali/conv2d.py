@@ -138,20 +138,15 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_vec].unroll(vw)
 
     if isinstance(kernel_vec.op, tvm.te.ComputeOp) and kernel_vec.name == 'kernel_vec':
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[kernel_vec].pragma(s[kernel_vec].op.axis[0], 'debug_skip_region')
-        else:
-            max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
-            co, ci, kh, kw, vc = s[kernel_vec].op.axis
-            fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
-            fused, vec = s[kernel_vec].split(fused, VC)
-            bb, tt = s[kernel_vec].split(fused, max_threads)
-            s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
-            s[kernel_vec].bind(tt, te.thread_axis("threadIdx.x"))
-            if VC in vec_size:
-                s[kernel_vec].vectorize(vec)
+        max_threads = tvm.target.Target.current(allow_none=False).max_num_threads
+        co, ci, kh, kw, vc = s[kernel_vec].op.axis
+        fused = s[kernel_vec].fuse(co, ci, kh, kw, vc)
+        fused, vec = s[kernel_vec].split(fused, VC)
+        bb, tt = s[kernel_vec].split(fused, max_threads)
+        s[kernel_vec].bind(bb, te.thread_axis("blockIdx.x"))
+        s[kernel_vec].bind(tt, te.thread_axis("threadIdx.x"))
+        if VC in vec_size:
+            s[kernel_vec].vectorize(vec)
 
     # schedule convolution
     n, c, h, w, vh, vw, vc = s[conv].op.axis
@@ -345,16 +340,11 @@ def _schedule_winograd(cfg, s, op):
         kernel, G = s[U].op.input_tensors
         s[G].compute_inline()
         eps, nu, co, ci, vco, = s[U].op.axis
-        if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel transformation will be pre-computed during compilation, so we skip
-            # this part to make tuning records correct
-            s[U].pragma(eps, 'debug_skip_region')
-        else:
-            r_kh, r_kw = s[U].op.reduce_axis
-            s[U].reorder(co, ci, eps, nu, r_kh, r_kw, vco)
-            _ = [s[U].unroll(x) for x in [eps, nu, r_kh, r_kw]]
-            s[U].vectorize(vco)
-            tile_and_bind(s, U, co, ci, 1, 256)
+        r_kh, r_kw = s[U].op.reduce_axis
+        s[U].reorder(co, ci, eps, nu, r_kh, r_kw, vco)
+        _ = [s[U].unroll(x) for x in [eps, nu, r_kh, r_kw]]
+        s[U].vectorize(vco)
+        tile_and_bind(s, U, co, ci, 1, 256)
 
         # dilation
         if isinstance(kernel.op, tvm.te.ComputeOp) and "dilate" in kernel.op.tag:
