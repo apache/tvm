@@ -102,6 +102,14 @@ def test_rpc_array():
     fremote(r_cpu)
 
 
+def test_rpc_large_array_shrink():
+    server = rpc.Server("localhost")
+    remote = rpc.connect(server.host, server.port)
+    ctx = remote.cpu(0)
+    a = tvm.nd.array(np.ones((5041, 720)).astype('float32'), ctx)
+    b = tvm.nd.array(np.ones((720, 192)).astype('float32'), ctx)
+
+
 def test_rpc_echo():
     def check(remote):
         fecho = remote.get_function("testing.echo")
@@ -447,3 +455,4 @@ if __name__ == "__main__":
     test_local_func()
     test_rpc_tracker_register()
     test_rpc_tracker_request()
+    test_rpc_large_array_shrink()
