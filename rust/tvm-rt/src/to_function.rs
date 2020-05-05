@@ -213,7 +213,7 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
-impl ToFunction<&[ArgValue<'static>], Result<RetValue>> for for <'a> fn(&'a [ArgValue<'static>]) -> Result<RetValue> {
+impl<'a> ToFunction<&[ArgValue<'static>], Result<RetValue>> for fn(&[ArgValue<'static>]) -> Result<RetValue> {
     type Handle = fn(&[ArgValue<'static>]) -> Result<RetValue>;
 
     fn into_raw(self) -> *mut Self::Handle {
@@ -291,7 +291,7 @@ mod tests {
         f.to_function()
     }
 
-    fn func_args(args: &[ArgValue<'static>]) -> anyhow::Result<RetValue> {
+    fn func_args(args: &'static [ArgValue<'static>]) -> anyhow::Result<RetValue> {
         Ok(10.into())
     }
 
