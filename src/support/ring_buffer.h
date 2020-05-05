@@ -69,28 +69,25 @@ class RingBuffer {
         }
     } else if (ring_.size() > n * 8 &&
                ring_.size() > kInitCapacity) {
-        // shrink too large temporary buffer to
-        // avoid out of memory on some embedded devices
+      // shrink too large temporary buffer to
+      // avoid out of memory on some embedded devices
+      if (bytes_avaliable_ != 0) {
+        // move existing bytes to the head.
         size_t old_bytes = bytes_available_;
         std::vector<char> tmp(old_bytes);
+        Read(&tmp[0], old_bytes);
 
-        if (old_bytes != 0) {
-          Read(&tmp[0], old_bytes);
-        }
-
-        size_t new_size  = kInitCapacity;
-        new_size = std::max(new_size, bytes_available_);
-        new_size = std::max(new_size, n);
-
-        ring_.resize(new_size);
-        ring_.shrink_to_fit();
-
-        if (old_bytes != 0) {
-          memcpy(&ring_[0], &tmp[0], old_bytes);
-        }
-
-        head_ptr_ = 0;
+        memcpy(&ring_[0], &tmp[0], old_bytes);
         bytes_available_ = old_bytes;
+      }
+      // shrink the ring.
+      size_t new_size  = kInitCapacity;
+      new_size = std::max(new_size, n);
+      new_size = std::max(new_size, byte_available_);
+
+      ring_.resize(new_size);
+      ring_.shrink_to_fit();
+      head_ptr_ = 0;
     }
   }
 
