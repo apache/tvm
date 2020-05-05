@@ -149,8 +149,16 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
   // If the output qnn params do not match the input qnn params, we can call requantize on the input
   // expr first, followed by a concatenate on the requantized input exprs.
 
-  auto tuple_data = data.as<TupleNode>();
-  CHECK(tuple_data != nullptr);
+  Array<Expr> tuple_exprs;
+  if (data->IsInstance<TupleNode>()) {
+    tuple_exprs = data.as<TupleNode>()->fields;
+  } else if (data->IsInstance<CallNode>()) {  // if the data is a CallNode, use TupleGetItems
+    auto call = Downcast<Call>(data);
+    for (size_t i = 0; i < tuple_type->fields.size(); i++) {
+      tuple_exprs.push_back(TupleGetItem(call, i));
+    }
+  }
+  CHECK(!tuple_exprs.empty());
 
   auto tuple_input_scales = input_scales.as<TupleNode>();
   CHECK(tuple_input_scales != nullptr);
@@ -160,7 +168,7 @@ Expr ConcatenateQnnCanonicalize(const Attrs& attrs, const Array<Expr>& new_args,
 
   int idx = 0;
   Array<Expr> requantized_exprs;
-  for (auto quantized_expr : tuple_data->fields) {
+  for (auto quantized_expr : tuple_exprs) {
     // Get the input scale for the idx quantized input tensor.
     auto input_scale = tuple_input_scales->fields[idx];
 
