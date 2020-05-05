@@ -39,7 +39,7 @@ public class RPCSession {
 
   RPCSession(Module sess) {
     session = sess;
-    tblIndex = (int) RPC.getApi("_SessTableIndex").pushArg(session).invoke().asLong();
+    tblIndex = (int) RPC.getApi("SessTableIndex").pushArg(session).invoke().asLong();
   }
 
   /**
@@ -237,7 +237,7 @@ public class RPCSession {
    * @return The remote module containing remote function.
    */
   public Module loadModule(String path) {
-    return RPC.getApi("_LoadRemoteModule").pushArg(session).pushArg(path).invoke().asModule();
+    return RPC.getApi("LoadRemoteModule").pushArg(session).pushArg(path).invoke().asModule();
   }
 
 

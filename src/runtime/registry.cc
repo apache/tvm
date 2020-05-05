@@ -37,7 +37,7 @@ struct Registry::Manager {
   // map storing the functions.
   // We delibrately used raw pointer
   // This is because PackedFunc can contain callbacks into the host languge(python)
-  // and the resource can become invalid because of indeterminstic order of destruction.
+  // and the resource can become invalid because of indeterminstic order of destruction and forking.
   // The resources will only be recycled during program exit.
   std::unordered_map<std::string, Registry*> fmap;
   // mutex
@@ -60,20 +60,18 @@ Registry& Registry::set_body(PackedFunc f) {  // NOLINT(*)
   return *this;
 }
 
-Registry& Registry::Register(const std::string& name, bool override) {  // NOLINT(*)
+Registry& Registry::Register(const std::string& name, bool can_override) {  // NOLINT(*)
   Manager* m = Manager::Global();
   std::lock_guard<std::mutex> lock(m->mutex);
-  auto it = m->fmap.find(name);
-  if (it == m->fmap.end()) {
-    Registry* r = new Registry();
-    r->name_ = name;
-    m->fmap[name] = r;
-    return *r;
-  } else {
-    CHECK(override)
-      << "Global PackedFunc " << name << " is already registered";
-    return *it->second;
+  if (m->fmap.count(name)) {
+    CHECK(can_override)
+        << "Global PackedFunc " << name << " is already registered";
   }
+
+  Registry* r = new Registry();
+  r->name_ = name;
+  m->fmap[name] = r;
+  return *r;
 }
 
 bool Registry::Remove(const std::string& name) {

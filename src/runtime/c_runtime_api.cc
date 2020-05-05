@@ -460,6 +460,7 @@ int TVMFuncCall(TVMFunctionHandle func,
                 TVMValue* ret_val,
                 int* ret_type_code) {
   API_BEGIN();
+
   TVMRetValue rv;
   (*static_cast<const PackedFunc*>(func)).CallPacked(
       TVMArgs(args, arg_type_codes, num_args), &rv);
@@ -582,6 +583,42 @@ int TVMCbArgToReturn(TVMValue* value, int* code) {
   tvm::runtime::TVMRetValue rv;
   rv = tvm::runtime::TVMMovableArgValue_(*value, *code);
   rv.MoveToCHost(value, code);
+  API_END();
+}
+
+
+int TVMDeviceAllocDataSpace(DLContext ctx,
+                            size_t nbytes,
+                            size_t alignment,
+                            DLDataType type_hint,
+                            void** out_data) {
+  API_BEGIN();
+  out_data[0] = DeviceAPIManager::Get(ctx)->AllocDataSpace(
+      ctx, nbytes, alignment, type_hint);
+  API_END();
+}
+
+int TVMDeviceFreeDataSpace(DLContext ctx, void* ptr) {
+  API_BEGIN();
+  DeviceAPIManager::Get(ctx)->FreeDataSpace(ctx, ptr);
+  API_END();
+}
+
+int TVMDeviceCopyDataFromTo(const void* from,
+                            size_t from_offset,
+                            void* to,
+                            size_t to_offset,
+                            size_t num_bytes,
+                            TVMContext ctx_from,
+                            TVMContext ctx_to,
+                            DLDataType type_hint,
+                            TVMStreamHandle stream) {
+  API_BEGIN();
+  TVMContext ctx = ctx_from.device_type != kDLCPU ? ctx_from : ctx_to;
+  DeviceAPIManager::Get(ctx)->CopyDataFromTo(
+      from, from_offset,
+      to, to_offset,
+      num_bytes, ctx_from, ctx_to, type_hint, stream);
   API_END();
 }
 

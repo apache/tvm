@@ -550,6 +550,54 @@ TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
  */
 TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
 
+/*!
+ * \brief Allocate a data space on device.
+ * \param ctx The device context to perform operation.
+ * \param nbytes The number of bytes in memory.
+ * \param alignment The alignment of the memory.
+ * \param type_hint The type of elements. Only needed by certain backends such
+ *                   as nbytes & alignment are sufficient for most backends.
+ * \param out_data The allocated device pointer.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx,
+                                    size_t nbytes,
+                                    size_t alignment,
+                                    DLDataType type_hint,
+                                    void** out_data);
+
+/*!
+ * \brief Free a data space on device.
+ * \param ctx The device context to perform operation.
+ * \param ptr The data space.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMDeviceFreeDataSpace(TVMContext ctx, void* ptr);
+
+/*!
+ * \brief Copy data from one place to another.
+ * \param from The source array.
+ * \param from_offset The byte offeset in the from.
+ * \param to The target array.
+ * \param to_offset The byte offset in the to.
+ * \param num_bytes The size of the memory in bytes
+ * \param ctx_from The source context
+ * \param ctx_to The target context
+ * \param type_hint The type of elements, only neded by certain backends.
+ *                  can be useful for cross device endian converison.
+ * \param stream Optional stream object.
+ * \return 0 when success, -1 when failure happens.
+ */
+TVM_DLL int TVMDeviceCopyDataFromTo(const void* from,
+                                    size_t from_offset,
+                                    void* to,
+                                    size_t to_offset,
+                                    size_t num_bytes,
+                                    TVMContext ctx_from,
+                                    TVMContext ctx_to,
+                                    DLDataType type_hint,
+                                    TVMStreamHandle stream);
+
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif

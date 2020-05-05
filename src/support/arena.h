@@ -26,42 +26,114 @@
 #ifndef TVM_SUPPORT_ARENA_H_
 #define TVM_SUPPORT_ARENA_H_
 
+#ifndef TVM_ARENA_HAS_DESTRUCTOR
+#define TVM_ARENA_HAS_DESTRUCTOR 1
+#endif
+
+#include <cstddef>
 #include <utility>
 #include <type_traits>
+
 
 namespace tvm {
 namespace support {
 
-const constexpr int kArenaPageSize = 16 << 10;
+/*!
+ * \brief An arena page header.
+ */
+struct ArenaPageHeader {
+  /*! \brief points to the next page. */
+  ArenaPageHeader* next;
+  /*!
+   * \brief Total size of the page.
+   */
+  size_t size;
+  /*! \brief memory allocator offset inside page. */
+  size_t offset;
+};
+
+/*!
+ * \brief Simple page allocator that uses new and delete.
+ */
+class SimplePageAllocator {
+ public:
+  /*!
+   * \brief Allocate a new page.
+   * \param min_size Minimum size of the page.
+   * \return The allocated page.
+   * \note This function can return a bigger page to meet the min_size requirement.
+   */
+  ArenaPageHeader* allocate(size_t min_size) {
+    size_t npages = ((min_size + kPageSize - 1) / kPageSize);
+    ArenaPageHeader* header = reinterpret_cast<ArenaPageHeader*>(new Page[npages]);
+    header->size = npages * kPageSize;
+    header->offset = sizeof(ArenaPageHeader);
+    return header;
+  }
+  /*!
+   * \brief De-allocate an allocate page.
+   * \param page The page to be de-allocated.
+   */
+  void deallocate(ArenaPageHeader* page) {
+    delete [] reinterpret_cast<Page*>(page);
+  }
+
+  static const constexpr int kPageSize = 16 << 10;
+  static const constexpr int kPageAlign = 1024;
+
+ private:
+  // page size 16 KB
+  // The page data type;
+  using Page = std::aligned_storage<kPageSize, kPageAlign>::type;
+};
 
 /*!
  * \brief Arena allocator that allocates memory from continuous
  *  chunk and frees them all only during destruction.
  */
-class Arena {
+template<typename PageAllocator>
+class GenericArena {
  public:
-  Arena() {
+  explicit GenericArena(PageAllocator alloc = PageAllocator())
+      : alloc_(alloc) {
     // eagerly allocate the first page.
-    head_ = reinterpret_cast<PageHeader*>(new Page());
+    head_ = tail_ = alloc_.allocate(1);
     head_->next = nullptr;
-    head_->ptr = sizeof(PageHeader);
   }
-  ~Arena() {
-    // delete all the allocated pages.
-    while (head_ != nullptr) {
-      Page* page = reinterpret_cast<Page*>(head_);
-      head_ = head_->next;
-      delete page;
-    }
+
+#if TVM_ARENA_HAS_DESTRUCTOR
+  ~GenericArena() {
+    this->FreeAll();
+  }
+#endif
+
+  /*! \brief Free all pages. */
+  void FreeAll() {
+    FreePageList(&head_);
+    FreePageList(&free_list_);
+  }
+  /*! \brief Recycle all the pages in the arena */
+  void RecycleAll() {
+    // put all the current list to the free list.
+    tail_->next = free_list_;
+    // allocate the first in the free list to head
+    free_list_ = head_->next;
+    head_->next = nullptr;
+    // Reset the head.
+    head_->offset = sizeof(ArenaPageHeader);
+    tail_ = head_;
   }
   /*!
    * \brief Allocate a space from Arena for type T
    * \param T the data type to be allocated
+   * \param count Numberof elements
    * \note The space of T is not initialized.
    */
   template<typename T>
-  T* allocate_() {
-    return static_cast<T*>(Alloc(sizeof(T), alignof(T)));
+  T* allocate_(int count = 1) {
+    static_assert(PageAllocator::kPageAlign % alignof(T) == 0,
+                  "To large alignment");
+    return static_cast<T*>(Alloc(sizeof(T) * count, alignof(T)));
   }
   /*!
    * \brief Create a new instance of type T.
@@ -82,25 +154,21 @@ class Arena {
   }
 
  private:
-  // page size 16 KB
-  // The page data type;
-  using Page = std::aligned_storage<kArenaPageSize, 1024>::type;
-  /*! \brief Page header */
-  struct PageHeader {
-    /*! \brief points to the next page */
-    PageHeader* next;
-    /*! \brief memory allocator ptr inside page */
-    size_t ptr;
-  };
-  /* \brief The page header */
-  PageHeader* head_{nullptr};
+  /*! \brief internal page allocator. */
+  PageAllocator alloc_;
+  /* \brief The the head of the allocated list. */
+  ArenaPageHeader* head_{nullptr};
+  /*! \brief The tail of the allocated list. */
+  ArenaPageHeader* tail_{nullptr};
+  /* \brief List of free pages. */
+  ArenaPageHeader* free_list_{nullptr};
   /*!
    * \brief Align ptr by upper bound.
-   * \param ptr The pointer value.
+   * \param offset The offset value.
    * \param align The alignment requirement.
    */
-  size_t UpperAlign(size_t ptr, size_t align) {
-    return ptr + (align - (ptr % align)) % align;
+  size_t UpperAlign(size_t offset, size_t align) {
+    return offset + (align - (offset % align)) % align;
   }
   /*!
    * \brief Internal aligned alloc function.
@@ -108,21 +176,40 @@ class Arena {
    * \param align The alignment requirement.
    */
   void* Alloc(size_t size, size_t align) {
-    size_t ptr = UpperAlign(head_->ptr, align);
-    if (ptr + size <= kArenaPageSize) {
-      head_->ptr = ptr + size;
-      return reinterpret_cast<char*>(head_) + ptr;
+    size_t offset = UpperAlign(head_->offset, align);
+    if (offset + size <= head_->size) {
+      head_->offset = offset + size;
+      return reinterpret_cast<char*>(head_) + offset;
     } else {
-      PageHeader* new_head = reinterpret_cast<PageHeader*>(new Page());
+      ArenaPageHeader* new_head;
+      offset = UpperAlign(sizeof(ArenaPageHeader), align);
+      if (free_list_ != nullptr && offset + size <= free_list_-> size) {
+        new_head = free_list_;
+        free_list_ = free_list_->next;
+      } else {
+        new_head = alloc_.allocate(offset + size);
+      }
       new_head->next = head_;
-      ptr = UpperAlign(sizeof(PageHeader), align);
-      CHECK_LE(ptr + size, kArenaPageSize);
-      new_head->ptr = ptr + size;
+      new_head->offset = offset + size;
       head_ = new_head;
-      return reinterpret_cast<char*>(head_) + ptr;
+      return reinterpret_cast<char*>(head_) + offset;
+    }
+  }
+  /*!
+   * \brief Free all the pages in the list.
+   * \param ptr The head ptr.
+   */
+  void FreePageList(ArenaPageHeader** ptr) {
+    // delete all the allocated pages.
+    while (ptr[0] != nullptr) {
+      ArenaPageHeader* temp = ptr[0];
+      ptr[0] = ptr[0]->next;
+      alloc_.deallocate(temp);
     }
   }
 };
+
+using Arena = GenericArena<SimplePageAllocator>;
 
 /*!
  * \brief Link list node

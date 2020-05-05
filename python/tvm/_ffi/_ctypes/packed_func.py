@@ -141,7 +141,13 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, TVMContext):
             values[i].v_int64 = _ctx_to_int64(arg)
             type_codes[i] = TypeCode.TVM_CONTEXT
-        elif isinstance(arg, bytearray):
+        elif isinstance(arg, (bytearray, bytes)):
+            # from_buffer only taeks in bytearray.
+            if isinstance(arg, bytes):
+                byte_arr = bytearray(arg)
+                temp_args.append(byte_arr)
+                arg = byte_arr
+
             arr = TVMByteArray()
             arr.data = ctypes.cast(
                 (ctypes.c_byte * len(arg)).from_buffer(arg),

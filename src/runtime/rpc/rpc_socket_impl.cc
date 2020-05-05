@@ -22,8 +22,11 @@
  * \brief Socket based RPC implementation.
  */
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container.h>
 #include <memory>
+#include "rpc_endpoint.h"
 #include "rpc_session.h"
+#include "rpc_local_session.h"
 #include "../../support/socket.h"
 
 namespace tvm {
@@ -61,8 +64,8 @@ class SockChannel final : public RPCChannel {
   support::TCPSocket sock_;
 };
 
-std::shared_ptr<RPCSession>
-RPCConnect(std::string url, int port, std::string key) {
+std::shared_ptr<RPCEndpoint>
+RPCConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
   support::TCPSocket sock;
   support::SockAddr addr(url.c_str(), port);
   sock.Create(addr.ss_family());
@@ -96,42 +99,56 @@ RPCConnect(std::string url, int port, std::string key) {
     remote_key.resize(keylen);
     CHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
   }
-  return RPCSession::Create(
+  auto endpt = RPCEndpoint::Create(
       std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);
+  endpt->InitRemoteSession(init_seq);
+  return endpt;
 }
 
-Module RPCClientConnect(std::string url, int port, std::string key) {
-  return CreateRPCModule(RPCConnect(url, port, "client:" + key));
+Module RPCClientConnect(std::string url,
+                        int port,
+                        std::string key,
+                        TVMArgs init_seq) {
+  auto endpt = RPCConnect(url, port, "client:" + key, init_seq);
+  return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
 // TVM_DLL needed for MSVC
 TVM_DLL void RPCServerLoop(int sockfd) {
   support::TCPSocket sock(
       static_cast<support::TCPSocket::SockType>(sockfd));
-  RPCSession::Create(
+  RPCEndpoint::Create(
       std::unique_ptr<SockChannel>(new SockChannel(sock)),
       "SockServerLoop", "")->ServerLoop();
 }
 
-void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
-  RPCSession::Create(std::unique_ptr<CallbackChannel>(
-      new CallbackChannel(fsend, frecv)),
+void RPCServerLoop(PackedFunc fsend,
+                   PackedFunc frecv) {
+  RPCEndpoint::Create(
+      std::unique_ptr<CallbackChannel>(new CallbackChannel(fsend, frecv)),
       "SockServerLoop", "")->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("rpc._Connect")
-.set_body_typed(RPCClientConnect);
+TVM_REGISTER_GLOBAL("rpc.Connect")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  std::string url = args[0];
+  int port = args[1];
+  std::string key = args[2];
+  *rv = RPCClientConnect(
+      url, port, key,
+      TVMArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
+});
 
-TVM_REGISTER_GLOBAL("rpc._ServerLoop")
+TVM_REGISTER_GLOBAL("rpc.ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    if (args.size() == 1) {
-      RPCServerLoop(args[0]);
-    } else {
-      CHECK_EQ(args.size(), 2);
-      RPCServerLoop(
-          args[0].operator tvm::runtime::PackedFunc(),
-          args[1].operator tvm::runtime::PackedFunc());
-    }
-  });
+  if (args[0].type_code() == kDLInt) {
+    RPCServerLoop(args[0]);
+  } else {
+    RPCServerLoop(
+        args[0].operator tvm::runtime::PackedFunc(),
+        args[1].operator tvm::runtime::PackedFunc());
+  }
+});
+
 }  // namespace runtime
 }  // namespace tvm

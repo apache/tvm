@@ -33,7 +33,7 @@
 #include <string>
 
 #include "../../src/support/socket.h"
-#include "../../src/runtime/rpc/rpc_session.h"
+#include "../../src/runtime/rpc/rpc_endpoint.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
 #include "rpc_env.h"
 #include "rpc_server.h"
@@ -86,7 +86,7 @@ class RPCServer {
     tracker_addr_(std::move(tracker_addr)), key_(std::move(key)),
     custom_addr_(std::move(custom_addr))
   {
-    
+
   }
 
   /*!
@@ -98,7 +98,7 @@ class RPCServer {
       tracker_sock_.Close();
       listen_sock_.Close();
     } catch(...) {
-      
+
     }
   }
 
@@ -144,7 +144,7 @@ class RPCServer {
       }
 
       int timeout = GetTimeOutFromOpts(opts);
-#if defined(__linux__) || defined(__ANDROID__) 
+#if defined(__linux__) || defined(__ANDROID__)
       // step 3: serving
       if (timeout != 0) {
         const pid_t timer_pid = fork();
@@ -197,7 +197,7 @@ class RPCServer {
       try {
         SpawnRPCChild(conn.sockfd, seconds(timeout));
       } catch (const std::exception&) {
-        
+
       }
       auto dur = high_resolution_clock::now() - start_time;
 
@@ -217,10 +217,10 @@ class RPCServer {
    * \param opts Parsed options for socket
    * \param ping_period Timeout for select call waiting
    */
-  void AcceptConnection(TrackerClient* tracker, 
+  void AcceptConnection(TrackerClient* tracker,
                         support::TCPSocket* conn_sock,
-                        support::SockAddr* addr, 
-                        std::string* opts, 
+                        support::SockAddr* addr,
+                        std::string* opts,
                         int ping_period = 2) {
     std::set<std::string> old_keyset;
     std::string matchkey;
@@ -330,7 +330,7 @@ void ServerLoopFromChild(SOCKET socket) {
   tvm::support::TCPSocket sock(socket);
   const auto env = RPCEnv();
   RPCServerLoop(int(sock.sockfd));
-  
+
   sock.Close();
   env.CleanUp();
 }
@@ -357,7 +357,7 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
   rpc.Start();
 }
 
-TVM_REGISTER_GLOBAL("rpc._ServerCreate")
+TVM_REGISTER_GLOBAL("rpc.ServerCreate")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
   });

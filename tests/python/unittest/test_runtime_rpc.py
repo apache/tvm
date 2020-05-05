@@ -18,10 +18,12 @@ import tvm
 from tvm import te
 import tvm.testing
 import os
+import stat
 import logging
 import time
 import multiprocessing
 
+import pytest
 import numpy as np
 from tvm import rpc
 from tvm.contrib import util
@@ -77,11 +79,9 @@ def test_rpc_simple():
     f1 = client.get_function("rpc.test.addone")
     assert f1(10) == 11
     f3 = client.get_function("rpc.test.except")
-    try:
+
+    with pytest.raises(tvm.error.RPCError):
         f3("abc")
-        assert False
-    except tvm.error.TVMError as e:
-        assert "abc" in str(e)
 
     f2 = client.get_function("rpc.test.strcat")
     assert f2("abc", 11) == "abc:11"
@@ -101,6 +101,40 @@ def test_rpc_array():
     fremote = remote.get_function("rpc.test.remote_array_func")
     fremote(r_cpu)
 
+
+def test_rpc_echo():
+    def check(remote):
+        fecho = remote.get_function("testing.echo")
+        assert(fecho(1, 2, 3) == 1)
+        assert(fecho(100, 2, 3) == 100)
+        assert(fecho("xyz") == "xyz")
+        assert(bytes(fecho(bytearray(b"123"))) == b"123")
+
+        with pytest.raises(RuntimeError):
+            raise_err = remote.get_function(
+                "testing.test_raise_error_callback")("RuntimeError")
+            raise_err()
+
+    temp = rpc.server._server_env([])
+    server = rpc.Server("localhost")
+    client = rpc.connect(server.host, server.port)
+    check(rpc.LocalSession())
+
+    check(client)
+    # Test minrpc server.
+    temp = util.tempdir()
+    minrpc_exec = temp.relpath("minrpc")
+    tvm.rpc.with_minrpc("g++")(minrpc_exec, [])
+    check(rpc.PopenSession(minrpc_exec))
+    # minrpc on the remote
+    server = rpc.Server("localhost")
+    client = rpc.connect(
+        server.host, server.port,
+        session_constructor_args=["rpc.PopenSession",
+                             open(minrpc_exec, "rb").read()])
+    check(client)
+
+
 def test_rpc_file_exchange():
     if not tvm.runtime.enabled("rpc"):
         return
@@ -114,13 +148,14 @@ def test_rpc_file_exchange():
 def test_rpc_remote_module():
     if not tvm.runtime.enabled("rpc"):
         return
-    server = rpc.Server("localhost")
-    client = rpc.connect(server.host, server.port)
     # graph
-    n = tvm.runtime.convert(1024)
+    n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name='A')
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     s = te.create_schedule(B.op)
+
+    server = rpc.Server("localhost")
+    client = rpc.connect(server.host, server.port)
 
     def check_remote(remote):
         if not tvm.runtime.enabled("llvm"):
@@ -133,12 +168,43 @@ def test_rpc_remote_module():
         f.export_library(path_dso)
         remote.upload(path_dso)
         f1 = remote.load_module("dev_lib.so")
-        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
         time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
         cost = time_f(a, b).mean
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+    def check_minrpc():
+        if not tvm.runtime.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
+        if tvm.get_global_func("rpc.PopenSession", allow_missing=True) is None:
+            return
+        # export to minrpc
+        temp = util.tempdir()
+        f = tvm.build(s, [A, B], "llvm --system-lib", name="myadd")
+        path_minrpc = temp.relpath("dev_lib.minrpc")
+        f.export_library(path_minrpc, rpc.with_minrpc("g++"))
+
+        with pytest.raises(RuntimeError):
+            rpc.PopenSession("filenotexist")
+
+        # statrt the minrpc session.
+        remote = tvm.rpc.PopenSession(path_minrpc)
+        ctx = remote.cpu(0)
+        f1 = remote.system_lib()
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
+        time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
+        cost = time_f(a, b).mean
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
+
+        # change to not executable
+        os.chmod(path_minrpc, stat.S_IRUSR)
+        with pytest.raises(RuntimeError):
+            rpc.PopenSession(path_minrpc)
+
 
     def check_remote_link_cl(remote):
         """Test function to run remote code such as cl
@@ -174,8 +240,8 @@ def test_rpc_remote_module():
         fhost = remote.load_module("myadd.o")
         fdev = remote.load_module("myadd.cl")
         fhost.import_module(fdev)
-        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
         fhost(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         # Option 2: export library as a tar ball then handled by remote compiler
@@ -183,13 +249,15 @@ def test_rpc_remote_module():
         f.export_library(path_tar)
         remote.upload(path_tar)
         fhost = remote.load_module("myadd.tar")
-        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
-        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
         fhost(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
-    check_remote(client)
     check_remote(rpc.LocalSession())
+    check_remote(client)
+    check_minrpc()
+
 
 
 def test_rpc_return_func():
@@ -202,6 +270,37 @@ def test_rpc_return_func():
     f1 = client.get_function("rpc.test.remote_func")
     fadd = f1(10)
     assert fadd(12) == 22
+
+
+def test_rpc_session_constructor_args():
+    # start server
+    server0 = rpc.Server("localhost", key="x0")
+    server1 = rpc.Server("localhost", key="x1")
+
+    def check_multi_hop():
+        # use server0 as proxy to connect to server1
+        client = rpc.connect(
+            server0.host, server0.port, key="x0",
+            session_constructor_args=[
+                "rpc.Connect", server1.host, server1.port, "x1"])
+
+        fecho = client.get_function("testing.echo")
+        assert(fecho(1, 2, 3) == 1)
+        assert(fecho(100, 2, 3) == 100)
+        assert(fecho("xyz") == "xyz")
+        assert(bytes(fecho(bytearray(b"123"))) == b"123")
+
+        nd = tvm.nd.array([1,2,3], ctx=client.cpu(0))
+        assert(nd.asnumpy()[1] == 2)
+
+    def check_error_handling():
+        with pytest.raises(tvm.error.RPCError):
+            client = rpc.connect(
+                server0.host, server0.port, key="x0",
+                session_constructor_args=["rpc.NonExistingConstructor"])
+
+    check_multi_hop()
+    check_error_handling()
 
 
 def test_rpc_return_ndarray():
@@ -221,6 +320,7 @@ def test_rpc_return_ndarray():
     # start server
     server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
+
     m = client.get_function("rpc.test.remote_return_nd")
     get_arr = m("get_arr")
     ref_count = m("ref_count")
@@ -315,6 +415,7 @@ def test_rpc_tracker_request():
     time.sleep(0.5)
 
     summary = client.summary()
+
     assert summary['queue_info'][device_key]['free'] == 0
     assert summary['queue_info'][device_key]['pending'] == 1
 
@@ -334,6 +435,8 @@ def test_rpc_tracker_request():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_rpc_echo()
+    test_rpc_session_constructor_args()
     test_rpc_return_ndarray()
     test_rpc_return_func()
     test_bigendian_rpc()

@@ -14,18 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Lightweight TVM RPC module.
+"""FFI APIs for tvm.rpc"""
+import tvm._ffi
 
-RPC enables connect to a remote server, upload and launch functions.
-This is useful to for cross-compile and remote testing,
-The compiler stack runs on local server, while we use RPC server
-to run on remote runtime which don't have a compiler available.
 
-The test program compiles the program on local server,
-upload and run remote RPC server, get the result back to verify correctness.
-"""
-
-from .server import Server
-from .client import connect, connect_tracker
-from .client import RPCSession, LocalSession, PopenSession, TrackerSession
-from .minrpc import with_minrpc
+tvm._ffi._init_api("rpc", __name__)

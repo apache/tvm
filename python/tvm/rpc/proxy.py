@@ -42,6 +42,7 @@ except ImportError as error_msg:
     raise ImportError(
         "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg)
 
+from . import _ffi_api
 from . import base
 from .base import TrackerCode
 from .server import _server_env
@@ -549,7 +550,7 @@ def websocket_proxy_server(url, key=""):
             data = bytes(data)
             conn.write_message(data, binary=True)
             return len(data)
-        on_message = base._CreateEventDrivenServer(
+        on_message = _ffi_api.CreateEventDrivenServer(
             _fsend, "WebSocketProxyServer", "%toinit")
         return on_message
 
