@@ -164,8 +164,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         else:
             new_attrs['kernel_layout'] = 'HWIO'
         return relay.nn.conv2d(data, weight, **new_attrs)
-    else:
-        assert "Layout %s is not yet supported." % (desired_data_layout)
+    assert "Layout %s is not yet supported." % (desired_data_layout)
     return None
 
 
@@ -245,8 +244,7 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
     elif desired_data_layout == "NDHWC":
         new_attrs['kernel_layout'] = 'DHWIO'
         return relay.nn.conv3d(data, weight, **new_attrs)
-    else:
-        assert "Layout %s is not yet supported" % desired_data_layout
+    assert "Layout %s is not yet supported" % desired_data_layout
     return None
 
 # conv3d_winograd related operators
