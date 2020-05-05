@@ -71,7 +71,7 @@ class RingBuffer {
                ring_.size() > kInitCapacity) {
       // shrink too large temporary buffer to
       // avoid out of memory on some embedded devices
-      if (bytes_avaliable_ != 0) {
+      if (bytes_available_ != 0) {
         // move existing bytes to the head.
         size_t old_bytes = bytes_available_;
         std::vector<char> tmp(old_bytes);
@@ -83,7 +83,7 @@ class RingBuffer {
       // shrink the ring.
       size_t new_size  = kInitCapacity;
       new_size = std::max(new_size, n);
-      new_size = std::max(new_size, byte_available_);
+      new_size = std::max(new_size, bytes_available_);
 
       ring_.resize(new_size);
       ring_.shrink_to_fit();
