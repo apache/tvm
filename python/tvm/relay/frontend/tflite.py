@@ -99,7 +99,7 @@ class OperatorConverter(object):
             'LOGISTIC': self.convert_logistic,
             'MAX_POOL_2D': self.convert_max_pool2d,
             'MAXIMUM': self.convert_maximum,
-            'MEAN': self._convert_reduce_mean,
+            'MEAN': self.convert_reduce_mean,
             'MINIMUM': self.convert_minimum,
             'MIRROR_PAD': self.convert_mirror_pad,
             'MUL': self.convert_mul,
@@ -109,10 +109,10 @@ class OperatorConverter(object):
             'PAD': self.convert_pad,
             'POW': self.convert_pow,
             'PRELU': self.convert_prelu,
-            'REDUCE_ANY': self._convert_reduce_any,
-            'REDUCE_MAX': self._convert_reduce_max,
-            'REDUCE_MIN': self._convert_reduce_min,
-            'REDUCE_PROD': self._convert_reduce_prod,
+            'REDUCE_ANY': self.convert_reduce_any,
+            'REDUCE_MAX': self.convert_reduce_max,
+            'REDUCE_MIN': self.convert_reduce_min,
+            'REDUCE_PROD': self.convert_reduce_prod,
             'RELU':self.convert_relu,
             'RESHAPE': self.convert_reshape,
             'RESIZE_BILINEAR': self.convert_resize_bilinear,
@@ -132,7 +132,7 @@ class OperatorConverter(object):
             'SQUEEZE': self.convert_squeeze,
             'STRIDED_SLICE': self.convert_strided_slice,
             'SUB': self.convert_sub,
-            'SUM': self._convert_reduce_sum,
+            'SUM': self.convert_reduce_sum,
             'TAN': self.convert_tan,
             'TANH':self.convert_tanh,
             'TILE': self.convert_tile,
@@ -1241,7 +1241,7 @@ class OperatorConverter(object):
         return out
 
     def _convert_reduce(self, relay_op, op):
-        """Generic method to Convert TFLite MEAN operators"""
+        """Generic method to Convert TFLite REDUCE operators"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ReducerOptions import ReducerOptions
@@ -1285,22 +1285,22 @@ class OperatorConverter(object):
 
         return out
 
-    def _convert_reduce_min(self, op):
+    def convert_reduce_min(self, op):
         return self._convert_reduce(_op.reduce.min, op)
 
-    def _convert_reduce_max(self, op):
+    def convert_reduce_max(self, op):
         return self._convert_reduce(_op.reduce.max, op)
 
-    def _convert_reduce_mean(self, op):
+    def convert_reduce_mean(self, op):
         return self._convert_reduce(_op.reduce.mean, op)
 
-    def _convert_reduce_prod(self, op):
+    def convert_reduce_prod(self, op):
         return self._convert_reduce(_op.reduce.prod, op)
 
-    def _convert_reduce_sum(self, op):
+    def convert_reduce_sum(self, op):
         return self._convert_reduce(_op.reduce.sum, op)
 
-    def _convert_reduce_any(self, op):
+    def convert_reduce_any(self, op):
         return self._convert_reduce(_op.reduce.any, op)
 
     def convert_fully_connected(self, op):
