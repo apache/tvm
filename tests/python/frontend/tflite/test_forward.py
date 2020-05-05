@@ -436,13 +436,11 @@ def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False
 
 def test_forward_batch_matmul():
     """ BATCH_MAT_MUL """
-    print("Jai hanuman!!!")
     _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32')
     _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32', True, True)
     _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', True, False)
     _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', False, True)
     _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), 'float32')
-    print("Jai hanuman!!!")
 
 #######################################################################
 # Tile
