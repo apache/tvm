@@ -457,7 +457,7 @@ def reverse(data, axis):
     data : relay.Expr
         The input data to the operator.
 
-    axis: int
+    axis : None or int or List[int]
         The axis along which to reverse elements.
 
     Returns
@@ -473,7 +473,14 @@ def reverse(data, axis):
         relay.reverse(x, axis=0) = [[3., 4.], [1., 2.]]
 
         relay.reverse(x, axis=1) = [[2., 1.], [4., 3.]]
+
+        x = [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]
+        relay.reverse(x, axis=[0, 2]) = [[[5, 4], [7, 6]], [[1, 0], [3, 2]]]
+
     """
+    if isinstance(axis, int):
+        axis = [axis]
+
     return _make.reverse(data, axis)
 
 

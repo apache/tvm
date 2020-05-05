@@ -1423,12 +1423,27 @@ bool ReverseRel(const Array<Type>& types,
     return false;
   }
   const auto* param = attrs.as<ReverseAttrs>();
-  const int ndim = static_cast<int>(data->shape.size());
-  const int axis = param->axis;
-  CHECK(-ndim <= axis && axis < ndim)
-    << "reverse only accepts `axis` in [-data.ndim, data.ndim - 1]"
-    << ", but got axis = " << axis
-    << ", and data.ndim = " << ndim;
+  const int ndim = data->shape.size();
+  const Array<Integer>& axes = param->axes;
+  // check dimension match
+  if (axes.defined()) {
+    CHECK(static_cast<int>(axes.size()) <= ndim)
+      << "Dimension mismatch: axes has " << axes.size() << " elements"
+      << ", but data.ndim = " << ndim;
+    std::vector<int> axis_used(ndim, 0);
+    for (const Integer& e : axes) {
+      int64_t axis = e;
+      // sanity check for axis and ndim
+      CHECK(-ndim <= axis && axis < ndim)
+        << "reverse only allows each `axis` in `axes` in range [-data.ndim, data.ndim]"
+        << ", but got axis = " << axis
+        << ", and data.ndim = " << ndim;
+      axis = axis < 0 ? axis + ndim : axis;
+      // sanity check for duplication
+      CHECK(!axis_used[axis]) << "Duplicate axes in reverse: " << axis;
+      axis_used[axis] = 1;
+    }
+  }
   reporter->Assign(types[1], types[0]);
   return true;
 }
@@ -1438,13 +1453,13 @@ Array<te::Tensor> ReverseCompute(const Attrs& attrs,
                                  const Type& out_type) {
   const ReverseAttrs *param = attrs.as<ReverseAttrs>();
   CHECK(param != nullptr);
-  return { topi::flip(inputs[0], param->axis) };
+  return { topi::flip(inputs[0], param->axes) };
 }
 
 Expr MakeReverse(Expr data,
-                 int axis) {
+                 Array<Integer> axes) {
   auto attrs = make_object<ReverseAttrs>();
-  attrs->axis = axis;
+  attrs->axes = axes;
   static const Op& op = Op::Get("reverse");
   return Call(op, {data}, Attrs(attrs), {});
 }

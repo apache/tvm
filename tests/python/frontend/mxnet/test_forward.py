@@ -473,6 +473,40 @@ def test_forward_squeeze():
     verify((1, 3, 1), 2)
     verify((1, 3, 1), (0, 2))
 
+
+def test_forward_flip():
+    def verify(input_shape, axis):
+        x_np = np.random.uniform(size=input_shape).astype("float32")
+        ref_res = mx.nd.flip(mx.nd.array(x_np), axis=axis)
+        mx_sym = mx.sym.flip(mx.sym.var("x"), axis=axis)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": input_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 3, 3), 1)
+    verify((3, 4, 3), (0, 1))
+    verify((3, 4, 3), (2, 1, 0))
+    verify((1, 2, 3, 4, 3), (1, 2, 3))
+
+
+def test_forward_reverse():
+    def verify(input_shape, axis):
+        x_np = np.random.uniform(size=input_shape).astype("float32")
+        ref_res = mx.nd.reverse(mx.nd.array(x_np), axis=axis)
+        mx_sym = mx.sym.reverse(mx.sym.var("x"), axis=axis)
+        mod, _ = relay.frontend.from_mxnet(mx_sym, {"x": input_shape})
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, mod=mod, ctx=ctx, target=target)
+                op_res = intrp.evaluate()(x_np)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res.asnumpy())
+    verify((3, 3, 3), 1)
+    verify((3, 4, 3), (0, 1))
+    verify((3, 4, 3), (0, 1, 2))
+
+
 def test_forward_broadcast_axis():
     def verify(shape, axis, size):
         x_np = np.random.uniform(size=shape).astype("float32")
@@ -1144,3 +1178,5 @@ if __name__ == '__main__':
     test_forward_make_loss()
     test_forward_unravel_index()
     test_forward_swap_axis()
+    test_forward_reverse()
+    test_forward_flip()

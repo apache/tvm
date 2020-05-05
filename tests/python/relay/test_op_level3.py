@@ -661,6 +661,9 @@ def test_reverse():
     verify_reverse((2, 3, 4), 1)
     verify_reverse((4, 7), 0)
     verify_reverse((2, 3, 4), -1)
+    verify_reverse((2, 3, 4), None)
+    verify_reverse((2, 3, 4), (0, 1))
+    verify_reverse((2, 3, 4), (-1, -2))
 
 
 def test_gather_nd():

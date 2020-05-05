@@ -706,6 +706,9 @@ def test_flip():
     verify_flip((3, 4, 3), -1)
     verify_flip((3, 4, 3), -3)
     verify_flip((3, 4, 3), -2)
+    verify_flip((3, 3, 3), (0, 1))
+    verify_flip((3, 3, 3), (-2, -3))
+    verify_flip((3, 4, 3), (2, 0))
 
 def test_expand_like():
     verify_expand_like((3,), (2, 3), [0])

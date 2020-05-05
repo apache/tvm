@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("topi.transpose")
 
 TVM_REGISTER_GLOBAL("topi.flip")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = flip(args[0], args[1]);
+  *rv = flip(args[0], ArrayOrInt(args[1]));
   });
 
 TVM_REGISTER_GLOBAL("topi.reshape")

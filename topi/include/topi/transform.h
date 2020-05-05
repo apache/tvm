@@ -156,7 +156,7 @@ inline Tensor transpose(const Tensor& x,
 * \brief flip/reverse elements of an array in a particular axis
 *
 * \param x The input tensor
-* \param axis The axis along which the tensors will be reveresed
+* \param axes The axes along which the tensors will be reveresed
 * (allows negative indices)
 * \param name The name of the operation
 * \param tag The tag to mark the operation
@@ -164,30 +164,46 @@ inline Tensor transpose(const Tensor& x,
 * \return A Tensor whose op member is the reverse operation
 */
 inline Tensor flip(const Tensor& x,
-                   int axis = 0,
+                   Array<Integer> axes,
                    std::string name = "T_flip",
                    std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
-  int axis_inp = axis;
-
-  if (axis < 0) {
-    axis = static_cast<int>(x->shape.size()) + axis;
+  if (!axes.defined() || axes.size() == 0) {
+    axes = Array<Integer>();
+    for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
+      axes.push_back(i);
+    }
   }
+  for (size_t i = 0; i < axes.size(); ++i) {
+    int axis_t = static_cast<int>(axes[i]->value);
+    int new_axis = axis_t;
+    if (axis_t < 0) {
+      new_axis = static_cast<int>(x->shape.size()) + axis_t;
+      axes.Set(i, new_axis);
+    }
+    CHECK((new_axis >= 0) && (new_axis < static_cast<int>(x->shape.size())))
+      << "axis=" << axes << " is invalid for the "
+      << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
 
-  CHECK((0 <= axis) && (axis < static_cast<int>(x->shape.size())))
-    << "axis=" << axis_inp << " is invalid for the "
-    << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
-
+    for (size_t j = 0; j < axes.size(); ++j) {
+      if (i !=j) {
+        CHECK(new_axis != static_cast<int>(axes[j]->value)) << "repeated axis in reverse";
+      }
+    }
+  }
   // Reverse the Input Tensor in the axis specified
   return compute(
     x->shape, [&](const Array<Var>& indices) {
       Array<PrimExpr> real_indices;
       for (size_t i = 0; i < src_tensor_dim; ++i) {
-        if (i == static_cast<size_t>(axis)) {
-          real_indices.push_back(x->shape[i] - indices[i] - 1);
-        } else {
-          real_indices.push_back(indices[i]);
+        PrimExpr index = indices[i];
+        for (size_t j = 0; j < axes.size(); ++j) {
+          if (i == static_cast<size_t>(axes[j])) {
+            index = x->shape[i] - indices[i] - 1;
+            break;
+          }
         }
+        real_indices.push_back(index);
       }
       return x(real_indices);
     }, name, tag);

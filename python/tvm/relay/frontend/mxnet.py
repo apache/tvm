@@ -697,7 +697,7 @@ def _mx_take(inputs, attrs):
 def _mx_reverse(inputs, attrs):
     assert len(inputs) == 1
     new_attrs = {}
-    new_attrs["axis"] = attrs.get_int("axis")
+    new_attrs["axis"] = attrs.get_int_tuple("axis", None)
     return _op.reverse(inputs[0], **new_attrs)
 
 

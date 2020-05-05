@@ -174,10 +174,11 @@ struct TileAttrs : public tvm::AttrsNode<TileAttrs> {
 
 /*! \brief Attributes used in reverse operators */
 struct ReverseAttrs : public tvm::AttrsNode<ReverseAttrs> {
-  Integer axis;
+  Array<Integer> axes;
   TVM_DECLARE_ATTRS(ReverseAttrs, "relay.attrs.ReverseAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
-        .describe("The axis along which to reverse elements.");
+    TVM_ATTR_FIELD(axes)
+        .describe("The axes along which to reverse elements.")
+        .set_default(NullValue<Array<Integer> >());
   }
 };  // struct ReverseAttrs
 
