@@ -40,7 +40,7 @@ use lazy_static::lazy_static;
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 use crate::{errors, Module};
-use super::to_function::ToFunction;
+use super::to_function::{ToFunction, Typed};
 
 lazy_static! {
     static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
@@ -279,7 +279,7 @@ impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
 pub fn register<'a, F, I, O, S: AsRef<str>>(
     f: F,
     name: S,
-) -> Result<()> where F: ToFunction<'a, I, O> {
+) -> Result<()> where F: ToFunction<I, O>, F: Typed<I, O> {
     register_override(f, name, false)
 }
 
@@ -319,7 +319,7 @@ pub fn register_override<'a, F, I, O, S: AsRef<str>>(
     f: F,
     name: S,
     override_: bool,
-) -> Result<()> where F: ToFunction<'a, I, O> {
+) -> Result<()> where F: ToFunction<I, O>, F: Typed<I, O> {
     let func = f.to_function();
     let name = CString::new(name.as_ref())?;
     check_call!(ffi::TVMFuncRegisterGlobal(
@@ -391,38 +391,37 @@ mod tests {
         assert_eq!(func.arg_buf.len(), 3);
     }
 
-    // #[test]
-    // fn register_and_call_fn() {
-    //     use crate::{ArgValue, function, RetValue};
-    //     use crate::function::Builder;
-    //     use anyhow::Error;
-    //     use std::convert::TryInto;
+    #[test]
+    fn register_and_call_fn() {
+        use crate::{ArgValue, function, RetValue};
+        use crate::function::Builder;
+        use anyhow::Error;
+        use std::convert::TryInto;
 
-    //     fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
-    //         let mut ret = 0i64;
-    //         for arg in args.iter() {
-    //             let arg: i64 = arg.try_into()?;
-    //             ret += arg;
-    //         }
-    //         let ret_val = RetValue::from(ret);
-    //         Ok(ret_val)
-    //     }
+        fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
+            let mut ret = 0i64;
+            for arg in args.iter() {
+                let arg: i64 = arg.try_into()?;
+                ret += arg;
+            }
+            let ret_val = RetValue::from(ret);
+            Ok(ret_val)
+        }
 
-    //     function::register_override(sum, "mysum".to_owned(), true).unwrap();
-    //     let mut registered = Builder::default();
-    //     registered.get_function("mysum");
-    //     println!("{:?}", registered.func);
-    //     assert!(registered.func.is_some());
-    //     let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
-    //     assert_eq!(ret, 60);
-    // }
+        function::register_override(sum, "mysum".to_owned(), true).unwrap();
+        let mut registered = Builder::default();
+        registered.get_function("mysum");
+        println!("{:?}", registered.func);
+        assert!(registered.func.is_some());
+        let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
+        assert_eq!(ret, 60);
+    }
 
 
     #[test]
     fn register_and_call_closure0() {
-        use crate::{ArgValue, function, RetValue};
+        use crate::{function};
         use crate::function::Builder;
-        use anyhow::Error;
         use std::convert::TryInto;
 
         fn sum() -> i64 {
@@ -444,6 +443,7 @@ mod tests {
         use crate::function::Builder;
         use anyhow::Error;
         use std::convert::TryInto;
+        use tvm_sys::value::*;
 
         fn sum(x: i64) -> i64 {
             return 10;
@@ -464,7 +464,7 @@ mod tests {
         use crate::function::Builder;
         use anyhow::Error;
         use std::convert::TryInto;
-
+        use tvm_sys::value::*;
         fn sum(a: i64, b: i64, c: i64) -> i64 {
             return a + b + c;
         }

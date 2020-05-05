@@ -35,16 +35,106 @@ use anyhow::{Result};
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
+use std::convert::{TryInto, TryFrom};
 use super::Function;
 
-pub trait ToFunction<'a, I, O>: Sized {
+/// A trait representing whether the function arguments
+/// and return type can be assigned to a TVM packed function.
+///
+/// By splitting the conversion to function into two traits
+/// we are able to improve error reporting, by splitting the
+/// conversion of inputs and outputs to this trait.
+///
+/// And the implementation of it to `ToFunction`.
+pub trait Typed<I, O> {
+    fn args(i: &[ArgValue<'static>]) -> anyhow::Result<I>;
+    fn ret(o: O) -> RetValue;
+}
+
+impl<'a, F> Typed<&'a [ArgValue<'static>], anyhow::Result<RetValue>> for F where F: Fn(&'a [ArgValue]) -> anyhow::Result<RetValue>  {
+    fn args(args: &[ArgValue<'static>]) -> anyhow::Result<&'a [ArgValue<'static>]> {
+        // this is BAD but just hacking for time being
+        Ok(unsafe { std::mem::transmute(args) })
+    }
+
+    fn ret(ret_value: anyhow::Result<RetValue>) -> RetValue {
+        ret_value.unwrap()
+    }
+}
+
+impl<F, O: Into<RetValue>> Typed<(), O> for F where F: Fn() -> O {
+    fn args(_args: &[ArgValue<'static>]) -> anyhow::Result<()> {
+        debug_assert!(_args.len() == 0);
+        Ok(())
+    }
+
+    fn ret(o: O) -> RetValue {
+        o.into()
+    }
+}
+
+impl<F, A, O: Into<RetValue>, E: Into<anyhow::Error>> Typed<(A,), O> for F
+where F: Fn(A) -> O,
+      E: std::error::Error + Send + Sync + 'static,
+      A: TryFrom<ArgValue<'static>, Error=E> {
+        fn args(args: &[ArgValue<'static>]) -> anyhow::Result<(A,)> {
+            debug_assert!(args.len() == 1);
+            let a: A = args[0].clone().try_into()?;
+            Ok((a,))
+        }
+
+        fn ret(o: O) -> RetValue {
+            o.into()
+        }
+    }
+
+    impl<F, A, B, O: Into<RetValue>, E: Into<anyhow::Error>> Typed<(A,B,), O> for F
+    where F: Fn(A, B) -> O,
+          E: std::error::Error + Send + Sync + 'static,
+          A: TryFrom<ArgValue<'static>, Error=E>,
+          B: TryFrom<ArgValue<'static>, Error=E> {
+            fn args(args: &[ArgValue<'static>]) -> anyhow::Result<(A,B)> {
+                debug_assert!(args.len() == 1);
+                let a: A = args[0].clone().try_into()?;
+                let b: B = args[1].clone().try_into()?;
+                Ok((a, b))
+            }
+
+            fn ret(o: O) -> RetValue {
+                o.into()
+            }
+        }
+
+        impl<F, A, B, C, O: Into<RetValue>, E: Into<anyhow::Error>> Typed<(A,B,C), O> for F
+    where F: Fn(A, B, C) -> O,
+          E: std::error::Error + Send + Sync + 'static,
+          A: TryFrom<ArgValue<'static>, Error=E>,
+          B: TryFrom<ArgValue<'static>, Error=E>,
+          C: TryFrom<ArgValue<'static>, Error=E> {
+            fn args(args: &[ArgValue<'static>]) -> anyhow::Result<(A,B,C,)> {
+                debug_assert!(args.len() == 1);
+                let a: A = args[0].clone().try_into()?;
+                let b: B = args[1].clone().try_into()?;
+                let c: C = args[2].clone().try_into()?;
+                Ok((a, b, c,))
+            }
+
+            fn ret(o: O) -> RetValue {
+                o.into()
+            }
+        }
+
+pub trait ToFunction<I, O>: Sized {
     type Handle;
 
     fn into_raw(self) -> *mut Self::Handle;
-    fn call(handle: *mut Self::Handle, args: &[ArgValue<'a>]) -> anyhow::Result<RetValue>;
+
+    fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> anyhow::Result<RetValue>
+    where Self: Typed<I, O>;
+
     fn drop(handle: *mut Self::Handle);
 
-    fn to_function(self) -> Function {
+    fn to_function(self) -> Function where Self: Typed<I, O> {
         let mut fhandle = ptr::null_mut() as ffi::TVMFunctionHandle;
         let resource_handle = self.into_raw();
         check_call!(ffi::TVMFuncCreateFromCFunc(
@@ -65,7 +155,7 @@ pub trait ToFunction<'a, I, O>: Sized {
         num_args: c_int,
         ret: ffi::TVMRetValueHandle,
         fhandle: *mut c_void,
-    ) -> c_int {
+    ) -> c_int where Self:Typed<I, O> {
         // turning off the incorrect linter complaints
         #![allow(unused_assignments, unused_unsafe)]
         println!("here");
@@ -123,26 +213,27 @@ pub trait ToFunction<'a, I, O>: Sized {
     }
 }
 
-// impl<'a, 'b> ToFunction<&'a [ArgValue<'b>], RetValue> for fn(&[ArgValue]) -> Result<RetValue> {
-//     type Handle = for <'x, 'y> fn(&'x [ArgValue<'y>]) -> Result<RetValue>;
+impl ToFunction<&[ArgValue<'static>], Result<RetValue>> for for <'a> fn(&'a [ArgValue<'static>]) -> Result<RetValue> {
+    type Handle = fn(&[ArgValue<'static>]) -> Result<RetValue>;
 
-//     fn into_raw(self) -> *mut Self::Handle {
-//         self as *mut Self::Handle
-//     }
+    fn into_raw(self) -> *mut Self::Handle {
+        self as *mut Self::Handle
+    }
 
-//     fn call(handle: *mut Self::Handle, args: &[ArgValue]) -> Result<RetValue> {
-//         println!("calls");
-//         let handle: Self::Handle = unsafe { std::mem::transmute(handle) };
-//         let r = handle(args);
-//         println!("afters");
-//         r
-//     }
+    fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue> {
+        panic!()
+        // println!("calls");
+        // let handle: Self::Handle = unsafe { std::mem::transmute(handle) };
+        // let r = handle(args);
+        // println!("afters");
+        // r
+    }
 
-//     // Function's don't need de-allocation because the pointers are into the code section of memory.
-//     fn drop(_: *mut Self::Handle) {}
-// }
+    // Function's don't need de-allocation because the pointers are into the code section of memory.
+    fn drop(_: *mut Self::Handle) {}
+}
 
-impl<'a, O: Into<RetValue>, F> ToFunction<'a, (), O> for F where F: Fn() -> O + 'static {
+impl<O, F> ToFunction<(), O> for F where F: Fn() -> O + 'static {
     type Handle = Box<dyn Fn() -> O + 'static>;
 
     fn into_raw(self) -> *mut Self::Handle {
@@ -150,20 +241,19 @@ impl<'a, O: Into<RetValue>, F> ToFunction<'a, (), O> for F where F: Fn() -> O + 
         Box::into_raw(ptr)
     }
 
-    fn call(handle: *mut Self::Handle, _: &[ArgValue<'a>]) -> Result<RetValue> {
+    fn call(handle: *mut Self::Handle, _: &[ArgValue<'static>]) -> Result<RetValue> where F: Typed<(), O> {
         // Ideally we shouldn't need to clone, probably doesn't really matter.
-        unsafe { Ok((*handle)().into()) }
+        let out = unsafe { (*handle)() };
+        Ok(F::ret(out))
     }
 
     fn drop(_: *mut Self::Handle) {}
 }
 
 macro_rules! to_function_instance {
-    ($(($param:ident,$index:expr),)+) => {
-        impl<'a, $($param,)+ O: Into<RetValue>, F> ToFunction<'a, ($($param,)+), O> for
-        F where F: Fn($($param,)+) -> O + 'static,
-                $($param: From<ArgValue<'a>>,)+
-                $($param: 'a,)+ {
+    ($(($param:ident,$index:tt),)+) => {
+        impl<F, $($param,)+ O> ToFunction<($($param,)+), O> for
+        F where F: Fn($($param,)+) -> O + 'static {
             type Handle = Box<dyn Fn($($param,)+) -> O + 'static>;
 
             fn into_raw(self) -> *mut Self::Handle {
@@ -171,12 +261,13 @@ macro_rules! to_function_instance {
                 Box::into_raw(ptr)
             }
 
-            fn call(handle: *mut Self::Handle, args: &[ArgValue<'a>]) -> Result<RetValue> {
+            fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue> where F: Typed<($($param,)+), O> {
                 // Ideally we shouldn't need to clone, probably doesn't really matter.
-                let res = unsafe {
-                    (*handle)($(args[$index].clone().into(),)+)
+                let args = F::args(args)?;
+                let out = unsafe {
+                    (*handle)($(args.$index),+)
                 };
-                Ok(res.into())
+                Ok(F::ret(out))
             }
 
             fn drop(_: *mut Self::Handle) {}
@@ -184,26 +275,47 @@ macro_rules! to_function_instance {
     }
 }
 
-// impl<'a, A, O: Into<RetValue>, F> ToFunction<'a, (A,), O> for F
-// where
-//     F: Fn(A) -> O + 'static,
-//     A: From<ArgValue<'a>>,
-//     A: 'a,
-// {
-//     type Handle = Box<dyn Fn(A) -> O + 'static>;
-//     fn into_raw(self) -> *mut Self::Handle {
-//         let ptr: Box<Self::Handle> = Box::new(Box::new(self));
-//         Box::into_raw(ptr)
-//     }
-//     fn call(handle: *mut Self::Handle, args: &[ArgValue<'a>]) -> Result<RetValue> {
-//         let res = unsafe { (*handle)(args[0].clone().into()) };
-//         Ok(res.into())
-//     }
-
-//     fn drop(_: *mut Self::Handle) {}
-// }
-
 to_function_instance!((A, 0),);
 to_function_instance!((A, 0), (B, 1),);
 to_function_instance!((A, 0), (B, 1), (C, 2),);
 to_function_instance!((A, 0), (B, 1), (C, 2), (D, 3),);
+
+#[cfg(test)]
+mod tests {
+    use super::{Function, Typed, ToFunction};
+    use super::{ArgValue, RetValue};
+
+    fn zero() -> i32 { 10 }
+
+    fn helper<F, I, O>(f: F) -> Function where F: ToFunction<I, O>, F: Typed<I, O> {
+        f.to_function()
+    }
+
+    fn func_args(args: &[ArgValue<'static>]) -> anyhow::Result<RetValue> {
+        Ok(10.into())
+    }
+
+    #[test]
+    fn test_fn_ptr() {
+        ToFunction::<&[ArgValue<'static>], anyhow::Result<RetValue>>::to_function(func_args);
+    }
+
+    #[test]
+    fn test_to_function0() {
+        helper(zero);
+    }
+
+    fn one_arg(i: i32) -> i32 { i }
+
+    #[test]
+    fn test_to_function1() {
+        helper(one_arg);
+    }
+
+    fn two_arg(i: i32, j: i32) -> i32 { i }
+
+    #[test]
+    fn test_to_function2() {
+        helper(two_arg);
+    }
+}
