@@ -105,7 +105,7 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
             List of input and output types
         desired_layouts : list of layout strings
                 List of layouts defining our desired
-                layout for the data and kernel inputs.
+                layout for the data and kernel inputs respectively.
 
         Returns
         -------
@@ -117,17 +117,21 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
         data_layout = attrs['data_layout']
         kernel_layout = attrs['kernel_layout']
         data, weight = inputs
-        desired_layout = str(desired_layouts[0])
-        assert desired_layout == 'NCHW', \
-                "Currently only transformation to NCHW layout is supported."
+
+        # Use the first entry in desired layouts which specifies the data layout.
+        # The expected ordering of layouts for this operator is defined by this function.
+        desired_data_layout = str(desired_layouts[0])
+
         if desired_layout == 'NCHW':
             new_attrs = dict(attrs)
-            new_attrs['data_layout'] = desired_layout
+            new_attrs['data_layout'] = desired_data_layout
             new_attrs['kernel_layout'] = 'OIHW'
             # Actual insertion of layout transforms is taken care internally
             # by ConvertLayout pass.
             return relay.nn.conv2d(data, weight, **new_attrs)
-        return None
+        else:
+            assert "Layout %s is not yet supported" % desired_data_layout
+            return None
 
 
 **FInferCorrectLayout - Layout inference** - Currently, this attribute is exposed only in C++. This function takes original input layouts and the new input layouts (passed from the previous operator or from the python callback for layout alteration), and infers the final data layouts. Layout inference is called for each operator. The usage might vary for different operator categories. For layout agnostic operators, we just want to return the new data layouts in this function. For lightly-layout and heavily-layout sensitive operators, we can change the operator attributes (like axis for concatenate, pad_width for pad) so that we can adapt to the new data layout, preventing insertion of layout transforms. Let's look at a couple of examples to understand this better.
@@ -244,7 +248,7 @@ In order to specify the layouts to convert to, we create a mapping of heavily-la
          graph, lib, params = relay.build(mod, target, params=params)
 
 
-The example above only considers data layout, the kernel layout is automatically converted to one that is supported by TVM. If we wish to also convert to a specific kernel layout this can be done like so:
+The example above only considers data layout because the kernel layout is automatically converted to one that is supported by TVM. If we wish to also convert to a specific kernel layout this can be done like so:
 
 .. code-block:: python
 
@@ -252,7 +256,16 @@ The example above only considers data layout, the kernel layout is automatically
     pass = relay.transform.ConvertLayout(desired_layouts)
 
 
-If we wish to select the default choice for a specific layout then the layout should be declared as "default". In the first example, the kernel layout is implicitly defined as "default".
+The ordering of layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the example above its [data_layout, kernel_layout].
+
+If we wish to select the default choice for a specific layout then the layout should be declared as "default". For nn.conv2d the following two statements are equivalent: `{'nn.conv2d': ['NCHW', 'default']} == {'nn.conv2d': ['NCHW', 'HWIO']}` since the default kernel layout in TVM is HWIO. In the first example, the kernel layout is implicitly defined as "default". The example below shows how this can be used:
+
+.. code-block:: python
+
+    # Use the layout that TVM chooses by default
+    desired_layouts = {'nn.conv2d': ['NCHW', 'default']}
+    pass = relay.transform.ConvertLayout(desired_layouts)
+
 
 Current implementation has support for almost all the operators commonly used in image classification models. However, if one encounters too many data layout transforms in the graph, it is highly likely that there is an operator whose layouts need special handling as described in Section 3. Some pull requests that can help in such a situation are
 

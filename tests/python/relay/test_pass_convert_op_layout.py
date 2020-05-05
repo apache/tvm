@@ -642,6 +642,36 @@ def test_conv_convert_kernel_layout():
     assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
 
 
+def test_default_keyword():
+    """ Check that the default keyword selects correct TVM default layout. """
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        weight = relay.var("weight", shape=(64, 3, 3, 64))
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout='NHWC', kernel_layout='OHWI')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64))
+        w = relay.var("weight", shape=(64, 3, 3, 64))
+        w = relay.layout_transform(w, 'OHWI', 'HWIO')
+        y = relay.nn.conv2d(x, w,
+                            channels=64,
+                            kernel_size=(3, 3),
+                            padding=(1, 1),
+                            data_layout='NHWC',
+                            kernel_layout='HWIO')
+        y = relay.Function(analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(a, transform.ConvertLayout({'nn.conv2d': ['NHWC', 'default']}))
+    b = run_opt_pass(expected(), transform.InferType())
+
+    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+
+
 if __name__ == "__main__":
     test_no_convert_layout()
     test_conv_convert_layout()
@@ -656,3 +686,4 @@ if __name__ == "__main__":
     test_qnn_conv_concat_convert_layout()
     test_qnn_conv_add_convert_layout()
     test_conv_convert_kernel_layout()
+    test_default_keyword()

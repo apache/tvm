@@ -131,7 +131,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
         List of input and output types
     desired_layouts : list of layout strings
         List of layouts defining our desired
-        layout for the data and kernel inputs.
+        layout for the data and kernel inputs respectively.
 
     Returns
     -------
@@ -142,9 +142,9 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
     from tvm import relay
     data, weight = inputs
     new_attrs = dict(attrs)
-    desired_layout = str(desired_layouts[0])
-    assert desired_layout != "default", "Data layout cannot be default"
-    new_attrs['data_layout'] = desired_layout
+    desired_data_layout = str(desired_layouts[0])
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs['data_layout'] = desired_data_layout
 
     if len(desired_layouts) > 1:
         desired_kernel_layout = str(desired_layouts[1])
@@ -153,10 +153,10 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
             return relay.nn.conv2d(data, weight, **new_attrs)
 
     # Handle default kernel layouts
-    if desired_layout == 'NCHW':
+    if desired_data_layout == 'NCHW':
         new_attrs['kernel_layout'] = 'OIHW'
         return relay.nn.conv2d(data, weight, **new_attrs)
-    elif desired_layout == 'NHWC':
+    elif desired_data_layout == 'NHWC':
         # Check for depthwise convolution.
         if is_depthwise_conv2d(data.shape, attrs['data_layout'], weight.shape,
                                attrs['kernel_layout'], attrs['groups']):
@@ -165,7 +165,7 @@ def convert_conv2d(attrs, inputs, tinfos, desired_layouts):
             new_attrs['kernel_layout'] = 'HWIO'
         return relay.nn.conv2d(data, weight, **new_attrs)
     else:
-        assert "Layout %s is not yet supported." % (desired_layout)
+        assert "Layout %s is not yet supported." % (desired_data_layout)
     return None
 
 
@@ -217,7 +217,7 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
         List of input and output types
     desired_layouts : list of layout strings
         List of layouts defining our desired
-        layout for the data and kernel inputs.
+        layout for the data and kernel inputs respectively.
 
     Returns
     -------
@@ -228,9 +228,9 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
     from tvm import relay
     data, weight = inputs
     new_attrs = dict(attrs)
-    desired_layout = str(desired_layouts[0])
-    assert desired_layout != "default", "Data layout cannot be default"
-    new_attrs['data_layout'] = desired_layout
+    desired_data_layout = str(desired_layouts[0])
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs['data_layout'] = desired_data_layout
 
     if len(desired_layouts) > 1:
         desired_kernel_layout = str(desired_layouts[1])
@@ -239,14 +239,14 @@ def convert_conv3d(attrs, inputs, tinfos, desired_layouts):
             return relay.nn.conv3d(data, weight, **new_attrs)
 
     # Handle default kernel layouts
-    if desired_layout == 'NCDHW':
+    if desired_data_layout == 'NCDHW':
         new_attrs['kernel_layout'] = 'OIDHW'
         return relay.nn.conv3d(data, weight, **new_attrs)
-    elif desired_layout == "NDHWC":
+    elif desired_data_layout == "NDHWC":
         new_attrs['kernel_layout'] = 'DHWIO'
         return relay.nn.conv3d(data, weight, **new_attrs)
     else:
-        assert "Layout %s is not yet supported" % desired_layout
+        assert "Layout %s is not yet supported" % desired_data_layout
     return None
 
 # conv3d_winograd related operators
