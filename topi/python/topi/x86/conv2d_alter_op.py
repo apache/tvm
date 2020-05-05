@@ -33,7 +33,7 @@ from ..nn.util import get_pad_tuple
 logger = logging.getLogger('topi')
 
 _NCHWc_matcher = re.compile("^NCHW[0-9]+c$")
-_OIHWio_matcher = re.compile("^OIHW[0-9]+i[-+]?[0-9]+o$")
+_OIHWio_matcher = re.compile("^OIHW[0-9]+i[0-9]+o$")
 
 @conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
