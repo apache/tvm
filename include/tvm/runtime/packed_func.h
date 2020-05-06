@@ -49,7 +49,6 @@
 // expansion cases where we know inline is important.
 #ifdef _MSC_VER
 #define TVM_ALWAYS_INLINE __forceinline inline
-#pragma warning(disable : 4068)
 #else
 #define TVM_ALWAYS_INLINE inline __attribute__((always_inline))
 #endif
@@ -1303,9 +1302,10 @@ struct unpack_call_by_signature {
 template<typename R, typename ...Args>
 struct unpack_call_by_signature<R(Args...)> {
   template<typename F>
-  TVM_ALWAYS_INLINE static void run(const F& f,
-                  const TVMArgs& args,
-                  TVMRetValue* rv) {
+  TVM_ALWAYS_INLINE static void run(
+      const F& f,
+      const TVMArgs& args,
+      TVMRetValue* rv) {
     unpack_call<R, sizeof...(Args)>(f, args, rv);
   }
 };
