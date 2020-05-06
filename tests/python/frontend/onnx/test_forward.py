@@ -859,21 +859,22 @@ def _test_upsample_bilinear_opset9():
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
     y = helper.make_node("Upsample", ['in', 'scales'], ['out'], mode='linear')
-    scales = [1.0, 1.0, 2.0, 2.0]
+    scales = [1, 1, 2, 2]
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
     out_array = topi.testing.bilinear_resize_python(
         in_array, (3*scale, 3*scale), "NCHW")
 
-    ref_array = np.array(scales)
     ref_node = helper.make_node('Constant',
                                 inputs=[],
-                                outputs=['scales'],
+                                outputs=['const'],
                                 value=onnx.helper.make_tensor(name='const_tensor',
                                                               data_type=TensorProto.FLOAT,
-                                                              dims=ref_array.shape,
-                                                              vals=ref_array.flatten().astype(float)))
+                                                              dims=scales,
+                                                              vals=np.random.random(scales).flatten().astype(float)))
 
-    graph = helper.make_graph([ref_node, y],
+    shape_node = helper.make_node("Shape", ['const'], ['scales'])
+
+    graph = helper.make_graph([ref_node, shape_node, y],
                               'upsample_bilinear_opset9_test',
                               inputs=[helper.make_tensor_value_info(
                                   "in", TensorProto.FLOAT, list(in_shape))],
