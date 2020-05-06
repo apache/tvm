@@ -178,6 +178,18 @@ class RPCSession {
   virtual DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) = 0;
 
   /*!
+   * \brief Whether the session is a local session and we can directly
+   *        the data handle returned by the session and treat it as pointer
+   *        to the local memory.
+   *
+   * This information is useful for RPC server to directly copy into the
+   * local memory without creating a temporary buffer.
+   *
+   * \return Whether it is a local session.
+   */
+  virtual bool IsLocalSession() const = 0;
+
+  /*!
    * \return The session table index of the session.
    */
   int table_index() const {

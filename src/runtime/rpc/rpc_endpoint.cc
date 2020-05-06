@@ -390,20 +390,18 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     size_t elem_bytes = (type_hint.bits * type_hint.lanes + 7) / 8;
 
     char* data_ptr;
+    auto* sess = GetServingSession();
 
-    if (ctx.device_type == kDLCPU) {
+    // When session is local, we can directly treat handle
+    // as the cpu pointer without allocating a temp space.
+    if (ctx.device_type == kDLCPU &&
+        sess->IsLocalSession() &&
+        DMLC_IO_NO_ENDIAN_SWAP) {
       data_ptr = reinterpret_cast<char*>(handle) + offset;
-      // endian aware handling
-      if (!DMLC_IO_NO_ENDIAN_SWAP) {
-        char* temp = this->ArenaAlloc<char>(num_bytes);
-        std::memcpy(temp, data_ptr, num_bytes);
-        dmlc::ByteSwap(temp, elem_bytes, num_bytes / elem_bytes);
-        data_ptr = temp;
-      }
     } else {
       try {
         data_ptr = this->ArenaAlloc<char>(num_bytes);
-        GetServingSession()->CopyFromRemote(
+        sess->CopyFromRemote(
             reinterpret_cast<void*>(handle), offset,
             data_ptr, 0,
             num_bytes, ctx, type_hint);
@@ -440,8 +438,11 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     this->Read(&type_hint);
 
     size_t elem_bytes = (type_hint.bits * type_hint.lanes + 7) / 8;
+    auto* sess = GetServingSession();
 
-    if (ctx.device_type == kDLCPU) {
+    // When session is local, we can directly treat handle
+    // as the cpu pointer without allocating a temp space.
+    if (ctx.device_type == kDLCPU && sess->IsLocalSession()) {
        char* dptr = reinterpret_cast<char*>(handle) + offset;
        this->ReadArray(dptr, num_bytes);
 
@@ -457,7 +458,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       }
 
       try {
-        GetServingSession()->CopyToRemote(
+        sess->CopyToRemote(
             temp_data, 0,
             reinterpret_cast<void*>(handle), offset,
             num_bytes, ctx, type_hint);
@@ -1044,6 +1045,10 @@ class RPCClientSession : public RPCSession,
 
   DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing) final {
     return this;
+  }
+
+  bool IsLocalSession() const final {
+    return false;
   }
 
  private:
