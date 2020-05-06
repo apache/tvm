@@ -184,7 +184,7 @@ impl<'a, 'm> Builder<'a, 'm> {
     }
 
     pub fn invoke(self) -> Result<RetValue> {
-        panic!()
+        self.func.unwrap().invoke(self.arg_buf)
     }
 
 }
@@ -210,12 +210,12 @@ mod tests {
 
     #[test]
     fn to_boxed_fn0() {
-        fn sum() -> i64 {
+        fn boxed0() -> i64 {
             return 10;
         }
 
-        function::register_override(sum, "mysum".to_owned(), true).unwrap();
-        let func = Function::get("mysum").unwrap();
+        function::register_override(boxed0, "boxed0".to_owned(), true).unwrap();
+        let func = Function::get("boxed0").unwrap();
         let typed_func: Box<dyn Fn() -> Result<i64>> = func.to_boxed_fn();
         assert_eq!(typed_func().unwrap(), 10);
     }

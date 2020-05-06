@@ -61,7 +61,7 @@ mod tests {
         let s = String::new("foo".to_string()).unwrap();
         let object_ref = s.to_object_ref();
         println!("about to call");
-        let string = debug_print(&object_ref)?;
+        let string = debug_print(object_ref)?;
         println!("after call");
         ensure!(
             string.into_string().expect("is cstring").contains("foo"),

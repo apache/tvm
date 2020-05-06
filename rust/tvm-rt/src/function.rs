@@ -43,7 +43,7 @@ use super::to_function::{ToFunction, Typed};
 use super::to_boxed_fn::ToBoxedFn;
 
 lazy_static! {
-    static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
+    static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<String, Option<Function>>> = {
         let mut out_size = 0 as c_int;
         let mut names_ptr = ptr::null_mut() as *mut *const c_char;
         check_call!(ffi::TVMFuncListGlobalNames(
@@ -51,11 +51,20 @@ lazy_static! {
             &mut names_ptr as *mut _,
         ));
         let names_list = unsafe { slice::from_raw_parts(names_ptr, out_size as usize) };
-        println!("{:?}", names_list);
-        let names_list = names_list
+
+        let names_list: Vec<String> =
+            names_list
             .iter()
-            .map(|&p| (unsafe { CStr::from_ptr(p).to_str().unwrap() }, None))
+            .map(|&p| unsafe { CStr::from_ptr(p).to_str().unwrap().into() })
             .collect();
+
+        // println!("{:?}", &names_list);
+
+        let names_list = names_list
+            .into_iter()
+            .map(|p| (p, None))
+            .collect();
+
         Mutex::new(names_list)
     };
 }
@@ -89,8 +98,6 @@ impl Function {
     pub fn get<S: AsRef<str>>(name: S) -> Option<&'static Function> {
         let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
         globals.get_mut(name.as_ref()).and_then(|maybe_func| {
-            println!("Function {:?}", name.as_ref());
-            println!("maybe_func {:?}", maybe_func);
             if maybe_func.is_none() {
                 let name = CString::new(name.as_ref()).unwrap();
                 let mut handle = ptr::null_mut() as ffi::TVMFunctionHandle;
@@ -104,7 +111,7 @@ impl Function {
                     is_cloned: false,
                 });
             }
-            println!("maybe_func {:?}", maybe_func);
+
             unsafe {
                 mem::transmute::<Option<&Function>, Option<&'static Function>>(maybe_func.as_ref())
             }
@@ -128,7 +135,7 @@ impl Function {
     }
 
     /// Calls the function that created from `Builder`.
-    pub fn invoke<'a>(&mut self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
+    pub fn invoke<'a>(&self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
         let num_args = arg_buf.len();
         let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
             arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
@@ -202,7 +209,7 @@ impl Drop for Function {
 /// let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
 /// assert_eq!(ret, 60);
 /// ```
-pub fn register<F, I, O, S: AsRef<str>>(f: F, name: S) -> Result<()>
+pub fn register<F, I, O, S: Into<String>>(f: F, name: S) -> Result<()>
 where
     F: ToFunction<I, O>,
     F: Typed<I, O>,
@@ -242,18 +249,24 @@ where
 /// let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
 /// assert_eq!(ret, 60);
 /// ```
-pub fn register_override<F, I, O, S: AsRef<str>>(f: F, name: S, override_: bool) -> Result<()>
+pub fn register_override<F, I, O, S: Into<String>>(f: F, name: S, override_: bool) -> Result<()>
 where
     F: ToFunction<I, O>,
     F: Typed<I, O>,
 {
     let func = f.to_function();
-    let name = CString::new(name.as_ref())?;
+    let name = name.into();
+    let mut globals = GLOBAL_FUNCTIONS.lock().unwrap();
+    // Not sure about this code
+    let handle = func.handle();
+    globals.insert(name.clone(), Some(func));
+    let name= CString::new(name)?;
     check_call!(ffi::TVMFuncRegisterGlobal(
         name.into_raw(),
-        func.handle(),
+        handle,
         override_ as c_int
     ));
+
     Ok(())
 }
 
@@ -297,109 +310,31 @@ mod tests {
     }
 
     #[test]
-    fn provide_args() {
-        let str_arg = CString::new("test").unwrap();
-        let mut func = Builder::default();
-        func.get_function("tvm.graph_runtime.remote_create")
-            .arg(10)
-            .arg(20)
-            .arg(str_arg.as_c_str());
-        assert_eq!(func.arg_buf.len(), 3);
-    }
-
-    #[test]
-    // fn register_and_call_fn() {
-    //     use crate::{ArgValue, function, RetValue};
-    //     use crate::function::Builder;
-    //     use anyhow::Error;
-    //     use std::convert::TryInto;
-
-    //     fn sum(args: &[ArgValue]) -> Result<RetValue, Error> {
-    //         let mut ret = 0i64;
-    //         for arg in args.iter() {
-    //             let arg: i64 = arg.try_into()?;
-    //             ret += arg;
-    //         }
-    //         let ret_val = RetValue::from(ret);
-    //         Ok(ret_val)
-    //     }
-
-    //     function::register_override(sum, "mysum".to_owned(), true).unwrap();
-    //     let mut registered = Builder::default();
-    //     registered.get_function("mysum");
-    //     println!("{:?}", registered.func);
-    //     assert!(registered.func.is_some());
-    //     let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
-    //     assert_eq!(ret, 60);
-    // }
-
-    #[test]
     fn register_and_call_closure0() {
         use crate::function;
-        use crate::function::Builder;
 
-        fn sum() -> i64 {
+        fn constfn() -> i64 {
             return 10;
         }
 
-        function::register_override(sum, "mysum".to_owned(), true).unwrap();
-        let mut registered = Builder::default();
-        registered.get_function("mysum");
-        println!("{:?}", registered.func);
-        assert!(registered.func.is_some());
-        let ret: i64 = registered
-            .args(&[10, 20, 30])
-            .invoke()
-            .unwrap()
-            .try_into()
-            .unwrap();
-        assert_eq!(ret, 60);
+        function::register_override(constfn, "constfn".to_owned(), true).unwrap();
+        let func = Function::get("constfn").unwrap();
+        let func = func.to_boxed_fn::<dyn Fn() -> Result<i32>>();
+        let ret = func().unwrap();
+        assert_eq!(ret, 10);
     }
 
-    #[test]
-    fn register_and_call_closure1() {
-        use crate::function::{self};
+    // #[test]
+    // fn register_and_call_closure1() {
+    //     use crate::function::{self};
 
-        fn sum(x: i64) -> i64 {
-            return 10;
-        }
+    //     fn ident(x: i64) -> i64 {
+    //         return x;
+    //     }
 
-        function::register_override(sum, "mysum".to_owned(), true).unwrap();
-        let mut registered = Builder::default();
-        registered.get_function("mysum");
-        println!("{:?}", registered.func);
-        assert!(registered.func.is_some());
-        let ret: i64 = registered
-            .args(&[10, 20, 30])
-            .invoke()
-            .unwrap()
-            .try_into()
-            .unwrap();
-        assert_eq!(ret, 60);
-    }
-
-    #[test]
-    fn register_and_call_closure() {
-        use crate::function::Builder;
-        use crate::{function, ArgValue, RetValue};
-        use anyhow::Error;
-        use std::convert::TryInto;
-        use tvm_sys::value::*;
-        fn sum(a: i64, b: i64, c: i64) -> i64 {
-            return a + b + c;
-        }
-
-        function::register_override(sum, "mysum".to_owned(), true).unwrap();
-        let mut registered = Builder::default();
-        registered.get_function("mysum");
-        println!("{:?}", registered.func);
-        assert!(registered.func.is_some());
-        let ret: i64 = registered
-            .args(&[10, 20, 30])
-            .invoke()
-            .unwrap()
-            .try_into()
-            .unwrap();
-        assert_eq!(ret, 60);
-    }
+    //     function::register_override(ident, "ident".to_owned(), false).unwrap();
+    //     let func = Function::get("ident").unwrap();
+    //     let func = func.to_boxed_fn::<dyn Fn(i32) -> Result<i32>>();
+    //     assert_eq!(func(60).unwrap(), 60);
+    // }
 }

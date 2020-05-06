@@ -328,7 +328,6 @@ to_function_instance!((A, 0), (B, 1), (C, 2), (D, 3),);
 #[cfg(test)]
 mod tests {
     // use super::RawFunction;
-    use super::{ArgValue, RetValue};
     use super::{Function, ToFunction, Typed};
 
     fn zero() -> i32 {
@@ -368,7 +367,7 @@ mod tests {
     }
 
     fn two_arg(i: i32, j: i32) -> i32 {
-        i
+        i + j
     }
 
     #[test]
