@@ -270,7 +270,35 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
  */
 template <typename T>
 static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> shape,
-                                          T value) {
+                                          std::vector<T> value) {
+  runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    for (size_t i = 0; i < value.size(); i++) {
+      if (dtype == DataType::Float(16)) {
+        // convert to float16
+        // storage is uint16_t
+        // Similar handling as that in MakeConstantScalar
+        *(static_cast<DType*>(arr->data) + i) =
+            __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(
+                static_cast<float>(value[i]));
+      } else {
+        *(static_cast<DType*>(arr->data) + i) = value[i];
+      }
+    }
+  })
+  return Constant(arr);
+}
+
+/*!
+ * \brief Create a Constant with a tensor.
+ *
+ * \param dtype The data type.
+ * \param value The array of the tensor values.
+ * \return A Constant.
+ */
+template <typename T>
+static inline Constant MakeConstantTensor(DataType dtype, std::vector<int64_t> shape,
+                                          Array<T> value) {
   runtime::NDArray arr = runtime::NDArray::Empty(shape, dtype, {kDLCPU, 0});
   TVM_DTYPE_DISPATCH(dtype, DType, {
     for (size_t i = 0; i < value.size(); i++) {
