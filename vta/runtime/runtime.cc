@@ -1278,7 +1278,8 @@ class CommandQueue {
 
     // FIXME(zhanghao): It is required to use force_serial
     // by using skip and sync at the final layer, we can avoid do DeviceCopy every time
-    if (skip) {
+    const char* sync_once = std::getenv("TVM_VTA_SYNC_ONCE");
+    if (sync_once && skip) {
       if (!(debug_flag_ & VTA_DEBUG_FORCE_SERIAL)) {
         LOG(ERROR) <<
             "Synchronizing all in one round requires to use force_serial to make things right";
@@ -1518,7 +1519,8 @@ void VTABufferCopy(const void* from, size_t from_offset, void* to, size_t to_off
     // NOTE: Issue synchronize manually as we delay the copy until we do it synchronously and explicitly
     // struct timespec start, stop;
     // clock_gettime(CLOCK_REALTIME, &start);
-    VTASynchronize(VTATLSCommandHandle(), 1<<31, false);
+    const char* sync_once = std::getenv("TVM_VTA_SYNC_ONCE");
+    if (sync_once) VTASynchronize(VTATLSCommandHandle(), 1<<31, false);
     // clock_gettime(CLOCK_REALTIME, &stop);
     // uint64_t elapsed = 1000000ULL * (stop.tv_sec - start.tv_sec) + (stop.tv_nsec - start.tv_nsec) / 1000;
     // LOG(WARNING) << "Final Synchronize: " << elapsed << " us";
