@@ -787,7 +787,10 @@ class Upsample(OnnxOpConverter):
         if not scales:
             #Here we are going to higher OPSET version.
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
-            scales = params[inputs[1].name_hint].asnumpy()
+            if get_name(inputs[1]) in params:
+                scales = params[inputs[1].name_hint].asnumpy()
+            else:
+                scales = infer_value_simulated(inputs[1], params).asnumpy()
             inputs = inputs[:1]
         assert scales[0] == 1.0 and scales[1] == 1.0
         input_shape = infer_shape(inputs[0])
