@@ -38,7 +38,7 @@ inline PrimExpr ConstInt32(size_t index) {
   return make_const(DataType::Int(32), static_cast<int>(index));
 }
 
-inline PrimExpr StackAlloca(String type, size_t num) {
+inline PrimExpr StackAlloca(std::string type, size_t num) {
   Array<PrimExpr> args = {StringImmNode::make(type), ConstInt32(num)};
   return CallNode::make(
       DataType::Handle(),

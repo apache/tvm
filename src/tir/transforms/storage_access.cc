@@ -212,7 +212,7 @@ void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
     StmtExprVisitor::VisitExpr_(op);
   } else if (op->is_intrinsic(intrinsic::tvm_storage_sync)) {
     CHECK(allow_append_);
-    const String& s = op->args[0].as<StringImmNode>()->value;
+    const std::string& s = op->args[0].as<StringImmNode>()->value;
     if (s != "warp") {
       StorageScope scope = StorageScope::make(s);
       AccessEntry e;

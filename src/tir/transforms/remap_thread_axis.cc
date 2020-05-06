@@ -34,7 +34,7 @@ namespace tir {
 class ThreadAxisRewriter : private StmtExprMutator {
  public:
   explicit ThreadAxisRewriter(
-      const std::unordered_map<String, IterVar>& tmap)
+      const std::unordered_map<std::string, IterVar>& tmap)
       : tmap_(tmap) {
   }
 
@@ -70,14 +70,14 @@ class ThreadAxisRewriter : private StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
   // The thread map
-  const std::unordered_map<String, IterVar>& tmap_;
+  const std::unordered_map<std::string, IterVar>& tmap_;
   // variable map
   std::unordered_map<const VarNode*, Var> vmap_;
 };
 
 
 PrimFunc RemapThreadAxis(PrimFunc&& f, Map<runtime::String, IterVar> thread_map) {
-  std::unordered_map<String, IterVar> tmap;
+  std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
     tmap[kv.first] = kv.second;
   }

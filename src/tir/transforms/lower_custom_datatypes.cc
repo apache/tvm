@@ -40,7 +40,7 @@ namespace tir {
  */
 class CustomDatatypesLowerer : public StmtExprMutator {
  public:
-  explicit CustomDatatypesLowerer(const String& target) : target_(target) {}
+  explicit CustomDatatypesLowerer(const std::string& target) : target_(target) {}
 
   inline PrimExpr VisitExpr_(const CastNode* op) final {
     auto type_code = op->dtype.code();
@@ -128,7 +128,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
   // Later changes may need to add more mutate functions as we support workloads with more ops.
 
  private:
-  String target_;
+  std::string target_;
 };
 
 

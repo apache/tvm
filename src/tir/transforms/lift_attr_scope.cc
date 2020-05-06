@@ -35,7 +35,7 @@ namespace tir {
 // to a few specified attr keys
 class AttrScopeLifter : public StmtMutator {
  public:
-  explicit AttrScopeLifter(String attr_key)
+  explicit AttrScopeLifter(std::string attr_key)
       : attr_key_(attr_key) {}
 
   Stmt Lift(Stmt stmt) {
@@ -183,19 +183,19 @@ class AttrScopeLifter : public StmtMutator {
     return false;
   }
 
-  String attr_key_;
+  std::string attr_key_;
   ObjectRef attr_node_;
   PrimExpr attr_value_;
 };
 
-Stmt LiftAttrScope(Stmt stmt, String attr_key) {
+Stmt LiftAttrScope(Stmt stmt, std::string attr_key) {
   return AttrScopeLifter(attr_key).Lift(std::move(stmt));
 }
 
 
 namespace transform {
 
-Pass LiftAttrScope(String attr_key) {
+Pass LiftAttrScope(std::string attr_key) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = AttrScopeLifter(attr_key).Lift(std::move(n->body));

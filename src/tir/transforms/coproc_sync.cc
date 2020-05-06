@@ -91,7 +91,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
  public:
   explicit CoProcSyncPlanner(
       const std::unordered_set<const VarNode*>& touched,
-      const String& coproc_name)
+      const std::string& coproc_name)
       : touched_(touched), coproc_name_(coproc_name) {
   }
 
@@ -196,7 +196,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
     return GetSync(coproc_name_ + ".coproc_sync");
   }
 
-  std::vector<Stmt> GetSync(String sync_name) {
+  std::vector<Stmt> GetSync(std::string sync_name) {
     return {EvaluateNode::make(CallNode::make(
         DataType::Int(32),
         sync_name,
@@ -204,7 +204,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
   }
 
   const std::unordered_set<const VarNode*>& touched_;
-  String coproc_name_;
+  std::string coproc_name_;
 };
 
 // Detect memory barriers when coproc read/write memory
@@ -212,7 +212,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
  public:
   explicit CoProcBarrierDetector(
       const std::unordered_set<const VarNode*>& touched,
-      const String& coproc_name)
+      const std::string& coproc_name)
       : touched_(touched) {
     read_barrier_name_ = coproc_name + ".coproc_read_barrier";
     write_barrier_name_ = coproc_name + ".coproc_write_barrier";
@@ -331,7 +331,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     return write_seq;
   }
 
-  Stmt MakeBarrier(const String& func, const std::vector<AccessEntry>& wvec) {
+  Stmt MakeBarrier(const std::string& func, const std::vector<AccessEntry>& wvec) {
     // insert write point
     Array<arith::IntSet> wset;
     for (const AccessEntry& acc : wvec) {
@@ -350,8 +350,8 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
   }
   // Write barrier name
   bool read_barrier_{false};
-  String read_barrier_name_;
-  String write_barrier_name_;
+  std::string read_barrier_name_;
+  std::string write_barrier_name_;
   const std::unordered_set<const VarNode*>& touched_;
 };
 
@@ -360,7 +360,7 @@ class CoProcInstDepDetector : public StmtVisitor {
  public:
   explicit CoProcInstDepDetector(
       const IterVar& coproc_axis,
-      const String& coproc_name)
+      const std::string& coproc_name)
       : coproc_axis_(coproc_axis) {
     sync_push_name_ = coproc_name + ".coproc_dep_push";
     sync_pop_name_ = coproc_name + ".coproc_dep_pop";
@@ -602,7 +602,7 @@ class CoProcInstDepDetector : public StmtVisitor {
   SyncState first_state_, last_state_, curr_state_;
   // Variables
   IterVar coproc_axis_;
-  String sync_push_name_, sync_pop_name_;
+  std::string sync_push_name_, sync_pop_name_;
 };
 
 
@@ -620,7 +620,7 @@ class CoProcSyncInserter : public StmtMutator {
       }
     }
     CHECK_EQ(visitor.coproc_.size(), 1U);
-    String coproc_name = (*visitor.coproc_.begin())->var->name_hint;
+    std::string coproc_name = (*visitor.coproc_.begin())->var->name_hint;
     // plan sync.
     CoProcSyncPlanner sync_planner(touched, coproc_name);
     sync_planner.Plan(stmt);

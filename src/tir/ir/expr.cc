@@ -33,14 +33,14 @@
 namespace tvm {
 namespace tir {
 
-Var::Var(String name_hint, DataType dtype) {
+Var::Var(std::string name_hint, DataType dtype) {
   auto n = make_object<VarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = std::move(dtype);
   data_ = std::move(n);
 }
 
-Var::Var(String name_hint, Type type_annotation) {
+Var::Var(std::string name_hint, Type type_annotation) {
   auto n = make_object<VarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = GetRuntimeDataType(type_annotation);
@@ -48,7 +48,7 @@ Var::Var(String name_hint, Type type_annotation) {
   data_ = std::move(n);
 }
 
-Var Var::copy_with_suffix(const String& suffix) const {
+Var Var::copy_with_suffix(const std::string& suffix) const {
   const VarNode* node = get();
   ObjectPtr<VarNode> new_ptr;
   if (auto* ptr = this->as<SizeVarNode>()) {
@@ -61,7 +61,7 @@ Var Var::copy_with_suffix(const String& suffix) const {
   return Var(new_ptr);
 }
 
-SizeVar::SizeVar(String name_hint, DataType dtype) {
+SizeVar::SizeVar(std::string name_hint, DataType dtype) {
   auto n = make_object<SizeVarNode>();
   n->name_hint = std::move(name_hint);
   n->dtype = std::move(dtype);
@@ -70,7 +70,7 @@ SizeVar::SizeVar(String name_hint, DataType dtype) {
 
 
 TVM_REGISTER_GLOBAL("tir.Var")
-.set_body_typed([](String name_hint, runtime::TVMArgValue type) {
+.set_body_typed([](std::string name_hint, runtime::TVMArgValue type) {
   if (type.IsObjectRef<Type>()) {
     return Var(name_hint, type.operator Type());
   } else {
@@ -79,7 +79,7 @@ TVM_REGISTER_GLOBAL("tir.Var")
 });
 
 TVM_REGISTER_GLOBAL("tir.SizeVar")
-.set_body_typed([](String s, DataType t) {
+.set_body_typed([](std::string s, DataType t) {
     return SizeVar(s, t);
 });
 
@@ -87,7 +87,7 @@ TVM_REGISTER_GLOBAL("tir.SizeVar")
 IterVar IterVarNode::make(Range dom,
                           Var var,
                           IterVarType t,
-                          String thread_tag) {
+                          std::string thread_tag) {
   ObjectPtr<IterVarNode> n = make_object<IterVarNode>();
   n->dom = dom;
   n->var = var;
@@ -97,7 +97,7 @@ IterVar IterVarNode::make(Range dom,
 }
 
 TVM_REGISTER_GLOBAL("tir.IterVar")
-.set_body_typed([](Range dom, Var var, int iter_type, String thread_tag) {
+.set_body_typed([](Range dom, Var var, int iter_type, std::string thread_tag) {
   return IterVarNode::make(
       dom, var,
       static_cast<IterVarType>(iter_type),
@@ -123,7 +123,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(IterVarNode);
 
-PrimExpr StringImmNode::make(String value) {
+PrimExpr StringImmNode::make(std::string value) {
   ObjectPtr<StringImmNode> node = make_object<StringImmNode>();
   node->dtype = DataType::Handle();
   node->value = std::move(value);
@@ -276,7 +276,7 @@ bool CallNode::is_vectorizable() const {
 }
 
 PrimExpr CallNode::make(DataType dtype,
-                        String name,
+                        std::string name,
                         Array<PrimExpr> args,
                         CallType call_type,
                         FunctionRef func,
@@ -813,7 +813,7 @@ TVM_REGISTER_GLOBAL("tir.Load")
 
 TVM_REGISTER_GLOBAL("tir.Call")
 .set_body_typed([](
-  DataType type, String name,
+  DataType type, std::string name,
   Array<ObjectRef> args, int call_type,
   FunctionRef func, int value_index
 ) {

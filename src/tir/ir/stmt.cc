@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("tir.LetStmt")
 .set_body_typed(LetStmtNode::make);
 
 Stmt AttrStmtNode::make(ObjectRef node,
-                    String attr_key,
+                    std::string attr_key,
                     PrimExpr value,
                     Stmt body) {
   auto n = make_object<AttrStmtNode>();

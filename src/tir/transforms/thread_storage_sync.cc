@@ -366,7 +366,7 @@ class ThreadSyncInserter : public StmtExprMutator {
   PrimExpr is_lead_;
 };
 
-Stmt ThreadSync(Stmt stmt, String storage_scope) {
+Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::make(storage_scope);
   ThreadSyncPlanner planner(sync_scope);
   planner(stmt);
@@ -375,7 +375,7 @@ Stmt ThreadSync(Stmt stmt, String storage_scope) {
 
 namespace transform {
 
-Pass ThreadSync(String storage_scope) {
+Pass ThreadSync(std::string storage_scope) {
   auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ThreadSync(std::move(n->body), storage_scope);

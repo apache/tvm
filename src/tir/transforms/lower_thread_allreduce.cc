@@ -324,7 +324,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     }
   }
   // sync thread op.
-  static Stmt SyncThread(const String& sync) {
+  static Stmt SyncThread(const std::string& sync) {
     return EvaluateNode::make(
         CallNode::make(DataType::Int(32), intrinsic::tvm_storage_sync,
                    {StringImmNode::make(sync)},

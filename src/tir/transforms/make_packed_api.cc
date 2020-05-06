@@ -40,7 +40,7 @@
 namespace tvm {
 namespace tir {
 
-inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, String msg) {
+inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmtNode::make(lhs == rhs, tvm::tir::StringImmNode::make(msg),
                               EvaluateNode::make(0));
 }
@@ -56,7 +56,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
       << "MakePackedAPI: Require the target attribute";
   int target_device_type = target.value()->device_type;
 
-  String name_hint = global_symbol.value();
+  std::string name_hint = global_symbol.value();
 
   auto* func_ptr = func.CopyOnWrite();
   const Stmt nop = EvaluateNode::make(0);

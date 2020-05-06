@@ -44,9 +44,9 @@ class FragmentGetter : public StmtExprVisitor {
     // fragment shape
     int m, n, k;
     // fragment layout (row-major or column-major)
-    String layout;
+    std::string layout;
     FragmentInfo() = default;
-    FragmentInfo(int _m, int _n, int _k, const String& _layout)
+    FragmentInfo(int _m, int _n, int _k, const std::string& _layout)
       : m(_m), n(_n), k(_k), layout(_layout) {}
   };
 
@@ -69,7 +69,7 @@ class FragmentGetter : public StmtExprVisitor {
       CHECK(k);
       CHECK(layout);
 
-      String scope = scopes[buffer_var];
+      std::string scope = scopes[buffer_var];
       if (fragments.count(buffer_var)) {
         // check if the fragment has met before
         FragmentInfo info = fragments[buffer_var];
@@ -102,7 +102,7 @@ class FragmentGetter : public StmtExprVisitor {
       CHECK(n);
       CHECK(k);
 
-      String scope = scopes[buffer_var];
+      std::string scope = scopes[buffer_var];
       // Only wmma.accumulator can use tvm_fill_fragment
       CHECK_EQ(scope, "wmma.accumulator");
       if (fragments.count(buffer_var)) {
@@ -128,7 +128,7 @@ class FragmentGetter : public StmtExprVisitor {
   }
 
   // Memory scope for allocations
-  std::unordered_map<const VarNode*, String> scopes;
+  std::unordered_map<const VarNode*, std::string> scopes;
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
 };
@@ -186,7 +186,7 @@ class InferFragmenter : public StmtMutator {
       FragmentGetter::FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       // Add shape attribute to all fragments
-      String shape = std::to_string(info.m) + ", " +
+      std::string shape = std::to_string(info.m) + ", " +
                           std::to_string(info.n) + ", " +
                           std::to_string(info.k);
       PrimExpr shape_expr = StringImmNode::make(shape);
