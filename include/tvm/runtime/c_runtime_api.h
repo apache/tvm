@@ -515,6 +515,15 @@ TVM_DLL int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
 TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
 
 /*!
+ * \brief Increase the reference count of an object.
+ *
+ * \param obj The object handle.
+ * \note Internally we increase the reference counter of the object.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMObjectRetain(TVMObjectHandle obj);
+
+/*!
  * \brief Free the object.
  *
  * \param obj The object handle.
@@ -524,16 +533,6 @@ TVM_DLL int TVMObjectTypeKey2Index(const char* type_key, unsigned* out_tindex);
  */
 TVM_DLL int TVMObjectFree(TVMObjectHandle obj);
 
-/*!
- * \brief Allocate a data space on device.
- * \param ctx The device context to perform operation.
- * \param nbytes The number of bytes in memory.
- * \param alignment The alignment of the memory.
- * \param type_hint The type of elements. Only needed by certain backends such
- *                   as nbytes & alignment are sufficient for most backends.
- * \param out_data The allocated device pointer.
- * \return 0 when success, -1 when failure happens
- */
 TVM_DLL int TVMDeviceAllocDataSpace(DLContext ctx, size_t nbytes, size_t alignment,
                                     DLDataType type_hint, void** out_data);
 
@@ -563,6 +562,9 @@ TVM_DLL int TVMDeviceCopyDataFromTo(const void* from, size_t from_offset, void* 
                                     size_t to_offset, size_t num_bytes, TVMContext ctx_from,
                                     TVMContext ctx_to, DLDataType type_hint,
                                     TVMStreamHandle stream);
+
+TVM_DLL int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, int* is_derived);
+
 
 #ifdef __cplusplus
 }  // TVM_EXTERN_C

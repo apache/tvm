@@ -95,6 +95,16 @@ impl From<DLDataType> for DataType {
     }
 }
 
+impl From<DataType> for DLDataType {
+    fn from(dtype: DataType) -> Self {
+        Self {
+            code: dtype.code,
+            bits: dtype.bits,
+            lanes: dtype.lanes,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum ParseDataTypeError {
     #[error("invalid number: {0}")]

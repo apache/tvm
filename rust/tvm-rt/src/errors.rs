@@ -19,28 +19,27 @@
 
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-#[error("invalid header (expected {expected_type:?}, found {actual_type:?})")]
-pub struct ValueDowncastError {
-    pub actual_type: String,
-    pub expected_type: &'static str,
+#[derive(Debug, Error)]
+#[error("Cannot convert from an empty array.")]
+pub struct EmptyArrayError;
+
+#[derive(Debug, Error)]
+#[error("Handle `{name}` is null.")]
+pub struct NullHandleError {
+    pub name: String,
 }
 
-#[derive(Error, Debug)]
-#[error("Function call `{context:?}` returned error: {message:?}")]
-pub struct FuncCallError {
-    context: String,
-    message: String,
+#[derive(Debug, Error)]
+#[error("Function was not set in `function::Builder`")]
+pub struct FunctionNotFoundError;
+
+#[derive(Debug, Error)]
+#[error("Expected type `{expected}` but found `{actual}`")]
+pub struct TypeMismatchError {
+    pub expected: String,
+    pub actual: String,
 }
 
-impl FuncCallError {
-    pub fn get_with_context(context: String) -> Self {
-        Self {
-            context,
-            message: unsafe { std::ffi::CStr::from_ptr(crate::ffi::TVMGetLastError()) }
-                .to_str()
-                .expect("failed while attempting to retrieve the TVM error message")
-                .to_owned(),
-        }
-    }
-}
+#[derive(Debug, Error)]
+#[error("Missing NDArray shape.")]
+pub struct MissingShapeError;

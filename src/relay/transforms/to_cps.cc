@@ -151,7 +151,7 @@ Function ToCPS(const Function& f, const IRModule& m, CPSMap* cm, VarMap* vm,
         // only look unfold non-external calls.
         BaseFunc base_func = m->Lookup(gv);
         if (auto* n = base_func.as<FunctionNode>()) {
-          auto cps_gv = GlobalVar(gv->name_hint + "_cps");
+          auto cps_gv = GlobalVar(std::string(gv->name_hint) + "_cps");
           cm->insert({gv, cps_gv});
           m->Add(cps_gv, ToCPS(GetRef<Function>(n), m, cm));
         } else {
