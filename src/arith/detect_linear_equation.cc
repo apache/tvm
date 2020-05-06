@@ -71,6 +71,16 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     return ret;
   }
 
+  LinearEqEntry VisitExpr_(const FloorDivNode* op, const PrimExpr& e) final {
+    if (fail_) return LinearEqEntry();
+    LinearEqEntry a = VisitExpr(op->a, op->a);
+    LinearEqEntry b = VisitExpr(op->b, op->b);
+    LinearEqEntry ret;
+    ret.base = FloorDivCombine(a.base, b.base);
+    ret.coeff = FloorDivCombine(a.coeff, b.coeff);
+    return ret;
+  }
+
   LinearEqEntry VisitExpr_(const SubNode* op, const PrimExpr& e) final {
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = VisitExpr(op->a, op->a);
@@ -137,6 +147,12 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
     if (!a.defined()) return a;
     if (!b.defined()) return b;
     return a * b;
+  }
+  // Combine by div
+  PrimExpr FloorDivCombine(PrimExpr a, PrimExpr b) {
+    if (!a.defined()) return b;
+    if (!b.defined()) return a;
+    return FloorDivNode::make(a, b);
   }
 };
 

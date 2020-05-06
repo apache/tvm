@@ -36,7 +36,6 @@ def conv2d_packed(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         raise topi.InvalidShapeError()
     assert dilation == (1, 1)
 
-    eprint("data.shape, kernel.shape", data.shape, kernel.shape)
     if padding[0]:
         pad_data = topi.nn.pad(data, [0, 0, padding[0], padding[1], 0, 0], name="pad_data")
     else:
@@ -194,7 +193,6 @@ def schedule_conv2d_packed(cfg, outs):
 # FIXME(zhanghao): move this code to a proper location
 @topi.generic.schedule_add.register(["vta"])
 def _schedule_add(outs):
-    eprint("schedule_add vta")
     assert len(outs) == 1
 
     def is_cast_op(op):
@@ -245,14 +243,29 @@ def _schedule_add(outs):
 
         # TODO(zhanghao): auto-tune
         x_co0, x_co1 = s[output].split(x_co, factor=1)
-        x_i0, x_i1 = s[output].split(x_i, factor=min(28, x_i_max))
-        x_j0, x_j1 = s[output].split(x_j, factor=min(14, x_j_max))
+
+        from functools import reduce
+        def factors(n):
+            return sorted(set(reduce(list.__add__,
+                              ([i, n//i] for i in range(1, int(n**0.5) + 1) if n % i == 0))))
+
+        # FIXME(zhanghao): use auto-tune
+        i_factors = factors(x_i_max)
+        i_factor = i_factors[-1]
+        if i_factor > 28:
+            i_factor = i_factors[-2]
+
+        j_factors = factors(x_j_max)
+        j_factor = j_factors[-1]
+        if j_factor > 14:
+            j_factor = j_factors[-2]
+        x_i0, x_i1 = s[output].split(x_i, factor=i_factor)
+        x_j0, x_j1 = s[output].split(x_j, factor=j_factor)
         s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
         store_pt = x_j0
 
         env = get_env()
         for eo in ewise_ops:
-            eprint("add ewise_ops ", eo)
             s[eo].set_scope(env.acc_scope)
             s[eo].pragma(s[eo].op.axis[0], env.alu)
             s[eo].compute_at(s[output], store_pt)
@@ -260,7 +273,6 @@ def _schedule_add(outs):
         # cache read input
         cache_read_ewise = []
         for consumer, tensor in ewise_inputs:
-            eprint("add dma_copy", consumer, tensor, tensor.op)
             cache_read_ewise.append(
                 s.cache_read(tensor, env.acc_scope, [consumer]))
 

@@ -173,6 +173,30 @@ def conv2d_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
 
 
+@register_annotate_function("nn.conv2d_transpose")
+def conv2d_transpose_rewrite(ref_call, new_args, ctx):
+    """Rewrite function for conv2d_transpose. Lhs of conv will be quantized to
+    input field, and rhs of conv will be quantized to weight field.
+    Output would be in activation field"""
+    if quantize_context().check_to_skip(ref_call):
+        return None
+
+    lhs_expr, lhs_kind = _get_expr_kind(new_args[0])
+    rhs_expr, rhs_kind = _get_expr_kind(new_args[1])
+
+    if lhs_kind is None or lhs_kind == QAnnotateKind.ACTIVATION:
+        lhs_expr = attach_simulated_quantize(lhs_expr, QAnnotateKind.INPUT)
+
+    assert rhs_kind is None
+    rhs_expr = attach_simulated_quantize(rhs_expr, QAnnotateKind.WEIGHT)
+
+    expr = _forward_op(ref_call, [lhs_expr, rhs_expr])
+
+    return QAnnotateExpr(expr, QAnnotateKind.ACTIVATION)
+
+
+# TODO(tmoreau89,ziheng) need to include an option to turn off dense quant
+# @register_annotate_function("nn.dense")
 @register_annotate_function("nn.dense")
 def dense_rewrite(ref_call, new_args, ctx):
     """Rewrite function for dense. Lhs of dense will be quantized to input field, and rhs of
@@ -281,6 +305,7 @@ def identity_rewrite(ref_call, new_args, ctx):
     return QAnnotateExpr(ret_expr, x_kind)
 
 
+register_annotate_function("reshape", identity_rewrite)
 register_annotate_function("clip", identity_rewrite)
 register_annotate_function("nn.relu", identity_rewrite)
 register_annotate_function("strided_slice", identity_rewrite)

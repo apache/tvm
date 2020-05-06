@@ -94,7 +94,7 @@ def _weight_shape_match_transpose(data, dshape, channels, cfactor_out):
     if pad_width != 0:
         pad_width = cfactor_out - pad_width
         data = op.nn.pad(data, [[0, 0], [0, pad_width], [0, 0], [0, 0]])
-        dshape = tuple(dshape[0], [dshape[1] + pad_width, dshape[2], dshape[3]])
+        dshape = tuple([dshape[0]] + [dshape[1] + pad_width, dshape[2], dshape[3]])
 
     if channels_pad != 0:
         channels = channels + (cfactor_out - channels_pad)
@@ -252,11 +252,12 @@ class ExprLocater(ExprMutator):
         # First visit the children.
         args = [self.visit(arg) for arg in call.args]
 
+        odtype = _get_tensor_type(call)
         self.counter += 1
-        if call.op in self.op2nodes:
-            self.op2nodes[call.op].append(self.counter)
+        if (call.op, odtype) in self.op2nodes:
+            self.op2nodes[(call.op, odtype)].append(self.counter)
         else:
-            self.op2nodes[call.op] = [self.counter]
+            self.op2nodes[(call.op, odtype)] = [self.counter]
 
         return relay.Call(
             self.visit(call.op),
@@ -550,7 +551,8 @@ def graph_pack(expr,
         The transformed expression.
     """
     assert isinstance(expr, relay.Function)
-    assert ((start_name != stop_name) or (start_name_idx < stop_name_idx))
+    assert ((start_name != stop_name) or (start_name_idx is None != stop_name_idx is None) or \
+            (not (start_name_idx is None and stop_name_idx is None)) or (start_name_idx < stop_name_idx))
     expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
     expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(
@@ -564,20 +566,17 @@ def graph_pack(expr,
         expr_locator = ExprLocater()
         expr_locator.visit(expr)
 
-        # from the second conv2d to the global_avg_pool2d, all will run on vta
+        # from the first int conv2d to the last int stop_fusion, all will run on vta
         conv2d = op.op.get("nn.conv2d")
-        avg_pool2d = op.op.get("nn.global_avg_pool2d")
-        start = expr_locator.op2nodes[conv2d][1]
-        # preceeding the nn.global_avg_pool2d, it will look like this
-        #
-        # %310 = annotation.stop_fusion(%309) /* ty=Tensor[(1, 16, 7, 7, 1, 32), int8] */;
-        # %311 = cast(%310, dtype="int32") /* ty=Tensor[(1, 16, 7, 7, 1, 32), int32] */;
-        # %312 = transpose(%311, axes=[0, 4, 1, 5, 2, 3]) /* ty=Tensor[(1, 1, 16, 32, 7, 7), int32] */;
-        # %313 = reshape(%312, newshape=[1, 512, 7, 7]) /* ty=Tensor[(1, 512, 7, 7), int32] */;
-        # %314 = nn.global_avg_pool2d(%313) /* ty=Tensor[(1, 512, 1, 1), int32] */;
-        #
-        # we mark the preceeding three ops also on cpu device
-        end = expr_locator.op2nodes[avg_pool2d][0] - 3
+        conv2d_transpose = op.op.get("nn.conv2d_transpose")
+        stop_fusion = op.op.get("annotation.stop_fusion")
+        if (conv2d, "int32") in expr_locator.op2nodes:
+            start = expr_locator.op2nodes[(conv2d, "int32")][0]
+        else:
+            start = expr_locator.op2nodes[(conv2d_transpose, "int32")][0]
+
+        # we mark the next op to the last stop_fusion on cpu device
+        end = expr_locator.op2nodes[(stop_fusion, "int8")][-1] + 1
 
         device_annot = ExprDeviceAnnot(start=start, end=end)
         expr = device_annot.visit(expr)

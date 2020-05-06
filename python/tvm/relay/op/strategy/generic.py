@@ -330,8 +330,10 @@ def wrap_compute_conv2d_transpose(topi_compute):
         out = topi_compute(
             inputs[0], inputs[1], strides, padding, out_dtype)
         output_padding = get_const_tuple(attrs.output_padding)
-        out = topi.nn.pad(out, [0, 0, 0, 0],
-                          [0, 0, output_padding[0], output_padding[1]])
+        if output_padding[0] != 0 or output_padding[1] != 0:
+            pad_before = [0] * len(out.shape)
+            pad_after = [0, 0, output_padding[0], output_padding[1]] + [0] * (len(out.shape) - 4)
+            out = topi.nn.pad(out, pad_before, pad_after)
         return [out]
     return compute_conv2d_transpose
 
