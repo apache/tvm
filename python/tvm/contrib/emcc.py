@@ -61,6 +61,7 @@ def create_tvmjs_wasm(output,
         objects += [find_lib_path("wasm_runtime.bc")[0]]
 
     objects += [find_lib_path("tvmjs_support.bc")[0]]
+    objects += [find_lib_path("webgpu_runtime.bc")[0]]
 
     cmd += ["-o", output]
     cmd += objects

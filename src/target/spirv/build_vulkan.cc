@@ -70,7 +70,7 @@ class SPIRVTools {
   spv_context ctx_;
 };
 
-runtime::Module BuildSPIRV(IRModule mod, std::string target) {
+runtime::Module BuildSPIRV(IRModule mod, std::string target, bool webgpu_restriction) {
   using tvm::runtime::Registry;
   using tvm::runtime::VulkanShader;
 
@@ -98,7 +98,15 @@ runtime::Module BuildSPIRV(IRModule mod, std::string target) {
     std::string f_name = global_symbol.value();
 
     VulkanShader shader;
-    shader.data = cg.BuildFunction(f);
+    std::string entry = webgpu_restriction ? "main" : f_name;
+    shader.data = cg.BuildFunction(f, entry);
+
+    if (webgpu_restriction) {
+      for (auto param : f->params) {
+        CHECK(param.dtype().is_handle())
+            << "WebGPU does not yet support non-buffer arguments";
+      }
+    }
 
     if (postproc != nullptr) {
       TVMByteArray arr;
@@ -119,7 +127,14 @@ runtime::Module BuildSPIRV(IRModule mod, std::string target) {
 }
 
 TVM_REGISTER_GLOBAL("target.build.vulkan")
-.set_body_typed(BuildSPIRV);
+.set_body_typed([](IRModule mod, std::string target) {
+  return BuildSPIRV(mod, target, false);
+});
+
+TVM_REGISTER_GLOBAL("target.build.webgpu")
+.set_body_typed([](IRModule mod, std::string target) {
+  return BuildSPIRV(mod, target, true);
+});
 
 }  // namespace codegen
 }  // namespace tvm

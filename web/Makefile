@@ -20,7 +20,7 @@ TVM_ROOT=$(shell cd ..; pwd)
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
 	-I$(TVM_ROOT)/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include
 
-.PHONY: clean all
+.PHONY: clean all removetypedep
 
 all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js
 
@@ -37,7 +37,7 @@ dist/wasm/%.bc: emcc/%.cc
 	$(EMCC) $(EMCC_CFLAGS) -c -o dist/wasm/$*.bc $<
 
 
-dist/wasm/tvmjs_runtime.wasm: dist/wasm/wasm_runtime.bc dist/wasm/tvmjs_support.bc
+dist/wasm/tvmjs_runtime.wasm: dist/wasm/wasm_runtime.bc dist/wasm/tvmjs_support.bc dist/wasm/webgpu_runtime.bc
 	@mkdir -p $(@D)
 	$(EMCC)  $(EMCC_CFLAGS) -o dist/wasm/tvmjs_runtime.js $+ $(EMCC_LDFLAGS)
 
