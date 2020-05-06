@@ -114,24 +114,30 @@ These steps happen for each operator in sequence, where ConvertLayout pass keeps
         """
 
         from tvm import relay
-        data_layout = attrs['data_layout']
-        kernel_layout = attrs['kernel_layout']
         data, weight = inputs
+        new_attrs = dict(attrs)
+
+        # We expect 2 desired layouts to be specified, one for the data and one for the kernel.
+        assert len(desired_layouts) == 2, "A desired layout is expected for both of nn.conv2d's inputs"
 
         # Use the first entry in desired layouts which specifies the data layout.
         # The expected ordering of layouts for this operator is defined by this function.
-        desired_data_layout = str(desired_layouts[0])
+        desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
 
-        if desired_layout == 'NCHW':
-            new_attrs = dict(attrs)
-            new_attrs['data_layout'] = desired_data_layout
-            new_attrs['kernel_layout'] = 'OIHW'
+        assert desired_data_layout != "default", "Data layout cannot be default"
+
+        new_attrs['data_layout'] = desired_data_layout
+
+        if desired_data_layout == 'NCHW':
+            if desired_kernel_layout != 'default':
+                new_attrs['kernel_layout'] = desired_kernel_layout
+            else:
+                new_attrs['kernel_layout'] = 'OIHW'
             # Actual insertion of layout transforms is taken care internally
             # by ConvertLayout pass.
             return relay.nn.conv2d(data, weight, **new_attrs)
-        else:
-            assert "Layout %s is not yet supported" % desired_data_layout
-            return None
+
+        raise ValueError('Layout %s is not yet supported' % desired_data_layout)
 
 
 **FInferCorrectLayout - Layout inference** - Currently, this attribute is exposed only in C++. This function takes original input layouts and the new input layouts (passed from the previous operator or from the python callback for layout alteration), and infers the final data layouts. Layout inference is called for each operator. The usage might vary for different operator categories. For layout agnostic operators, we just want to return the new data layouts in this function. For lightly-layout and heavily-layout sensitive operators, we can change the operator attributes (like axis for concatenate, pad_width for pad) so that we can adapt to the new data layout, preventing insertion of layout transforms. Let's look at a couple of examples to understand this better.
@@ -256,7 +262,7 @@ The example above only considers data layout because the kernel layout is automa
     pass = relay.transform.ConvertLayout(desired_layouts)
 
 
-The ordering of layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the example above its [data_layout, kernel_layout].
+The ordering of layouts is defined by the implementation of `register_convert_op_layout("OPNAME")`, you can refer to the docstring which should explicitly state the expected layout. In the example above it's [data_layout, kernel_layout].
 
 If we wish to select the default choice for a specific layout then the layout should be declared as "default". For nn.conv2d the following two statements are equivalent: `{'nn.conv2d': ['NHWC', 'default']} == {'nn.conv2d': ['NHWC', 'HWIO']}` since the default kernel layout in TVM is HWIO for NHWC. In the first example, the kernel layout is implicitly defined as "default". The example below shows how this can be used:
 

@@ -44,22 +44,18 @@ def convert_qnn_conv2d(attrs, inputs, tinfos, desired_layouts):
     """
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    desired_data_layout = str(desired_layouts[0])
+    assert len(desired_layouts) == 2, "A desired layout is expected for both of qnn.conv2d's inputs"
+    desired_data_layout, desired_kernel_layout = map(str, desired_layouts)
     assert desired_data_layout != "default", "Data layout cannot be default"
 
+    new_attrs = dict(attrs)
+    new_attrs['data_layout'] = desired_data_layout
+
     if desired_data_layout == 'NCHW':
-        new_attrs = dict(attrs)
-        new_attrs['data_layout'] = desired_data_layout
-
-        desired_kernel_layout = "default"
-        if len(desired_layouts) > 1:
-            desired_kernel_layout = str(desired_layouts[1])
-
         if desired_kernel_layout != "default":
             new_attrs['kernel_layout'] = desired_kernel_layout
         else:
             new_attrs['kernel_layout'] = 'OIHW'
-
         return relay.qnn.op.conv2d(*inputs, **new_attrs)
-    assert "Layout %s is not yet supported" % desired_data_layout
-    return None
+
+    raise ValueError('Layout %s is not yet supported' % desired_data_layout)
