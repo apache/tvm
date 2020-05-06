@@ -365,10 +365,5 @@ TVM_DLL String PrettyPrint(const ObjectRef& node);
 TVM_DLL String AsText(const ObjectRef& node,
                            bool show_meta_data = true,
                            runtime::TypedPackedFunc<String(ObjectRef)> annotate = nullptr);
-
-String AsTextByStr(const ObjectRef& node,
-                           bool show_meta_data = true,
-                           runtime::TypedPackedFunc<std::string(ObjectRef)> annotate = nullptr);
-
 }  // namespace tvm
 #endif  // TVM_IR_MODULE_H_

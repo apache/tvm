@@ -940,18 +940,9 @@ String AsText(const ObjectRef& node,
   return doc.str();
 }
 
-String AsTextByStr(const ObjectRef& node,
-                   bool show_meta_data,
-                   runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
-  Doc doc;
-  doc << kSemVer << Doc::NewLine();
-  doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
-  return doc.str();
-}
-
 TVM_REGISTER_GLOBAL("ir.PrettyPrint")
 .set_body_typed(PrettyPrint);
 
 TVM_REGISTER_GLOBAL("ir.AsText")
-.set_body_typed(AsTextByStr);
+.set_body_typed(AsText);
 }  // namespace tvm
