@@ -17,17 +17,29 @@
  * under the License.
  */
 
-use proc_macro::TokenStream;
-mod import_module;
-mod object;
+use thiserror::Error;
 
-#[proc_macro]
-pub fn import_module(input: TokenStream) -> TokenStream {
-    import_module::macro_impl(input)
+#[derive(Debug, Error)]
+#[error("Cannot convert from an empty array.")]
+pub struct EmptyArrayError;
+
+#[derive(Debug, Error)]
+#[error("Handle `{name}` is null.")]
+pub struct NullHandleError {
+    pub name: String,
 }
 
-#[proc_macro_derive(Object, attributes(base, ref_name, type_key))]
-pub fn macro_impl(input: TokenStream) -> TokenStream {
-    // let input = proc_macro2::TokenStream::from(input);
-    TokenStream::from(object::macro_impl(input))
+#[derive(Debug, Error)]
+#[error("Function was not set in `function::Builder`")]
+pub struct FunctionNotFoundError;
+
+#[derive(Debug, Error)]
+#[error("Expected type `{expected}` but found `{actual}`")]
+pub struct TypeMismatchError {
+    pub expected: String,
+    pub actual: String,
 }
+
+#[derive(Debug, Error)]
+#[error("Missing NDArray shape.")]
+pub struct MissingShapeError;

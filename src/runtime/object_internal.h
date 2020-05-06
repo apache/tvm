@@ -38,6 +38,15 @@ namespace runtime {
 class ObjectInternal {
  public:
   /*!
+   * \brief Retain an object handle.
+   */
+  static void ObjectRetain(TVMObjectHandle obj) {
+    if (obj != nullptr) {
+      static_cast<Object*>(obj)->IncRef();
+    }
+  }
+
+  /*!
    * \brief Free an object handle.
    */
   static void ObjectFree(TVMObjectHandle obj) {

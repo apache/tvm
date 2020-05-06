@@ -17,17 +17,26 @@
  * under the License.
  */
 
-use proc_macro::TokenStream;
-mod import_module;
-mod object;
+use std::{path::Path, process::Command};
 
-#[proc_macro]
-pub fn import_module(input: TokenStream) -> TokenStream {
-    import_module::macro_impl(input)
-}
-
-#[proc_macro_derive(Object, attributes(base, ref_name, type_key))]
-pub fn macro_impl(input: TokenStream) -> TokenStream {
-    // let input = proc_macro2::TokenStream::from(input);
-    TokenStream::from(object::macro_impl(input))
+fn main() {
+    let output = Command::new("python3")
+        .arg(concat!(env!("CARGO_MANIFEST_DIR"), "/src/build_resnet.py"))
+        .arg(&format!("--build-dir={}", env!("CARGO_MANIFEST_DIR")))
+        .output()
+        .expect("Failed to execute command");
+    assert!(
+        Path::new(&format!("{}/deploy_lib.o", env!("CARGO_MANIFEST_DIR"))).exists(),
+        "Could not prepare demo: {}",
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .trim()
+            .split("\n")
+            .last()
+            .unwrap_or("")
+    );
+    println!(
+        "cargo:rustc-link-search=native={}",
+        env!("CARGO_MANIFEST_DIR")
+    );
 }
