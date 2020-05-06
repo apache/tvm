@@ -167,8 +167,13 @@ def test_rpc_remote_module():
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     s = te.create_schedule(B.op)
 
-    server = rpc.Server("localhost")
-    client = rpc.connect(server.host, server.port)
+    server0 = rpc.Server("localhost", key="x0")
+    server1 = rpc.Server("localhost", key="x1")
+
+    client = rpc.connect(
+        server0.host, server0.port, key="x0",
+        session_constructor_args=[
+        "rpc.Connect", server1.host, server1.port, "x1"])
 
     def check_remote(remote):
         if not tvm.runtime.enabled("llvm"):
