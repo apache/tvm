@@ -931,9 +931,10 @@ String AsText(const ObjectRef& node,
   doc << kSemVer << Doc::NewLine();
   runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
   if (annotate != nullptr) {
-    ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>( [&annotate](const ObjectRef& expr) -> std::string {
-      return annotate(expr);
-    });
+    ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>(
+      [&annotate](const ObjectRef& expr) -> std::string {
+        return annotate(expr);
+      });
   }
   doc << relay::RelayTextPrinter(show_meta_data, ftyped).PrintFinal(node);
   return doc.str();
