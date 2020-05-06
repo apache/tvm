@@ -36,6 +36,10 @@ from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
 from tensorflow.python.ops import init_ops
+from tensorflow.python.framework import function
+from tensorflow.python.framework import ops
+from tensorflow.python.framework import dtypes
+from tensorflow.python.ops import gen_functional_ops
 from distutils.version import LooseVersion
 import tvm
 from tvm import te
@@ -3202,11 +3206,106 @@ def test_forward_isinf():
 def test_forward_isfinite():
     _verify_infiniteness_ops(tf.is_finite, "isfinite")
 
+def test_spop_function_invocation():
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+
+        def fun1(a):
+            return tf.multiply(a,a)
+
+        def fun2(b):
+            return tf.multiply(b,10)
+
+        @function.Defun(dtypes.float32, dtypes.float32, func_name="Fun3")
+        def fun3(x,y):
+            x = fun2(x)
+            y = fun1(y)
+            z = tf.add(x,y)
+            return z
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[tf.constant(10.5),tf.constant(20.4)],
+                                                        Tout=[dtypes.float32], f=fun3, name="SpopFnInvocation")
+        compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
+
+def test_spop_placeholder_default():
+    with tf.Graph().as_default():
+        pl1 = tf.placeholder_with_default(20, tf.int32, name="pl1")
+        pl2 = tf.placeholder_with_default(10, tf.int32, name="pl2")
+        data = tf.constant(30)
+        data2 = tf.constant(40)
+
+        @function.Defun(tf.int32, tf.int32)
+        def Forward(x, y):
+            # def Forward(x, y) ->[tf.int32]:
+            # Do not create placeholders in Defun methods..placeholders should be created outside of Defun()..and can be passed inside it
+            print(x.name)
+            print(y.name)
+            return tf.add(x, y)
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[pl1, pl2], Tout=[tf.int32], f=Forward)
+
+        feed = {'pl1:0': data, 'pl2:0': data2}
+        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
+                            'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+def test_spop_placeholder_dimension_error():
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        pl1 = tf.placeholder(tf.int32, name="pl1")
+        pl2 = tf.placeholder(tf.int32, name="pl2")
+        data = np.array([[-1, 1], [2, -2]], dtype=np.int32)
+        data2 = np.array([[-2, 3], [4, -6]], dtype=np.int32)
+
+        @function.Defun(*[tf.int32] * 2)
+        def Forward(x, y):
+        # def Forward(x, y) ->[tf.int32]:
+            # Do not create placeholders in Defun methods..placeholders should be created outside of Defun()..and can be passed inside it
+            print(x.name)
+            print(y.name)
+            return tf.add(x, y)
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[pl1, pl2], Tout=[tf.int32], f=Forward)
+
+        feed = {'pl1:0': data, 'pl2:0': data2}
+        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
+                            'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+def tvm_frontend_placeholder_spop_error():
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        in_data1 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
+        var1 = tf.Variable(in_data1, name='in1')
+        place1 = array_ops.placeholder_with_default(var1, shape=in_data1.shape, name='Place1')
+
+        in_data2 = np.random.uniform(-5, 5, size=(3, 4, 5)).astype(np.float32)
+        place2 = array_ops.placeholder(
+            shape=in_data1.shape, dtype=in_data1.dtype, name='Place2')
+
+        @function.Defun(*[dtypes.float32] * 2)
+        def Body1(x, y):
+            out1 = tf.math.add(var1, x, name='out1')
+            out2 = tf.math.add(out1, y, name='out2')
+            return out2
+
+        op = gen_functional_ops.StatefulPartitionedCall(args=[place1, place2],
+                                                        Tout=[dtypes.float32], f=Body1)
+
+        compare_tf_with_tvm([in_data1, in_data2], ['Place1:0', 'Place2:0'], 'out2:0', mode='vm', init_global_variables=True)
+
+def test_spop():
+    test_spop_function_invocation()
+    tvm_frontend_placeholder_spop_error()
+    test_spop_placeholder_dimension_error()
+    test_spop_placeholder_default()
+
+
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+    # StatefulPartitionedOp
+    test_spop()
     # Transforms
     test_forward_slice()
     test_forward_transpose()

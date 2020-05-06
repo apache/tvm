@@ -1930,6 +1930,28 @@ def _add_n():
         return  _res
     return _impl
 
+def _partitioned_call():
+    def _impl(inputs, attr, params):
+        if not isinstance(inputs, tuple):
+            inputs = list(inputs)
+        assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
+        _res = inputs[0]
+        for each in inputs[1:]:
+            _res = _op.add(_res, each)
+        return  _res
+    return _impl
+
+def _stateful_partitioned_call():
+    def _impl(inputs, attr, params):
+        if not isinstance(inputs, tuple):
+            inputs = list(inputs)
+        assert len(inputs) > 0, "add_n take >=1 inputs, but 0 given."
+        _res = inputs[0]
+        for each in inputs[1:]:
+            _res = _op.add(_res, each)
+        return  _res
+    return _impl
+
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -2028,6 +2050,8 @@ _convert_map = {
     'NotEqual'                          : _broadcast('not_equal'),
     'OneHot'                            : _one_hot(),
     'Pack'                              : _pack(),
+    'PartitionedCall'                   : _partitioned_call(),
+    'StatefulPartitionedCall'           : _stateful_partitioned_call(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Pow'                               : _elemwise('power'),
@@ -2713,6 +2737,7 @@ class GraphProto(object):
         self._loop_var_order = {}
         self._hash2tfnode = {}
         self._while_loop_name_set = set()
+        self._subgraphs = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow graph definition - GraphDef.
@@ -2824,6 +2849,27 @@ class GraphProto(object):
                     self._while_loop_name_set.add(node_name_prefix)
                 control_flow_nodes.append(node)
 
+        if graph.library.function:
+            f1 = graph.library.function[0]
+            if f1.signature.name not in self._subgraphs:
+                from tensorflow.python.framework import function_def_to_graph
+                sub = function_def_to_graph.function_def_to_graph_def(f1)
+                self._subgraphs.update({f1.signature.name: 'started adding'})
+                self._subgraphs.update({f1.signature.name: self.from_tensorflow(sub[0])})
+
+        # if graph.library.function and not self.libFuncs:
+        #     for func in graph.library.function:
+        #         self.libFuncs.append(func.signature.name)
+        #
+        # if graph.library.function and not self.libFuncsDict:
+        #     for func in graph.library.function:
+        #         if func.signature.name not in self._subgraphs:
+        #             from tensorflow.python.framework import function_def_to_graph
+        #             sub = function_def_to_graph.function_def_to_graph_def(func)
+        #             self.libFuncsDict[func.signature.name] = sub[0]
+        #     for func in self.libFuncsDict:
+        #         self._subgraphs.update({func: 'started adding'})
+        #         self._subgraphs.update({func: self.from_tensorflow(self.libFuncsDict[func])})
         # First, parse all control flow nodes.
         # Convert tf.cond to Branch and tf.while_loop to Loop.
         sorted_cf_nodes = []
@@ -3241,6 +3287,27 @@ class GraphProto(object):
                         in_op = in_op[0]
 
                     inputs.append(in_op)
+            if node.op in ["PartitionedCall", "StatefulPartitionedCall"]:
+                f1 = self._subgraphs[attr["f"].name][0]["main"]
+                # add_one = tvm.relay.GlobalVar("add_one")
+                # self._mod[add_one] = self._subgraphs[attr["f"].name][0]["main"]
+                wl = tvm.relay.var('partitioned_call')
+                sb = tvm.relay.scope_builder.ScopeBuilder()
+                sb.let(wl, f1)
+
+                sb.ret(wl(*inputs))
+                op = sb.get()
+            # elif node.op in self.libFuncs:
+            #     f1 = self._subgraphs[attr["f"].name][0]["main"]
+            #     # add_one = tvm.relay.GlobalVar("add_one")
+            #     # self._mod[add_one] = self._subgraphs[attr["f"].name][0]["main"]
+            #     wl = tvm.relay.var('partitioned_call')
+            #     sb = tvm.relay.scope_builder.ScopeBuilder()
+            #     sb.let(wl, f1)
+            #
+            #     sb.ret(wl(*inputs))
+            #     op = sb.get()
+            else:
                 op = self._convert_operator(node.op, inputs, attr, self._graph)
 
             if isinstance(op, np.ndarray):
