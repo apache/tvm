@@ -68,6 +68,10 @@ class LocalSession : public RPCSession {
 
   DeviceAPI* GetDeviceAPI(TVMContext ctx, bool allow_missing = false) final;
 
+  bool IsLocalSession() const final {
+    return true;
+  }
+
  protected:
   /*!
    * \brief Internal implementation of GetFunction.
