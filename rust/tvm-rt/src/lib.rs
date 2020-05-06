@@ -95,6 +95,7 @@ pub mod errors;
 pub mod module;
 pub mod ndarray;
 pub mod to_function;
+pub mod to_boxed_fn;
 pub mod value;
 
 /// Outputs the current TVM version.

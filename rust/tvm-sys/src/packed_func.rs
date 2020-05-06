@@ -282,6 +282,13 @@ impl<'a> From<&'a CStr> for ArgValue<'a> {
     }
 }
 
+
+impl<'a> From<CString> for ArgValue<'a> {
+    fn from(s: CString) -> Self {
+        Self::String(s)
+    }
+}
+
 impl<'a> From<&'a TVMByteArray> for ArgValue<'a> {
     fn from(s: &'a TVMByteArray) -> Self {
         Self::Bytes(s)

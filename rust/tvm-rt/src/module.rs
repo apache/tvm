@@ -20,7 +20,6 @@
 //! Provides the [`Module`] type and methods for working with runtime TVM modules.
 
 use std::{
-    convert::TryInto,
     ffi::CString,
     os::raw::{c_char, c_int},
     path::Path,
@@ -43,6 +42,16 @@ pub struct Module {
     pub(crate) handle: ffi::TVMModuleHandle,
     entry_func: Option<Function>,
 }
+
+
+external_func! {
+    fn runtime_enabled(target: CString) -> i32 as "runtime.RuntimeEnabled";
+}
+
+external_func! {
+    fn load_from_file(file_name: CString, format: CString) -> Module as "runtime.ModuleLoadFromFile";
+}
+
 
 impl Module {
     pub(crate) fn new(handle: ffi::TVMModuleHandle) -> Self {
@@ -92,27 +101,20 @@ impl Module {
                 .to_str()
                 .ok_or_else(|| anyhow!("Bad module load path: `{}`.", path.as_ref().display()))?,
         )?;
-        let func = Function::get("runtime.ModuleLoadFromFile").expect("API function always exists");
         let cpath = CString::new(
             path.as_ref()
                 .to_str()
                 .ok_or_else(|| anyhow!("Bad module load path: `{}`.", path.as_ref().display()))?,
         )?;
-        let ret: Module = call_packed!(func, cpath.as_c_str(), ext.as_c_str())?.try_into()?;
-        Ok(ret)
+        let module = load_from_file(cpath, ext)?;
+        Ok(module)
     }
 
     /// Checks if a target device is enabled for a module.
     pub fn enabled(&self, target: &str) -> bool {
-        let func = Function::get("runtime.RuntimeEnabled").expect("API function always exists");
-        // `unwrap` is safe here because if there is any error during the
-        // function call, it would occur in `call_packed!`.
-        let tgt = CString::new(target).unwrap();
-        let ret: i64 = call_packed!(func, tgt.as_c_str())
-            .unwrap()
-            .try_into()
-            .unwrap();
-        ret != 0
+        let target = CString::new(target).unwrap();
+        let enabled = runtime_enabled(target).unwrap();
+        enabled != 0
     }
 
     /// Returns the underlying module handle.

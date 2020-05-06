@@ -232,27 +232,45 @@ pub trait ToFunction<I, O>: Sized {
     }
 }
 
-impl<'a> ToFunction<&[ArgValue<'static>], Result<RetValue>>
-    for fn(&[ArgValue<'static>]) -> Result<RetValue>
-{
-    type Handle = fn(&[ArgValue<'static>]) -> Result<RetValue>;
+// /// A wrapper that is used to work around inference issues for bare functions.
+// ///
+// /// Used to implement `register_untyped`.
+// pub(self) struct RawFunction {
+//     fn_ptr: for<'a> fn (&'a [ArgValue<'static>]) -> Result<RetValue>
+// }
 
-    fn into_raw(self) -> *mut Self::Handle {
-        self as *mut Self::Handle
-    }
+// impl RawFunction {
+//     fn new(fn_ptr: for<'a> fn (&'a [ArgValue<'static>]) -> Result<RetValue>) -> RawFunction {
+//         RawFunction { fn_ptr: fn_ptr }
+//     }
+// }
 
-    fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue> {
-        panic!()
-        // println!("calls");
-        // let handle: Self::Handle = unsafe { std::mem::transmute(handle) };
-        // let r = handle(args);
-        // println!("afters");
-        // r
-    }
+// impl Typed<&[ArgValue<'static>], ()> for RawFunction {
+//     fn args(i: &[ArgValue<'static>]) -> anyhow::Result<&[ArgValue<'static>]> {
+//         Ok(i)
+//     }
 
-    // Function's don't need de-allocation because the pointers are into the code section of memory.
-    fn drop(_: *mut Self::Handle) {}
-}
+//     fn ret(o: O) -> RetValue;
+// }
+
+// impl ToFunction<(), ()> for RawFunction
+// {
+//     type Handle = fn(&[ArgValue<'static>]) -> Result<RetValue>;
+
+//     fn into_raw(self) -> *mut Self::Handle {
+//         self.fn_ptr as *mut Self::Handle
+//     }
+
+//     fn call(handle: *mut Self::Handle, args: &[ArgValue<'static>]) -> Result<RetValue> {
+//         let handle: Self::Handle = unsafe { std::mem::transmute(handle) };
+//         let r = handle(args);
+//         println!("afters");
+//         r
+//     }
+
+//     // Function's don't need de-allocation because the pointers are into the code section of memory.
+//     fn drop(_: *mut Self::Handle) {}
+// }
 
 impl<O, F> ToFunction<(), O> for F
 where
@@ -309,6 +327,7 @@ to_function_instance!((A, 0), (B, 1), (C, 2), (D, 3),);
 
 #[cfg(test)]
 mod tests {
+    // use super::RawFunction;
     use super::{ArgValue, RetValue};
     use super::{Function, ToFunction, Typed};
 
@@ -324,14 +343,15 @@ mod tests {
         f.to_function()
     }
 
-    fn func_args(args: &'static [ArgValue<'static>]) -> anyhow::Result<RetValue> {
-        Ok(10.into())
-    }
+    // fn func_args(args: &[ArgValue<'static>]) -> anyhow::Result<RetValue> {
+    //     Ok(10.into())
+    // }
 
-    #[test]
-    fn test_fn_ptr() {
-        ToFunction::<&[ArgValue<'static>], anyhow::Result<RetValue>>::to_function(func_args);
-    }
+    // #[test]
+    // fn test_fn_ptr() {
+    //     let raw_fn = RawFunction::new(func_args);
+    //     raw_fn.to_function();
+    // }
 
     #[test]
     fn test_to_function0() {

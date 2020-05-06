@@ -34,13 +34,13 @@ use std::{
     sync::Mutex,
 };
 
-use anyhow::{ensure, Result};
+use anyhow::{Result};
 use lazy_static::lazy_static;
 
 pub use tvm_sys::{ffi, ArgValue, RetValue};
 
 use super::to_function::{ToFunction, Typed};
-use crate::{errors, Module};
+use super::to_boxed_fn::ToBoxedFn;
 
 lazy_static! {
     static ref GLOBAL_FUNCTIONS: Mutex<BTreeMap<&'static str, Option<Function>>> = {
@@ -126,6 +126,30 @@ impl Function {
     pub fn is_cloned(&self) -> bool {
         self.is_cloned
     }
+
+    /// Calls the function that created from `Builder`.
+    pub fn invoke<'a>(&mut self, arg_buf: Vec<ArgValue<'a>>) -> Result<RetValue> {
+        let num_args = arg_buf.len();
+        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
+            arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
+
+        let mut ret_val = unsafe { MaybeUninit::uninit().assume_init() };
+        let mut ret_type_code = 0i32;
+        check_call!(ffi::TVMFuncCall(
+            self.handle,
+            values.as_mut_ptr(),
+            type_codes.as_mut_ptr() as *mut i32,
+            num_args as c_int,
+            &mut ret_val as *mut _,
+            &mut ret_type_code as *mut _
+        ));
+
+        Ok(RetValue::from_tvm_value(ret_val, ret_type_code as u32))
+    }
+
+    pub fn to_boxed_fn<F: ?Sized>(&'static self) -> Box<F> where F: ToBoxedFn {
+        F::to_boxed_fn(self)
+    }
 }
 
 impl Clone for Function {
@@ -143,104 +167,6 @@ impl Drop for Function {
         if !self.is_global && !self.is_cloned {
             check_call!(ffi::TVMFuncFree(self.handle));
         }
-    }
-}
-
-/// Function builder in order to create and call functions.
-///
-/// *Note:* Currently TVM functions accept *at most* one return value.
-#[derive(Default)]
-pub struct Builder<'a, 'm> {
-    pub func: Option<&'m Function>,
-    pub arg_buf: Vec<ArgValue<'a>>,
-    pub ret_buf: Option<RetValue>,
-}
-
-impl<'a, 'm> Builder<'a, 'm> {
-    pub fn new(
-        func: Option<&'m Function>,
-        arg_buf: Vec<ArgValue<'a>>,
-        ret_buf: Option<RetValue>,
-    ) -> Self {
-        Self {
-            func,
-            arg_buf,
-            ret_buf,
-        }
-    }
-
-    pub fn get_function(&mut self, name: &'m str) -> &mut Self {
-        self.func = Function::get(name);
-        self
-    }
-
-    /// Pushes a [`ArgValue`] into the function argument buffer.
-    pub fn arg<T: 'a>(&mut self, arg: T) -> &mut Self
-    where
-        ArgValue<'a>: From<T>,
-    {
-        self.arg_buf.push(arg.into());
-        self
-    }
-
-    /// Pushes multiple [`ArgValue`]s into the function argument buffer.
-    pub fn args<T: 'a, I>(&mut self, args: I) -> &mut Self
-    where
-        I: IntoIterator<Item = T>,
-        ArgValue<'a>: From<T>,
-    {
-        args.into_iter().for_each(|arg| {
-            self.arg(arg);
-        });
-        self
-    }
-
-    /// Sets an output for a function that requirs a mutable output to be provided.
-    /// See the `basics` in tests for an example.
-    pub fn set_output<T>(&mut self, ret: T) -> &mut Self
-    where
-        RetValue: From<T>,
-    {
-        self.ret_buf = Some(ret.into());
-        self
-    }
-
-    /// Calls the function that created from `Builder`.
-    pub fn invoke(&mut self) -> Result<RetValue> {
-        #![allow(unused_unsafe)]
-        ensure!(self.func.is_some(), errors::FunctionNotFoundError);
-
-        let num_args = self.arg_buf.len();
-        let (mut values, mut type_codes): (Vec<ffi::TVMValue>, Vec<ffi::TVMTypeCode>) =
-            self.arg_buf.iter().map(|arg| arg.to_tvm_value()).unzip();
-
-        let mut ret_val = unsafe { MaybeUninit::uninit().assume_init() };
-        let mut ret_type_code = 0i32;
-        check_call!(ffi::TVMFuncCall(
-            self.func.ok_or(errors::FunctionNotFoundError)?.handle,
-            values.as_mut_ptr(),
-            type_codes.as_mut_ptr() as *mut i32,
-            num_args as c_int,
-            &mut ret_val as *mut _,
-            &mut ret_type_code as *mut _
-        ));
-
-        Ok(unsafe { RetValue::from_tvm_value(ret_val, ret_type_code as u32) })
-    }
-}
-
-/// Converts a [`Function`] to builder. Currently, this is the best way to work with
-/// TVM functions.
-impl<'a, 'm> From<&'m Function> for Builder<'a, 'm> {
-    fn from(func: &'m Function) -> Self {
-        Builder::new(Some(func), Vec::new(), None)
-    }
-}
-
-/// Converts a mutable reference of a [`Module`] to [`Builder`].
-impl<'a, 'm> From<&'m mut Module> for Builder<'a, 'm> {
-    fn from(module: &'m mut Module) -> Self {
-        Builder::new(module.entry(), Vec::new(), None)
     }
 }
 
@@ -331,42 +257,31 @@ where
     Ok(())
 }
 
-/// Convenient macro for calling TVM packed functions by providing a
-/// function identifier and some arguments. This macro outputs a `Result` type
-/// and let user to perform proper error handling.
-///
-/// **Note**: this macro does *not* expect an outside mutable output. To
-/// set mutable output use [`set_output`] directly in the builder pattern.
-///
-/// [`set_output`]:function/struct.Builder.html#method.set_output
-///
-/// ## Example
-///
-/// Instead of
-///
-/// # TODO(@jroesch): replace with working example
-/// # use tvm_rt::function::Builder;
-/// Builder::from(func).arg(&a).arg(&b).invoke();
-///
-/// one can use
-///
-/// # use tvm_rt::call_packed;
-/// call_packed!(func, &a, &b);
 #[macro_export]
-macro_rules! call_packed {
-    ($fn_name:expr, $($arg:expr),*) => {{
-        let mut builder = $crate::function::Builder::from($fn_name);
-        $(
-            builder.arg($arg);
-        )*
-        builder.invoke()
-    }}
+macro_rules! external_func {
+    (fn $name:ident ( $($arg:ident : $ty:ty),* ) -> $ret_type:ty as $ext_name:literal;) => {
+        ::paste::item! {
+            #[allow(non_upper_case_globals)]
+            static [<global_ $name>]: ::once_cell::sync::Lazy<&'static $crate::Function> =
+            ::once_cell::sync::Lazy::new(|| {
+                $crate::Function::get($ext_name)
+                .expect(concat!("unable to load external function", stringify!($ext_name), "from TVM registry."))
+            });
+        }
+
+        pub fn $name($($arg : $ty),*) -> Result<$ret_type, anyhow::Error> {
+            let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
+            let func_ref: Box<dyn Fn($($ty),*) -> anyhow::Result<$ret_type>> = func_ref.to_boxed_fn();
+            let res: $ret_type = func_ref($($arg),*)?;
+            Ok(res)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::function::{Builder, Function};
+    use crate::function::{Function};
 
     static CANARY: &str = "runtime.ModuleLoadFromFile";
 
@@ -417,11 +332,11 @@ mod tests {
     //     let ret: i64 = registered.args(&[10, 20, 30]).invoke().unwrap().try_into().unwrap();
     //     assert_eq!(ret, 60);
     // }
+
     #[test]
     fn register_and_call_closure0() {
         use crate::function;
         use crate::function::Builder;
-        use std::convert::TryInto;
 
         fn sum() -> i64 {
             return 10;
@@ -443,11 +358,7 @@ mod tests {
 
     #[test]
     fn register_and_call_closure1() {
-        use crate::function::Builder;
-        use crate::{function, ArgValue, RetValue};
-        use anyhow::Error;
-        use std::convert::TryInto;
-        use tvm_sys::value::*;
+        use crate::function::{self};
 
         fn sum(x: i64) -> i64 {
             return 10;

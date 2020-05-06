@@ -264,4 +264,20 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn roundtrip_argvalue() -> Result<()> {
+        let ptr = ObjectPtr::new(Object::base_object::<Object>());
+        let arg_value: ArgValue = ptr.clone().into();
+        let ptr2: ObjectPtr<Object> = arg_value.try_into()?;
+        ensure!(
+            ptr.type_index == ptr2.type_index,
+            "type indices do not match"
+        );
+        ensure!(
+            ptr.fdeleter == ptr2.fdeleter,
+            "objects have different deleters"
+        );
+        Ok(())
+    }
 }

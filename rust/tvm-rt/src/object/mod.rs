@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::CString;
 use tvm_sys::{ArgValue, RetValue};
+use crate::external_func;
 
 mod object_ptr;
 
@@ -89,32 +90,10 @@ impl<'a> From<&ObjectRef> for ArgValue<'a> {
     }
 }
 
-#[macro_export]
-macro_rules! external_func {
-    (fn $name:ident ( $($arg:ident : $ty:ty),* ) -> $ret_type:ty as $ext_name:literal;) => {
-        ::paste::item! {
-            #[allow(non_upper_case_globals)]
-            static [<global_ $name>]: ::once_cell::sync::Lazy<&'static $crate::Function> =
-            ::once_cell::sync::Lazy::new(|| {
-                $crate::Function::get($ext_name)
-                .expect(concat!("unable to load external function", stringify!($ext_name), "from TVM registry."))
-            });
-        }
-
-        pub fn $name($($arg : $ty),*) -> Result<$ret_type, anyhow::Error> {
-            use std::convert::TryInto;
-            let func_ref: &$crate::Function = ::paste::expr! { &*[<global_ $name>] };
-            let res = $crate::call_packed!(func_ref,$($arg),*)?;
-            let res = res.try_into()?;
-            Ok(res)
-        }
-    }
+external_func! {
+    fn debug_print(object: ObjectRef) -> CString as "ir.DebugPrinter";
 }
 
 external_func! {
-    fn debug_print(object: &ObjectRef) -> CString as "ir.DebugPrinter";
-}
-
-external_func! {
-    fn as_text(object: &ObjectRef) -> CString as "ir.TextPrinter";
+    fn as_text(object: ObjectRef) -> CString as "ir.TextPrinter";
 }
