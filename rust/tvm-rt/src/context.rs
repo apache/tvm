@@ -1,12 +1,16 @@
+use tvm_sys::ffi;
 pub use tvm_sys::context::*;
 
 use crate::function;
 
+use std::os::raw::c_void;
 use std::convert::TryInto;
+use std::ptr;
 
 trait ContextExt {
     /// Checks whether the context exists or not.
     fn exist(&self) -> bool;
+    fn sync(&self) -> anyhow::Result<()>;
     fn max_threads_per_block(&self) -> isize;
     fn warp_size(&self) -> isize;
     fn max_shared_memory_per_block(&self) -> isize;
@@ -56,6 +60,16 @@ impl ContextExt for Context {
         ret != 0
     }
 
+    /// Synchronize the context stream.
+    fn sync(&self) -> anyhow::Result<()> {
+        check_call!(ffi::TVMSynchronize(
+            self.device_type.0 as i32,
+            self.device_id as i32,
+            ptr::null_mut() as *mut c_void
+        ));
+        Ok(())
+    }
+
     impl_device_attrs!((max_threads_per_block, 1);
         (warp_size, 2);
         (max_shared_memory_per_block, 3);
@@ -64,4 +78,16 @@ impl ContextExt for Context {
         (max_clock_rate, 6);
         (multi_processor_count, 7);
         (max_thread_dimensions, 8));
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sync() {
+        let ctx = Context::cpu(0);
+        assert!(ctx.sync().is_ok())
+    }
 }

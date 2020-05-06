@@ -24,8 +24,8 @@
 //! # Example
 //!
 //! ```
-//! # use tvm_sys::{DeviceType, Context};
-//! let cpu = DeviceType::from("cpu");
+//! # use tvm_sys::{TVMDeviceType, Context};
+//! let cpu = TVMDeviceType::from("cpu");
 //! let ctx = Context::new(cpu , 0);
 //! let cpu0 = Context::cpu(0);
 //! assert_eq!(ctx, cpu0);
@@ -34,7 +34,7 @@
 //! Or from a supported device name.
 //!
 //! ```
-//! use tvm_rt::Context;
+//! use tvm_sys::Context;
 //! let cpu0 = Context::from("cpu");
 //! println!("{}", cpu0);
 //! ```
@@ -56,7 +56,7 @@ use anyhow::Result;
 /// ## Example
 ///
 /// ```
-/// use tvm_rt::TVMDeviceType;
+/// use tvm_sys::TVMDeviceType;
 /// let cpu = TVMDeviceType::from("cpu");
 /// println!("device is: {}", cpu);
 ///```
@@ -289,11 +289,5 @@ mod tests {
         let str_ctx = Context::new(TVMDeviceType::from("gpu"), 0);
         assert_eq!(str_ctx.clone(), str_ctx);
         assert_ne!(str_ctx, Context::new(TVMDeviceType::from("cpu"), 0));
-    }
-
-    #[test]
-    fn sync() {
-        let ctx = Context::cpu(0);
-        assert!(ctx.sync().is_ok())
     }
 }
