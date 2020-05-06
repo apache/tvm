@@ -918,15 +918,15 @@ static const char* kSemVer = "v0.0.4";
 //    - Implements AsText
 // - relay_text_printer.cc (specific printing logics for relay)
 // - tir_text_printer.cc (specific printing logics for TIR)
-std::string PrettyPrint(const ObjectRef& node) {
+String PrettyPrint(const ObjectRef& node) {
   Doc doc;
   doc << relay::RelayTextPrinter(false, nullptr).PrintFinal(node);
   return doc.str();
 }
 
-std::string AsText(const ObjectRef& node,
+String AsText(const ObjectRef& node,
                    bool show_meta_data,
-                   runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
+                   runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
   Doc doc;
   doc << kSemVer << Doc::NewLine();
   doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
