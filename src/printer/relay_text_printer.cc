@@ -929,14 +929,28 @@ String AsText(const ObjectRef& node,
                    runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
   Doc doc;
   doc << kSemVer << Doc::NewLine();
-  doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
+  runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
+  if (annotate != nullptr) {
+    ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>( [&annotate](const ObjectRef& expr) -> std::string {
+      return annotate(expr);
+    });
+  }
+  doc << relay::RelayTextPrinter(show_meta_data, ftyped).PrintFinal(node);
   return doc.str();
 }
 
+String AsTextByStr(const ObjectRef& node,
+                   bool show_meta_data,
+                   runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
+  Doc doc;
+  doc << kSemVer << Doc::NewLine();
+  doc << relay::RelayTextPrinter(show_meta_data, annotate).PrintFinal(node);
+  return doc.str();
+}
 
 TVM_REGISTER_GLOBAL("ir.PrettyPrint")
 .set_body_typed(PrettyPrint);
 
 TVM_REGISTER_GLOBAL("ir.AsText")
-.set_body_typed(AsText);
+.set_body_typed(AsTextByStr);
 }  // namespace tvm
