@@ -553,7 +553,7 @@ class OperatorConverter(object):
     @convert_wrapper("L2_NORMALIZATION", num_inputs=1, num_outputs=1,
                      options_class_str='L2NormOptions', quantized_check=True,
                      do_fuse_activation=True)
-    def convert_l2_normalization(self, op, input_tensors=[], output_tensors=[], options=None):
+    def convert_l2_normalization(self, op, input_tensors=None, output_tensors=None, options=None):
         """Convert TFLite L2_NORMALIZATION """
         input_tensor = input_tensors[0]
         in_expr = self.get_tensor_expr(input_tensor)
