@@ -829,9 +829,13 @@ bool TakeRel(const Array<Type>& types,
   // `types` contains: [data, indices, result]
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+  if (data == nullptr) {
+    return false;
+  }
   const auto* indices = types[1].as<TensorTypeNode>();
-  CHECK(indices != nullptr);
+  if (indices == nullptr) {
+    return false;
+  }
   CHECK(indices->dtype.is_int()) << "indices of take must be tensor of integer";
   const auto param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
@@ -2325,7 +2329,12 @@ bool LayoutTransformRel(const Array<Type>& types,
                         const Attrs& attrs,
                         const TypeReporter& reporter) {
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "LayoutTransform: expect input data type to be TensorType but get "
+        << types[0];
+    return false;
+  }
   const LayoutTransformAttrs* params = attrs.as<LayoutTransformAttrs>();
 
   Layout src_layout(params->src_layout);
@@ -2333,7 +2342,6 @@ bool LayoutTransformRel(const Array<Type>& types,
 
   CHECK(src_layout.defined() && dst_layout.defined())
     << "cannot convert from/to undefined layout";
-
   auto layout_converter = tir::BijectiveLayout(src_layout, dst_layout);
   CHECK(layout_converter.defined())
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
