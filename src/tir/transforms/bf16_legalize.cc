@@ -79,7 +79,7 @@ class BF16PromoteRewriter : public StmtExprMutator {
 
 
 #define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)               \
-  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {             \
+  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {              \
     PrimExpr a, b;                                                      \
     bool is_bf16;                                                       \
     std::tie(a, b) = DoCast(op->a, op->b, is_bf16);                     \
@@ -95,16 +95,30 @@ class BF16PromoteRewriter : public StmtExprMutator {
     }                                                                   \
   }
 
+#define DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(OP, FUNC)       \
+  PrimExpr BF16PromoteRewriter::VisitExpr_(const OP* op) {              \
+    PrimExpr a, b;                                                      \
+    bool is_bf16;                                                       \
+    std::tie(a, b) = DoCast(op->a, op->b, is_bf16);                     \
+    if (a.same_as(op->a) &&                                             \
+        b.same_as(op->b)) {                                             \
+        return GetRef<PrimExpr>(op);                                    \
+    } else {                                                            \
+        auto ret = FUNC(a, b);                                          \
+        return ret;                                                     \
+    }                                                                   \
+  }
+
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(AddNode, operator+)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(SubNode, operator-)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MulNode, operator*)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(DivNode, div)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MinNode, min)
 DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(MaxNode, max)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LTNode, operator <)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(LENode, operator<=)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GTNode, operator >)
-DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(LTNode, operator <)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(LENode, operator<=)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GTNode, operator >)
+DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH_NO_CAST(GENode, operator>=)
 
 /*
  * Eliminate verbose casting between fp32 and bf16
