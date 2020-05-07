@@ -1378,6 +1378,27 @@ def test_all_reduce():
 
 
 #######################################################################
+# Select, Where
+# -------------
+
+def test_forward_select():
+    with tf.Graph().as_default():
+        with tf.Session() as sess:
+            input1 = tf.placeholder(
+                tf.int32, shape=[1, 4, 4, 3], name='input1')
+            input2 = tf.placeholder(
+                tf.int32, shape=[1, 4, 4, 3], name='input2')
+            mask = input1 > input2
+            out = tf.where(mask, input1 + 1, input2 * 2)
+            in_data1 = np.random.uniform(
+                0, 10, size=(1, 4, 4, 3)).astype("int32")
+            in_data2 = np.random.uniform(
+                0, 10, size=(1, 4, 4, 3)).astype("int32")
+
+            compare_tflite_with_tvm([in_data1, in_data2], [
+                                'input1:0', 'input2:0'], [input1, input2], [out])
+
+
 # Squeeze
 # -------
 
@@ -1997,6 +2018,7 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_depthtospace()
     test_forward_spacetodepth()
+    test_forward_select()
 
     # NN
     test_forward_convolution()

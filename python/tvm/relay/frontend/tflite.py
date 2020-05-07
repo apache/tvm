@@ -119,6 +119,7 @@ class OperatorConverter(object):
             'RESIZE_NEAREST_NEIGHBOR': self.convert_resize_nearest_neighbor,
             'ROUND': self.convert_round,
             'RSQRT': self.convert_rsqrt,
+            'SELECT': self.convert_select,
             'SIN': self.convert_sin,
             'SLICE': self.convert_slice,
             'SOFTMAX': self.convert_softmax,
@@ -140,6 +141,7 @@ class OperatorConverter(object):
             'TRANSPOSE_CONV': self.convert_transpose_conv,
             'TRANSPOSE': self.convert_transpose,
             'UNPACK': self.convert_unpack,
+            'WHERE': self.convert_select,
             'ZEROS_LIKE': self.convert_zeros_like,
         }
 
@@ -1697,6 +1699,18 @@ class OperatorConverter(object):
 
         return out
 
+    def convert_select(self, op):
+        """Convert TFLite SELECT"""
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 3, "input tensors length should be == 3"
+        cond = self.get_tensor_expr(input_tensors[0])
+        x = self.get_tensor_expr(input_tensors[1])
+        y = self.get_tensor_expr(input_tensors[2])
+
+        out = _op.where(cond, x, y)
+
+        return out
+
     def convert_transpose(self, op):
         """transpose implementation."""
         input_tensors = self.get_input_tensors(op)
@@ -2356,6 +2370,20 @@ class OperatorConverter(object):
 
     def has_expr(self, input_tensor_idx):
         return self.exp_tab.has_expr(get_tensor_name(self.subgraph, input_tensor_idx))
+
+    def get_tensor_expr(self, tensor):
+        """ Returns constant expr for constant else a tensor expr"""
+        if self.has_expr(tensor.tensor_idx):
+            # In most cases, we can assume that TOCO fuses elemwise operators
+            # with constants - it means both will be tensors.
+            expr = self.get_expr(tensor.tensor_idx)
+        else:
+            # However, in some corner cases, the elemwise operator is not fused,
+            # we can receive as constant.
+            type_str = self.get_tensor_type_str(tensor.tensor.Type())
+            expr = self.exp_tab.new_const(self.get_tensor_value(tensor), dtype=type_str)
+
+        return expr
 
 
 def get_scalar_from_constant(expr):
