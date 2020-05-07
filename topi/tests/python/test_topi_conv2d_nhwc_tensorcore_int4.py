@@ -305,16 +305,16 @@ def test_conv2d_nhwc_tensorcore():
     # verify_conv2d_nhwc(16, 512, 7, 512, 3, 1, 1)
 
     verify_conv2d_nhwc(8, 64, 56, 64, 3, 1, 1)
-    # verify_conv2d_nhwc(8, 64, 56, 64, 1, 1, 0)
-    # verify_conv2d_nhwc(8, 64, 56, 128, 3, 2, 1)
-    # verify_conv2d_nhwc(8, 64, 56, 64, 1, 2, 0)
-    # verify_conv2d_nhwc(8, 128, 28, 128, 3, 1, 1)
-    # verify_conv2d_nhwc(8, 128, 28, 256, 3, 2, 1)
-    # verify_conv2d_nhwc(8, 128, 28, 256, 1, 2, 0)
-    # verify_conv2d_nhwc(8, 256, 14, 256, 3, 1, 1)
-    # verify_conv2d_nhwc(8, 256, 14, 512, 3, 2, 1)
-    # verify_conv2d_nhwc(8, 256, 14, 512, 1, 2, 0)
-    # verify_conv2d_nhwc(8, 512, 7, 512, 3, 1, 1)
+    verify_conv2d_nhwc(8, 64, 56, 64, 1, 1, 0)
+    verify_conv2d_nhwc(8, 64, 56, 128, 3, 2, 1)
+    verify_conv2d_nhwc(8, 64, 56, 64, 1, 2, 0)
+    verify_conv2d_nhwc(8, 128, 28, 128, 3, 1, 1)
+    verify_conv2d_nhwc(8, 128, 28, 256, 3, 2, 1)
+    verify_conv2d_nhwc(8, 128, 28, 256, 1, 2, 0)
+    verify_conv2d_nhwc(8, 256, 14, 256, 3, 1, 1)
+    verify_conv2d_nhwc(8, 256, 14, 512, 3, 2, 1)
+    verify_conv2d_nhwc(8, 256, 14, 512, 1, 2, 0)
+    verify_conv2d_nhwc(8, 512, 7, 512, 3, 1, 1)
 
 
     # verify_conv2d_nhwc(32, 1024, 14, 256, 1, 1, 1)
@@ -332,27 +332,6 @@ def test_conv2d_nhwc_tensorcore():
     # verify_conv2d_nhwc(16, 48, 56, 48, 3, 1, (1, 1, 1, 1))
     # verify_conv2d_nhwc(16, 64, 28, 64, 3, 1, (1, 1, 1, 1))
 
-# import argparse
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--brw', default=1, help="the base")
-# parser.add_argument('--blw', default=1, help="the base")
-# parser.add_argument('--wrt', default=1, help="the base")
-# parser.add_argument('--wct', default=1, help="the base")
-# parser.add_argument('--chunk', default=1, help="the base")
-# parser.add_argument('--offset', default=0, help="the base")
-# parser.add_argument('--vw', default=1, help="the base")
-# parser.parse_args()
 
 if __name__ == "__main__":
-    # for brw in [1]:
-    #     for blw in [2]:
-    #         for wrt in [1]:
-    #             for wct in [4]:
-    #                 for chunk in [1]:
-    #                     for offset in [0]:
-    #                         for vw in [1]:
-    #                             try:
-    #                                 dic={'brw': brw, 'blw': blw,'wrt': wrt,'wct': wct,'chunk': chunk,'offset': offset, 'vw':vw}
     test_conv2d_nhwc_tensorcore()
-                                # except:
-                                #     pass
