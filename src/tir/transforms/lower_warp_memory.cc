@@ -213,9 +213,13 @@ class WarpAccessRewriter : protected StmtExprMutator {
     alloc_size *= op->dtype.lanes();
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
     warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(op->body);
-    CHECK_EQ(alloc_size % (width_ * warp_coeff_), 0)
-        << "Warp memory must be multiple of the extent of threadIdx.x";
-    warp_group_ = alloc_size / (width_ * warp_coeff_);
+
+    // Align the local memory size. The number of elements may not
+    // be a multiple of width_ * warp_coeff_; round it up.
+    int factor = width_ * warp_coeff_;
+    warp_group_ = (alloc_size + (factor - 1)) / factor;
+    alloc_size = warp_group_ * factor;
+
     return AllocateNode::make(op->buffer_var, op->dtype,
                               {make_const(DataType::Int(32), alloc_size / width_)}, op->condition,
                               this->VisitStmt(op->body));
