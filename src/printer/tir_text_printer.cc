@@ -571,7 +571,12 @@ inline const char* CallType2String(CallNode::CallType t) {
 
 Doc TIRTextPrinter::VisitExpr_(const CallNode* op) {
   Doc doc;
-  doc << "@" << Doc::Text(op->name) << "(" << Print(op->args)
+  doc << "@" << Doc::Text(op->name) << "(";
+  std::vector<Doc> args;
+  for (const auto& arg : op->args) {
+    args.push_back(Print(arg));
+  }
+  doc << PrintSep(args, Doc::Text(", "))
       << ", dtype=" << PrintDType(op->dtype)
       << ", type="<< Doc::StrLiteral(CallType2String(op->call_type))
       << ", index=" << op->value_index << ")";
