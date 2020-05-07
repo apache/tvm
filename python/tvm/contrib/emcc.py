@@ -16,18 +16,16 @@
 # under the License.
 """Util to invoke emscripten compilers in the system."""
 # pylint: disable=invalid-name
-from __future__ import absolute_import as _abs
-
 import subprocess
-from .._ffi.base import py_str
-from .._ffi.libinfo import find_lib_path
+from tvm._ffi.base import py_str
+from tvm._ffi.libinfo import find_lib_path
 
-def create_js(output,
-              objects,
-              options=None,
-              side_module=False,
-              cc="emcc"):
-    """Create emscripten javascript library.
+
+def create_tvmjs_wasm(output,
+                      objects,
+                      options=None,
+                      cc="emcc"):
+    """Create wasm that is supposed to run with the tvmjs.
 
     Parameters
     ----------
@@ -44,25 +42,27 @@ def create_js(output,
         The compile string.
     """
     cmd = [cc]
-    cmd += ["-Oz"]
-    if not side_module:
-        cmd += ["-s", "RESERVED_FUNCTION_POINTERS=2"]
-        cmd += ["-s", "NO_EXIT_RUNTIME=1"]
-        extra_methods = ['cwrap', 'getValue', 'setValue', 'addFunction']
-        cfg = "[" + (','.join("\'%s\'" % x for x in extra_methods)) + "]"
-        cmd += ["-s", "EXTRA_EXPORTED_RUNTIME_METHODS=" + cfg]
-    else:
-        cmd += ["-s", "SIDE_MODULE=1"]
-    cmd += ["-o", output]
+    cmd += ["-O3"]
+
+    cmd += ["-std=c++14"]
+    cmd += ["-s", "ERROR_ON_UNDEFINED_SYMBOLS=0"]
+    cmd += ["-s", "STANDALONE_WASM=1"]
+    cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]
+
+
     objects = [objects] if isinstance(objects, str) else objects
+
     with_runtime = False
     for obj in objects:
-        if obj.find("libtvm_web_runtime.bc") != -1:
+        if obj.find("wasm_runtime.bc") != -1:
             with_runtime = True
 
-    if not with_runtime and not side_module:
-        objects += [find_lib_path("libtvm_web_runtime.bc")[0]]
+    if not with_runtime:
+        objects += [find_lib_path("wasm_runtime.bc")[0]]
 
+    objects += [find_lib_path("tvmjs_support.bc")[0]]
+
+    cmd += ["-o", output]
     cmd += objects
 
     if options:
@@ -79,4 +79,4 @@ def create_js(output,
         msg += py_str(out)
         raise RuntimeError(msg)
 
-create_js.object_format = "bc"
+create_tvmjs_wasm.object_format = "bc"
