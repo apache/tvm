@@ -64,6 +64,7 @@ class OperatorConverter(object):
         self.convert_map = {
             'ABS': self.convert_abs,
             'ADD': self.convert_add,
+            'ADD_N': self.convert_add_n,
             'AVERAGE_POOL_2D': self.convert_average_pool2d,
             'BATCH_TO_SPACE_ND': self.convert_batch_to_space_nd,
             'CAST': self.convert_cast,
@@ -800,28 +801,9 @@ class OperatorConverter(object):
         assert len(input_tensors) == 2, "input tensors length should be 2"
 
         lhs_tensor = input_tensors[0]
-        if self.has_expr(lhs_tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses elemwise operators
-            # with constants - it means both will be tensors.
-            lhs_expr = self.get_expr(lhs_tensor.tensor_idx)
-        else:
-            # However, in some corner cases, the elemwise operator is not fused,
-            # we can receive as constant.
-            lhs_type_str = self.get_tensor_type_str(lhs_tensor.tensor.Type())
-            lhs_expr = self.exp_tab.new_const(self.get_tensor_value(lhs_tensor),
-                                              dtype=lhs_type_str)
-
         rhs_tensor = input_tensors[1]
-        if self.has_expr(rhs_tensor.tensor_idx):
-            # In most cases, we can assume that TOCO fuses elemwise operators
-            # with constants - it means both will be tensors.
-            rhs_expr = self.get_expr(rhs_tensor.tensor_idx)
-        else:
-            # However, in some corner cases, the elemwise operator is not fused,
-            # we can receive as constant.
-            rhs_type_str = self.get_tensor_type_str(rhs_tensor.tensor.Type())
-            rhs_expr = self.exp_tab.new_const(self.get_tensor_value(rhs_tensor),
-                                              dtype=rhs_type_str)
+        lhs_expr = self.get_tensor_expr(lhs_tensor)
+        rhs_expr = self.get_tensor_expr(rhs_tensor)
 
         output_tensors = self.get_output_tensors(op)
         assert len(output_tensors) == 1, "output tensors length should be 1"
@@ -872,6 +854,20 @@ class OperatorConverter(object):
         if self.is_quantized(op):
             return self._convert_elemwise(_qnn.op.add, op)
         return self._convert_elemwise(_op.add, op)
+
+    def convert_add_n(self, op):
+        """Convert TFLite ADD_N"""
+        output_tensors = self.get_output_tensors(op)
+        assert len(output_tensors) == 1, "output tensors length should be 1"
+
+        input_tensors = self.get_input_tensors(op)
+        assert not input_tensors[0].qnn_params, "TFLite does not support quantized ADD_N."
+        lhs_expr = self.get_tensor_expr(input_tensors[0])
+        for rhs_tensor in input_tensors[1:]:
+            assert not rhs_tensor.qnn_params, "TFLite does not support quantized ADD_N"
+            rhs_expr = self.get_tensor_expr(rhs_tensor)
+            lhs_expr = _op.add(lhs_expr, rhs_expr)
+        return lhs_expr
 
     def convert_sub(self, op):
         """Convert TFLite SUB"""
