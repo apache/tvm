@@ -224,7 +224,7 @@ class PassInfo : public ObjectRef {
    * \param name Name of the pass.
    * \param required  The passes that are required to perform the current pass.
    */
-  TVM_DLL PassInfo(int opt_level, std::string name, Array<runtime::String> required);
+  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -327,7 +327,7 @@ class Sequential : public Pass {
    *        This allows users to only provide a list of passes and execute them
    *        under a given context.
    */
-  TVM_DLL Sequential(Array<Pass> passes, std::string name = "sequential");
+  TVM_DLL Sequential(Array<Pass> passes, String name = "sequential");
 
   Sequential() = default;
   explicit Sequential(ObjectPtr<Object> n) : Pass(n) {}
@@ -348,7 +348,7 @@ class Sequential : public Pass {
  */
 TVM_DLL Pass
 CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                 int opt_level, const std::string& name, const Array<runtime::String>& required);
+                 int opt_level, const String& name, const Array<runtime::String>& required);
 
 /*!
  * \brief A special trace pass that prints the header and IR to LOG(INFO).
@@ -356,7 +356,7 @@ CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>
  * \param show_meta_data Whether should we show meta data.
  * \return The pass.
  */
-TVM_DLL Pass PrintIR(std::string header = "", bool show_meta_data = false);
+TVM_DLL Pass PrintIR(String header = "", bool show_meta_data = false);
 
 }  // namespace transform
 }  // namespace tvm
