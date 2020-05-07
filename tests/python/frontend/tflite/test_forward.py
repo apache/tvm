@@ -420,6 +420,29 @@ def test_forward_cast():
     _test_cast(np.arange(6.0, dtype=np.int32).reshape((1, 6)), cast_dtype=tf.int64)
 
 #######################################################################
+# Batch Mat Mul
+# ----
+def _test_batch_matmul(A_shape, B_shape, dtype, adjoint_a=False, adjoint_b=False):
+    with tf.Graph().as_default():
+        A = array_ops.placeholder(shape=A_shape, dtype=dtype, name='A')
+        B = array_ops.placeholder(shape=B_shape, dtype=dtype, name='B')
+        result = math_ops.matmul(A, B, adjoint_a=adjoint_a,
+                           adjoint_b=adjoint_b, name='batchmatmul')
+
+        A_np = np.random.uniform(high=5.0, size=A_shape).astype(dtype)
+        B_np = np.random.uniform(high=5.0, size=B_shape).astype(dtype)
+        compare_tflite_with_tvm([A_np, B_np], [A.name, B.name], [A, B], [result])
+
+
+def test_forward_batch_matmul():
+    """ BATCH_MAT_MUL """
+    _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32')
+    _test_batch_matmul((3, 5, 4), (3, 4, 5), 'float32', True, True)
+    _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', True, False)
+    _test_batch_matmul((3, 5, 4), (3, 5, 4), 'float32', False, True)
+    _test_batch_matmul((2, 3, 4, 5, 6), (2, 3, 4, 6, 5), 'float32')
+
+#######################################################################
 # Tile
 # ----
 
@@ -2000,6 +2023,9 @@ if __name__ == '__main__':
 
     # Cast
     test_forward_cast()
+
+    # BatchMatMul
+    test_forward_batch_matmul()
 
     # Tile
     test_forward_tile()

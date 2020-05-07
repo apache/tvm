@@ -1331,16 +1331,28 @@ class OperatorConverter(object):
         input_tensor_shape = input_tensor.tensor.ShapeAsNumpy()
         weight_tensor_shape = weight_tensor.tensor.ShapeAsNumpy()
 
-        # reshape input tensor from N H W C to N H*W*C
-        input_size_per_batch = 1
-        for s in range(1, len(input_tensor_shape)):
-            input_size_per_batch *= input_tensor_shape[s]
-        assert input_size_per_batch == weight_tensor_shape[1], \
-            "input size and weight size are mismatched"
-        target_shape = tuple((input_tensor_shape[0], input_size_per_batch))
+        # Weight should have only 2 dimensions(TFLite convention)
+        assert len(weight_tensor_shape) == 2, "Weight should be only 2-dim"
+
+        # Input shape: [i_batch_size, ..., n_inputs]
+        # Filter shape: [n_inputs, n_units]
+        #
+        # As we will transform Fully_Connected Input to Dense Op inputs as below
+        # Dense expected Input shape: [batch_size, n_units]
+        # Dense expected Weight shape: [out_dim, n_units]
+        # Dense output shape: [batch_size, out_dim]
+        # So it is evident that input shape: [batch_size = input_size / n_units, n_units]
+        input_size = 1
+        for _, shape in enumerate(input_tensor_shape):
+            input_size *= shape
+
+        # First get the batch size
+        batch_size = int(input_size / weight_tensor_shape[1])
+        target_shape = tuple((batch_size, weight_tensor_shape[1]))
         in_expr = self.get_expr(input_tensor_idx)
         in_expr = _op.reshape(in_expr, target_shape)
 
+        #TODO: Change the output shape calculation based on keep_dim option
         assert op.BuiltinOptionsType() == BuiltinOptions.FullyConnectedOptions
         op_options = op.BuiltinOptions()
         fully_connected_options = FullyConnectedOptions()
@@ -1352,8 +1364,11 @@ class OperatorConverter(object):
         assert weight_tensor_type in (TensorType.UINT8, TensorType.FLOAT32)
         weight_tensor_type_str = self.get_tensor_type_str(weight_tensor_type)
 
-        weight_value = self.get_tensor_value(weight_tensor)
-        weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
+        if self.has_expr(weight_tensor.tensor_idx):
+            weight_expr = self.get_expr(weight_tensor.tensor_idx)
+        else:
+            weight_value = self.get_tensor_value(weight_tensor)
+            weight_expr = self.exp_tab.new_const(weight_value, dtype=weight_tensor_type_str)
         weight_shape = _infer_shape(weight_expr)
 
         if input_tensor.qnn_params:
