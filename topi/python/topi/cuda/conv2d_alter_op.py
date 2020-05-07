@@ -111,6 +111,42 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         return relay.nn.contrib_conv2d_winograd_without_weight_transform(
             inputs[0], weight, **new_attrs)
 
+    if topi_tmpl in ('conv2d_nhwc_winograd_direct.cuda', 'conv2d_nhwc_winograd_tensorcore.cuda'):
+        if dilation != (1, 1):
+            logger.warning("Does not support weight pre-transform for dilated convolution.")
+            return None
+
+        assert data_layout == "NHWC" and kernel_layout == "HWIO"
+        N, H, W, CI = get_const_tuple(data.shape)
+        KH, KW, _, CO = get_const_tuple(kernel.shape)
+
+        # Pre-compute weight transformation in winograd
+        if H % 8 == 0:
+            tile_size = 4
+        else:
+            tile_size = 2
+        kernel_transform = relay.transpose(inputs[1], axes=[3, 2, 0, 1])
+        weight = relay.nn.contrib_conv2d_winograd_weight_transform(kernel_transform,
+                                                                   tile_size=tile_size)
+        weight = relay.transpose(weight, axes=[0, 1, 3, 2])
+        new_attrs['tile_size'] = tile_size
+        new_attrs['channels'] = CO
+        # Store the same config for the altered operator (workload)
+        new_data = data
+        new_weight = te.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
+                                    dtype=kernel.dtype)
+        if topi_tmpl == "conv2d_nhwc_winograd_direct.cuda":
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, out_dtype],
+                "conv2d_nhwc_winograd_direct_without_weight_transform.cuda")
+        elif topi_tmpl == "conv2d_nhwc_winograd_tensorcore.cuda":
+            new_workload = autotvm.task.args_to_workload(
+                [new_data, new_weight, strides, padding, dilation, out_dtype],
+                "conv2d_nhwc_winograd_tensorcore_without_weight_transform.cuda")
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_conv2d_winograd_without_weight_transform(
+            inputs[0], weight, **new_attrs)
+
     if topi_tmpl == "group_conv2d_NCHWc_int8.cuda":
         assert data_layout == "NCHW" and kernel_layout == "OIHW"
         N, CI, H, W = get_const_tuple(data.shape)
