@@ -128,6 +128,8 @@ def test_rpc_echo():
                 "testing.test_raise_error_callback")("RuntimeError")
             raise_err()
 
+        remote.cpu().sync()
+
     temp = rpc.server._server_env([])
     server = rpc.Server("localhost")
     client = rpc.connect(server.host, server.port)
