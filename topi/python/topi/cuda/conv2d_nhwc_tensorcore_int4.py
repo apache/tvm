@@ -39,8 +39,6 @@ def intrin_wmma_load_matrix(scope):
     else:
         A = tvm.te.placeholder((m, l), name='A', dtype='int4')
         C = tvm.te.compute((m, l), lambda i, j: A[i, j], name='C')
-    # A = te.placeholder((n, m), name='A', dtype='int4')
-    # C = te.compute((m, n), lambda i, j: A[i, j], name='C')
     BA = tvm.tir.decl_buffer(A.shape, A.dtype, scope='shared', data_alignment=32, offset_factor=256)
     BC = tvm.tir.decl_buffer(C.shape, C.dtype, scope=scope, data_alignment=32, offset_factor=256)
 
@@ -138,19 +136,20 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
 
     batch, in_height, in_width, in_channels= get_const_tuple(Input.shape)
     if in_dtype == 'int4':
-        kernel_h, kernel_w, num_filter, _ = get_const_tuple(Filter.shape)
+        kernel_h, kernel_w, _, num_filter, _, _ = get_const_tuple(Filter.shape)
     else:
         kernel_h, kernel_w, _, num_filter = get_const_tuple(Filter.shape)
-
-    if in_dtype == 'int4':
-        assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
-    else:
-        assert (batch % 16 == 0 and in_channels % 16 == 0 and num_filter % 16 == 0) or \
-               (batch % 8 == 0 and in_channels % 16 == 0 and num_filter % 32 == 0) or \
-               (batch % 32 == 0 and in_channels % 16 == 0 and num_filter % 8 == 0), \
-               "The shape of (batch, in_channels, num_filter) "\
-               "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for fp16 and int8, "\
-               "and (8, 32, 8) for int4"
+    num_filter = num_filter * wmma_n
+    # if in_dtype == 'int4':
+    #     pass
+    #     # assert (batch % 8 == 0 and in_channels % 32 == 0 and num_filter % 8 == 0)
+    # else:
+    #     assert (batch % 16 == 0 and in_channels % 16 == 0 and num_filter % 16 == 0) or \
+    #            (batch % 8 == 0 and in_channels % 16 == 0 and num_filter % 32 == 0) or \
+    #            (batch % 32 == 0 and in_channels % 16 == 0 and num_filter % 8 == 0), \
+    #            "The shape of (batch, in_channels, num_filter) "\
+    #            "must be multiple of (16, 16, 16) or (32, 16, 8) or (8, 16, 32) for fp16 and int8, "\
+    #            "and (8, 32, 8) for int4"
 
     # compute the output shape
     dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
@@ -181,23 +180,18 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
                     out_height,
                     out_width,
                     out_channels)   
-    # rc = te.reduce_axis((0, in_channel), name='rc')
-    # ry = te.reduce_axis((0, kernel_h), name='ry')
-    # rx = te.reduce_axis((0, kernel_w), name='rx')
     # Reduction axes
     kh = te.reduce_axis((0, kernel_h), name='kh')
     kw = te.reduce_axis((0, kernel_w), name='kw')
     ic = te.reduce_axis((0, in_channels // wmma_k), name='ic')
     ii = te.reduce_axis((0, wmma_k), name='ii')
     # Algorithm
-    # A = te.placeholder(data_shape, name='A', dtype="int4")
-    # W = te.placeholder(kernel_shape, name='W', dtype="int4")
     A_transpose = te.compute(data_shape, 
         lambda n, h, w, i, nn, ii: Input[n * wmma_m + nn, h, w, i * wmma_k + ii]
     )
-    Filter_transpose = te.compute(kernel_shape, 
-        lambda kh, kw, i, o, oo, ii: Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii]
-    )
+    # Filter_transpose = te.compute(kernel_shape, 
+    #     lambda kh, kw, i, o, oo, ii: Filter[kh, kw, o * wmma_n + oo, i * wmma_k + ii]
+    # )
     Apad_transpose = te.compute(
         (batch // wmma_m, in_height + 2 * padding, in_width + 2 * padding, in_channels // wmma_k, wmma_m,
         wmma_k),
@@ -209,7 +203,7 @@ def nhwc_tensorcore_cuda(cfg, Input, Filter, stride, padding, dilation, in_dtype
     Conv = te.compute((batch // wmma_m, out_height, out_width, out_channels // wmma_n, wmma_m, wmma_n),
                     lambda n, h, w, o, nn, oo: te.sum(
                         Apad_transpose[n, h * stride_h + kh, w * stride_w + kw, ic, nn, ii].astype("int32") *
-                        Filter_transpose[kh, kw, ic, o, oo, ii].astype("int32"),
+                        Filter[kh, kw, ic, o, oo, ii].astype("int32"),
                         axis=[ic, kh, kw, ii]),
                     name="Conv")
     Out = te.compute(output_shape,
@@ -234,8 +228,6 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     else:
         _, _, _, out_channels, _, _ = get_const_tuple(kernel.shape)
     # inline the pad and dtype transform
-    # s[kernel].compute_inline()
-    # s[paddata[0]].compute_inline()
 
     block_x = te.thread_axis('blockIdx.x')
     block_y = te.thread_axis('blockIdx.y')
@@ -251,30 +243,15 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     WF = s.cache_read(WS, 'wmma.matrix_b', [Conv])
     ConvF = s.cache_write(Conv, 'wmma.accumulator')
 
-    # todo 
-    # if Conv.op in s.outputs:
-    #     output = Conv
-    #     ConvS = s.cache_read(ConvF, 'shared', [Conv])
-    #     OL = ConvS
-    # else:
-    #     output = s.outputs[0].output(0)
-    #     s[Conv].set_scope('shared')
-    #     OL = Conv
-
     # Schedule for autotvm
-    cfg.define_knob("block_row_warps", [1, 2, 4, 8])
-    cfg.define_knob("block_col_warps", [1, 2, 4, 8])
-    cfg.define_knob("warp_row_tiles", [1, 2, 4, 8])
-    cfg.define_knob("warp_col_tiles", [1, 2, 4, 8])
-    cfg.define_knob("chunk", [1, 2, 4, 8])
-    # if in_dtype == 'int8':
-    #     cfg.define_knob("offset", [0, 16])
-    # elif in_dtype == 'int4':
-    #     cfg.define_knob("offset", [0])
-    # else:
-    #     cfg.define_knob("offset", [0, 8])
-    # cfg.define_knob("vector_width", [1, 2, 4, 8])
-    cfg.define_knob("vector_width", [1, 8])
+    cfg.define_knob("block_row_warps", [1, 2, 4, 8, 16])
+    cfg.define_knob("block_col_warps", [1, 2, 4, 8, 16])
+    cfg.define_knob("warp_row_tiles", [1, 2, 4, 8, 16])
+    cfg.define_knob("warp_col_tiles", [1, 2, 4, 8, 16])
+    cfg.define_knob("chunk", [1, 2, 4, 8, 16])
+    cfg.define_knob("vector_ws", [1, 8])
+    # cfg.define_knob("inline_pad", [1, 2])
+    cfg.define_knob("vector_as", [1, 4, 8, 16])
 
     # fallback support
     target = tvm.target.Target.current()
@@ -289,36 +266,32 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     warp_col_tiles = cfg["warp_col_tiles"].val
     chunk = cfg["chunk"].val
     # offset = cfg["offset"].val
-    vector_width = cfg["vector_width"].val
-    # block_row_warps = 1
-    # block_col_warps = 1
-    # warp_row_tiles = 1
-    # warp_col_tiles = 1
-    # chunk = 1
-    # vector_width = 1
+    vector_ws = cfg["vector_ws"].val
+    vector_as = cfg["vector_as"].val
+    # inline_pad = cfg["inline_pad"].val
+    block_row_warps = 1
+    block_col_warps = 1
+    warp_row_tiles = 8
+    warp_col_tiles = 8
+    chunk = 1
+    vector_ws = 1
+    vector_as = 16
 
-    # offset = 0
+    inline_pad = 2
 
     with tvm.target.create('cuda'):
         schedule_injective_from_existing(s, Out)
-        schedule_injective_from_existing(s, kernel)
-    s[Apad].compute_inline()
+        # schedule_injective_from_existing(s, Apad)
+        # schedule_injective_from_existing(s, A_transpose)
+    # s[Apad].compute_inline()
     s[A_transpose].compute_inline()
     # s[Out].compute_inline()
-    # s[kernel].compute_inline()
-    # if inline_apad:
-    #     s[Apad].compute_inline()
-    # else:
-    #     with tvm.target.create('cuda'):
-    #         schedule_injective_from_existing(s, Apad)
-    # if inline_atranspose:
-    #     s[A_transpose].compute_inline()
-    # else:
-    #     with tvm.target.create('cuda'):
-    #         schedule_injective_from_existing(s, A_transpose)
 
-
-
+    if inline_pad == 1:
+        s[Apad].compute_inline()
+    else:
+        with tvm.target.create('cuda'):
+            schedule_injective_from_existing(s, Apad)
 
     if in_dtype == 'int4':
         wmma_m = wmma_n = 8
@@ -342,6 +315,22 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
 
     warp_size = 32
 
+    # _n, _h, _w, _c = s[Out].op.axis
+    # block_k = s[Out].fuse(_h, _w)
+    # s[Out].bind(block_k, block_z)
+    # _n, _wmma_m = s[Out].split(_n, factor=8)
+    # _n, nci = s[Out].split(_n, factor=warp_row_tiles)
+    # block_i, _n = s[Out].split(_n, factor=block_row_warps)
+    # _c, _wmma_n = s[Out].split(_c, factor=8)
+    # _c, oci = s[Out].split(_c, factor=warp_col_tiles)
+    # block_j, _c = s[Out].split(_c, factor=block_col_warps)
+    # s[Out].reorder(block_k, block_i, block_j, _n, _c, nci, oci, _wmma_m, _wmma_n)
+    # s[Out].bind(block_i, block_x)
+    # s[Out].bind(block_j, block_y)
+    # s[Out].bind(_n, thread_y)
+    # s[Out].bind(_c, thread_z)
+    # s[Conv].compute_at(s[Out], Out.op.axis[2])
+
     nc, hc, wc, oc, nnc, ooc = Conv.op.axis
     block_k = s[Conv].fuse(hc, wc)
     s[Conv].bind(block_k, block_z)
@@ -354,6 +343,7 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     s[Conv].bind(block_j, block_y)
     s[Conv].bind(nc, thread_y)
     s[Conv].bind(oc, thread_z)
+    
     # Schedule local computation
     s[ConvF].compute_at(s[Conv], oc)
     n, h, w, o, nnf, oof = ConvF.op.axis
@@ -364,19 +354,18 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     s[AF].compute_at(s[ConvF], kw)
     s[WF].compute_at(s[ConvF], kw)
 
-    # vector_width=8
     # Schedule for A's share memory
     s[AS].compute_at(s[ConvF], kh)
     n, h, w, i, nn, ii = AS.op.axis
     tx, xo = s[AS].split(n, nparts=block_row_warps)
     ty, yo = s[AS].split(xo, nparts=block_col_warps)
     t = s[AS].fuse(nn, ii)
-    to, ti = s[AS].split(t, factor=warp_size)
-    # ti, _t = s[AS].split(ti, factor=8)
+    to, ti = s[AS].split(t, nparts=warp_size)
+    ti, _t = s[AS].split(ti, factor=vector_as)
     s[AS].bind(tx, thread_y)
     s[AS].bind(ty, thread_z)
-    s[AS].bind(ti, thread_x)
-    # s[AS].vectorize(ti)
+    s[AS].bind(to, thread_x)
+    s[AS].vectorize(_t)
 
     # Schedule for W's share memory
     s[WS].compute_at(s[ConvF], kh)
@@ -385,7 +374,7 @@ def schedule_nhwc_tensorcore_cuda_int4(cfg, s, Out):
     ty, yo = s[WS].split(xo, nparts=block_col_warps)
     t = s[WS].fuse(ii, oo)
     to, ti = s[WS].split(t, nparts=warp_size)
-    ti, _t = s[WS].split(ti, factor=vector_width)
+    ti, _t = s[WS].split(ti, factor=vector_ws)
     s[WS].bind(tx, thread_y)
     s[WS].bind(ty, thread_z)
     s[WS].bind(to, thread_x)
