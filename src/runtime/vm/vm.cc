@@ -628,6 +628,7 @@ inline ObjectRef CopyTo(ObjectRef src, const DLContext& ctx) {
 
 PackedFunc VirtualMachine::GetFunction(const std::string& name,
                                        const ObjectPtr<Object>& sptr_to_self) {
+  std::cout << name << std::endl;
   if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       CHECK(exec_) << "The executable is not created yet.";

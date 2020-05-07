@@ -59,10 +59,16 @@ Pass ManifestAlloc(Target target_host) {
   auto f = tvm::runtime::Registry::Get("relay.transform.ManifestAlloc");
   CHECK(f != nullptr) << "unable to load allocation manifestation pass";
   return (*f)(target_host);
-Pass MemoryPlan() {
 }
 
+Pass MemoryPlan() {
   auto f = tvm::runtime::Registry::Get("relay.transform.MemoryPlan");
+  CHECK(f != nullptr) << "unable to load the memory planning pass";
+  return (*f)();
+}
+
+Pass LiftConstants() {
+  auto f = tvm::runtime::Registry::Get("relay.transform.LiftConstants");
   CHECK(f != nullptr) << "unable to load the memory planning pass";
   return (*f)();
 }
@@ -518,6 +524,10 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
                 CHECK(alloc_attrs != nullptr) << "must be the alloc tensor attrs";
                 auto dtype = alloc_attrs->dtype;
 
+          // The storage will be passed dynamically.
+          this->VisitExpr(args[0]);
+          auto storage_register = last_register_;
+
                 // The storage will be passed dynamically.
           this->VisitExpr(args[1]);
           auto offset_register = last_register_;
@@ -845,6 +855,7 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   Array<Pass> pass_seqs;
   // Manifest the allocations.
   pass_seqs.push_back(transform::ManifestAlloc(host_target));
+
   // Compute away possibly introduced constant computation.
   pass_seqs.push_back(transform::FoldConstant());
 
@@ -854,11 +865,26 @@ transform::Sequential MemoryOpt(tvm::Target host_target) {
   // Manifest the allocations needed for the shape functions.
   pass_seqs.push_back(transform::ManifestAlloc(host_target));
 
-  // // Compute away constant computation introduced by manifesting allocations.
-  pass_seqs.push_back(transform::FoldConstant());
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
 
   // Perform memory planning in order to coalesce/reduce allocations.
   pass_seqs.push_back(transform::MemoryPlan());
+
+  // Compute away constant computation introduced by coalescing allocations.
+  pass_seqs.push_back(transform::FoldConstant());
+
+  // Fuse the shape functions.
+  pass_seqs.push_back(transform::FuseOps());
+
+  // Create allocations for math introduced by dynamic region math.
+  pass_seqs.push_back(transform::ManifestAlloc(host_target));
+
+  // Compute away possibly introduced constant computation.
+  pass_seqs.push_back(transform::FoldConstant());
+
+  // Lift constants to the top-level of the block to simplify VM code generation.
+  pass_seqs.push_back(transform::LiftConstants());
 
   return transform::Sequential(pass_seqs);
 }

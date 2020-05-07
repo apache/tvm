@@ -206,12 +206,6 @@ class ManifestAllocPass(ExprMutator):
             # Because we are in ANF we do not need to visit the arguments.
             scope = self.current_scope()
             new_args = [self.visit(arg) for arg in call.args]
-            new_args = []
-            for i, arg in enumerate(call.args):
-                if isinstance(arg, expr.Constant):
-                    new_args.append(scope.let(f"const{i}", arg))
-                else:
-                    new_args.append(arg)
 
             ins = expr.Tuple(new_args)
             ret_type = call.checked_type
@@ -247,7 +241,6 @@ class ManifestAlloc:
         mod.import_from_std("core.rly")
         ea = ManifestAllocPass(self.target_host)
         func = ea.visit(func)
-        print(func)
         return func
 
 

@@ -114,7 +114,7 @@ class Region:
         bindings: List[Tuple[expr.Expr, expr.Expr]] = []
 
         # First compute the total size.
-        total_size = expr.var("total_size")
+        total_size = expr.var(f"total_size{hash(body)}")
         bindings.append((total_size, self.size))
 
         # Allocate the entire region with a single call.
@@ -146,18 +146,20 @@ def iterative_let(let, each_binding, kont):
     return kont(bindings, let)
 
 
+
 def mk_let(bindings, body):
     for var, value in reversed(bindings):
         assert var
         assert value
         assert body
         body = expr.Let(var, value, body)
+
     return body
 
-def const_eval(exp):
-    mod = IRModule.from_expr(exp)
+def const_eval(mod, exp):
+    mod = IRModule.from_expr(exp, type_defs=mod.type_definitions)
     mod = transform.FoldConstant()(mod)
-    return mod["main"].body
+    return mod["main"]
 
 class StorageCoalesce(ExprMutator):
     """
@@ -199,8 +201,8 @@ class StorageCoalesce(ExprMutator):
     def visit_function(self, fn):
         """Transform the function body to use region allocation scheme."""
         func = fn
-        if func.attrs and getattr(func.attrs, "Primitive", 0) == 1:
-            return func
+        if getattr(func.attrs, "Primitive", 0) == 1:
+            return super().visit_function(func)
         else:
             self.enter_scope()
             body = self.visit(func.body)
@@ -224,12 +226,28 @@ class StorageCoalesce(ExprMutator):
 
         return expr.If(ite.cond, true_branch, false_branch)
 
+
+    def mk_let(self, dynamic_regions):
+        def _mk_let(bindings, body):
+            for var, value in reversed(bindings):
+                assert var
+                assert value
+                assert body
+                body = expr.Let(var, value, body)
+                if var in dynamic_regions:
+                    body = self.exit_scope(body)
+
+            return body
+
+        return _mk_let
+
     def visit_let(self, let):
+        dynamic_regions = []
         def _each_binding(lhs, rhs):
             if isinstance(rhs, expr.Call) and rhs.op == op.op.get(
                     "memory.alloc_storage"
             ):
-                return self.process_alloc_storage(lhs, rhs)
+                return self.process_alloc_storage(dynamic_regions, lhs, rhs)
             elif isinstance(rhs, expr.Call) and rhs.op == op.op.get(
                     "memory.alloc_tensor"
             ):
@@ -237,15 +255,20 @@ class StorageCoalesce(ExprMutator):
             else:
                 return lhs, rhs
 
-        result = iterative_let(let, _each_binding, mk_let)
+        result = iterative_let(let, _each_binding, self.mk_let(dynamic_regions))
         assert result
         return result
 
-    def process_alloc_storage(self, lhs, call):
+    def process_alloc_storage(self, dynamic_regions, lhs, call):
         size, alignment = call.args
         dtype = call.attrs.dtype
         ctx = TVMContext(call.attrs.device_type, call.attrs.device_id)
-        region = self.current_region(call.attrs.dtype)
+
+        if not isinstance(size, expr.Constant):
+            self.enter_scope()
+            dynamic_regions.append(lhs)
+
+        region = self.current_region(dtype)
         region.grow(lhs, size, alignment, ctx, dtype)
         return lhs, region.var
 
@@ -261,7 +284,7 @@ class StorageCoalesce(ExprMutator):
             expr.Call(call.op, [region.var, offset, shape], call.attrs),
         )
 
-class LiftConstants(ExprMutator):
+class LiftConst(ExprMutator):
     def __init__(self):
         self.i = 0
         self.constants = []
@@ -275,6 +298,9 @@ class LiftConstants(ExprMutator):
         return var
 
     def visit_function(self, function):
+        if int(getattr(function.attrs, "Primitive", 0)) == 1:
+            return function
+
         if self.top_level:
             self.top_level = False
             body = mk_let(self.constants, self.visit(function.body))
@@ -294,12 +320,35 @@ class MemoryPlan:
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
         sc = StorageCoalesce()
-        import pdb; pdb.set_trace()
         func = sc.visit(func)
-        import pdb; pdb.set_trace()
-        func = LiftConstants().visit(func)
-        func = const_eval(func)
+        # func = Uniq().visit(func)
+        return func
+
+class Uniq(ExprMutator):
+    def __init__(self):
+        self.var_map = {}
+        self.i = 0
+        super().__init__()
+
+    def visit_var(self, var):
+        if var in self.var_map:
+            return self.var_map[var]
+        else:
+            new_var = expr.Var(f"var{self.i}", type_annotation=var.type_annotation)
+            self.i += 1
+            self.var_map[var] = new_var
+            return new_var
+
+register_func("relay.transform.MemoryPlan", MemoryPlan)
+
+@function_pass(opt_level=0)
+class LiftConstants:
+    """An explicit pass wrapper around LiftConstants."""
+
+    def transform_function(self, func, mod, _):
+        mod.import_from_std("core.rly")
+        func = LiftConst().visit(func)
         return func
 
 
-register_func("relay.transform.MemoryPlan", MemoryPlan)
+register_func("relay.transform.LiftConstants", LiftConstants)
