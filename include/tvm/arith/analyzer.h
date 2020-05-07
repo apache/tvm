@@ -107,6 +107,7 @@ class ConstIntBound : public ObjectRef {
  */
 class ConstIntBoundAnalyzer {
  public:
+  using BoundMapType = std::unordered_map<PrimExpr, ConstIntBound, ObjectHash, ObjectEqual>;
   /*!
    * \brief analyze the expr
    * \param expr The expression of interest.
@@ -120,8 +121,7 @@ class ConstIntBoundAnalyzer {
    * \param bound The lookup table to store the intermediate results
    * \return the result of the analysis.
    */
-  TVM_DLL ConstIntBound operator()(const PrimExpr& expr,
-                                   std::unordered_map<const PrimExprNode*, ConstIntBound>* bound);
+  TVM_DLL ConstIntBound operator()(const PrimExpr& expr, BoundMapType* bound);
 
   /*!
    * \brief Update constant int bound information of var.
