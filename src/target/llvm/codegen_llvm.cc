@@ -575,8 +575,11 @@ llvm::Value* CodeGenLLVM::CreateCast(DataType from, DataType to, llvm::Value* va
     CHECK_EQ(to.bits(), 16);
     CHECK_EQ(from.bits(), 32);
     auto v = builder_->CreateBitCast(value, builder_->getInt32Ty());
-    if (module_->getDataLayout().isLittleEndian())
-      v = builder_->CreateLShr(v, 16);
+    auto bias = builder_->CreateLShr(v, 16);
+    bias = builder_->CreateAnd(bias, builder_->getInt32(1));
+    bias = builder_->CreateAdd(bias, builder_->getInt32(0x7fff));
+    v = builder_->CreateAdd(v, bias);
+    v = builder_->CreateLShr(v, 16);
     return builder_->CreateTrunc(v, target);
   } else if (to.is_uint() && to.bits() == 1) {
     if (from.is_float()) {
