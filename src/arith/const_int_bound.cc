@@ -147,17 +147,16 @@ class ConstIntBoundAnalyzer::Impl :
       }
     }
     if (bound_) {
-      const PrimExprNode* op = expr.as<PrimExprNode>();
-      auto val = bound_->find(op);
+      auto val = bound_->find(expr);
       if (val != bound_->end()) {
-        auto everything = Everything(op->dtype);
+        auto everything = Everything(expr->dtype);
         CHECK(
             (val->second->min_value == res.min_value && val->second->max_value == res.max_value) ||
             (val->second->min_value == everything.min_value &&
              val->second->max_value == everything.max_value))
             << "Detected bound for " << expr << "conflicts with memorization";
       }
-      (*bound_)[op] = ConstIntBound(res.min_value, res.max_value);
+      (*bound_)[expr] = ConstIntBound(res.min_value, res.max_value);
     }
     return res;
   }
@@ -369,7 +368,7 @@ class ConstIntBoundAnalyzer::Impl :
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // look up table for memorization
-  std::unordered_map<const PrimExprNode*, ConstIntBound>* bound_{nullptr};
+  BoundMapType* bound_{nullptr};
   // constants: the limit value means umlimited
   // NOTE: kNegInf/kPosInf are used to represent infinity.
   static const constexpr int64_t kNegInf = ConstIntBound::kNegInf;
@@ -563,7 +562,7 @@ ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr) {
 }
 
 ConstIntBound ConstIntBoundAnalyzer::operator()(const PrimExpr& expr,
-  std::unordered_map<const PrimExprNode*, ConstIntBound>* bound) {
+                                                BoundMapType* bound) {
   impl_->bound_ = bound;
   Entry ret = impl_->VisitExpr(expr);
   impl_->bound_ = nullptr;
