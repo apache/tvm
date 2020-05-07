@@ -81,7 +81,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "TypeVar(" << node->name_hint << ", " << node->kind << ")";
     });
 
-GlobalTypeVar::GlobalTypeVar(std::string name, TypeKind kind) {
+GlobalTypeVar::GlobalTypeVar(String name, TypeKind kind) {
   ObjectPtr<GlobalTypeVarNode> n = make_object<GlobalTypeVarNode>();
   n->name_hint = std::move(name);
   n->kind = std::move(kind);
@@ -90,7 +90,7 @@ GlobalTypeVar::GlobalTypeVar(std::string name, TypeKind kind) {
 
 TVM_REGISTER_NODE_TYPE(GlobalTypeVarNode);
 
-TVM_REGISTER_GLOBAL("ir.GlobalTypeVar").set_body_typed([](std::string name, int kind) {
+TVM_REGISTER_GLOBAL("ir.GlobalTypeVar").set_body_typed([](String name, int kind) {
   return GlobalTypeVar(name, static_cast<TypeKind>(kind));
 });
 
