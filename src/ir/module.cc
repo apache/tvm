@@ -40,7 +40,7 @@ namespace tvm {
 
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions,
                    tvm::Map<GlobalTypeVar, TypeData> type_definitions,
-                   std::unordered_set<std::string> import_set) {
+                   std::unordered_set<String> import_set) {
   auto n = make_object<IRModuleNode>();
   n->functions = std::move(functions);
   n->type_definitions = std::move(type_definitions);
@@ -111,15 +111,15 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
   reduce_temp();
 }
 
-bool IRModuleNode::ContainGlobalVar(const std::string& name) const {
+bool IRModuleNode::ContainGlobalVar(const String& name) const {
   return global_var_map_.find(name) != global_var_map_.end();
 }
 
-bool IRModuleNode::ContainGlobalTypeVar(const std::string& name) const {
+bool IRModuleNode::ContainGlobalTypeVar(const String& name) const {
   return global_type_var_map_.find(name) != global_type_var_map_.end();
 }
 
-GlobalVar IRModuleNode::GetGlobalVar(const std::string& name) const {
+GlobalVar IRModuleNode::GetGlobalVar(const String& name) const {
   auto it = global_var_map_.find(name);
   if (it == global_var_map_.end()) {
     std::ostringstream msg;
@@ -146,7 +146,7 @@ tvm::Array<GlobalVar> IRModuleNode::GetGlobalVars() const {
   return tvm::Array<GlobalVar>(global_vars);
 }
 
-GlobalTypeVar IRModuleNode::GetGlobalTypeVar(const std::string& name) const {
+GlobalTypeVar IRModuleNode::GetGlobalTypeVar(const String& name) const {
   CHECK(global_type_var_map_.defined());
   auto it = global_type_var_map_.find(name);
   CHECK(it != global_type_var_map_.end())
@@ -154,7 +154,7 @@ GlobalTypeVar IRModuleNode::GetGlobalTypeVar(const std::string& name) const {
   return (*it).second;
 }
 
-Constructor IRModuleNode::GetConstructor(const std::string& adt, const std::string& cons) const {
+Constructor IRModuleNode::GetConstructor(const String& adt, const String& cons) const {
   TypeData typeDef = this->LookupTypeDef(adt);
   for (Constructor c : typeDef->constructors) {
     if (cons.compare(c->name_hint) == 0) {
@@ -315,7 +315,7 @@ BaseFunc IRModuleNode::Lookup(const GlobalVar& var) const {
   return (*it).second;
 }
 
-BaseFunc IRModuleNode::Lookup(const std::string& name) const {
+BaseFunc IRModuleNode::Lookup(const String& name) const {
   GlobalVar id = this->GetGlobalVar(name);
   return this->Lookup(id);
 }
@@ -327,7 +327,7 @@ TypeData IRModuleNode::LookupTypeDef(const GlobalTypeVar& var) const {
   return (*it).second;
 }
 
-TypeData IRModuleNode::LookupTypeDef(const std::string& name) const {
+TypeData IRModuleNode::LookupTypeDef(const String& name) const {
   GlobalTypeVar id = this->GetGlobalTypeVar(name);
   return this->LookupTypeDef(id);
 }
@@ -379,7 +379,7 @@ IRModule IRModule::FromExpr(
   return mod;
 }
 
-void IRModuleNode::Import(const std::string& path) {
+void IRModuleNode::Import(const String& path) {
   if (this->import_set_.count(path) == 0) {
     this->import_set_.insert(path);
     DLOG(INFO) << "Importing: " << path;
@@ -392,18 +392,18 @@ void IRModuleNode::Import(const std::string& path) {
   }
 }
 
-void IRModuleNode::ImportFromStd(const std::string& path) {
+void IRModuleNode::ImportFromStd(const String& path) {
   auto* f = tvm::runtime::Registry::Get("tvm.relay.std_path");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
   std::string std_path = (*f)();
-  return this->Import(std_path + "/" + path);
+  this->Import(std_path + "/" + path.operator std::string());
 }
 
-std::unordered_set<std::string> IRModuleNode::Imports() const {
+std::unordered_set<String> IRModuleNode::Imports() const {
   return this->import_set_;
 }
 
-IRModule IRModule::FromText(const std::string& text, const std::string& source_path) {
+IRModule IRModule::FromText(const String& text, const String& source_path) {
   auto* f = tvm::runtime::Registry::Get("relay.fromtext");
   CHECK(f != nullptr) << "The Relay std_path is not set, please register tvm.relay.std_path.";
   IRModule mod = (*f)(text, source_path);
@@ -467,7 +467,7 @@ TVM_REGISTER_GLOBAL("ir.Module_Lookup")
 });
 
 TVM_REGISTER_GLOBAL("ir.Module_Lookup_str")
-.set_body_typed([](IRModule mod, std::string var) {
+.set_body_typed([](IRModule mod, String var) {
   return mod->Lookup(var);
 });
 
@@ -477,7 +477,7 @@ TVM_REGISTER_GLOBAL("ir.Module_LookupDef")
 });
 
 TVM_REGISTER_GLOBAL("ir.Module_LookupDef_str")
-.set_body_typed([](IRModule mod, std::string var) {
+.set_body_typed([](IRModule mod, String var) {
   return mod->LookupTypeDef(var);
 });
 
@@ -499,12 +499,12 @@ TVM_REGISTER_GLOBAL("ir.Module_Update")
 });
 
 TVM_REGISTER_GLOBAL("ir.Module_Import")
-.set_body_typed([](IRModule mod, std::string path) {
+.set_body_typed([](IRModule mod, String path) {
   mod->Import(path);
 });
 
 TVM_REGISTER_GLOBAL("ir.Module_ImportFromStd")
-.set_body_typed([](IRModule mod, std::string path) {
+.set_body_typed([](IRModule mod, String path) {
   mod->ImportFromStd(path);
 });;
 
