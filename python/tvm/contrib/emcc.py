@@ -47,6 +47,8 @@ def create_tvmjs_wasm(output,
     cmd += ["-std=c++14"]
     cmd += ["-s", "ERROR_ON_UNDEFINED_SYMBOLS=0"]
     cmd += ["-s", "STANDALONE_WASM=1"]
+    cmd += ["-s", "ALLOW_MEMORY_GROWTH=1"]
+
 
     objects = [objects] if isinstance(objects, str) else objects
 

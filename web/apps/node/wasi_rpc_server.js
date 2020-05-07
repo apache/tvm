@@ -18,7 +18,7 @@
  */
 
 /**
- * Example code to start the RPC server on nodejs using WAIS
+ * Example code to start the RPC server on nodejs using WASI
  */
 const { WASI } = require("wasi");
 const tvmjs = require("../../dist");

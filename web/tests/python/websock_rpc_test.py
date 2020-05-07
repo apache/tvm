@@ -50,7 +50,7 @@ def test_rpc():
     wasm_binary = open(wasm_path, "rb").read()
 
     remote = rpc.connect(proxy_host, proxy_port, key="wasm",
-                         session_constructor=["rpc.WasmSession", wasm_binary])
+                         session_constructor_args=["rpc.WasmSession", wasm_binary])
 
     def check(remote):
         # basic function checks.

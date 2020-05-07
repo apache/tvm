@@ -57,8 +57,10 @@
 int TVMBackendParallelLaunch(FTVMParallelLambda flambda,
                              void* cdata,
                              int num_task) {
-  TVMAPISetLastError("Parallel is not supported in Web runtime");
-  return -1;
+  TVMParallelGroupEnv env;
+  env.num_task = 1;
+  flambda(0, &env, cdata);
+  return 0;
 }
 
 int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {

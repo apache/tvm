@@ -111,8 +111,9 @@ export class Environment implements LibraryProvider {
   private environment(initEnv: Record<string, any>): Record<string, any> {
     // default env can be be overriden by libraries.
     const defaultEnv = {
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      "__cxa_thread_atexit": (): void => {}
+      "__cxa_thread_atexit": (): void => {},
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      "emscripten_notify_memory_growth": (index: number): void => {}
     };
     const wasmPackedCFunc: ctypes.FTVMWasmPackedCFunc = (
       args: Pointer,
