@@ -887,6 +887,15 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const IntImmNode* op) {
 }
 
 llvm::Value* CodeGenLLVM::VisitExpr_(const FloatImmNode* op) {
+  if (op->dtype.is_bf16()) {
+    auto fp = float(op->value);
+    auto p = reinterpret_cast<uint16_t*>(&fp);
+    #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+      return this->builder_->getInt16(p[0]);
+    #else
+      return this->builder_->getInt16(p[1]);
+    #endif
+  }
   return llvm::ConstantFP::get(DTypeToLLVMType(op->dtype), op->value);
 }
 
