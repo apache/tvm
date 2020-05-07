@@ -138,7 +138,10 @@ class NDArray(NDArrayBase):
         if source_array.shape != shape:
             raise ValueError("array shape do not match the shape of NDArray {0} vs {1}".format(
                 source_array.shape, shape))
-        source_array = np.ascontiguousarray(source_array, dtype=dtype)
+        if dtype == 'bf16':
+            source_array = np.ascontiguousarray(source_array, dtype='uint16')
+        else:
+            source_array = np.ascontiguousarray(source_array, dtype=dtype)
         assert source_array.flags['C_CONTIGUOUS']
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
@@ -167,7 +170,10 @@ class NDArray(NDArrayBase):
             shape = shape + (t.lanes,)
             t.lanes = 1
             dtype = str(t)
-        np_arr = np.empty(shape, dtype=dtype)
+        if dtype == 'bf16':
+            np_arr = np.empty(shape, dtype='uint16')
+        else:
+            np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags['C_CONTIGUOUS']
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
