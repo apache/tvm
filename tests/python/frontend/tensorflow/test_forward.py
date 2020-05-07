@@ -3228,25 +3228,58 @@ def test_spop_function_invocation():
         compare_tf_with_tvm([],[], 'SpopFnInvocation:0', mode='vm', init_global_variables=True)
 
 def test_spop_placeholder_default():
+
     with tf.Graph().as_default():
-        pl1 = tf.placeholder_with_default(20, tf.int32, name="pl1")
-        pl2 = tf.placeholder_with_default(10, tf.int32, name="pl2")
-        data = tf.constant(30)
-        data2 = tf.constant(40)
+        data = np.ones([1], dtype=int).astype(np.int32)
+        dataVar = tf.Variable(data, shape=data.shape)
+        pl1 = array_ops.placeholder_with_default(dataVar,shape=data.shape,name="pl1")
+        tpl = tf.convert_to_tensor(pl1, dtype=tf.int32)
 
-        @function.Defun(tf.int32, tf.int32)
-        def Forward(x, y):
-            # def Forward(x, y) ->[tf.int32]:
-            # Do not create placeholders in Defun methods..placeholders should be created outside of Defun()..and can be passed inside it
-            print(x.name)
-            print(y.name)
-            return tf.add(x, y)
+        @function.Defun(*[tf.int32])
+        def pl_with_default(pl):
+            # tpl = tf.convert_to_tensor(pl, dtype=tf.int32)
+            return tf.expand_dims(tf.multiply(pl, pl), 0)
 
-        z = gen_functional_ops.StatefulPartitionedCall(args=[pl1, pl2], Tout=[tf.int32], f=Forward)
+        # fn = pl_with_default(pl1)
+        #
+        # with tf.Session() as sess:
+        #     sess.run(tf.global_variables_initializer())
+        #     print("hello ji..the output is as follows: ")
+        #     sess.run(fn)
+        #     print(sess.run(fn))
 
-        feed = {'pl1:0': data, 'pl2:0': data2}
-        compare_tf_with_tvm([data, data2], ['pl1:0', 'pl2:0'],
+
+        z = gen_functional_ops.StatefulPartitionedCall(args=[tpl], Tout=[tf.int32], f=pl_with_default)
+        compare_tf_with_tvm(data, ['pl1:0'],
                             'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+
+        # in_a = tf.placeholder(dtype=tf.int32, shape=(1, 2), name="in_a")
+        # @function.Defun(*[tf.int32])
+        # def forward(x):
+        #     W = tf.Variable([1,2])
+        #     b = tf.Variable([1,3])
+        #     # b = tf.get_variable("b", initializer=tf.zeros(shape=(2)))
+        #     return W * x + b
+        #
+        # # out_a = forward(in_a)
+        # data = [1,0]
+        # z = gen_functional_ops.StatefulPartitionedCall(args=[in_a], Tout=[tf.int32], f=forward)
+        # compare_tf_with_tvm(data, 'in_a:0',
+        #                     'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
+# *******************************************************************
+        # a = tf.constant(5, tf.int32, name='A')
+        # pl = tf.placeholder(tf.int32, name='Pl1', shape=(1))
+        #
+        # @function.Defun(tf.int32, tf.int32)
+        # def Forward(x, y):
+        #     return tf.add(x, y)
+        #     # return tf.expand_dims(tf.convert_to_tensor(tf.add(x, y, name="Forward"), dtype=tf.int32),0)
+        #
+        # z = gen_functional_ops.StatefulPartitionedCall(args=[a, pl], Tout=[tf.int32], f=Forward)
+        # input_shape = [1]
+        # x = np.arange(1, dtype=np.int32).reshape(input_shape)
+        # compare_tf_with_tvm([x], ['Pl1:0'],
+        #                     'StatefulPartitionedCall:0', mode='vm', init_global_variables=True)
 
 def test_spop_placeholder_dimension_error():
     tf.reset_default_graph()
@@ -3294,10 +3327,9 @@ def tvm_frontend_placeholder_spop_error():
 
 def test_spop():
     test_spop_function_invocation()
+    test_spop_placeholder_default()
     tvm_frontend_placeholder_spop_error()
     test_spop_placeholder_dimension_error()
-    test_spop_placeholder_default()
-
 
 
 #######################################################################
