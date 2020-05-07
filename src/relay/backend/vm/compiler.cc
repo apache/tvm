@@ -546,10 +546,10 @@ class VMFunctionCompiler : ExprFunctor<void(const Expr& expr)> {
               offset_register,
               raw_shape,
               dtype, NewRegister()));
-                } else {
-                  this->VisitExpr(args[1]);
-                  auto shape_register = last_register_;
-                  Emit(Instruction::AllocTensorReg(storage_register, shape_register, offset_register, dtype,
+          } else {
+            this->VisitExpr(args[2]);
+            auto shape_register = last_register_;
+            Emit(Instruction::AllocTensorReg(
                                                    NewRegister()));
                 }
               })

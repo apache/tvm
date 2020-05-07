@@ -981,10 +981,15 @@ void VirtualMachine::RunLoop() {
         const DLTensor* dl_tensor = shape_tensor.operator->();
         CHECK_EQ(dl_tensor->dtype.code, 0u);
         CHECK_LE(dl_tensor->dtype.bits, 64);
-        int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
-        auto num_dims = shape_tensor->shape[0];
-        auto shape = std::vector<int64_t>(num_dims);
-        shape.assign(dims, dims + num_dims);
+        std::vector<int64_t> shape;
+        if (dl_tensor->ndim) {
+          int64_t num_dims = shape_tensor->shape[0];
+          int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
+          shape.resize(num_dims);
+          shape.assign(dims, dims + num_dims);
+        } else {
+          shape.push_back(1);
+        }
 
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
