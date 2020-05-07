@@ -1199,6 +1199,43 @@ def test_all_elemwise():
         _test_forward_elemwise(_test_floor_divide)
         _test_forward_elemwise(_test_floor_mod)
 
+
+#######################################################################
+# AddN
+# ----
+
+
+def _test_forward_add_n(inputs):
+    tf.reset_default_graph()
+    with tf.Graph().as_default():
+        temp = []
+        for each in inputs:
+            temp.append(tf.placeholder(shape=each.shape, dtype=each.dtype))
+        output = tf.add_n(temp)
+        compare_tflite_with_tvm([each for each in inputs], [each.name for each in temp],
+                                [each for each in temp], [output])
+
+
+def test_forward_add_n():
+    if package_version.parse(tf.VERSION) >= package_version.parse('1.14.0'):
+        x = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        y = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        z = np.random.randint(1, 100, size=(3, 3, 3), dtype=np.int32)
+        m, n, o = x.astype(np.float32), y.astype(np.float32), z.astype(np.float32)
+        in0 = x
+        in1 = [x, y]
+        in2 = (x, y, z)
+        in3 = m
+        in4 = [m, n]
+        in5 = (m, n, o)
+        _test_forward_add_n(in0)
+        _test_forward_add_n(in1)
+        _test_forward_add_n(in2)
+        _test_forward_add_n(in3)
+        _test_forward_add_n(in4)
+        _test_forward_add_n(in5)
+
+
 #######################################################################
 # Logical operators
 # -----------------
@@ -2005,6 +2042,7 @@ def test_forward_mediapipe_hand_landmark():
         tvm.testing.assert_allclose(np.squeeze(tvm_output[i]), np.squeeze(tflite_output[i]),
                                     rtol=1e-5, atol=1e-5)
 
+
 #######################################################################
 # Main
 # ----
@@ -2062,6 +2100,7 @@ if __name__ == '__main__':
 
     # Elemwise
     test_all_elemwise()
+    test_forward_add_n()
 
     # Unary elemwise
     test_all_unary_elemwise()
