@@ -188,7 +188,18 @@ class TIRTextPrinter : public StmtFunctor<Doc(const Stmt&)>,
     if (dtype == DataType::Int(32)) {
       doc << Doc::Text(os.str());
     } else {
-      doc << PrintDType(dtype) << "(" << Doc::Text(os.str()) << ")";
+      if (dtype.bits() == 1 && dtype.lanes() == 1 && dtype.code() == kDLUInt) {
+        doc << ((data == 1) ? "True" : "False");
+        return doc;
+      }
+      doc << Doc::Text(os.str());
+      switch (dtype.code()) {
+        case kDLInt: doc << "i"; break;
+        case kDLUInt: doc << "u"; break;
+        case kDLFloat: doc << "f"; break;
+      }
+      doc << Doc::Text(std::to_string(dtype.bits()));
+      if (dtype.lanes() != 1) doc << "x" << Doc::Text(std::to_string(dtype.lanes()));
     }
     return doc;
   }
@@ -357,7 +368,7 @@ Doc TIRTextPrinter::PrintPrimFunc(const PrimFunc& primFunc) {
     buffer_docs.back() << ")";
   }
   buffer_doc << Doc::NewLine() << "buffers = {";
-  buffer_doc << PrintSep(buffer_docs, Doc::Indent(9, Doc::Text(",") << Doc::NewLine()));
+  buffer_doc << PrintSep(buffer_docs, Doc::Indent(11, Doc::Text(",") << Doc::NewLine()));
   doc << Doc::Indent(2, buffer_doc) << "}";
   // print buffer_map
   std::vector<Doc> buffer_map_doc;
@@ -519,7 +530,7 @@ Doc TIRTextPrinter::VisitExpr_(const BufferLoadNode* op) {
 
 Doc TIRTextPrinter::VisitExpr_(const LoadNode* op) {
   Doc doc;
-  doc << "load(" << PrintDType(op->dtype) << ", "
+  doc << "(" << PrintDType(op->dtype) << "*)"
       << Print(op->buffer_var) << "[" << Print(op->index) << "])";
   if (!is_one(op->predicate)) {
     doc << " if " << Print(op->predicate);
