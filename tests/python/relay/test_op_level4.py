@@ -165,7 +165,10 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
     dtype = "bool" if ref_func in [np.all, np.any] else dtype
 
     x = relay.var("x", relay.TensorType(data, dtype))
-    z = test_func(x, axis, keepdims, exclude)
+    if test_func == relay.logsumexp:
+        z = test_func(x, axis, keepdims)
+    else:
+        z = test_func(x, axis, keepdims, exclude)
     zz = run_infer_type(z)
     if axis:
         assert "axis=" in z.astext()
@@ -215,6 +218,14 @@ def test_reduce_functions():
                 return func(data, axis=axis).reshape(out_shape)
         return _wrapper
 
+    def _np_log_sum_exp(x, axis, keepdims=False):
+        max_x = np.max(x, axis=axis, keepdims=True)
+        x = np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
+        x = x + max_x
+        if not keepdims:
+            x = np.squeeze(x, axis=axis)
+        return x
+
     d1, d2, d3, d4 = te.var("d1"), te.var("d2"), te.var("d3"), te.var("d4")
     for func in [[relay.sum, np.sum],
                  [relay.max, np.max],
@@ -225,6 +236,7 @@ def test_reduce_functions():
                  [relay.prod, np.prod],
                  [relay.all, np.all],
                  [relay.any, np.any],
+                 [relay.logsumexp, _np_log_sum_exp],
                  [relay.argmin, _with_keepdims(np.argmin)],
                  [relay.argmax, _with_keepdims(np.argmax)]]:
         verify_reduce(func, (d1, d2, d3, d4), None, False, False, ())

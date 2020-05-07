@@ -1307,6 +1307,15 @@ def verify_reduce_x(name, indata, axis, keepdims):
         outdata = np.sum(indata, axis=axis, keepdims=keepdims == 1)
     elif name == 'ReduceMean':
         outdata = np.mean(indata, axis=axis, keepdims=keepdims == 1)
+    elif name == 'ReduceLogSumExp':
+        def _np_log_sum_exp(x, axis, keepdims=False):
+            max_x = np.max(x, axis=axis, keepdims=True)
+            x = np.log(np.sum(np.exp(x - max_x), axis=axis, keepdims=True))
+            x = x + max_x
+            if not keepdims:
+                x = np.squeeze(x, axis=axis)
+            return x
+        outdata = _np_log_sum_exp(indata, axis=axis, keepdims=keepdims == 1)
     else:
         raise Exception('unsupport op: {}'.format(name))
     if len(np.asarray(outdata).shape) == 0:
@@ -1378,6 +1387,34 @@ def test_reduce_mean():
     verify_reduce_x("ReduceMean",
                     np.random.randn(3, 3, 3).astype(np.float32),
                     axis=(1,), keepdims=1)
+
+
+def test_reduce_logsumexp():
+
+    for keepdims in [True, False]:
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 2, 2).astype(np.float32),
+                        axis=None, keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 2, 3).astype(np.float32),
+                        axis=None, keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 3, 3).astype(np.float32),
+                        axis=(1,), keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 3, 3, 1).astype(np.float32),
+                        axis=(1, 2), keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(3, 3, 3, 1).astype(np.float32),
+                        axis=(1), keepdims=keepdims)
+
+        verify_reduce_x("ReduceLogSumExp",
+                        np.random.randn(1, 3, 4, 1).astype(np.float32),
+                        axis=(1), keepdims=keepdims)
 
 
 def verify_split(indata, outdatas, split, axis=0):
@@ -2557,6 +2594,7 @@ if __name__ == '__main__':
     test_reduce_min()
     test_reduce_sum()
     test_reduce_mean()
+    test_reduce_logsumexp()
     test_pad()
     test_split()
     test_binary_ops()
