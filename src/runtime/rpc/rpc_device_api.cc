@@ -109,7 +109,7 @@ class RPCDeviceAPI final : public DeviceAPI {
 
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final {
     auto remote_ctx = RemoveSessMask(ctx);
-    GetSess(ctx)->GetDeviceAPI(remote_ctx)->StreamSync(ctx, stream);
+    GetSess(ctx)->GetDeviceAPI(remote_ctx)->StreamSync(remote_ctx, stream);
   }
 
  private:
