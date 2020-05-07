@@ -28,7 +28,7 @@ set(EXTRA_CXX_FLAGS
   "-O2"
   "-Wno-format"
   "-mhvx -mhvx-length=128b"
-  "-mv66"
+  "-mv60"
   "-stdlib=libc++"
 )
 
