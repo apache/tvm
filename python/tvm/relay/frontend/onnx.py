@@ -26,6 +26,7 @@ from .. import analysis
 from .. import expr as _expr
 from .. import function as _function
 from .. import op as _op
+from .. import vision as _vision
 from .common import AttrCvt, Renamer
 from .common import get_relay_op, new_var, infer_shape, infer_channels
 from .common import infer_type, infer_value, infer_value_simulated, get_name
@@ -57,8 +58,7 @@ class onnx_input():
         if isinstance(item, int):
             self.input_dict[self.input_keys[item]] = value
         elif isinstance(item, str):
-            if item not in self.input_dict:
-                self.input_keys.append(item)
+            self.input_keys.append(item)
             self.input_dict[item] = value
         else:
             raise ValueError("Only integer and string indexed writes allowed.")
@@ -576,7 +576,12 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        return _op.nn.prelu(inputs[0], inputs[1])
+        alpha_shape = infer_shape(inputs[1])
+        if len(alpha_shape) != 1:
+            alpha = _op.reshape(inputs[1], (-1,))
+        else:
+            alpha = inputs[1]
+        return _op.nn.prelu(inputs[0], alpha)
 
 
 class Reciprocal(OnnxOpConverter):
@@ -782,7 +787,10 @@ class Upsample(OnnxOpConverter):
         if not scales:
             #Here we are going to higher OPSET version.
             assert len(inputs) == 2, "Upsample op take 2 inputs, {} given".format(len(inputs))
-            scales = params[inputs[1].name_hint].asnumpy()
+            if get_name(inputs[1]) in params:
+                scales = params[inputs[1].name_hint].asnumpy()
+            else:
+                scales = infer_value_simulated(inputs[1], params).asnumpy()
             inputs = inputs[:1]
         assert scales[0] == 1.0 and scales[1] == 1.0
         input_shape = infer_shape(inputs[0])
@@ -941,6 +949,14 @@ class Gather(OnnxOpConverter):
         axis = attr.get('axis', 0)
         return AttrCvt('take',
                        extras={'axis': axis})(inputs, {})
+
+
+class GatherND(OnnxOpConverter):
+    """ Operator converter for GatherND.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return _op.gather_nd(inputs[0], inputs[1])
 
 
 class Greater(OnnxOpConverter):
@@ -1471,6 +1487,50 @@ class NonZero(OnnxOpConverter):
         output = AttrCvt(op_name='argwhere')(inputs, attr, params)
         return _op.transpose(output, axes=(1, 0))
 
+class TopK(OnnxOpConverter):
+    """Operator converter for TopK
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if len(inputs) != 2:
+            raise ValueError("Expect 2 input only")
+        axis = attr.get("axis", -1)
+        largest = attr.get("largest", 1)
+
+        if largest == 0:
+            raise ValueError("TVM only supports finding TopK largest elements")
+
+        K = int(infer_value(inputs[1], params).asnumpy()[0])
+
+        return _op.topk(inputs[0], k=K, axis=axis)
+
+
+class RoiAlign(OnnxOpConverter):
+    """Operator converter for TopK
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if len(inputs) != 3:
+            raise ValueError("Expect 3 inputs only")
+        x = inputs[0]
+        rois = inputs[1]
+        batch_indices = inputs[2]
+        mode = attr.get("mode", "avg")
+        if mode != b'avg':
+            raise ValueError("RoiAlign in Relay only uses avg mode")
+        output_height = attr.get("output_height", 1)
+        output_width = attr.get("output_width", 1)
+
+        sampling_ratio = attr.get("sampling_ratio", 0)
+        spatial_scale = attr.get("spatial_scale", 1.0)
+
+        batch_indices = _op.expand_dims(batch_indices, axis=1, num_newaxis=1)
+        batch_indices = _op.cast(
+            batch_indices, infer_type(rois).type_annotation.dtype)
+        rois = _op.concatenate([batch_indices, rois], 1)
+
+        return _vision.roi_align(x, rois, [output_height, output_width],
+                                 spatial_scale, sampling_ratio)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -1521,6 +1581,9 @@ def _get_convert_map(opset):
         'Reciprocal': Reciprocal.get_converter(opset),
         'Floor': Renamer('floor'),
         'Ceil': Renamer('ceil'),
+        'Round': Renamer('round'),
+        'IsInf': Renamer('isinf'),
+        'IsNaN': Renamer('isnan'),
         'Sqrt': Renamer('sqrt'),
         'Relu': Renamer('relu'),
         'LeakyRelu': Renamer('leaky_relu'),
@@ -1566,6 +1629,9 @@ def _get_convert_map(opset):
         # Recurrent Layers
         'LSTM': LSTM.get_converter(opset),
 
+        # defs/vision
+        'RoiAlign': RoiAlign.get_converter(opset),
+
         # defs/reduction
         'ReduceMax': ReduceMax.get_converter(opset),
         'ReduceMin': ReduceMin.get_converter(opset),
@@ -1574,8 +1640,11 @@ def _get_convert_map(opset):
         'ReduceProd': ReduceProd.get_converter(opset),
         # 'ReduceProd'
         # 'ReduceLogSumExp'
+
+        #defs/sorting
         'ArgMax': ArgMax.get_converter(opset),
         'ArgMin': ArgMin.get_converter(opset),
+        'TopK': TopK.get_converter(opset),
 
         # defs/tensor
         'Cast': Cast.get_converter(opset),
@@ -1588,6 +1657,7 @@ def _get_convert_map(opset):
         'DepthToSpace': DepthToSpace.get_converter(opset),
         'SpaceToDepth': SpaceToDepth.get_converter(opset),
         'Gather': Gather.get_converter(opset),
+        'GatherND': GatherND.get_converter(opset),
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),

@@ -52,6 +52,8 @@
 namespace tvm {
 namespace runtime {
 
+struct DevTask;
+
 /*!
  * \brief session for facilitating micro device interaction
  */
@@ -65,6 +67,9 @@ class MicroSession : public ModuleNode {
    */
   virtual PackedFunc GetFunction(const std::string& name,
                                  const ObjectPtr<Object>& sptr_to_self);
+
+  // todo having this decoupled from the value in utvm_runtime.c gives me stress dreams
+  static const size_t kTaskQueueCapacity = 20;
 
   /*!
    * \return The type key of the executor.
@@ -94,7 +99,7 @@ class MicroSession : public ModuleNode {
    * \param workspace_size workspace section size
    * \param stack_start stack section start address
    * \param stack_size stack section size
-   * \param word_size number of bytes in a word on the target device
+   * \param word_size_bytes number of bytes in a word on the target device
    * \param thumb_mode whether the target device requires a thumb-mode bit on function addresses
    * \param server_addr address of the OpenOCD server to connect to (if `comms_method == "openocd"`)
    * \param port port of the OpenOCD server to connect to (if `comms_method == "openocd"`)
@@ -119,8 +124,9 @@ class MicroSession : public ModuleNode {
       size_t workspace_size,
       uint64_t stack_start,
       size_t stack_size,
-      size_t word_size,
+      TargetWordSize word_size,
       bool thumb_mode,
+      bool use_device_timer,
       const std::string& server_addr,
       int port);
 
@@ -137,7 +143,19 @@ class MicroSession : public ModuleNode {
    * \param args args to the packed function
    * \return elapsed time during function execution on the device
    */
-  double PushToExecQueue(DevPtr func, const TVMArgs& args);
+  void PushToTaskQueue(TargetPtr func, const TVMArgs& args);
+
+  /*!
+   * \brief serialize runtime metadata to the device for enqueued tasks and execute
+   * \return elapsed time during function execution on the device
+   */
+  void FlushTaskQueue();
+
+  /*!
+   * \brief TODO
+   */
+  template <typename T>
+  void FlushTaskQueuePriv();
 
   /*!
    * \brief loads binary onto device
@@ -153,21 +171,21 @@ class MicroSession : public ModuleNode {
    * \param size size of allocated memory in bytes
    * \return pointer to allocated memory region in section, nullptr if out of space
    */
-  DevPtr AllocateInSection(SectionKind type, size_t size);
+  TargetPtr AllocateInSection(SectionKind type, size_t size);
 
   /*!
    * \brief free prior allocation from section
    * \param type type of section to allocate in
    * \param addr device address of allocated memory
    */
-  void FreeInSection(SectionKind type, DevPtr addr);
+  void FreeInSection(SectionKind type, TargetPtr addr);
 
   /*!
    * \brief read string from device to host
    * \param str_addr device address of first character of string
    * \return host copy of device string that was read
    */
-  std::string ReadString(DevPtr str_addr);
+  std::string ReadString(TargetPtr str_addr);
 
   /*!
   * \brief read value of symbol from device memory
@@ -177,6 +195,16 @@ class MicroSession : public ModuleNode {
   */
   template <typename T>
   T DevSymbolRead(const SymbolMap& symbol_map, const std::string& symbol);
+
+  /*!
+   * \brief write pointer value into device memory corresponding to symbol
+  * \param symbol_map symbol map to read location of symbol from
+  * \param symbol name of symbol being written to
+  * \param ptr pointer value to write into symbol
+   */
+  void DevSymbolWrite(const SymbolMap& symbol_map,
+                      const std::string& symbol,
+                      const TargetPtr& ptr);
 
   /*!
   * \brief write value into device memory corresponding to symbol
@@ -196,6 +224,18 @@ class MicroSession : public ModuleNode {
     return low_level_device_;
   }
 
+  const double GetLastBatchTime() {
+    double result = last_batch_time_;
+    last_batch_time_ = 0.0;
+    return result;
+  }
+
+  const double GetLastBatchCycles() {
+    double result = last_batch_cycles_;
+    last_batch_cycles_ = 0.0;
+    return result;
+  }
+
  private:
   /*! \brief low-level device pointer */
   std::shared_ptr<LowLevelDevice> low_level_device_;
@@ -205,7 +245,7 @@ class MicroSession : public ModuleNode {
   std::shared_ptr<MicroSectionAllocator>
       section_allocators_[static_cast<size_t>(SectionKind::kNumKinds)];
   /*! \brief number of bytes in a word on the target device */
-  size_t word_size_;
+  TargetWordSize word_size_;
   /*! \brief whether the target device requires a thumb-mode bit on function addresses
    *
    * ARM and other manufacturers use the lowest bit of a function address to determine
@@ -213,8 +253,20 @@ class MicroSession : public ModuleNode {
    * results in more compact binaries.
    */
   bool thumb_mode_;
+  /*! \brief TODO */
+  bool use_device_timer_;
   /*! \brief symbol map for the device runtime */
   SymbolMap runtime_symbol_map_;
+  /*! \brief TODO */
+  std::vector<DevTask> task_queue_;
+  // TODO(weberlo): we don't even need an allocator mechanism for the args
+  // section. there's only ever one allocation.
+  /*! \brief TODO hack */
+  TargetDataLayoutEncoder batch_args_encoder_;
+  /*! \brief TODO hack */
+  double last_batch_time_;
+  /*! \brief TODO hack */
+  double last_batch_cycles_;
 
   /*!
    * \brief patches a function pointer in this module to an implementation
@@ -228,7 +280,8 @@ class MicroSession : public ModuleNode {
    * \param args args to be appended
    * \return device address of the allocated args
    */
-  std::tuple<DevPtr, DevPtr> EncoderAppend(TargetDataLayoutEncoder* encoder, const TVMArgs& args);
+  std::tuple<TargetPtr, TargetPtr> EncoderAppend(TargetDataLayoutEncoder* encoder,
+                                                 const TVMArgs& args);
 
   /*!
    * \brief appends a `DLTensor` to the host-side buffer of `encoder`
@@ -237,7 +290,7 @@ class MicroSession : public ModuleNode {
    * \return device address of the allocated `DLTensor`
    */
   template <typename T>
-  DevPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr);
+  TargetPtr EncoderAppend(TargetDataLayoutEncoder* encoder, const DLTensor& arr);
 
   /*!
    * \brief checks and logs if there was an error during the device's most recent execution
@@ -274,7 +327,7 @@ class MicroSession : public ModuleNode {
  */
 struct MicroDevSpace {
   /*! \brief data being wrapped */
-  void* data;
+  TargetPtr data;
   /*! \brief shared ptr to session where this data is valid */
   ObjectPtr<MicroSession> session;
 };
@@ -291,18 +344,22 @@ struct TVMArray32 {
       TargetVal shape,
       TargetVal strides,
       TargetVal byte_offset)
-    : data(data.val32),
+    : data(data.uint32()),
       ctx(ctx),
       ndim(ndim),
       pad0(0),
       dtype(dtype),
-      shape(shape.val32),
-      strides(strides.val32),
+      shape(shape.uint32()),
+      strides(strides.uint32()),
       pad1(0),
-      byte_offset(byte_offset.val32),
+      byte_offset(byte_offset.uint32()),
       pad2(0) { }
 
-  /*! \brief opaque pointer to the allocated data */
+  /*!
+   * \brief The opaque data pointer points to the allocated data.
+   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
+   *  This pointer is always aligns to 256 bytes as in CUDA.
+   */
   uint32_t data;
   /*! \brief The device context of the tensor */
   DLContext ctx;
@@ -337,16 +394,19 @@ struct TVMArray64 {
       TargetVal shape,
       TargetVal strides,
       TargetVal byte_offset)
-    : data(data.val64),
+    : data(data.uint64()),
       ctx(ctx),
       ndim(ndim),
       pad0(0),
       dtype(dtype),
-      shape(shape.val64),
-      strides(strides.val64),
-      byte_offset(byte_offset.val64) { }
-
-  /*! \brief opaque pointer to the allocated data */
+      shape(shape.uint64()),
+      strides(strides.uint64()),
+      byte_offset(byte_offset.uint64()) { }
+  /*!
+   * \brief The opaque data pointer points to the allocated data.
+   *  This will be CUDA device pointer or cl_mem handle in OpenCL.
+   *  This pointer is always aligns to 256 bytes as in CUDA.
+   */
   uint64_t data;
   /*! \brief The device context of the tensor */
   DLContext ctx;
@@ -367,8 +427,26 @@ struct TVMArray64 {
   uint64_t byte_offset;
 };
 
+/*! \brief MicroTVM task to store in task queue before specializing to word size */
+struct DevTask {
+  /*! \brief Pointer to function to call for this task */
+  TargetVal func;
+  /*! \brief Array of argument values */
+  TargetVal arg_values;
+  /*! \brief Array of type codes for each argument value */
+  TargetVal arg_type_codes;
+  /*! \brief Number of arguments */
+  int32_t num_args;
+};
+
 /*! \brief MicroTVM task for serialization to 32-bit devices */
 typedef struct StructUTVMTask32 {
+  StructUTVMTask32(DevTask task)
+    : func(task.func.uint32()),
+      arg_values(task.arg_values.uint32()),
+      arg_type_codes(task.arg_type_codes.uint32()),
+      num_args(task.num_args) { }
+
   /*! \brief Pointer to function to call for this task */
   uint32_t func;
   /*! \brief Array of argument values */
@@ -377,10 +455,16 @@ typedef struct StructUTVMTask32 {
   uint32_t arg_type_codes;
   /*! \brief Number of arguments */
   int32_t num_args;
-} UTVMTask32;
+} StructUTVMTask32;
 
 /*! \brief MicroTVM task for serialization to 64-bit devices */
 typedef struct StructUTVMTask64 {
+  StructUTVMTask64(DevTask task)
+    : func(task.func.uint64()),
+      arg_values(task.arg_values.uint64()),
+      arg_type_codes(task.arg_type_codes.uint64()),
+      num_args(task.num_args) { }
+
   /*! \brief Pointer to function to call for this task */
   uint64_t func;
   /*! \brief Array of argument values */
@@ -389,7 +473,7 @@ typedef struct StructUTVMTask64 {
   uint64_t arg_type_codes;
   /*! \brief Number of arguments */
   int32_t num_args;
-} UTVMTask64;
+} StructUTVMTask64;
 
 }  // namespace runtime
 }  // namespace tvm

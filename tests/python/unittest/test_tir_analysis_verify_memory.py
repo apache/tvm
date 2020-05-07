@@ -43,7 +43,7 @@ def test_verify_memory_all_bind():
   for dev_type in gpu_devices + other_devices:
       binded_mod = tvm.tir.transform.Apply(
           lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.analysis.verify_memory(binded_mod)
+      tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 
@@ -63,13 +63,13 @@ def test_verify_memory_not_bind():
   for dev_type in gpu_devices:
       binded_mod = tvm.tir.transform.Apply(
           lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      with pytest.raises(ValueError):
-          tvm.tir.analysis.verify_memory(binded_mod)
+      with pytest.raises(RuntimeError):
+          tvm.tir.transform.VerifyMemory()(binded_mod)
 
   for dev_type in other_devices:
       binded_mod = tvm.tir.transform.Apply(
           lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.analysis.verify_memory(binded_mod)
+      tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 # Computations are partially bound.
@@ -93,13 +93,13 @@ def test_verify_memory_partially_bind():
   for dev_type in gpu_devices:
       binded_mod = tvm.tir.transform.Apply(
           lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      with pytest.raises(ValueError):
-          tvm.tir.analysis.verify_memory(binded_mod)
+      with pytest.raises(RuntimeError):
+          tvm.tir.transform.VerifyMemory()(binded_mod)
 
   for dev_type in other_devices:
       binded_mod = tvm.tir.transform.Apply(
           lambda f: f.with_attr("target", tvm.target.create(dev_type)))(mod)
-      tvm.tir.analysis.verify_memory(binded_mod)
+      tvm.tir.transform.VerifyMemory()(binded_mod)
 
 
 

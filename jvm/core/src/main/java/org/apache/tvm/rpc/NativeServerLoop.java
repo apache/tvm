@@ -46,7 +46,7 @@ public class NativeServerLoop implements Runnable {
     try {
       tempDir = serverEnv();
       System.err.println("starting server loop...");
-      RPC.getApi("_ServerLoop").pushArg(fsend).pushArg(frecv).invoke();
+      RPC.getApi("ServerLoop").pushArg(fsend).pushArg(frecv).invoke();
       System.err.println("done server loop...");
     } catch (IOException e) {
       e.printStackTrace();

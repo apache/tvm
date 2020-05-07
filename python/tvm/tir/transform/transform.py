@@ -330,6 +330,17 @@ def SplitHostDevice():
     return _ffi_api.SplitHostDevice()
 
 
+def DecorateDeviceScope():
+    """Decorate all the function's body as device function.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.DecorateDeviceScope()
+
+
 def SkipAssert():
     """Skip assert stmt.
 
@@ -456,3 +467,14 @@ def NarrowDataType(target_bits):
     Run this pass after StorageFlatten.
     """
     return _ffi_api.NarrowDataType(target_bits)
+
+
+def VerifyMemory():
+    """Verify if func contains illegal host side direct memory access.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.VerifyMemory()

@@ -767,9 +767,14 @@ def test_forward_transpose():
         def forward(self, *args):
             return args[0].transpose(-2, -1)
 
+    class Transpose3(Module):
+        def forward(self, *args):
+            return args[0].permute(0,2,3,1)
+
     input_data = torch.rand(input_shape).float()
     verify_model(Transpose1().float().eval(), input_data=input_data)
     verify_model(Transpose2().float().eval(), input_data=input_data)
+    verify_model(Transpose3().float().eval(), input_data=input_data)
 
 def test_forward_size():
     torch.set_grad_enabled(False)
@@ -1463,6 +1468,56 @@ def test_forward_variance():
     verify_model(Variance5().float().eval(), input_data=input_data)
 
 
+def test_forward_rsub():
+    torch.set_grad_enabled(False)
+
+    class Rsub1(Module):
+        def forward(self, *args):
+            return torch.rsub(args[0], args[1])
+
+    class Rsub2(Module):
+        def forward(self, *args):
+            return torch.rsub(args[0], args[1], alpha=0.5)
+
+    d1 = torch.rand([1, 3]).float()
+    d2 = torch.rand([1, 3]).float()
+    d3 = torch.rand([1, 3]).int()
+    verify_model(Rsub1().float().eval(), input_data=[d1, d2])
+    verify_model(Rsub1().float().eval(), input_data=[d1, d3])
+    verify_model(Rsub2().float().eval(), input_data=[d1, d2])
+    verify_model(Rsub2().float().eval(), input_data=[d1, d3])
+
+
+def test_forward_embedding():
+    torch.set_grad_enabled(False)
+
+    input_data = torch.randint(0, 10, [2, 4]).long()
+    verify_model(torch.nn.Embedding(10, 3).float().eval(), input_data=input_data)
+
+    input_data = torch.randint(0, 4, [2, 3, 4]).long()
+    verify_model(torch.nn.Embedding(4, 5, sparse=False).float().eval(), input_data=input_data)
+
+    input_data = torch.randint(0, 4, [2, 3, 4]).long()
+    verify_model(torch.nn.Embedding(4, 5, sparse=True).float().eval(), input_data=input_data)
+
+
+def test_forward_onehot():
+    torch.set_grad_enabled(False)
+
+    class OneHot1(Module):
+        def forward(self, *args):
+            return torch.nn.functional.one_hot(args[0], num_classes=3)
+
+    class OneHot2(Module):
+        def forward(self, *args):
+            return torch.nn.functional.one_hot(args[0], num_classes=5)
+
+    input_data = torch.arange(0, 5) % 3
+    verify_model(OneHot1().float().eval(), input_data=input_data)
+
+    input_data = torch.arange(0, 5) % 4
+    verify_model(OneHot2().float().eval(), input_data=input_data)
+
 
 def test_forward_isfinite():
     torch.set_grad_enabled(False)
@@ -1868,6 +1923,26 @@ def test_forward_unary():
         def forward(self, *args):
             return torch.neg(args[0])
 
+    class Sinh1(Module):
+        def forward(self, *args):
+            return torch.sinh(args[0])
+
+    class Cosh1(Module):
+        def forward(self, *args):
+            return torch.cosh(args[0])
+
+    class Log2_1(Module):
+        def forward(self, *args):
+            return torch.log2(args[0])
+
+    class Log10_1(Module):
+        def forward(self, *args):
+            return torch.log10(args[0])
+
+    class Log1p_1(Module):
+        def forward(self, *args):
+            return torch.log1p(args[0])
+
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(Sqrt1().float().eval(), input_data=input_data)
@@ -1876,11 +1951,16 @@ def test_forward_unary():
     verify_model(Floor1().float().eval(), input_data=input_data)
     verify_model(Round1().float().eval(), input_data=input_data)
     verify_model(Cos1().float().eval(), input_data=input_data)
+    verify_model(Cosh1().float().eval(), input_data=input_data)
     verify_model(Sin1().float().eval(), input_data=input_data)
+    verify_model(Sinh1().float().eval(), input_data=input_data)
     verify_model(Tan1().float().eval(), input_data=input_data)
     verify_model(Tanh1().float().eval(), input_data=input_data)
     verify_model(ATanh1().float().eval(), input_data=input_data)
     verify_model(Log1().float().eval(), input_data=input_data)
+    verify_model(Log2_1().float().eval(), input_data=input_data)
+    verify_model(Log10_1().float().eval(), input_data=input_data)
+    verify_model(Log1p_1().float().eval(), input_data=input_data)
     verify_model(Exp1().float().eval(), input_data=input_data)
     verify_model(Erf1().float().eval(), input_data=input_data)
     verify_model(Trunc1().float().eval(), input_data=input_data)
@@ -1888,11 +1968,80 @@ def test_forward_unary():
     verify_model(Neg1().float().eval(), input_data=input_data)
 
 
+def test_forward_where():
+    torch.set_grad_enabled(False)
+
+    class Where1(Module):
+        def forward(self, *args):
+            y = torch.ones([3, 2])
+            if torch.cuda.is_available():
+                y = y.cuda()
+            return torch.where(args[0] > 0, args[0], y)
+
+    class Where2(Module):
+        def forward(self, *args):
+            return torch.where(args[0] > 0, args[0], args[1])
+
+    x = torch.rand([3, 2]).float()
+    verify_model(Where1().float().eval(), input_data=[x])
+    y = torch.rand([3, 2])
+    verify_model(Where2().float().eval(), input_data=[x, y])
+
+
+def test_forward_addcdiv():
+    torch.set_grad_enabled(False)
+
+    class Addcdiv1(Module):
+        def forward(self, *args):
+            t1 = torch.ones([3, 1])
+            t2 = torch.ones([1, 3])
+            if torch.cuda.is_available():
+                t1 = t1.cuda()
+                t2 = t2.cuda()
+            return torch.addcdiv(args[0], 0.1, t1, t2)
+
+    class Addcdiv2(Module):
+        def forward(self, *args):
+            return torch.addcdiv(args[0], 0.5, args[1], args[2])
+
+    input_data = torch.rand([1, 3]).float()
+    verify_model(Addcdiv1().float().eval(), input_data=input_data)
+    t1 = torch.rand([3, 1]).float()
+    t2 = torch.rand([1, 3]).float()
+    verify_model(Addcdiv2().float().eval(), input_data=[input_data, t1, t2])
+
+
+def test_forward_addcmul():
+    torch.set_grad_enabled(False)
+
+    class Addcmul1(Module):
+        def forward(self, *args):
+            t1 = torch.ones([3, 1])
+            t2 = torch.ones([1, 3])
+            if torch.cuda.is_available():
+                t1 = t1.cuda()
+                t2 = t2.cuda()
+            return torch.addcmul(args[0], 0.1, t1, t2)
+
+    class Addcmul2(Module):
+        def forward(self, *args):
+            return torch.addcmul(args[0], 0.5, args[1], args[2])
+
+    input_data = torch.rand([1, 3]).float()
+    verify_model(Addcmul1().float().eval(), input_data=input_data)
+    t1 = torch.rand([3, 1]).float()
+    t2 = torch.rand([1, 3]).float()
+    verify_model(Addcmul2().float().eval(), input_data=[input_data, t1, t2])
+
+
 if __name__ == "__main__":
     # Single operator tests
     test_forward_add()
     test_forward_subtract()
     test_forward_multiply()
+    test_forward_rsub()
+    test_forward_onehot()
+    test_forward_embedding()
     test_forward_reshape()
     test_forward_reciprocal()
     test_forward_repeat()
@@ -1933,6 +2082,9 @@ if __name__ == "__main__":
     test_forward_select()
     test_forward_take()
     test_forward_topk()
+    test_forward_where()
+    test_forward_addcdiv()
+    test_forward_addcmul()
     test_forward_clone()
     test_forward_softplus()
     test_forward_softsign()

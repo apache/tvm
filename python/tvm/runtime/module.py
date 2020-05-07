@@ -109,7 +109,6 @@ class Module(object):
         # pylint: disable=not-callable
         return self.entry_func(*args)
 
-
     def __repr__(self):
         return "Module(%s, %x)" % (self.type_key, self.handle.value)
 
@@ -245,6 +244,7 @@ class Module(object):
     def export_library(self,
                        file_name,
                        fcompile=None,
+                       addons=None,
                        **kwargs):
         """Export the module and its imported device code one library.
 
@@ -284,7 +284,7 @@ class Module(object):
 
         modules = self._collect_dso_modules()
         temp = _util.tempdir()
-        files = []
+        files = addons if addons else []
         is_system_lib = False
         has_c_module = False
         llvm_target_triple = None
@@ -313,6 +313,9 @@ class Module(object):
 
         if llvm_target_triple is None and hasattr(fcompile, "get_target_triple"):
             llvm_target_triple = fcompile.get_target_triple()
+
+        if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
+            raise ValueError("%s need --system-lib option" % str(fcompile))
 
         if self.imported_modules:
             if enabled("llvm") and llvm_target_triple:

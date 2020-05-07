@@ -55,7 +55,12 @@ def test_cuda_vectorize_add():
     check_cuda("float32", 64, 2)
     check_cuda("float32", 64, 3)
     check_cuda("float32", 64, 4)
+    check_cuda("int8",    64, 2)
+    check_cuda("int8",    64, 3)
     check_cuda("int8",    64, 4)
+    check_cuda("uint8",   64, 2)
+    check_cuda("uint8",   64, 3)
+    check_cuda("uint8",   64, 4)
     check_cuda("float16", 64, 2)
     check_cuda("float16", 64, 4)
     check_cuda("float16", 64, 6)
@@ -112,15 +117,17 @@ def test_cuda_vectorize_load():
         b = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a,b)
         tvm.testing.assert_allclose(a.asnumpy(), b.asnumpy())
+    check_cuda("int8", 64, 2)
+    check_cuda("int8", 64, 3)
+    check_cuda("int8", 64, 4)
     check_cuda("int8", 64, 8)
     check_cuda("int8", 64, 16)
 
-def test_cuda_make_int8x4():
-    def check_cuda(n, value):
+def test_cuda_make_int8():
+    def check_cuda(n, value, lanes):
         if not tvm.gpu(0).exist or not tvm.runtime.enabled("cuda"):
             print("skip because cuda is not enabled..")
             return
-        lanes = 4
         dtype = 'int8'
         ctx = tvm.gpu(0)
         A = te.compute((n, lanes), lambda i,j: tvm.tir.const(value, dtype=dtype))
@@ -133,9 +140,15 @@ def test_cuda_make_int8x4():
         a = tvm.nd.empty(np_a.shape, dtype, ctx)
         fun(a)
         np.testing.assert_equal(a.asnumpy(), np_a)
-    check_cuda(64, 0xAB)
-    check_cuda(64, 0)
-    check_cuda(64, -3)
+    check_cuda(64, 0xAB, 4)
+    check_cuda(64, 0, 4)
+    check_cuda(64, -3, 4)
+    check_cuda(64, 0xAB, 3)
+    check_cuda(64, 0, 3)
+    check_cuda(64, -3, 3)
+    check_cuda(64, 0xAB, 2)
+    check_cuda(64, 0, 2)
+    check_cuda(64, -3, 2)
 
 
 def test_cuda_inf_nan():
@@ -182,7 +195,7 @@ def test_cuda_shuffle():
     sch[c].bind(xo, thrx)
     sch[c].vectorize(xi)
 
-    def my_vectorize(stmt):
+    def MyVectorize():
         def vectorizer(op):
             if op.for_type == tvm.tir.For.Vectorized:
                 four = tvm.tir.const(4, 'int32')
@@ -198,9 +211,13 @@ def test_cuda_shuffle():
                 new_b = tvm.tir.Shuffle(bs, ids)
                 return tvm.tir.Store(store.buffer_var, new_a + new_b, idx, all_ones)
             return None
-        return tvm.tir.ir_pass.IRTransform(stmt, None, vectorizer, ['For'])
 
-    with tvm.target.build_config(add_lower_pass=[(1, my_vectorize)]):
+        def _transform(f, *_):
+            return f.with_body(
+                tvm.tir.stmt_functor.ir_transform(f.body, None, vectorizer, ['For']))
+        return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="MyVectorize")
+
+    with tvm.target.build_config(add_lower_pass=[(1, MyVectorize())]):
         module = tvm.build(sch, [a, b, c], target='cuda')
         a_ = np.array(list(range(64)), dtype='int32')
         b_ = np.array((list(range(4))[::-1]) * 16, dtype='int32')
@@ -575,6 +592,8 @@ def test_cuda_vectorize_load_permute_pad():
                                     (0, 0)), mode='constant', constant_values=0)
         tvm.testing.assert_allclose(b.asnumpy(), ref)
 
+    check_cuda("int8", 64, 16, 3, 2)
+    check_cuda("uint8", 64, 16, 3, 2)
     check_cuda("int8", 64, 16, 3, 4)
     check_cuda("uint8", 64, 16, 3, 4)
     check_cuda("int32", 64, 16, 3, 4)
@@ -585,7 +604,7 @@ if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
-    test_cuda_make_int8x4()
+    test_cuda_make_int8()
     test_cuda_inf_nan()
     test_cuda_shuffle()
     test_vectorized_casts()

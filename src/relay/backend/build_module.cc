@@ -28,7 +28,6 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/transform.h>
 #include <tvm/relay/qnn/transform.h>
-#include <tvm/tir/ir_pass.h>
 #include <memory>
 
 #include "../../target/source/codegen_source_base.h"

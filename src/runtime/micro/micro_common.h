@@ -30,6 +30,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 namespace tvm {
 namespace runtime {
@@ -52,28 +53,115 @@ enum class SectionKind : size_t {
   kNumKinds,
 };
 
-/*! \brief union for storing values on varying target word sizes */
-union TargetVal {
-  /*! \brief 32-bit pointer */
-  uint32_t val32;
-  /*! \brief 64-bit pointer */
-  uint64_t val64;
+/*! \brief data type for word sizes */
+class TargetWordSize {
+ public:
+  explicit TargetWordSize(size_t word_size_bits) : word_size_bits_{word_size_bits} {
+    CHECK(word_size_bits == 32 || word_size_bits == 64)
+      << "only 32-bit and 64-bit are supported now";
+  }
+
+  size_t bytes() const {
+    return word_size_bits_ / 8;
+  }
+
+  size_t bits() const {
+    return word_size_bits_;
+  }
+
+ private:
+  size_t word_size_bits_;
 };
 
-/*! \brief absolute device address */
-class DevPtr {
- public:
-  /*! \brief construct a device address with value `value` */
-  explicit DevPtr(std::uintptr_t value) : value_(TargetVal { .val64 = value }) {}
 
-  /*! \brief default constructor */
-  DevPtr() : value_(TargetVal { .val64 = 0 }) {}
+/*! \brief class for storing values on varying target word sizes */
+class TargetVal {
+ private:
+  size_t width_bits_;
+  uint64_t value_;
+
+ public:
+  /*! \brief construct a TargetVal matching the size of the given integral argument */
+  template<typename T, typename U = typename std::enable_if<std::is_integral<T>::value, T>::type>
+  explicit constexpr TargetVal(T value) : TargetVal(sizeof(T) * 8, value) {}
+
+  /*! \brief construct an uninitialized value */
+  TargetVal() : width_bits_{0}, value_{0} {}
+
+  /*! \brief construct a TargetVal with explicit size and value */
+  TargetVal(size_t width_bits, uint64_t value) : width_bits_{width_bits} {
+    CHECK(width_bits >= 8 &&
+          width_bits <= 64 &&
+          (width_bits & (width_bits - 1)) == 0)
+      << "width_bits must be a power of 2 in [8, 64], got " << width_bits;
+    value_ = value & Bitmask();
+  }
+
+  bool IsInitialized() const { return width_bits_ != 0; }
+
+  size_t width_bits() const {
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
+    return width_bits_;
+  }
+
+  uint64_t Bitmask() const {
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
+
+    if (width_bits_ == 64) {
+      return ~0UL;
+    } else {
+      return (1UL << width_bits_) - 1;
+    }
+  }
+
+  uint32_t uint32() const {
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
+    CHECK(width_bits_ <= 32) << "TargetVal: requested 32-bit value, actual width is "
+                             << width_bits_;
+    return uint32_t(value_ & Bitmask());
+  }
+
+  uint64_t uint64() const {
+    CHECK(IsInitialized()) << "TargetVal is not initialized";
+    return value_;
+  }
+
+  TargetVal& operator=(const TargetVal& other) {
+    CHECK(other.IsInitialized()) << "Cannot assign an uninitialized TargetVal";
+
+    if (!IsInitialized()) {
+      width_bits_ = other.width_bits_;
+    }
+
+    CHECK(width_bits_ >= other.width_bits_)
+      << "Cannot assign TargetVal with width " << other.width_bits_
+      << "bits to TargetVal with width " << width_bits_ << "bits";
+
+    value_ = other.value_ & Bitmask();
+    return *this;
+  }
+};
+
+// TODO(weberlo, areusch): just get rid of `TargetPtr`.
+/*! \brief absolute device address */
+class TargetPtr {
+ public:
+  /*! \brief construct a device address with variable-length value `value` */
+  TargetPtr(TargetWordSize word_size, std::uint64_t value) :
+      value_(TargetVal(word_size.bits(), value)) {}
 
   /*! \brief construct a null address */
-  explicit DevPtr(std::nullptr_t value) : value_(TargetVal { .val64 = 0 }) {}
+  TargetPtr(TargetWordSize word_size, std::nullptr_t value) :
+      value_{TargetVal(word_size.bits(), 0)} {}
+
+  /*! \brief construct an uninitialized pointer whose word_size can be changed once */
+  TargetPtr() = default;
+
+  /*! \brief construct a device address using the given TargetVal */
+  explicit TargetPtr(const TargetVal& value) : value_{value} {}
 
   /*! \brief destructor */
-  ~DevPtr() {}
+  ~TargetPtr() {}
 
   /*!
    * \brief get value of pointer
@@ -86,33 +174,33 @@ class DevPtr {
    * \return casted result
    */
   template <typename T>
-  T cast_to() const { return reinterpret_cast<T>(value_.val64); }
+  T cast_to() const { return reinterpret_cast<T>(value_.uint64()); }
 
   /*! \brief check if location is null */
-  bool operator==(std::nullptr_t) const { return value_.val64 == 0; }
+  bool operator==(std::nullptr_t) const { return value_.uint64() == 0; }
 
   /*! \brief check if location is not null */
-  bool operator!=(std::nullptr_t) const { return value_.val64 != 0; }
+  bool operator!=(std::nullptr_t) const { return value_.uint64() != 0; }
 
   /*! \brief add an integer to this absolute address to get a larger absolute address */
-  DevPtr operator+(size_t n) const {
-    return DevPtr(value_.val64 + n);
+  TargetPtr operator+(size_t n) const {
+    return TargetPtr(TargetWordSize(value_.width_bits()), value_.uint64() + n);
   }
 
   /*! \brief mutably add an integer to this absolute address */
-  DevPtr& operator+=(size_t n) {
-    value_.val64 += n;
+  TargetPtr& operator+=(size_t n) {
+    value_ = TargetVal(value_.width_bits(), value_.uint64() + n);
     return *this;
   }
 
   /*! \brief subtract an integer from this absolute address to get a smaller absolute address */
-  DevPtr operator-(size_t n) const {
-    return DevPtr(value_.val64 - n);
+  TargetPtr operator-(size_t n) const {
+    return TargetPtr(TargetWordSize(value_.width_bits()), value_.uint64() - n);
   }
 
   /*! \brief mutably subtract an integer from this absolute address */
-  DevPtr& operator-=(size_t n) {
-    value_.val64 -= n;
+  TargetPtr& operator-=(size_t n) {
+    value_ = TargetVal(value_.width_bits(), value_.uint64() - n);
     return *this;
   }
 
@@ -137,7 +225,8 @@ class SymbolMap {
    * \param toolchain_prefix prefix of compiler toolchain to use
    */
   SymbolMap(const std::string& binary,
-            const std::string& toolchain_prefix) {
+            const std::string& toolchain_prefix,
+            TargetWordSize word_size) {
     const auto* f = Registry::Get("tvm_callback_get_symbol_map");
     CHECK(f != nullptr) << "require tvm_callback_get_symbol_map to exist in registry";
     TVMByteArray arr;
@@ -152,7 +241,7 @@ class SymbolMap {
     stream >> name;
     stream >> std::hex >> addr;
     while (stream) {
-      map_[name] = DevPtr(addr);
+      map_.emplace(std::make_pair(name, TargetPtr(word_size, addr)));
       stream >> name;
       stream >> std::hex >> addr;
     }
@@ -163,7 +252,7 @@ class SymbolMap {
    * \param name name of the symbol
    * \return on-device offset of the symbol
    */
-  DevPtr operator[](const std::string& name) const {
+  TargetPtr operator[](const std::string& name) const {
     auto result = map_.find(name);
     CHECK(result != map_.end()) << "\"" << name << "\" not in symbol map";
     return result->second;
@@ -173,15 +262,21 @@ class SymbolMap {
     return map_.find(name) != map_.end();
   }
 
+  void Dump(std::ostream& stream) const {
+    for (auto e : map_) {
+      stream << "Entry:" << e.first << std::endl;
+    }
+  }
+
  private:
   /*! \brief backing map */
-  std::unordered_map<std::string, DevPtr> map_;
+  std::unordered_map<std::string, TargetPtr> map_;
 };
 
 /*! \brief struct containing start and size of a device memory region */
 struct DevMemRegion {
   /*! \brief section start offset */
-  DevPtr start;
+  TargetPtr start;
   /*! \brief size of section */
   size_t size;
 };
@@ -239,12 +334,12 @@ const char* SectionToString(SectionKind section);
  */
 std::string RelocateBinarySections(
     const std::string& binary_path,
-    size_t word_size,
-    DevPtr text_start,
-    DevPtr rodata_start,
-    DevPtr data_start,
-    DevPtr bss_start,
-    DevPtr stack_end,
+    TargetWordSize word_size,
+    TargetPtr text_start,
+    TargetPtr rodata_start,
+    TargetPtr data_start,
+    TargetPtr bss_start,
+    TargetPtr stack_end,
     const std::string& toolchain_prefix);
 
 /*!
@@ -263,13 +358,13 @@ std::string ReadSection(const std::string& binary,
  * \param binary input binary contents
  * \param section section type
  * \param toolchain_prefix prefix of compiler toolchain to use
- * \param align alignment of the returned size (default: 8)
+ * \param word_size word size of the target, for alignment
  * \return size of the section if it exists, 0 otherwise
  */
 size_t GetSectionSize(const std::string& binary_name,
                       SectionKind section,
                       const std::string& toolchain_prefix,
-                      size_t align);
+                      TargetWordSize word_size);
 
 }  // namespace runtime
 }  // namespace tvm

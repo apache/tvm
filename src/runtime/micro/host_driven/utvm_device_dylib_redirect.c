@@ -32,10 +32,11 @@ extern "C" {
 #include <stdint.h>
 #include <stddef.h>
 
-void *(*TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) =
-    (void *(*)(int, int, uint64_t, int, int)) NULL;
-int (*TVMBackendFreeWorkspace_)(int, int, void*) = (int (*)(int, int, void*)) NULL;
-void (*TVMAPISetLastError_)(const char*) = (void (*)(const char*)) NULL;
+// TODO(weberlo, areusch): compiler errors say volatile qualifier is discarded.
+// should we just get rid of em?
+void* (* volatile TVMBackendAllocWorkspace_)(int, int, uint64_t, int, int) = NULL;
+int (* volatile TVMBackendFreeWorkspace_)(int, int, void*) = NULL;
+void (* volatile TVMAPISetLastError_)(const char*) = NULL;
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size,
     int dtype_code_hint, int dtype_bits_hint) {
@@ -49,6 +50,41 @@ int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr) {
 
 void TVMAPISetLastError(const char* msg) {
   (*TVMAPISetLastError_)(msg);
+}
+
+void *memset(void *s, int c, size_t n) {
+  char *p = (char*) s;  // NOLINT(readability/casting): linter is configured for c++
+  while (n > 0) {
+    *p = (char) c;  // NOLINT(readability/casting): linter is configured for c++
+    p++;
+    n--;
+  }
+  return s;
+}
+
+void *memmove(void *to, const void *from, size_t n) {
+  // TODO(weberlo, areusch): will need to factor memmove calls into workspace size calculation
+  // NOLINTNEXTLINE(readability/casting): linter is configured for c++
+  char *temp = (char*) TVMBackendAllocWorkspace(1, 1, (uint64_t) n, 2, 8);
+  if (temp == NULL) {
+    return NULL;
+  }
+
+  const char *from_pp = (char*) from;  // NOLINT(readability/casting): linter is configured for c++
+  for (size_t i = 0; i < n; i++) {
+    temp[i] = from_pp[i];
+  }
+  char *to_pp = (char*) to;  // NOLINT(readability/casting): linter is configured for c++
+  for (size_t i = 0; i < n; i++) {
+    to_pp[i] = temp[i];
+  }
+
+  // NOLINTNEXTLINE(readability/casting): linter is configured for c++
+  if (TVMBackendFreeWorkspace(1, (uint64_t) 1, (void*) temp) != 0) {
+    return NULL;
+  }
+
+  return to;
 }
 
 #ifdef __cplusplus

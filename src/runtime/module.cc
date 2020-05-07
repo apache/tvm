@@ -36,7 +36,7 @@ void ModuleNode::Import(Module other) {
   if (!std::strcmp(this->type_key(), "rpc")) {
     static const PackedFunc* fimport_ = nullptr;
     if (fimport_ == nullptr) {
-      fimport_ = runtime::Registry::Get("rpc._ImportRemoteModule");
+      fimport_ = runtime::Registry::Get("rpc.ImportRemoteModule");
       CHECK(fimport_ != nullptr);
     }
     (*fimport_)(GetRef<Module>(this), other);
@@ -188,5 +188,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
 .set_body_typed([](Module mod, std::string name, std::string fmt) {
   mod->SaveToFile(name, fmt);
 });
+
+TVM_REGISTER_OBJECT_TYPE(ModuleNode);
 }  // namespace runtime
 }  // namespace tvm

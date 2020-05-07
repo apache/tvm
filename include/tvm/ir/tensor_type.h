@@ -36,6 +36,7 @@ namespace tvm {
 class BaseTensorTypeNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "relay.BaseTensorType";
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseTensorTypeNode, TypeNode);
 };
 

@@ -81,6 +81,7 @@ class TypeNode : public Object {
   static constexpr const char* _type_key = "Type";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr const uint32_t _type_child_slots = 14;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
 
@@ -226,7 +227,7 @@ class TypeVarNode : public TypeNode {
    *  this only acts as a hint to the user,
    *  and is not used for equality.
    */
-  std::string name_hint;
+  String name_hint;
   /*! \brief The kind of type parameter */
   TypeKind kind;
 
@@ -262,7 +263,7 @@ class TypeVar : public Type {
    * \param name_hint The name of the type var.
    * \param kind The kind of the type var.
    */
-  TVM_DLL TypeVar(std::string name_hint, TypeKind kind);
+  TVM_DLL TypeVar(String name_hint, TypeKind kind);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TypeVar, Type, TypeVarNode);
 };
@@ -391,6 +392,7 @@ inline bool IsVoidType(const Type& type) {
 class TypeConstraintNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "TypeConstraint";
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeConstraintNode, TypeNode);
 };
 

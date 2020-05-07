@@ -4,7 +4,7 @@
  * distributed with this work for additional information
  * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
+5B * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
@@ -25,7 +25,7 @@
 #include <tvm/te/operation.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/tir/expr.h>
-#include <tvm/tir/ir_pass.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <unordered_set>
 #include <string>
@@ -231,7 +231,7 @@ void ComputeOpNode::PropBoundToInputs(
           // undefined behaviour), so we can intersect the estimated set of the argument with the
           // range expected by the tensor. However, intersection may result in overly complex
           // expressions, so we perform a more relaxed form of intersection.
-          IntSet arg_intset = EvalSet(call->args[i], dom_map);
+          IntSet arg_intset = analyzer->int_set(call->args[i], ConvertDomMap(dom_map));
           const arith::IntervalSetNode* arg_interval = arg_intset.as<arith::IntervalSetNode>();
           if (arg_interval) {
             PrimExpr shape_i_min_value = make_zero(t->shape[i].dtype());
@@ -239,12 +239,14 @@ void ComputeOpNode::PropBoundToInputs(
             PrimExpr min_value = arg_interval->min_value;
             PrimExpr max_value = arg_interval->max_value;
             // Prefer the shape bounds only when we can prove they are tighter.
-            if (arith::is_neg_inf(min_value) ||
-                analyzer->CanProve(shape_i_min_value >= min_value)) {
+            // We must update bound's ends in pairs.  Here is an counter example: shape_i is
+            // [0, 0] and arg_interval is [threadIdx.y, threadIdx.y], where threadIdx.y's range is
+            // [0, 7]. If we allowed updating one end, the bound would become [threadIdx.y, 0],
+            // awkward for further analysis.
+            if ((arith::is_pos_inf(max_value) && arith::is_neg_inf(min_value)) ||
+                (analyzer->CanProve(shape_i_min_value >= min_value) &&
+                 analyzer->CanProve(shape_i_max_value <= max_value))) {
               min_value = shape_i_min_value;
-            }
-            if (arith::is_pos_inf(max_value) ||
-                analyzer->CanProve(shape_i_max_value <= max_value)) {
               max_value = shape_i_max_value;
             }
             dom.data[i].push_back(IntSet::interval(min_value, max_value));
@@ -630,15 +632,20 @@ Stmt TransformUpdate(const Stage& stage,
       banned.insert(iv->var.get());
     }
   }
+
+  auto fbanned = [&](const VarNode* node) {
+    return banned.count(node);
+  };
+
   for (const PrimExpr& pred : n.main_predicates) {
-    if (tir::ExprUseVar(pred, banned)) {
+    if (tir::ExprUseVar(pred, fbanned)) {
       LOG(FATAL) << "Tensorize update transform failed, the condition "
                  << pred << " has a conflict with the reset condition";
     }
   }
 
   return IfThenElseNode::make(arith::ComputeReduce<tir::OrNode>(conds, const_true(1)),
-                          update, body);
+                              update, body);
 }
 
 }  // namespace te

@@ -27,9 +27,13 @@ from .op import register_pattern, OpPattern
 
 
 register_broadcast_schedule("log")
+register_broadcast_schedule("log2")
+register_broadcast_schedule("log10")
 register_broadcast_schedule("tan")
 register_broadcast_schedule("cos")
+register_broadcast_schedule("cosh")
 register_broadcast_schedule("sin")
+register_broadcast_schedule("sinh")
 register_broadcast_schedule("atan")
 register_broadcast_schedule("exp")
 register_broadcast_schedule("erf")

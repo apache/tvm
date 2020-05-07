@@ -22,14 +22,14 @@ def test_basic():
     b = te.var("b")
     m = tvm.arith.detect_linear_equation(a * 4 + b * 6 + 7, [a])
     assert m[0].value == 4
-    assert tvm.tir.ir_pass.Simplify(m[1] - (b * 6 + 7)).value == 0
+    tvm.testing.assert_prim_expr_equal(m[1], b * 6 + 7)
 
     m = tvm.arith.detect_linear_equation(a * 4 * (a+1) + b * 6 + 7, [a])
     assert len(m) == 0
 
     m = tvm.arith.detect_linear_equation(a * 4  + (a+1) + b * 6 + 7, [a])
     assert m[0].value == 5
-    assert tvm.tir.ir_pass.Simplify(m[1] - (b * 6 + 7 + 1)).value == 0
+    tvm.testing.assert_prim_expr_equal(m[1], b * 6 + 7 + 1)
 
     m = tvm.arith.detect_linear_equation(a * b + 7, [a])
     assert m[0] == b
@@ -39,13 +39,15 @@ def test_basic():
 
     m = tvm.arith.detect_linear_equation(b * 7, [])
     assert len(m) == 1
-    assert tvm.tir.ir_pass.Simplify(m[0] - b * 7).value == 0
+    tvm.testing.assert_prim_expr_equal(m[0], b * 7)
 
 def test_multivariate():
     v = [te.var("v%d" % i) for i in range(4)]
     b = te.var("b")
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8, v)
-    assert(tvm.tir.analysis.expr_deep_equal(tvm.tir.ir_pass.Simplify(m[0]), b + 5))
+
+    tvm.testing.assert_prim_expr_equal(m[0], b + 5)
+
     assert(m[1].value == 8)
 
     m = tvm.arith.detect_linear_equation(v[0] * (b + 4) + v[0] + v[1] * 8 * v[2], v)
@@ -61,11 +63,12 @@ def test_multivariate():
 
     m = tvm.arith.detect_linear_equation((v[0] - v[1]), [v[2]])
     assert(m[0].value == 0)
-    assert(tvm.tir.ir_pass.Simplify(m[1] - (v[0] - v[1])).value == 0)
+
+    tvm.testing.assert_prim_expr_equal(m[1], v[0] - v[1])
 
     m = tvm.arith.detect_linear_equation((v[0] - v[1]), [])
     assert(len(m) == 1)
-    assert(tvm.tir.ir_pass.Simplify(m[0] - (v[0] - v[1])).value == 0)
+    tvm.testing.assert_prim_expr_equal(m[0], v[0] - v[1])
 
 if __name__ == "__main__":
     test_basic()

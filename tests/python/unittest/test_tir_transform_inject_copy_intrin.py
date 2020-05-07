@@ -57,7 +57,7 @@ def test_copy_pad():
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     def cb(src, dst, pad_before, pad_after, pad_value):
-        assert tvm.tir.ir_pass.Simplify(src.elem_offset).value == 0
+        tvm.testing.assert_prim_expr_equal(src.elem_offset, 0)
         assert pad_before[0].value == 1
         assert pad_before[1].value == 0
         assert pad_after[0].value == 1
@@ -82,17 +82,14 @@ def test_single_point_test():
     mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     def cb(src, dst, pad_before, pad_after, pad_value):
-        assert tvm.tir.ir_pass.Simplify(src.elem_offset).value == 0
-        assert tvm.tir.ir_pass.Simplify(dst.elem_offset).value == 0
-        assert tvm.tir.ir_pass.Simplify(src.strides[0]).value == 1
-        assert tvm.tir.ir_pass.Simplify(dst.strides[0]).value == 1
+        tvm.testing.assert_prim_expr_equal(src.elem_offset, 0)
+        tvm.testing.assert_prim_expr_equal(dst.elem_offset, 0)
+        tvm.testing.assert_prim_expr_equal(src.strides[0], 1)
+        tvm.testing.assert_prim_expr_equal(dst.strides[0], 1)
         return tvm.tir.Evaluate(0)
 
     stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body
 
-
-def assert_expr_equal(a, b):
-    assert tvm.tir.ir_pass.Simplify(a - b).value == 0
 
 def test_copy_pad_split():
     m = 4 * 3
@@ -115,13 +112,13 @@ def test_copy_pad_split():
 
     def cb(src, dst, pad_before, pad_after, pad_value):
         assert(dst.elem_offset.value == 0)
-        assert_expr_equal(src.elem_offset, tvm.te.max(xo * 4, 1) - 1)
+        tvm.testing.assert_prim_expr_equal(src.elem_offset, tvm.te.max(xo * 4, 1) - 1)
 
         rpad_before = tvm.te.max(1 - xo * 4, 0)
         rpad_after = tvm.te.max(xo * 4 - 7, 0)
-        assert_expr_equal(pad_before[0], rpad_before)
-        assert_expr_equal(pad_after[0], rpad_after)
-        assert_expr_equal(src.shape[0], 6 - rpad_before - rpad_after)
+        tvm.testing.assert_prim_expr_equal(pad_before[0], rpad_before)
+        tvm.testing.assert_prim_expr_equal(pad_after[0], rpad_after)
+        tvm.testing.assert_prim_expr_equal(src.shape[0], 6 - rpad_before - rpad_after)
         return tvm.tir.Evaluate(0)
 
     stmt = tvm.tir.transform.InjectCopyIntrin("memcpy", cb)(mod)["main"].body

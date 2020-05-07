@@ -150,7 +150,6 @@ void CodeGenOpenCL::PrintVecAddr(const VarNode* buffer, DataType t,
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
-    os << ' ';
     PrintType(t.element_of(), os);
     os << "*)";
   }
@@ -191,9 +190,9 @@ void CodeGenOpenCL::PrintStorageSync(const CallNode* op) {
 void CodeGenOpenCL::PrintStorageScope(
     const std::string& scope, std::ostream& os) { // NOLINT(*)
   if (scope == "global") {
-    os << "__global";
+    os << "__global ";
   } else if (scope == "shared") {
-    os << "__local";
+    os << "__local ";
   }
 }
 
@@ -238,7 +237,7 @@ void CodeGenOpenCL::VisitExpr_(const FloatImmNode *op, std::ostream& os) { // NO
   }
 }
 
-runtime::Module BuildOpenCL(IRModule mod) {
+runtime::Module BuildOpenCL(IRModule mod, std::string target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenOpenCL cg;

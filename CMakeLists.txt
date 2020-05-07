@@ -69,6 +69,7 @@ tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 tvm_option(USE_CPP_RPC "Build CPP RPC" OFF)
 tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
+tvm_option(USE_COREML "Build with coreml support" OFF)
 
 if(USE_CPP_RPC AND UNIX)
   message(FATAL_ERROR "USE_CPP_RPC is only supported with WIN32. Use the Makefile for non-Windows.")
@@ -107,7 +108,7 @@ if(MSVC)
   endif()
 else(MSVC)
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    message("Build in Debug mode")
+    message(STATUS "Build in Debug mode")
     set(CMAKE_C_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-O0 -g -Wall -fPIC ${CMAKE_CXX_FLAGS}")
     set(CMAKE_CUDA_FLAGS "-O0 -g -Xcompiler=-Wall -Xcompiler=-fPIC ${CMAKE_CUDA_FLAGS}")
@@ -145,11 +146,35 @@ else(MSVC)
   if(BUILD_FOR_HEXAGON)
     message(STATUS "Building for Hexagon")
   endif()
+
+  # Detect if we're compiling for Android.
+  set(TEST_FOR_ANDROID_CXX
+      "#ifndef __ANDROID__"
+      "#error"
+      "#endif"
+      "int main() {}")
+  set(TEST_FOR_ANDROID_DIR
+      "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp")
+  set(TEST_FOR_ANDROID_FILE "${TEST_FOR_ANDROID_DIR}/test_for_android.cc")
+  string(REPLACE ";" "\n" TEST_FOR_ANDROID_CXX_TEXT "${TEST_FOR_ANDROID_CXX}")
+  file(WRITE "${TEST_FOR_ANDROID_FILE}" "${TEST_FOR_ANDROID_CXX_TEXT}")
+  try_compile(BUILD_FOR_ANDROID "${CMAKE_BINARY_DIR}${CMAKE_FILES_DIRECTORY}"
+              "${TEST_FOR_ANDROID_FILE}")
+  file(REMOVE "${TEST_FOR_ANDROID_FILE}")
+  if(BUILD_FOR_ANDROID)
+    message(STATUS "Building for Android")
+  endif()
 endif(MSVC)
 
 # Hexagon has dlopen built into QuRT (no need for static library).
 if(NOT BUILD_FOR_HEXAGON)
-  string(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+  list(APPEND TVM_RUNTIME_LINKER_LIBS ${CMAKE_DL_LIBS})
+endif()
+
+if(BUILD_FOR_ANDROID)
+  # EmuTLS on Android is in libgcc. Without it linked in, libtvm_runtime.so
+  # won't load on Android due to missing __emutls_XXX symbols.
+  list(APPEND TVM_RUNTIME_LINKER_LIBS "gcc")
 endif()
 
 # add source group
@@ -301,12 +326,16 @@ include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
 include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
+include(cmake/modules/contrib/CoreML.cmake)
 
+include(CheckCXXCompilerFlag)
 if(NOT MSVC)
-  include(CheckCXXCompilerFlag)
   check_cxx_compiler_flag("-std=c++14" SUPPORT_CXX14)
-  message(STATUS "Build with c++14")
   set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CUDA_STANDARD 14)
+else()
+  check_cxx_compiler_flag("/std:c++14" SUPPORT_CXX14)
+  set(CMAKE_CXX_FLAGS "/std:c++14 ${CMAKE_CXX_FLAGS}")
   set(CMAKE_CUDA_STANDARD 14)
 endif()
 

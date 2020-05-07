@@ -35,7 +35,6 @@ import numpy as np
 
 import tvm._ffi
 from tvm import nd, rpc as _rpc, target as _target
-from tvm.tir import ir_pass
 from tvm.error import TVMError
 from tvm.target import build_config
 from tvm.driver import build
@@ -246,6 +245,8 @@ class RPCRunner(Runner):
 
             if 'cuda' in self.task.target.keys:
                 kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+        if self.task.target.device_name == 'micro_dev':
+            kwargs.setdefault('build_option', {})['disable_vectorize'] = True
 
         return kwargs
 
@@ -274,8 +275,9 @@ class RPCRunner(Runner):
                 if isinstance(res, Exception):   # executor error or timeout
                     results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
                                                  self.timeout, time.time()))
-                else:
-                    results.append(res)
+                    raise Exception(f'encountered exception during measurement: {results}')
+
+                results.append(res)
 
         return results
 
@@ -615,9 +617,9 @@ def gpu_verify_pass(**kwargs):
     """Verify the validity of a gpu kernel.
     This pass will check memory usage and number of threads per block.
     """
-    def verify_pass(stmt):
-        valid = ir_pass.VerifyGPUCode(stmt, kwargs)
+    def verify_pass(f, *_):
+        valid = tvm.tir.analysis.verify_gpu_code(f, kwargs)
         if not valid:
             raise InstantiationError("Skipped because of invalid gpu kernel")
-        return stmt
-    return verify_pass
+        return f
+    return tvm.tir.transform.prim_func_pass(verify_pass, opt_level=0)

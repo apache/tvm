@@ -51,6 +51,7 @@ fn main() {
         .layout_tests(false)
         .derive_partialeq(true)
         .derive_eq(true)
+        .derive_default(true)
         .generate()
         .expect("unable to generate bindings")
         .write_to_file(PathBuf::from("src/c_runtime_api.rs"))

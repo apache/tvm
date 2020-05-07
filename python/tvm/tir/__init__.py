@@ -37,7 +37,9 @@ from .function import PrimFunc
 from .op import call_packed, call_pure_intrin, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, all, any, min_value, max_value, trace
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp
-from .op import cos, sin, cosh, sinh, tan, tanh, atan, atan2
+from .op import sin, sinh, asin, asinh
+from .op import cos, cosh, acos, acosh
+from .op import tan, tanh, atan, atan2, atanh
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
 from .op import trunc, abs, round, nextafter, nearbyint, power, popcount, fmod, if_then_else
 from .op import isnan, isfinite, isinf, copysign
@@ -45,6 +47,6 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
 from .op import comm_reducer, min, max, sum
 
 from . import ir_builder
-from . import ir_pass
 from . import transform
 from . import analysis
+from . import stmt_functor

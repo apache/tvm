@@ -37,6 +37,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.erf")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log2")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log10")
+.set_body(DispatchExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.log1p")
 .set_body(DispatchExtern<FloatSuffix>);
 
@@ -46,16 +52,37 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tanh")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.tan")
 .set_body(DispatchExtern<FloatSuffix>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atanh")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan2")
+.set_body(DispatchExtern<FloatSuffix>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cos")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.acos")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.cosh")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.acosh")
 .set_body(DispatchExtern<FloatSuffix>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sin")
 .set_body(DispatchExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.asin")
 .set_body(DispatchExtern<FloatSuffix>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.atan2")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.sinh")
+.set_body(DispatchExtern<FloatSuffix>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.asinh")
 .set_body(DispatchExtern<FloatSuffix>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.default.hypot")

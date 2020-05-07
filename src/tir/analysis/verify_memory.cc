@@ -22,6 +22,7 @@
  * \brief Pass to check if memory accesses are legal.
  */
 #include <tvm/tir/expr.h>
+#include <tvm/ir/transform.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/target/target.h>
@@ -174,31 +175,46 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 }  // namespace
 
 /// Interface of VerifyMemory pass
-void VerifyMemory(const IRModule& mod) {
-  for (auto kv : mod->functions) {
-    if (auto* n = kv.second.as<PrimFuncNode>()) {
-      PrimFunc func = GetRef<PrimFunc>(n);
-      auto target = func->GetAttr<Target>(tvm::attr::kTarget);
-      CHECK(target.defined())
-          << "LowerWarpMemory: Require the target attribute";
+bool VerifyMemory(const PrimFunc& func) {
+  auto target = func->GetAttr<Target>(tvm::attr::kTarget);
+  CHECK(target.defined())
+      << "LowerWarpMemory: Require the target attribute";
 
-      if (func->GetAttr<Integer>(
-              tvm::attr::kCallingConv,
-              Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
-        MemoryAccessVerifier v(func, target.value()->device_type);
-        v.Run();
-        if (v.Failed()) {
-          LOG(FATAL)
-            << "ValueError: Direct host side access to device memory is detected."
-            << " Did you forget to bind?\n"
-            << func;
-        }
-      }
-    }
+  if (func->GetAttr<Integer>(
+          tvm::attr::kCallingConv,
+          Integer(CallingConv::kDefault)) == CallingConv::kDefault) {
+    MemoryAccessVerifier v(func, target.value()->device_type);
+    v.Run();
+    return !v.Failed();
+  } else {
+    return true;
   }
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.verify_memory")
 .set_body_typed(VerifyMemory);
+
+namespace transform {
+
+Pass VerifyMemory() {
+  auto pass_func = [=](IRModule mod, PassContext ctx) {
+    for (auto kv : mod->functions) {
+      if (auto* n = kv.second.as<PrimFuncNode>()) {
+        auto func = GetRef<PrimFunc>(n);
+        CHECK(VerifyMemory(func))
+            << "RuntimeError: Direct host side access to device memory is detected."
+            << " Did you forget to bind?\n"
+            << func;
+      }
+    }
+    return mod;
+  };
+  return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyMemory", {});
+}
+
+TVM_REGISTER_GLOBAL("tir.transform.VerifyMemory")
+.set_body_typed(VerifyMemory);
+
+}  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -40,7 +40,7 @@ class SourceName;
 class SourceNameNode : public Object {
  public:
   /*! \brief The source name. */
-  std::string name;
+  String name;
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
 
@@ -64,7 +64,7 @@ class SourceName : public ObjectRef {
    * \param name Name of the operator.
    * \return SourceName valid throughout program lifetime.
    */
-  TVM_DLL static SourceName Get(const std::string& name);
+  TVM_DLL static SourceName Get(const String& name);
 
   TVM_DEFINE_OBJECT_REF_METHODS(SourceName, ObjectRef, SourceNameNode);
 };

@@ -29,8 +29,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include "../../tir/pass/ir_util.h"
-#include "../../tir/pass/arg_binder.h"
+#include "../../tir/transforms/ir_util.h"
+#include "../../tir/transforms/arg_binder.h"
 #include "../schedule/message_passing.h"
 
 namespace tvm {
@@ -79,7 +79,7 @@ Stmt ReplaceTensor(Stmt stmt,
  * \param replace The replacement rule.
  */
 PrimExpr ReplaceTensor(PrimExpr expr,
-                   const std::unordered_map<Tensor, Tensor>& replace);
+                       const std::unordered_map<Tensor, Tensor>& replace);
 
 /*!
  * \brief Substitute the variables of stmt by value map.

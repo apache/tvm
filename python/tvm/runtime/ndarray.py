@@ -36,7 +36,7 @@ except (RuntimeError, ImportError):
     from tvm._ffi._ctypes.ndarray import NDArrayBase
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("runtime.NDArray")
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
 
@@ -219,7 +219,7 @@ def context(dev_type, dev_id=0):
     """
     if isinstance(dev_type, string_types):
         if '-device=micro_dev' in dev_type:
-            dev_type = 'micro_dev'
+            dev_type = TVMContext.STR2MASK['micro_dev']
         else:
             dev_type = dev_type.split()[0]
             if dev_type not in TVMContext.STR2MASK:
