@@ -76,8 +76,8 @@ def verify_any_elemwise(x_shape, x_np_shape, op, np_op):
 
 def test_any_elemwise():
     verify_any_elemwise((relay.Any(),), (3,), relay.sqrt, np.sqrt)
-    # verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
-    # verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
+    verify_any_elemwise((relay.Any(), 2), (5, 2), relay.negative, np.negative)
+    verify_any_elemwise((relay.Any(), relay.Any()), (5, 4), relay.exp, np.exp)
 
 def test_any_broadcast_fail():
     # Test broadcast with incompatible values at runtime
@@ -677,9 +677,9 @@ if __name__ == "__main__":
     # test_any_broadcast_fail()
     # test_any_concat()
     # test_any_reshape()
-    test_any_take()
+    # test_any_take()
     # test_any_tile()
-    # test_any_split()
+    test_any_split()
     # test_any_shape_of()
     # test_any_reduce()
     # test_any_layout_transform()

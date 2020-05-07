@@ -96,7 +96,7 @@ class Region:
         self.size = self.size + size
 
     def offset_for(self, alloc: expr.Expr) -> expr.Expr:
-        return self.offsets[alloc][0]
+        return self.offsets.get(alloc, [None])[0]
 
     def to_expr(self, body: expr.Expr) -> expr.Expr:
         """
@@ -198,6 +198,16 @@ class StorageCoalesce(ExprMutator):
         current_scope = self.regions[-1]
         return current_scope[dtype]
 
+    def new_region_and_offset(self, old_storage):
+        for dtype_region in reversed(self.regions):
+            for dtype in dtype_region:
+                region = dtype_region[dtype]
+                offset = region.offset_for(old_storage)
+                if offset:
+                    return region, offset
+
+        raise Exception("could not find offset in any valid region")
+
     def visit_function(self, fn):
         """Transform the function body to use region allocation scheme."""
         func = fn
@@ -273,9 +283,9 @@ class StorageCoalesce(ExprMutator):
         return lhs, region.var
 
     def process_alloc_tensor(self, lhs, call):
-        region = self.current_region(call.attrs.dtype)
         storage, old_offset, shape = call.args
-        offset = region.offset_for(storage)
+        region, offset = self.new_region_and_offset(storage)
+
         assert (
             old_offset.data.asnumpy().item() == 0
         ), "no offsets should yet be allocated"
@@ -320,6 +330,7 @@ class MemoryPlan:
     def transform_function(self, func, mod, _):
         mod.import_from_std("core.rly")
         sc = StorageCoalesce()
+        # func = Uniq().visit(func)
         func = sc.visit(func)
         # func = Uniq().visit(func)
         return func
