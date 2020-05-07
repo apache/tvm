@@ -380,7 +380,9 @@ bool ShapeOfRel(const Array<Type>& types,
                 const TypeReporter& reporter) {
   CHECK_EQ(num_inputs, 1);
   auto tt = types[0].as<TensorTypeNode>();
-  CHECK(tt != nullptr);
+  if (tt == nullptr) {
+    return false;
+  }
   const auto* param = attrs.as<ShapeOfAttrs>();
   CHECK(param != nullptr);
   auto rank_shape = RankShape(tt->shape);

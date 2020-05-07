@@ -621,7 +621,7 @@ class Reshape(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         if get_name(inputs[1]) in params:
             # pop shape out of parameters since it wont be needed later.
-            shape = tuple(params.pop(inputs[1].name_hint).asnumpy())
+            shape = tuple(params.pop(inputs[1].name_hint).asnumpy().astype("int32"))
             out = _op.reshape(inputs[0], shape)
         else:
             data, shape = inputs
@@ -1485,6 +1485,8 @@ class NonZero(OnnxOpConverter):
             raise ValueError("Expect 1 input only")
 
         output = AttrCvt(op_name='argwhere')(inputs, attr, params)
+        # ONNX NonZero always outputs int64
+        output = _op.cast(output, "int64")
         return _op.transpose(output, axes=(1, 0))
 
 class TopK(OnnxOpConverter):
