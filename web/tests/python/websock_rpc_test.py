@@ -22,45 +22,61 @@ Connect javascript end to the websocket port and connect to the RPC.
 
 import tvm
 from tvm import te
-import os
 from tvm import rpc
-from tvm.contrib import util, emscripten
+from tvm.contrib import util, emcc
 import numpy as np
 
 proxy_host = "localhost"
 proxy_port = 9090
 
-def test_rpc_array():
+def test_rpc():
     if not tvm.runtime.enabled("rpc"):
         return
-    # graph
-    n = tvm.runtime.convert(1024)
+    # generate the wasm library
+    target = "llvm -target=wasm32-unknown-unknown-wasm -system-lib"
+    if not tvm.runtime.enabled(target):
+        raise RuntimeError("Target %s is not enbaled" % target)
+    n = te.var("n")
     A = te.placeholder((n,), name='A')
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     s = te.create_schedule(B.op)
-    remote = rpc.connect(proxy_host, proxy_port, key="js")
-    target = "llvm -target=asmjs-unknown-emscripten -system-lib"
-    def check_remote():
-        if not tvm.runtime.enabled(target):
-            print("Skip because %s is not enabled" % target)
-            return
-        temp = util.tempdir()
+
+    fadd = tvm.build(s, [A, B], target, name="addone")
+    temp = util.tempdir()
+
+    wasm_path = temp.relpath("addone.wasm")
+    fadd.export_library(wasm_path, emcc.create_tvmjs_wasm)
+
+    wasm_binary = open(wasm_path, "rb").read()
+
+    remote = rpc.connect(proxy_host, proxy_port, key="wasm",
+                         session_constructor_args=["rpc.WasmSession", wasm_binary])
+
+    def check(remote):
+        # basic function checks.
+        fecho = remote.get_function("testing.echo")
+        assert(fecho(1, 2, 3) == 1)
+        assert(fecho(100, 2, 3) == 100)
+        assert(fecho("xyz") == "xyz")
+        assert(bytes(fecho(bytearray(b"123"))) == b"123")
+
+        # run the generated library.
+        f1 = remote.system_lib()
         ctx = remote.cpu(0)
-        f = tvm.build(s, [A, B], target, name="myadd")
-        path_obj = temp.relpath("dev_lib.bc")
-        path_dso = temp.relpath("dev_lib.js")
-        f.save(path_obj)
-        emscripten.create_js(path_dso, path_obj, side_module=True)
-        # Upload to suffix as dso so it can be loaded remotely
-        remote.upload(path_dso, "dev_lib.dso")
-        data = remote.download("dev_lib.dso")
-        f1 = remote.load_module("dev_lib.dso")
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-        time_f = f1.time_evaluator(f1.entry_name, remote.cpu(0), number=10)
+        # invoke the function
+        addone = f1.get_function("addone")
+        addone(a, b)
+
+        # time evaluator
+        time_f = f1.time_evaluator("addone", ctx, number=10)
+        time_f(a, b)
         cost = time_f(a, b).mean
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-    check_remote()
 
-test_rpc_array()
+    check(remote)
+
+
+test_rpc()

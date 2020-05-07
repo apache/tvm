@@ -28,6 +28,8 @@ core.cpp
 build
 _static
 _build
+node_modules
+dist
 .*~
 \#..*\#
 \.#.*
@@ -40,6 +42,7 @@ RelayVisitor.py
 # Specific files
 package-list
 MANIFEST
+.eslintignore
 .gitignore
 .gitattributes
 .gitmodules

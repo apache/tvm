@@ -14,34 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-import numpy as np
+"""Decorate emcc generated js to a WASI compatible API."""
 
-def test_local_multi_stage():
-    if not tvm.runtime.enabled("opengl"):
-        return
-    if not tvm.runtime.enabled("llvm"):
-        return
+import sys
 
-    n = te.var("n")
-    A = te.placeholder((n,), name='A', dtype="int32")
-    B = te.compute((n,), lambda i: A[i] + 1, name="B")
-    C = te.compute((n,), lambda i: B[i] * 2, name="C")
+template_head = """
+function EmccWASI() {
+"""
 
-    s = te.create_schedule(C.op)
-    s[B].opengl()
-    s[C].opengl()
+template_tail = """
+    this.Module = Module;
+    this.start = Module.wasmLibraryProvider.start;
+    this.imports = Module.wasmLibraryProvider.imports;
+    this.wasiImport = this.imports["wasi_snapshot_preview1"];
+}
 
-    f = tvm.build(s, [A, C], "opengl", name="multi_stage")
-
-    ctx = tvm.opengl(0)
-    n = 10
-    a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
-    c = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
-    f(a, c)
-
-    tvm.testing.assert_allclose(c.asnumpy(), (a.asnumpy() + 1) * 2)
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = EmccWASI;
+}
+"""
 
 if __name__ == "__main__":
-    test_local_multi_stage()
+    if len(sys.argv) != 3:
+        print("Usage <file-in> <file-out>")
+    result = template_head + open(sys.argv[1]).read() + template_tail
+    with open(sys.argv[2], "w") as fo:
+        fo.write(result)

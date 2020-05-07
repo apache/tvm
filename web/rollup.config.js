@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -17,29 +17,18 @@
  * under the License.
  */
 
-module.exports = {
-  "env": {
-    "browser": true,
-    "node": true,
-    "es6": true
+import commonjs from '@rollup/plugin-commonjs';
+import resolve from '@rollup/plugin-node-resolve';
+
+export default {
+  input: 'dist/index.js',
+  output: {
+    file: 'dist/tvmjs.bundle.js',
+    format: 'umd',
+    name: 'tvmjs',
+    exports: 'named',
+    globals: {'ws': 'ws'}
   },
-  "extends": "eslint:recommended",
-  "rules": {
-    "indent": [
-      "error",
-      2
-    ],
-    "linebreak-style": [
-      "error",
-      "unix"
-    ],
-    "quotes": [
-      "error",
-      "double"
-    ],
-    "semi": [
-      "error",
-      "always"
-    ]
-  }
+  plugins: [commonjs(), resolve()],
+  external: ['ws']
 };
