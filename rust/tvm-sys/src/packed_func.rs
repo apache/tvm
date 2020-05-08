@@ -283,7 +283,6 @@ impl<'a> From<&'a CStr> for ArgValue<'a> {
     }
 }
 
-
 impl<'a> From<CString> for ArgValue<'a> {
     fn from(s: CString) -> Self {
         Self::String(s)

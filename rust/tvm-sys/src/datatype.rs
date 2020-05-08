@@ -21,11 +21,10 @@ use std::any::TypeId;
 use std::convert::TryFrom;
 use std::str::FromStr;
 
-use crate::packed_func::RetValue;
 use crate::ffi::DLDataType;
+use crate::packed_func::RetValue;
 
 use thiserror::Error;
-
 
 const DL_INT_CODE: u8 = 0;
 const DL_UINT_CODE: u8 = 1;

@@ -40,15 +40,15 @@
 //! ```
 
 use std::convert::TryFrom;
-use std::str::FromStr;
 use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
 
 use crate::ffi::{self, *};
 use crate::packed_func::{ArgValue, RetValue};
 
-use thiserror::Error;
 use anyhow::Result;
 use enumn::N;
+use thiserror::Error;
 
 /// Device type represents the set of devices supported by
 /// [TVM](https://github.com/apache/incubator-tvm).
@@ -90,8 +90,7 @@ impl From<DeviceType> for ffi::DLDeviceType {
 
 impl From<ffi::DLDeviceType> for DeviceType {
     fn from(device_type: ffi::DLDeviceType) -> Self {
-        Self::n(device_type as _)
-            .expect("invalid enumeration value for ffi::DLDeviceType")
+        Self::n(device_type as _).expect("invalid enumeration value for ffi::DLDeviceType")
     }
 }
 

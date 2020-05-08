@@ -60,10 +60,12 @@ impl ByteArray {
 impl<T: AsRef<[u8]>> From<T> for ByteArray {
     fn from(arg: T) -> Self {
         let arg = arg.as_ref();
-        ByteArray { array: TVMByteArray {
-            data: arg.as_ptr() as *const c_char,
-            size: arg.len(),
-        }}
+        ByteArray {
+            array: TVMByteArray {
+                data: arg.as_ptr() as *const c_char,
+                size: arg.len(),
+            },
+        }
     }
 }
 
