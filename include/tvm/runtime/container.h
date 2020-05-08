@@ -568,8 +568,9 @@ inline String operator+(const std::string lhs, const String& rhs) {
   return lhs + rhs.operator std::string();
 }
 
-inline String operator+(const char lhs, const String& rhs) {
-  return lhs + rhs.operator std::string();
+inline std::ostream& operator<<(std::ostream& out, const String& input) {
+  out << input.operator std::string();
+  return out;
 }
 
 inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count) {

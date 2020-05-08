@@ -122,7 +122,7 @@ def create_updater_06_to_07():
         "relay.Module": _rename("IRModule"),
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
-        "relay.GlobalVar": _rename("GlobalVar"),
+        "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint")],
         "relay.Pass": _rename("transform.Pass"),
         "relay.PassInfo": _rename("transform.PassInfo"),
         "relay.PassContext": _rename("transform.PassContext"),

@@ -188,7 +188,7 @@ class GlobalVar;
 class GlobalVarNode : public RelayExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
-  std::string name_hint;
+  String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
