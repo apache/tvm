@@ -522,17 +522,19 @@ class PatternGrouper : protected MixedModeVisitor {
 
 // Rewrite
 
-DFPatternCallback DFPatternCallbackNode::make(DFPattern pattern, PackedFunc function) {
+DFPatternCallback::DFPatternCallback(DFPattern pattern, PackedFunc function) {
   ObjectPtr<DFPatternCallbackNode> n = make_object<DFPatternCallbackNode>();
   n->pattern_ = std::move(pattern);
   n->function_ = std::move(function);
-  return DFPatternCallback(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(DFPatternCallbackNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DFPatternCallback")
-    .set_body_typed(DFPatternCallbackNode::make);
+    .set_body_typed([](DFPattern pattern, PackedFunc function) {
+      return DFPatternCallback(pattern, function);
+    });
 
 /* \brief PatternRewriter rewrites the expression by finding matches and allowing user callback
  * function to rewrite those matches

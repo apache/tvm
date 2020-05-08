@@ -46,8 +46,6 @@ class DFPatternCallbackNode : public Object {
 
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
-  TVM_DLL static DFPatternCallback make(DFPattern pattern, PackedFunc callback);
-
   static constexpr const char* _type_key = "DFPatternCallbackNode";
   TVM_DECLARE_BASE_OBJECT_INFO(DFPatternCallbackNode, Object);
 };
@@ -58,6 +56,7 @@ class DFPatternCallbackNode : public Object {
  */
 class DFPatternCallback : public ObjectRef {
  public:
+  TVM_DLL DFPatternCallback(DFPattern pattern, PackedFunc callback);
   TVM_DEFINE_OBJECT_REF_METHODS(DFPatternCallback, ObjectRef, DFPatternCallbackNode);
 };
 
