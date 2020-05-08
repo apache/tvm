@@ -30,6 +30,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include "rpc_protocol.h"
 
 namespace tvm {
 namespace runtime {
@@ -58,7 +59,6 @@ class RPCSession {
    * \brief Callback to send an encoded return values via encode_args.
    *
    * \param encode_args The arguments that we can encode the return values into.
-   * \param ret_tcode The actual remote type code of the return value.
    *
    * Encoding convention (as list of arguments):
    * - str/float/int/byte: [tcode: int, value: TVMValue] value follows PackedFunc convention.
@@ -68,6 +68,14 @@ class RPCSession {
    *            nd_handle can be used for deletion.
    */
   using FEncodeReturn = std::function<void(TVMArgs encoded_args)>;
+
+  /*!
+   * \brief Callback to send an encoded return values via encode_args.
+   *
+   * \param status The return status, can be RPCCode::kReturn or RPCCode::kException.
+   * \param encode_args The arguments that we can encode the return values into.
+   */
+  using FAsyncCallback = std::function<void(RPCCode status, TVMArgs encoded_args)>;
 
   /*! \brief Destructor.*/
   virtual ~RPCSession() {}
@@ -189,6 +197,98 @@ class RPCSession {
    */
   virtual bool IsLocalSession() const = 0;
 
+  // Asynchrous variant of API
+  // These APIs are used by the RPC server to allow sessions that
+  // have special implementations for the async functions.
+  //
+  // In the async APIs, an exception is returned by the passing
+  // async_error=true, encode_args=[error_msg].
+
+  /*!
+   * \brief Whether the session is async.
+   *
+   * If the session is not async, its Aync implementations
+   * simply calls into the their synchronize counterparts,
+   * and the callback is guaranteed to be called before the async function finishes.
+   *
+   * \return the async state.
+   *
+   * \note We can only use async session in an Event driven RPC server.
+   */
+  virtual bool IsAsync() const;
+
+  /*!
+   * \brief Asynchrously call func.
+   * \param func The function handle.
+   * \param arg_values The argument values.
+   * \param arg_type_codes the type codes of the argument.
+   * \param num_args Number of arguments.
+   *
+   * \param callback The callback to pass the return value or exception.
+   */
+  virtual void AsyncCallFunc(PackedFuncHandle func,
+                             const TVMValue* arg_values,
+                             const int* arg_type_codes,
+                             int num_args,
+                             FAsyncCallback callback);
+
+  /*!
+   * \brief Asynchrous version of CopyToRemote.
+   *
+   * \param local_from The source host data.
+   * \param local_from_offset The byte offeset in the from.
+   * \param remote_to The target array.
+   * \param remote_to_offset The byte offset in the to.
+   * \param nbytes The size of the memory in bytes.
+   * \param remote_ctx_to The target context.
+   * \param type_hint Hint of content data type.
+   *
+   * \param on_complete The callback to signal copy complete.
+   * \note All the allocated memory in local_from, and remote_to
+   *       must stay alive until on_compelete is called.
+   */
+  virtual void AsyncCopyToRemote(void* local_from,
+                                 size_t local_from_offset,
+                                 void* remote_to,
+                                 size_t remote_to_offset,
+                                 size_t nbytes,
+                                 TVMContext remote_ctx_to,
+                                 DLDataType type_hint,
+                                 FAsyncCallback on_complete);
+
+  /*!
+   * \brief Asynchrous version of CopyFromRemote.
+   *
+   * \param remote_from The source host data.
+   * \param remote_from_offset The byte offeset in the from.
+   * \param to The target array.
+   * \param to_offset The byte offset in the to.
+   * \param nbytes The size of the memory in bytes.
+   * \param remote_ctx_from The source context in the remote.
+   * \param type_hint Hint of content data type.
+   *
+   * \param on_complete The callback to signal copy complete.
+   * \note All the allocated memory in remote_from, and local_to
+   *       must stay alive until on_compelete is called.
+   */
+  virtual void AsyncCopyFromRemote(void* remote_from,
+                                   size_t remote_from_offset,
+                                   void* local_to,
+                                   size_t local_to_offset,
+                                   size_t nbytes,
+                                   TVMContext remote_ctx_from,
+                                   DLDataType type_hint,
+                                   FAsyncCallback on_complete);
+  /*!
+   * \brief Asynchrously wait for all events in ctx, stream compeletes.
+   * \param ctx The device context.
+   * \param stream The stream to wait on.
+   * \param on_complete The callback to signal copy complete.
+   */
+  virtual void AsyncStreamWait(TVMContext ctx,
+                               TVMStreamHandle stream,
+                               FAsyncCallback on_compelte);
+
   /*!
    * \return The session table index of the session.
    */
@@ -202,6 +302,13 @@ class RPCSession {
    * \return The shared_ptr to the session, can be nullptr.
    */
   static std::shared_ptr<RPCSession> Get(int table_index);
+
+ protected:
+  /*!
+   * \brief Send an exception to the callback.
+   * \param msg The exception message.
+   */
+  void SendException(FAsyncCallback callback, const char* msg);
 
  private:
   /*! \brief index of this session in RPC session table */
