@@ -987,15 +987,17 @@ void VirtualMachine::RunLoop() {
           int64_t* dims = reinterpret_cast<int64_t*>(dl_tensor->data);
           shape.resize(num_dims);
           shape.assign(dims, dims + num_dims);
-        } else {
-          shape.push_back(1);
         }
 
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
         auto offset = LoadScalarInt(instr.alloc_tensor.offset);
         auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor_reg.dtype);
-
+        std::cout << "shape = (";
+        for (auto sh : obj.Shape()) {
+          std::cout << sh << ",";
+        }
+        std::cout << ")";
         WriteRegister(instr.dst, obj);
         pc_++;
         goto main_loop;

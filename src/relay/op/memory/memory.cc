@@ -163,6 +163,7 @@ bool AllocTensorRel(const Array<Type>& types, int num_inputs, const Attrs& attrs
   if (alloc_attrs->const_shape.defined()) {
     auto con = alloc_attrs->const_shape;
     auto sh = FromConstShape(con);
+    CHECK_EQ(sh.size(), dims);
     Array<IndexExpr> out_shape;
     for (auto i = 0u; i < dims; i++) {
       out_shape.push_back(tvm::Integer(sh[i]));
