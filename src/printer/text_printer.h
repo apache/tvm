@@ -36,6 +36,9 @@
 #include <tvm/tir/function.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pattern_functor.h>
+#include <unordered_map>
+#include <vector>
+#include <string>
 #include "../relay/analysis/dependency_graph.h"
 #include "../ir/attr_functor.h"
 

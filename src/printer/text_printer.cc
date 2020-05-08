@@ -24,6 +24,7 @@
  */
 
 #include <tvm/tir/function.h>
+#include <string>
 #include "text_printer.h"
 
 namespace tvm {
@@ -54,7 +55,8 @@ Doc TextPrinter::PrintMod(const IRModule& mod) {
   // functions
   for (const auto& kv : mod->functions) {
     if (kv.second.as<relay::FunctionNode>()) {
-      relay_text_printer_.dg_ = relay::DependencyGraph::Create(&relay_text_printer_.arena_, kv.second);
+      relay_text_printer_.dg_ =
+          relay::DependencyGraph::Create(&relay_text_printer_.arena_, kv.second);
     }
     if (counter++ != 0) {
       doc << Doc::NewLine();
@@ -71,18 +73,25 @@ Doc TextPrinter::PrintMod(const IRModule& mod) {
   return doc;
 }
 
-std::string PrettyPrint(const ObjectRef& node) {
+String PrettyPrint(const ObjectRef& node) {
   Doc doc;
   doc << TextPrinter(false, nullptr).PrintFinal(node);
   return doc.str();
 }
 
-std::string AsText(const ObjectRef& node,
-                   bool show_meta_data,
-                   runtime::TypedPackedFunc<std::string(ObjectRef)> annotate) {
+String AsText(const ObjectRef& node,
+              bool show_meta_data,
+              runtime::TypedPackedFunc<String(ObjectRef)> annotate) {
   Doc doc;
   doc << kSemVer << Doc::NewLine();
-  doc << TextPrinter(show_meta_data, annotate).PrintFinal(node);
+  runtime::TypedPackedFunc<std::string(ObjectRef)> ftyped = nullptr;
+  if (annotate != nullptr) {
+    ftyped = runtime::TypedPackedFunc<std::string(ObjectRef)>(
+        [&annotate](const ObjectRef& expr) -> std::string {
+          return annotate(expr);
+        });
+  }
+  doc << TextPrinter(show_meta_data, ftyped).PrintFinal(node);
   return doc.str();
 }
 
