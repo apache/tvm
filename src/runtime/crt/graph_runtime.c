@@ -815,10 +815,10 @@ void TVMGraphRuntime_Init(TVMGraphRuntime * runtime, const char * graph_json,
                           const TVMModule * module, const TVMContext * ctxs) {
   JSONReader reader = JSONReader_Create(graph_json);
   runtime->Load(runtime, &reader);
+  JSONReader_Release(&reader);
   runtime->ctxs[0] = ctxs[0];
   runtime->SetupStorage(runtime);
   runtime->SetupOpExecs(runtime);
-  JSONReader_Release(&reader);
 }
 
 TVMGraphRuntime * TVMGraphRuntimeCreate(const char * sym_json,
