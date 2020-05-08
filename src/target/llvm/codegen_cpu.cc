@@ -337,7 +337,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
   auto it = gv_func_map_.find(op->name);
   if (it != gv_func_map_.end()) {
     if (it->second == nullptr) {
-      gv_func_map_[op->name] = InitContextPtr(ftype->getPointerTo(), "__" + op->name);
+      gv_func_map_[op->name] = InitContextPtr(ftype->getPointerTo(), "__" + (std::string)op->name);
       it = gv_func_map_.find(op->name);
     }
 #if TVM_LLVM_VERSION >= 90
@@ -347,10 +347,10 @@ llvm::Value* CodeGenCPU::CreateCallExtern(const CallNode* op) {
 #endif
     return builder_->CreateCall(ext_callee, arg_values);
   } else {
-    llvm::Function* f = module_->getFunction(op->name);
+    llvm::Function* f = module_->getFunction((std::string)op->name);
     if (f == nullptr) {
       f = llvm::Function::Create(
-          ftype, llvm::Function::ExternalLinkage, op->name, module_.get());
+          ftype, llvm::Function::ExternalLinkage, (std::string)op->name, module_.get());
     }
 #if TVM_LLVM_VERSION >= 90
     auto ext_callee = llvm::FunctionCallee(f);
@@ -453,7 +453,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   llvm::Function* fcompute =
       llvm::Function::Create(ftype,
                              llvm::Function::PrivateLinkage,
-                             op->value.as<StringImmNode>()->value,
+                             (std::string)op->value.as<StringImmNode>()->value,
                              module_.get());
   BasicBlock* compute_call_end = CheckCallSuccess(
       builder_->CreateCall(fcompute, arg_values));

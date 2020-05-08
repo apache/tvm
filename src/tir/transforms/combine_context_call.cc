@@ -51,7 +51,7 @@ class ContextCallCombiner final : public StmtExprMutator {
         CHECK(ctx.dtype().is_handle());
         std::string name;
         if (const CallNode* call = ctx.as<CallNode>()) {
-          name = call->name + "_cache";
+          name = (std::string)call->name + "_cache";
         } else {
           name = "ctx_cache_";
         }

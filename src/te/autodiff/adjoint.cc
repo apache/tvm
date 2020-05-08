@@ -62,7 +62,7 @@ Tensor Identity(const Tensor& output) {
 Tensor VectorJacobianProduct(const Tensor &output, const Tensor &input, const Tensor &head) {
   Tensor jac = Jacobian(output, input);
   Tensor result = topi::tensordot(head, jac, /*axes=*/output->shape.size(),
-                                  output->op->name + "." + input->op->name + ".grad");
+                                 (std::string)output->op->name + "." + (std::string)input->op->name + ".grad");
   return result;
 }
 

@@ -64,14 +64,14 @@ const LayoutAxis& LayoutAxis::Get(const char name) {
 }
 
 const LayoutAxis& LayoutAxis::Get(const IterVar& itvar) {
-  const std::string axis = itvar->var.get()->name_hint;
+  const String axis = itvar->var.get()->name_hint;
   CHECK_EQ(axis.size(), 1) << "Invalid layout axis " << axis;
-  return LayoutAxis::Get(axis[0]);
+  return LayoutAxis::Get(axis.c_str()[0]);
 }
 
-const LayoutAxis& LayoutAxis::make(const std::string& name) {
+const LayoutAxis& LayoutAxis::make(const String& name) {
   CHECK_EQ(name.length(), 1) << "Invalid axis " << name;
-  return LayoutAxis::Get(name[0]);
+  return LayoutAxis::Get(name.c_str()[0]);
 }
 
 Layout::Layout(const Array<IterVar>& axes) {
@@ -85,7 +85,7 @@ Layout::Layout(const Array<IterVar>& axes) {
     }
     CHECK_EQ(axis->var.get()->name_hint.size(), 1) << "Invalid layout axis "
                                                    << axis->var.get()->name_hint;
-    char c = axis->var.get()->name_hint[0];
+    char c = axis->var.get()->name_hint.c_str()[0];
     CHECK((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) << "Invalid layout axis " << c;
     repr << axis->var.get()->name_hint;
   }
@@ -93,7 +93,7 @@ Layout::Layout(const Array<IterVar>& axes) {
   data_ = std::move(node);
 }
 
-Layout::Layout(const std::string& name) { // NOLINT(*)
+Layout::Layout(const String& name) { // NOLINT(*)
   if (name == "__undef__") return;
 
   auto node = make_object<LayoutNode>();
@@ -103,7 +103,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
 
   // parse layout string
   int32_t factor = 0;
-  for (char c : name) {
+  for (char c : std::string(name)) {
     if (c >= 'A' && c <= 'Z') {
       CHECK_EQ(factor, 0) << "Invalid layout " << name
                           << ": invalid factor size " << factor
@@ -133,13 +133,13 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   for (const IterVar& v : node->axes) {
     auto axis_str = v->var.get()->name_hint;
     CHECK_EQ(axis_str.size(), 1);
-    char axis = axis_str[0];
+    char axis = axis_str.c_str()[0];
     CHECK((axis >= 'a' && axis <= 'z') || (axis >= 'A' && axis <= 'Z'));
     CHECK(!exist_axis[axis]) << "Invalid layout " << name << ": duplicate axis " << axis;
     exist_axis[axis] = true;
   }
   for (const IterVar& v : node->axes) {
-    char axis = v->var.get()->name_hint[0];
+    char axis = v->var.get()->name_hint.c_str()[0];
     if (axis >= 'a' && axis <= 'z') {
       CHECK(exist_axis[axis-'a'+'A']) << "Invalid layout " << name << ": missing axis "
                                       << std::toupper(axis);
@@ -148,7 +148,7 @@ Layout::Layout(const std::string& name) { // NOLINT(*)
   data_ = std::move(node);
 }
 
-Layout LayoutNode::make(const std::string& layout) {
+Layout LayoutNode::make(const String& layout) {
   return Layout(layout);
 }
 
@@ -166,7 +166,7 @@ Layout Layout::SubLayout(size_t pos, size_t len) const {
 
 Layout Layout::Split(const LayoutAxis &axis, size_t target_pos, int32_t factor) const {
   if (!defined()) return Layout::Undef();
-  const std::string& name = operator->()->name;
+  const String& name = operator->()->name;
   const auto axes = operator->()->axes;
   CHECK(target_pos <= this->ndim()) << "Invalid split position "
                                     << target_pos << " for layout " << name;
@@ -379,12 +379,12 @@ TVM_REGISTER_GLOBAL("tir.Layout")
 .set_body_typed(LayoutNode::make);
 
 TVM_REGISTER_GLOBAL("tir.LayoutIndexOf")
-.set_body_typed([](Layout layout, std::string axis) -> int {
+.set_body_typed([](Layout layout, String axis) -> int {
   return layout.IndexOf(LayoutAxis::make(axis));
 });
 
 TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
-.set_body_typed([](Layout layout, std::string axis) -> int {
+.set_body_typed([](Layout layout, String axis) -> int {
   return layout.FactorOf(LayoutAxis::make(axis));
 });
 
@@ -394,7 +394,7 @@ TVM_REGISTER_GLOBAL("tir.LayoutNdim")
 });
 
 TVM_REGISTER_GLOBAL("tir.LayoutGetItem")
-.set_body_typed([](Layout layout, int idx) -> std::string {
+.set_body_typed([](Layout layout, int idx) -> String {
   const LayoutAxis& axis = layout[idx];
   return axis.name();
 });

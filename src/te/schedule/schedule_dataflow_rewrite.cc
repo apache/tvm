@@ -355,7 +355,7 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
     }
   }
   Operation cache_op = ComputeOpNode::make(
-      compute->name + "." + scope, compute->tag, compute->attrs,
+      (String)((std::string)compute->name + "." + scope), compute->tag, compute->attrs,
       new_axis, body_list);
 
   Array<PrimExpr> cache_expr_list;
@@ -418,7 +418,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
   }
 
   Operation cache_op = TensorComputeOpNode::make(
-      tensor_op->name + "." + scope, tensor_op->tag, new_axis,
+      (String)((std::string)tensor_op->name + "." + scope), tensor_op->tag, new_axis,
       tensor_op->reduce_axis, tensor_op->schedulable_ndim,
       tensor_op->intrin, tensor_op->inputs, new_regions, new_scalar_inputs);
 
@@ -736,7 +736,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
       factor_axis >= 0 ? factor_axis : static_cast<int>(compute_op->axis.size() + 1) + factor_axis;
   CHECK_LE(factor_axis_pos, compute_op->axis.size());
   auto n = make_object<ComputeOpNode>();
-  n->name = compute_op->name + ".rf";
+  n->name = (String)((std::string)compute_op->name + ".rf");
   {
     // axis relacement.
     auto iv_node = make_object<IterVarNode>();
@@ -833,7 +833,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   }
   // Replace the old reduction.
   IterVar repl_red_axis = reduce_axis(
-      dom_map.at(axis), axis->var->name_hint + ".v");
+      dom_map.at(axis), (std::string)axis->var->name_hint + ".v");
   Array<Tensor> factor_tensors;
   Array<Tensor> old_tensors;
   int size = factor_op->num_outputs();
@@ -866,7 +866,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
           factor_exprs, axis, cond, idx));
       }
       return reductions;
-    }, reduce_stage->op->name + ".repl");
+    }, (std::string)reduce_stage->op->name + ".repl");
 
   std::unordered_map<Tensor, Tensor> vmap;
   std::unordered_map<Tensor, Tensor> rvmap;

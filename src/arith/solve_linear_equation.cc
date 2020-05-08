@@ -394,7 +394,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints &system_to_sol
       PrimExpr to_old = analyzer_problem.Simplify(V_inv_x[j]);
       std::string name_hint = "n" + std::to_string(new_vars.size());
       if (const VarNode* v_old = to_old.as<VarNode>()) {
-        name_hint += "_" + v_old->name_hint;
+        name_hint += "_" + (std::string)v_old->name_hint;
       }
       Var v = Var(name_hint, V_inv_x[j].dtype());
       solution_for_V_inv_x.push_back(v);

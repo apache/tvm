@@ -46,7 +46,7 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
 
 Buffer decl_buffer(Array<PrimExpr> shape,
                    DataType dtype,
-                   std::string name) {
+                   String name) {
   return BufferNode::make(
       Var(name, PointerType(PrimType(dtype))),
       dtype,
@@ -381,7 +381,7 @@ Buffer Buffer::MakeSlice(Array<PrimExpr> begins, Array<PrimExpr> extents) const 
                           extents,
                           strides,
                           elem_offset,
-                          n->name + "_slice",
+                          String((std::string)n->name + "_slice"),
                           n->scope,
                           n->data_alignment,
                           0,
@@ -424,8 +424,8 @@ Buffer BufferNode::make(Var data,
                         Array<PrimExpr> shape,
                         Array<PrimExpr> strides,
                         PrimExpr elem_offset,
-                        std::string name,
-                        std::string scope,
+                        String name,
+                        String scope,
                         int data_alignment,
                         int offset_factor,
                         BufferType buffer_type) {
@@ -436,7 +436,7 @@ Buffer BufferNode::make(Var data,
   n->strides = std::move(strides);
   n->name = std::move(name);
   if (scope.length() == 0) {
-    scope = "global";
+    scope = String("global");
   }
   n->scope = std::move(scope);
   if (!elem_offset.defined()) {
@@ -472,7 +472,7 @@ TVM_REGISTER_NODE_TYPE(BufferNode);
 TVM_REGISTER_GLOBAL("tir.Buffer")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     CHECK_EQ(args.size(), 10);
-    auto buffer_type = args[9].operator std::string();
+    auto buffer_type = args[9].operator String();
     BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
     *ret = BufferNode::make(args[0], args[1], args[2], args[3], args[4],
                             args[5], args[6], args[7], args[8], type);

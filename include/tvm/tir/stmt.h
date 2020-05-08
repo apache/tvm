@@ -102,7 +102,7 @@ class AttrStmtNode : public StmtNode {
   /*! \brief this is attribute about certain node */
   ObjectRef node;
   /*! \brief the type key of the attribute */
-  std::string attr_key;
+  String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
   PrimExpr value;
   /*! \brief The body statement to be executed */
@@ -131,7 +131,7 @@ class AttrStmtNode : public StmtNode {
   }
 
   TVM_DLL static Stmt make(ObjectRef node,
-                           std::string type_key,
+                           String type_key,
                            PrimExpr value,
                            Stmt body);
 
@@ -879,7 +879,7 @@ struct TensorKey {
   inline bool operator==(const TensorKey& other) const {
     return f == other.f && value_index == other.value_index;
   }
-  inline std::string GetName() const {
+  inline String GetName() const {
     if (f->num_outputs() == 1) return f->func_name();
     std::ostringstream os;
     os << f->func_name() << ".v" << value_index;

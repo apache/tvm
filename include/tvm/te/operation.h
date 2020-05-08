@@ -58,13 +58,13 @@ struct TensorDom {
 class OperationNode : public tir::FunctionBaseNode {
  public:
   /*! \brief optional name of the operation */
-  std::string name;
+  String name;
   /*! \brief optional tag of the operation */
   std::string tag;
   /*! \brief additional attributes of the operation*/
   Map<std::string, ObjectRef> attrs;
   /*! \return name of the operation */
-  const std::string& func_name() const final {
+  const String& func_name() const final {
     return name;
   }
   /*!

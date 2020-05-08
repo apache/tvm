@@ -49,7 +49,7 @@ class VarNode : public PrimExprNode {
    * \brief The hint to the variable name.
    * \note Each variable is uniquely identified by its address.
    */
-  std::string name_hint;
+  String name_hint;
   /*!
    * \brief type annotaion of the variable.
    *
@@ -91,20 +91,20 @@ class Var : public PrimExpr {
    * \param name_hint variable name
    * \param dtype data type
    */
-  TVM_DLL explicit Var(std::string name_hint = "v",
+  TVM_DLL explicit Var(String name_hint = "v",
                        DataType dtype = DataType::Int(32));
   /*!
    * \brief Constructor which provides a more detailed type annotation.
    * \param name_hint variable name.
    * \param type_annotation The type annotation.
    */
-  TVM_DLL explicit Var(std::string name_hint, Type type_annotation);
+  TVM_DLL explicit Var(String name_hint, Type type_annotation);
   /*!
    * \brief Make a new copy of var with same type, append suffix
    * \param suffix The suffix to be appended.
    * \return the new Var copy
    */
-  TVM_DLL Var copy_with_suffix(const std::string& suffix) const;
+  TVM_DLL Var copy_with_suffix(const String& suffix) const;
   /*!
    * \brief Get pointer to the internal value.
    * \return the corresponding Variable.
@@ -142,7 +142,7 @@ class SizeVar : public Var {
    * \param name_hint variable name
    * \param t data type
    */
-  TVM_DLL explicit SizeVar(std::string name_hint = "s",
+  TVM_DLL explicit SizeVar(String name_hint = "s",
                            DataType t = DataType::Int(32));
   /*!
    * \brief Get pointer to the internal value.
@@ -282,7 +282,7 @@ class IterVarNode : public Object {
    * \brief additional tag on the iteration variable,
    *  set this if this is binded already to a known thread tag.
    */
-  std::string thread_tag;
+  String thread_tag;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
@@ -308,7 +308,7 @@ class IterVarNode : public Object {
 
   TVM_DLL static IterVar make(Range dom, Var var,
                               IterVarType iter_type,
-                              std::string thread_tag = "");
+                              String thread_tag = "");
 
   static constexpr const char* _type_key = "IterVar";
   static constexpr const bool _type_has_method_sequal_reduce = true;

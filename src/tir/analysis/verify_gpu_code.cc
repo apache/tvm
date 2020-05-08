@@ -70,7 +70,7 @@ class GPUCodeVerifier : public StmtVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::storage_scope) {
-      std::string op_value = op->value.as<StringImmNode>()->value;
+      String op_value = op->value.as<StringImmNode>()->value;
       if (op_value == "local") {
         visited_local_buffers_.insert(op->node.as<VarNode>());
       } else if (op_value == "shared") {
@@ -88,7 +88,7 @@ class GPUCodeVerifier : public StmtVisitor {
       CHECK(extent);
 
       // record the number of threads in a block
-      std::string name = var.get()->name_hint;
+      String name = var.get()->name_hint;
       if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z") {
         size_t length = static_cast<size_t>(extent->value);
         if (!visited_threads_.count(name)) {
@@ -138,7 +138,7 @@ class GPUCodeVerifier : public StmtVisitor {
 
   std::unordered_set<const VarNode *> visited_local_buffers_;
   std::unordered_set<const VarNode *> visited_shared_buffers_;
-  std::unordered_set<std::string> visited_threads_;
+  std::unordered_set<String> visited_threads_;
 
   size_t thread_x_extent_, thread_y_extent_, thread_z_extent_;
 
@@ -165,7 +165,7 @@ class GPUCodeVerifier : public StmtVisitor {
 };
 
 bool VerifyGPUCode(const PrimFunc& func,
-                   Map<std::string, PrimExpr> constraints) {
+                   Map<String, PrimExpr> constraints) {
   GPUCodeVerifier verifier;
 
   int64_t max_local_memory_per_block = INT64_MAX;
@@ -208,7 +208,7 @@ TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code")
 
 namespace transform {
 
-Pass VerifyGPUCode(Map<std::string, PrimExpr> constraints) {
+Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
       if (auto* n = kv.second.as<PrimFuncNode>()) {

@@ -51,7 +51,7 @@ using FloatImmNode = tvm::FloatImmNode;
 class StringImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
-  std::string value;
+  String value;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &dtype);
@@ -66,7 +66,7 @@ class StringImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  TVM_DLL PrimExpr static make(std::string value);
+  TVM_DLL PrimExpr static make(String value);
 
   static constexpr const char* _type_key = "StringImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, PrimExprNode);
@@ -659,7 +659,7 @@ class FunctionBaseNode : public Object {
   /*! \brief virtual destructor */
   virtual ~FunctionBaseNode() {}
   /*! \return the name of the function */
-  virtual const std::string& func_name() const = 0;
+  virtual const String& func_name() const = 0;
   /*! \return the number of outputs of this function */
   virtual int num_outputs() const = 0;
 
@@ -705,7 +705,7 @@ class CallNode : public PrimExprNode {
     PureIntrinsic = 5
   };
   /*! \brief The name of the function/intrinsic. */
-  std::string name;
+  String name;
   /*! \brief The arguments. */
   Array<PrimExpr> args;
   /*! \brief Type of calls. */
@@ -750,7 +750,7 @@ class CallNode : public PrimExprNode {
   }
 
   TVM_DLL static PrimExpr make(DataType dtype,
-                               std::string name,
+                               String name,
                                Array<PrimExpr> args,
                                CallType call_type,
                                FunctionRef func = FunctionRef(),

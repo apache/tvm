@@ -124,9 +124,9 @@ class BufferNode : public Object {
   PrimExpr elem_offset;
   // Meta data
   /*! \brief optional name of the buffer */
-  std::string name;
+  String name;
   /*! \brief storage scope of the buffer, if other than global */
-  std::string scope;
+  String scope;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -189,8 +189,8 @@ class BufferNode : public Object {
                              Array<PrimExpr> shape,
                              Array<PrimExpr> strides,
                              PrimExpr elem_offset,
-                             std::string name,
-                             std::string scope,
+                             String name,
+                             String scope,
                              int data_alignment,
                              int offset_factor,
                              BufferType buffer_type);
@@ -215,7 +215,7 @@ inline const BufferNode* Buffer::operator->() const {
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape,
                            DataType dtype = DataType::Float(32),
-                           std::string name = "buffer");
+                           String name = "buffer");
 }  // namespace tir
 }  // namespace tvm
 #endif  // TVM_TIR_BUFFER_H_

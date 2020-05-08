@@ -139,7 +139,7 @@ class DoubleBufferInjector : public StmtExprMutator {
         PrimExpr factor = make_const(new_ext.dtype(), split_loop_);
         PrimExpr outer_ext = new_ext / factor;
         PrimExpr tail_base = outer_ext * factor;
-        Var outer_var(old_loop->loop_var->name_hint + ".outer", old_loop->loop_var.dtype());
+        Var outer_var((String)((std::string)old_loop->loop_var->name_hint + ".outer"), old_loop->loop_var.dtype());
         std::unordered_map<const VarNode*, PrimExpr> vmap;
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
@@ -226,7 +226,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     PrimExpr one = make_const(e.loop->loop_var.dtype(), 1);
     PrimExpr two = make_const(e.loop->loop_var.dtype(), 2);
     PrimExpr loop_shift = e.loop->loop_var + one;
-    e.switch_write_var = Var(e.loop->loop_var->name_hint + ".db",
+    e.switch_write_var = Var((String)((std::string)e.loop->loop_var->name_hint + ".db"),
                              e.loop->loop_var.dtype());
     e.switch_read_var = indexmod(e.loop->loop_var, two);
     in_double_buffer_scope_ = true;

@@ -249,7 +249,7 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
   IterVarType iter_type = outer->iter_type;
   if (inner->iter_type > iter_type) iter_type = inner->iter_type;
   std::string fused_name =
-      outer->var->name_hint + "." + inner->var->name_hint + ".fused";
+      (std::string)outer->var->name_hint + "." + (std::string)inner->var->name_hint + ".fused";
 
   IterVar fused = IterVarNode::make(
       Range(), Var(fused_name, outer->var.dtype()), iter_type);

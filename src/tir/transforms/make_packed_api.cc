@@ -134,7 +134,7 @@ PrimFunc MakePackedAPI(PrimFunc&& func,
       seq_init.emplace_back(LetStmtNode::make(
           v_arg, f_arg_value(v_arg.dtype(), i), nop));
       // type code checks
-      Var tcode(v_arg->name_hint + ".code", DataType::Int(32));
+      Var tcode((String)((std::string)v_arg->name_hint + ".code"), DataType::Int(32));
       seq_init.emplace_back(LetStmtNode::make(
           tcode, LoadNode::make(
               DataType::Int(32), v_packed_arg_type_ids,

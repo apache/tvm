@@ -47,10 +47,10 @@ class LayoutAxis {
   static const LayoutAxis& Get(const tir::IterVar& itvar);
 
   // Get the singleton LayoutAxis using name[0] (size of name must be 1).
-  static const LayoutAxis& make(const std::string& name);
+  static const LayoutAxis& make(const String& name);
 
   inline bool IsPrimal() const { return name_ >= 'A' && name_ <= 'Z'; }
-  inline std::string name() const { return std::string(1, name_); }
+  inline String name() const { return String(std::string(1, name_)); }
 
   // if current axis is primal, switch the axis to its subordinate one,
   // else switch to the primal.
@@ -96,7 +96,7 @@ class Layout;
 class LayoutNode : public Object {
  public:
   /*! \brief string representation of layout, "" for scalar. */
-  std::string name;
+  String name;
   /*! \brief specify each axis of the layout,
    *   in which the variable name is the name of the axis.
    *   The IterVar's extent indicates the size of the axis,
@@ -110,7 +110,7 @@ class LayoutNode : public Object {
     v->Visit("axes", &axes);
   }
 
-  TVM_DLL static Layout make(const std::string& layout);
+  TVM_DLL static Layout make(const String& layout);
 
   static constexpr const char* _type_key = "Layout";
   TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
@@ -136,8 +136,8 @@ class Layout : public ObjectRef {
   explicit Layout(const Array<tir::IterVar>& axes);
 
   /*! \brief construct from a string */
-  Layout(const char* name) : Layout(std::string(name)) {} // NOLINT(*)
-
+  Layout(const char* name) : Layout(String(name)) {} // NOLINT(*)
+  Layout(const std::string& name) : Layout(String(name)) {} // NOLINT(*)
   /*!
    * \brief construct from a string.
    * \param name input in layout convention:
@@ -146,7 +146,7 @@ class Layout : public ObjectRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  Layout(const std::string& name); // NOLINT(*)
+  Layout(const String& name); // NOLINT(*)
 
   /*!
    * \brief access the internal node container
@@ -223,7 +223,7 @@ class Layout : public ObjectRef {
     for (auto dst_axis : dst_layout->axes) {
       if (LayoutAxis::Get(dst_axis).IsPrimal()) {
         if (!this->Contains(LayoutAxis::Get(dst_axis))) {
-          new_src_layout_str += dst_axis->var->name_hint;
+          new_src_layout_str += std::string(dst_axis->var->name_hint);
         }
       }
     }
@@ -244,7 +244,9 @@ class Layout : public ObjectRef {
     if (!this->defined()) return -1;
     const auto axes = operator->()->axes;
     for (size_t i = 0; i < axes.size(); ++i) {
-      if (axes[i]->var->name_hint == axis.name()) return static_cast<int32_t>(i);
+      if (axes[i]->var->name_hint.compare(axis.name()) == 0) {
+        return static_cast<int32_t>(i);
+      }
     }
     return -1;
   }
@@ -266,7 +268,7 @@ class Layout : public ObjectRef {
   bool Contains(const LayoutAxis& axis) const {
     if (!defined()) return false;
     for (const tir::IterVar var : operator->()->axes) {
-      if (var->var->name_hint == axis.name()) {
+      if (var->var->name_hint.compare(axis.name()) == 0) {
         return true;
       }
     }
@@ -282,7 +284,7 @@ class Layout : public ObjectRef {
   }
 
   /*! \return the string description of the layout */
-  inline std::string name() const {
+  inline String name() const {
     if (!defined()) return "__undef__";
     return operator->()->name;
   }

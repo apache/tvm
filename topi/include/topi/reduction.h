@@ -166,7 +166,7 @@ inline Tensor DoCommReduce(const Tensor& data,
     return func(data(eval_range), r_axes);
   };
 
-  return tvm::te::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
+  return tvm::te::compute(target_shape, compute, (std::string)data->op->name + "_red", kCommReduce);
 }
 
 /*!
@@ -251,13 +251,13 @@ inline Tensor CommReduceIdx(const Tensor& data,
   };
 
   auto temp_idx_val = tvm::te::compute(target_shape, compute,
-                                   data->op->name + "_red_temp", kCommReduceIdx);
+                                   (std::string)data->op->name + "_red_temp", kCommReduceIdx);
   auto temp_idx = temp_idx_val[0];
   auto temp_val = temp_idx_val[1];
   return tvm::te::compute(
     target_shape,
     [&temp_idx](const Array<Var>& indices) { return temp_idx(indices); },
-    data->op->name + "_red",
+    (std::string)data->op->name + "_red",
     kCommReduceIdx);
 }
 

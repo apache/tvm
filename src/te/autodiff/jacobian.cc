@@ -121,7 +121,7 @@ class JacobianMutator : public ExprMutator {
       } else if (piecewise_const.count(op->name)) {
         return FloatImm(expr.dtype(), 0.0);
       } else {
-        throw dmlc::Error("Derivative of this intrinsic is not implemented: " + op->name);
+        throw dmlc::Error("Derivative of this intrinsic is not implemented: " + (std::string)op->name);
       }
     }
     NOT_IMPLEMENTED
@@ -365,7 +365,7 @@ Tensor Jacobian(const Tensor& output, const Tensor& input) {
   }
 
   auto new_op = ComputeOpNode::make(
-      op->name + ".jacobian", op->tag, op->attrs, new_axis, new_bodies);
+      (std::string)op->name + ".jacobian", op->tag, op->attrs, new_axis, new_bodies);
 
   // Jacobian shape = output.shape + input.shape
   Array<PrimExpr> new_shape = output->shape;
