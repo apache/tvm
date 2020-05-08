@@ -67,7 +67,17 @@ namespace {
 namespace tvm {
 namespace runtime {
 RPCEnv::RPCEnv() {
+#ifndef _WIN32
+  char cwd[PATH_MAX];
+  if (char *rc = getcwd(cwd, sizeof(cwd))) {
+    base_ = std::string(cwd) + "/rpc";
+  } else {
+    base_ = "./rpc";
+  }
+#else
   base_ = "./rpc";
+#endif
+
   mkdir(base_.c_str(), 0777);
   TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([](TVMArgs args, TVMRetValue* rv) {
     static RPCEnv env;
