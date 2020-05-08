@@ -34,177 +34,179 @@ ExprPattern::ExprPattern(Expr expr) {
 
 TVM_REGISTER_NODE_TYPE(ExprPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.dataflow_pattern.ExprPattern")
-.set_body_typed([](Expr e) {
-    return ExprPattern(e);
-  });
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.ExprPattern").set_body_typed([](Expr e) {
+  return ExprPattern(e);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<ExprPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const ExprPatternNode*>(ref.get());
-    p->Print(node->expr);
-  });
+    .set_dispatch<ExprPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const ExprPatternNode*>(ref.get());
+      p->Print(node->expr);
+    });
 
-
-VarPattern VarPatternNode::make(std::string name_hint, Type type_annotation) {
+VarPattern::VarPattern(String name_hint, Type type_annotation) {
   ObjectPtr<VarPatternNode> n = make_object<VarPatternNode>();
   n->name = std::move(name_hint);
   n->type_annotation = std::move(type_annotation);
-  return VarPattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(VarPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.VarPattern")
-.set_body_typed(static_cast<VarPattern (*)(std::string, Type)>(VarPatternNode::make));
+    .set_body_typed([](String name_hint, Type type_annotation) {
+      return VarPattern(name_hint, type_annotation);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<VarPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const VarPatternNode*>(ref.get());
-    p->stream << "VarPattern(" << node->name_hint();
-    if (node->type_annotation.defined()) {
-      p->stream << ", ty=";
-      p->Print(node->type_annotation);
-    }
-    p->stream << ")";
-  });
+    .set_dispatch<VarPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const VarPatternNode*>(ref.get());
+      p->stream << "VarPattern(" << node->name_hint();
+      if (node->type_annotation.defined()) {
+        p->stream << ", ty=";
+        p->Print(node->type_annotation);
+      }
+      p->stream << ")";
+    });
 
-CallPattern CallPatternNode::make(DFPattern op, Array<DFPattern> args, Attrs attrs,
-                                  Array<Type> type_args) {
+CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
   ObjectPtr<CallPatternNode> n = make_object<CallPatternNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
   n->type_args = std::move(type_args);
-  return CallPattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(CallPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.CallPattern")
-.set_body_typed(CallPatternNode::make);
+    .set_body_typed([](DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args) {
+      return CallPattern(op, args, attrs, type_args);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<CallPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const CallPatternNode*>(ref.get());
-  p->stream << "CallPatternNode(" << node->op << ", " << node->args << ", " << node->attrs
-            << ", " << node->type_args << ")";
-});
+    .set_dispatch<CallPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const CallPatternNode*>(ref.get());
+      p->stream << "CallPatternNode(" << node->op << ", " << node->args << ", " << node->attrs
+                << ", " << node->type_args << ")";
+    });
 
-TuplePattern TuplePatternNode::make(tvm::Array<DFPattern> fields) {
+TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
   ObjectPtr<TuplePatternNode> n = make_object<TuplePatternNode>();
   n->fields = std::move(fields);
-  return TuplePattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TuplePatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.TuplePattern")
-.set_body_typed(TuplePatternNode::make);
+    .set_body_typed([](tvm::Array<DFPattern> fields) { return TuplePattern(fields); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TuplePatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const TuplePatternNode*>(ref.get());
-    p->stream << "TuplePattern(" << node->fields << ")";
-  });
+    .set_dispatch<TuplePatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TuplePatternNode*>(ref.get());
+      p->stream << "TuplePattern(" << node->fields << ")";
+    });
 
-TupleGetItemPattern TupleGetItemPatternNode::make(DFPattern tuple, int index) {
+TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) {
   ObjectPtr<TupleGetItemPatternNode> n = make_object<TupleGetItemPatternNode>();
   n->tuple = std::move(tuple);
   n->index = index;
-  return TupleGetItemPattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TupleGetItemPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.TupleGetItemPattern")
-.set_body_typed(TupleGetItemPatternNode::make);
+    .set_body_typed([](DFPattern tuple, int index) { return TupleGetItemPattern(tuple, index); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TupleGetItemPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-  auto* node = static_cast<const TupleGetItemPatternNode*>(ref.get());
-  p->stream << "TupleGetItemPatternNode(" << node->tuple << ", " << node->index << ")";
-});
+    .set_dispatch<TupleGetItemPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TupleGetItemPatternNode*>(ref.get());
+      p->stream << "TupleGetItemPatternNode(" << node->tuple << ", " << node->index << ")";
+    });
 
-AltPattern AltPatternNode::make(DFPattern left, DFPattern right) {
+AltPattern::AltPattern(DFPattern left, DFPattern right) {
   ObjectPtr<AltPatternNode> n = make_object<AltPatternNode>();
   n->left = std::move(left);
   n->right = std::move(right);
-  return AltPattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(AltPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.AltPattern")
-.set_body_typed(AltPatternNode::make);
+    .set_body_typed([](DFPattern left, DFPattern right) { return AltPattern(left, right); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<AltPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const AltPatternNode*>(ref.get());
-    p->stream << "AltPattern(" << node->left << " | " << node->right << ")";
-  });
+    .set_dispatch<AltPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const AltPatternNode*>(ref.get());
+      p->stream << "AltPattern(" << node->left << " | " << node->right << ")";
+    });
 
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
 
-TVM_REGISTER_GLOBAL("relay.dataflow_pattern.WildcardPattern")
-.set_body_typed([]() {
-    auto w = WildcardPattern(make_object<WildcardPatternNode>());
-    return w;
-  });
+TVM_REGISTER_GLOBAL("relay.dataflow_pattern.WildcardPattern").set_body_typed([]() {
+  auto w = WildcardPattern(make_object<WildcardPatternNode>());
+  return w;
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<WildcardPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    p->stream << "*";
-  });
+    .set_dispatch<WildcardPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      p->stream << "*";
+    });
 
-TypePattern TypePatternNode::make(DFPattern pattern, Type type) {
+TypePattern::TypePattern(DFPattern pattern, Type type) {
   ObjectPtr<TypePatternNode> n = make_object<TypePatternNode>();
   n->pattern = std::move(pattern);
   n->type = std::move(type);
-  return TypePattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(TypePatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.TypePattern")
-.set_body_typed(TypePatternNode::make);
+    .set_body_typed([](DFPattern pattern, Type type) { return TypePattern(pattern, type); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<TypePatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const TypePatternNode*>(ref.get());
-    p->stream << "TypePattern(" << node->pattern << " has type " << node->type << ")";
-  });
+    .set_dispatch<TypePatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const TypePatternNode*>(ref.get());
+      p->stream << "TypePattern(" << node->pattern << " has type " << node->type << ")";
+    });
 
-AttrPattern AttrPatternNode::make(DFPattern pattern, Attrs attrs) {
+AttrPattern::AttrPattern(DFPattern pattern, Attrs attrs) {
   ObjectPtr<AttrPatternNode> n = make_object<AttrPatternNode>();
   n->pattern = std::move(pattern);
   n->attrs = std::move(attrs);
-  return AttrPattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(AttrPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.AttrPattern")
-.set_body_typed(AttrPatternNode::make);
+    .set_body_typed([](DFPattern pattern, Attrs attrs) { return AttrPattern(pattern, attrs); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-.set_dispatch<AttrPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
-    auto* node = static_cast<const AttrPatternNode*>(ref.get());
-    p->stream << "AttrPattern(" << node->pattern << " has attributes " << node->attrs << ")";
-  });
+    .set_dispatch<AttrPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {
+      auto* node = static_cast<const AttrPatternNode*>(ref.get());
+      p->stream << "AttrPattern(" << node->pattern << " has attributes " << node->attrs << ")";
+    });
 
-DominatorPattern DominatorPatternNode::make(DFPattern parent, DFPattern path, DFPattern child) {
+DominatorPattern::DominatorPattern(DFPattern parent, DFPattern path, DFPattern child) {
   ObjectPtr<DominatorPatternNode> n = make_object<DominatorPatternNode>();
   n->parent = std::move(parent);
   n->path = std::move(path);
   n->child = std::move(child);
-  return DominatorPattern(n);
+  data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(DominatorPatternNode);
 
 TVM_REGISTER_GLOBAL("relay.dataflow_pattern.DominatorPattern")
-    .set_body_typed(DominatorPatternNode::make);
+    .set_body_typed([](DFPattern parent, DFPattern path, DFPattern child) {
+      return DominatorPattern(parent, path, child);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<DominatorPatternNode>([](const ObjectRef& ref, ReprPrinter* p) {

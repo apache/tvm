@@ -26,7 +26,6 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/type.h>
-#include <string>
 
 namespace tvm {
 namespace relay {
@@ -74,7 +73,7 @@ class ExprPatternNode : public DFPatternNode {
  */
 class ExprPattern : public DFPattern {
  public:
-  TVM_DLL ExprPattern(Expr expr);
+  TVM_DLL explicit ExprPattern(Expr expr);
   TVM_DEFINE_OBJECT_REF_METHODS(ExprPattern, DFPattern, ExprPatternNode);
 };
 
@@ -89,7 +88,7 @@ class VarPatternNode : public DFPatternNode {
   /*!
    * \brief The name of the Var (optional).
    */
-  std::string name;
+  String name;
   /*!
    * \brief type annotation of the variable.
    * This field records user provided type annotation of the Var.
@@ -98,7 +97,7 @@ class VarPatternNode : public DFPatternNode {
   Type type_annotation;
 
   /*! \return The name hint of the variable */
-  const std::string& name_hint() const {
+  const String& name_hint() const {
     return name;
   }
 
@@ -107,14 +106,13 @@ class VarPatternNode : public DFPatternNode {
     v->Visit("type_annotation", &type_annotation);
   }
 
-  TVM_DLL static VarPattern make(std::string name_hint, Type type_annotation);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.VarPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(VarPatternNode, DFPatternNode);
 };
 
 class VarPattern : public DFPattern {
  public:
+  TVM_DLL VarPattern(String name_hint, Type type_annotation);
   TVM_DEFINE_OBJECT_REF_METHODS(VarPattern, DFPattern, VarPatternNode);
 };
 
@@ -167,15 +165,13 @@ class CallPatternNode : public DFPatternNode {
     v->Visit("type_args", &type_args);
   }
 
-  TVM_DLL static CallPattern make(DFPattern op, Array<DFPattern> args, Attrs attrs,
-                                  Array<Type> type_args);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.CallPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallPatternNode, DFPatternNode);
 };
 
 class CallPattern : public DFPattern {
  public:
+  TVM_DLL CallPattern(DFPattern op, Array<DFPattern> args, Attrs attrs, Array<Type> type_args);
   TVM_DEFINE_OBJECT_REF_METHODS(CallPattern, DFPattern, CallPatternNode);
 };
 
@@ -191,14 +187,13 @@ class TuplePatternNode : public DFPatternNode {
     v->Visit("fields", &fields);
   }
 
-  TVM_DLL static TuplePattern make(tvm::Array<DFPattern> fields);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.TuplePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuplePatternNode, DFPatternNode);
 };
 
 class TuplePattern : public DFPattern {
  public:
+  TVM_DLL explicit TuplePattern(tvm::Array<DFPattern> fields);
   TVM_DEFINE_OBJECT_REF_METHODS(TuplePattern, DFPattern, TuplePatternNode);
 };
 
@@ -217,14 +212,13 @@ class TupleGetItemPatternNode : public DFPatternNode {
     v->Visit("index", &index);
   }
 
-  TVM_DLL static TupleGetItemPattern make(DFPattern tuple, int index);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.TupleGetItemPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemPatternNode, DFPatternNode);
 };
 
 class TupleGetItemPattern : public DFPattern {
  public:
+  TVM_DLL TupleGetItemPattern(DFPattern tuple, int index);
   TVM_DEFINE_OBJECT_REF_METHODS(TupleGetItemPattern, DFPattern, TupleGetItemPatternNode);
 };
 
@@ -244,8 +238,6 @@ class AltPatternNode : public DFPatternNode {
     v->Visit("right", &right);
   }
 
-  TVM_DLL static AltPattern make(DFPattern left, DFPattern right);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.AltPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(AltPatternNode, DFPatternNode);
 };
@@ -255,6 +247,7 @@ class AltPatternNode : public DFPatternNode {
  */
 class AltPattern : public DFPattern {
  public:
+  TVM_DLL AltPattern(DFPattern left, DFPattern right);
   TVM_DEFINE_OBJECT_REF_METHODS(AltPattern, DFPattern, AltPatternNode);
 };
 
@@ -294,8 +287,6 @@ class TypePatternNode : public DFPatternNode {
     v->Visit("type", &type);
   }
 
-  TVM_DLL static TypePattern make(DFPattern pattern, Type type);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.TypePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TypePatternNode, DFPatternNode);
 };
@@ -305,6 +296,7 @@ class TypePatternNode : public DFPatternNode {
  */
 class TypePattern : public DFPattern {
  public:
+  TVM_DLL TypePattern(DFPattern pattern, Type type);
   TVM_DEFINE_OBJECT_REF_METHODS(TypePattern, DFPattern, TypePatternNode);
 };
 
@@ -324,8 +316,6 @@ class AttrPatternNode : public DFPatternNode {
     v->Visit("attrs", &attrs);
   }
 
-  TVM_DLL static AttrPattern make(DFPattern pattern, Attrs attrs);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.AttrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrPatternNode, DFPatternNode);
 };
@@ -335,6 +325,7 @@ class AttrPatternNode : public DFPatternNode {
  */
 class AttrPattern : public DFPattern {
  public:
+  TVM_DLL AttrPattern(DFPattern pattern, Attrs attrs);
   TVM_DEFINE_OBJECT_REF_METHODS(AttrPattern, DFPattern, AttrPatternNode);
 };
 
@@ -359,8 +350,6 @@ class DominatorPatternNode : public DFPatternNode {
     v->Visit("child", &child);
   }
 
-  TVM_DLL static DominatorPattern make(DFPattern parent, DFPattern path, DFPattern child);
-
   static constexpr const char* _type_key = "relay.dataflow_pattern.DominatorPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(DominatorPatternNode, DFPatternNode);
 };
@@ -370,6 +359,7 @@ class DominatorPatternNode : public DFPatternNode {
  */
 class DominatorPattern : public DFPattern {
  public:
+  TVM_DLL  DominatorPattern(DFPattern parent, DFPattern path, DFPattern child);
   TVM_DEFINE_OBJECT_REF_METHODS(DominatorPattern, DFPattern, DominatorPatternNode);
 };
 

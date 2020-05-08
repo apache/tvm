@@ -218,11 +218,10 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
                is_expr_op(call_node->args[1], "divide"))) {
             bool out = false;
             for (size_t arg_id = 0; arg_id < 2; ++arg_id) {
-              auto div = CallPatternNode::make(op->op, {arg_node->args[arg_id], op->args[1]},
-                                               op->attrs, op->type_args);
-              auto mul =
-                  CallPatternNode::make(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div},
-                                        arg_node->attrs, arg_node->type_args);
+              auto div = CallPattern(op->op, {arg_node->args[arg_id], op->args[1]}, op->attrs,
+                                     op->type_args);
+              auto mul = CallPattern(arg_node->op, {arg_node->args[(arg_id + 1) % 2], div},
+                                     arg_node->attrs, arg_node->type_args);
               out = VisitDFPattern(mul, expr);
               if (out) {
                 return true;
@@ -241,11 +240,10 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
             if (is_pattern_op(arg_node, "divide") && is_expr_op(expr, "divide") &&
                 (is_expr_op(call_node->args[0], "multiply") ||
                  is_expr_op(call_node->args[1], "multiply"))) {
-              auto mul =
-                  CallPatternNode::make(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
-                                        op->attrs, op->type_args);
-              auto div = CallPatternNode::make(arg_node->op, {mul, arg_node->args[1]},
-                                               arg_node->attrs, arg_node->type_args);
+              auto mul = CallPattern(op->op, {arg_node->args[0], op->args[(arg_id + 1) % 2]},
+                                     op->attrs, op->type_args);
+              auto div = CallPattern(arg_node->op, {mul, arg_node->args[1]}, arg_node->attrs,
+                                     arg_node->type_args);
               return VisitDFPattern(div, expr);
             }
           }
