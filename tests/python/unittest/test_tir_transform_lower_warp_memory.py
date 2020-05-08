@@ -65,11 +65,11 @@ def test_lower_warp_memory_correct_indices():
     s[B].bind(bi, th_y)
     s[B].bind(bj, th_x)
 
-    # Get the very beginning IR, so the following transformations do not complicate the things
-    ir = tvm.driver.build_module.form_irmodule(s, [A, C], name="main", binds=None)
-    inner_func = ir["main"].body.body.body.body.body
+    bounds = tvm.te.schedule.InferBound(s)
+    ir = tvm.te.schedule.ScheduleOps(s, bounds)
+    inner_func = ir.body.body.body.body
     store_A_warp = inner_func.body.seq[0].body.body
-    indices = list(store_A_warp.indices)
+    indices = list(store_A_warp.args)
 
     # A.warp is actually many buffers, one for each warp, although they are all called A.warp
     # 1. If we are accessing from different threads within a same warp (different
