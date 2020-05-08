@@ -43,7 +43,6 @@ typedef struct TVMOpParam {
 typedef struct TVMGraphRuntimePoolEntry {
   size_t size;
   int device_type;
-  int bits;
 } TVMGraphRuntimePoolEntry;
 
 // Node entry
