@@ -129,6 +129,9 @@ def test_rpc_echo():
             raise_err()
 
         remote.cpu().sync()
+        with pytest.raises(AttributeError):
+            f3 = remote.system_lib()["notexist"]
+
 
     temp = rpc.server._server_env([])
     server = rpc.Server("localhost")
@@ -214,6 +217,7 @@ def test_rpc_remote_module():
         remote = tvm.rpc.PopenSession(path_minrpc)
         ctx = remote.cpu(0)
         f1 = remote.system_lib()
+
         a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(102, dtype=A.dtype), ctx)
         time_f = f1.time_evaluator("myadd", remote.cpu(0), number=1)
