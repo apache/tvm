@@ -613,57 +613,33 @@ class OperatorConverter(object):
     def convert_range(self, op):
         """Convert TFLite Range"""
         try:
-            from tflite.Operator import Operator
             from tflite.TensorType import TensorType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized RANGE operator is not supported yet.')
-
-        assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 3, "input tensors length should be 3"
 
         start, limit, delta = input_tensors[0], input_tensors[1], input_tensors[2]
-        expressions = []
 
-        for t in [start, limit, delta]:
-            if self.has_expr(t.tensor_idx):
-                expressions.append(self.get_expr(t.tensor_idx))
-            else:
-                tensor_type = self.get_tensor_type_str(t.tensor.Type())
-                tensor_value = self.get_tensor_value(t)
-                expressions.append(self.exp_tab.new_const(tensor_value, dtype=tensor_type))
+        expressions = [self.get_tensor_expr(t) for t in [start, limit, delta]]
 
-        #out type inference
+        # out type inference
         if delta.tensor.Type() == TensorType.FLOAT32:
             out_type = self.get_tensor_type_str(delta.tensor.Type())
         else:
             out_type = self.get_tensor_type_str(start.tensor.Type())
 
-        #put type here form op
         out = _op.arange(expressions[0], expressions[1], expressions[2], out_type)
 
         return out
 
     def convert_shape(self, op):
         """Convert TFLite Shape"""
-        try:
-            from tflite.Operator import Operator
-        except ImportError:
-            raise ImportError("The tflite package must be installed")
-
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented(
-                'TFlite quantized SHAPE operator is not supported yet.')
-
-        assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
 
-        out = _op.shape_of(self.get_expr(input_tensors[0].tensor_idx))
+        out = _op.shape_of(self.get_tensor_expr(input_tensors[0]))
 
         return out
 

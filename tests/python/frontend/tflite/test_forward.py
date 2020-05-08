@@ -244,7 +244,7 @@ def compare_tflite_with_tvm(in_data, in_name, input_tensors,
                 continue
 
             tvm_output = run_tvm_graph(tflite_model_buffer, in_data, in_node, target=device,
-                                       num_output=len(out_names), out_names=out_names,mode=mode)
+                                       num_output=len(out_names), out_names=out_names, mode=mode)
 
             # WARNING: the results could well be random values clipped to 0 or 255 because of badly tuned output
             # range for the specific operator. While adding test ensure that we aren't getting only clipped values
@@ -978,6 +978,7 @@ def test_forward_shape():
                 mode="vm",
                 quantized=False
             )
+
 #######################################################################
 # Concatenation
 # -------------
