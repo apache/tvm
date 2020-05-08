@@ -773,12 +773,37 @@ void VirtualMachine::InvokePacked(Index packed_index, const PackedFunc& func, In
       }
     } else {
       auto nd_array = Downcast<NDArray>(args[i]);
+      const DLTensor* tensor = nd_array.operator->();
+      LOG(INFO) << "argsss:: " << tensor->ndim << " size:: " << runtime::GetDataSize(*tensor);
+
+      int64_t* shapes = reinterpret_cast<int64_t*>(tensor->shape);
+      for (auto i = 0; i < tensor->ndim; i++) {
+        std::cout << shapes[i] << "  ";
+      }
+
+      std::cout << std::endl << std::endl;
+
+      if (tensor->dtype.bits == 32) {
+        float* data = reinterpret_cast<float*>(tensor->data);
+        for (uint64_t i = 0; i < GetDataSize(*tensor) / (tensor->dtype.bits / 8); i++) {
+          std::cout << data[i] << "  ";
+        }
+        std::cout << std::endl;
+      } else {
+        int64_t* data = reinterpret_cast<int64_t*>(tensor->data);
+        for (uint64_t i = 0; i < GetDataSize(*tensor) / (tensor->dtype.bits / 8); i++) {
+          std::cout << data[i] << "  ";
+        }
+        std::cout << std::endl;
+      }
       setter(idx++, nd_array);
     }
   }
 
   TVMRetValue rv;
+  LOG(INFO) << "calling::: " << packed_index;
   func.CallPacked(TVMArgs(values.data(), codes.data(), arity), &rv);
+  LOG(INFO) << "calling::: " << packed_index << "donnneee";
 }
 
 void VirtualMachine::LoadExecutable(const Executable* exec) {
@@ -798,6 +823,7 @@ void VirtualMachine::LoadExecutable(const Executable* exec) {
     }
     tvm::runtime::PackedFunc pf = lib.GetFunction(packed_name, true);
     CHECK(pf != nullptr) << "Cannot find function in module: " << packed_name;
+    LOG(INFO) << "----:: " << packed_index << "  " << packed_name;
     packed_funcs_[packed_index] = pf;
   }
 }
@@ -837,7 +863,7 @@ void VirtualMachine::RunLoop() {
   while (true) {
   main_loop:
     auto const& instr = code_[this->pc_];
-    DLOG(INFO) << "Executing(" << pc_ << "): " << instr;
+    LOG(INFO) << "Executing(" << pc_ << "): " << instr;
 #if USE_RELAY_DEBUG
     InstructionPrint(std::cout, instr);
 #endif  // USE_RELAY_DEBUG
@@ -855,6 +881,18 @@ void VirtualMachine::RunLoop() {
       }
       case Opcode::LoadConst: {
         auto constant_obj = exec_->constants[instr.const_index];
+        auto arr = Downcast<NDArray>(constant_obj);
+        const DLTensor* tensor = arr.operator->();
+        if (tensor->ndim == 0) {
+          LOG(INFO) << "const:: " << reinterpret_cast<int64_t*>(tensor->data)[0];
+        } else {
+          LOG(INFO) << "const:: " << tensor->ndim << "  "
+                    << reinterpret_cast<int64_t*>(tensor->shape)[0];
+          int64_t* data = reinterpret_cast<int64_t*>(tensor->data);
+          for (auto i = 0; i < reinterpret_cast<int64_t*>(tensor->shape)[0]; i++) {
+            std::cout << data[i] << "  ";
+          }
+        }
         // We cache the allocated object in the constant pool. To measure, the
         // first iteration will set the pool up. The other iterations will
         // directly reuse the allocated objects.
@@ -989,15 +1027,25 @@ void VirtualMachine::RunLoop() {
           shape.assign(dims, dims + num_dims);
         }
 
+        LOG(INFO) << "input:: " << instr.dst << " " << shape.size() << " " << dl_tensor->ndim;
+        for (auto i = 0; i < shape.size(); i++) {
+          LOG(INFO) << shape[i];
+        }
+
         auto storage_obj = ReadRegister(instr.alloc_tensor_reg.storage);
         auto storage = Downcast<Storage>(storage_obj);
         auto offset = LoadScalarInt(instr.alloc_tensor.offset);
         auto obj = storage->AllocNDArray(offset, shape, instr.alloc_tensor_reg.dtype);
+
+        const DLTensor* tensor = obj.operator->();
+        LOG(INFO) << "output:: " << tensor->ndim << " size:: " << runtime::GetDataSize(*tensor);
+
         std::cout << "shape = (";
         for (auto sh : obj.Shape()) {
           std::cout << sh << ",";
         }
         std::cout << ")";
+
         WriteRegister(instr.dst, obj);
         pc_++;
         goto main_loop;
